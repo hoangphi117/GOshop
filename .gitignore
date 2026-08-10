@@ -1,0 +1,33 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+
+# Go workspace
+go.work
+go.work.sum
+
+# Secrets / env
+.env
+.env.local
+
+# Runtime data
+internal/logs/*.log
+
+# Database dumps
+backupdb.sql
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+*.swp
+
+# CI
+coverage.out
