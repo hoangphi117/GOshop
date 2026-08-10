@@ -40,6 +40,10 @@ func NewApplication(cfg *config.Config) *Application {
 
 	r := gin.Default()
 
+	if err := db.InitDB(); err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
+
 	ctx := &ModuleContext{
 		DB: db.DB,
 	}
