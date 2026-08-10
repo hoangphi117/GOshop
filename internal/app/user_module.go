@@ -12,10 +12,10 @@ type UserModule struct {
 	routes routes.Route
 }
 
-func NewUserModule() *UserModule {
+func NewUserModule(ctx *ModuleContext) *UserModule {
 
 	// Initialize repository
-	userRepo := repository.NewSqlUserRepository()
+	userRepo := repository.NewSqlUserRepository(ctx.DB)
 
 	// Initialize service
 	userService := v1service.NewUserService(userRepo)

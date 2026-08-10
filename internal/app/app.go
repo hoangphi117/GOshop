@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"goshop/internal/config"
+	"goshop/internal/db"
+	"goshop/internal/db/sqlc"
 	"goshop/internal/routes"
 	"goshop/internal/validation"
 	"log"
@@ -26,6 +28,10 @@ type Application struct {
 	modules []Module
 }
 
+type ModuleContext struct {
+	DB sqlc.Querier
+}
+
 func NewApplication(cfg *config.Config) *Application {
 
 	validation.InitValidator()
@@ -34,8 +40,12 @@ func NewApplication(cfg *config.Config) *Application {
 
 	r := gin.Default()
 
+	ctx := &ModuleContext{
+		DB: db.DB,
+	}
+
 	modules := []Module{
-		NewUserModule(),
+		NewUserModule(ctx),
 	}
 
 	routes.RegisterRoutes(r, getModuleRoutes(modules)...)
