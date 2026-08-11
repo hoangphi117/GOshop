@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"goshop/pkg/logger"
 	"io"
 	"net/url"
 	"strings"
@@ -115,6 +116,7 @@ func LoggerMiddleware(httpLogger *zerolog.Logger) gin.HandlerFunc {
 		}
 
 		logEvent.
+			Str("trace_id", logger.GetTraceId(ctx.Request.Context())).
 			Str("method", ctx.Request.Method).
 			Str("path", ctx.Request.URL.Path).
 			Str("query", ctx.Request.URL.RawQuery).

@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"goshop/internal/config"
 	"goshop/internal/db/sqlc"
+	"goshop/internal/utils"
+	"goshop/pkg/pgx"
 	"log"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/tracelog"
 )
 
 var DB sqlc.Querier
@@ -19,6 +22,16 @@ func InitDB() error {
 	conf, err := pgxpool.ParseConfig(connStr)
 	if err != nil {
 		return fmt.Errorf("error parsing DB config: %w", err)
+	}
+
+	sqlLogger := utils.NewLoggerWithPath("../../internal/logs/sql.log", "info")
+
+	conf.ConnConfig.Tracer = &tracelog.TraceLog{
+		Logger: &pgx.PgxZerologTracer{
+			Logger:         *sqlLogger,
+			SlowQueryLimit: 500 * time.Millisecond,
+		},
+		LogLevel: tracelog.LogLevelDebug,
 	}
 
 	conf.MaxConns = 50
