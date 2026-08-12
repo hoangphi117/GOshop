@@ -3,6 +3,8 @@ package v1dto
 import (
 	"goshop/internal/db/sqlc"
 	"goshop/internal/utils"
+
+	"github.com/google/uuid"
 )
 
 type UserDTO struct {
@@ -18,19 +20,18 @@ type UserDTO struct {
 type CreateUserInput struct {
 	Name     string `json:"name" binding:"required"`
 	Email    string `json:"email" binding:"required,email,email_advanced"`
-	Age      int    `json:"age" binding:"omitempty,gt=0"`
+	Age      int32  `json:"age" binding:"omitempty,gt=0"`
 	Password string `json:"password" binding:"required,min=6,password_strong"`
-	Status   int    `json:"status" binding:"required,oneof=1 2 3"`
-	Level    int    `json:"level" binding:"required,oneof=1 2 3"`
+	Status   int32  `json:"status" binding:"required,oneof=1 2 3"`
+	Level    int32  `json:"level" binding:"required,oneof=1 2 3"`
 }
 
 type UpdateUserInput struct {
-	Name     string `json:"name" binding:"required"`
-	Email    string `json:"email" binding:"required,email,email_advanced"`
-	Age      int    `json:"age" binding:"required,gt=0"`
-	Password string `json:"password" binding:"omitempty,min=6,password_strong"`
-	Status   int    `json:"status" binding:"required,oneof=1 2"`
-	Level    int    `json:"level" binding:"required,oneof=1 2"`
+	Name     *string `json:"name" binding:"omitempty"`
+	Age      *int32  `json:"age" binding:"omitempty,gt=0"`
+	Password *string `json:"password" binding:"omitempty,min=6,password_strong"`
+	Status   *int32  `json:"status" binding:"omitempty,oneof=1 2"`
+	Level    *int32  `json:"level" binding:"omitempty,oneof=1 2"`
 }
 
 type GetUserByUuidParam struct {
@@ -51,13 +52,20 @@ func (input *CreateUserInput) MapCreateInputToModel() sqlc.CreateUserParams {
 		UserEmail:    input.Email,
 		UserAge:      utils.ConvertToInt32Pointer(input.Age),
 		UserPassword: input.Password,
-		UserStatus:   int32(input.Status),
-		UserLevel:    int32(input.Level),
+		UserStatus:   input.Status,
+		UserLevel:    input.Level,
 	}
 }
 
-func (input *UpdateUserInput) MapUpdateInputToModel() {
-
+func (input *UpdateUserInput) MapUpdateInputToModel(userUuid uuid.UUID) sqlc.UpdateUserParams {
+	return sqlc.UpdateUserParams{
+		UserUuid:     userUuid,
+		UserFullname: input.Name,
+		UserAge:      input.Age,
+		UserPassword: input.Password,
+		UserStatus:   input.Status,
+		UserLevel:    input.Level,
+	}
 }
 
 func MapUserToDTO(user sqlc.User) *UserDTO {

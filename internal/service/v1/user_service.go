@@ -1,6 +1,7 @@
 package v1service
 
 import (
+	"database/sql"
 	"errors"
 	"goshop/internal/db/sqlc"
 	"goshop/internal/repository"
@@ -91,7 +92,27 @@ func (us *userService) GetUserByUUID(uuid string) {
 
 }
 
-func (us *userService) UpdateUser(uuid string) {
+func (us *userService) UpdateUser(ctx *gin.Context, input sqlc.UpdateUserParams) (sqlc.User, error) {
+	context := ctx.Request.Context()
+
+	if input.UserPassword != nil && *input.UserPassword != "" {
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(*input.UserPassword), bcrypt.DefaultCost)
+		if err != nil {
+			return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to hash password", err)
+		}
+		hashed := string(hashedPassword)
+		input.UserPassword = &hashed
+	}
+
+	updatedUser, err := us.repo.Update(context, input)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return sqlc.User{}, utils.NewError(utils.ErrCodeNotFound, "user not found")
+		}
+		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to update user", err)
+	}
+
+	return updatedUser, nil
 }
 
 func (us *userService) DeleteUser(uuid string) {

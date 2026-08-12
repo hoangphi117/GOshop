@@ -32,7 +32,6 @@ AND (
 ORDER BY user_id ASC
 LIMIT $1 OFFSET $2;
 
-
 -- name: ListUserUserIdDesc :many
 SELECT *
 FROM users
@@ -44,7 +43,6 @@ AND (
 )
 ORDER BY user_id DESC
 LIMIT $1 OFFSET $2;
-
 
 -- name: ListUserUserCreatedAtAsc :many
 SELECT *
@@ -58,7 +56,6 @@ AND (
 ORDER BY user_created_at ASC, user_id ASC
 LIMIT $1 OFFSET $2;
 
-
 -- name: ListUserUserCreatedAtDesc :many
 SELECT *
 FROM users
@@ -70,3 +67,16 @@ AND (
 )
 ORDER BY user_created_at DESC, user_id DESC
 LIMIT $1 OFFSET $2;
+
+-- name: UpdateUser :one
+UPDATE users
+SET
+    user_fullname = COALESCE(sqlc.narg(user_fullname), user_fullname),
+    user_password = COALESCE(sqlc.narg(user_password), user_password),
+    user_age = COALESCE(sqlc.narg(user_age), user_age),
+    user_status = COALESCE(sqlc.narg(user_status), user_status),
+    user_level = COALESCE(sqlc.narg(user_level), user_level)
+WHERE 
+    user_uuid = sqlc.arg(user_uuid)
+    AND user_deleted_at IS NULL
+RETURNING *;
