@@ -69,7 +69,21 @@ func (uh *UserHandler) GetUserByUUID(ctx *gin.Context) {
 		return
 	}
 
-	utils.ResponseSuccess(ctx, http.StatusOK, "User found")
+	userUuid, err := uuid.Parse(params.Uuid)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	user, err := uh.service.GetUserByUUID(ctx, userUuid)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	userDTO := v1dto.MapUserToDTO(user)
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Get user successfully", userDTO)
 }
 
 func (uh *UserHandler) UpdateUser(ctx *gin.Context) {
@@ -173,3 +187,5 @@ func (uh *UserHandler) TrashUser(ctx *gin.Context) {
 
 	utils.ResponseStatusCode(ctx, http.StatusNoContent)
 }
+
+func (uh *UserHandler) GetSoftDeletedUsers(ctx *gin.Context) {}

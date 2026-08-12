@@ -10,7 +10,7 @@ import (
 type UserService interface {
 	GetAllUsers(ctx *gin.Context, search, orderBy, sort string, page, limit int32) ([]sqlc.User, int32, error)
 	CreateUsers(ctx *gin.Context, input sqlc.CreateUserParams) (sqlc.User, error)
-	GetUserByUUID(uuid string)
+	GetUserByUUID(ctx *gin.Context, uuid uuid.UUID) (sqlc.User, error)
 	UpdateUser(ctx *gin.Context, input sqlc.UpdateUserParams) (sqlc.User, error)
 	SoftDeleteUser(ctx *gin.Context, uuid uuid.UUID) (sqlc.User, error)
 	RestoreUser(ctx *gin.Context, uuid uuid.UUID) (sqlc.User, error)

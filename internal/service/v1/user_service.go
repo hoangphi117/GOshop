@@ -89,8 +89,19 @@ func (us *userService) CreateUsers(ctx *gin.Context, input sqlc.CreateUserParams
 	return user, nil
 }
 
-func (us *userService) GetUserByUUID(uuid string) {
+func (us *userService) GetUserByUUID(ctx *gin.Context, uuid uuid.UUID) (sqlc.User, error) {
 
+	context := ctx.Request.Context()
+
+	user, err := us.repo.GetByUUID(context, uuid)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return sqlc.User{}, utils.NewError(utils.ErrCodeNotFound, "user not found")
+		}
+		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to get user", err)
+	}
+
+	return user, nil
 }
 
 func (us *userService) UpdateUser(ctx *gin.Context, input sqlc.UpdateUserParams) (sqlc.User, error) {
