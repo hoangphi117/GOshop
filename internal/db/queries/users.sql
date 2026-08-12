@@ -13,8 +13,11 @@ RETURNING *;
 -- name: CountUsers :one
 SELECT count(*)
 FROM users
-WHERE user_deleted_at IS NULL
-AND (
+WHERE (
+    sqlc.narg(deleted)::bool IS NULL
+    OR sqlc.narg(deleted)::bool = TRUE AND user_deleted_at IS NOT NULL
+    OR sqlc.narg(deleted)::bool = FALSE AND user_deleted_at IS NULL
+) AND (
     sqlc.narg(search)::TEXT IS NULL
     OR user_email ILIKE '%' || sqlc.narg(search)::TEXT || '%'
     OR user_fullname ILIKE '%' || sqlc.narg(search)::TEXT || '%'

@@ -29,7 +29,7 @@ func (uh *UserHandler) GetAllUsers(ctx *gin.Context) {
 		return
 	}
 
-	listUser, total, err := uh.service.GetAllUsers(ctx, params.Search, params.OrderBy, params.Sort, params.Page, params.Limit)
+	listUser, total, err := uh.service.GetAllUsers(ctx, params.Search, params.OrderBy, params.Sort, params.Page, params.Limit, false)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -39,7 +39,7 @@ func (uh *UserHandler) GetAllUsers(ctx *gin.Context) {
 
 	paginationResponse := utils.NewPaginationResponse(listUserDTO, params.Page, params.Limit, total)
 
-	utils.ResponseSuccess(ctx, http.StatusOK, "", paginationResponse)
+	utils.ResponseSuccess(ctx, http.StatusOK, "Get users successfully", paginationResponse)
 }
 
 func (uh *UserHandler) CreateUsers(ctx *gin.Context) {
@@ -188,4 +188,22 @@ func (uh *UserHandler) TrashUser(ctx *gin.Context) {
 	utils.ResponseStatusCode(ctx, http.StatusNoContent)
 }
 
-func (uh *UserHandler) GetSoftDeletedUsers(ctx *gin.Context) {}
+func (uh *UserHandler) GetSoftDeletedUsers(ctx *gin.Context) {
+	var params v1dto.GetUserParam
+	if err := ctx.ShouldBindQuery(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	listUser, total, err := uh.service.GetAllUsers(ctx, params.Search, params.OrderBy, params.Sort, params.Page, params.Limit, true)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	listUserDTO := v1dto.MapListUsersToDTO(listUser)
+
+	paginationResponse := utils.NewPaginationResponse(listUserDTO, params.Page, params.Limit, total)
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Get soft deleted users successfully", paginationResponse)
+}
