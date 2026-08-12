@@ -9,6 +9,24 @@ import (
 	"context"
 )
 
+const countUsers = `-- name: CountUsers :one
+SELECT count(*)
+FROM users
+WHERE user_deleted_at IS NULL
+AND (
+    $1::TEXT IS NULL
+    OR user_email ILIKE '%' || $1::TEXT || '%'
+    OR user_fullname ILIKE '%' || $1::TEXT || '%'
+)
+`
+
+func (q *Queries) CountUsers(ctx context.Context, search string) (int64, error) {
+	row := q.db.QueryRow(ctx, countUsers, search)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (
     user_fullname,
@@ -17,7 +35,9 @@ INSERT INTO users (
     user_age,
     user_status,
     user_level
-) VALUES ($1, $2, $3, $4, $5, $6) RETURNING user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at
+)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at
 `
 
 type CreateUserParams struct {
@@ -53,4 +73,208 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.UserUpdatedAt,
 	)
 	return i, err
+}
+
+const listUserUserCreatedAtAsc = `-- name: ListUserUserCreatedAtAsc :many
+SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at
+FROM users
+WHERE user_deleted_at IS NULL
+AND (
+    $3::TEXT IS NULL
+    OR user_email ILIKE '%' || $3::TEXT || '%'
+    OR user_fullname ILIKE '%' || $3::TEXT || '%'
+)
+ORDER BY user_created_at ASC, user_id ASC
+LIMIT $1 OFFSET $2
+`
+
+type ListUserUserCreatedAtAscParams struct {
+	Limit  int32  `json:"limit"`
+	Offset int32  `json:"offset"`
+	Search string `json:"search"`
+}
+
+func (q *Queries) ListUserUserCreatedAtAsc(ctx context.Context, arg ListUserUserCreatedAtAscParams) ([]User, error) {
+	rows, err := q.db.Query(ctx, listUserUserCreatedAtAsc, arg.Limit, arg.Offset, arg.Search)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.UserID,
+			&i.UserUuid,
+			&i.UserFullname,
+			&i.UserEmail,
+			&i.UserPassword,
+			&i.UserAge,
+			&i.UserStatus,
+			&i.UserLevel,
+			&i.UserDeletedAt,
+			&i.UserCreatedAt,
+			&i.UserUpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUserUserCreatedAtDesc = `-- name: ListUserUserCreatedAtDesc :many
+SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at
+FROM users
+WHERE user_deleted_at IS NULL
+AND (
+    $3::TEXT IS NULL
+    OR user_email ILIKE '%' || $3::TEXT || '%'
+    OR user_fullname ILIKE '%' || $3::TEXT || '%'
+)
+ORDER BY user_created_at DESC, user_id DESC
+LIMIT $1 OFFSET $2
+`
+
+type ListUserUserCreatedAtDescParams struct {
+	Limit  int32  `json:"limit"`
+	Offset int32  `json:"offset"`
+	Search string `json:"search"`
+}
+
+func (q *Queries) ListUserUserCreatedAtDesc(ctx context.Context, arg ListUserUserCreatedAtDescParams) ([]User, error) {
+	rows, err := q.db.Query(ctx, listUserUserCreatedAtDesc, arg.Limit, arg.Offset, arg.Search)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.UserID,
+			&i.UserUuid,
+			&i.UserFullname,
+			&i.UserEmail,
+			&i.UserPassword,
+			&i.UserAge,
+			&i.UserStatus,
+			&i.UserLevel,
+			&i.UserDeletedAt,
+			&i.UserCreatedAt,
+			&i.UserUpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUserUserIdAsc = `-- name: ListUserUserIdAsc :many
+SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at
+FROM users
+WHERE user_deleted_at IS NULL
+AND (
+    $3::TEXT IS NULL
+    OR user_email ILIKE '%' || $3::TEXT || '%'
+    OR user_fullname ILIKE '%' || $3::TEXT || '%'
+)
+ORDER BY user_id ASC
+LIMIT $1 OFFSET $2
+`
+
+type ListUserUserIdAscParams struct {
+	Limit  int32  `json:"limit"`
+	Offset int32  `json:"offset"`
+	Search string `json:"search"`
+}
+
+func (q *Queries) ListUserUserIdAsc(ctx context.Context, arg ListUserUserIdAscParams) ([]User, error) {
+	rows, err := q.db.Query(ctx, listUserUserIdAsc, arg.Limit, arg.Offset, arg.Search)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.UserID,
+			&i.UserUuid,
+			&i.UserFullname,
+			&i.UserEmail,
+			&i.UserPassword,
+			&i.UserAge,
+			&i.UserStatus,
+			&i.UserLevel,
+			&i.UserDeletedAt,
+			&i.UserCreatedAt,
+			&i.UserUpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUserUserIdDesc = `-- name: ListUserUserIdDesc :many
+SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at
+FROM users
+WHERE user_deleted_at IS NULL
+AND (
+    $3::TEXT IS NULL
+    OR user_email ILIKE '%' || $3::TEXT || '%'
+    OR user_fullname ILIKE '%' || $3::TEXT || '%'
+)
+ORDER BY user_id DESC
+LIMIT $1 OFFSET $2
+`
+
+type ListUserUserIdDescParams struct {
+	Limit  int32  `json:"limit"`
+	Offset int32  `json:"offset"`
+	Search string `json:"search"`
+}
+
+func (q *Queries) ListUserUserIdDesc(ctx context.Context, arg ListUserUserIdDescParams) ([]User, error) {
+	rows, err := q.db.Query(ctx, listUserUserIdDesc, arg.Limit, arg.Offset, arg.Search)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.UserID,
+			&i.UserUuid,
+			&i.UserFullname,
+			&i.UserEmail,
+			&i.UserPassword,
+			&i.UserAge,
+			&i.UserStatus,
+			&i.UserLevel,
+			&i.UserDeletedAt,
+			&i.UserCreatedAt,
+			&i.UserUpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

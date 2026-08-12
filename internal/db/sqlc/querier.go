@@ -9,7 +9,12 @@ import (
 )
 
 type Querier interface {
+	CountUsers(ctx context.Context, search string) (int64, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	ListUserUserCreatedAtAsc(ctx context.Context, arg ListUserUserCreatedAtAscParams) ([]User, error)
+	ListUserUserCreatedAtDesc(ctx context.Context, arg ListUserUserCreatedAtDescParams) ([]User, error)
+	ListUserUserIdAsc(ctx context.Context, arg ListUserUserIdAscParams) ([]User, error)
+	ListUserUserIdDesc(ctx context.Context, arg ListUserUserIdDescParams) ([]User, error)
 }
 
 var _ Querier = (*Queries)(nil)
