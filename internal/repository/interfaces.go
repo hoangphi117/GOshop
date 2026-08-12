@@ -3,6 +3,8 @@ package repository
 import (
 	"context"
 	"goshop/internal/db/sqlc"
+
+	"github.com/google/uuid"
 )
 
 type UserRepository interface {
@@ -12,6 +14,8 @@ type UserRepository interface {
 	Create(ctx context.Context, input sqlc.CreateUserParams) (sqlc.User, error)
 	FindByUUID(uuid string)
 	Update(ctx context.Context, input sqlc.UpdateUserParams) (sqlc.User, error)
-	Delete(uuid string)
+	SoftDelete(ctx context.Context, uuid uuid.UUID) (sqlc.User, error)
+	Restore(ctx context.Context, uuid uuid.UUID) (sqlc.User, error)
+	Trash(ctx context.Context, uuid uuid.UUID) (sqlc.User, error)
 	FindByEmail(email string)
 }

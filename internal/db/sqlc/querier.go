@@ -6,6 +6,8 @@ package sqlc
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 type Querier interface {
@@ -15,6 +17,9 @@ type Querier interface {
 	ListUserUserCreatedAtDesc(ctx context.Context, arg ListUserUserCreatedAtDescParams) ([]User, error)
 	ListUserUserIdAsc(ctx context.Context, arg ListUserUserIdAscParams) ([]User, error)
 	ListUserUserIdDesc(ctx context.Context, arg ListUserUserIdDescParams) ([]User, error)
+	RestoreUser(ctx context.Context, userUuid uuid.UUID) (User, error)
+	SoftDeleteUser(ctx context.Context, userUuid uuid.UUID) (User, error)
+	TrashUser(ctx context.Context, userUuid uuid.UUID) (User, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 }
 

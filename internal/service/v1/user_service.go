@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -115,5 +116,44 @@ func (us *userService) UpdateUser(ctx *gin.Context, input sqlc.UpdateUserParams)
 	return updatedUser, nil
 }
 
-func (us *userService) DeleteUser(uuid string) {
+func (us *userService) SoftDeleteUser(ctx *gin.Context, uuid uuid.UUID) (sqlc.User, error) {
+	context := ctx.Request.Context()
+
+	user, err := us.repo.SoftDelete(context, uuid)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return sqlc.User{}, utils.NewError(utils.ErrCodeNotFound, "user not found")
+		}
+		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to soft delete user", err)
+	}
+
+	return user, nil
+}
+
+func (us *userService) RestoreUser(ctx *gin.Context, uuid uuid.UUID) (sqlc.User, error) {
+	context := ctx.Request.Context()
+
+	user, err := us.repo.Restore(context, uuid)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return sqlc.User{}, utils.NewError(utils.ErrCodeNotFound, "user not found or not soft deleted for restoration")
+		}
+		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to restore user", err)
+	}
+
+	return user, nil
+}
+
+func (us *userService) TrashUser(ctx *gin.Context, uuid uuid.UUID) error {
+	context := ctx.Request.Context()
+
+	_, err := us.repo.Trash(context, uuid)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return utils.NewError(utils.ErrCodeNotFound, "user not found or not soft deleted for permanent deletion")
+		}
+		return utils.WrapError(utils.ErrCodeInternal, "failed to trash user", err)
+	}
+
+	return nil
 }

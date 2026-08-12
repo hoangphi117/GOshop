@@ -104,10 +104,70 @@ func (uh *UserHandler) UpdateUser(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "User updated successfully", updatedUserDTO)
 }
 
-func (uh *UserHandler) DeleteUser(ctx *gin.Context) {
+func (uh *UserHandler) SoftDeleteUser(ctx *gin.Context) {
 	var params v1dto.GetUserByUuidParam
 	if err := ctx.ShouldBindUri(&params); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	userUuid, err := uuid.Parse(params.Uuid)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	softDeletedUser, err := uh.service.SoftDeleteUser(ctx, userUuid)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	softDeletedUserDTO := v1dto.MapUserToDTO(softDeletedUser)
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "User soft deleted successfully", softDeletedUserDTO)
+}
+
+func (uh *UserHandler) RestoreUser(ctx *gin.Context) {
+	var params v1dto.GetUserByUuidParam
+	if err := ctx.ShouldBindUri(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	userUuid, err := uuid.Parse(params.Uuid)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	restoredUser, err := uh.service.RestoreUser(ctx, userUuid)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	restoredUserDTO := v1dto.MapUserToDTO(restoredUser)
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "User restored successfully", restoredUserDTO)
+}
+
+func (uh *UserHandler) TrashUser(ctx *gin.Context) {
+	var params v1dto.GetUserByUuidParam
+	if err := ctx.ShouldBindUri(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	userUuid, err := uuid.Parse(params.Uuid)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	err = uh.service.TrashUser(ctx, userUuid)
+	if err != nil {
+		utils.ResponseError(ctx, err)
 		return
 	}
 
