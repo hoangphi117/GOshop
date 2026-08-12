@@ -38,7 +38,7 @@ func (uh *UserHandler) GetAllUsers(ctx *gin.Context) {
 
 	paginationResponse := utils.NewPaginationResponse(listUserDTO, params.Page, params.Limit, total)
 
-	utils.ResponseSuccess(ctx, http.StatusOK, paginationResponse)
+	utils.ResponseSuccess(ctx, http.StatusOK, "", paginationResponse)
 }
 
 func (uh *UserHandler) CreateUsers(ctx *gin.Context) {
@@ -58,7 +58,7 @@ func (uh *UserHandler) CreateUsers(ctx *gin.Context) {
 
 	createdUserDTO := v1dto.MapUserToDTO(createdUser)
 
-	utils.ResponseSuccess(ctx, http.StatusCreated, createdUserDTO)
+	utils.ResponseSuccess(ctx, http.StatusCreated, "User created successfully", createdUserDTO)
 }
 
 func (uh *UserHandler) GetUserByUUID(ctx *gin.Context) {
@@ -68,7 +68,7 @@ func (uh *UserHandler) GetUserByUUID(ctx *gin.Context) {
 		return
 	}
 
-	utils.ResponseSuccess(ctx, http.StatusOK, "")
+	utils.ResponseSuccess(ctx, http.StatusOK, "User found")
 }
 
 func (uh *UserHandler) UpdateUser(ctx *gin.Context) {

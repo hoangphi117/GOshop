@@ -50,7 +50,7 @@ func (us *userService) GetAllUsers(ctx *gin.Context, search, orderBy, sort strin
 
 	offset := (page - 1) * limit
 
-	listUsers, err := us.repo.GetAll(context, search, orderBy, sort, limit, offset)
+	listUsers, err := us.repo.GetAllV2(context, search, orderBy, sort, limit, offset)
 	if err != nil {
 		return []sqlc.User{}, 0, utils.WrapError(utils.ErrCodeInternal, "failed to fetch user list", err)
 	}

@@ -27,3 +27,10 @@ func ConvertToInt32Pointer(value int) *int32 {
 	int32Value := int32(value)
 	return &int32Value
 }
+
+func CapitalizeFirstLetter(str string) string {
+	if len(str) == 0 {
+		return str
+	}
+	return strings.ToUpper(string(str[0])) + str[1:]
+}
