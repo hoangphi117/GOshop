@@ -3,24 +3,31 @@ package v1service
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"goshop/internal/db/sqlc"
 	"goshop/internal/repository"
 	"goshop/internal/utils"
-	"strconv"
+	"goshop/pkg/cache"
+	"log"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type userService struct {
-	repo repository.UserRepository
+	repo  repository.UserRepository
+	cache *cache.RedisCacheService
 }
 
-func NewUserService(repo repository.UserRepository) UserService {
+func NewUserService(repo repository.UserRepository, redisClient *redis.Client) UserService {
 	return &userService{
-		repo: repo,
+		repo:  repo,
+		cache: cache.NewRedisCacheService(redisClient),
 	}
 }
 
@@ -41,16 +48,22 @@ func (us *userService) GetAllUsers(ctx *gin.Context, search, orderBy, sort strin
 	}
 
 	if limit <= 0 {
-		envLimit := utils.GetEnv("DEFAULT_LIMIT", "10")
-		limitInt, err := strconv.Atoi(envLimit)
-		if err != nil || limitInt <= 0 {
-			limitInt = 10
-		}
-
+		limitInt := utils.GetIntEnv("DEFAULT_LIMIT", 10)
 		limit = int32(limitInt)
 	}
 
 	offset := (page - 1) * limit
+
+	/** Cache Redis **/
+	cacheKey := us.generateCacheKey(search, orderBy, sort, page, limit, deleted)
+	var cacheData struct {
+		Users []sqlc.User `json:"users"`
+		Total int32       `json:"total"`
+	}
+
+	if err := us.cache.Get(cacheKey, &cacheData); err == nil && cacheData.Users != nil {
+		return cacheData.Users, cacheData.Total, nil
+	}
 
 	listUsers, err := us.repo.GetAllV2(context, search, orderBy, sort, limit, offset, deleted)
 	if err != nil {
@@ -61,6 +74,16 @@ func (us *userService) GetAllUsers(ctx *gin.Context, search, orderBy, sort strin
 	if err != nil {
 		return []sqlc.User{}, 0, utils.WrapError(utils.ErrCodeInternal, "failed to count users", err)
 	}
+
+	// Create cache data
+	cacheData = struct {
+		Users []sqlc.User `json:"users"`
+		Total int32       `json:"total"`
+	}{
+		Users: listUsers,
+		Total: int32(total),
+	}
+	us.cache.Set(cacheKey, cacheData, 5*time.Minute)
 
 	return listUsers, int32(total), nil
 }
@@ -84,6 +107,11 @@ func (us *userService) CreateUsers(ctx *gin.Context, input sqlc.CreateUserParams
 			return sqlc.User{}, utils.NewError(utils.ErrCodeConflict, "email already exists")
 		}
 		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to create user", err)
+	}
+
+	// Clear cache redis
+	if err := us.cache.Clear("users:*"); err != nil {
+		log.Printf("Failed to clear cache: %v", err)
 	}
 
 	return user, nil
@@ -124,6 +152,11 @@ func (us *userService) UpdateUser(ctx *gin.Context, input sqlc.UpdateUserParams)
 		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to update user", err)
 	}
 
+	// Clear cache redis
+	if err := us.cache.Clear("users:*"); err != nil {
+		log.Printf("Failed to clear cache: %v", err)
+	}
+
 	return updatedUser, nil
 }
 
@@ -136,6 +169,11 @@ func (us *userService) SoftDeleteUser(ctx *gin.Context, uuid uuid.UUID) (sqlc.Us
 			return sqlc.User{}, utils.NewError(utils.ErrCodeNotFound, "user not found")
 		}
 		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to soft delete user", err)
+	}
+
+	// Clear cache redis
+	if err := us.cache.Clear("users:*"); err != nil {
+		log.Printf("Failed to clear cache: %v", err)
 	}
 
 	return user, nil
@@ -152,6 +190,11 @@ func (us *userService) RestoreUser(ctx *gin.Context, uuid uuid.UUID) (sqlc.User,
 		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to restore user", err)
 	}
 
+	// Clear cache redis
+	if err := us.cache.Clear("users:*"); err != nil {
+		log.Printf("Failed to clear cache: %v", err)
+	}
+
 	return user, nil
 }
 
@@ -166,5 +209,28 @@ func (us *userService) TrashUser(ctx *gin.Context, uuid uuid.UUID) error {
 		return utils.WrapError(utils.ErrCodeInternal, "failed to trash user", err)
 	}
 
+	// Clear cache redis
+	if err := us.cache.Clear("users:*"); err != nil {
+		log.Printf("Failed to clear cache: %v", err)
+	}
+
 	return nil
+}
+
+func (us *userService) generateCacheKey(search, orderBy, sort string, page, limit int32, deleted bool) string {
+	search = strings.TrimSpace(search)
+	if search == "" {
+		search = "none"
+	}
+
+	orderBy = strings.TrimSpace(orderBy)
+	if orderBy == "" {
+		orderBy = "user_created_at"
+	}
+
+	sort = strings.ToLower(strings.TrimSpace(sort))
+	if sort == "" {
+		sort = "desc"
+	}
+	return fmt.Sprintf("users:%s:%s:%s:%d:%d:%t", search, orderBy, sort, page, limit, deleted)
 }
