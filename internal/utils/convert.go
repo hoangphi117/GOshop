@@ -19,3 +19,17 @@ func CamelToSnake(str string) string {
 func NormalizeString(str string) string {
 	return strings.ToLower(strings.TrimSpace(str))
 }
+
+func ConvertToInt32Pointer(value int32) *int32 {
+	if value == 0 {
+		return nil
+	}
+	return &value
+}
+
+func CapitalizeFirstLetter(str string) string {
+	if len(str) == 0 {
+		return str
+	}
+	return strings.ToUpper(string(str[0])) + str[1:]
+}

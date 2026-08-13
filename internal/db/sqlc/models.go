@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type User struct {
@@ -23,7 +24,7 @@ type User struct {
 	// 1: Admin, 2: Moderator, 3: Member
 	UserLevel int32 `json:"user_level"`
 	// Timestamp of when the user was deleted. (soft delete)
-	UserDeletedAt time.Time `json:"user_deleted_at"`
-	UserCreatedAt time.Time `json:"user_created_at"`
-	UserUpdatedAt time.Time `json:"user_updated_at"`
+	UserDeletedAt pgtype.Timestamptz `json:"user_deleted_at"`
+	UserCreatedAt time.Time          `json:"user_created_at"`
+	UserUpdatedAt time.Time          `json:"user_updated_at"`
 }

@@ -2,6 +2,7 @@ package logger
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"os"
@@ -63,4 +64,11 @@ func (w PrettyJSONWriter) Write(p []byte) (n int, err error) {
 	}
 
 	return w.Writer.Write(prettyJSON.Bytes())
+}
+
+func GetTraceId(ctx context.Context) string {
+	if traceID, ok := ctx.Value("trace_id").(string); ok {
+		return traceID
+	}
+	return ""
 }

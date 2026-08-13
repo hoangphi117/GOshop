@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"goshop/internal/config"
+	"goshop/internal/db"
+	"goshop/internal/db/sqlc"
 	"goshop/internal/routes"
 	"goshop/internal/validation"
 	"log"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"github.com/redis/go-redis/v9"
 )
 
 type Module interface {
@@ -26,6 +29,11 @@ type Application struct {
 	modules []Module
 }
 
+type ModuleContext struct {
+	DB    sqlc.Querier
+	Redis *redis.Client
+}
+
 func NewApplication(cfg *config.Config) *Application {
 
 	validation.InitValidator()
@@ -34,8 +42,19 @@ func NewApplication(cfg *config.Config) *Application {
 
 	r := gin.Default()
 
+	if err := db.InitDB(); err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
+
+	redisClient := config.NewRedisClient()
+
+	ctx := &ModuleContext{
+		DB:    db.DB,
+		Redis: redisClient,
+	}
+
 	modules := []Module{
-		NewUserModule(),
+		NewUserModule(ctx),
 	}
 
 	routes.RegisterRoutes(r, getModuleRoutes(modules)...)
