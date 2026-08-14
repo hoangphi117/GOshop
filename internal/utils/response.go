@@ -22,10 +22,11 @@ type APIResponse struct {
 }
 
 const (
-	ErrCodeBadRequest ErrorCode = "BAD_REQUEST"
-	ErrCodeNotFound   ErrorCode = "NOT_FOUND"
-	ErrCodeConflict   ErrorCode = "CONFLICT"
-	ErrCodeInternal   ErrorCode = "INTERNAL_SERVER_ERROR"
+	ErrCodeBadRequest   ErrorCode = "BAD_REQUEST"
+	ErrCodeNotFound     ErrorCode = "NOT_FOUND"
+	ErrCodeConflict     ErrorCode = "CONFLICT"
+	ErrCodeInternal     ErrorCode = "INTERNAL_SERVER_ERROR"
+	ErrCodeUnauthorized ErrorCode = "UNAUTHORIZED"
 )
 
 func (ae *AppError) Error() string {
@@ -50,12 +51,11 @@ func WrapError(code ErrorCode, message string, err error) error {
 func ResponseSuccess(ctx *gin.Context, status int, message string, data ...any) {
 	resp := APIResponse{
 		Status:  "success",
-		Data:    data,
 		Message: CapitalizeFirstLetter(message),
 	}
 
 	if len(data) > 0 && data[0] != nil {
-		if m, ok := data[0].(map[string]interface{}); ok {
+		if m, ok := data[0].(map[string]any); ok {
 			if p, exists := m["pagination"]; exists {
 				resp.Pagination = p
 			}
@@ -68,7 +68,6 @@ func ResponseSuccess(ctx *gin.Context, status int, message string, data ...any) 
 		} else {
 			resp.Data = data[0]
 		}
-
 	}
 
 	ctx.JSON(status, resp)
@@ -112,6 +111,8 @@ func httpStatusFromCode(code ErrorCode) int {
 		return http.StatusNotFound
 	case ErrCodeConflict:
 		return http.StatusConflict
+	case ErrCodeUnauthorized:
+		return http.StatusUnauthorized
 	default:
 		return http.StatusInternalServerError
 	}

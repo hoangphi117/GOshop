@@ -55,6 +55,7 @@ func NewApplication(cfg *config.Config) *Application {
 
 	modules := []Module{
 		NewUserModule(ctx),
+		NewAuthModule(ctx),
 	}
 
 	routes.RegisterRoutes(r, getModuleRoutes(modules)...)
@@ -84,7 +85,7 @@ func (a *Application) Run() error {
 	}()
 
 	<-quit
-	log.Println("⚠️ Shutdown signal received ...")
+	log.Println("⚠️  Shutdown signal received ...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -93,7 +94,7 @@ func (a *Application) Run() error {
 		log.Fatalf("⛔ Server forced to shutdown: %v", err)
 	}
 
-	log.Println("☑️ Server exited gracefully")
+	log.Println("☑️  Server exited gracefully")
 
 	return nil
 }

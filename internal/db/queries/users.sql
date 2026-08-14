@@ -77,6 +77,12 @@ FROM users
 WHERE user_uuid = $1
 AND user_deleted_at IS NULL;
 
+-- name: GetUserByEmail :one
+SELECT *
+FROM users
+WHERE user_email = $1
+AND user_deleted_at IS NULL;
+
 -- name: UpdateUser :one
 UPDATE users
 SET
