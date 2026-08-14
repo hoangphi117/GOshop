@@ -5,6 +5,7 @@ import (
 	v1routes "goshop/internal/routes/v1"
 	"goshop/internal/utils"
 	"goshop/pkg/auth"
+	"goshop/pkg/cache"
 
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
@@ -14,7 +15,7 @@ type Route interface {
 	Register(r *gin.RouterGroup)
 }
 
-func RegisterRoutes(r *gin.Engine, authService auth.TokenService, routes ...Route) {
+func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService cache.RedisCacheService, routes ...Route) {
 
 	httpLogger := utils.NewLoggerWithPath("../../internal/logs/http.log", "info")
 	recoveryLogger := utils.NewLoggerWithPath("../../internal/logs/recovery.log", "warning")
@@ -33,7 +34,7 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, routes ...Rout
 
 	v1api := r.Group("/api/v1")
 
-	middleware.InitAuthMiddleware(authService)
+	middleware.InitAuthMiddleware(authService, cacheService)
 	protected := v1api.Group("")
 	protected.Use(middleware.AuthMiddleware())
 

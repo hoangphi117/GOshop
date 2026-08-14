@@ -4,6 +4,9 @@ import (
 	"goshop/internal/repository"
 	"goshop/internal/utils"
 	"goshop/pkg/auth"
+	"goshop/pkg/cache"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -13,12 +16,14 @@ import (
 type authService struct {
 	userRepo     repository.UserRepository
 	tokenService auth.TokenService
+	cache        cache.RedisCacheService
 }
 
-func NewAuthService(userRepo repository.UserRepository, tokenService auth.TokenService) *authService {
+func NewAuthService(userRepo repository.UserRepository, tokenService auth.TokenService, cache cache.RedisCacheService) *authService {
 	return &authService{
 		userRepo:     userRepo,
 		tokenService: tokenService,
+		cache:        cache,
 	}
 }
 
@@ -55,7 +60,36 @@ func (as *authService) Login(ctx *gin.Context, email, password string) (string, 
 	return accessToken, refreshToken.Token, int(auth.AccessTokenTTL.Seconds()), nil
 }
 
-func (as *authService) Logout(ctx *gin.Context, token string) error {
+func (as *authService) Logout(ctx *gin.Context, refreshToken string) error {
+	authHeader := ctx.GetHeader("Authorization")
+	if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+		return utils.NewError(utils.ErrCodeUnauthorized, "Authorization header missing or invalid")
+	}
+
+	accessToken := strings.TrimPrefix(authHeader, "Bearer ")
+
+	_, claims, err := as.tokenService.ParseToken(accessToken)
+	if err != nil {
+		return utils.NewError(utils.ErrCodeUnauthorized, "Invalid access token")
+	}
+
+	if jti, ok := claims["jti"].(string); ok {
+		expUnix, _ := claims["exp"].(float64)
+		exp := time.Unix(int64(expUnix), 0)
+		key := "blacklist:" + jti
+		ttl := time.Until(exp)
+		as.cache.Set(key, "revoked", ttl)
+	}
+
+	_, err = as.tokenService.ValidateRefreshToken(refreshToken)
+	if err != nil {
+		return utils.NewError(utils.ErrCodeUnauthorized, "Refresh token is invalid or revoked")
+	}
+
+	if err := as.tokenService.RevokeRefreshToken(refreshToken); err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to revoke old refresh token", err)
+	}
+
 	return nil
 }
 
