@@ -2,7 +2,9 @@ package routes
 
 import (
 	"goshop/internal/middleware"
+	v1routes "goshop/internal/routes/v1"
 	"goshop/internal/utils"
+	"goshop/pkg/auth"
 
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
@@ -12,11 +14,13 @@ type Route interface {
 	Register(r *gin.RouterGroup)
 }
 
-func RegisterRoutes(r *gin.Engine, routes ...Route) {
+func RegisterRoutes(r *gin.Engine, authService auth.TokenService, routes ...Route) {
 
 	httpLogger := utils.NewLoggerWithPath("../../internal/logs/http.log", "info")
 	recoveryLogger := utils.NewLoggerWithPath("../../internal/logs/recovery.log", "warning")
 	rateLimiterLogger := utils.NewLoggerWithPath("../../internal/logs/rate_limiter.log", "info")
+
+	r.Use(gzip.Gzip(gzip.DefaultCompression))
 
 	r.Use(
 		middleware.RateLimiterMiddleware(rateLimiterLogger),
@@ -25,15 +29,23 @@ func RegisterRoutes(r *gin.Engine, routes ...Route) {
 		middleware.LoggerMiddleware(httpLogger),
 		middleware.RecoveryMiddleware(recoveryLogger),
 		middleware.ApiKeyMiddleware(),
-		middleware.AuthMiddleware(),
 	)
-
-	r.Use(gzip.Gzip(gzip.DefaultCompression))
 
 	v1api := r.Group("/api/v1")
 
+	middleware.InitAuthMiddleware(authService)
+	protected := v1api.Group("")
+	protected.Use(middleware.AuthMiddleware())
+
 	for _, route := range routes {
-		route.Register(v1api)
+
+		switch route.(type) {
+		case *v1routes.AuthRoutes:
+			route.Register(v1api)
+		default:
+			route.Register(protected)
+		}
+
 	}
 
 	r.NoRoute(func(ctx *gin.Context) {

@@ -6,19 +6,20 @@ import (
 	"goshop/internal/routes"
 	v1routes "goshop/internal/routes/v1"
 	v1service "goshop/internal/service/v1"
+	"goshop/pkg/auth"
 )
 
 type AuthModule struct {
 	routes routes.Route
 }
 
-func NewAuthModule(ctx *ModuleContext) *AuthModule {
+func NewAuthModule(ctx *ModuleContext, tokenService auth.TokenService) *AuthModule {
 
 	// Initialize repository
 	userRepo := repository.NewSqlUserRepository(ctx.DB)
 
 	// Initialize service
-	authService := v1service.NewAuthService(userRepo)
+	authService := v1service.NewAuthService(userRepo, tokenService)
 
 	// Initialize handler
 	authHandler := v1handler.NewAuthHandler(authService)
