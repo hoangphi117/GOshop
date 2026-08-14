@@ -8,6 +8,7 @@ import (
 	"goshop/internal/routes"
 	"goshop/internal/validation"
 	"goshop/pkg/auth"
+	"goshop/pkg/cache"
 	"log"
 	"net/http"
 	"os"
@@ -48,7 +49,8 @@ func NewApplication(cfg *config.Config) *Application {
 	}
 
 	redisClient := config.NewRedisClient()
-	tokenService := auth.NewJWTService()
+	cacheRedisService := cache.NewRedisCacheService(redisClient)
+	tokenService := auth.NewJWTService(cacheRedisService)
 
 	ctx := &ModuleContext{
 		DB:    db.DB,
