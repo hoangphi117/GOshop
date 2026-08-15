@@ -10,7 +10,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
 
     ports:
-      - "5433:5432"
+      - "5432:5432"
 
     volumes:
       - pgdata:/var/lib/postgresql
@@ -52,27 +52,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: goshop-api
-    restart: unless-stopped
-
-    env_file:
-      - .env
-
-    ports:
-      - "${SERVER_PORT}:${SERVER_PORT}"
-    volumes:
-      - ./internal/logs:/app/internal/logs
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - app-networks
 
 volumes:
   pgdata:
