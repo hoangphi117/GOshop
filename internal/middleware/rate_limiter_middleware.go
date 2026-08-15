@@ -30,7 +30,7 @@ func getClientIP(ctx *gin.Context) string {
 	return ip
 }
 
-func GetRateLimiter(ip string) *rate.Limiter {
+func getRateLimiter(ip string) *rate.Limiter {
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -68,7 +68,7 @@ func RateLimiterMiddleware(rateLimiterLogger *zerolog.Logger) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		ip := getClientIP(ctx)
 
-		limiter := GetRateLimiter(ip)
+		limiter := getRateLimiter(ip)
 
 		if !limiter.Allow() {
 			if shouldLogRateLimit(ip) {

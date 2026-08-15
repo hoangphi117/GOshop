@@ -7,6 +7,8 @@ import (
 	"goshop/internal/db/sqlc"
 	"goshop/internal/routes"
 	"goshop/internal/validation"
+	"goshop/pkg/auth"
+	"goshop/pkg/cache"
 	"log"
 	"net/http"
 	"os"
@@ -47,6 +49,8 @@ func NewApplication(cfg *config.Config) *Application {
 	}
 
 	redisClient := config.NewRedisClient()
+	cacheRedisService := cache.NewRedisCacheService(redisClient)
+	tokenService := auth.NewJWTService(cacheRedisService)
 
 	ctx := &ModuleContext{
 		DB:    db.DB,
@@ -55,9 +59,10 @@ func NewApplication(cfg *config.Config) *Application {
 
 	modules := []Module{
 		NewUserModule(ctx),
+		NewAuthModule(ctx, tokenService, cacheRedisService),
 	}
 
-	routes.RegisterRoutes(r, getModuleRoutes(modules)...)
+	routes.RegisterRoutes(r, tokenService, cacheRedisService, getModuleRoutes(modules)...)
 
 	return &Application{
 		config:  cfg,
@@ -84,7 +89,7 @@ func (a *Application) Run() error {
 	}()
 
 	<-quit
-	log.Println("⚠️ Shutdown signal received ...")
+	log.Println("⚠️  Shutdown signal received ...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -93,7 +98,7 @@ func (a *Application) Run() error {
 		log.Fatalf("⛔ Server forced to shutdown: %v", err)
 	}
 
-	log.Println("☑️ Server exited gracefully")
+	log.Println("☑️  Server exited gracefully")
 
 	return nil
 }

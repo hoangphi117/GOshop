@@ -21,7 +21,7 @@ import (
 
 type userService struct {
 	repo  repository.UserRepository
-	cache *cache.RedisCacheService
+	cache cache.RedisCacheService
 }
 
 func NewUserService(repo repository.UserRepository, redisClient *redis.Client) UserService {
