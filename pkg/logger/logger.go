@@ -30,7 +30,6 @@ func NewLogger(config LoggerConfig) *zerolog.Logger {
 	if err != nil {
 		lvl = zerolog.InfoLevel
 	}
-	zerolog.SetGlobalLevel(lvl)
 
 	var writer io.Writer
 
@@ -46,7 +45,7 @@ func NewLogger(config LoggerConfig) *zerolog.Logger {
 		}
 	}
 
-	logger := zerolog.New(writer).With().Timestamp().Logger()
+	logger := zerolog.New(writer).Level(lvl).With().Timestamp().Logger()
 
 	return &logger
 }

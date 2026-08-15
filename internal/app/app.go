@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -39,8 +38,6 @@ type ModuleContext struct {
 func NewApplication(cfg *config.Config) *Application {
 
 	validation.InitValidator()
-
-	loadEnv()
 
 	r := gin.Default()
 
@@ -109,11 +106,4 @@ func getModuleRoutes(modules []Module) []routes.Route {
 		routeList[i] = module.Routes()
 	}
 	return routeList
-}
-
-func loadEnv() {
-	err := godotenv.Load(".env", "../../.env")
-	if err != nil {
-		log.Println("No .env found!")
-	}
 }

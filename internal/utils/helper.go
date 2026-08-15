@@ -2,7 +2,9 @@ package utils
 
 import (
 	"goshop/pkg/logger"
+	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/rs/zerolog"
@@ -24,7 +26,24 @@ func GetIntEnv(key string, defaultValue int) int {
 	return defaultValue
 }
 
-func NewLoggerWithPath(path string, level string) *zerolog.Logger {
+func NewLoggerWithPath(fileName string, level string) *zerolog.Logger {
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		log.Fatal("Failed to get current working directory: " + err.Error())
+	}
+
+	logDir := filepath.Join(cwd, "internal", "logs")
+	if _, err := os.Stat(logDir); os.IsNotExist(err) {
+		logDir = filepath.Join(cwd, "..", "..", "internal", "logs")
+	}
+
+	path := filepath.Join(logDir, fileName)
+
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		log.Fatalf("Failed to create log directory: %v", err)
+	}
+
 	config := logger.LoggerConfig{
 		Level:      level,
 		Filename:   path,
