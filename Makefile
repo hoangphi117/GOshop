@@ -14,6 +14,12 @@ exportdb:
 server:
 	cd cmd/api && go run .
 
+build:
+	go build -o bin/goshop ./cmd/api
+
+run-binary:
+	./bin/goshop
+
 sqlc:
 	sqlc generate
 
@@ -43,4 +49,4 @@ migrate-drop:
 migrate-goto:
 	migrate -path ${MIGRATION_DIR} -database "${CONNECTION_STRING}" goto ${VERSION}
 
-.PHONY: importdb exportdb server migrate-create migrate-up migrate-down migrate-force migrate-drop migrate-goto migrate-down-n sqlc
+.PHONY: importdb exportdb server migrate-create migrate-up migrate-down migrate-force migrate-drop migrate-goto migrate-down-n sqlc build run-binary
