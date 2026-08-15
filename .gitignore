@@ -11,6 +11,10 @@ bin/
 go.work
 go.work.sum
 
+# Air
+tmp/
+build.log
+
 # Secrets / env
 .env
 .env.local

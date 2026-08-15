@@ -7,6 +7,7 @@ CONNECTION_STRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${D
 
 PROD_COMPOSE=docker-compose.prod.yml
 NOAPP_COMPOSE=docker-compose.noapp.yml
+DEV_COMPOSE=docker-compose.dev.yml
 
 ENV_FILE=.env
 
@@ -63,6 +64,15 @@ noapp:
 stop-noapp:
 	docker-compose -f ${NOAPP_COMPOSE} down
 
+# Build container for dev
+dev:
+	docker-compose -f ${DEV_COMPOSE} down
+	docker-compose -f ${DEV_COMPOSE} --env-file ${ENV_FILE} up --build
+
+# Stop dev containers
+stop-dev:
+	docker-compose -f ${DEV_COMPOSE} down
+
 # Build container for production
 prod:
 	docker-compose -f ${PROD_COMPOSE} down
@@ -80,4 +90,4 @@ logs-prod:
 bash:
 	docker exec -it goshop-api /bin/sh
 
-.PHONY: importdb exportdb server migrate-create migrate-up migrate-down migrate-force migrate-drop migrate-goto migrate-down-n sqlc build run-binary prod stop-prod logs-prod bash noapp stop-noapp
+.PHONY: importdb exportdb server migrate-create migrate-up migrate-down migrate-force migrate-drop migrate-goto migrate-down-n sqlc build run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev
