@@ -9,7 +9,7 @@ import (
 	"goshop/internal/validation"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
-	"log"
+	"goshop/pkg/logger"
 	"net/http"
 	"os"
 	"os/signal"
@@ -42,7 +42,7 @@ func NewApplication(cfg *config.Config) *Application {
 	r := gin.Default()
 
 	if err := db.InitDB(); err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
+		logger.Log.Fatal().Err(err).Msg("Failed to initialize database")
 	}
 
 	redisClient := config.NewRedisClient()
@@ -79,23 +79,23 @@ func (a *Application) Run() error {
 	// 					ctrl + c       | kill service  | reload service
 
 	go func() {
-		log.Printf("✅ Server is running at: %s", a.config.ServerAddress)
+		logger.Log.Info().Msgf("Server is running at: %s", a.config.ServerAddress)
 		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
-			log.Fatalf("⛔ Failed to start server: %v", err)
+			logger.Log.Fatal().Err(err).Msg("Failed to start server")
 		}
 	}()
 
 	<-quit
-	log.Println("⚠️  Shutdown signal received ...")
+	logger.Log.Warn().Msg("Shutdown signal received...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatalf("⛔ Server forced to shutdown: %v", err)
+		logger.Log.Fatal().Err(err).Msg("⛔ Server forced to shutdown")
 	}
 
-	log.Println("☑️  Server exited gracefully")
+	logger.Log.Info().Msg("☑️  Server exited gracefully")
 
 	return nil
 }

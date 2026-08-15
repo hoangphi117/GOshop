@@ -6,8 +6,8 @@ import (
 	"goshop/internal/config"
 	"goshop/internal/db/sqlc"
 	"goshop/internal/utils"
+	"goshop/pkg/logger"
 	"goshop/pkg/pgx"
-	"log"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -55,7 +55,7 @@ func InitDB() error {
 		return fmt.Errorf("error pinging DB: %w", err)
 	}
 
-	log.Println("✅ Connected PostgreSQL database")
+	logger.Log.Info().Msg("✅ Connected to PostgreSQL database")
 
 	return nil
 }

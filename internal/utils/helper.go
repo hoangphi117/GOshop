@@ -30,7 +30,7 @@ func NewLoggerWithPath(fileName string, level string) *zerolog.Logger {
 
 	cwd, err := os.Getwd()
 	if err != nil {
-		log.Fatal("Failed to get current working directory: " + err.Error())
+		log.Fatal("⛔ Failed to get current working directory: " + err.Error())
 	}
 
 	logDir := filepath.Join(cwd, "internal", "logs")
@@ -41,7 +41,7 @@ func NewLoggerWithPath(fileName string, level string) *zerolog.Logger {
 	path := filepath.Join(logDir, fileName)
 
 	if err := os.MkdirAll(logDir, 0755); err != nil {
-		log.Fatalf("Failed to create log directory: %v", err)
+		logger.Log.Fatal().Err(err).Msg("Failed to create log directory")
 	}
 
 	config := logger.LoggerConfig{
