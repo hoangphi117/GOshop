@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"goshop/pkg/logger"
 	"log"
 	"os"
@@ -54,4 +56,13 @@ func NewLoggerWithPath(fileName string, level string) *zerolog.Logger {
 		IsDev:      GetEnv("APP_ENV", "development"),
 	}
 	return logger.NewLogger(config)
+}
+
+func GenerateRandomString(length int) (string, error) {
+	nonce := make([]byte, length)
+	if _, err := rand.Read(nonce); err != nil {
+		return "", err
+	}
+
+	return base64.URLEncoding.EncodeToString(nonce), nil
 }

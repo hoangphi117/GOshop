@@ -426,6 +426,39 @@ func (q *Queries) TrashUser(ctx context.Context, userUuid uuid.UUID) (User, erro
 	return i, err
 }
 
+const updatePassword = `-- name: UpdatePassword :one
+UPDATE users
+SET user_password = $1
+WHERE 
+    user_uuid = $2::uuid
+    AND user_deleted_at IS NULL
+RETURNING user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at
+`
+
+type UpdatePasswordParams struct {
+	NewPassword string    `json:"new_password"`
+	UserUuid    uuid.UUID `json:"user_uuid"`
+}
+
+func (q *Queries) UpdatePassword(ctx context.Context, arg UpdatePasswordParams) (User, error) {
+	row := q.db.QueryRow(ctx, updatePassword, arg.NewPassword, arg.UserUuid)
+	var i User
+	err := row.Scan(
+		&i.UserID,
+		&i.UserUuid,
+		&i.UserFullname,
+		&i.UserEmail,
+		&i.UserPassword,
+		&i.UserAge,
+		&i.UserStatus,
+		&i.UserLevel,
+		&i.UserDeletedAt,
+		&i.UserCreatedAt,
+		&i.UserUpdatedAt,
+	)
+	return i, err
+}
+
 const updateUser = `-- name: UpdateUser :one
 UPDATE users
 SET

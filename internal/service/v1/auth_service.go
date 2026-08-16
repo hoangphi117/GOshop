@@ -1,16 +1,20 @@
 package v1service
 
 import (
+	"fmt"
+	"goshop/internal/db/sqlc"
 	"goshop/internal/repository"
 	"goshop/internal/utils"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
+	"goshop/pkg/logger"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/time/rate"
 )
@@ -18,7 +22,7 @@ import (
 type authService struct {
 	userRepo     repository.UserRepository
 	tokenService auth.TokenService
-	cache        cache.RedisCacheService
+	cacheService cache.RedisCacheService
 }
 
 type LoginAttempt struct {
@@ -33,11 +37,11 @@ var (
 	MaxLoginAttempts = 5
 )
 
-func NewAuthService(userRepo repository.UserRepository, tokenService auth.TokenService, cache cache.RedisCacheService) *authService {
+func NewAuthService(userRepo repository.UserRepository, tokenService auth.TokenService, cacheService cache.RedisCacheService) *authService {
 	return &authService{
 		userRepo:     userRepo,
 		tokenService: tokenService,
-		cache:        cache,
+		cacheService: cacheService,
 	}
 }
 
@@ -143,7 +147,7 @@ func (as *authService) Logout(ctx *gin.Context, refreshToken string) error {
 		exp := time.Unix(int64(expUnix), 0)
 		key := "blacklist:" + jti
 		ttl := time.Until(exp)
-		as.cache.Set(key, "revoked", ttl)
+		as.cacheService.Set(key, "revoked", ttl)
 	}
 
 	_, err = as.tokenService.ValidateRefreshToken(refreshToken)
@@ -192,4 +196,77 @@ func (as *authService) RefreshToken(ctx *gin.Context, refreshToken string) (stri
 	}
 
 	return accessToken, refreshTokenNew.Token, int(auth.AccessTokenTTL.Seconds()), nil
+}
+
+func (as *authService) RequestForgotPassword(ctx *gin.Context, email string) error {
+	context := ctx.Request.Context()
+
+	rateLimitKey := fmt.Sprintf("reset:ratelimit:%s", email)
+	if exists, err := as.cacheService.Exists(rateLimitKey); err == nil && exists {
+		return utils.NewError(utils.ErrCodeTooManyRequests, "You can only request a password reset once every 5 minutes.")
+	}
+
+	email = utils.NormalizeString(email)
+	user, err := as.userRepo.GetByEmail(context, email)
+	if err != nil {
+		return utils.NewError(utils.ErrCodeNotFound, "Email not found")
+	}
+
+	token, err := utils.GenerateRandomString(16)
+	if err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to generate reset token", err)
+	}
+
+	err = as.cacheService.Set("reset:"+token, user.UserUuid, time.Hour)
+	if err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to store reset token", err)
+	}
+
+	err = as.cacheService.Set(rateLimitKey, "1", 5*time.Minute)
+	if err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to store rate limit reset password", err)
+	}
+
+	resetLink := fmt.Sprintf("http://goshop.com/view-to-reset-password?token=%s", token)
+
+	logger.Log.Info().Msg(resetLink)
+
+	return nil
+}
+func (as *authService) ResetPassword(ctx *gin.Context, token, newPassword string) error {
+	context := ctx.Request.Context()
+
+	var userUuidStr string
+	err := as.cacheService.Get("reset:"+token, &userUuidStr)
+	if err == redis.Nil || userUuidStr == "" {
+		return utils.NewError(utils.ErrCodeNotFound, "Invalid or expired reset token")
+	}
+
+	if err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to retrieve reset token", err)
+	}
+
+	userUuid, err := uuid.Parse(userUuidStr)
+	if err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to parse user UUID", err)
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to hash password", err)
+	}
+
+	var input = sqlc.UpdatePasswordParams{
+		UserUuid:    userUuid,
+		NewPassword: string(hashedPassword),
+	}
+
+	_, err = as.userRepo.UpdatePassword(context, input)
+	if err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to update password", err)
+	}
+
+	as.cacheService.Clear("reset:" + token)
+
+	return nil
 }
