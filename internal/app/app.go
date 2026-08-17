@@ -12,6 +12,7 @@ import (
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 	"goshop/pkg/mail"
+	"goshop/pkg/rabbitmq"
 	"net/http"
 	"os"
 	"os/signal"
@@ -64,6 +65,13 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		return nil, err
 	}
 
+	rabbitmqLogger := utils.NewLoggerWithPath("worker.log", "info")
+	rabbitmqService, err := rabbitmq.NewRabbitMQService(utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"), rabbitmqLogger)
+	if err != nil {
+		logger.Log.Fatal().Err(err).Msg("Failed to create RabbitMQ service")
+		return nil, err
+	}
+
 	ctx := &ModuleContext{
 		DB:    db.DB,
 		Redis: redisClient,
@@ -71,7 +79,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 
 	modules := []Module{
 		NewUserModule(ctx),
-		NewAuthModule(ctx, tokenService, cacheRedisService, mailService, cfg.AppURL),
+		NewAuthModule(ctx, tokenService, cacheRedisService, mailService, rabbitmqService, cfg.AppURL),
 	}
 
 	routes.RegisterRoutes(r, tokenService, cacheRedisService, getModuleRoutes(modules)...)
