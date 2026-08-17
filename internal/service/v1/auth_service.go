@@ -7,7 +7,7 @@ import (
 	"goshop/internal/utils"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
-	"goshop/pkg/logger"
+	"goshop/pkg/mail"
 	"strings"
 	"sync"
 	"time"
@@ -23,12 +23,16 @@ type authService struct {
 	userRepo     repository.UserRepository
 	tokenService auth.TokenService
 	cacheService cache.RedisCacheService
+	mailService  mail.EmailProviderService
+	appURL       string
 }
 
 type LoginAttempt struct {
 	limiter  *rate.Limiter
 	lastSeen time.Time
 }
+
+const passwordResetTokenTTL = time.Hour
 
 var (
 	mu               sync.Mutex
@@ -37,11 +41,13 @@ var (
 	MaxLoginAttempts = 5
 )
 
-func NewAuthService(userRepo repository.UserRepository, tokenService auth.TokenService, cacheService cache.RedisCacheService) *authService {
+func NewAuthService(userRepo repository.UserRepository, tokenService auth.TokenService, cacheService cache.RedisCacheService, mailService mail.EmailProviderService, appURL string) *authService {
 	return &authService{
 		userRepo:     userRepo,
 		tokenService: tokenService,
 		cacheService: cacheService,
+		mailService:  mailService,
+		appURL:       appURL,
 	}
 }
 
@@ -217,7 +223,7 @@ func (as *authService) RequestForgotPassword(ctx *gin.Context, email string) err
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to generate reset token", err)
 	}
 
-	err = as.cacheService.Set("reset:"+token, user.UserUuid, time.Hour)
+	err = as.cacheService.Set("reset:"+token, user.UserUuid, passwordResetTokenTTL)
 	if err != nil {
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to store reset token", err)
 	}
@@ -227,12 +233,31 @@ func (as *authService) RequestForgotPassword(ctx *gin.Context, email string) err
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to store rate limit reset password", err)
 	}
 
-	resetLink := fmt.Sprintf("http://goshop.com/view-to-reset-password?token=%s", token)
+	resetLink := fmt.Sprintf("%s/view-to-reset-password?token=%s", as.appURL, token)
 
-	logger.Log.Info().Msg(resetLink)
+	htmlBody, textBody, err := mail.ResetPasswordTemplate(
+		user.UserFullname,
+		resetLink,
+		passwordResetTokenTTL.String(),
+		time.Now().Year(),
+	)
+	if err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to render reset password email", err)
+	}
 
+	err = as.mailService.SendEmail(context, &mail.Email{
+		To:       []mail.Address{{Email: user.UserEmail}},
+		Subject:  "Reset Your Password",
+		Text:     textBody,
+		HTML:     htmlBody,
+		Category: "password-reset",
+	})
+	if err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to send reset password email", err)
+	}
 	return nil
 }
+
 func (as *authService) ResetPassword(ctx *gin.Context, token, newPassword string) error {
 	context := ctx.Request.Context()
 

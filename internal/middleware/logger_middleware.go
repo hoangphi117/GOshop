@@ -32,6 +32,9 @@ func LoggerMiddleware(httpLogger *zerolog.Logger) gin.HandlerFunc {
 		contentType := ctx.GetHeader("Content-Type")
 		requestBody := make(map[string]any)
 		var formFiles []map[string]any
+		var sensitiveFields = []string{
+			"password", "pass", "new_password", "confirm_password", "newPassword", "confirmPassword",
+		}
 
 		if strings.HasPrefix(contentType, "multipart/form-data") {
 			if err := ctx.Request.ParseMultipartForm(32 << 20); err == nil && ctx.Request.MultipartForm != nil {
@@ -129,7 +132,7 @@ func LoggerMiddleware(httpLogger *zerolog.Logger) gin.HandlerFunc {
 			Str("request_uri", ctx.Request.RequestURI).
 			Int64("content_length", ctx.Request.ContentLength).
 			Interface("header", ctx.Request.Header).
-			Interface("request_body", requestBody).
+			Interface("request_body", sanitizeRequestBody(requestBody, sensitiveFields)).
 			Interface("response_body", responseBodyParsed).
 			Int("status_code", statusCode).
 			Int64("duration_ms", duration.Milliseconds()).
@@ -146,4 +149,43 @@ func formatFileSize(size int64) string {
 	default:
 		return fmt.Sprintf("%d B", size)
 	}
+}
+
+func sanitizeRequestBody(data map[string]any, sensitiveFields []string) map[string]any {
+
+	sanitized := make(map[string]any)
+
+	for key, value := range data {
+		lowerKey := strings.ToLower(key)
+		shouldMask := false
+
+		for _, s := range sensitiveFields {
+			if lowerKey == strings.ToLower(s) {
+				shouldMask = true
+				break
+			}
+		}
+
+		if shouldMask {
+			sanitized[key] = "*****"
+		} else {
+			switch v := value.(type) {
+			case map[string]any:
+				sanitized[key] = sanitizeRequestBody(v, sensitiveFields)
+			case []any:
+				var sanitizedSlice []any
+				for _, item := range v {
+					if itemMap, ok := item.(map[string]any); ok {
+						sanitizedSlice = append(sanitizedSlice, sanitizeRequestBody(itemMap, sensitiveFields))
+					} else {
+						sanitizedSlice = append(sanitizedSlice, item)
+					}
+				}
+				sanitized[key] = sanitizedSlice
+			default:
+				sanitized[key] = value
+			}
+		}
+	}
+	return sanitized
 }

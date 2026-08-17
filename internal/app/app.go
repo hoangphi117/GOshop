@@ -6,10 +6,12 @@ import (
 	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
 	"goshop/internal/routes"
+	"goshop/internal/utils"
 	"goshop/internal/validation"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
+	"goshop/pkg/mail"
 	"net/http"
 	"os"
 	"os/signal"
@@ -48,6 +50,16 @@ func NewApplication(cfg *config.Config) *Application {
 	redisClient := config.NewRedisClient()
 	cacheRedisService := cache.NewRedisCacheService(redisClient)
 	tokenService := auth.NewJWTService(cacheRedisService)
+	mailLogger := utils.NewLoggerWithPath("mail.log", "info")
+	factory, err := mail.NewProviderFactory(mail.ProviderMailtrap)
+	if err != nil {
+		mailLogger.Error().Err(err).Msg("Failed to create mail provider factory")
+	}
+
+	mailService, err := mail.NewMailService(cfg, mailLogger, factory)
+	if err != nil {
+		mailLogger.Error().Err(err).Msg("Failed to create mail service")
+	}
 
 	ctx := &ModuleContext{
 		DB:    db.DB,
@@ -56,7 +68,7 @@ func NewApplication(cfg *config.Config) *Application {
 
 	modules := []Module{
 		NewUserModule(ctx),
-		NewAuthModule(ctx, tokenService, cacheRedisService),
+		NewAuthModule(ctx, tokenService, cacheRedisService, mailService, cfg.AppURL),
 	}
 
 	routes.RegisterRoutes(r, tokenService, cacheRedisService, getModuleRoutes(modules)...)
