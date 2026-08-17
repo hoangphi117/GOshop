@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -31,7 +32,14 @@ const (
 )
 
 func (ae *AppError) Error() string {
-	return ""
+	if ae.Err != nil {
+		return fmt.Sprintf("%s: %v", ae.Message, ae.Err)
+	}
+	return ae.Message
+}
+
+func (ae *AppError) Unwrap() error {
+	return ae.Err
 }
 
 func NewError(code ErrorCode, message string) error {
