@@ -24,3 +24,7 @@ type AuthService interface {
 	RequestForgotPassword(ctx *gin.Context, email string) error
 	ResetPassword(ctx *gin.Context, token, newPassword string) error
 }
+
+type CategoryService interface {
+	CreateCategory(ctx *gin.Context, input sqlc.CreateCategoryParams) (sqlc.Category, error)
+}

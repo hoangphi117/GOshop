@@ -20,3 +20,8 @@ type UserRepository interface {
 	GetByEmail(ctx context.Context, email string) (sqlc.User, error)
 	UpdatePassword(ctx context.Context, input sqlc.UpdatePasswordParams) (sqlc.User, error)
 }
+
+type CategoryRepository interface {
+	Create(ctx context.Context, input sqlc.CreateCategoryParams) (sqlc.Category, error)
+	GetBySlug(ctx context.Context, slug string) (sqlc.Category, error)
+}

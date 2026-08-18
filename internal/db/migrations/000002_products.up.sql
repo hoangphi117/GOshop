@@ -32,6 +32,9 @@ CREATE TABLE IF NOT EXISTS products (
 -- Categories
 CREATE INDEX idx_categories_list ON categories(category_deleted_at, category_created_at DESC);
 CREATE INDEX idx_categories_slug ON categories(category_slug);
+CREATE UNIQUE INDEX idx_categories_name_unique 
+ON categories (LOWER(category_name)) 
+WHERE category_deleted_at IS NULL;
 
 -- Products
 CREATE INDEX idx_products_list ON products(product_deleted_at, product_category_id, product_status, product_created_at DESC);
@@ -64,3 +67,4 @@ CREATE TRIGGER set_product_updated_at
 BEFORE UPDATE on products
 FOR EACH ROW
 EXECUTE FUNCTION update_product_updated_at();
+

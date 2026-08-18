@@ -144,20 +144,20 @@ func HandleValidationErrors(err error) gin.H {
 				allowedValue := strings.Join(strings.Split(e.Param(), " "), " ")
 				errors[fieldPath] = fmt.Sprintf("%s phải là một trong các %s", fieldPath, allowedValue)
 			case "required":
-				errors[fieldPath] = fieldPath + " là bắt buộc"
+				errors[fieldPath] = fmt.Sprintf("%s là bắt buộc", fieldPath)
 			case "search":
-				errors[fieldPath] = fieldPath + " chỉ được chứa chữ thường, in hoa, số và khoảng trắng"
+				errors[fieldPath] = fmt.Sprintf("%s chỉ được chứa chữ thường, in hoa, số và khoảng trắng", fieldPath)
 			case "email":
-				errors[fieldPath] = fieldPath + " không đúng định dạng"
+				errors[fieldPath] = fmt.Sprintf("%s không đúng định dạng", fieldPath)
 			case "datetime":
-				errors[fieldPath] = fieldPath + " không đúng định dạng YYYY-MM-DD"
+				errors[fieldPath] = fmt.Sprintf("%s không đúng định dạng YYYY-MM-DD", fieldPath)
 			case "file_ext":
 				allowedExt := strings.Join(strings.Split(e.Param(), " "), " ")
 				errors[fieldPath] = fmt.Sprintf("%s không chứa đuôi file cho phép trong %s", fieldPath, allowedExt)
 			case "email_advanced":
-				errors[fieldPath] = fieldPath + " nằm trong danh sách bị cấm"
+				errors[fieldPath] = fmt.Sprintf("%s nằm trong danh sách bị cấm", fieldPath)
 			case "password_strong":
-				errors[fieldPath] = fieldPath + " phải chứa ít nhất 8 kí tự gồm (chữ thường, in hoa, số và kí tự đặc biệt)"
+				errors[fieldPath] = fmt.Sprintf("%s phải chứa ít nhất 8 kí tự gồm (chữ thường, in hoa, số và kí tự đặc biệt)", fieldPath)
 			}
 		}
 
