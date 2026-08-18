@@ -24,4 +24,5 @@ type UserRepository interface {
 type CategoryRepository interface {
 	Create(ctx context.Context, input sqlc.CreateCategoryParams) (sqlc.Category, error)
 	GetBySlug(ctx context.Context, slug string) (sqlc.Category, error)
+	Update(ctx context.Context, input sqlc.UpdateCategoryParams) (sqlc.Category, error)
 }

@@ -20,5 +20,6 @@ func (cr *CategoryRoutes) Register(r *gin.RouterGroup) {
 	categories := r.Group("/categories")
 	{
 		categories.POST("", cr.handler.CreateCategory)
+		categories.PUT("/:uuid", cr.handler.UpdateCategory)
 	}
 }

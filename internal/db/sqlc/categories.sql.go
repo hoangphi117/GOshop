@@ -7,6 +7,8 @@ package sqlc
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 const createCategory = `-- name: CreateCategory :one
@@ -20,10 +22,10 @@ RETURNING category_id, category_uuid, category_name, category_slug, category_des
 `
 
 type CreateCategoryParams struct {
-	CategoryName        string `json:"category_name"`
-	CategorySlug        string `json:"category_slug"`
-	CategoryDescription string `json:"category_description"`
-	CategoryStatus      int32  `json:"category_status"`
+	CategoryName        string  `json:"category_name"`
+	CategorySlug        string  `json:"category_slug"`
+	CategoryDescription *string `json:"category_description"`
+	CategoryStatus      int32   `json:"category_status"`
 }
 
 func (q *Queries) CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error) {
@@ -56,6 +58,46 @@ AND category_deleted_at IS NULL
 
 func (q *Queries) GetCategoryBySlug(ctx context.Context, categorySlug string) (Category, error) {
 	row := q.db.QueryRow(ctx, getCategoryBySlug, categorySlug)
+	var i Category
+	err := row.Scan(
+		&i.CategoryID,
+		&i.CategoryUuid,
+		&i.CategoryName,
+		&i.CategorySlug,
+		&i.CategoryDescription,
+		&i.CategoryStatus,
+		&i.CategoryDeletedAt,
+		&i.CategoryCreatedAt,
+		&i.CategoryUpdatedAt,
+	)
+	return i, err
+}
+
+const updateCategory = `-- name: UpdateCategory :one
+UPDATE categories
+SET
+    category_name = COALESCE($1, category_name),
+    category_description = COALESCE($2, category_description),
+    category_status = COALESCE($3, category_status)
+WHERE category_uuid = $4
+AND category_deleted_at IS NULL
+RETURNING category_id, category_uuid, category_name, category_slug, category_description, category_status, category_deleted_at, category_created_at, category_updated_at
+`
+
+type UpdateCategoryParams struct {
+	CategoryName        *string   `json:"category_name"`
+	CategoryDescription *string   `json:"category_description"`
+	CategoryStatus      *int32    `json:"category_status"`
+	CategoryUuid        uuid.UUID `json:"category_uuid"`
+}
+
+func (q *Queries) UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (Category, error) {
+	row := q.db.QueryRow(ctx, updateCategory,
+		arg.CategoryName,
+		arg.CategoryDescription,
+		arg.CategoryStatus,
+		arg.CategoryUuid,
+	)
 	var i Category
 	err := row.Scan(
 		&i.CategoryID,

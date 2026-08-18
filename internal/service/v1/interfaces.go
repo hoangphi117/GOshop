@@ -27,4 +27,5 @@ type AuthService interface {
 
 type CategoryService interface {
 	CreateCategory(ctx *gin.Context, input sqlc.CreateCategoryParams) (sqlc.Category, error)
+	UpdateCategory(ctx *gin.Context, input sqlc.UpdateCategoryParams) (sqlc.Category, error)
 }

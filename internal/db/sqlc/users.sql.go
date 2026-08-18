@@ -26,8 +26,8 @@ WHERE (
 `
 
 type CountUsersParams struct {
-	Deleted *bool  `json:"deleted"`
-	Search  string `json:"search"`
+	Deleted *bool   `json:"deleted"`
+	Search  *string `json:"search"`
 }
 
 func (q *Queries) CountUsers(ctx context.Context, arg CountUsersParams) (int64, error) {
@@ -151,9 +151,9 @@ LIMIT $1 OFFSET $2
 `
 
 type ListUserUserCreatedAtAscParams struct {
-	Limit  int32  `json:"limit"`
-	Offset int32  `json:"offset"`
-	Search string `json:"search"`
+	Limit  int32   `json:"limit"`
+	Offset int32   `json:"offset"`
+	Search *string `json:"search"`
 }
 
 func (q *Queries) ListUserUserCreatedAtAsc(ctx context.Context, arg ListUserUserCreatedAtAscParams) ([]User, error) {
@@ -202,9 +202,9 @@ LIMIT $1 OFFSET $2
 `
 
 type ListUserUserCreatedAtDescParams struct {
-	Limit  int32  `json:"limit"`
-	Offset int32  `json:"offset"`
-	Search string `json:"search"`
+	Limit  int32   `json:"limit"`
+	Offset int32   `json:"offset"`
+	Search *string `json:"search"`
 }
 
 func (q *Queries) ListUserUserCreatedAtDesc(ctx context.Context, arg ListUserUserCreatedAtDescParams) ([]User, error) {
@@ -253,9 +253,9 @@ LIMIT $1 OFFSET $2
 `
 
 type ListUserUserIdAscParams struct {
-	Limit  int32  `json:"limit"`
-	Offset int32  `json:"offset"`
-	Search string `json:"search"`
+	Limit  int32   `json:"limit"`
+	Offset int32   `json:"offset"`
+	Search *string `json:"search"`
 }
 
 func (q *Queries) ListUserUserIdAsc(ctx context.Context, arg ListUserUserIdAscParams) ([]User, error) {
@@ -304,9 +304,9 @@ LIMIT $1 OFFSET $2
 `
 
 type ListUserUserIdDescParams struct {
-	Limit  int32  `json:"limit"`
-	Offset int32  `json:"offset"`
-	Search string `json:"search"`
+	Limit  int32   `json:"limit"`
+	Offset int32   `json:"offset"`
+	Search *string `json:"search"`
 }
 
 func (q *Queries) ListUserUserIdDesc(ctx context.Context, arg ListUserUserIdDescParams) ([]User, error) {

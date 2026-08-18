@@ -24,6 +24,7 @@ type Querier interface {
 	RestoreUser(ctx context.Context, userUuid uuid.UUID) (User, error)
 	SoftDeleteUser(ctx context.Context, userUuid uuid.UUID) (User, error)
 	TrashUser(ctx context.Context, userUuid uuid.UUID) (User, error)
+	UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (Category, error)
 	UpdatePassword(ctx context.Context, arg UpdatePasswordParams) (User, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 }

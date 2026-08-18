@@ -16,7 +16,7 @@ type Category struct {
 	CategoryUuid        uuid.UUID          `json:"category_uuid"`
 	CategoryName        string             `json:"category_name"`
 	CategorySlug        string             `json:"category_slug"`
-	CategoryDescription string             `json:"category_description"`
+	CategoryDescription *string            `json:"category_description"`
 	CategoryStatus      int32              `json:"category_status"`
 	CategoryDeletedAt   pgtype.Timestamptz `json:"category_deleted_at"`
 	CategoryCreatedAt   time.Time          `json:"category_created_at"`
@@ -28,12 +28,12 @@ type Product struct {
 	ProductUuid        uuid.UUID          `json:"product_uuid"`
 	ProductName        string             `json:"product_name"`
 	ProductSlug        string             `json:"product_slug"`
-	ProductDescription string             `json:"product_description"`
+	ProductDescription *string            `json:"product_description"`
 	ProductPrice       pgtype.Numeric     `json:"product_price"`
 	ProductStock       *int32             `json:"product_stock"`
 	ProductSku         *string            `json:"product_sku"`
 	ProductCategoryID  int32              `json:"product_category_id"`
-	ProductImageUrl    string             `json:"product_image_url"`
+	ProductImageUrl    *string            `json:"product_image_url"`
 	ProductStatus      int32              `json:"product_status"`
 	ProductDeletedAt   pgtype.Timestamptz `json:"product_deleted_at"`
 	ProductCreatedAt   time.Time          `json:"product_created_at"`

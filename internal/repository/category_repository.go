@@ -30,3 +30,11 @@ func (r *SqlCategoryRepository) GetBySlug(ctx context.Context, slug string) (sql
 	}
 	return category, nil
 }
+
+func (r *SqlCategoryRepository) Update(ctx context.Context, categoryParams sqlc.UpdateCategoryParams) (sqlc.Category, error) {
+	category, err := r.db.UpdateCategory(ctx, categoryParams)
+	if err != nil {
+		return sqlc.Category{}, err
+	}
+	return category, nil
+}

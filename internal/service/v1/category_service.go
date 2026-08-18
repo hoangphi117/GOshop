@@ -16,6 +16,8 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+const maxSlugAttempts = 100
+
 type categoryService struct {
 	repo  repository.CategoryRepository
 	cache cache.RedisCacheService
@@ -27,8 +29,6 @@ func NewCategoryService(repo repository.CategoryRepository, redisClient *redis.C
 		cache: cache.NewRedisCacheService(redisClient),
 	}
 }
-
-const maxSlugAttempts = 100
 
 func generateUniqueSlug(ctx context.Context, name string, getBySlug func(ctx context.Context, slug string) error) (string, error) {
 	baseSlug := utils.Slugify(name)
@@ -80,6 +80,25 @@ func (cs *categoryService) CreateCategory(ctx *gin.Context, input sqlc.CreateCat
 			return sqlc.Category{}, utils.NewError(utils.ErrCodeConflict, "category already exists")
 		}
 		return sqlc.Category{}, utils.WrapError(utils.ErrCodeInternal, "failed to create category", err)
+	}
+
+	if err := cs.cache.Clear("categories:*"); err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to clear category cache")
+	}
+
+	return category, nil
+}
+
+func (cs *categoryService) UpdateCategory(ctx *gin.Context, input sqlc.UpdateCategoryParams) (sqlc.Category, error) {
+
+	context := ctx.Request.Context()
+
+	category, err := cs.repo.Update(context, input)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return sqlc.Category{}, utils.NewError(utils.ErrCodeNotFound, "category not found")
+		}
+		return sqlc.Category{}, utils.WrapError(utils.ErrCodeInternal, "failed to update category", err)
 	}
 
 	if err := cs.cache.Clear("categories:*"); err != nil {
