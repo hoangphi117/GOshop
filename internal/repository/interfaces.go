@@ -25,4 +25,7 @@ type CategoryRepository interface {
 	Create(ctx context.Context, input sqlc.CreateCategoryParams) (sqlc.Category, error)
 	GetBySlug(ctx context.Context, slug string) (sqlc.Category, error)
 	Update(ctx context.Context, input sqlc.UpdateCategoryParams) (sqlc.Category, error)
+	SoftDelete(ctx context.Context, uuid uuid.UUID) (sqlc.Category, error)
+	Restore(ctx context.Context, uuid uuid.UUID) (sqlc.Category, error)
+	Trash(ctx context.Context, uuid uuid.UUID) (sqlc.Category, error)
 }

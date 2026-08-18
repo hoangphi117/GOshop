@@ -3,6 +3,8 @@ package repository
 import (
 	"context"
 	"goshop/internal/db/sqlc"
+
+	"github.com/google/uuid"
 )
 
 type SqlCategoryRepository struct {
@@ -33,6 +35,30 @@ func (r *SqlCategoryRepository) GetBySlug(ctx context.Context, slug string) (sql
 
 func (r *SqlCategoryRepository) Update(ctx context.Context, categoryParams sqlc.UpdateCategoryParams) (sqlc.Category, error) {
 	category, err := r.db.UpdateCategory(ctx, categoryParams)
+	if err != nil {
+		return sqlc.Category{}, err
+	}
+	return category, nil
+}
+
+func (r *SqlCategoryRepository) SoftDelete(ctx context.Context, uuid uuid.UUID) (sqlc.Category, error) {
+	category, err := r.db.SoftDeleteCategory(ctx, uuid)
+	if err != nil {
+		return sqlc.Category{}, err
+	}
+	return category, nil
+}
+
+func (r *SqlCategoryRepository) Restore(ctx context.Context, uuid uuid.UUID) (sqlc.Category, error) {
+	category, err := r.db.RestoreCategory(ctx, uuid)
+	if err != nil {
+		return sqlc.Category{}, err
+	}
+	return category, nil
+}
+
+func (r *SqlCategoryRepository) Trash(ctx context.Context, uuid uuid.UUID) (sqlc.Category, error) {
+	category, err := r.db.TrashCategory(ctx, uuid)
 	if err != nil {
 		return sqlc.Category{}, err
 	}

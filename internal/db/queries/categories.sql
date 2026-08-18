@@ -21,3 +21,23 @@ SET
 WHERE category_uuid = sqlc.arg(category_uuid)
 AND category_deleted_at IS NULL
 RETURNING *;
+
+-- name: SoftDeleteCategory :one
+UPDATE categories
+SET category_deleted_at = NOW()
+WHERE category_uuid = sqlc.arg(category_uuid)::uuid
+AND category_deleted_at IS NULL
+RETURNING *;
+
+-- name: RestoreCategory :one
+UPDATE categories
+SET category_deleted_at = NULL
+WHERE category_uuid = sqlc.arg(category_uuid)::uuid
+AND category_deleted_at IS NOT NULL
+RETURNING *;
+
+-- name: TrashCategory :one
+DELETE FROM categories
+WHERE category_uuid = sqlc.arg(category_uuid)::uuid
+AND category_deleted_at IS NOT NULL
+RETURNING *;

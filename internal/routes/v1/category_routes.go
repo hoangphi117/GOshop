@@ -21,5 +21,8 @@ func (cr *CategoryRoutes) Register(r *gin.RouterGroup) {
 	{
 		categories.POST("", cr.handler.CreateCategory)
 		categories.PUT("/:uuid", cr.handler.UpdateCategory)
+		categories.DELETE("/:uuid/soft-delete", cr.handler.SoftDeleteCategory)
+		categories.PUT("/:uuid/restore", cr.handler.RestoreCategory)
+		categories.DELETE("/:uuid/trash", cr.handler.TrashCategory)
 	}
 }

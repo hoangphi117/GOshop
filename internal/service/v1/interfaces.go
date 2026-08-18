@@ -28,4 +28,7 @@ type AuthService interface {
 type CategoryService interface {
 	CreateCategory(ctx *gin.Context, input sqlc.CreateCategoryParams) (sqlc.Category, error)
 	UpdateCategory(ctx *gin.Context, input sqlc.UpdateCategoryParams) (sqlc.Category, error)
+	SoftDeleteCategory(ctx *gin.Context, uuid uuid.UUID) (sqlc.Category, error)
+	RestoreCategory(ctx *gin.Context, uuid uuid.UUID) (sqlc.Category, error)
+	TrashCategory(ctx *gin.Context, uuid uuid.UUID) (sqlc.Category, error)
 }

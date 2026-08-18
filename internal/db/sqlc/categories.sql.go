@@ -73,6 +73,80 @@ func (q *Queries) GetCategoryBySlug(ctx context.Context, categorySlug string) (C
 	return i, err
 }
 
+const restoreCategory = `-- name: RestoreCategory :one
+UPDATE categories
+SET category_deleted_at = NULL
+WHERE category_uuid = $1::uuid
+AND category_deleted_at IS NOT NULL
+RETURNING category_id, category_uuid, category_name, category_slug, category_description, category_status, category_deleted_at, category_created_at, category_updated_at
+`
+
+func (q *Queries) RestoreCategory(ctx context.Context, categoryUuid uuid.UUID) (Category, error) {
+	row := q.db.QueryRow(ctx, restoreCategory, categoryUuid)
+	var i Category
+	err := row.Scan(
+		&i.CategoryID,
+		&i.CategoryUuid,
+		&i.CategoryName,
+		&i.CategorySlug,
+		&i.CategoryDescription,
+		&i.CategoryStatus,
+		&i.CategoryDeletedAt,
+		&i.CategoryCreatedAt,
+		&i.CategoryUpdatedAt,
+	)
+	return i, err
+}
+
+const softDeleteCategory = `-- name: SoftDeleteCategory :one
+UPDATE categories
+SET category_deleted_at = NOW()
+WHERE category_uuid = $1::uuid
+AND category_deleted_at IS NULL
+RETURNING category_id, category_uuid, category_name, category_slug, category_description, category_status, category_deleted_at, category_created_at, category_updated_at
+`
+
+func (q *Queries) SoftDeleteCategory(ctx context.Context, categoryUuid uuid.UUID) (Category, error) {
+	row := q.db.QueryRow(ctx, softDeleteCategory, categoryUuid)
+	var i Category
+	err := row.Scan(
+		&i.CategoryID,
+		&i.CategoryUuid,
+		&i.CategoryName,
+		&i.CategorySlug,
+		&i.CategoryDescription,
+		&i.CategoryStatus,
+		&i.CategoryDeletedAt,
+		&i.CategoryCreatedAt,
+		&i.CategoryUpdatedAt,
+	)
+	return i, err
+}
+
+const trashCategory = `-- name: TrashCategory :one
+DELETE FROM categories
+WHERE category_uuid = $1::uuid
+AND category_deleted_at IS NOT NULL
+RETURNING category_id, category_uuid, category_name, category_slug, category_description, category_status, category_deleted_at, category_created_at, category_updated_at
+`
+
+func (q *Queries) TrashCategory(ctx context.Context, categoryUuid uuid.UUID) (Category, error) {
+	row := q.db.QueryRow(ctx, trashCategory, categoryUuid)
+	var i Category
+	err := row.Scan(
+		&i.CategoryID,
+		&i.CategoryUuid,
+		&i.CategoryName,
+		&i.CategorySlug,
+		&i.CategoryDescription,
+		&i.CategoryStatus,
+		&i.CategoryDeletedAt,
+		&i.CategoryCreatedAt,
+		&i.CategoryUpdatedAt,
+	)
+	return i, err
+}
+
 const updateCategory = `-- name: UpdateCategory :one
 UPDATE categories
 SET

@@ -72,3 +72,72 @@ func (ch *CategoryHandler) UpdateCategory(ctx *gin.Context) {
 	updatedCategoryDTO := v1dto.MapCategoryToDTO(updatedCategory)
 	utils.ResponseSuccess(ctx, http.StatusOK, "Category updated successfully", updatedCategoryDTO)
 }
+
+func (ch *CategoryHandler) SoftDeleteCategory(ctx *gin.Context) {
+	var params v1dto.GetCategoryByUuidParam
+	if err := ctx.ShouldBindUri(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	categoryUuid, err := uuid.Parse(params.Uuid)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	softDeletedCategory, err := ch.service.SoftDeleteCategory(ctx, categoryUuid)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	softDeletedCategoryDTO := v1dto.MapCategoryToDTO(softDeletedCategory)
+	utils.ResponseSuccess(ctx, http.StatusOK, "Category soft deleted successfully", softDeletedCategoryDTO)
+}
+
+func (ch *CategoryHandler) RestoreCategory(ctx *gin.Context) {
+	var params v1dto.GetCategoryByUuidParam
+	if err := ctx.ShouldBindUri(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	categoryUuid, err := uuid.Parse(params.Uuid)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	restoredCategory, err := ch.service.RestoreCategory(ctx, categoryUuid)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	restoredCategoryDTO := v1dto.MapCategoryToDTO(restoredCategory)
+	utils.ResponseSuccess(ctx, http.StatusOK, "Category restored successfully", restoredCategoryDTO)
+}
+
+func (ch *CategoryHandler) TrashCategory(ctx *gin.Context) {
+	var params v1dto.GetCategoryByUuidParam
+	if err := ctx.ShouldBindUri(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	categoryUuid, err := uuid.Parse(params.Uuid)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	trashCategory, err := ch.service.TrashCategory(ctx, categoryUuid)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	trashCategoryDTO := v1dto.MapCategoryToDTO(trashCategory)
+	utils.ResponseSuccess(ctx, http.StatusOK, "Category trashed successfully", trashCategoryDTO)
+}

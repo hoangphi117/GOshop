@@ -12,6 +12,7 @@ import (
 	"goshop/pkg/logger"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/redis/go-redis/v9"
 )
@@ -105,5 +106,55 @@ func (cs *categoryService) UpdateCategory(ctx *gin.Context, input sqlc.UpdateCat
 		logger.Log.Warn().Err(err).Msg("Failed to clear category cache")
 	}
 
+	return category, nil
+}
+
+func (cs *categoryService) SoftDeleteCategory(ctx *gin.Context, uuid uuid.UUID) (sqlc.Category, error) {
+	context := ctx.Request.Context()
+
+	category, err := cs.repo.SoftDelete(context, uuid)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return sqlc.Category{}, utils.NewError(utils.ErrCodeNotFound, "category not found")
+		}
+		return sqlc.Category{}, utils.WrapError(utils.ErrCodeInternal, "failed to soft delete category", err)
+	}
+
+	if err := cs.cache.Clear("categories:*"); err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to clear category cache")
+	}
+
+	return category, nil
+}
+
+func (cs *categoryService) RestoreCategory(ctx *gin.Context, uuid uuid.UUID) (sqlc.Category, error) {
+	context := ctx.Request.Context()
+
+	category, err := cs.repo.Restore(context, uuid)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return sqlc.Category{}, utils.NewError(utils.ErrCodeNotFound, "category not found")
+		}
+		return sqlc.Category{}, utils.WrapError(utils.ErrCodeInternal, "failed to restore category", err)
+	}
+	if err := cs.cache.Clear("categories:*"); err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to clear category cache")
+	}
+	return category, nil
+}
+
+func (cs *categoryService) TrashCategory(ctx *gin.Context, uuid uuid.UUID) (sqlc.Category, error) {
+	context := ctx.Request.Context()
+
+	category, err := cs.repo.Trash(context, uuid)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return sqlc.Category{}, utils.NewError(utils.ErrCodeNotFound, "category not found")
+		}
+		return sqlc.Category{}, utils.WrapError(utils.ErrCodeInternal, "failed to trash category", err)
+	}
+	if err := cs.cache.Clear("categories:*"); err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to clear category cache")
+	}
 	return category, nil
 }
