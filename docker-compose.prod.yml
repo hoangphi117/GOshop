@@ -52,15 +52,44 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+  rabbitmq:
+    image: rabbitmq:4.3.4-management-alpine
+    container_name: rabbitmq
+    restart: unless-stopped
+
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+
+    networks:
+      - app-networks
+
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   api:
     build:
       context: .
-      dockerfile: Dockerfile.prod
+      dockerfile: Dockerfile.api.prod
     container_name: goshop-api
     restart: unless-stopped
 
     env_file:
       - .env
+
+    environment:
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/
 
     ports:
       - "${SERVER_PORT}:${SERVER_PORT}"
@@ -71,12 +100,15 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     networks:
       - app-networks
 
 volumes:
   pgdata:
   redis-data:
+  rabbitmq-data:
 
 networks:
   app-networks:

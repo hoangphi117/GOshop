@@ -8,6 +8,7 @@ import (
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
 	"goshop/pkg/mail"
+	"goshop/pkg/rabbitmq"
 	"strings"
 	"sync"
 	"time"
@@ -24,6 +25,7 @@ type authService struct {
 	tokenService auth.TokenService
 	cacheService cache.RedisCacheService
 	mailService  mail.EmailProviderService
+	rabbitmq     rabbitmq.RabbitMQService
 	appURL       string
 }
 
@@ -41,12 +43,15 @@ var (
 	MaxLoginAttempts = 5
 )
 
-func NewAuthService(userRepo repository.UserRepository, tokenService auth.TokenService, cacheService cache.RedisCacheService, mailService mail.EmailProviderService, appURL string) *authService {
+func NewAuthService(userRepo repository.UserRepository, tokenService auth.TokenService,
+	cacheService cache.RedisCacheService, mailService mail.EmailProviderService,
+	rabbitmqService rabbitmq.RabbitMQService, appURL string) *authService {
 	return &authService{
 		userRepo:     userRepo,
 		tokenService: tokenService,
 		cacheService: cacheService,
 		mailService:  mailService,
+		rabbitmq:     rabbitmqService,
 		appURL:       appURL,
 	}
 }
@@ -238,23 +243,25 @@ func (as *authService) RequestForgotPassword(ctx *gin.Context, email string) err
 	htmlBody, textBody, err := mail.ResetPasswordTemplate(
 		user.UserFullname,
 		resetLink,
-		passwordResetTokenTTL.String(),
+		passwordResetTokenTTL,
 		time.Now().Year(),
 	)
 	if err != nil {
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to render reset password email", err)
 	}
 
-	err = as.mailService.SendEmail(context, &mail.Email{
+	mailContent := &mail.Email{
 		To:       []mail.Address{{Email: user.UserEmail}},
 		Subject:  "Reset Your Password",
 		Text:     textBody,
 		HTML:     htmlBody,
 		Category: "password-reset",
-	})
-	if err != nil {
-		return utils.WrapError(utils.ErrCodeInternal, "Failed to send reset password email", err)
 	}
+
+	if err := as.rabbitmq.Publish(ctx, "auth_email_queue", mailContent); err != nil {
+		return utils.NewError(utils.ErrCodeInternal, "Failed to publish reset password email to queue")
+	}
+
 	return nil
 }
 

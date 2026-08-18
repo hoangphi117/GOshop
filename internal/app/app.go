@@ -12,6 +12,7 @@ import (
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 	"goshop/pkg/mail"
+	"goshop/pkg/rabbitmq"
 	"net/http"
 	"os"
 	"os/signal"
@@ -37,7 +38,7 @@ type ModuleContext struct {
 	Redis *redis.Client
 }
 
-func NewApplication(cfg *config.Config) *Application {
+func NewApplication(cfg *config.Config) (*Application, error) {
 
 	validation.InitValidator()
 
@@ -45,6 +46,7 @@ func NewApplication(cfg *config.Config) *Application {
 
 	if err := db.InitDB(); err != nil {
 		logger.Log.Fatal().Err(err).Msg("Failed to initialize database")
+		return nil, err
 	}
 
 	redisClient := config.NewRedisClient()
@@ -54,11 +56,20 @@ func NewApplication(cfg *config.Config) *Application {
 	factory, err := mail.NewProviderFactory(mail.ProviderMailtrap)
 	if err != nil {
 		mailLogger.Error().Err(err).Msg("Failed to create mail provider factory")
+		return nil, err
 	}
 
 	mailService, err := mail.NewMailService(cfg, mailLogger, factory)
 	if err != nil {
 		mailLogger.Error().Err(err).Msg("Failed to create mail service")
+		return nil, err
+	}
+
+	rabbitmqLogger := utils.NewLoggerWithPath("worker.log", "info")
+	rabbitmqService, err := rabbitmq.NewRabbitMQService(utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"), rabbitmqLogger)
+	if err != nil {
+		logger.Log.Fatal().Err(err).Msg("Failed to create RabbitMQ service")
+		return nil, err
 	}
 
 	ctx := &ModuleContext{
@@ -68,7 +79,7 @@ func NewApplication(cfg *config.Config) *Application {
 
 	modules := []Module{
 		NewUserModule(ctx),
-		NewAuthModule(ctx, tokenService, cacheRedisService, mailService, cfg.AppURL),
+		NewAuthModule(ctx, tokenService, cacheRedisService, mailService, rabbitmqService, cfg.AppURL),
 	}
 
 	routes.RegisterRoutes(r, tokenService, cacheRedisService, getModuleRoutes(modules)...)
@@ -77,7 +88,7 @@ func NewApplication(cfg *config.Config) *Application {
 		config:  cfg,
 		router:  r,
 		modules: modules,
-	}
+	}, nil
 }
 
 func (a *Application) Run() error {

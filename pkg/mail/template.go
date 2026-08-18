@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
+	"strings"
+	"time"
 )
 
 const resetPasswordHTMLTmpl = `<!DOCTYPE html>
@@ -100,11 +102,11 @@ var (
 	resetPasswordTextParsed = template.Must(template.New("resetPasswordText").Parse(resetPasswordTextTmpl))
 )
 
-func ResetPasswordTemplate(userName, resetLink, expiresIn string, year int) (htmlBody, textBody string, err error) {
+func ResetPasswordTemplate(userName, resetLink string, expiresIn time.Duration, year int) (htmlBody, textBody string, err error) {
 	data := resetPasswordData{
 		UserName:  userName,
 		ResetLink: resetLink,
-		ExpiresIn: expiresIn,
+		ExpiresIn: formatDuration(expiresIn),
 		Year:      year,
 	}
 
@@ -119,4 +121,31 @@ func ResetPasswordTemplate(userName, resetLink, expiresIn string, year int) (htm
 	}
 
 	return htmlBuf.String(), textBuf.String(), nil
+}
+
+func formatDuration(d time.Duration) string {
+	d = d.Round(time.Second)
+
+	h := d / time.Hour
+	d -= h * time.Hour
+	m := d / time.Minute
+	d -= m * time.Minute
+	s := d / time.Second
+
+	var parts []string
+	if h > 0 {
+		parts = append(parts, fmt.Sprintf("%dh", h))
+	}
+	if m > 0 {
+		parts = append(parts, fmt.Sprintf("%dm", m))
+	}
+	if s > 0 && h == 0 && m == 0 {
+		parts = append(parts, fmt.Sprintf("%ds", s))
+	}
+
+	if len(parts) == 0 {
+		return "0s"
+	}
+
+	return strings.Join(parts, " ")
 }

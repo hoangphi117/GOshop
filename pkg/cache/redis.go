@@ -30,6 +30,15 @@ func (cs *redisCacheService) Set(key string, value any, ttl time.Duration) error
 	return cs.rdb.Set(cs.ctx, key, data, ttl).Err()
 }
 
+func (cs *redisCacheService) SetNX(key string, value any, ttl time.Duration) (bool, error) {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return false, err
+	}
+
+	return cs.rdb.SetNX(cs.ctx, key, data, ttl).Result()
+}
+
 func (cs *redisCacheService) Get(key string, dest any) error {
 	result, err := cs.rdb.Get(cs.ctx, key).Result()
 

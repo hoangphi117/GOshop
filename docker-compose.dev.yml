@@ -52,15 +52,44 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+  rabbitmq:
+    image: rabbitmq:4.3.4-management-alpine
+    container_name: rabbitmq
+    restart: unless-stopped
+
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+
+    networks:
+      - app-networks
+
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   api:
     build:
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile.api.dev
     container_name: goshop-api
     restart: unless-stopped
 
     env_file:
       - .env
+
+    environment:
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/
 
     ports:
       - "${SERVER_PORT}:${SERVER_PORT}"
@@ -71,12 +100,77 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     networks:
       - app-networks
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker.dev
+    container_name: goshop-worker
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/
+
+    volumes:
+      - ./:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - app-networks
+
+  grafana:
+    image: grafana/grafana:13.0.6
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - loki
+    volumes:
+      - grafana-data:/var/lib/grafana
+
+  loki:
+    image: grafana/loki:2.9.1
+    container_name: loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - loki-data:/loki
+
+  promtail:
+    image: grafana/promtail:2.9.1
+    container_name: promtail
+    restart: unless-stopped
+    volumes:
+      - ./internal/logs:/var/log
+      - ./system/promtail/promtail-config.yml:/etc/promtail/config.yml
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
 
 volumes:
   pgdata:
   redis-data:
+  rabbitmq-data:
+  grafana-data:
+  loki-data:
 
 networks:
   app-networks:

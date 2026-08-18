@@ -84,7 +84,7 @@ func (ms *MailService) SendEmail(ctx context.Context, email *Email) error {
 				Str("subject", email.Subject).
 				Str("category", email.Category).
 				Int("attempt", attempt).
-				Msg("Email send successfully")
+				Msg("Email sent successfully")
 
 			return nil
 		}
