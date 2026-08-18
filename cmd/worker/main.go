@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"goshop/internal/config"
 	"goshop/internal/utils"
+	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 	"goshop/pkg/mail"
 	"goshop/pkg/rabbitmq"
@@ -16,12 +18,14 @@ import (
 
 	"github.com/joho/godotenv"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 )
 
 type Worker struct {
 	rabbitMQ    rabbitmq.RabbitMQService
 	mailService mail.EmailProviderService
+	cache       cache.RedisCacheService
 	cfg         *config.Config
 	logger      *zerolog.Logger
 }
@@ -29,13 +33,23 @@ type Worker struct {
 func NewWorker(cfg *config.Config) *Worker {
 	log := utils.NewLoggerWithPath("worker.log", "info")
 
-	// Connect to RabbitMQ
 	rabbitMQ, err := rabbitmq.NewRabbitMQService(
 		utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"), log,
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to create RabbitMQ service")
 	}
+
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:     utils.GetEnv("REDIS_ADDR", "localhost:6379"),
+		Username: utils.GetEnv("REDIS_USERNAME", ""),
+		Password: utils.GetEnv("REDIS_PASSWORD", ""),
+		DB:       utils.GetIntEnv("REDIS_DB", 0),
+	})
+	if err := redisClient.Ping(context.Background()).Err(); err != nil {
+		log.Warn().Err(err).Msg("Redis unavailable, idempotency disabled")
+	}
+	cacheService := cache.NewRedisCacheService(redisClient)
 
 	// Init MailService
 	mailLogger := utils.NewLoggerWithPath("mail.log", "info")
@@ -54,6 +68,7 @@ func NewWorker(cfg *config.Config) *Worker {
 	return &Worker{
 		rabbitMQ:    rabbitMQ,
 		mailService: mailService,
+		cache:       cacheService,
 		cfg:         cfg,
 		logger:      log,
 	}
@@ -85,7 +100,9 @@ func (w *Worker) Start(ctx context.Context) error {
 		return nil
 	}
 
-	if err := w.rabbitMQ.Consume(ctx, emailQueueName, handler); err != nil {
+	deduped := w.withIdempotency(emailQueueName, handler)
+
+	if err := w.rabbitMQ.Consume(ctx, emailQueueName, deduped); err != nil {
 		w.logger.Error().Err(err).Msg("Failed to consume email queue")
 		return err
 	}
@@ -97,6 +114,34 @@ func (w *Worker) Start(ctx context.Context) error {
 	w.logger.Info().Msg("Worker stopped consuming due to context cancellation")
 
 	return ctx.Err()
+}
+
+func (w *Worker) withIdempotency(queue string, next func(amqp.Table, []byte) error) func(amqp.Table, []byte) error {
+	const dedupTTL = 24 * time.Hour
+
+	return func(headers amqp.Table, body []byte) error {
+		messageID, _ := headers["x-message-id"].(string)
+		if messageID == "" {
+			return next(headers, body)
+		}
+
+		key := fmt.Sprintf("dedup:%s:%s", queue, messageID)
+
+		if exists, err := w.cache.Exists(key); err == nil && exists {
+			w.logger.Info().Str("message_id", messageID).Msg("Duplicate message, skipping")
+			return nil
+		}
+
+		if err := next(headers, body); err != nil {
+			return err
+		}
+
+		if _, err := w.cache.SetNX(key, "1", dedupTTL); err != nil {
+			w.logger.Error().Err(err).Str("message_id", messageID).Msg("Failed to mark message as processed")
+		}
+
+		return nil
+	}
 }
 
 func (w *Worker) Shutdown(ctx context.Context) error {
