@@ -58,9 +58,16 @@ services:
     container_name: rabbitmq
     restart: unless-stopped
 
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+
     ports:
       - "5672:5672"
       - "15672:15672"
+
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
 
     networks:
       - app-networks
@@ -80,6 +87,9 @@ services:
 
     env_file:
       - .env
+
+    environment:
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/
 
     ports:
       - "${SERVER_PORT}:${SERVER_PORT}"
@@ -104,6 +114,9 @@ services:
 
     env_file:
       - .env
+
+    environment:
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/
 
     volumes:
       - ./:/app
@@ -155,6 +168,7 @@ services:
 volumes:
   pgdata:
   redis-data:
+  rabbitmq-data:
   grafana-data:
   loki-data:
 
