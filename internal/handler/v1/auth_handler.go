@@ -20,6 +20,21 @@ func NewAuthHandler(service v1service.AuthService) *AuthHandler {
 	}
 }
 
+func (ah *AuthHandler) Register(ctx *gin.Context) {
+	var input v1dto.RegisterInput
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	if err := ah.service.Register(ctx, input); err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusCreated, "Register successfully")
+}
+
 func (ah *AuthHandler) Login(ctx *gin.Context) {
 	var input v1dto.LoginInput
 	if err := ctx.ShouldBindJSON(&input); err != nil {

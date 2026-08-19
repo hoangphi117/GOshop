@@ -34,6 +34,12 @@ type UpdateUserInput struct {
 	Level    *int32  `json:"level" binding:"omitempty,oneof=1 2"`
 }
 
+type UpdateProfileInput struct {
+	Name     *string `json:"name" binding:"omitempty,min=2,max=100"`
+	Age      *int32  `json:"age" binding:"omitempty,gt=0"`
+	Password *string `json:"password" binding:"omitempty,min=6,password_strong"`
+}
+
 type GetUserByUuidParam struct {
 	Uuid string `uri:"uuid" binding:"uuid"`
 }

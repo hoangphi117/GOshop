@@ -160,6 +160,71 @@ func (us *userService) UpdateUser(ctx *gin.Context, input sqlc.UpdateUserParams)
 	return updatedUser, nil
 }
 
+func (us *userService) GetProfile(ctx *gin.Context) (sqlc.User, error) {
+	context := ctx.Request.Context()
+
+	userUUIDStr, ok := ctx.Get("user_uuid")
+	if !ok {
+		return sqlc.User{}, utils.NewError(utils.ErrCodeUnauthorized, "user uuid missing")
+	}
+
+	userUuid, err := uuid.Parse(userUUIDStr.(string))
+	if err != nil {
+		return sqlc.User{}, utils.NewError(utils.ErrCodeUnauthorized, "invalid user uuid")
+	}
+
+	user, err := us.repo.GetByUUID(context, userUuid)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return sqlc.User{}, utils.NewError(utils.ErrCodeNotFound, "user not found")
+		}
+		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to get profile", err)
+	}
+
+	return user, nil
+}
+
+func (us *userService) UpdateProfile(ctx *gin.Context, input sqlc.UpdateUserParams) (sqlc.User, error) {
+	context := ctx.Request.Context()
+
+	userUUIDStr, ok := ctx.Get("user_uuid")
+	if !ok {
+		return sqlc.User{}, utils.NewError(utils.ErrCodeUnauthorized, "user uuid missing")
+	}
+
+	userUuid, err := uuid.Parse(userUUIDStr.(string))
+	if err != nil {
+		return sqlc.User{}, utils.NewError(utils.ErrCodeUnauthorized, "invalid user uuid")
+	}
+
+	input.UserUuid = userUuid
+	input.UserStatus = nil
+	input.UserLevel = nil
+
+	if input.UserPassword != nil && *input.UserPassword != "" {
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(*input.UserPassword), bcrypt.DefaultCost)
+		if err != nil {
+			return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to hash password", err)
+		}
+		hashed := string(hashedPassword)
+		input.UserPassword = &hashed
+	}
+
+	user, err := us.repo.Update(context, input)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return sqlc.User{}, utils.NewError(utils.ErrCodeNotFound, "user not found")
+		}
+		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to update profile", err)
+	}
+
+	if err := us.cache.Clear("users:*"); err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to clear cache")
+	}
+
+	return user, nil
+}
+
 func (us *userService) SoftDeleteUser(ctx *gin.Context, uuid uuid.UUID) (sqlc.User, error) {
 	context := ctx.Request.Context()
 
