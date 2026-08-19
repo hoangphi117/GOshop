@@ -20,8 +20,8 @@ WHERE (
     OR $1::bool = FALSE AND user_deleted_at IS NULL
 ) AND (
     $2::TEXT IS NULL
-    OR user_email ILIKE '%' || $2::TEXT || '%'
-    OR user_fullname ILIKE '%' || $2::TEXT || '%'
+    OR unaccent(user_email) ILIKE '%' || unaccent($2::TEXT) || '%'
+    OR unaccent(user_fullname) ILIKE '%' || unaccent($2::TEXT) || '%'
 )
 `
 
@@ -143,8 +143,8 @@ FROM users
 WHERE user_deleted_at IS NULL
 AND (
     $3::TEXT IS NULL
-    OR user_email ILIKE '%' || $3::TEXT || '%'
-    OR user_fullname ILIKE '%' || $3::TEXT || '%'
+    OR unaccent(user_email) ILIKE '%' || unaccent($3::TEXT) || '%'
+    OR unaccent(user_fullname) ILIKE '%' || unaccent($3::TEXT) || '%'
 )
 ORDER BY user_created_at ASC, user_id ASC
 LIMIT $1 OFFSET $2
@@ -194,8 +194,8 @@ FROM users
 WHERE user_deleted_at IS NULL
 AND (
     $3::TEXT IS NULL
-    OR user_email ILIKE '%' || $3::TEXT || '%'
-    OR user_fullname ILIKE '%' || $3::TEXT || '%'
+    OR unaccent(user_email) ILIKE '%' || unaccent($3::TEXT) || '%'
+    OR unaccent(user_fullname) ILIKE '%' || unaccent($3::TEXT) || '%'
 )
 ORDER BY user_created_at DESC, user_id DESC
 LIMIT $1 OFFSET $2
@@ -245,8 +245,8 @@ FROM users
 WHERE user_deleted_at IS NULL
 AND (
     $3::TEXT IS NULL
-    OR user_email ILIKE '%' || $3::TEXT || '%'
-    OR user_fullname ILIKE '%' || $3::TEXT || '%'
+    OR unaccent(user_email) ILIKE '%' || unaccent($3::TEXT) || '%'
+    OR unaccent(user_fullname) ILIKE '%' || unaccent($3::TEXT) || '%'
 )
 ORDER BY user_id ASC
 LIMIT $1 OFFSET $2
@@ -296,8 +296,8 @@ FROM users
 WHERE user_deleted_at IS NULL
 AND (
     $3::TEXT IS NULL
-    OR user_email ILIKE '%' || $3::TEXT || '%'
-    OR user_fullname ILIKE '%' || $3::TEXT || '%'
+    OR unaccent(user_email) ILIKE '%' || unaccent($3::TEXT) || '%'
+    OR unaccent(user_fullname) ILIKE '%' || unaccent($3::TEXT) || '%'
 )
 ORDER BY user_id DESC
 LIMIT $1 OFFSET $2

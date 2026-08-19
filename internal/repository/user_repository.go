@@ -67,8 +67,8 @@ func (ur *SqlUserRepository) GetAllV2(ctx context.Context, search, orderBy, sort
 			WHERE (
 				$1::TEXT IS NULL
 				OR $1::TEXT = ''
-				OR user_email ILIKE '%' || $1 || '%'
-				OR user_fullname ILIKE '%' || $1 || '%'
+				OR unaccent(user_email) ILIKE '%' || unaccent($1) || '%'
+				OR unaccent(user_fullname) ILIKE '%' || unaccent($1) || '%'
 			)`
 
 	if deleted {
