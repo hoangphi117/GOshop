@@ -9,7 +9,8 @@ import (
 )
 
 type ProductModule struct {
-	routes routes.Route
+	routes      routes.Route
+	adminRoutes routes.Route
 }
 
 func NewProductModule(ctx *ModuleContext) *ProductModule {
@@ -21,11 +22,19 @@ func NewProductModule(ctx *ModuleContext) *ProductModule {
 	categoryHandler := v1handler.NewCategoryHandler(categoryService)
 
 	categoryRoutes := v1routes.NewCategoryRoutes(categoryHandler)
+	adminCategoryRoutes := v1routes.NewAdminCategoryRoutes(categoryHandler)
 
-	return &ProductModule{routes: categoryRoutes}
+	return &ProductModule{
+		routes:      categoryRoutes,
+		adminRoutes: adminCategoryRoutes,
+	}
 
 }
 
 func (m *ProductModule) Routes() routes.Route {
 	return m.routes
+}
+
+func (m *ProductModule) AdminRoutes() routes.Route {
+	return m.adminRoutes
 }

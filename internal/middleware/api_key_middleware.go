@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"crypto/subtle"
 	"net/http"
 	"os"
 
@@ -8,10 +9,9 @@ import (
 )
 
 func ApiKeyMiddleware() gin.HandlerFunc {
-
 	expectedKey := os.Getenv("API_KEY")
 	if expectedKey == "" {
-		expectedKey = "secret-key"
+		panic("API_KEY environment variable is required")
 	}
 
 	return func(ctx *gin.Context) {
@@ -21,7 +21,7 @@ func ApiKeyMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		if apiKey != expectedKey {
+		if subtle.ConstantTimeCompare([]byte(apiKey), []byte(expectedKey)) != 1 {
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid API Key"})
 			return
 		}

@@ -9,7 +9,8 @@ import (
 )
 
 type UserModule struct {
-	routes routes.Route
+	routes      routes.Route
+	adminRoutes routes.Route
 }
 
 func NewUserModule(ctx *ModuleContext) *UserModule {
@@ -25,10 +26,18 @@ func NewUserModule(ctx *ModuleContext) *UserModule {
 
 	// Initialize routes
 	userRoutes := v1routes.NewUserRoutes(userHandler)
+	adminUserRoutes := v1routes.NewAdminUserRoutes(userHandler)
 
-	return &UserModule{routes: userRoutes}
+	return &UserModule{
+		routes:      userRoutes,
+		adminRoutes: adminUserRoutes,
+	}
 }
 
 func (m *UserModule) Routes() routes.Route {
 	return m.routes
+}
+
+func (m *UserModule) AdminRoutes() routes.Route {
+	return m.adminRoutes
 }

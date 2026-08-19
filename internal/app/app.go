@@ -27,6 +27,10 @@ type Module interface {
 	Routes() routes.Route
 }
 
+type AdminModule interface {
+	AdminRoutes() routes.Route
+}
+
 type Application struct {
 	config  *config.Config
 	router  *gin.Engine
@@ -83,7 +87,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		NewAuthModule(ctx, tokenService, cacheRedisService, mailService, rabbitmqService, cfg.AppURL),
 	}
 
-	routes.RegisterRoutes(r, tokenService, cacheRedisService, getModuleRoutes(modules)...)
+	routes.RegisterRoutes(r, tokenService, cacheRedisService, getModuleRoutes(modules), getAdminModuleRoutes(modules))
 
 	return &Application{
 		config:  cfg,
@@ -128,6 +132,16 @@ func getModuleRoutes(modules []Module) []routes.Route {
 	routeList := make([]routes.Route, len(modules))
 	for i, module := range modules {
 		routeList[i] = module.Routes()
+	}
+	return routeList
+}
+
+func getAdminModuleRoutes(modules []Module) []routes.Route {
+	routeList := make([]routes.Route, 0)
+	for _, module := range modules {
+		if adminModule, ok := module.(AdminModule); ok {
+			routeList = append(routeList, adminModule.AdminRoutes())
+		}
 	}
 	return routeList
 }
