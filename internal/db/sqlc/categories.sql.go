@@ -11,6 +11,31 @@ import (
 	"github.com/google/uuid"
 )
 
+const countCategories = `-- name: CountCategories :one
+SELECT count(*) FROM categories
+WHERE (
+    $1::bool IS NULL
+    OR $1::bool = TRUE AND category_deleted_at IS NOT NULL
+    OR $1::bool = FALSE AND category_deleted_at IS NULL
+) AND (
+    $2::TEXT IS NULL
+    OR unaccent(category_name) ILIKE '%' || unaccent($2::TEXT) || '%'
+    OR unaccent(category_slug) ILIKE '%' || unaccent($2::TEXT) || '%'
+)
+`
+
+type CountCategoriesParams struct {
+	Deleted *bool   `json:"deleted"`
+	Search  *string `json:"search"`
+}
+
+func (q *Queries) CountCategories(ctx context.Context, arg CountCategoriesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countCategories, arg.Deleted, arg.Search)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createCategory = `-- name: CreateCategory :one
 INSERT INTO categories (
     category_name,
@@ -58,6 +83,29 @@ AND category_deleted_at IS NULL
 
 func (q *Queries) GetCategoryBySlug(ctx context.Context, categorySlug string) (Category, error) {
 	row := q.db.QueryRow(ctx, getCategoryBySlug, categorySlug)
+	var i Category
+	err := row.Scan(
+		&i.CategoryID,
+		&i.CategoryUuid,
+		&i.CategoryName,
+		&i.CategorySlug,
+		&i.CategoryDescription,
+		&i.CategoryStatus,
+		&i.CategoryDeletedAt,
+		&i.CategoryCreatedAt,
+		&i.CategoryUpdatedAt,
+	)
+	return i, err
+}
+
+const getCategoryByUuid = `-- name: GetCategoryByUuid :one
+SELECT category_id, category_uuid, category_name, category_slug, category_description, category_status, category_deleted_at, category_created_at, category_updated_at FROM categories
+WHERE category_uuid = $1
+AND category_deleted_at IS NULL
+`
+
+func (q *Queries) GetCategoryByUuid(ctx context.Context, categoryUuid uuid.UUID) (Category, error) {
+	row := q.db.QueryRow(ctx, getCategoryByUuid, categoryUuid)
 	var i Category
 	err := row.Scan(
 		&i.CategoryID,

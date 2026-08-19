@@ -10,6 +10,8 @@ import (
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -90,6 +92,74 @@ func (cs *categoryService) CreateCategory(ctx *gin.Context, input sqlc.CreateCat
 	return category, nil
 }
 
+func (cs *categoryService) GetAllCategories(ctx *gin.Context, search, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.Category, int32, error) {
+	context := ctx.Request.Context()
+
+	if sort == "" {
+		sort = "desc"
+	}
+
+	if orderBy == "" {
+		orderBy = "category_created_at"
+	}
+
+	if page <= 0 {
+		page = 1
+	}
+
+	if limit <= 0 {
+		limitInt := utils.GetIntEnv("LIMIT_ITEM_PER_PAGE", 10)
+		limit = int32(limitInt)
+	}
+
+	offset := (page - 1) * limit
+
+	cacheKey := cs.generateCacheKey(search, orderBy, sort, page, limit, deleted)
+	var cacheData struct {
+		Categories []sqlc.Category `json:"categories"`
+		Total      int32           `json:"total"`
+	}
+
+	if err := cs.cache.Get(cacheKey, &cacheData); err == nil && cacheData.Categories != nil {
+		return cacheData.Categories, cacheData.Total, nil
+	}
+
+	listCategories, err := cs.repo.GetAll(context, search, orderBy, sort, limit, offset, deleted)
+	if err != nil {
+		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "failed to get all categories", err)
+	}
+
+	total, err := cs.repo.CountCategories(context, search, deleted)
+	if err != nil {
+		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "failed to count categories", err)
+	}
+
+	cacheData = struct {
+		Categories []sqlc.Category `json:"categories"`
+		Total      int32           `json:"total"`
+	}{
+		Categories: listCategories,
+		Total:      int32(total),
+	}
+	cs.cache.Set(cacheKey, cacheData, 5*time.Minute)
+
+	return listCategories, cacheData.Total, nil
+}
+
+func (cs *categoryService) GetCategoryByUUID(ctx *gin.Context, uuid uuid.UUID) (sqlc.Category, error) {
+	context := ctx.Request.Context()
+
+	category, err := cs.repo.GetByUUID(context, uuid)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return sqlc.Category{}, utils.NewError(utils.ErrCodeNotFound, "category not found")
+		}
+		return sqlc.Category{}, utils.WrapError(utils.ErrCodeInternal, "failed to get category by UUID", err)
+	}
+
+	return category, nil
+}
+
 func (cs *categoryService) UpdateCategory(ctx *gin.Context, input sqlc.UpdateCategoryParams) (sqlc.Category, error) {
 
 	context := ctx.Request.Context()
@@ -157,4 +227,22 @@ func (cs *categoryService) TrashCategory(ctx *gin.Context, uuid uuid.UUID) (sqlc
 		logger.Log.Warn().Err(err).Msg("Failed to clear category cache")
 	}
 	return category, nil
+}
+
+func (cs *categoryService) generateCacheKey(search, orderBy, sort string, page, limit int32, deleted bool) string {
+	search = strings.TrimSpace(search)
+	if search == "" {
+		search = "none"
+	}
+
+	orderBy = strings.TrimSpace(orderBy)
+	if orderBy == "" {
+		orderBy = "category_created_at"
+	}
+
+	sort = strings.ToLower(strings.TrimSpace(sort))
+	if sort == "" {
+		sort = "desc"
+	}
+	return fmt.Sprintf("categories:%s:%s:%s:%d:%d:%t", search, orderBy, sort, page, limit, deleted)
 }

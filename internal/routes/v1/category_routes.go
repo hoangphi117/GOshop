@@ -19,6 +19,8 @@ func NewCategoryRoutes(handler *v1handler.CategoryHandler) *CategoryRoutes {
 func (cr *CategoryRoutes) Register(r *gin.RouterGroup) {
 	categories := r.Group("/categories")
 	{
+		categories.GET("", cr.handler.GetAllCategories)
+		categories.GET("/:uuid", cr.handler.GetCategoryByUUID)
 		categories.POST("", cr.handler.CreateCategory)
 		categories.PUT("/:uuid", cr.handler.UpdateCategory)
 		categories.DELETE("/:uuid/soft-delete", cr.handler.SoftDeleteCategory)

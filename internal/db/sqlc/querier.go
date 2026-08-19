@@ -11,10 +11,12 @@ import (
 )
 
 type Querier interface {
+	CountCategories(ctx context.Context, arg CountCategoriesParams) (int64, error)
 	CountUsers(ctx context.Context, arg CountUsersParams) (int64, error)
 	CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	GetCategoryBySlug(ctx context.Context, categorySlug string) (Category, error)
+	GetCategoryByUuid(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
 	GetUserByEmail(ctx context.Context, userEmail string) (User, error)
 	GetUserByUUID(ctx context.Context, userUuid uuid.UUID) (User, error)
 	ListUserUserCreatedAtAsc(ctx context.Context, arg ListUserUserCreatedAtAscParams) ([]User, error)

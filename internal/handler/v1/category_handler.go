@@ -42,6 +42,49 @@ func (ch *CategoryHandler) CreateCategory(ctx *gin.Context) {
 
 }
 
+func (ch *CategoryHandler) GetAllCategories(ctx *gin.Context) {
+	var params v1dto.GetCategoryParam
+	if err := ctx.ShouldBindQuery(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	listCategories, total, err := ch.service.GetAllCategories(ctx, params.Search, params.OrderBy, params.Sort, params.Page, params.Limit, false)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	listCategoriesDTO := v1dto.MapListCategoriesToDTO(listCategories)
+
+	paginationResponse := utils.NewPaginationResponse(listCategoriesDTO, params.Page, params.Limit, total)
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Categories retrieved successfully", paginationResponse)
+}
+
+func (ch *CategoryHandler) GetCategoryByUUID(ctx *gin.Context) {
+	var params v1dto.GetCategoryByUuidParam
+	if err := ctx.ShouldBindUri(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	categoryUuid, err := uuid.Parse(params.Uuid)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	category, err := ch.service.GetCategoryByUUID(ctx, categoryUuid)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	categoryDTO := v1dto.MapCategoryToDTO(category)
+	utils.ResponseSuccess(ctx, http.StatusOK, "Category retrieved successfully", categoryDTO)
+}
+
 func (ch *CategoryHandler) UpdateCategory(ctx *gin.Context) {
 	var params v1dto.GetCategoryByUuidParam
 	if err := ctx.ShouldBindUri(&params); err != nil {

@@ -7,9 +7,26 @@ INSERT INTO categories (
 ) VALUES ($1, $2, $3, $4)
 RETURNING *;
 
+-- name: CountCategories :one
+SELECT count(*) FROM categories
+WHERE (
+    sqlc.narg(deleted)::bool IS NULL
+    OR sqlc.narg(deleted)::bool = TRUE AND category_deleted_at IS NOT NULL
+    OR sqlc.narg(deleted)::bool = FALSE AND category_deleted_at IS NULL
+) AND (
+    sqlc.narg(search)::TEXT IS NULL
+    OR unaccent(category_name) ILIKE '%' || unaccent(sqlc.narg(search)::TEXT) || '%'
+    OR unaccent(category_slug) ILIKE '%' || unaccent(sqlc.narg(search)::TEXT) || '%'
+);
+
 -- name: GetCategoryBySlug :one
 SELECT * FROM categories
 WHERE category_slug = $1
+AND category_deleted_at IS NULL;
+
+-- name: GetCategoryByUuid :one
+SELECT * FROM categories
+WHERE category_uuid = $1
 AND category_deleted_at IS NULL;
 
 -- name: UpdateCategory :one
