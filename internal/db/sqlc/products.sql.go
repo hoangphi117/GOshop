@@ -203,3 +203,95 @@ func (q *Queries) GetProductByUUID(ctx context.Context, productUuid uuid.UUID) (
 	)
 	return i, err
 }
+
+const updateProduct = `-- name: UpdateProduct :one
+WITH updated AS (
+    UPDATE products
+    SET
+        product_name        = COALESCE($1::varchar,        products.product_name),
+        product_description = COALESCE($2::text,    products.product_description),
+        product_slug        = COALESCE($3::varchar,        products.product_slug),
+        product_price       = COALESCE($4::numeric,       products.product_price),
+        product_stock       = COALESCE($5::int,           products.product_stock),
+        product_sku         = COALESCE($6::varchar,         products.product_sku),
+        product_category_id = COALESCE($7::int,     products.product_category_id),
+        product_image_url   = COALESCE($8::text,      products.product_image_url),
+        product_status      = COALESCE($9::int,          products.product_status)
+    WHERE product_uuid = $10
+    AND product_deleted_at IS NULL
+    RETURNING product_id, product_uuid, product_name, product_slug, product_description, product_price, product_stock, product_sku, product_category_id, product_image_url, product_status, product_deleted_at, product_created_at, product_updated_at
+)
+SELECT
+    updated.product_id, updated.product_uuid, updated.product_name, updated.product_slug, updated.product_description, updated.product_price, updated.product_stock, updated.product_sku, updated.product_category_id, updated.product_image_url, updated.product_status, updated.product_deleted_at, updated.product_created_at, updated.product_updated_at,
+    categories.category_uuid AS category_uuid,
+    categories.category_name AS category_name
+FROM updated
+JOIN categories ON categories.category_id = updated.product_category_id
+`
+
+type UpdateProductParams struct {
+	ProductName        *string        `json:"product_name"`
+	ProductDescription *string        `json:"product_description"`
+	ProductSlug        *string        `json:"product_slug"`
+	ProductPrice       pgtype.Numeric `json:"product_price"`
+	ProductStock       *int32         `json:"product_stock"`
+	ProductSku         *string        `json:"product_sku"`
+	ProductCategoryID  *int32         `json:"product_category_id"`
+	ProductImageUrl    *string        `json:"product_image_url"`
+	ProductStatus      *int32         `json:"product_status"`
+	ProductUuid        uuid.UUID      `json:"product_uuid"`
+}
+
+type UpdateProductRow struct {
+	ProductID          int32              `json:"product_id"`
+	ProductUuid        uuid.UUID          `json:"product_uuid"`
+	ProductName        string             `json:"product_name"`
+	ProductSlug        string             `json:"product_slug"`
+	ProductDescription *string            `json:"product_description"`
+	ProductPrice       pgtype.Numeric     `json:"product_price"`
+	ProductStock       *int32             `json:"product_stock"`
+	ProductSku         *string            `json:"product_sku"`
+	ProductCategoryID  int32              `json:"product_category_id"`
+	ProductImageUrl    *string            `json:"product_image_url"`
+	ProductStatus      int32              `json:"product_status"`
+	ProductDeletedAt   pgtype.Timestamptz `json:"product_deleted_at"`
+	ProductCreatedAt   time.Time          `json:"product_created_at"`
+	ProductUpdatedAt   time.Time          `json:"product_updated_at"`
+	CategoryUuid       uuid.UUID          `json:"category_uuid"`
+	CategoryName       string             `json:"category_name"`
+}
+
+func (q *Queries) UpdateProduct(ctx context.Context, arg UpdateProductParams) (UpdateProductRow, error) {
+	row := q.db.QueryRow(ctx, updateProduct,
+		arg.ProductName,
+		arg.ProductDescription,
+		arg.ProductSlug,
+		arg.ProductPrice,
+		arg.ProductStock,
+		arg.ProductSku,
+		arg.ProductCategoryID,
+		arg.ProductImageUrl,
+		arg.ProductStatus,
+		arg.ProductUuid,
+	)
+	var i UpdateProductRow
+	err := row.Scan(
+		&i.ProductID,
+		&i.ProductUuid,
+		&i.ProductName,
+		&i.ProductSlug,
+		&i.ProductDescription,
+		&i.ProductPrice,
+		&i.ProductStock,
+		&i.ProductSku,
+		&i.ProductCategoryID,
+		&i.ProductImageUrl,
+		&i.ProductStatus,
+		&i.ProductDeletedAt,
+		&i.ProductCreatedAt,
+		&i.ProductUpdatedAt,
+		&i.CategoryUuid,
+		&i.CategoryName,
+	)
+	return i, err
+}

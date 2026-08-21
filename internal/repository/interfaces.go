@@ -37,4 +37,5 @@ type ProductRepository interface {
 	Create(ctx context.Context, productParams sqlc.CreateProductParams) (sqlc.CreateProductRow, error)
 	GetBySlug(ctx context.Context, slug string) (sqlc.GetProductBySlugRow, error)
 	GetByUUID(ctx context.Context, uuid uuid.UUID) (sqlc.GetProductByUUIDRow, error)
+	Update(ctx context.Context, productParams sqlc.UpdateProductParams) (sqlc.UpdateProductRow, error)
 }

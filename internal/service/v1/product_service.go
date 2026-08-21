@@ -100,3 +100,62 @@ func (s *productService) GetProductByUUID(ctx *gin.Context, productUuid uuid.UUI
 
 	return product, nil
 }
+
+func (s *productService) UpdateProduct(ctx *gin.Context, input v1dto.UpdateProductInput) (sqlc.UpdateProductRow, error) {
+	reqCtx := ctx.Request.Context()
+
+	if input.CategoryUUID != nil {
+		categoryUuid, err := uuid.Parse(*input.CategoryUUID)
+
+		if err != nil {
+			return sqlc.UpdateProductRow{}, utils.NewError(utils.ErrCodeBadRequest, "invalid category uuid")
+		}
+
+		category, err := s.categoryRepo.GetByUUID(reqCtx, categoryUuid)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return sqlc.UpdateProductRow{}, utils.NewError(utils.ErrCodeNotFound, "category not found")
+			}
+			return sqlc.UpdateProductRow{}, utils.WrapError(utils.ErrCodeInternal, "failed to get category", err)
+		}
+		input.Params.ProductCategoryID = &category.CategoryID
+	}
+
+	if input.Params.ProductName != nil {
+		slug, err := generateUniqueSlug(reqCtx, *input.Params.ProductName, func(slugCtx context.Context, slug string) error {
+			_, err := s.repo.GetBySlug(slugCtx, slug)
+			return err
+		})
+		if err != nil {
+			return sqlc.UpdateProductRow{}, utils.WrapError(utils.ErrCodeInternal, "failed to generate slug", err)
+		}
+
+		input.Params.ProductSlug = &slug
+	}
+
+	if input.Params.ProductSku != nil {
+		sku := strings.ToUpper(strings.TrimSpace(*input.Params.ProductSku))
+		if sku == "" {
+			input.Params.ProductSku = nil
+		} else {
+			input.Params.ProductSku = &sku
+		}
+	}
+
+	product, err := s.repo.Update(reqCtx, input.Params)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return sqlc.UpdateProductRow{}, utils.NewError(utils.ErrCodeNotFound, "product not found")
+		}
+		if pgErr, ok := err.(*pgconn.PgError); ok && pgErr.Code == "23505" {
+			return sqlc.UpdateProductRow{}, utils.NewError(utils.ErrCodeConflict, "product already exists")
+		}
+		return sqlc.UpdateProductRow{}, utils.WrapError(utils.ErrCodeInternal, "failed to update product", err)
+	}
+
+	if err := s.cache.Clear("products:*"); err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to clear product cache")
+	}
+
+	return product, nil
+}

@@ -28,7 +28,7 @@ func (ph *ProductHandler) CreateProduct(ctx *gin.Context) {
 		return
 	}
 
-	mappedInput := input.MapToServiceInput()
+	mappedInput := input.MapCreateToServiceInput()
 
 	product, err := ph.service.CreateProduct(ctx, mappedInput)
 	if err != nil {
@@ -62,4 +62,36 @@ func (ph *ProductHandler) GetProductByUUID(ctx *gin.Context) {
 
 	productDTO := v1dto.MapGetProductByUUIDRowToDTO(product)
 	utils.ResponseSuccess(ctx, http.StatusOK, "Product retrieved successfully", productDTO)
+}
+
+func (ph *ProductHandler) UpdateProduct(ctx *gin.Context) {
+
+	var params v1dto.GetProductByUuidParam
+	if err := ctx.ShouldBindUri(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	productUuid, err := uuid.Parse(params.Uuid)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	var input v1dto.UpdateProductRequest
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	mappedInput := input.MapUpdateToServiceInput(productUuid)
+
+	updatedProduct, err := ph.service.UpdateProduct(ctx, mappedInput)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	productDTO := v1dto.MapUpdateProductRowToDTO(updatedProduct)
+	utils.ResponseSuccess(ctx, http.StatusOK, "Product updated successfully", productDTO)
 }

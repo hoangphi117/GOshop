@@ -40,3 +40,12 @@ func (r *SqlProductRepository) GetByUUID(ctx context.Context, productUuid uuid.U
 	}
 	return product, nil
 }
+
+func (r *SqlProductRepository) Update(ctx context.Context, productParams sqlc.UpdateProductParams) (sqlc.UpdateProductRow, error) {
+	product, err := r.db.UpdateProduct(ctx, productParams)
+	if err != nil {
+		return sqlc.UpdateProductRow{}, err
+	}
+
+	return product, nil
+}

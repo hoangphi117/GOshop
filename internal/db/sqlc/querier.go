@@ -34,6 +34,7 @@ type Querier interface {
 	TrashUser(ctx context.Context, userUuid uuid.UUID) (User, error)
 	UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (Category, error)
 	UpdatePassword(ctx context.Context, arg UpdatePasswordParams) (User, error)
+	UpdateProduct(ctx context.Context, arg UpdateProductParams) (UpdateProductRow, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 }
 

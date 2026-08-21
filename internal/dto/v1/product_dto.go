@@ -6,6 +6,7 @@ import (
 	"goshop/internal/db/sqlc"
 	"goshop/internal/utils"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -39,11 +40,27 @@ type CreateProductRequest struct {
 	Status       int32   `json:"status" binding:"omitempty,oneof=1 2 3"`
 }
 
+type UpdateProductRequest struct {
+	Name         *string  `json:"name" binding:"omitempty,min=2,max=200"`
+	Description  *string  `json:"description" binding:"omitempty,max=2000"`
+	Price        *float64 `json:"price" binding:"omitempty,gt=0"`
+	Stock        *int32   `json:"stock" binding:"omitempty,gte=0"`
+	SKU          *string  `json:"sku" binding:"omitempty,max=50"`
+	CategoryUUID *string  `json:"category_uuid" binding:"omitempty,uuid"`
+	ImageURL     *string  `json:"image_url" binding:"omitempty,url"`
+	Status       *int32   `json:"status" binding:"omitempty,oneof=1 2 3"`
+}
+
+type UpdateProductInput struct {
+	Params       sqlc.UpdateProductParams
+	CategoryUUID *string
+}
+
 type GetProductByUuidParam struct {
 	Uuid string `uri:"uuid" binding:"uuid"`
 }
 
-func (input *CreateProductRequest) MapToServiceInput() CreateProductInput {
+func (input *CreateProductRequest) MapCreateToServiceInput() CreateProductInput {
 	params := sqlc.CreateProductParams{
 		ProductName:        input.Name,
 		ProductDescription: &input.Description,
@@ -56,6 +73,29 @@ func (input *CreateProductRequest) MapToServiceInput() CreateProductInput {
 		params.ProductPrice = price
 	}
 	return CreateProductInput{
+		Params:       params,
+		CategoryUUID: input.CategoryUUID,
+	}
+}
+
+func (input *UpdateProductRequest) MapUpdateToServiceInput(productUuid uuid.UUID) UpdateProductInput {
+	params := sqlc.UpdateProductParams{
+		ProductUuid:        productUuid,
+		ProductName:        input.Name,
+		ProductDescription: input.Description,
+		ProductStock:       input.Stock,
+		ProductSku:         input.SKU,
+		ProductImageUrl:    input.ImageURL,
+		ProductStatus:      input.Status,
+	}
+
+	if input.Price != nil {
+		price, err := utils.FloatToNumeric(*input.Price)
+		if err == nil {
+			params.ProductPrice = price
+		}
+	}
+	return UpdateProductInput{
 		Params:       params,
 		CategoryUUID: input.CategoryUUID,
 	}
@@ -80,6 +120,22 @@ func MapGetProductByUUIDRowToDTO(product sqlc.GetProductByUUIDRow) *ProductDTO {
 
 // MapCreateProductRowToDTO maps CreateProductRow (used by POST create endpoint) to ProductDTO.
 func MapCreateProductRowToDTO(product sqlc.CreateProductRow) *ProductDTO {
+	return mapToProductDTO(
+		product.ProductUuid.String(),
+		product.ProductName,
+		product.ProductSlug,
+		product.ProductDescription,
+		product.ProductPrice,
+		product.ProductStock,
+		product.ProductSku,
+		product.CategoryUuid.String(),
+		product.ProductImageUrl,
+		product.ProductStatus,
+		product.ProductCreatedAt,
+	)
+}
+
+func MapUpdateProductRowToDTO(product sqlc.UpdateProductRow) *ProductDTO {
 	return mapToProductDTO(
 		product.ProductUuid.String(),
 		product.ProductName,
