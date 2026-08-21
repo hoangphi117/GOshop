@@ -1,8 +1,8 @@
 package v1service
 
 import (
-	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/db/sqlc"
+	v1dto "goshop/internal/dto/v1"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -37,4 +37,9 @@ type CategoryService interface {
 	SoftDeleteCategory(ctx *gin.Context, uuid uuid.UUID) (sqlc.Category, error)
 	RestoreCategory(ctx *gin.Context, uuid uuid.UUID) (sqlc.Category, error)
 	TrashCategory(ctx *gin.Context, uuid uuid.UUID) (sqlc.Category, error)
+}
+
+type ProductService interface {
+	CreateProduct(ctx *gin.Context, input v1dto.CreateProductInput) (sqlc.CreateProductRow, error)
+	GetProductByUUID(ctx *gin.Context, productUuid uuid.UUID) (sqlc.GetProductByUUIDRow, error)
 }

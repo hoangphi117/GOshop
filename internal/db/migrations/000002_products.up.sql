@@ -36,6 +36,10 @@ CREATE UNIQUE INDEX idx_categories_name_unique
 ON categories (LOWER(category_name)) 
 WHERE category_deleted_at IS NULL;
 
+CREATE UNIQUE INDEX idx_products_name_category_unique
+ON products (LOWER(product_name), product_category_id)
+WHERE product_deleted_at IS NULL;
+
 -- Products
 CREATE INDEX idx_products_list ON products(product_deleted_at, product_category_id, product_status, product_created_at DESC);
 CREATE INDEX idx_products_slug ON products(product_slug);

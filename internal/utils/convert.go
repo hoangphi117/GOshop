@@ -1,8 +1,14 @@
 package utils
 
 import (
+	"fmt"
+	"math"
+	"math/big"
 	"regexp"
+	"strconv"
 	"strings"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 var (
@@ -32,4 +38,67 @@ func CapitalizeFirstLetter(str string) string {
 		return str
 	}
 	return strings.ToUpper(string(str[0])) + str[1:]
+}
+
+func FloatToNumeric(f float64) (pgtype.Numeric, error) {
+	if math.IsNaN(f) {
+		return pgtype.Numeric{}, fmt.Errorf("cannot convert NaN to numeric")
+	}
+	if math.IsInf(f, 0) {
+		return pgtype.Numeric{}, fmt.Errorf("cannot convert infinite value to numeric")
+	}
+
+	s := strconv.FormatFloat(f, 'f', -1, 64)
+	parts := strings.Split(s, ".")
+	intPart := parts[0]
+	decPart := ""
+	if len(parts) > 1 {
+		decPart = parts[1]
+	}
+
+	combined := intPart + decPart
+	exp := -len(decPart)
+
+	combined = strings.TrimLeft(combined, "0")
+	if combined == "" {
+		combined = "0"
+	}
+	// Xử lý riêng trường hợp dấu "-" bị dính lại thành "-" (nếu toàn bộ phần số là 0,
+	// ví dụ combined ban đầu "-0" -> trim không đổi -> vẫn "-0", cần chuẩn hóa về "0"
+	// để tránh SetString parse ra "-0" gây khó hiểu, dù giá trị số học vẫn đúng là 0).
+	if combined == "-" || combined == "-0" {
+		combined = "0"
+	}
+
+	intVal := new(big.Int)
+	if _, ok := intVal.SetString(combined, 10); !ok {
+		return pgtype.Numeric{}, fmt.Errorf("failed to parse numeric value from %q", combined)
+	}
+
+	return pgtype.Numeric{Int: intVal, Exp: int32(exp), Valid: true}, nil
+}
+
+func NumericToFloat(n pgtype.Numeric) float64 {
+	if !n.Valid || n.Int == nil {
+		return 0
+	}
+
+	value := new(big.Float).SetInt(n.Int)
+	if n.Exp < 0 {
+		divisor := new(big.Float).SetFloat64(1)
+		for i := int32(0); i < -n.Exp; i++ {
+			divisor.Mul(divisor, big.NewFloat(10))
+		}
+		value.Quo(value, divisor)
+	}
+	if n.Exp > 0 {
+		multiplier := new(big.Float).SetFloat64(1)
+		for i := int32(0); i < n.Exp; i++ {
+			multiplier.Mul(multiplier, big.NewFloat(10))
+		}
+		value.Mul(value, multiplier)
+	}
+
+	f, _ := value.Float64()
+	return f
 }

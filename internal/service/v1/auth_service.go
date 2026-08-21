@@ -3,8 +3,8 @@ package v1service
 import (
 	"errors"
 	"fmt"
-	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/db/sqlc"
+	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/repository"
 	"goshop/internal/utils"
 	"goshop/pkg/auth"

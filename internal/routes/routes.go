@@ -45,7 +45,7 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 
 	for _, route := range normalRoutes {
 		switch r := route.(type) {
-		case *v1routes.AuthRoutes, *v1routes.CategoryRoutes:
+		case *v1routes.AuthRoutes, *v1routes.CategoryRoutes, *v1routes.ProductRoutes:
 			r.Register(public)
 		default:
 			r.Register(protected)

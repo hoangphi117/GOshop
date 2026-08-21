@@ -1,0 +1,24 @@
+package v1routes
+
+import (
+	v1handler "goshop/internal/handler/v1"
+
+	"github.com/gin-gonic/gin"
+)
+
+type AdminProductRoutes struct {
+	handler *v1handler.ProductHandler
+}
+
+func NewAdminProductRoutes(handler *v1handler.ProductHandler) *AdminProductRoutes {
+	return &AdminProductRoutes{
+		handler: handler,
+	}
+}
+
+func (pr *AdminProductRoutes) Register(r *gin.RouterGroup) {
+	products := r.Group("/products")
+	{
+		products.POST("", pr.handler.CreateProduct)
+	}
+}

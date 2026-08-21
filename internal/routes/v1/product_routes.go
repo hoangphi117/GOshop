@@ -1,0 +1,24 @@
+package v1routes
+
+import (
+	v1handler "goshop/internal/handler/v1"
+
+	"github.com/gin-gonic/gin"
+)
+
+type ProductRoutes struct {
+	handler *v1handler.ProductHandler
+}
+
+func NewProductRoutes(handler *v1handler.ProductHandler) *ProductRoutes {
+	return &ProductRoutes{
+		handler: handler,
+	}
+}
+
+func (pr *ProductRoutes) Register(r *gin.RouterGroup) {
+	products := r.Group("/products")
+	{
+		products.GET("/:uuid", pr.handler.GetProductByUUID)
+	}
+}
