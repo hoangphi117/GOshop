@@ -9,8 +9,8 @@ import (
 )
 
 type UserModule struct {
-	routes      routes.Route
-	adminRoutes routes.Route
+	routes      []routes.Route
+	adminRoutes []routes.Route
 }
 
 func NewUserModule(ctx *ModuleContext) *UserModule {
@@ -29,15 +29,15 @@ func NewUserModule(ctx *ModuleContext) *UserModule {
 	adminUserRoutes := v1routes.NewAdminUserRoutes(userHandler)
 
 	return &UserModule{
-		routes:      userRoutes,
-		adminRoutes: adminUserRoutes,
+		routes:      []routes.Route{userRoutes},
+		adminRoutes: []routes.Route{adminUserRoutes},
 	}
 }
 
-func (m *UserModule) Routes() routes.Route {
+func (m *UserModule) Routes() []routes.Route {
 	return m.routes
 }
 
-func (m *UserModule) AdminRoutes() routes.Route {
+func (m *UserModule) AdminRoutes() []routes.Route {
 	return m.adminRoutes
 }

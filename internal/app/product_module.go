@@ -9,32 +9,37 @@ import (
 )
 
 type ProductModule struct {
-	routes      routes.Route
-	adminRoutes routes.Route
+	routes      []routes.Route
+	adminRoutes []routes.Route
 }
 
 func NewProductModule(ctx *ModuleContext) *ProductModule {
 
 	categoryRepo := repository.NewSqlCategoryRepository(ctx.DB)
+	productRepo := repository.NewSqlProductRepository(ctx.DB)
 
 	categoryService := v1service.NewCategoryService(categoryRepo, ctx.Redis)
+	productService := v1service.NewProductService(productRepo, categoryRepo, ctx.Redis)
 
 	categoryHandler := v1handler.NewCategoryHandler(categoryService)
+	productHandler := v1handler.NewProductHandler(productService)
 
 	categoryRoutes := v1routes.NewCategoryRoutes(categoryHandler)
+	productRoutes := v1routes.NewProductRoutes(productHandler)
 	adminCategoryRoutes := v1routes.NewAdminCategoryRoutes(categoryHandler)
+	adminProductRoutes := v1routes.NewAdminProductRoutes(productHandler)
 
 	return &ProductModule{
-		routes:      categoryRoutes,
-		adminRoutes: adminCategoryRoutes,
+		routes:      []routes.Route{categoryRoutes, productRoutes},
+		adminRoutes: []routes.Route{adminCategoryRoutes, adminProductRoutes},
 	}
 
 }
 
-func (m *ProductModule) Routes() routes.Route {
+func (m *ProductModule) Routes() []routes.Route {
 	return m.routes
 }
 
-func (m *ProductModule) AdminRoutes() routes.Route {
+func (m *ProductModule) AdminRoutes() []routes.Route {
 	return m.adminRoutes
 }
