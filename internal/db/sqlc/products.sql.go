@@ -13,6 +13,55 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countProducts = `-- name: CountProducts :one
+SELECT count(*) FROM products
+JOIN categories ON categories.category_id = products.product_category_id
+WHERE (
+    $1::bool IS NULL
+    OR $1::bool = TRUE AND product_deleted_at IS NOT NULL
+    OR $1::bool = FALSE AND product_deleted_at IS NULL
+) AND (
+    $2::TEXT IS NULL
+    OR unaccent(product_name) ILIKE '%' || unaccent($2::TEXT) || '%'
+    OR unaccent(product_slug) ILIKE '%' || unaccent($2::TEXT) || '%'
+) AND (
+    $3::uuid IS NULL
+    OR categories.category_uuid = $3::uuid
+) AND (
+    $4::numeric IS NULL
+    OR product_price >= $4::numeric
+) AND (
+    $5::numeric IS NULL
+    OR product_price <= $5::numeric
+) AND (
+    $6::int IS NULL
+    OR product_status = $6::int
+)
+`
+
+type CountProductsParams struct {
+	Deleted      *bool          `json:"deleted"`
+	Search       *string        `json:"search"`
+	CategoryUuid pgtype.UUID    `json:"category_uuid"`
+	MinPrice     pgtype.Numeric `json:"min_price"`
+	MaxPrice     pgtype.Numeric `json:"max_price"`
+	Status       *int32         `json:"status"`
+}
+
+func (q *Queries) CountProducts(ctx context.Context, arg CountProductsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countProducts,
+		arg.Deleted,
+		arg.Search,
+		arg.CategoryUuid,
+		arg.MinPrice,
+		arg.MaxPrice,
+		arg.Status,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createProduct = `-- name: CreateProduct :one
 WITH inserted AS (
     INSERT INTO products (

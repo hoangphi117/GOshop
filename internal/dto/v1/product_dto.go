@@ -41,6 +41,18 @@ type CreateProductRequest struct {
 	Status       int32   `json:"status" binding:"omitempty,oneof=1 2 3"`
 }
 
+type GetProductsParam struct {
+	Search       string  `form:"search"        binding:"omitempty,min=3,max=50,search"`
+	Page         int32   `form:"page"          binding:"omitempty,gte=1"`
+	Limit        int32   `form:"limit"         binding:"omitempty,gte=1,lte=500"`
+	OrderBy      string  `form:"order_by"      binding:"omitempty,oneof=product_name product_price product_created_at"`
+	Sort         string  `form:"sort"          binding:"omitempty,oneof=asc desc"`
+	CategoryUUID string  `form:"category_uuid" binding:"omitempty,uuid"`
+	MinPrice     float64 `form:"min_price"     binding:"omitempty,gte=0"`
+	MaxPrice     float64 `form:"max_price"     binding:"omitempty,gtefield=MinPrice"`
+	Status       int32   `form:"status"        binding:"omitempty,oneof=1 2 3"`
+}
+
 type UpdateProductRequest struct {
 	Name         *string  `json:"name" binding:"omitempty,min=2,max=200"`
 	Description  *string  `json:"description" binding:"omitempty,max=2000"`
@@ -82,14 +94,13 @@ func (input *CreateProductRequest) MapCreateToServiceInput() CreateProductInput 
 	params := sqlc.CreateProductParams{
 		ProductName:        input.Name,
 		ProductDescription: &input.Description,
+		ProductPrice:       utils.FloatToNumeric(input.Price),
 		ProductStock:       &input.Stock,
 		ProductSku:         input.SKU,
 		ProductImageUrl:    input.ImageURL,
 		ProductStatus:      input.Status,
 	}
-	if price, err := utils.FloatToNumeric(input.Price); err == nil {
-		params.ProductPrice = price
-	}
+
 	return CreateProductInput{
 		Params:       params,
 		CategoryUUID: input.CategoryUUID,
@@ -101,18 +112,13 @@ func (input *UpdateProductRequest) MapUpdateToServiceInput(productUuid uuid.UUID
 		ProductUuid:        productUuid,
 		ProductName:        input.Name,
 		ProductDescription: input.Description,
+		ProductPrice:       utils.FloatToNumeric(*input.Price),
 		ProductStock:       input.Stock,
 		ProductSku:         input.SKU,
 		ProductImageUrl:    input.ImageURL,
 		ProductStatus:      input.Status,
 	}
 
-	if input.Price != nil {
-		price, err := utils.FloatToNumeric(*input.Price)
-		if err == nil {
-			params.ProductPrice = price
-		}
-	}
 	return UpdateProductInput{
 		Params:       params,
 		CategoryUUID: input.CategoryUUID,
@@ -210,13 +216,43 @@ func mapToProductDTO(
 	return dto
 }
 
-// func MapListProductsToDTO(products []sqlc.Product) []ProductDTO {
-// 	dtos := make([]ProductDTO, 0, len(products))
-// 	for _, product := range products {
-// 		dtos = append(dtos, *MapProductToDTO(product))
-// 	}
-// 	return dtos
-// }
+func MapListProductsToDTO(products []sqlc.GetProductByUUIDRow) []ProductDTO {
+	if len(products) == 0 {
+		return []ProductDTO{}
+	}
+	dtos := make([]ProductDTO, 0, len(products))
+	for i := range products {
+		dtos = append(dtos, mapProductRowToDTOValue(products[i]))
+	}
+	return dtos
+}
+
+// Private helper trả về ProductDTO dạng value (không dùng pointer) để tối ưu allocation
+func mapProductRowToDTOValue(product sqlc.GetProductByUUIDRow) ProductDTO {
+	dto := ProductDTO{
+		UUID:         product.ProductUuid.String(),
+		Name:         product.ProductName,
+		Slug:         product.ProductSlug,
+		Price:        utils.NumericToFloat(product.ProductPrice),
+		CategoryUUID: product.CategoryUuid.String(),
+		CategoryName: product.CategoryName,
+		Status:       mapProductStatusText(int(product.ProductStatus)),
+		CreatedAt:    product.ProductCreatedAt.Format("2006-01-02 15:04:05"),
+	}
+	if product.ProductDescription != nil {
+		dto.Description = *product.ProductDescription
+	}
+	if product.ProductStock != nil {
+		dto.Stock = *product.ProductStock
+	}
+	if product.ProductSku != nil {
+		dto.SKU = *product.ProductSku
+	}
+	if product.ProductImageUrl != nil {
+		dto.ImageURL = *product.ProductImageUrl
+	}
+	return dto
+}
 
 func mapProductStatusText(status int) string {
 	switch status {

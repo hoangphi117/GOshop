@@ -41,6 +41,26 @@ func (ph *ProductHandler) CreateProduct(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusCreated, "Created product successfully", productDTO)
 }
 
+func (ph *ProductHandler) GetAllProducts(ctx *gin.Context) {
+	var params v1dto.GetProductsParam
+	if err := ctx.ShouldBindQuery(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	listProducts, total, err := ph.service.GetAllProducts(ctx, params.Search, params.CategoryUUID, params.MinPrice, params.MaxPrice, params.Status, params.OrderBy, params.Sort, params.Page, params.Limit, false)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	listProductsDTO := v1dto.MapListProductsToDTO(listProducts)
+
+	paginationResponse := utils.NewPaginationResponse(listProductsDTO, params.Page, params.Limit, total)
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Products retrieved successfully", paginationResponse)
+}
+
 func (ph *ProductHandler) GetProductByUUID(ctx *gin.Context) {
 	var params v1dto.GetProductByUuidParam
 	if err := ctx.ShouldBindUri(&params); err != nil {

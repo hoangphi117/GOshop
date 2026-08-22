@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/repository"
@@ -11,6 +12,7 @@ import (
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -85,6 +87,60 @@ func (ps *productService) CreateProduct(ctx *gin.Context, input v1dto.CreateProd
 	}
 
 	return product, nil
+}
+
+func (ps *productService) GetAllProducts(ctx *gin.Context, search, categoryUUID string, minPrice, maxPrice float64, status int32, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.GetProductByUUIDRow, int32, error) {
+	context := ctx.Request.Context()
+
+	if sort == "" {
+		sort = "desc"
+	}
+
+	if orderBy == "" {
+		orderBy = "product_created_at"
+	}
+
+	if page < 1 {
+		page = 1
+	}
+
+	if limit < 1 {
+		limitInt := utils.GetIntEnv("LIMIT_ITEM_PER_PAGE", 10)
+		limit = int32(limitInt)
+	}
+
+	offset := (page - 1) * limit
+
+	cacheKey := ps.generateCacheKey(search, categoryUUID, minPrice, maxPrice, status, orderBy, sort, page, limit, deleted)
+	var cacheData struct {
+		Products []sqlc.GetProductByUUIDRow `json:"products"`
+		Total    int32                      `json:"total"`
+	}
+
+	if err := ps.cache.Get(cacheKey, &cacheData); err == nil && cacheData.Products != nil {
+		return cacheData.Products, cacheData.Total, nil
+	}
+
+	listProducts, err := ps.repo.GetAll(context, search, categoryUUID, minPrice, maxPrice, status, orderBy, sort, limit, offset, deleted)
+	if err != nil {
+		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "failed to get all products", err)
+	}
+
+	total, err := ps.repo.CountProducts(context, search, categoryUUID, minPrice, maxPrice, status, deleted)
+	if err != nil {
+		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "failed to count products", err)
+	}
+
+	cacheData = struct {
+		Products []sqlc.GetProductByUUIDRow `json:"products"`
+		Total    int32                      `json:"total"`
+	}{
+		Products: listProducts,
+		Total:    int32(total),
+	}
+	ps.cache.Set(cacheKey, cacheData, 5*time.Minute)
+
+	return listProducts, int32(total), nil
 }
 
 func (ps *productService) GetProductByUUID(ctx *gin.Context, productUuid uuid.UUID) (sqlc.GetProductByUUIDRow, error) {
@@ -208,4 +264,32 @@ func (ps *productService) TrashProduct(ctx *gin.Context, uuid uuid.UUID) error {
 		logger.Log.Warn().Err(err).Msg("Failed to clear product cache")
 	}
 	return nil
+}
+
+func (ps *productService) generateCacheKey(search, categoryUUID string, minPrice, maxPrice float64, status int32, orderBy, sort string, page, limit int32, deleted bool) string {
+	search = strings.TrimSpace(search)
+	if search == "" {
+		search = "none"
+	}
+
+	categoryUUID = strings.TrimSpace(categoryUUID)
+	if categoryUUID == "" {
+		categoryUUID = "none"
+	}
+
+	minPriceStr := fmt.Sprintf("%.2f", minPrice)
+	maxPriceStr := fmt.Sprintf("%.2f", maxPrice)
+
+	statusStr := fmt.Sprintf("%d", status)
+
+	orderBy = strings.TrimSpace(orderBy)
+	if orderBy == "" {
+		orderBy = "product_created_at"
+	}
+
+	sort = strings.ToLower(strings.TrimSpace(sort))
+	if sort == "" {
+		sort = "desc"
+	}
+	return fmt.Sprintf("products:%s:%s:%s:%s:%s:%s:%s:%d:%d:%t", search, categoryUUID, minPriceStr, maxPriceStr, statusStr, orderBy, sort, page, limit, deleted)
 }

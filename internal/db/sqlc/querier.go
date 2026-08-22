@@ -12,6 +12,7 @@ import (
 
 type Querier interface {
 	CountCategories(ctx context.Context, arg CountCategoriesParams) (int64, error)
+	CountProducts(ctx context.Context, arg CountProductsParams) (int64, error)
 	CountUsers(ctx context.Context, arg CountUsersParams) (int64, error)
 	CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error)
 	CreateProduct(ctx context.Context, arg CreateProductParams) (CreateProductRow, error)

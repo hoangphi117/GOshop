@@ -15,6 +15,32 @@ SELECT
 FROM inserted
 JOIN categories ON categories.category_id = inserted.product_category_id;
 
+-- name: CountProducts :one
+SELECT count(*) FROM products
+JOIN categories ON categories.category_id = products.product_category_id
+WHERE (
+    sqlc.narg(deleted)::bool IS NULL
+    OR sqlc.narg(deleted)::bool = TRUE AND product_deleted_at IS NOT NULL
+    OR sqlc.narg(deleted)::bool = FALSE AND product_deleted_at IS NULL
+) AND (
+    sqlc.narg(search)::TEXT IS NULL
+    OR unaccent(product_name) ILIKE '%' || unaccent(sqlc.narg(search)::TEXT) || '%'
+    OR unaccent(product_slug) ILIKE '%' || unaccent(sqlc.narg(search)::TEXT) || '%'
+) AND (
+    sqlc.narg(category_uuid)::uuid IS NULL
+    OR categories.category_uuid = sqlc.narg(category_uuid)::uuid
+) AND (
+    sqlc.narg(min_price)::numeric IS NULL
+    OR product_price >= sqlc.narg(min_price)::numeric
+) AND (
+    sqlc.narg(max_price)::numeric IS NULL
+    OR product_price <= sqlc.narg(max_price)::numeric
+) AND (
+    sqlc.narg(status)::int IS NULL
+    OR product_status = sqlc.narg(status)::int
+);
+
+
 -- name: GetProductBySlug :one
 SELECT
     products.*,

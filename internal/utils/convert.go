@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"fmt"
 	"math"
 	"math/big"
 	"regexp"
@@ -40,12 +39,12 @@ func CapitalizeFirstLetter(str string) string {
 	return strings.ToUpper(string(str[0])) + str[1:]
 }
 
-func FloatToNumeric(f float64) (pgtype.Numeric, error) {
+func FloatToNumeric(f float64) pgtype.Numeric {
 	if math.IsNaN(f) {
-		return pgtype.Numeric{}, fmt.Errorf("cannot convert NaN to numeric")
+		panic("FloatToNumeric: cannot convert NaN to numeric")
 	}
 	if math.IsInf(f, 0) {
-		return pgtype.Numeric{}, fmt.Errorf("cannot convert infinite value to numeric")
+		panic("FloatToNumeric: cannot convert infinite value to numeric")
 	}
 
 	s := strconv.FormatFloat(f, 'f', -1, 64)
@@ -63,19 +62,16 @@ func FloatToNumeric(f float64) (pgtype.Numeric, error) {
 	if combined == "" {
 		combined = "0"
 	}
-	// Xử lý riêng trường hợp dấu "-" bị dính lại thành "-" (nếu toàn bộ phần số là 0,
-	// ví dụ combined ban đầu "-0" -> trim không đổi -> vẫn "-0", cần chuẩn hóa về "0"
-	// để tránh SetString parse ra "-0" gây khó hiểu, dù giá trị số học vẫn đúng là 0).
 	if combined == "-" || combined == "-0" {
 		combined = "0"
 	}
 
 	intVal := new(big.Int)
 	if _, ok := intVal.SetString(combined, 10); !ok {
-		return pgtype.Numeric{}, fmt.Errorf("failed to parse numeric value from %q", combined)
+		panic("FloatToNumeric: failed to parse numeric value from " + combined)
 	}
 
-	return pgtype.Numeric{Int: intVal, Exp: int32(exp), Valid: true}, nil
+	return pgtype.Numeric{Int: intVal, Exp: int32(exp), Valid: true}
 }
 
 func NumericToFloat(n pgtype.Numeric) float64 {

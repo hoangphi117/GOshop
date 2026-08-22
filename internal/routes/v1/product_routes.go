@@ -19,6 +19,7 @@ func NewProductRoutes(handler *v1handler.ProductHandler) *ProductRoutes {
 func (pr *ProductRoutes) Register(r *gin.RouterGroup) {
 	products := r.Group("/products")
 	{
+		products.GET("", pr.handler.GetAllProducts)
 		products.GET("/:uuid", pr.handler.GetProductByUUID)
 	}
 }
