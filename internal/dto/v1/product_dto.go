@@ -10,6 +10,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+// ============================================================================
+// 1. RESPONSE DTOs
+// ============================================================================
+
 type ProductDTO struct {
 	UUID         string  `json:"uuid"`
 	Name         string  `json:"name"`
@@ -25,10 +29,9 @@ type ProductDTO struct {
 	CreatedAt    string  `json:"created_at"`
 }
 
-type CreateProductInput struct {
-	Params       sqlc.CreateProductParams
-	CategoryUUID string
-}
+// ============================================================================
+// 2. REQUEST & QUERY PARAM DTOs
+// ============================================================================
 
 type CreateProductRequest struct {
 	Name         string  `json:"name" binding:"required,min=2,max=200"`
@@ -41,16 +44,9 @@ type CreateProductRequest struct {
 	Status       int32   `json:"status" binding:"omitempty,oneof=1 2 3"`
 }
 
-type GetProductsParam struct {
-	Search       string  `form:"search"        binding:"omitempty,min=3,max=50,search"`
-	Page         int32   `form:"page"          binding:"omitempty,gte=1"`
-	Limit        int32   `form:"limit"         binding:"omitempty,gte=1,lte=500"`
-	OrderBy      string  `form:"order_by"      binding:"omitempty,oneof=product_name product_price product_created_at"`
-	Sort         string  `form:"sort"          binding:"omitempty,oneof=asc desc"`
-	CategoryUUID string  `form:"category_uuid" binding:"omitempty,uuid"`
-	MinPrice     float64 `form:"min_price"     binding:"omitempty,gte=0"`
-	MaxPrice     float64 `form:"max_price"     binding:"omitempty,gtefield=MinPrice"`
-	Status       int32   `form:"status"        binding:"omitempty,oneof=1 2 3"`
+type CreateProductInput struct {
+	Params       sqlc.CreateProductParams
+	CategoryUUID string
 }
 
 type UpdateProductRequest struct {
@@ -69,40 +65,37 @@ type UpdateProductInput struct {
 	CategoryUUID *string
 }
 
+type GetProductsParam struct {
+	Search       string  `form:"search"        binding:"omitempty,min=3,max=50,search"`
+	Page         int32   `form:"page"          binding:"omitempty,gte=1"`
+	Limit        int32   `form:"limit"         binding:"omitempty,gte=1,lte=500"`
+	OrderBy      string  `form:"order_by"      binding:"omitempty,oneof=product_name product_price product_created_at"`
+	Sort         string  `form:"sort"          binding:"omitempty,oneof=asc desc"`
+	CategoryUUID string  `form:"category_uuid" binding:"omitempty,uuid"`
+	MinPrice     float64 `form:"min_price"     binding:"omitempty,gte=0"`
+	MaxPrice     float64 `form:"max_price"     binding:"omitempty,gtefield=MinPrice"`
+	Status       int32   `form:"status"        binding:"omitempty,oneof=1 2 3"`
+}
+
 type GetProductByUuidParam struct {
 	Uuid string `uri:"uuid" binding:"uuid"`
 }
 
-func MapProductToDTO(product sqlc.Product) *ProductDTO {
-	return mapToProductDTO(
-		product.ProductUuid.String(),
-		product.ProductName,
-		product.ProductSlug,
-		product.ProductDescription,
-		product.ProductPrice,
-		product.ProductStock,
-		product.ProductSku,
-		"",
-		"",
-		product.ProductImageUrl,
-		product.ProductStatus,
-		product.ProductCreatedAt,
-	)
-}
+// ==================================
+// 3. REQUEST TO SERVICE MAPPERS
+// ==================================
 
 func (input *CreateProductRequest) MapCreateToServiceInput() CreateProductInput {
-	params := sqlc.CreateProductParams{
-		ProductName:        input.Name,
-		ProductDescription: &input.Description,
-		ProductPrice:       utils.FloatToNumeric(input.Price),
-		ProductStock:       &input.Stock,
-		ProductSku:         input.SKU,
-		ProductImageUrl:    input.ImageURL,
-		ProductStatus:      input.Status,
-	}
-
 	return CreateProductInput{
-		Params:       params,
+		Params: sqlc.CreateProductParams{
+			ProductName:        input.Name,
+			ProductDescription: &input.Description,
+			ProductPrice:       utils.FloatToNumeric(input.Price),
+			ProductStock:       &input.Stock,
+			ProductSku:         input.SKU,
+			ProductImageUrl:    input.ImageURL,
+			ProductStatus:      input.Status,
+		},
 		CategoryUUID: input.CategoryUUID,
 	}
 }
@@ -112,11 +105,14 @@ func (input *UpdateProductRequest) MapUpdateToServiceInput(productUuid uuid.UUID
 		ProductUuid:        productUuid,
 		ProductName:        input.Name,
 		ProductDescription: input.Description,
-		ProductPrice:       utils.FloatToNumeric(*input.Price),
 		ProductStock:       input.Stock,
 		ProductSku:         input.SKU,
 		ProductImageUrl:    input.ImageURL,
 		ProductStatus:      input.Status,
+	}
+
+	if input.Price != nil {
+		params.ProductPrice = utils.FloatToNumeric(*input.Price)
 	}
 
 	return UpdateProductInput{
@@ -125,84 +121,91 @@ func (input *UpdateProductRequest) MapUpdateToServiceInput(productUuid uuid.UUID
 	}
 }
 
-// MapGetProductByUUIDRowToDTO maps GetProductByUUIDRow (used by GET endpoints) to ProductDTO.
-func MapGetProductByUUIDRowToDTO(product sqlc.GetProductByUUIDRow) *ProductDTO {
-	return mapToProductDTO(
-		product.ProductUuid.String(),
-		product.ProductName,
-		product.ProductSlug,
-		product.ProductDescription,
-		product.ProductPrice,
-		product.ProductStock,
-		product.ProductSku,
-		product.CategoryUuid.String(),
-		product.CategoryName,
-		product.ProductImageUrl,
-		product.ProductStatus,
-		product.ProductCreatedAt,
+// =================================
+// MODEL TO DTO MAPPERS
+// =================================
+
+// Mapper for GET Single / List
+func MapGetProductByUUIDRowToDTO(p sqlc.GetProductByUUIDRow) *ProductDTO {
+	dto := mapFieldsToDTO(
+		p.ProductUuid, p.ProductName, p.ProductSlug, p.ProductDescription,
+		p.ProductPrice, p.ProductStock, p.ProductSku, p.CategoryUuid,
+		p.CategoryName, p.ProductImageUrl, p.ProductStatus, p.ProductCreatedAt,
 	)
+	return &dto
 }
 
-// MapCreateProductRowToDTO maps CreateProductRow (used by POST create endpoint) to ProductDTO.
-func MapCreateProductRowToDTO(product sqlc.CreateProductRow) *ProductDTO {
-	return mapToProductDTO(
-		product.ProductUuid.String(),
-		product.ProductName,
-		product.ProductSlug,
-		product.ProductDescription,
-		product.ProductPrice,
-		product.ProductStock,
-		product.ProductSku,
-		product.CategoryUuid.String(),
-		product.CategoryName,
-		product.ProductImageUrl,
-		product.ProductStatus,
-		product.ProductCreatedAt,
+// Mapper for CreateProduct
+func MapCreateProductRowToDTO(p sqlc.CreateProductRow) *ProductDTO {
+	dto := mapFieldsToDTO(
+		p.ProductUuid, p.ProductName, p.ProductSlug, p.ProductDescription,
+		p.ProductPrice, p.ProductStock, p.ProductSku, p.CategoryUuid,
+		p.CategoryName, p.ProductImageUrl, p.ProductStatus, p.ProductCreatedAt,
 	)
+	return &dto
 }
 
-func MapUpdateProductRowToDTO(product sqlc.UpdateProductRow) *ProductDTO {
-	return mapToProductDTO(
-		product.ProductUuid.String(),
-		product.ProductName,
-		product.ProductSlug,
-		product.ProductDescription,
-		product.ProductPrice,
-		product.ProductStock,
-		product.ProductSku,
-		product.CategoryUuid.String(),
-		product.CategoryName,
-		product.ProductImageUrl,
-		product.ProductStatus,
-		product.ProductCreatedAt,
+// Mapper for UpdateProduct
+func MapUpdateProductRowToDTO(p sqlc.UpdateProductRow) *ProductDTO {
+	dto := mapFieldsToDTO(
+		p.ProductUuid, p.ProductName, p.ProductSlug, p.ProductDescription,
+		p.ProductPrice, p.ProductStock, p.ProductSku, p.CategoryUuid,
+		p.CategoryName, p.ProductImageUrl, p.ProductStatus, p.ProductCreatedAt,
 	)
+	return &dto
 }
 
-// mapToProductDTO là private helper chứa logic mapping chung cho mọi product row.
-func mapToProductDTO(
-	uuid, name, slug string,
-	description *string,
-	price pgtype.Numeric,
-	stock *int32,
-	sku *string,
-	categoryUUID string,
-	categoryName string,
-	imageURL *string,
-	status int32,
-	createdAt time.Time,
-) *ProductDTO {
-	dto := &ProductDTO{
-		UUID:         uuid,
+// Mapper for SoftDelete / Restore / Trash (no JOIN)
+func MapProductToDTO(p sqlc.Product) *ProductDTO {
+	dto := mapFieldsToDTO(
+		p.ProductUuid, p.ProductName, p.ProductSlug, p.ProductDescription,
+		p.ProductPrice, p.ProductStock, p.ProductSku, uuid.Nil,
+		"", p.ProductImageUrl, p.ProductStatus, p.ProductCreatedAt,
+	)
+	return &dto
+}
+
+// Optimized memory allocation
+func MapListProductsToDTO(products []sqlc.GetProductByUUIDRow) []ProductDTO {
+	if len(products) == 0 {
+		return []ProductDTO{}
+	}
+	dtos := make([]ProductDTO, len(products))
+	for i, p := range products {
+		dtos[i] = mapFieldsToDTO(
+			p.ProductUuid, p.ProductName, p.ProductSlug, p.ProductDescription,
+			p.ProductPrice, p.ProductStock, p.ProductSku, p.CategoryUuid,
+			p.CategoryName, p.ProductImageUrl, p.ProductStatus, p.ProductCreatedAt,
+		)
+	}
+	return dtos
+}
+
+// Private helper duy nhất map các trường chung vào ProductDTO (trả về Value để tối ưu Stack Allocation)
+func mapFieldsToDTO(
+	pUUID uuid.UUID, name, slug string, desc *string,
+	price pgtype.Numeric, stock *int32, sku *string,
+	catUUID uuid.UUID, catName string, imgURL *string,
+	status int32, createdAt time.Time,
+) ProductDTO {
+	catUUIDStr := ""
+	if catUUID != uuid.Nil {
+		catUUIDStr = catUUID.String()
+	}
+
+	dto := ProductDTO{
+		UUID:         pUUID.String(),
 		Name:         name,
 		Slug:         slug,
 		Price:        utils.NumericToFloat(price),
-		CategoryUUID: categoryUUID,
-		CategoryName: categoryName,
+		CategoryUUID: catUUIDStr,
+		CategoryName: catName,
 		Status:       mapProductStatusText(int(status)),
 		CreatedAt:    createdAt.Format("2006-01-02 15:04:05"),
 	}
-	if description != nil {
-		dto.Description = *description
+
+	if desc != nil {
+		dto.Description = *desc
 	}
 	if stock != nil {
 		dto.Stock = *stock
@@ -210,47 +213,10 @@ func mapToProductDTO(
 	if sku != nil {
 		dto.SKU = *sku
 	}
-	if imageURL != nil {
-		dto.ImageURL = *imageURL
+	if imgURL != nil {
+		dto.ImageURL = *imgURL
 	}
-	return dto
-}
 
-func MapListProductsToDTO(products []sqlc.GetProductByUUIDRow) []ProductDTO {
-	if len(products) == 0 {
-		return []ProductDTO{}
-	}
-	dtos := make([]ProductDTO, 0, len(products))
-	for i := range products {
-		dtos = append(dtos, mapProductRowToDTOValue(products[i]))
-	}
-	return dtos
-}
-
-// Private helper trả về ProductDTO dạng value (không dùng pointer) để tối ưu allocation
-func mapProductRowToDTOValue(product sqlc.GetProductByUUIDRow) ProductDTO {
-	dto := ProductDTO{
-		UUID:         product.ProductUuid.String(),
-		Name:         product.ProductName,
-		Slug:         product.ProductSlug,
-		Price:        utils.NumericToFloat(product.ProductPrice),
-		CategoryUUID: product.CategoryUuid.String(),
-		CategoryName: product.CategoryName,
-		Status:       mapProductStatusText(int(product.ProductStatus)),
-		CreatedAt:    product.ProductCreatedAt.Format("2006-01-02 15:04:05"),
-	}
-	if product.ProductDescription != nil {
-		dto.Description = *product.ProductDescription
-	}
-	if product.ProductStock != nil {
-		dto.Stock = *product.ProductStock
-	}
-	if product.ProductSku != nil {
-		dto.SKU = *product.ProductSku
-	}
-	if product.ProductImageUrl != nil {
-		dto.ImageURL = *product.ProductImageUrl
-	}
 	return dto
 }
 
