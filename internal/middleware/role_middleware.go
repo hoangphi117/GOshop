@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"net/http"
+	"slices"
 
 	"github.com/gin-gonic/gin"
 )
@@ -26,11 +27,9 @@ func RequireRole(allowedRoles ...int32) gin.HandlerFunc {
 			return
 		}
 
-		for _, allowed := range allowedRoles {
-			if role == allowed {
-				ctx.Next()
-				return
-			}
+		if slices.Contains(allowedRoles, role) {
+			ctx.Next()
+			return
 		}
 
 		ctx.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Insufficient permissions"})
