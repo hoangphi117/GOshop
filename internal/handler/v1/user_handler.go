@@ -2,6 +2,7 @@ package v1handler
 
 import (
 	v1dto "goshop/internal/dto/v1"
+	"goshop/internal/db/sqlc"
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/utils"
 	"goshop/internal/validation"
@@ -116,6 +117,42 @@ func (uh *UserHandler) UpdateUser(ctx *gin.Context) {
 	updatedUserDTO := v1dto.MapUserToDTO(updatedUser)
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "User updated successfully", updatedUserDTO)
+}
+
+func (uh *UserHandler) GetProfile(ctx *gin.Context) {
+	user, err := uh.service.GetProfile(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	userDTO := v1dto.MapUserToDTO(user)
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Get profile successfully", userDTO)
+}
+
+func (uh *UserHandler) UpdateProfile(ctx *gin.Context) {
+	var input v1dto.UpdateProfileInput
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	params := sqlc.UpdateUserParams{
+		UserFullname: input.Name,
+		UserAge:      input.Age,
+		UserPassword: input.Password,
+	}
+
+	updatedUser, err := uh.service.UpdateProfile(ctx, params)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	updatedUserDTO := v1dto.MapUserToDTO(updatedUser)
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Profile updated successfully", updatedUserDTO)
 }
 
 func (uh *UserHandler) SoftDeleteUser(ctx *gin.Context) {

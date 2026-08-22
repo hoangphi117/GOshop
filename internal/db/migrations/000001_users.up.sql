@@ -1,4 +1,5 @@
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+CREATE EXTENSION IF NOT EXISTS "unaccent";
 
 -- Create table
 CREATE TABLE IF NOT EXISTS users (

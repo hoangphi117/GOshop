@@ -24,7 +24,11 @@ import (
 )
 
 type Module interface {
-	Routes() routes.Route
+	Routes() []routes.Route
+}
+
+type AdminModule interface {
+	AdminRoutes() []routes.Route
 }
 
 type Application struct {
@@ -79,10 +83,11 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 
 	modules := []Module{
 		NewUserModule(ctx),
+		NewProductModule(ctx),
 		NewAuthModule(ctx, tokenService, cacheRedisService, mailService, rabbitmqService, cfg.AppURL),
 	}
 
-	routes.RegisterRoutes(r, tokenService, cacheRedisService, getModuleRoutes(modules)...)
+	routes.RegisterRoutes(r, tokenService, cacheRedisService, getModuleRoutes(modules), getAdminModuleRoutes(modules))
 
 	return &Application{
 		config:  cfg,
@@ -124,9 +129,19 @@ func (a *Application) Run() error {
 }
 
 func getModuleRoutes(modules []Module) []routes.Route {
-	routeList := make([]routes.Route, len(modules))
-	for i, module := range modules {
-		routeList[i] = module.Routes()
+	routeList := make([]routes.Route, 0)
+	for _, module := range modules {
+		routeList = append(routeList, module.Routes()...)
+	}
+	return routeList
+}
+
+func getAdminModuleRoutes(modules []Module) []routes.Route {
+	routeList := make([]routes.Route, 0)
+	for _, module := range modules {
+		if adminModule, ok := module.(AdminModule); ok {
+			routeList = append(routeList, adminModule.AdminRoutes()...)
+		}
 	}
 	return routeList
 }

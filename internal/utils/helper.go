@@ -7,9 +7,13 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
+	"strings"
+	"unicode"
 
 	"github.com/rs/zerolog"
+	"golang.org/x/text/unicode/norm"
 )
 
 func GetEnv(key, defaultValue string) string {
@@ -73,4 +77,32 @@ func MustGetwd() string {
 		log.Fatalf("Failed to get current working directory: %v", err)
 	}
 	return dir
+}
+
+var nonAlphanumericRegex = regexp.MustCompile(`[^a-z0-9]+`)
+
+func Slugify(s string) string {
+	slug := strings.ToLower(strings.TrimSpace(s))
+
+	slug = strings.NewReplacer(
+		"đ", "d",
+	).Replace(slug)
+
+	slug = norm.NFD.String(slug)
+
+	var builder strings.Builder
+
+	for _, r := range slug {
+		if unicode.Is(unicode.Mn, r) {
+			continue
+		}
+
+		builder.WriteRune(r)
+	}
+
+	slug = builder.String()
+	slug = nonAlphanumericRegex.ReplaceAllString(slug, "-")
+	slug = strings.Trim(slug, "-")
+
+	return slug
 }

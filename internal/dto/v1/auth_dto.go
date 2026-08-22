@@ -18,6 +18,13 @@ type ResetPasswordInput struct {
 	NewPassword string `json:"new_password" binding:"required,min=6"`
 }
 
+type RegisterInput struct {
+	Name     string `json:"name" binding:"required,min=2,max=100"`
+	Email    string `json:"email" binding:"required,email,email_advanced"`
+	Password string `json:"password" binding:"required,min=6,password_strong"`
+	Age      *int32 `json:"age" binding:"omitempty,gt=0"`
+}
+
 type LoginResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`

@@ -31,25 +31,25 @@ func (ur *SqlUserRepository) GetAll(ctx context.Context, search, orderBy, sort s
 		users, err = ur.db.ListUserUserIdAsc(ctx, sqlc.ListUserUserIdAscParams{
 			Limit:  limit,
 			Offset: offset,
-			Search: search,
+			Search: &search,
 		})
 	case orderBy == "user_id" && sort == "desc":
 		users, err = ur.db.ListUserUserIdDesc(ctx, sqlc.ListUserUserIdDescParams{
 			Limit:  limit,
 			Offset: offset,
-			Search: search,
+			Search: &search,
 		})
 	case orderBy == "user_created_at" && sort == "asc":
 		users, err = ur.db.ListUserUserCreatedAtAsc(ctx, sqlc.ListUserUserCreatedAtAscParams{
 			Limit:  limit,
 			Offset: offset,
-			Search: search,
+			Search: &search,
 		})
 	case orderBy == "user_created_at" && sort == "desc":
 		users, err = ur.db.ListUserUserCreatedAtDesc(ctx, sqlc.ListUserUserCreatedAtDescParams{
 			Limit:  limit,
 			Offset: offset,
-			Search: search,
+			Search: &search,
 		})
 	default:
 		return []sqlc.User{}, fmt.Errorf("unsupported sort: order_by=%s sort=%s", orderBy, sort)
@@ -67,8 +67,8 @@ func (ur *SqlUserRepository) GetAllV2(ctx context.Context, search, orderBy, sort
 			WHERE (
 				$1::TEXT IS NULL
 				OR $1::TEXT = ''
-				OR user_email ILIKE '%' || $1 || '%'
-				OR user_fullname ILIKE '%' || $1 || '%'
+				OR unaccent(user_email) ILIKE '%' || unaccent($1) || '%'
+				OR unaccent(user_fullname) ILIKE '%' || unaccent($1) || '%'
 			)`
 
 	if deleted {
@@ -125,7 +125,7 @@ func (ur *SqlUserRepository) GetAllV2(ctx context.Context, search, orderBy, sort
 
 func (ur *SqlUserRepository) CountUsers(ctx context.Context, search string, deleted bool) (int64, error) {
 	total, err := ur.db.CountUsers(ctx, sqlc.CountUsersParams{
-		Search:  search,
+		Search:  &search,
 		Deleted: &deleted,
 	})
 

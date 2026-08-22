@@ -16,9 +16,6 @@ sql:
           # ==== Textual types (non-nullable & nullable) ====
           - db_type: "text"
             go_type: "string"
-          - db_type: "text"
-            go_type: "string"
-            nullable: true
 
           - db_type: "varchar"
             go_type: "string"

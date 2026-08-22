@@ -13,7 +13,7 @@ import (
 )
 
 type AuthModule struct {
-	routes routes.Route
+	routes []routes.Route
 }
 
 func NewAuthModule(ctx *ModuleContext, tokenService auth.TokenService, cacheService cache.RedisCacheService, mailService mail.EmailProviderService, rabbitmqService rabbitmq.RabbitMQService, appURL string) *AuthModule {
@@ -30,9 +30,9 @@ func NewAuthModule(ctx *ModuleContext, tokenService auth.TokenService, cacheServ
 	// Initialize routes
 	authRoutes := v1routes.NewAuthRoutes(authHandler)
 
-	return &AuthModule{routes: authRoutes}
+	return &AuthModule{routes: []routes.Route{authRoutes}}
 }
 
-func (m *AuthModule) Routes() routes.Route {
+func (m *AuthModule) Routes() []routes.Route {
 	return m.routes
 }

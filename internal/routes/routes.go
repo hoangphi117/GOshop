@@ -15,38 +15,45 @@ type Route interface {
 	Register(r *gin.RouterGroup)
 }
 
-func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService cache.RedisCacheService, routes ...Route) {
+func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService cache.RedisCacheService, normalRoutes []Route, adminRoutes []Route) {
 
 	httpLogger := utils.NewLoggerWithPath("http.log", "info")
 	recoveryLogger := utils.NewLoggerWithPath("recovery.log", "warning")
 	rateLimiterLogger := utils.NewLoggerWithPath("rate_limiter.log", "warning")
 
 	r.Use(gzip.Gzip(gzip.DefaultCompression))
-
 	r.Use(
 		middleware.RateLimiterMiddleware(rateLimiterLogger),
 		middleware.CORSMiddleware(),
 		middleware.TraceMiddleware(),
 		middleware.LoggerMiddleware(httpLogger),
 		middleware.RecoveryMiddleware(recoveryLogger),
-		middleware.ApiKeyMiddleware(),
 	)
+
+	middleware.InitAuthMiddleware(authService, cacheService)
 
 	v1api := r.Group("/api/v1")
 
-	middleware.InitAuthMiddleware(authService, cacheService)
+	public := v1api.Group("")
+
 	protected := v1api.Group("")
-	protected.Use(middleware.AuthMiddleware())
+	protected.Use(middleware.ApiKeyMiddleware(), middleware.AuthMiddleware())
 
-	for _, route := range routes {
+	admin := v1api.Group("/admin")
+	admin.Use(middleware.ApiKeyMiddleware(), middleware.AuthMiddleware())
+	admin.Use(middleware.RequireRole(middleware.RoleAdmin, middleware.RoleModerator))
 
-		switch route.(type) {
-		case *v1routes.AuthRoutes:
-			route.Register(v1api)
+	for _, route := range normalRoutes {
+		switch r := route.(type) {
+		case *v1routes.AuthRoutes, *v1routes.CategoryRoutes, *v1routes.ProductRoutes:
+			r.Register(public)
 		default:
-			route.Register(protected)
+			r.Register(protected)
 		}
+	}
 
+	for _, route := range adminRoutes {
+		route.Register(admin)
 	}
 
 	r.NoRoute(func(ctx *gin.Context) {

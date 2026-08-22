@@ -1,8 +1,10 @@
 package v1service
 
 import (
+	"errors"
 	"fmt"
 	"goshop/internal/db/sqlc"
+	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/repository"
 	"goshop/internal/utils"
 	"goshop/pkg/auth"
@@ -15,6 +17,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/time/rate"
@@ -299,6 +302,34 @@ func (as *authService) ResetPassword(ctx *gin.Context, token, newPassword string
 	}
 
 	as.cacheService.Clear("reset:" + token)
+
+	return nil
+}
+
+func (as *authService) Register(ctx *gin.Context, input v1dto.RegisterInput) error {
+	context := ctx.Request.Context()
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to hash password", err)
+	}
+
+	user := sqlc.CreateUserParams{
+		UserFullname: input.Name,
+		UserEmail:    strings.ToLower(strings.TrimSpace(input.Email)),
+		UserPassword: string(hashedPassword),
+		UserAge:      input.Age,
+		UserStatus:   1,
+		UserLevel:    3,
+	}
+
+	if _, err := as.userRepo.Create(context, user); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return utils.NewError(utils.ErrCodeConflict, "email already exists")
+		}
+		return utils.WrapError(utils.ErrCodeInternal, "failed to register user", err)
+	}
 
 	return nil
 }

@@ -19,6 +19,7 @@ func NewAuthRoutes(handler *v1handler.AuthHandler) *AuthRoutes {
 func (ar *AuthRoutes) Register(r *gin.RouterGroup) {
 	auth := r.Group("/auth")
 	{
+		auth.POST("/register", ar.handler.Register)
 		auth.POST("/login", ar.handler.Login)
 		auth.POST("/logout", ar.handler.Logout)
 		auth.POST("/refresh", ar.handler.RefreshToken)
