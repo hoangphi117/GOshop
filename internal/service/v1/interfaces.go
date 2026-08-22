@@ -36,11 +36,14 @@ type CategoryService interface {
 	UpdateCategory(ctx *gin.Context, input sqlc.UpdateCategoryParams) (sqlc.Category, error)
 	SoftDeleteCategory(ctx *gin.Context, uuid uuid.UUID) (sqlc.Category, error)
 	RestoreCategory(ctx *gin.Context, uuid uuid.UUID) (sqlc.Category, error)
-	TrashCategory(ctx *gin.Context, uuid uuid.UUID) (sqlc.Category, error)
+	TrashCategory(ctx *gin.Context, uuid uuid.UUID) error
 }
 
 type ProductService interface {
 	CreateProduct(ctx *gin.Context, input v1dto.CreateProductInput) (sqlc.CreateProductRow, error)
 	GetProductByUUID(ctx *gin.Context, productUuid uuid.UUID) (sqlc.GetProductByUUIDRow, error)
 	UpdateProduct(ctx *gin.Context, input v1dto.UpdateProductInput) (sqlc.UpdateProductRow, error)
+	SoftDeleteProduct(ctx *gin.Context, uuid uuid.UUID) (sqlc.Product, error)
+	RestoreProduct(ctx *gin.Context, uuid uuid.UUID) (sqlc.Product, error)
+	TrashProduct(ctx *gin.Context, uuid uuid.UUID) error
 }

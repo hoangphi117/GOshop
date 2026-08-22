@@ -213,20 +213,20 @@ func (cs *categoryService) RestoreCategory(ctx *gin.Context, uuid uuid.UUID) (sq
 	return category, nil
 }
 
-func (cs *categoryService) TrashCategory(ctx *gin.Context, uuid uuid.UUID) (sqlc.Category, error) {
+func (cs *categoryService) TrashCategory(ctx *gin.Context, uuid uuid.UUID) error {
 	context := ctx.Request.Context()
 
-	category, err := cs.repo.Trash(context, uuid)
+	_, err := cs.repo.Trash(context, uuid)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return sqlc.Category{}, utils.NewError(utils.ErrCodeNotFound, "category not found")
+			return utils.NewError(utils.ErrCodeNotFound, "category not found")
 		}
-		return sqlc.Category{}, utils.WrapError(utils.ErrCodeInternal, "failed to trash category", err)
+		return utils.WrapError(utils.ErrCodeInternal, "failed to trash category", err)
 	}
 	if err := cs.cache.Clear("categories:*"); err != nil {
 		logger.Log.Warn().Err(err).Msg("Failed to clear category cache")
 	}
-	return category, nil
+	return nil
 }
 
 func (cs *categoryService) generateCacheKey(search, orderBy, sort string, page, limit int32, deleted bool) string {

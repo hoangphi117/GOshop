@@ -18,7 +18,8 @@ type ProductDTO struct {
 	Price        float64 `json:"price"`
 	Stock        int32   `json:"stock"`
 	SKU          string  `json:"sku,omitempty"`
-	CategoryUUID string  `json:"category_uuid"`
+	CategoryUUID string  `json:"category_uuid,omitempty"`
+	CategoryName string  `json:"category_name,omitempty"`
 	ImageURL     string  `json:"image_url,omitempty"`
 	Status       string  `json:"status"`
 	CreatedAt    string  `json:"created_at"`
@@ -58,6 +59,23 @@ type UpdateProductInput struct {
 
 type GetProductByUuidParam struct {
 	Uuid string `uri:"uuid" binding:"uuid"`
+}
+
+func MapProductToDTO(product sqlc.Product) *ProductDTO {
+	return mapToProductDTO(
+		product.ProductUuid.String(),
+		product.ProductName,
+		product.ProductSlug,
+		product.ProductDescription,
+		product.ProductPrice,
+		product.ProductStock,
+		product.ProductSku,
+		"",
+		"",
+		product.ProductImageUrl,
+		product.ProductStatus,
+		product.ProductCreatedAt,
+	)
 }
 
 func (input *CreateProductRequest) MapCreateToServiceInput() CreateProductInput {
@@ -112,6 +130,7 @@ func MapGetProductByUUIDRowToDTO(product sqlc.GetProductByUUIDRow) *ProductDTO {
 		product.ProductStock,
 		product.ProductSku,
 		product.CategoryUuid.String(),
+		product.CategoryName,
 		product.ProductImageUrl,
 		product.ProductStatus,
 		product.ProductCreatedAt,
@@ -129,6 +148,7 @@ func MapCreateProductRowToDTO(product sqlc.CreateProductRow) *ProductDTO {
 		product.ProductStock,
 		product.ProductSku,
 		product.CategoryUuid.String(),
+		product.CategoryName,
 		product.ProductImageUrl,
 		product.ProductStatus,
 		product.ProductCreatedAt,
@@ -145,6 +165,7 @@ func MapUpdateProductRowToDTO(product sqlc.UpdateProductRow) *ProductDTO {
 		product.ProductStock,
 		product.ProductSku,
 		product.CategoryUuid.String(),
+		product.CategoryName,
 		product.ProductImageUrl,
 		product.ProductStatus,
 		product.ProductCreatedAt,
@@ -159,6 +180,7 @@ func mapToProductDTO(
 	stock *int32,
 	sku *string,
 	categoryUUID string,
+	categoryName string,
 	imageURL *string,
 	status int32,
 	createdAt time.Time,
@@ -169,6 +191,7 @@ func mapToProductDTO(
 		Slug:         slug,
 		Price:        utils.NumericToFloat(price),
 		CategoryUUID: categoryUUID,
+		CategoryName: categoryName,
 		Status:       mapProductStatusText(int(status)),
 		CreatedAt:    createdAt.Format("2006-01-02 15:04:05"),
 	}

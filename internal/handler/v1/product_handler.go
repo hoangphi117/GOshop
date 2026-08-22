@@ -95,3 +95,71 @@ func (ph *ProductHandler) UpdateProduct(ctx *gin.Context) {
 	productDTO := v1dto.MapUpdateProductRowToDTO(updatedProduct)
 	utils.ResponseSuccess(ctx, http.StatusOK, "Product updated successfully", productDTO)
 }
+
+func (ph *ProductHandler) SoftDeleteProduct(ctx *gin.Context) {
+	var params v1dto.GetProductByUuidParam
+	if err := ctx.ShouldBindUri(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	productUuid, err := uuid.Parse(params.Uuid)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	softDeletedProduct, err := ph.service.SoftDeleteProduct(ctx, productUuid)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	softDeletedProductDTO := v1dto.MapProductToDTO(softDeletedProduct)
+	utils.ResponseSuccess(ctx, http.StatusOK, "Product soft deleted successfully", softDeletedProductDTO)
+}
+
+func (ph *ProductHandler) RestoreProduct(ctx *gin.Context) {
+	var params v1dto.GetProductByUuidParam
+	if err := ctx.ShouldBindUri(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	productUuid, err := uuid.Parse(params.Uuid)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	restoredProduct, err := ph.service.RestoreProduct(ctx, productUuid)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	restoredProductDTO := v1dto.MapProductToDTO(restoredProduct)
+	utils.ResponseSuccess(ctx, http.StatusOK, "Product restored successfully", restoredProductDTO)
+}
+
+func (ph *ProductHandler) TrashProduct(ctx *gin.Context) {
+	var params v1dto.GetProductByUuidParam
+	if err := ctx.ShouldBindUri(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	productUuid, err := uuid.Parse(params.Uuid)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	err = ph.service.TrashProduct(ctx, productUuid)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseStatusCode(ctx, http.StatusNoContent)
+}

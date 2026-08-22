@@ -204,6 +204,95 @@ func (q *Queries) GetProductByUUID(ctx context.Context, productUuid uuid.UUID) (
 	return i, err
 }
 
+const restoreProduct = `-- name: RestoreProduct :one
+UPDATE products
+SET product_deleted_at = NULL
+WHERE product_uuid = $1::uuid
+AND product_deleted_at IS NOT NULL
+RETURNING product_id, product_uuid, product_name, product_slug, product_description, product_price, product_stock, product_sku, product_category_id, product_image_url, product_status, product_deleted_at, product_created_at, product_updated_at
+`
+
+func (q *Queries) RestoreProduct(ctx context.Context, productUuid uuid.UUID) (Product, error) {
+	row := q.db.QueryRow(ctx, restoreProduct, productUuid)
+	var i Product
+	err := row.Scan(
+		&i.ProductID,
+		&i.ProductUuid,
+		&i.ProductName,
+		&i.ProductSlug,
+		&i.ProductDescription,
+		&i.ProductPrice,
+		&i.ProductStock,
+		&i.ProductSku,
+		&i.ProductCategoryID,
+		&i.ProductImageUrl,
+		&i.ProductStatus,
+		&i.ProductDeletedAt,
+		&i.ProductCreatedAt,
+		&i.ProductUpdatedAt,
+	)
+	return i, err
+}
+
+const softDeleteProduct = `-- name: SoftDeleteProduct :one
+UPDATE products
+SET product_deleted_at = NOW()
+WHERE product_uuid = $1::uuid
+AND product_deleted_at IS NULL
+RETURNING product_id, product_uuid, product_name, product_slug, product_description, product_price, product_stock, product_sku, product_category_id, product_image_url, product_status, product_deleted_at, product_created_at, product_updated_at
+`
+
+func (q *Queries) SoftDeleteProduct(ctx context.Context, productUuid uuid.UUID) (Product, error) {
+	row := q.db.QueryRow(ctx, softDeleteProduct, productUuid)
+	var i Product
+	err := row.Scan(
+		&i.ProductID,
+		&i.ProductUuid,
+		&i.ProductName,
+		&i.ProductSlug,
+		&i.ProductDescription,
+		&i.ProductPrice,
+		&i.ProductStock,
+		&i.ProductSku,
+		&i.ProductCategoryID,
+		&i.ProductImageUrl,
+		&i.ProductStatus,
+		&i.ProductDeletedAt,
+		&i.ProductCreatedAt,
+		&i.ProductUpdatedAt,
+	)
+	return i, err
+}
+
+const trashProduct = `-- name: TrashProduct :one
+DELETE FROM products
+WHERE product_uuid = $1::uuid
+AND product_deleted_at IS NOT NULL
+RETURNING product_id, product_uuid, product_name, product_slug, product_description, product_price, product_stock, product_sku, product_category_id, product_image_url, product_status, product_deleted_at, product_created_at, product_updated_at
+`
+
+func (q *Queries) TrashProduct(ctx context.Context, productUuid uuid.UUID) (Product, error) {
+	row := q.db.QueryRow(ctx, trashProduct, productUuid)
+	var i Product
+	err := row.Scan(
+		&i.ProductID,
+		&i.ProductUuid,
+		&i.ProductName,
+		&i.ProductSlug,
+		&i.ProductDescription,
+		&i.ProductPrice,
+		&i.ProductStock,
+		&i.ProductSku,
+		&i.ProductCategoryID,
+		&i.ProductImageUrl,
+		&i.ProductStatus,
+		&i.ProductDeletedAt,
+		&i.ProductCreatedAt,
+		&i.ProductUpdatedAt,
+	)
+	return i, err
+}
+
 const updateProduct = `-- name: UpdateProduct :one
 WITH updated AS (
     UPDATE products

@@ -38,4 +38,7 @@ type ProductRepository interface {
 	GetBySlug(ctx context.Context, slug string) (sqlc.GetProductBySlugRow, error)
 	GetByUUID(ctx context.Context, uuid uuid.UUID) (sqlc.GetProductByUUIDRow, error)
 	Update(ctx context.Context, productParams sqlc.UpdateProductParams) (sqlc.UpdateProductRow, error)
+	SoftDelete(ctx context.Context, uuid uuid.UUID) (sqlc.Product, error)
+	Restore(ctx context.Context, uuid uuid.UUID) (sqlc.Product, error)
+	Trash(ctx context.Context, uuid uuid.UUID) (sqlc.Product, error)
 }

@@ -21,5 +21,8 @@ func (pr *AdminProductRoutes) Register(r *gin.RouterGroup) {
 	{
 		products.POST("", pr.handler.CreateProduct)
 		products.PUT("/:uuid", pr.handler.UpdateProduct)
+		products.DELETE("/:uuid/soft-delete", pr.handler.SoftDeleteProduct)
+		products.PUT("/:uuid/restore", pr.handler.RestoreProduct)
+		products.DELETE("/:uuid/trash", pr.handler.TrashProduct)
 	}
 }

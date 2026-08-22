@@ -175,12 +175,11 @@ func (ch *CategoryHandler) TrashCategory(ctx *gin.Context) {
 		return
 	}
 
-	trashCategory, err := ch.service.TrashCategory(ctx, categoryUuid)
+	err = ch.service.TrashCategory(ctx, categoryUuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
 
-	trashCategoryDTO := v1dto.MapCategoryToDTO(trashCategory)
-	utils.ResponseSuccess(ctx, http.StatusOK, "Category trashed successfully", trashCategoryDTO)
+	utils.ResponseStatusCode(ctx, http.StatusNoContent)
 }

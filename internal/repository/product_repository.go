@@ -49,3 +49,27 @@ func (r *SqlProductRepository) Update(ctx context.Context, productParams sqlc.Up
 
 	return product, nil
 }
+
+func (r *SqlProductRepository) SoftDelete(ctx context.Context, uuid uuid.UUID) (sqlc.Product, error) {
+	product, err := r.db.SoftDeleteProduct(ctx, uuid)
+	if err != nil {
+		return sqlc.Product{}, err
+	}
+	return product, nil
+}
+
+func (r *SqlProductRepository) Restore(ctx context.Context, uuid uuid.UUID) (sqlc.Product, error) {
+	product, err := r.db.RestoreProduct(ctx, uuid)
+	if err != nil {
+		return sqlc.Product{}, err
+	}
+	return product, nil
+}
+
+func (r *SqlProductRepository) Trash(ctx context.Context, uuid uuid.UUID) (sqlc.Product, error) {
+	product, err := r.db.TrashProduct(ctx, uuid)
+	if err != nil {
+		return sqlc.Product{}, err
+	}
+	return product, nil
+}

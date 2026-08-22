@@ -58,3 +58,23 @@ SELECT
     categories.category_name AS category_name
 FROM updated
 JOIN categories ON categories.category_id = updated.product_category_id;
+
+-- name: SoftDeleteProduct :one
+UPDATE products
+SET product_deleted_at = NOW()
+WHERE product_uuid = sqlc.arg(product_uuid)::uuid
+AND product_deleted_at IS NULL
+RETURNING *;
+
+-- name: RestoreProduct :one
+UPDATE products
+SET product_deleted_at = NULL
+WHERE product_uuid = sqlc.arg(product_uuid)::uuid
+AND product_deleted_at IS NOT NULL
+RETURNING *;
+
+-- name: TrashProduct :one
+DELETE FROM products
+WHERE product_uuid = sqlc.arg(product_uuid)::uuid
+AND product_deleted_at IS NOT NULL
+RETURNING *;
