@@ -121,43 +121,47 @@ func HandleValidationErrors(err error) gin.H {
 
 			switch e.Tag() {
 			case "gt":
-				errors[fieldPath] = fmt.Sprintf("%s phải lớn hơn %s", fieldPath, e.Param())
+				errors[fieldPath] = fmt.Sprintf("%s must be greater than %s", fieldPath, e.Param())
 			case "gte":
-				errors[fieldPath] = fmt.Sprintf("%s phải lớn hơn hoặc bằng %s", fieldPath, e.Param())
+				errors[fieldPath] = fmt.Sprintf("%s must be greater than or equal to %s", fieldPath, e.Param())
 			case "lt":
-				errors[fieldPath] = fmt.Sprintf("%s phải bé hơn %s", fieldPath, e.Param())
+				errors[fieldPath] = fmt.Sprintf("%s must be less than %s", fieldPath, e.Param())
 			case "lte":
-				errors[fieldPath] = fmt.Sprintf("%s phải bé hơn hoặc bằng %s", fieldPath, e.Param())
+				errors[fieldPath] = fmt.Sprintf("%s must be less than or equal to %s", fieldPath, e.Param())
+			case "gtefield":
+				errors[fieldPath] = fmt.Sprintf("%s must be greater than or equal to %s", fieldPath, e.Param())
+			case "ltefield":
+				errors[fieldPath] = fmt.Sprintf("%s must be less than or equal to %s", fieldPath, e.Param())
 			case "uuid":
-				errors[fieldPath] = fieldPath + " phải là uuid hợp lệ"
+				errors[fieldPath] = fieldPath + " must be a valid uuid"
 			case "slug":
-				errors[fieldPath] = fieldPath + " chỉ được chứa chữ, số, dấu gạch ngang hoặc dấu chấm"
+				errors[fieldPath] = fieldPath + " can only contain letters, numbers, hyphens, or periods"
 			case "min":
-				errors[fieldPath] = fmt.Sprintf("%s phải lớn hơn %s kí tự", fieldPath, e.Param())
+				errors[fieldPath] = fmt.Sprintf("%s must be at least %s characters", fieldPath, e.Param())
 			case "max":
-				errors[fieldPath] = fmt.Sprintf("%s phải ít hơn %s kí tự", fieldPath, e.Param())
+				errors[fieldPath] = fmt.Sprintf("%s must be no more than %s characters", fieldPath, e.Param())
 			case "min_float":
-				errors[fieldPath] = fmt.Sprintf("%s phải lớn hơn %s", fieldPath, e.Param())
+				errors[fieldPath] = fmt.Sprintf("%s must be greater than %s", fieldPath, e.Param())
 			case "max_float":
-				errors[fieldPath] = fmt.Sprintf("%s phải nhỏ hơn %s", fieldPath, e.Param())
+				errors[fieldPath] = fmt.Sprintf("%s must be less than %s", fieldPath, e.Param())
 			case "oneof":
 				allowedValue := strings.Join(strings.Split(e.Param(), " "), " ")
-				errors[fieldPath] = fmt.Sprintf("%s phải là một trong các %s", fieldPath, allowedValue)
+				errors[fieldPath] = fmt.Sprintf("%s must be one of the following: %s", fieldPath, allowedValue)
 			case "required":
-				errors[fieldPath] = fmt.Sprintf("%s là bắt buộc", fieldPath)
+				errors[fieldPath] = fmt.Sprintf("%s is required", fieldPath)
 			case "search":
-				errors[fieldPath] = fmt.Sprintf("%s chỉ được chứa chữ thường, in hoa, số và khoảng trắng", fieldPath)
+				errors[fieldPath] = fmt.Sprintf("%s can only contain lowercase letters, uppercase letters, numbers, and spaces", fieldPath)
 			case "email":
-				errors[fieldPath] = fmt.Sprintf("%s không đúng định dạng", fieldPath)
+				errors[fieldPath] = fmt.Sprintf("%s is not a valid email address", fieldPath)
 			case "datetime":
-				errors[fieldPath] = fmt.Sprintf("%s không đúng định dạng YYYY-MM-DD", fieldPath)
+				errors[fieldPath] = fmt.Sprintf("%s is not a valid date/time format (YYYY-MM-DD)", fieldPath)
 			case "file_ext":
 				allowedExt := strings.Join(strings.Split(e.Param(), " "), " ")
-				errors[fieldPath] = fmt.Sprintf("%s không chứa đuôi file cho phép trong %s", fieldPath, allowedExt)
+				errors[fieldPath] = fmt.Sprintf("%s does not contain an allowed file extension among %s", fieldPath, allowedExt)
 			case "email_advanced":
-				errors[fieldPath] = fmt.Sprintf("%s nằm trong danh sách bị cấm", fieldPath)
+				errors[fieldPath] = fmt.Sprintf("%s is in the list of blocked emails", fieldPath)
 			case "password_strong":
-				errors[fieldPath] = fmt.Sprintf("%s phải chứa ít nhất 8 kí tự gồm (chữ thường, in hoa, số và kí tự đặc biệt)", fieldPath)
+				errors[fieldPath] = fmt.Sprintf("%s must contain at least 8 characters including lowercase, uppercase, numbers, and special characters", fieldPath)
 			}
 		}
 
@@ -165,5 +169,5 @@ func HandleValidationErrors(err error) gin.H {
 
 	}
 
-	return gin.H{"error": "Yeu cau khong hop le", "detail": err.Error()}
+	return gin.H{"error": "Invalid request", "detail": err.Error()}
 }
