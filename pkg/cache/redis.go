@@ -82,19 +82,3 @@ func (cs *redisCacheService) Exists(key string) (bool, error) {
 	}
 	return count > 0, nil
 }
-
-func (cs *redisCacheService) Incr(key string) (int64, error) {
-	val, err := cs.rdb.Incr(cs.ctx, key).Result()
-	if err != nil {
-		return 0, err
-	}
-	return val, nil
-}
-
-func (cs *redisCacheService) Expire(key string, ttl time.Duration) (bool, error) {
-	val, err := cs.rdb.Expire(cs.ctx, key, ttl).Result()
-	if err != nil {
-		return false, err
-	}
-	return val, nil
-}
