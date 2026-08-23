@@ -6,10 +6,10 @@ import (
 	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
 	"goshop/internal/utils"
-	"log"
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -65,9 +65,6 @@ func (r *SqlProductRepository) CountProducts(
 		params.Status = &status
 	}
 
-	log.Println("CountProducts Params:", params)
-
-	// 7. Gọi sqlc Query
 	count, err := r.db.CountProducts(ctx, params)
 	if err != nil {
 		return 0, err
@@ -252,4 +249,23 @@ func (r *SqlProductRepository) Trash(ctx context.Context, uuid uuid.UUID) (sqlc.
 		return sqlc.Product{}, err
 	}
 	return product, nil
+}
+
+func (r *SqlProductRepository) DeductStock(ctx context.Context, tx pgx.Tx, productID int32, quantity int32) error {
+
+	q := sqlc.New(tx)
+
+	rowAffected, err := q.DeductStock(ctx, sqlc.DeductStockParams{
+		ProductID: productID,
+		Quantity:  quantity,
+	})
+	if err != nil {
+		return err
+	}
+
+	if rowAffected == 0 {
+		return utils.NewError(utils.ErrCodeBadRequest, "insufficient stock for product ID: "+fmt.Sprintf("%d", productID))
+	}
+
+	return nil
 }

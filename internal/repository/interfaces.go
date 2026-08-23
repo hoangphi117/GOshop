@@ -5,6 +5,7 @@ import (
 	"goshop/internal/db/sqlc"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 type UserRepository interface {
@@ -43,4 +44,15 @@ type ProductRepository interface {
 	SoftDelete(ctx context.Context, uuid uuid.UUID) (sqlc.Product, error)
 	Restore(ctx context.Context, uuid uuid.UUID) (sqlc.Product, error)
 	Trash(ctx context.Context, uuid uuid.UUID) (sqlc.Product, error)
+	DeductStock(ctx context.Context, tx pgx.Tx, productID int32, quantity int32) error
+}
+
+type OrderRepository interface {
+	Create(ctx context.Context, tx pgx.Tx, input sqlc.CreateOrderParams) (sqlc.Order, error)
+	GetLastOrderNumber(ctx context.Context, orderNumber string) (string, error)
+}
+
+type OrderItemRepository interface {
+	Create(ctx context.Context, tx pgx.Tx, input sqlc.CreateOrderItemParams) (sqlc.OrderItem, error)
+	GetByOrderID(ctx context.Context, orderID int32) ([]sqlc.GetOrderItemsByOrderIDRow, error)
 }
