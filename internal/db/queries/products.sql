@@ -61,19 +61,49 @@ JOIN categories ON categories.category_id = products.product_category_id
 WHERE products.product_uuid = $1
 AND products.product_deleted_at IS NULL;
 
+-- name: GetByUUIDsForUpdate :many
+SELECT
+    products.*,
+    categories.category_uuid AS category_uuid,
+    categories.category_name AS category_name
+FROM products
+JOIN categories ON categories.category_id = products.product_category_id
+WHERE products.product_uuid = ANY(sqlc.arg(uuids)::uuid[])
+AND products.product_deleted_at IS NULL
+ORDER BY product_uuid
+FOR UPDATE;
+
+
 -- name: UpdateProduct :one
 WITH updated AS (
     UPDATE products
     SET
-        product_name        = COALESCE(sqlc.narg('product_name')::varchar,        products.product_name),
-        product_description = COALESCE(sqlc.narg('product_description')::text,    products.product_description),
-        product_slug        = COALESCE(sqlc.narg('product_slug')::varchar,        products.product_slug),
-        product_price       = COALESCE(sqlc.narg('product_price')::numeric,       products.product_price),
-        product_stock       = COALESCE(sqlc.narg('product_stock')::int,           products.product_stock),
-        product_sku         = COALESCE(sqlc.narg('product_sku')::varchar,         products.product_sku),
-        product_category_id = COALESCE(sqlc.narg('product_category_id')::int,     products.product_category_id),
-        product_image_url   = COALESCE(sqlc.narg('product_image_url')::text,      products.product_image_url),
-        product_status      = COALESCE(sqlc.narg('product_status')::int,          products.product_status)
+        product_name         = COALESCE(sqlc.narg('product_name')::varchar,        products.product_name),
+        product_description  = COALESCE(sqlc.narg('product_description')::text,    products.product_description),
+        product_slug         = COALESCE(sqlc.narg('product_slug')::varchar,        products.product_slug),
+        product_price         = COALESCE(sqlc.narg('product_price')::numeric,       products.product_price),
+        product_stock         = COALESCE(sqlc.narg('product_stock')::int,           products.product_stock),
+        product_sku           = COALESCE(sqlc.narg('product_sku')::varchar,         products.product_sku),
+        product_category_id   = COALESCE(sqlc.narg('product_category_id')::int,     products.product_category_id),
+        product_image_url     = COALESCE(sqlc.narg('product_image_url')::text,      products.product_image_url),
+        product_status = CASE
+            -- Admin sent new status -> keep it
+            WHEN sqlc.narg('product_status')::int IS NOT NULL
+                THEN sqlc.narg('product_status')::int
+
+            -- Currently OutOfStock, new stock > 0 -> automatically switch to Active
+            WHEN products.product_status = 3
+                 AND COALESCE(sqlc.narg('product_stock')::int, products.product_stock) > 0
+                THEN 1
+
+            -- Currently Active, new stock <= 0 -> automatically switch to OutOfStock
+            WHEN products.product_status = 1
+                 AND COALESCE(sqlc.narg('product_stock')::int, products.product_stock) <= 0
+                THEN 3
+
+            -- Otherwise (including Inactive) -> keep the current status
+            ELSE products.product_status
+        END
     WHERE product_uuid = sqlc.arg(product_uuid)
     AND product_deleted_at IS NULL
     RETURNING *

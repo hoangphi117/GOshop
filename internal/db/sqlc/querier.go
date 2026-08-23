@@ -20,6 +20,7 @@ type Querier interface {
 	CreateProduct(ctx context.Context, arg CreateProductParams) (CreateProductRow, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeductStock(ctx context.Context, arg DeductStockParams) (int64, error)
+	GetByUUIDsForUpdate(ctx context.Context, uuids []uuid.UUID) ([]GetByUUIDsForUpdateRow, error)
 	GetCategoryBySlug(ctx context.Context, categorySlug string) (Category, error)
 	GetCategoryByUuid(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
 	GetLatestOrderNumber(ctx context.Context, orderNumber string) (string, error)

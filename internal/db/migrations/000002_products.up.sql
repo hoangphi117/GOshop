@@ -29,6 +29,9 @@ CREATE TABLE IF NOT EXISTS products (
     product_updated_at   TIMESTAMPTZ DEFAULT now() NOT NULL
 );
 
+COMMENT ON COLUMN products.product_status IS '1: Active, 2: Inactive, 3: Out of Stock';
+COMMENT ON COLUMN categories.category_status IS '1: Active, 2: Inactive';
+
 -- Categories
 CREATE INDEX idx_categories_list ON categories(category_deleted_at, category_created_at DESC);
 CREATE INDEX idx_categories_slug ON categories(category_slug);
