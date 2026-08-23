@@ -48,3 +48,7 @@ type ProductService interface {
 	RestoreProduct(ctx *gin.Context, uuid uuid.UUID) (sqlc.Product, error)
 	TrashProduct(ctx *gin.Context, uuid uuid.UUID) error
 }
+
+type OrderService interface {
+	CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInput) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error)
+}
