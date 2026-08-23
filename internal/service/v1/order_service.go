@@ -2,6 +2,7 @@ package v1service
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
@@ -11,8 +12,6 @@ import (
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 	"sort"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -162,10 +161,7 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 		})
 	}
 
-	orderNumber, err := s.generateOrderNumber()
-	if err != nil {
-		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeInternal, "Failed to generate order number")
-	}
+	orderNumber := generateOrderNumber()
 
 	createOrderParams := sqlc.CreateOrderParams{
 		OrderNumber:          orderNumber,
@@ -220,30 +216,26 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 	return order, orderItemsWithDetails, nil
 }
 
-func (s *orderService) generateOrderNumber() (string, error) {
-	today := time.Now().Format("20060102")
-	redisKey := fmt.Sprintf("order_seq:%s", today)
+const charset = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
 
-	seq, err := s.cache.Incr(redisKey)
+func generateOrderNumber() string {
+	now := time.Now()
+	datePrefix := now.Format("060102")
+
+	const randomLength = 6
+	randomSuffix := make([]byte, randomLength)
+
+	randomBytes := make([]byte, randomLength)
+
+	_, err := rand.Read(randomBytes)
 	if err != nil {
-		return "", err
+		fallbackSuffix := fmt.Sprintf("%06d", now.Nanosecond()%1000000)
+		return fmt.Sprintf("%s-%s", datePrefix, fallbackSuffix)
 	}
 
-	// First order of the day or Redis was restarted/cleared
-	if seq == 1 {
-		prefix := fmt.Sprintf("ORD-%s-", today)
-		lastOrderNumber, err := s.orderRepo.GetLastOrderNumber(context.Background(), prefix+"%")
-		if err == nil && lastOrderNumber != "" {
-			parts := strings.Split(lastOrderNumber, "-")
-			if len(parts) >= 3 {
-				if lastSeq, err := strconv.Atoi(parts[len(parts)-1]); err == nil && lastSeq >= 1 {
-					seq = int64(lastSeq + 1)
-					_ = s.cache.Set(redisKey, seq, 24*time.Hour)
-				}
-			}
-		}
-		_, _ = s.cache.Expire(redisKey, 24*time.Hour)
+	for i, b := range randomBytes {
+		randomSuffix[i] = charset[int(b)%len(charset)]
 	}
 
-	return fmt.Sprintf("ORD-%s-%04d", today, seq), nil
+	return fmt.Sprintf("%s-%s", datePrefix, string(randomSuffix))
 }
