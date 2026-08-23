@@ -34,6 +34,7 @@ type Querier interface {
 	ListUserUserIdDesc(ctx context.Context, arg ListUserUserIdDescParams) ([]User, error)
 	RestoreCategory(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
 	RestoreProduct(ctx context.Context, productUuid uuid.UUID) (Product, error)
+	RestoreStock(ctx context.Context, arg RestoreStockParams) error
 	RestoreUser(ctx context.Context, userUuid uuid.UUID) (User, error)
 	SoftDeleteCategory(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
 	SoftDeleteProduct(ctx context.Context, productUuid uuid.UUID) (Product, error)

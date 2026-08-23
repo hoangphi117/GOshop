@@ -147,7 +147,12 @@ func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) (C
 
 const deductStock = `-- name: DeductStock :execrows
 UPDATE products
-SET product_stock = product_stock - $1::int
+SET 
+    product_stock = product_stock - $1::int,
+    product_status = CASE 
+        WHEN (product_stock - $1::int) = 0 THEN 3 
+        ELSE product_status 
+    END
 WHERE product_id = $2
   AND product_stock >= $1::int
   AND product_deleted_at IS NULL
@@ -302,6 +307,28 @@ func (q *Queries) RestoreProduct(ctx context.Context, productUuid uuid.UUID) (Pr
 		&i.ProductUpdatedAt,
 	)
 	return i, err
+}
+
+const restoreStock = `-- name: RestoreStock :exec
+UPDATE products
+SET 
+    product_stock = product_stock + $1::int,
+    product_status = CASE 
+        WHEN product_status = 3 THEN 1 
+        ELSE product_status 
+    END
+WHERE product_id = $2
+  AND product_deleted_at IS NULL
+`
+
+type RestoreStockParams struct {
+	Quantity  int32 `json:"quantity"`
+	ProductID int32 `json:"product_id"`
+}
+
+func (q *Queries) RestoreStock(ctx context.Context, arg RestoreStockParams) error {
+	_, err := q.db.Exec(ctx, restoreStock, arg.Quantity, arg.ProductID)
+	return err
 }
 
 const softDeleteProduct = `-- name: SoftDeleteProduct :one

@@ -107,7 +107,23 @@ RETURNING *;
 
 -- name: DeductStock :execrows
 UPDATE products
-SET product_stock = product_stock - sqlc.arg(quantity)::int
+SET 
+    product_stock = product_stock - sqlc.arg(quantity)::int,
+    product_status = CASE 
+        WHEN (product_stock - sqlc.arg(quantity)::int) = 0 THEN 3 
+        ELSE product_status 
+    END
 WHERE product_id = sqlc.arg(product_id)
   AND product_stock >= sqlc.arg(quantity)::int
+  AND product_deleted_at IS NULL;
+
+-- name: RestoreStock :exec
+UPDATE products
+SET 
+    product_stock = product_stock + sqlc.arg(quantity)::int,
+    product_status = CASE 
+        WHEN product_status = 3 THEN 1 
+        ELSE product_status 
+    END
+WHERE product_id = sqlc.arg(product_id)
   AND product_deleted_at IS NULL;
