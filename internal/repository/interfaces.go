@@ -40,6 +40,7 @@ type ProductRepository interface {
 	GetAll(ctx context.Context, search, categoryUUID string, minPrice, maxPrice float64, status int32, orderBy, sort string, limit, offset int32, deleted bool) ([]sqlc.GetProductByUUIDRow, error)
 	GetBySlug(ctx context.Context, slug string) (sqlc.GetProductBySlugRow, error)
 	GetByUUID(ctx context.Context, uuid uuid.UUID) (sqlc.GetProductByUUIDRow, error)
+	GetByUUIDs(ctx context.Context, tx pgx.Tx, uuids []uuid.UUID) ([]sqlc.GetByUUIDsForUpdateRow, error)
 	Update(ctx context.Context, productParams sqlc.UpdateProductParams) (sqlc.UpdateProductRow, error)
 	SoftDelete(ctx context.Context, uuid uuid.UUID) (sqlc.Product, error)
 	Restore(ctx context.Context, uuid uuid.UUID) (sqlc.Product, error)

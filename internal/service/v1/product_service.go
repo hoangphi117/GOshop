@@ -20,6 +20,10 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+const (
+	ProductStatusActive int32 = 1
+)
+
 type productService struct {
 	repo         repository.ProductRepository
 	categoryRepo repository.CategoryRepository
@@ -52,7 +56,7 @@ func (ps *productService) CreateProduct(ctx *gin.Context, input v1dto.CreateProd
 	input.Params.ProductCategoryID = category.CategoryID
 
 	if input.Params.ProductStatus == 0 {
-		input.Params.ProductStatus = 1
+		input.Params.ProductStatus = ProductStatusActive
 	}
 
 	slug, err := generateUniqueSlug(reqCtx, input.Params.ProductName, func(slugCtx context.Context, slug string) error {

@@ -98,3 +98,15 @@ func NumericToFloat(n pgtype.Numeric) float64 {
 	f, _ := value.Float64()
 	return f
 }
+
+func RoundFloat(val float64, precision int) float64 {
+	ratio := math.Pow(10, float64(precision))
+	return math.Round(val*ratio) / ratio
+}
+
+func Int32Value(ptr *int32) int32 {
+	if ptr == nil {
+		return 0
+	}
+	return *ptr
+}

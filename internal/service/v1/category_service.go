@@ -19,7 +19,10 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-const maxSlugAttempts = 100
+const (
+	maxSlugAttempts            = 100
+	CategoryStatusActive int32 = 1
+)
 
 type categoryService struct {
 	repo  repository.CategoryRepository
@@ -64,7 +67,7 @@ func (cs *categoryService) CreateCategory(ctx *gin.Context, input sqlc.CreateCat
 	reqCtx := ctx.Request.Context()
 
 	if input.CategoryStatus == 0 {
-		input.CategoryStatus = 1
+		input.CategoryStatus = CategoryStatusActive
 	}
 
 	slug, err := generateUniqueSlug(reqCtx, input.CategoryName, func(slugCtx context.Context, slug string) error {

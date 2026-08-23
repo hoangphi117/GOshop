@@ -71,7 +71,7 @@ type GetProductsParam struct {
 	Limit        int32   `form:"limit"         binding:"omitempty,gte=1,lte=500"`
 	OrderBy      string  `form:"order_by"      binding:"omitempty,oneof=product_name product_price product_created_at"`
 	Sort         string  `form:"sort"          binding:"omitempty,oneof=asc desc"`
-	CategoryUUID string  `form:"category_uuid" binding:"omitempty,uuid"`
+	CategoryUUID string  `form:"category_uuid" binding:"required,uuid"`
 	MinPrice     float64 `form:"min_price"     binding:"omitempty,gte=0"`
 	MaxPrice     float64 `form:"max_price"     binding:"omitempty,gtefield=MinPrice"`
 	Status       int32   `form:"status"        binding:"omitempty,oneof=1 2 3"`
