@@ -104,3 +104,10 @@ DELETE FROM products
 WHERE product_uuid = sqlc.arg(product_uuid)::uuid
 AND product_deleted_at IS NOT NULL
 RETURNING *;
+
+-- name: DeductStock :execrows
+UPDATE products
+SET product_stock = product_stock - sqlc.arg(quantity)::int
+WHERE product_id = sqlc.arg(product_id)
+  AND product_stock >= sqlc.arg(quantity)::int
+  AND product_deleted_at IS NULL;

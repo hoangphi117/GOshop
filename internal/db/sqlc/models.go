@@ -23,6 +23,39 @@ type Category struct {
 	CategoryUpdatedAt   time.Time          `json:"category_updated_at"`
 }
 
+type Order struct {
+	OrderID              int32          `json:"order_id"`
+	OrderUuid            uuid.UUID      `json:"order_uuid"`
+	OrderNumber          string         `json:"order_number"`
+	OrderUserID          int32          `json:"order_user_id"`
+	OrderShippingName    string         `json:"order_shipping_name"`
+	OrderShippingPhone   string         `json:"order_shipping_phone"`
+	OrderShippingAddress string         `json:"order_shipping_address"`
+	OrderTotalAmount     pgtype.Numeric `json:"order_total_amount"`
+	// 1: COD, 2: Bank Transfer, 3: E-Wallet
+	OrderPaymentMethod int32 `json:"order_payment_method"`
+	// 1: Unpaid, 2: Paid, 3: Refunded
+	OrderPaymentStatus int32   `json:"order_payment_status"`
+	OrderNote          *string `json:"order_note"`
+	// 1: Pending, 2: Confirmed, 3: Shipped, 4: Delivered, 5: Cancelled
+	OrderStatus      int32              `json:"order_status"`
+	OrderCancelledAt pgtype.Timestamptz `json:"order_cancelled_at"`
+	OrderCreatedAt   time.Time          `json:"order_created_at"`
+	OrderUpdatedAt   time.Time          `json:"order_updated_at"`
+}
+
+type OrderItem struct {
+	OrderItemID          int32          `json:"order_item_id"`
+	OrderItemUuid        uuid.UUID      `json:"order_item_uuid"`
+	OrderItemOrderID     int32          `json:"order_item_order_id"`
+	OrderItemProductID   int32          `json:"order_item_product_id"`
+	OrderItemProductName string         `json:"order_item_product_name"`
+	OrderItemPrice       pgtype.Numeric `json:"order_item_price"`
+	OrderItemQuantity    int32          `json:"order_item_quantity"`
+	OrderItemSubtotal    pgtype.Numeric `json:"order_item_subtotal"`
+	OrderItemCreatedAt   time.Time      `json:"order_item_created_at"`
+}
+
 type Product struct {
 	ProductID          int32              `json:"product_id"`
 	ProductUuid        uuid.UUID          `json:"product_uuid"`

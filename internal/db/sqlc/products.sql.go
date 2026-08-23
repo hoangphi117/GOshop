@@ -145,6 +145,27 @@ func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) (C
 	return i, err
 }
 
+const deductStock = `-- name: DeductStock :execrows
+UPDATE products
+SET product_stock = product_stock - $1::int
+WHERE product_id = $2
+  AND product_stock >= $1::int
+  AND product_deleted_at IS NULL
+`
+
+type DeductStockParams struct {
+	Quantity  int32 `json:"quantity"`
+	ProductID int32 `json:"product_id"`
+}
+
+func (q *Queries) DeductStock(ctx context.Context, arg DeductStockParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deductStock, arg.Quantity, arg.ProductID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getProductBySlug = `-- name: GetProductBySlug :one
 SELECT
     products.product_id, products.product_uuid, products.product_name, products.product_slug, products.product_description, products.product_price, products.product_stock, products.product_sku, products.product_category_id, products.product_image_url, products.product_status, products.product_deleted_at, products.product_created_at, products.product_updated_at,

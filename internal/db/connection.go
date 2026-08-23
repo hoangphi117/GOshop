@@ -10,6 +10,7 @@ import (
 	"goshop/pkg/pgx"
 	"time"
 
+	pgxv5 "github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
 )
@@ -58,4 +59,8 @@ func InitDB() error {
 	logger.Log.Info().Msg("✅ Connected to PostgreSQL database")
 
 	return nil
+}
+
+func BeginTx(ctx context.Context) (pgxv5.Tx, error) {
+	return DBPool.Begin(ctx)
 }
