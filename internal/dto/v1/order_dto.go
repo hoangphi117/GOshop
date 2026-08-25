@@ -16,6 +16,7 @@ type OrderDTO struct {
 	ShippingPhone   string         `json:"shipping_phone"`
 	ShippingAddress string         `json:"shipping_address"`
 	TotalAmount     float64        `json:"total_amount"`
+	RefundedAmount  float64        `json:"refunded_amount"`
 	PaymentMethod   string         `json:"payment_method"`
 	PaymentStatus   string         `json:"payment_status"`
 	Note            string         `json:"note,omitempty"`
@@ -49,7 +50,14 @@ type GetOrderByUUIDParam struct {
 }
 
 type UpdateOrderStatusInput struct {
-	Status int32 `json:"status" binding:"required,oneof=1 2 3 4 5"`
+	Status int32 `json:"status" binding:"required,oneof=1 2 3 4 5 6"`
+}
+
+type UpdateOrderPaymentStatusInput struct {
+	PaymentStatus  int32    `json:"payment_status" binding:"required,oneof=2 3 4"`
+	RefundAmount   *float64 `json:"refund_amount" binding:"omitempty,gt=0"`
+	TransactionRef *string  `json:"transaction_ref" binding:"omitempty,max=100"`
+	Note           *string  `json:"note" binding:"omitempty,max=500"`
 }
 
 type UpdateOrderShippingInfoInput struct {
@@ -57,6 +65,28 @@ type UpdateOrderShippingInfoInput struct {
 	ShippingPhone   *string `json:"shipping_phone" binding:"omitempty,min=9,max=20"`
 	ShippingAddress *string `json:"shipping_address" binding:"omitempty,min=5"`
 	Note            *string `json:"note" binding:"omitempty,max=500"`
+}
+
+type GetOrdersParam struct {
+	Search  string `form:"search" binding:"omitempty,min=2,max=50"`
+	Page    int32  `form:"page" binding:"omitempty,gte=1"`
+	Limit   int32  `form:"limit" binding:"omitempty,gte=1,lte=100"`
+	OrderBy string `form:"order_by" binding:"omitempty,oneof=order_created_at order_total_amount"`
+	Sort    string `form:"sort" binding:"omitempty,oneof=asc desc"`
+	Status  int32  `form:"status" binding:"omitempty,oneof=1 2 3 4 5 6"`
+}
+
+type OrderSummaryDTO struct {
+	UUID           string  `json:"uuid"`
+	OrderNumber    string  `json:"order_number"`
+	ShippingName   string  `json:"shipping_name"`
+	ShippingPhone  string  `json:"shipping_phone"`
+	TotalAmount    float64 `json:"total_amount"`
+	RefundedAmount float64 `json:"refunded_amount"`
+	PaymentMethod  string  `json:"payment_method"`
+	PaymentStatus  string  `json:"payment_status"`
+	Status         string  `json:"status"`
+	CreatedAt      string  `json:"created_at"`
 }
 
 type CreateOrderItemInput struct {
@@ -98,6 +128,7 @@ func MapToOrderDTO(order sqlc.Order, items []sqlc.GetOrderItemsByOrderIDRow) Ord
 		ShippingPhone:   order.OrderShippingPhone,
 		ShippingAddress: order.OrderShippingAddress,
 		TotalAmount:     utils.NumericToFloat(order.OrderTotalAmount),
+		RefundedAmount:  utils.NumericToFloat(order.OrderRefundedAmount),
 		PaymentMethod:   MapPaymentMethodToString(order.OrderPaymentMethod),
 		PaymentStatus:   MapPaymentStatusToString(order.OrderPaymentStatus),
 		Note:            note,
@@ -107,10 +138,32 @@ func MapToOrderDTO(order sqlc.Order, items []sqlc.GetOrderItemsByOrderIDRow) Ord
 	}
 }
 
+func MapToOrderSummaryDTO(order sqlc.Order) OrderSummaryDTO {
+	return OrderSummaryDTO{
+		UUID:           order.OrderUuid.String(),
+		OrderNumber:    order.OrderNumber,
+		ShippingName:   order.OrderShippingName,
+		ShippingPhone:  order.OrderShippingPhone,
+		TotalAmount:    utils.NumericToFloat(order.OrderTotalAmount),
+		RefundedAmount: utils.NumericToFloat(order.OrderRefundedAmount),
+		PaymentMethod:  MapPaymentMethodToString(order.OrderPaymentMethod),
+		PaymentStatus:  MapPaymentStatusToString(order.OrderPaymentStatus),
+		Status:         MapOrderStatusToString(order.OrderStatus),
+		CreatedAt:      order.OrderCreatedAt.Format("2006-01-02 15:04:05"),
+	}
+}
+
 func (input *UpdateOrderStatusInput) MapUpdateStatusInputToModel(orderUUID uuid.UUID) sqlc.UpdateOrderStatusParams {
 	return sqlc.UpdateOrderStatusParams{
 		OrderUuid:   orderUUID,
 		OrderStatus: input.Status,
+	}
+}
+
+func (input *UpdateOrderPaymentStatusInput) MapUpdatePaymentStatusInputToModel(orderUUID uuid.UUID) sqlc.UpdateOrderPaymentStatusParams {
+	return sqlc.UpdateOrderPaymentStatusParams{
+		OrderUuid:     orderUUID,
+		PaymentStatus: input.PaymentStatus,
 	}
 }
 
@@ -136,6 +189,8 @@ func MapOrderStatusToString(status int32) string {
 		return "Delivered"
 	case 5:
 		return "Cancelled"
+	case 6:
+		return "Returned"
 	default:
 		return "Unknown"
 	}
@@ -160,6 +215,8 @@ func MapPaymentStatusToString(status int32) string {
 	case 2:
 		return "Paid"
 	case 3:
+		return "Partially Refunded"
+	case 4:
 		return "Refunded"
 	default:
 		return "Unknown"

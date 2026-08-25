@@ -36,9 +36,8 @@ SET
     order_note             = COALESCE(sqlc.narg('order_note')::text,                  order_note)
 WHERE order_uuid = sqlc.arg(order_uuid)
   AND order_status = ANY(sqlc.arg('allowed_statuses')::int[]) -- Check atomic in DB
+  AND order_cancelled_at IS NULL
 RETURNING *;
-
-
 
 -- name: CancelOrder :one
 UPDATE orders
@@ -47,4 +46,13 @@ SET
     order_cancelled_at = NOW()
 WHERE order_uuid = sqlc.arg(order_uuid)
 AND order_status IN (1, 2)
+RETURNING *;
+
+-- name: UpdateOrderPaymentStatus :one
+UPDATE orders
+SET
+    order_payment_status  = sqlc.arg(payment_status),
+    order_refunded_amount = sqlc.arg(refunded_amount)
+WHERE order_uuid = sqlc.arg(order_uuid)
+  AND order_payment_status = ANY(sqlc.arg(allowed_from_statuses)::int[])
 RETURNING *;

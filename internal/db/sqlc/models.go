@@ -33,12 +33,13 @@ type Order struct {
 	OrderShippingPhone   string         `json:"order_shipping_phone"`
 	OrderShippingAddress string         `json:"order_shipping_address"`
 	OrderTotalAmount     pgtype.Numeric `json:"order_total_amount"`
+	OrderRefundedAmount  pgtype.Numeric `json:"order_refunded_amount"`
 	// 1: COD, 2: Bank Transfer, 3: E-Wallet
 	OrderPaymentMethod int32 `json:"order_payment_method"`
-	// 1: Unpaid, 2: Paid, 3: Refunded
+	// 1: Unpaid, 2: Paid, 3: Partially Refunded, 4: Refunded
 	OrderPaymentStatus int32   `json:"order_payment_status"`
 	OrderNote          *string `json:"order_note"`
-	// 1: Pending, 2: Confirmed, 3: Shipped, 4: Delivered, 5: Cancelled
+	// 1: Pending, 2: Confirmed, 3: Shipped, 4: Delivered, 5: Cancelled, 6: Returned
 	OrderStatus      int32              `json:"order_status"`
 	OrderCancelledAt pgtype.Timestamptz `json:"order_cancelled_at"`
 	OrderCreatedAt   time.Time          `json:"order_created_at"`

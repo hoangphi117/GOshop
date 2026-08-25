@@ -11,15 +11,16 @@ CREATE TABLE IF NOT EXISTS orders (
     order_shipping_address  TEXT NOT NULL,
 
     order_total_amount      NUMERIC(14,2) NOT NULL CHECK (order_total_amount >= 0),
+    order_refunded_amount   NUMERIC(14,2) DEFAULT 0.00 NOT NULL CHECK (order_refunded_amount >= 0),
 
     order_payment_method    INT DEFAULT 1 CHECK (order_payment_method IN (1, 2, 3)) NOT NULL,
     -- 1: COD, 2: Bank Transfer, 3: E-Wallet
-    order_payment_status    INT DEFAULT 1 CHECK (order_payment_status IN (1, 2, 3)) NOT NULL,
-    -- 1: Unpaid, 2: Paid, 3: Refunded
+    order_payment_status    INT DEFAULT 1 CHECK (order_payment_status IN (1, 2, 3, 4)) NOT NULL,
+    -- 1: Unpaid, 2: Paid, 3: Partially Refunded, 4: Refunded
 
     order_note              TEXT,
-    order_status            INT DEFAULT 1 CHECK (order_status IN (1, 2, 3, 4, 5)) NOT NULL,
-    -- 1: Pending, 2: Confirmed, 3: Shipped, 4: Delivered, 5: Cancelled
+    order_status            INT DEFAULT 1 CHECK (order_status IN (1, 2, 3, 4, 5, 6)) NOT NULL,
+    -- 1: Pending, 2: Confirmed, 3: Shipped, 4: Delivered, 5: Cancelled, 6: Returned
 
     order_cancelled_at      TIMESTAMPTZ DEFAULT NULL,
     order_created_at        TIMESTAMPTZ DEFAULT now() NOT NULL,
@@ -39,9 +40,9 @@ CREATE TABLE IF NOT EXISTS order_items (
     order_item_created_at    TIMESTAMPTZ DEFAULT now() NOT NULL
 );
 
-COMMENT ON COLUMN orders.order_status IS '1: Pending, 2: Confirmed, 3: Shipped, 4: Delivered, 5: Cancelled';
+COMMENT ON COLUMN orders.order_status IS '1: Pending, 2: Confirmed, 3: Shipped, 4: Delivered, 5: Cancelled, 6: Returned';
 COMMENT ON COLUMN orders.order_payment_method IS '1: COD, 2: Bank Transfer, 3: E-Wallet';
-COMMENT ON COLUMN orders.order_payment_status IS '1: Unpaid, 2: Paid, 3: Refunded';
+COMMENT ON COLUMN orders.order_payment_status IS '1: Unpaid, 2: Paid, 3: Partially Refunded, 4: Refunded';
 
 CREATE INDEX idx_orders_user ON orders(order_user_id, order_status, order_created_at DESC);
 CREATE INDEX idx_orders_status ON orders(order_status, order_created_at DESC);

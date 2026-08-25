@@ -20,5 +20,6 @@ func (or *AdminOrderRoutes) Register(r *gin.RouterGroup) {
 	orders := r.Group("/orders")
 	{
 		orders.PATCH("/:uuid", or.handler.UpdateOrderStatus)
+		orders.PATCH("/:uuid/payment-status", or.handler.UpdateOrderPaymentStatus)
 	}
 }

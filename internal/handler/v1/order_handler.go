@@ -123,3 +123,32 @@ func (oh *OrderHandler) UpdateOrderShippingInfo(ctx *gin.Context) {
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Shipping info updated successfully", updatedOrderDTO)
 }
+
+func (oh *OrderHandler) UpdateOrderPaymentStatus(ctx *gin.Context) {
+	var params v1dto.GetOrderByUUIDParam
+	if err := ctx.ShouldBindUri(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	orderUUID, err := uuid.Parse(params.UUID)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid order UUID"))
+		return
+	}
+
+	var input v1dto.UpdateOrderPaymentStatusInput
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	updatedOrder, updatedOrderItems, err := oh.service.UpdateOrderPaymentStatus(ctx, orderUUID, input)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	updatedOrderDTO := v1dto.MapToOrderDTO(updatedOrder, updatedOrderItems)
+	utils.ResponseSuccess(ctx, http.StatusOK, "Payment status updated successfully", updatedOrderDTO)
+}

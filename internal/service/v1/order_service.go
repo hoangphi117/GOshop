@@ -23,13 +23,18 @@ import (
 )
 
 const (
-	OrderStatusPending        int32 = 1
-	OrderStatusConfirmed      int32 = 2
-	OrderStatusShipped        int32 = 3
-	OrderStatusDelivered      int32 = 4
-	OrderStatusCancelled      int32 = 5
-	OrderPaymentStatusPending int32 = 1
-	RoleAdmin                 int32 = 1
+	OrderStatusPending                  int32 = 1
+	OrderStatusConfirmed                int32 = 2
+	OrderStatusShipped                  int32 = 3
+	OrderStatusDelivered                int32 = 4
+	OrderStatusCancelled                int32 = 5
+	OrderStatusReturned                 int32 = 6
+	OrderPaymentStatusUnpaid            int32 = 1
+	OrderPaymentStatusPaid              int32 = 2
+	OrderPaymentStatusPartiallyRefunded int32 = 3
+	OrderPaymentStatusRefunded          int32 = 4
+	RoleAdmin                           int32 = 1
+	RoleModerator                       int32 = 2
 )
 
 type orderService struct {
@@ -203,7 +208,7 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 		OrderShippingAddress: input.ShippingAddress,
 		OrderTotalAmount:     utils.FloatToNumeric(totalAmount),
 		OrderPaymentMethod:   input.PaymentMethod,
-		OrderPaymentStatus:   OrderPaymentStatusPending,
+		OrderPaymentStatus:   OrderPaymentStatusUnpaid,
 		OrderNote:            &input.Note,
 		OrderStatus:          OrderStatusPending,
 	}
@@ -291,7 +296,9 @@ func isValidStatusTransition(currentStatus, newStatus int32) bool {
 	case OrderStatusConfirmed:
 		return newStatus == OrderStatusShipped
 	case OrderStatusShipped:
-		return newStatus == OrderStatusDelivered
+		return newStatus == OrderStatusDelivered || newStatus == OrderStatusReturned
+	case OrderStatusDelivered:
+		return newStatus == OrderStatusReturned
 	default:
 		return false
 	}
@@ -393,14 +400,15 @@ func (s *orderService) UpdateOrderShippingInfo(ctx *gin.Context, input sqlc.Upda
 	}
 
 	isAdmin := user.UserLevel == RoleAdmin
+	isModerator := user.UserLevel == RoleModerator
 
-	if existingOrder.OrderUserID != user.UserID && !isAdmin {
+	if existingOrder.OrderUserID != user.UserID && !isAdmin && !isModerator {
 		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeForbidden, "You do not have permission to update this order")
 	}
 
-	if isAdmin {
+	if isAdmin || isModerator {
 		if existingOrder.OrderStatus != OrderStatusPending && existingOrder.OrderStatus != OrderStatusConfirmed {
-			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Admin can only update shipping info for Pending or Confirmed orders")
+			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Admin or moderator can only update shipping info for Pending or Confirmed orders")
 		}
 	} else {
 		if existingOrder.OrderStatus != OrderStatusPending {
@@ -410,7 +418,7 @@ func (s *orderService) UpdateOrderShippingInfo(ctx *gin.Context, input sqlc.Upda
 
 	// Race condition prevention: Ensure that the order status is still valid for shipping info update
 	allowedStatuses := []int32{OrderStatusPending}
-	if isAdmin {
+	if isAdmin || isModerator {
 		allowedStatuses = append(allowedStatuses, OrderStatusConfirmed)
 	}
 
@@ -427,7 +435,7 @@ func (s *orderService) UpdateOrderShippingInfo(ctx *gin.Context, input sqlc.Upda
 		if errors.Is(err, sql.ErrNoRows) {
 			// Possible reasons: order does not exist, OR status has changed (race condition
 			// was blocked at the right time) -> return a clear error, suggest reloading the page.
-			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeConflict, "Order status has changed, please refresh and try again")
+			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeConflict, "Order status has changed or order not found, please refresh and try again")
 		}
 		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "Failed to update shipping info", err)
 	}
@@ -440,5 +448,116 @@ func (s *orderService) UpdateOrderShippingInfo(ctx *gin.Context, input sqlc.Upda
 	if err := s.cache.Clear("orders:*"); err != nil {
 		logger.Log.Warn().Err(err).Msg("Failed to clear order cache")
 	}
+	return updatedOrder, orderItems, nil
+}
+
+func (s *orderService) UpdateOrderPaymentStatus(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.UpdateOrderPaymentStatusInput) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
+	reqCtx := ctx.Request.Context()
+
+	userUUIDStr, ok := ctx.Get("user_uuid")
+	if !ok || userUUIDStr == "" {
+		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	if err != nil {
+		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Invalid user UUID")
+	}
+
+	existingOrder, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
+	if err != nil {
+		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeNotFound, "Order not found")
+	}
+
+	var allowedFromStatuses []int32
+	var targetPaymentStatus int32 = input.PaymentStatus
+	newTotalRefunded := utils.NumericToFloat(existingOrder.OrderRefundedAmount)
+
+	switch input.PaymentStatus {
+	case OrderPaymentStatusPaid:
+		if existingOrder.OrderPaymentStatus != OrderPaymentStatusUnpaid {
+			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Only Unpaid orders can be marked as Paid")
+		}
+		if existingOrder.OrderStatus == OrderStatusCancelled || existingOrder.OrderStatus == OrderStatusReturned {
+			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Cannot mark a cancelled or returned order as Paid")
+		}
+		allowedFromStatuses = []int32{OrderPaymentStatusUnpaid}
+
+	case OrderPaymentStatusPartiallyRefunded, OrderPaymentStatusRefunded:
+		if existingOrder.OrderPaymentStatus != OrderPaymentStatusPaid && existingOrder.OrderPaymentStatus != OrderPaymentStatusPartiallyRefunded {
+			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Only Paid or Partially Refunded orders can be refunded")
+		}
+		// Security Check: Refund is ONLY allowed when order is Cancelled (5) or Returned (6)
+		if existingOrder.OrderStatus != OrderStatusCancelled && existingOrder.OrderStatus != OrderStatusReturned {
+			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Can only refund orders that are Cancelled (5) or Returned (6)")
+		}
+
+		totalAmount := utils.NumericToFloat(existingOrder.OrderTotalAmount)
+		currentRefunded := utils.NumericToFloat(existingOrder.OrderRefundedAmount)
+
+		refundAmountVal := totalAmount - currentRefunded
+		if input.RefundAmount != nil && *input.RefundAmount > 0 {
+			refundAmountVal = *input.RefundAmount
+		}
+
+		newTotalRefunded = utils.RoundFloat(currentRefunded+refundAmountVal, 2)
+		if newTotalRefunded > totalAmount {
+			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, fmt.Sprintf("Total refunded amount (%.2f) cannot exceed order total (%.2f)", newTotalRefunded, totalAmount))
+		}
+
+		if newTotalRefunded >= totalAmount {
+			targetPaymentStatus = OrderPaymentStatusRefunded
+		} else {
+			targetPaymentStatus = OrderPaymentStatusPartiallyRefunded
+		}
+
+		allowedFromStatuses = []int32{OrderPaymentStatusPaid, OrderPaymentStatusPartiallyRefunded}
+
+	default:
+		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Invalid target payment status")
+	}
+
+	updateParams := sqlc.UpdateOrderPaymentStatusParams{
+		OrderUuid:           orderUUID,
+		PaymentStatus:       targetPaymentStatus,
+		RefundedAmount:      utils.FloatToNumeric(newTotalRefunded),
+		AllowedFromStatuses: allowedFromStatuses,
+	}
+
+	updatedOrder, err := s.orderRepo.UpdateOrderPaymentStatus(reqCtx, updateParams)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeConflict, "Payment status has changed by another request, please refresh")
+		}
+		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "Failed to update payment status", err)
+	}
+
+	orderItems, err := s.orderItemRepo.GetByOrderID(reqCtx, updatedOrder.OrderID)
+	if err != nil {
+		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "Failed to get order items", err)
+	}
+
+	trxRef := ""
+	if input.TransactionRef != nil {
+		trxRef = *input.TransactionRef
+	}
+	noteStr := ""
+	if input.Note != nil {
+		noteStr = *input.Note
+	}
+
+	logger.Log.Info().
+		Str("order_uuid", orderUUID.String()).
+		Int32("from_status", existingOrder.OrderPaymentStatus).
+		Int32("to_status", targetPaymentStatus).
+		Float64("refunded_amount", newTotalRefunded).
+		Str("transaction_ref", trxRef).
+		Str("note", noteStr).
+		Str("changed_by", userUUID.String()).
+		Msg("Order payment status changed with audit info")
+
+	userKey := fmt.Sprintf("orders:user:%s:*", existingOrder.UserUuid.String())
+	_ = s.cache.Clear(userKey)
+	_ = s.cache.Clear("orders:admin:*")
+
 	return updatedOrder, orderItems, nil
 }

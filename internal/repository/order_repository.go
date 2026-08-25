@@ -72,3 +72,11 @@ func (r *SqlOrderRepository) UpdateOrderShippingInfo(ctx context.Context, params
 	}
 	return order, nil
 }
+
+func (r *SqlOrderRepository) UpdateOrderPaymentStatus(ctx context.Context, params sqlc.UpdateOrderPaymentStatusParams) (sqlc.Order, error) {
+	order, err := r.db.UpdateOrderPaymentStatus(ctx, params)
+	if err != nil {
+		return sqlc.Order{}, err
+	}
+	return order, nil
+}

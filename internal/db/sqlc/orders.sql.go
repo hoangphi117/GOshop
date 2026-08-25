@@ -20,7 +20,7 @@ SET
     order_cancelled_at = NOW()
 WHERE order_uuid = $1
 AND order_status IN (1, 2)
-RETURNING order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at
+RETURNING order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at
 `
 
 func (q *Queries) CancelOrder(ctx context.Context, orderUuid uuid.UUID) (Order, error) {
@@ -35,6 +35,7 @@ func (q *Queries) CancelOrder(ctx context.Context, orderUuid uuid.UUID) (Order, 
 		&i.OrderShippingPhone,
 		&i.OrderShippingAddress,
 		&i.OrderTotalAmount,
+		&i.OrderRefundedAmount,
 		&i.OrderPaymentMethod,
 		&i.OrderPaymentStatus,
 		&i.OrderNote,
@@ -54,7 +55,7 @@ INSERT INTO orders (
     order_payment_method, order_payment_status,
     order_note, order_status
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-RETURNING order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at
+RETURNING order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at
 `
 
 type CreateOrderParams struct {
@@ -93,6 +94,7 @@ func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) (Order
 		&i.OrderShippingPhone,
 		&i.OrderShippingAddress,
 		&i.OrderTotalAmount,
+		&i.OrderRefundedAmount,
 		&i.OrderPaymentMethod,
 		&i.OrderPaymentStatus,
 		&i.OrderNote,
@@ -119,7 +121,7 @@ func (q *Queries) GetLatestOrderNumber(ctx context.Context, orderNumber string) 
 }
 
 const getOrderByUUID = `-- name: GetOrderByUUID :one
-SELECT o.order_id, o.order_uuid, o.order_number, o.order_user_id, o.order_shipping_name, o.order_shipping_phone, o.order_shipping_address, o.order_total_amount, o.order_payment_method, o.order_payment_status, o.order_note, o.order_status, o.order_cancelled_at, o.order_created_at, o.order_updated_at, u.user_uuid, u.user_fullname, u.user_email
+SELECT o.order_id, o.order_uuid, o.order_number, o.order_user_id, o.order_shipping_name, o.order_shipping_phone, o.order_shipping_address, o.order_total_amount, o.order_refunded_amount, o.order_payment_method, o.order_payment_status, o.order_note, o.order_status, o.order_cancelled_at, o.order_created_at, o.order_updated_at, u.user_uuid, u.user_fullname, u.user_email
 FROM orders o
 JOIN users u ON u.user_id = o.order_user_id
 WHERE o.order_uuid = $1
@@ -134,6 +136,7 @@ type GetOrderByUUIDRow struct {
 	OrderShippingPhone   string             `json:"order_shipping_phone"`
 	OrderShippingAddress string             `json:"order_shipping_address"`
 	OrderTotalAmount     pgtype.Numeric     `json:"order_total_amount"`
+	OrderRefundedAmount  pgtype.Numeric     `json:"order_refunded_amount"`
 	OrderPaymentMethod   int32              `json:"order_payment_method"`
 	OrderPaymentStatus   int32              `json:"order_payment_status"`
 	OrderNote            *string            `json:"order_note"`
@@ -158,6 +161,7 @@ func (q *Queries) GetOrderByUUID(ctx context.Context, orderUuid uuid.UUID) (GetO
 		&i.OrderShippingPhone,
 		&i.OrderShippingAddress,
 		&i.OrderTotalAmount,
+		&i.OrderRefundedAmount,
 		&i.OrderPaymentMethod,
 		&i.OrderPaymentStatus,
 		&i.OrderNote,
@@ -172,6 +176,52 @@ func (q *Queries) GetOrderByUUID(ctx context.Context, orderUuid uuid.UUID) (GetO
 	return i, err
 }
 
+const updateOrderPaymentStatus = `-- name: UpdateOrderPaymentStatus :one
+UPDATE orders
+SET
+    order_payment_status  = $1,
+    order_refunded_amount = $2
+WHERE order_uuid = $3
+  AND order_payment_status = ANY($4::int[])
+RETURNING order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at
+`
+
+type UpdateOrderPaymentStatusParams struct {
+	PaymentStatus       int32          `json:"payment_status"`
+	RefundedAmount      pgtype.Numeric `json:"refunded_amount"`
+	OrderUuid           uuid.UUID      `json:"order_uuid"`
+	AllowedFromStatuses []int32        `json:"allowed_from_statuses"`
+}
+
+func (q *Queries) UpdateOrderPaymentStatus(ctx context.Context, arg UpdateOrderPaymentStatusParams) (Order, error) {
+	row := q.db.QueryRow(ctx, updateOrderPaymentStatus,
+		arg.PaymentStatus,
+		arg.RefundedAmount,
+		arg.OrderUuid,
+		arg.AllowedFromStatuses,
+	)
+	var i Order
+	err := row.Scan(
+		&i.OrderID,
+		&i.OrderUuid,
+		&i.OrderNumber,
+		&i.OrderUserID,
+		&i.OrderShippingName,
+		&i.OrderShippingPhone,
+		&i.OrderShippingAddress,
+		&i.OrderTotalAmount,
+		&i.OrderRefundedAmount,
+		&i.OrderPaymentMethod,
+		&i.OrderPaymentStatus,
+		&i.OrderNote,
+		&i.OrderStatus,
+		&i.OrderCancelledAt,
+		&i.OrderCreatedAt,
+		&i.OrderUpdatedAt,
+	)
+	return i, err
+}
+
 const updateOrderShippingInfo = `-- name: UpdateOrderShippingInfo :one
 UPDATE orders
 SET
@@ -181,7 +231,8 @@ SET
     order_note             = COALESCE($4::text,                  order_note)
 WHERE order_uuid = $5
   AND order_status = ANY($6::int[]) -- Check atomic in DB
-RETURNING order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at
+  AND order_cancelled_at IS NULL
+RETURNING order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at
 `
 
 type UpdateOrderShippingInfoParams struct {
@@ -212,6 +263,7 @@ func (q *Queries) UpdateOrderShippingInfo(ctx context.Context, arg UpdateOrderSh
 		&i.OrderShippingPhone,
 		&i.OrderShippingAddress,
 		&i.OrderTotalAmount,
+		&i.OrderRefundedAmount,
 		&i.OrderPaymentMethod,
 		&i.OrderPaymentStatus,
 		&i.OrderNote,
@@ -227,7 +279,7 @@ const updateOrderStatus = `-- name: UpdateOrderStatus :one
 UPDATE orders
 SET order_status = $1
 WHERE order_uuid = $2
-RETURNING order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at
+RETURNING order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at
 `
 
 type UpdateOrderStatusParams struct {
@@ -247,6 +299,7 @@ func (q *Queries) UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusPa
 		&i.OrderShippingPhone,
 		&i.OrderShippingAddress,
 		&i.OrderTotalAmount,
+		&i.OrderRefundedAmount,
 		&i.OrderPaymentMethod,
 		&i.OrderPaymentStatus,
 		&i.OrderNote,
