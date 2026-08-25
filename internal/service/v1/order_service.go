@@ -13,6 +13,7 @@ import (
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
+	"slices"
 	"sort"
 	"time"
 
@@ -28,6 +29,7 @@ const (
 	OrderStatusDelivered      int32 = 4
 	OrderStatusCancelled      int32 = 5
 	OrderPaymentStatusPending int32 = 1
+	RoleAdmin                 int32 = 1
 )
 
 type orderService struct {
@@ -365,4 +367,78 @@ func (s *orderService) CancelOrder(ctx *gin.Context, orderUUID uuid.UUID) error 
 	}
 
 	return nil
+}
+
+func (s *orderService) UpdateOrderShippingInfo(ctx *gin.Context, input sqlc.UpdateOrderShippingInfoParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
+	reqCtx := ctx.Request.Context()
+
+	userUuidStr, ok := ctx.Get("user_uuid")
+	if !ok || userUuidStr == "" {
+		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+
+	userUUID, err := uuid.Parse(userUuidStr.(string))
+	if err != nil {
+		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
+	}
+
+	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
+	if err != nil {
+		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
+
+	existingOrder, err := s.orderRepo.GetByUUID(reqCtx, input.OrderUuid)
+	if err != nil {
+		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeNotFound, "Order not found")
+	}
+
+	isAdmin := user.UserLevel == RoleAdmin
+
+	if existingOrder.OrderUserID != user.UserID && !isAdmin {
+		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeForbidden, "You do not have permission to update this order")
+	}
+
+	if isAdmin {
+		if existingOrder.OrderStatus != OrderStatusPending && existingOrder.OrderStatus != OrderStatusConfirmed {
+			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Admin can only update shipping info for Pending or Confirmed orders")
+		}
+	} else {
+		if existingOrder.OrderStatus != OrderStatusPending {
+			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "You can only update shipping info for Pending orders")
+		}
+	}
+
+	// Race condition prevention: Ensure that the order status is still valid for shipping info update
+	allowedStatuses := []int32{OrderStatusPending}
+	if isAdmin {
+		allowedStatuses = append(allowedStatuses, OrderStatusConfirmed)
+	}
+
+	isStatusValid := slices.Contains(allowedStatuses, existingOrder.OrderStatus)
+
+	if !isStatusValid {
+		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Order status does not allow shipping info update")
+	}
+
+	input.AllowedStatuses = allowedStatuses
+
+	updatedOrder, err := s.orderRepo.UpdateOrderShippingInfo(reqCtx, input)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// Possible reasons: order does not exist, OR status has changed (race condition
+			// was blocked at the right time) -> return a clear error, suggest reloading the page.
+			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeConflict, "Order status has changed, please refresh and try again")
+		}
+		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "Failed to update shipping info", err)
+	}
+
+	orderItems, err := s.orderItemRepo.GetByOrderID(reqCtx, updatedOrder.OrderID)
+	if err != nil {
+		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "Failed to get order items", err)
+	}
+
+	if err := s.cache.Clear("orders:*"); err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to clear order cache")
+	}
+	return updatedOrder, orderItems, nil
 }

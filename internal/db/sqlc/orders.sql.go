@@ -180,7 +180,7 @@ SET
     order_shipping_address = COALESCE($3::text,      order_shipping_address),
     order_note             = COALESCE($4::text,                  order_note)
 WHERE order_uuid = $5
-  AND order_status = 1
+  AND order_status = ANY($6::int[]) -- Check atomic in DB
 RETURNING order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at
 `
 
@@ -190,6 +190,7 @@ type UpdateOrderShippingInfoParams struct {
 	OrderShippingAddress *string   `json:"order_shipping_address"`
 	OrderNote            *string   `json:"order_note"`
 	OrderUuid            uuid.UUID `json:"order_uuid"`
+	AllowedStatuses      []int32   `json:"allowed_statuses"`
 }
 
 func (q *Queries) UpdateOrderShippingInfo(ctx context.Context, arg UpdateOrderShippingInfoParams) (Order, error) {
@@ -199,6 +200,7 @@ func (q *Queries) UpdateOrderShippingInfo(ctx context.Context, arg UpdateOrderSh
 		arg.OrderShippingAddress,
 		arg.OrderNote,
 		arg.OrderUuid,
+		arg.AllowedStatuses,
 	)
 	var i Order
 	err := row.Scan(

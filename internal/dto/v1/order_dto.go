@@ -52,6 +52,13 @@ type UpdateOrderStatusInput struct {
 	Status int32 `json:"status" binding:"required,oneof=1 2 3 4 5"`
 }
 
+type UpdateOrderShippingInfoInput struct {
+	ShippingName    *string `json:"shipping_name" binding:"omitempty,min=2,max=100"`
+	ShippingPhone   *string `json:"shipping_phone" binding:"omitempty,min=9,max=20"`
+	ShippingAddress *string `json:"shipping_address" binding:"omitempty,min=5"`
+	Note            *string `json:"note" binding:"omitempty,max=500"`
+}
+
 type CreateOrderItemInput struct {
 	ProductUUID string `json:"product_uuid" binding:"required,uuid"`
 	Quantity    int32  `json:"quantity" binding:"required,gte=1,lte=99"`
@@ -100,10 +107,20 @@ func MapToOrderDTO(order sqlc.Order, items []sqlc.GetOrderItemsByOrderIDRow) Ord
 	}
 }
 
-func (input UpdateOrderStatusInput) MapUpdateStatusInputToModel(orderUUID uuid.UUID) sqlc.UpdateOrderStatusParams {
+func (input *UpdateOrderStatusInput) MapUpdateStatusInputToModel(orderUUID uuid.UUID) sqlc.UpdateOrderStatusParams {
 	return sqlc.UpdateOrderStatusParams{
 		OrderUuid:   orderUUID,
 		OrderStatus: input.Status,
+	}
+}
+
+func (input *UpdateOrderShippingInfoInput) MapUpdateShippingInputToModel(uuid uuid.UUID) sqlc.UpdateOrderShippingInfoParams {
+	return sqlc.UpdateOrderShippingInfoParams{
+		OrderShippingName:    input.ShippingName,
+		OrderShippingPhone:   input.ShippingPhone,
+		OrderShippingAddress: input.ShippingAddress,
+		OrderNote:            input.Note,
+		OrderUuid:            uuid,
 	}
 }
 

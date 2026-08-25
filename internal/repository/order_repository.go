@@ -65,5 +65,10 @@ func (r *SqlOrderRepository) CancelOrder(ctx context.Context, tx pgx.Tx, orderUU
 	return order, nil
 }
 
-// func (r *SqlOrderRepository) UpdateOrderShippingInfo(ctx context.Context, params sqlc.UpdateOrderShippingInfoParams) (sqlc.Order, error) {
-// }
+func (r *SqlOrderRepository) UpdateOrderShippingInfo(ctx context.Context, params sqlc.UpdateOrderShippingInfoParams) (sqlc.Order, error) {
+	order, err := r.db.UpdateOrderShippingInfo(ctx, params)
+	if err != nil {
+		return sqlc.Order{}, err
+	}
+	return order, nil
+}

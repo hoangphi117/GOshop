@@ -35,8 +35,9 @@ SET
     order_shipping_address = COALESCE(sqlc.narg('order_shipping_address')::text,      order_shipping_address),
     order_note             = COALESCE(sqlc.narg('order_note')::text,                  order_note)
 WHERE order_uuid = sqlc.arg(order_uuid)
-  AND order_status = 1
+  AND order_status = ANY(sqlc.arg('allowed_statuses')::int[]) -- Check atomic in DB
 RETURNING *;
+
 
 
 -- name: CancelOrder :one
