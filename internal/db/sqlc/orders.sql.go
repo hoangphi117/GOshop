@@ -7,9 +7,44 @@ package sqlc
 
 import (
 	"context"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const cancelOrder = `-- name: CancelOrder :one
+UPDATE orders
+SET
+    order_status = 5,
+    order_cancelled_at = NOW()
+WHERE order_uuid = $1
+AND order_status IN (1, 2)
+RETURNING order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at
+`
+
+func (q *Queries) CancelOrder(ctx context.Context, orderUuid uuid.UUID) (Order, error) {
+	row := q.db.QueryRow(ctx, cancelOrder, orderUuid)
+	var i Order
+	err := row.Scan(
+		&i.OrderID,
+		&i.OrderUuid,
+		&i.OrderNumber,
+		&i.OrderUserID,
+		&i.OrderShippingName,
+		&i.OrderShippingPhone,
+		&i.OrderShippingAddress,
+		&i.OrderTotalAmount,
+		&i.OrderPaymentMethod,
+		&i.OrderPaymentStatus,
+		&i.OrderNote,
+		&i.OrderStatus,
+		&i.OrderCancelledAt,
+		&i.OrderCreatedAt,
+		&i.OrderUpdatedAt,
+	)
+	return i, err
+}
 
 const createOrder = `-- name: CreateOrder :one
 INSERT INTO orders (
@@ -81,4 +116,142 @@ func (q *Queries) GetLatestOrderNumber(ctx context.Context, orderNumber string) 
 	var order_number string
 	err := row.Scan(&order_number)
 	return order_number, err
+}
+
+const getOrderByUUID = `-- name: GetOrderByUUID :one
+SELECT o.order_id, o.order_uuid, o.order_number, o.order_user_id, o.order_shipping_name, o.order_shipping_phone, o.order_shipping_address, o.order_total_amount, o.order_payment_method, o.order_payment_status, o.order_note, o.order_status, o.order_cancelled_at, o.order_created_at, o.order_updated_at, u.user_uuid, u.user_fullname, u.user_email
+FROM orders o
+JOIN users u ON u.user_id = o.order_user_id
+WHERE o.order_uuid = $1
+`
+
+type GetOrderByUUIDRow struct {
+	OrderID              int32              `json:"order_id"`
+	OrderUuid            uuid.UUID          `json:"order_uuid"`
+	OrderNumber          string             `json:"order_number"`
+	OrderUserID          int32              `json:"order_user_id"`
+	OrderShippingName    string             `json:"order_shipping_name"`
+	OrderShippingPhone   string             `json:"order_shipping_phone"`
+	OrderShippingAddress string             `json:"order_shipping_address"`
+	OrderTotalAmount     pgtype.Numeric     `json:"order_total_amount"`
+	OrderPaymentMethod   int32              `json:"order_payment_method"`
+	OrderPaymentStatus   int32              `json:"order_payment_status"`
+	OrderNote            *string            `json:"order_note"`
+	OrderStatus          int32              `json:"order_status"`
+	OrderCancelledAt     pgtype.Timestamptz `json:"order_cancelled_at"`
+	OrderCreatedAt       time.Time          `json:"order_created_at"`
+	OrderUpdatedAt       time.Time          `json:"order_updated_at"`
+	UserUuid             uuid.UUID          `json:"user_uuid"`
+	UserFullname         string             `json:"user_fullname"`
+	UserEmail            string             `json:"user_email"`
+}
+
+func (q *Queries) GetOrderByUUID(ctx context.Context, orderUuid uuid.UUID) (GetOrderByUUIDRow, error) {
+	row := q.db.QueryRow(ctx, getOrderByUUID, orderUuid)
+	var i GetOrderByUUIDRow
+	err := row.Scan(
+		&i.OrderID,
+		&i.OrderUuid,
+		&i.OrderNumber,
+		&i.OrderUserID,
+		&i.OrderShippingName,
+		&i.OrderShippingPhone,
+		&i.OrderShippingAddress,
+		&i.OrderTotalAmount,
+		&i.OrderPaymentMethod,
+		&i.OrderPaymentStatus,
+		&i.OrderNote,
+		&i.OrderStatus,
+		&i.OrderCancelledAt,
+		&i.OrderCreatedAt,
+		&i.OrderUpdatedAt,
+		&i.UserUuid,
+		&i.UserFullname,
+		&i.UserEmail,
+	)
+	return i, err
+}
+
+const updateOrderShippingInfo = `-- name: UpdateOrderShippingInfo :one
+UPDATE orders
+SET
+    order_shipping_name    = COALESCE($1::varchar,    order_shipping_name),
+    order_shipping_phone   = COALESCE($2::varchar,   order_shipping_phone),
+    order_shipping_address = COALESCE($3::text,      order_shipping_address),
+    order_note             = COALESCE($4::text,                  order_note)
+WHERE order_uuid = $5
+  AND order_status = 1
+RETURNING order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at
+`
+
+type UpdateOrderShippingInfoParams struct {
+	OrderShippingName    *string   `json:"order_shipping_name"`
+	OrderShippingPhone   *string   `json:"order_shipping_phone"`
+	OrderShippingAddress *string   `json:"order_shipping_address"`
+	OrderNote            *string   `json:"order_note"`
+	OrderUuid            uuid.UUID `json:"order_uuid"`
+}
+
+func (q *Queries) UpdateOrderShippingInfo(ctx context.Context, arg UpdateOrderShippingInfoParams) (Order, error) {
+	row := q.db.QueryRow(ctx, updateOrderShippingInfo,
+		arg.OrderShippingName,
+		arg.OrderShippingPhone,
+		arg.OrderShippingAddress,
+		arg.OrderNote,
+		arg.OrderUuid,
+	)
+	var i Order
+	err := row.Scan(
+		&i.OrderID,
+		&i.OrderUuid,
+		&i.OrderNumber,
+		&i.OrderUserID,
+		&i.OrderShippingName,
+		&i.OrderShippingPhone,
+		&i.OrderShippingAddress,
+		&i.OrderTotalAmount,
+		&i.OrderPaymentMethod,
+		&i.OrderPaymentStatus,
+		&i.OrderNote,
+		&i.OrderStatus,
+		&i.OrderCancelledAt,
+		&i.OrderCreatedAt,
+		&i.OrderUpdatedAt,
+	)
+	return i, err
+}
+
+const updateOrderStatus = `-- name: UpdateOrderStatus :one
+UPDATE orders
+SET order_status = $1
+WHERE order_uuid = $2
+RETURNING order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at
+`
+
+type UpdateOrderStatusParams struct {
+	OrderStatus int32     `json:"order_status"`
+	OrderUuid   uuid.UUID `json:"order_uuid"`
+}
+
+func (q *Queries) UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusParams) (Order, error) {
+	row := q.db.QueryRow(ctx, updateOrderStatus, arg.OrderStatus, arg.OrderUuid)
+	var i Order
+	err := row.Scan(
+		&i.OrderID,
+		&i.OrderUuid,
+		&i.OrderNumber,
+		&i.OrderUserID,
+		&i.OrderShippingName,
+		&i.OrderShippingPhone,
+		&i.OrderShippingAddress,
+		&i.OrderTotalAmount,
+		&i.OrderPaymentMethod,
+		&i.OrderPaymentStatus,
+		&i.OrderNote,
+		&i.OrderStatus,
+		&i.OrderCancelledAt,
+		&i.OrderCreatedAt,
+		&i.OrderUpdatedAt,
+	)
+	return i, err
 }

@@ -3,6 +3,8 @@ package v1service
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
+	"errors"
 	"fmt"
 	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
@@ -21,6 +23,10 @@ import (
 
 const (
 	OrderStatusPending        int32 = 1
+	OrderStatusConfirmed      int32 = 2
+	OrderStatusShipped        int32 = 3
+	OrderStatusDelivered      int32 = 4
+	OrderStatusCancelled      int32 = 5
 	OrderPaymentStatusPending int32 = 1
 )
 
@@ -48,6 +54,30 @@ type preparedItem struct {
 	price       float64
 	quantity    int32
 	subtotal    float64
+}
+
+const charset = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+
+func generateOrderNumber() string {
+	now := time.Now()
+	datePrefix := now.Format("060102")
+
+	const randomLength = 6
+	randomSuffix := make([]byte, randomLength)
+
+	randomBytes := make([]byte, randomLength)
+
+	_, err := rand.Read(randomBytes)
+	if err != nil {
+		fallbackSuffix := fmt.Sprintf("%06d", now.Nanosecond()%1000000)
+		return fmt.Sprintf("%s-%s", datePrefix, fallbackSuffix)
+	}
+
+	for i, b := range randomBytes {
+		randomSuffix[i] = charset[int(b)%len(charset)]
+	}
+
+	return fmt.Sprintf("%s-%s", datePrefix, string(randomSuffix))
 }
 
 func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInput) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
@@ -94,7 +124,7 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 		uuids[i] = parsed
 	}
 
-	// TRANSACTION START
+	/* ======================TRANSACTION START ====================== */
 	txCtx, cancel := context.WithTimeout(reqCtx, 10*time.Second)
 	defer cancel()
 
@@ -216,26 +246,123 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 	return order, orderItemsWithDetails, nil
 }
 
-const charset = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+func (s *orderService) UpdateOrderStatus(ctx *gin.Context, input sqlc.UpdateOrderStatusParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
+	context := ctx.Request.Context()
 
-func generateOrderNumber() string {
-	now := time.Now()
-	datePrefix := now.Format("060102")
-
-	const randomLength = 6
-	randomSuffix := make([]byte, randomLength)
-
-	randomBytes := make([]byte, randomLength)
-
-	_, err := rand.Read(randomBytes)
+	existingOrder, err := s.orderRepo.GetByUUID(context, input.OrderUuid)
 	if err != nil {
-		fallbackSuffix := fmt.Sprintf("%06d", now.Nanosecond()%1000000)
-		return fmt.Sprintf("%s-%s", datePrefix, fallbackSuffix)
+		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeInternal, "Order not found")
 	}
 
-	for i, b := range randomBytes {
-		randomSuffix[i] = charset[int(b)%len(charset)]
+	if !isValidStatusTransition(existingOrder.OrderStatus, input.OrderStatus) {
+		errMsg := fmt.Sprintf("Cannot change order status from '%s' to '%s'",
+			v1dto.MapOrderStatusToString(existingOrder.OrderStatus),
+			v1dto.MapOrderStatusToString(input.OrderStatus),
+		)
+		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, errMsg)
 	}
 
-	return fmt.Sprintf("%s-%s", datePrefix, string(randomSuffix))
+	updatedOrder, err := s.orderRepo.UpdateStatus(context, input)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeNotFound, "order not found")
+		}
+		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "failed to update order status", err)
+	}
+
+	orderItems, err := s.orderItemRepo.GetByOrderID(context, updatedOrder.OrderID)
+	if err != nil {
+		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "failed to get order items", err)
+	}
+
+	if err := s.cache.Clear("orders:*"); err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to clear order cache")
+	}
+
+	return updatedOrder, orderItems, nil
+}
+
+func isValidStatusTransition(currentStatus, newStatus int32) bool {
+	switch currentStatus {
+	case OrderStatusPending:
+		return newStatus == OrderStatusConfirmed
+	case OrderStatusConfirmed:
+		return newStatus == OrderStatusShipped
+	case OrderStatusShipped:
+		return newStatus == OrderStatusDelivered
+	default:
+		return false
+	}
+}
+
+func (s *orderService) CancelOrder(ctx *gin.Context, orderUUID uuid.UUID) error {
+	reqCtx := ctx.Request.Context()
+
+	userUUIDStr, ok := ctx.Get("user_uuid")
+	if !ok || userUUIDStr == "" {
+		return utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+
+	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	if err != nil {
+		return utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
+	}
+
+	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
+	if err != nil {
+		return utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
+
+	orderRow, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
+	if err != nil {
+		return utils.NewError(utils.ErrCodeNotFound, "Order not found")
+	}
+
+	if orderRow.OrderUserID != user.UserID {
+		return utils.NewError(utils.ErrCodeForbidden, "You are not authorized to cancel this order")
+	}
+
+	if orderRow.OrderStatus != OrderStatusPending && orderRow.OrderStatus != OrderStatusConfirmed {
+		return utils.NewError(utils.ErrCodeBadRequest, "Only pending or confirmed orders can be cancelled")
+	}
+
+	orderItems, err := s.orderItemRepo.GetByOrderID(reqCtx, orderRow.OrderID)
+	if err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "failed to get order items", err)
+	}
+
+	txCtx, cancel := context.WithTimeout(reqCtx, 10*time.Second)
+	defer cancel()
+
+	tx, err := db.BeginTx(txCtx)
+	defer tx.Rollback(txCtx)
+
+	_, err = s.orderRepo.CancelOrder(txCtx, tx, orderUUID)
+	if err != nil {
+		return utils.WrapError(utils.ErrCodeBadRequest, "failed to cancel order", err)
+	}
+
+	sort.Slice(orderItems, func(i, j int) bool {
+		return orderItems[i].OrderItemProductID < orderItems[j].OrderItemProductID
+	})
+
+	for _, item := range orderItems {
+		err = s.productRepo.RestoreStock(txCtx, tx, item.OrderItemProductID, item.OrderItemQuantity)
+		if err != nil {
+			return utils.WrapError(utils.ErrCodeInternal, "failed to restore stock", err)
+		}
+	}
+
+	if err := tx.Commit(txCtx); err != nil {
+		return utils.NewError(utils.ErrCodeInternal, "failed to commit transaction")
+	}
+
+	if err := s.cache.Clear("products:*"); err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to clear product cache")
+	}
+	if err := s.cache.Clear("orders:*"); err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to clear order cache")
+	}
+
+	return nil
 }

@@ -380,10 +380,9 @@ func (q *Queries) RestoreProduct(ctx context.Context, productUuid uuid.UUID) (Pr
 
 const restoreStock = `-- name: RestoreStock :exec
 UPDATE products
-SET 
-    product_stock = product_stock + $1::int,
+SET product_stock = product_stock + $1::int,
     product_status = CASE 
-        WHEN product_status = 3 THEN 1 
+        WHEN (product_stock + $1::int) > 0 AND product_status = 3 THEN 1 
         ELSE product_status 
     END
 WHERE product_id = $2

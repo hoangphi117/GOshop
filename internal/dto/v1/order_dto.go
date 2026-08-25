@@ -3,6 +3,8 @@ package v1dto
 import (
 	"goshop/internal/db/sqlc"
 	"goshop/internal/utils"
+
+	"github.com/google/uuid"
 )
 
 type OrderDTO struct {
@@ -40,6 +42,14 @@ type CreateOrderInput struct {
 	ShippingAddress string                 `json:"shipping_address" binding:"required,min=5"`
 	PaymentMethod   int32                  `json:"payment_method" binding:"required,oneof=1 2 3"`
 	Note            string                 `json:"note" binding:"omitempty,max=500"`
+}
+
+type GetOrderByUUIDParam struct {
+	UUID string `uri:"uuid" binding:"required,uuid"`
+}
+
+type UpdateOrderStatusInput struct {
+	Status int32 `json:"status" binding:"required,oneof=1 2 3 4 5"`
 }
 
 type CreateOrderItemInput struct {
@@ -87,6 +97,13 @@ func MapToOrderDTO(order sqlc.Order, items []sqlc.GetOrderItemsByOrderIDRow) Ord
 		Status:          MapOrderStatusToString(order.OrderStatus),
 		Items:           itemsDTO,
 		CreatedAt:       order.OrderCreatedAt.Format("2006-01-02 15:04:05"),
+	}
+}
+
+func (input UpdateOrderStatusInput) MapUpdateStatusInputToModel(orderUUID uuid.UUID) sqlc.UpdateOrderStatusParams {
+	return sqlc.UpdateOrderStatusParams{
+		OrderUuid:   orderUUID,
+		OrderStatus: input.Status,
 	}
 }
 

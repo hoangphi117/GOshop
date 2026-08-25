@@ -149,10 +149,9 @@ WHERE product_id = sqlc.arg(product_id)
 
 -- name: RestoreStock :exec
 UPDATE products
-SET 
-    product_stock = product_stock + sqlc.arg(quantity)::int,
+SET product_stock = product_stock + sqlc.arg(quantity)::int,
     product_status = CASE 
-        WHEN product_status = 3 THEN 1 
+        WHEN (product_stock + sqlc.arg(quantity)::int) > 0 AND product_status = 3 THEN 1 
         ELSE product_status 
     END
 WHERE product_id = sqlc.arg(product_id)

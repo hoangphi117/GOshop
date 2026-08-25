@@ -283,3 +283,17 @@ func (r *SqlProductRepository) DeductStock(ctx context.Context, tx pgx.Tx, produ
 
 	return nil
 }
+
+func (r *SqlProductRepository) RestoreStock(ctx context.Context, tx pgx.Tx, productID int32, quantity int32) error {
+	q := sqlc.New(tx)
+
+	err := q.RestoreStock(ctx, sqlc.RestoreStockParams{
+		ProductID: productID,
+		Quantity:  quantity,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

@@ -11,6 +11,7 @@ import (
 )
 
 type Querier interface {
+	CancelOrder(ctx context.Context, orderUuid uuid.UUID) (Order, error)
 	CountCategories(ctx context.Context, arg CountCategoriesParams) (int64, error)
 	CountProducts(ctx context.Context, arg CountProductsParams) (int64, error)
 	CountUsers(ctx context.Context, arg CountUsersParams) (int64, error)
@@ -24,6 +25,7 @@ type Querier interface {
 	GetCategoryBySlug(ctx context.Context, categorySlug string) (Category, error)
 	GetCategoryByUuid(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
 	GetLatestOrderNumber(ctx context.Context, orderNumber string) (string, error)
+	GetOrderByUUID(ctx context.Context, orderUuid uuid.UUID) (GetOrderByUUIDRow, error)
 	GetOrderItemsByOrderID(ctx context.Context, orderItemOrderID int32) ([]GetOrderItemsByOrderIDRow, error)
 	GetProductBySlug(ctx context.Context, productSlug string) (GetProductBySlugRow, error)
 	GetProductByUUID(ctx context.Context, productUuid uuid.UUID) (GetProductByUUIDRow, error)
@@ -44,6 +46,8 @@ type Querier interface {
 	TrashProduct(ctx context.Context, productUuid uuid.UUID) (Product, error)
 	TrashUser(ctx context.Context, userUuid uuid.UUID) (User, error)
 	UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (Category, error)
+	UpdateOrderShippingInfo(ctx context.Context, arg UpdateOrderShippingInfoParams) (Order, error)
+	UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusParams) (Order, error)
 	UpdatePassword(ctx context.Context, arg UpdatePasswordParams) (User, error)
 	UpdateProduct(ctx context.Context, arg UpdateProductParams) (UpdateProductRow, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)

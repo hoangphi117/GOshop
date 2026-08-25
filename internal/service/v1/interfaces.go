@@ -51,4 +51,6 @@ type ProductService interface {
 
 type OrderService interface {
 	CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInput) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error)
+	UpdateOrderStatus(ctx *gin.Context, input sqlc.UpdateOrderStatusParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error)
+	CancelOrder(ctx *gin.Context, orderUUID uuid.UUID) error
 }

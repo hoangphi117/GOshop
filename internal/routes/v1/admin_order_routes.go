@@ -17,4 +17,8 @@ func NewAdminOrderRoutes(handler *v1handler.OrderHandler) *AdminOrderRoutes {
 }
 
 func (or *AdminOrderRoutes) Register(r *gin.RouterGroup) {
+	orders := r.Group("/orders")
+	{
+		orders.PATCH("/:uuid", or.handler.UpdateOrderStatus)
+	}
 }

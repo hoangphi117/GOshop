@@ -46,11 +46,16 @@ type ProductRepository interface {
 	Restore(ctx context.Context, uuid uuid.UUID) (sqlc.Product, error)
 	Trash(ctx context.Context, uuid uuid.UUID) (sqlc.Product, error)
 	DeductStock(ctx context.Context, tx pgx.Tx, productID int32, quantity int32) error
+	RestoreStock(ctx context.Context, tx pgx.Tx, productID int32, quantity int32) error
 }
 
 type OrderRepository interface {
 	Create(ctx context.Context, tx pgx.Tx, input sqlc.CreateOrderParams) (sqlc.Order, error)
 	GetLastOrderNumber(ctx context.Context, orderNumber string) (string, error)
+	GetByUUID(ctx context.Context, uuid uuid.UUID) (sqlc.GetOrderByUUIDRow, error)
+	UpdateStatus(ctx context.Context, params sqlc.UpdateOrderStatusParams) (sqlc.Order, error)
+	CancelOrder(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID) (sqlc.Order, error)
+	// UpdateOrderShippingInfo(ctx context.Context, params sqlc.UpdateOrderShippingInfoParams) (sqlc.Order, error)
 }
 
 type OrderItemRepository interface {
