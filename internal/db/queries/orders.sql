@@ -9,7 +9,7 @@ INSERT INTO orders (
 RETURNING *;
 
 -- name: GetOrderByUUID :one
-SELECT o.*, u.user_uuid, u.user_fullname, u.user_email
+SELECT o.*, u.user_uuid, u.user_fullname
 FROM orders o
 JOIN users u ON u.user_id = o.order_user_id
 WHERE o.order_uuid = $1;
@@ -56,3 +56,20 @@ SET
 WHERE order_uuid = sqlc.arg(order_uuid)
   AND order_payment_status = ANY(sqlc.arg(allowed_from_statuses)::int[])
 RETURNING *;
+
+-- name: CountOrders :one
+SELECT COUNT(*) FROM orders
+WHERE (
+    sqlc.narg(user_id)::int IS NULL
+    OR order_user_id = sqlc.narg(user_id)::int
+) AND (
+    sqlc.narg(status)::int IS NULL
+    OR order_status = sqlc.narg(status)::int
+) AND (
+    sqlc.narg(search)::TEXT IS NULL
+    OR sqlc.narg(search)::TEXT = ''
+    OR unaccent(order_number) ILIKE '%' || unaccent(sqlc.narg(search)::TEXT) || '%'
+    OR unaccent(order_shipping_name) ILIKE '%' || unaccent(sqlc.narg(search)::TEXT) || '%'
+    OR order_shipping_phone ILIKE '%' || sqlc.narg(search)::TEXT || '%'
+);
+

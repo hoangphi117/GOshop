@@ -39,6 +39,65 @@ func (oh *OrderHandler) CreateOrder(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusCreated, "Order created successfully", orderDTO)
 }
 
+func (oh *OrderHandler) GetMyOrders(ctx *gin.Context) {
+	var input v1dto.GetOrdersParam
+	if err := ctx.ShouldBindQuery(&input); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	orders, totalOrders, err := oh.service.GetMyOrders(ctx, input)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	paginationResponse := utils.NewPaginationResponse(orders, input.Page, input.Limit, totalOrders)
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Get my orders successfully", paginationResponse)
+}
+
+func (oh *OrderHandler) GetOrderByUUID(ctx *gin.Context) {
+	var params v1dto.GetOrderByUUIDParam
+	if err := ctx.ShouldBindUri(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	orderUUID, err := uuid.Parse(params.UUID)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid order UUID"))
+		return
+	}
+
+	order, orderItems, err := oh.service.GetOrderByUUID(ctx, orderUUID)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	orderDTO := v1dto.MapGetOrderByUUIDRowToOrderDTO(order, orderItems)
+	utils.ResponseSuccess(ctx, http.StatusOK, "Get order by UUID successfully", orderDTO)
+}
+
+func (oh *OrderHandler) GetAllOrders(ctx *gin.Context) {
+	var input v1dto.GetOrdersParam
+	if err := ctx.ShouldBindQuery(&input); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	orders, totalOrders, err := oh.service.GetAllOrders(ctx, input)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	paginationResponse := utils.NewPaginationResponse(orders, input.Page, input.Limit, totalOrders)
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Get all orders successfully", paginationResponse)
+}
+
 func (oh *OrderHandler) UpdateOrderStatus(ctx *gin.Context) {
 	var params v1dto.GetOrderByUUIDParam
 	if err := ctx.ShouldBindUri(&params); err != nil {

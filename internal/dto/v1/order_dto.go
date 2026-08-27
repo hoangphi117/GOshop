@@ -45,6 +45,28 @@ type CreateOrderInput struct {
 	Note            string                 `json:"note" binding:"omitempty,max=500"`
 }
 
+type OrderSummaryDTO struct {
+	UUID           string  `json:"uuid"`
+	OrderNumber    string  `json:"order_number"`
+	ShippingName   string  `json:"shipping_name"`
+	ShippingPhone  string  `json:"shipping_phone"`
+	TotalAmount    float64 `json:"total_amount"`
+	RefundedAmount float64 `json:"refunded_amount"`
+	PaymentMethod  string  `json:"payment_method"`
+	PaymentStatus  string  `json:"payment_status"`
+	Status         string  `json:"status"`
+	CreatedAt      string  `json:"created_at"`
+}
+
+type GetOrdersParam struct {
+	Search  string `form:"search" binding:"omitempty,min=2,max=50"`
+	Page    int32  `form:"page" binding:"omitempty,gte=1"`
+	Limit   int32  `form:"limit" binding:"omitempty,gte=1,lte=100"`
+	OrderBy string `form:"order_by" binding:"omitempty,oneof=order_created_at order_total_amount"`
+	Sort    string `form:"sort" binding:"omitempty,oneof=asc desc"`
+	Status  int32  `form:"status" binding:"omitempty,oneof=1 2 3 4 5 6"`
+}
+
 type GetOrderByUUIDParam struct {
 	UUID string `uri:"uuid" binding:"required,uuid"`
 }
@@ -67,28 +89,6 @@ type UpdateOrderShippingInfoInput struct {
 	Note            *string `json:"note" binding:"omitempty,max=500"`
 }
 
-type GetOrdersParam struct {
-	Search  string `form:"search" binding:"omitempty,min=2,max=50"`
-	Page    int32  `form:"page" binding:"omitempty,gte=1"`
-	Limit   int32  `form:"limit" binding:"omitempty,gte=1,lte=100"`
-	OrderBy string `form:"order_by" binding:"omitempty,oneof=order_created_at order_total_amount"`
-	Sort    string `form:"sort" binding:"omitempty,oneof=asc desc"`
-	Status  int32  `form:"status" binding:"omitempty,oneof=1 2 3 4 5 6"`
-}
-
-type OrderSummaryDTO struct {
-	UUID           string  `json:"uuid"`
-	OrderNumber    string  `json:"order_number"`
-	ShippingName   string  `json:"shipping_name"`
-	ShippingPhone  string  `json:"shipping_phone"`
-	TotalAmount    float64 `json:"total_amount"`
-	RefundedAmount float64 `json:"refunded_amount"`
-	PaymentMethod  string  `json:"payment_method"`
-	PaymentStatus  string  `json:"payment_status"`
-	Status         string  `json:"status"`
-	CreatedAt      string  `json:"created_at"`
-}
-
 type CreateOrderItemInput struct {
 	ProductUUID string `json:"product_uuid" binding:"required,uuid"`
 	Quantity    int32  `json:"quantity" binding:"required,gte=1,lte=99"`
@@ -109,6 +109,34 @@ func MapToOrderItemRowDTO(item sqlc.GetOrderItemsByOrderIDRow) OrderItemDTO {
 		Price:       utils.NumericToFloat(item.OrderItemPrice),
 		Quantity:    item.OrderItemQuantity,
 		Subtotal:    utils.NumericToFloat(item.OrderItemSubtotal),
+	}
+}
+
+func MapGetOrderByUUIDRowToOrderDTO(order sqlc.GetOrderByUUIDRow, items []sqlc.GetOrderItemsByOrderIDRow) OrderDTO {
+	itemsDTO := make([]OrderItemDTO, len(items))
+	for i, item := range items {
+		itemsDTO[i] = MapToOrderItemRowDTO(item)
+	}
+	note := ""
+	if order.OrderNote != nil {
+		note = *order.OrderNote
+	}
+	return OrderDTO{
+		UUID:            order.OrderUuid.String(),
+		OrderNumber:     order.OrderNumber,
+		UserUUID:        order.UserUuid.String(),
+		UserName:        order.UserFullname,
+		ShippingName:    order.OrderShippingName,
+		ShippingPhone:   order.OrderShippingPhone,
+		ShippingAddress: order.OrderShippingAddress,
+		TotalAmount:     utils.NumericToFloat(order.OrderTotalAmount),
+		RefundedAmount:  utils.NumericToFloat(order.OrderRefundedAmount),
+		PaymentMethod:   MapPaymentMethodToString(order.OrderPaymentMethod),
+		PaymentStatus:   MapPaymentStatusToString(order.OrderPaymentStatus),
+		Note:            note,
+		Status:          MapOrderStatusToString(order.OrderStatus),
+		Items:           itemsDTO,
+		CreatedAt:       order.OrderCreatedAt.Format("2006-01-02 15:04:05"),
 	}
 }
 

@@ -47,6 +47,36 @@ func (q *Queries) CancelOrder(ctx context.Context, orderUuid uuid.UUID) (Order, 
 	return i, err
 }
 
+const countOrders = `-- name: CountOrders :one
+SELECT COUNT(*) FROM orders
+WHERE (
+    $1::int IS NULL
+    OR order_user_id = $1::int
+) AND (
+    $2::int IS NULL
+    OR order_status = $2::int
+) AND (
+    $3::TEXT IS NULL
+    OR $3::TEXT = ''
+    OR unaccent(order_number) ILIKE '%' || unaccent($3::TEXT) || '%'
+    OR unaccent(order_shipping_name) ILIKE '%' || unaccent($3::TEXT) || '%'
+    OR order_shipping_phone ILIKE '%' || $3::TEXT || '%'
+)
+`
+
+type CountOrdersParams struct {
+	UserID *int32  `json:"user_id"`
+	Status *int32  `json:"status"`
+	Search *string `json:"search"`
+}
+
+func (q *Queries) CountOrders(ctx context.Context, arg CountOrdersParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countOrders, arg.UserID, arg.Status, arg.Search)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createOrder = `-- name: CreateOrder :one
 INSERT INTO orders (
     order_number, order_user_id,
@@ -121,7 +151,7 @@ func (q *Queries) GetLatestOrderNumber(ctx context.Context, orderNumber string) 
 }
 
 const getOrderByUUID = `-- name: GetOrderByUUID :one
-SELECT o.order_id, o.order_uuid, o.order_number, o.order_user_id, o.order_shipping_name, o.order_shipping_phone, o.order_shipping_address, o.order_total_amount, o.order_refunded_amount, o.order_payment_method, o.order_payment_status, o.order_note, o.order_status, o.order_cancelled_at, o.order_created_at, o.order_updated_at, u.user_uuid, u.user_fullname, u.user_email
+SELECT o.order_id, o.order_uuid, o.order_number, o.order_user_id, o.order_shipping_name, o.order_shipping_phone, o.order_shipping_address, o.order_total_amount, o.order_refunded_amount, o.order_payment_method, o.order_payment_status, o.order_note, o.order_status, o.order_cancelled_at, o.order_created_at, o.order_updated_at, u.user_uuid, u.user_fullname
 FROM orders o
 JOIN users u ON u.user_id = o.order_user_id
 WHERE o.order_uuid = $1
@@ -146,7 +176,6 @@ type GetOrderByUUIDRow struct {
 	OrderUpdatedAt       time.Time          `json:"order_updated_at"`
 	UserUuid             uuid.UUID          `json:"user_uuid"`
 	UserFullname         string             `json:"user_fullname"`
-	UserEmail            string             `json:"user_email"`
 }
 
 func (q *Queries) GetOrderByUUID(ctx context.Context, orderUuid uuid.UUID) (GetOrderByUUIDRow, error) {
@@ -171,7 +200,6 @@ func (q *Queries) GetOrderByUUID(ctx context.Context, orderUuid uuid.UUID) (GetO
 		&i.OrderUpdatedAt,
 		&i.UserUuid,
 		&i.UserFullname,
-		&i.UserEmail,
 	)
 	return i, err
 }

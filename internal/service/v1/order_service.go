@@ -15,6 +15,7 @@ import (
 	"goshop/pkg/logger"
 	"slices"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -251,6 +252,199 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 	}
 
 	return order, orderItemsWithDetails, nil
+}
+
+func (s *orderService) GetMyOrders(ctx *gin.Context, input v1dto.GetOrdersParam) ([]v1dto.OrderSummaryDTO, int32, error) {
+	context := ctx.Request.Context()
+
+	userUuidStr, ok := ctx.Get("user_uuid")
+	if !ok || userUuidStr == "" {
+		return []v1dto.OrderSummaryDTO{}, 0, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+
+	userUUID, err := uuid.Parse(userUuidStr.(string))
+	if err != nil {
+		return []v1dto.OrderSummaryDTO{}, 0, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
+	}
+
+	user, err := s.userRepo.GetByUUID(context, userUUID)
+	if err != nil {
+		return []v1dto.OrderSummaryDTO{}, 0, utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
+
+	if input.Sort == "" {
+		input.Sort = "desc"
+	}
+
+	if input.OrderBy == "" {
+		input.OrderBy = "order_created_at"
+	}
+
+	if input.Page < 1 {
+		input.Page = 1
+	}
+
+	if input.Limit < 1 {
+		limitInt := utils.GetIntEnv("LIMIT_ITEM_PER_PAGE", 10)
+		input.Limit = int32(limitInt)
+	}
+
+	cacheKey := s.generateMyOrdersCacheKey(userUUID.String(), input)
+	var cacheData struct {
+		Orders []v1dto.OrderSummaryDTO `json:"orders"`
+		Total  int32                   `json:"total"`
+	}
+
+	if err := s.cache.Get(cacheKey, &cacheData); err == nil && cacheData.Orders != nil {
+		return cacheData.Orders, cacheData.Total, nil
+	}
+
+	var statusPtr *int32
+	if input.Status > 0 {
+		statusPtr = &input.Status
+	}
+
+	totalOrders, err := s.orderRepo.CountOrders(context, &user.UserID, statusPtr, input.Search)
+
+	if err != nil {
+		return []v1dto.OrderSummaryDTO{}, 0, utils.WrapError(utils.ErrCodeInternal, "failed to count orders", err)
+	}
+	if totalOrders == 0 {
+		return []v1dto.OrderSummaryDTO{}, 0, nil
+	}
+
+	offset := (input.Page - 1) * input.Limit
+	orders, err := s.orderRepo.GetAll(context, &user.UserID, statusPtr, input.Search, input.OrderBy,
+		input.Sort, input.Limit, offset)
+	if err != nil {
+		return []v1dto.OrderSummaryDTO{}, 0, utils.WrapError(utils.ErrCodeInternal, "failed to get orders", err)
+	}
+
+	ordersDTO := make([]v1dto.OrderSummaryDTO, len(orders))
+	for i, o := range orders {
+		ordersDTO[i] = v1dto.MapToOrderSummaryDTO(o)
+	}
+
+	cacheData.Orders = ordersDTO
+	cacheData.Total = int32(totalOrders)
+	if err := s.cache.Set(cacheKey, cacheData, 2*time.Minute); err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to set user orders cache")
+	}
+
+	return ordersDTO, int32(totalOrders), nil
+}
+
+func (s *orderService) GetOrderByUUID(ctx *gin.Context, orderUUID uuid.UUID) (sqlc.GetOrderByUUIDRow, []sqlc.GetOrderItemsByOrderIDRow, error) {
+	context := ctx.Request.Context()
+
+	userUuidStr, ok := ctx.Get("user_uuid")
+	if !ok || userUuidStr == "" {
+		return sqlc.GetOrderByUUIDRow{}, nil, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+
+	userUUID, err := uuid.Parse(userUuidStr.(string))
+	if err != nil {
+		return sqlc.GetOrderByUUIDRow{}, nil, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
+	}
+
+	user, err := s.userRepo.GetByUUID(context, userUUID)
+	if err != nil {
+		return sqlc.GetOrderByUUIDRow{}, nil, utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
+
+	order, err := s.orderRepo.GetByUUID(context, orderUUID)
+	if err != nil {
+		return sqlc.GetOrderByUUIDRow{}, nil, utils.NewError(utils.ErrCodeNotFound, "Order not found")
+	}
+
+	isAdmin := user.UserLevel == RoleAdmin
+	isModerator := user.UserLevel == RoleModerator
+
+	if order.OrderUserID != user.UserID && !isAdmin && !isModerator {
+		return sqlc.GetOrderByUUIDRow{}, nil, utils.NewError(utils.ErrCodeForbidden, "You are not authorized to view this order")
+	}
+
+	orderItems, err := s.orderItemRepo.GetByOrderID(context, order.OrderID)
+	if err != nil {
+		return sqlc.GetOrderByUUIDRow{}, nil, utils.WrapError(utils.ErrCodeInternal, "failed to get order items", err)
+	}
+
+	return order, orderItems, nil
+}
+
+func (s *orderService) generateMyOrdersCacheKey(userUUID string, input v1dto.GetOrdersParam) string {
+	return fmt.Sprintf("orders:user:%s:page:%d:limit:%d:status:%d:search:%s:orderBy:%s:sort:%s",
+		userUUID, input.Page, input.Limit, input.Status, strings.TrimSpace(input.Search), input.OrderBy, input.Sort)
+}
+
+func (s *orderService) generateAdminOrdersCacheKey(input v1dto.GetOrdersParam) string {
+	return fmt.Sprintf("orders:admin:page:%d:limit:%d:status:%d:search:%s:orderBy:%s:sort:%s",
+		input.Page, input.Limit, input.Status, strings.TrimSpace(input.Search), input.OrderBy, input.Sort)
+}
+
+func (s *orderService) GetAllOrders(ctx *gin.Context, input v1dto.GetOrdersParam) ([]v1dto.OrderSummaryDTO, int32, error) {
+	reqCtx := ctx.Request.Context()
+
+	if input.Sort == "" {
+		input.Sort = "desc"
+	}
+
+	if input.OrderBy == "" {
+		input.OrderBy = "order_created_at"
+	}
+
+	if input.Page < 1 {
+		input.Page = 1
+	}
+
+	if input.Limit < 1 {
+		limitInt := utils.GetIntEnv("LIMIT_ITEM_PER_PAGE", 10)
+		input.Limit = int32(limitInt)
+	}
+
+	cacheKey := s.generateAdminOrdersCacheKey(input)
+	var cacheData struct {
+		Orders []v1dto.OrderSummaryDTO `json:"orders"`
+		Total  int32                   `json:"total"`
+	}
+
+	if err := s.cache.Get(cacheKey, &cacheData); err == nil && cacheData.Orders != nil {
+		return cacheData.Orders, cacheData.Total, nil
+	}
+
+	var targetUserID *int32 = nil
+
+	var statusPtr *int32
+	if input.Status > 0 {
+		statusPtr = &input.Status
+	}
+
+	totalRecords, err := s.orderRepo.CountOrders(reqCtx, targetUserID, statusPtr, input.Search)
+	if err != nil {
+		return []v1dto.OrderSummaryDTO{}, 0, utils.WrapError(utils.ErrCodeInternal, "failed to count orders", err)
+	}
+	if totalRecords == 0 {
+		return []v1dto.OrderSummaryDTO{}, 0, nil
+	}
+
+	offset := (input.Page - 1) * input.Limit
+	orders, err := s.orderRepo.GetAll(reqCtx, targetUserID, statusPtr, input.Search, input.OrderBy, input.Sort, input.Limit, offset)
+	if err != nil {
+		return []v1dto.OrderSummaryDTO{}, 0, utils.WrapError(utils.ErrCodeInternal, "failed to get orders", err)
+	}
+
+	orderDTOs := make([]v1dto.OrderSummaryDTO, len(orders))
+	for i, o := range orders {
+		orderDTOs[i] = v1dto.MapToOrderSummaryDTO(o)
+	}
+
+	cacheData.Orders = orderDTOs
+	cacheData.Total = int32(totalRecords)
+	if err := s.cache.Set(cacheKey, cacheData, 2*time.Minute); err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to set admin orders cache")
+	}
+
+	return orderDTOs, int32(totalRecords), nil
 }
 
 func (s *orderService) UpdateOrderStatus(ctx *gin.Context, input sqlc.UpdateOrderStatusParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {

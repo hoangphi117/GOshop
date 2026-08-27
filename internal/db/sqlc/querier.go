@@ -13,6 +13,7 @@ import (
 type Querier interface {
 	CancelOrder(ctx context.Context, orderUuid uuid.UUID) (Order, error)
 	CountCategories(ctx context.Context, arg CountCategoriesParams) (int64, error)
+	CountOrders(ctx context.Context, arg CountOrdersParams) (int64, error)
 	CountProducts(ctx context.Context, arg CountProductsParams) (int64, error)
 	CountUsers(ctx context.Context, arg CountUsersParams) (int64, error)
 	CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error)
