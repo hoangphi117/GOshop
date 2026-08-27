@@ -2,6 +2,7 @@ package v1service
 
 import (
 	"fmt"
+	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/repository"
 	"goshop/internal/utils"
@@ -15,16 +16,18 @@ import (
 )
 
 type cartService struct {
-	repo     repository.CartRepository
-	userRepo repository.UserRepository
-	cache    cache.RedisCacheService
+	repo        repository.CartRepository
+	userRepo    repository.UserRepository
+	productRepo repository.ProductRepository
+	cache       cache.RedisCacheService
 }
 
-func NewCartService(repo repository.CartRepository, userRepo repository.UserRepository, redisClient *redis.Client) CartService {
+func NewCartService(repo repository.CartRepository, userRepo repository.UserRepository, productRepo repository.ProductRepository, redisClient *redis.Client) CartService {
 	return &cartService{
-		repo:     repo,
-		userRepo: userRepo,
-		cache:    cache.NewRedisCacheService(redisClient),
+		repo:        repo,
+		userRepo:    userRepo,
+		productRepo: productRepo,
+		cache:       cache.NewRedisCacheService(redisClient),
 	}
 }
 
@@ -70,4 +73,66 @@ func (cs *cartService) GetMyCart(ctx *gin.Context) (v1dto.CartDTO, error) {
 	}
 
 	return cartDTO, nil
+}
+
+func (cs *cartService) AddItemToCart(ctx *gin.Context, input v1dto.AddCartItemInput) (v1dto.CartDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	userUUIDStr, exists := ctx.Get("user_uuid")
+	if !exists || userUUIDStr == "" {
+		return v1dto.CartDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "unauthorized")
+	}
+
+	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	if err != nil {
+		return v1dto.CartDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "invalid user UUID format")
+	}
+
+	user, err := cs.userRepo.GetByUUID(reqCtx, userUUID)
+	if err != nil {
+		return v1dto.CartDTO{}, utils.NewError(utils.ErrCodeNotFound, "user not found")
+	}
+
+	productUUID, err := uuid.Parse(input.ProductUUID)
+	if err != nil {
+		return v1dto.CartDTO{}, utils.NewError(utils.ErrCodeBadRequest, "invalid product UUID")
+	}
+
+	product, err := cs.productRepo.GetByUUID(reqCtx, productUUID)
+	if err != nil {
+		return v1dto.CartDTO{}, utils.NewError(utils.ErrCodeNotFound, "product not found")
+	}
+
+	if product.ProductStatus != ProductStatusActive {
+		return v1dto.CartDTO{}, utils.NewError(utils.ErrCodeBadRequest, "product is unavailable for purchase")
+	}
+
+	cart, err := cs.repo.GetOrCreateCart(reqCtx, user.UserID)
+	if err != nil {
+		return v1dto.CartDTO{}, utils.NewError(utils.ErrCodeInternal, "failed to retrieve or create cart")
+	}
+
+	// Soft check stock
+	existingQty, _ := cs.repo.GetCartItemQuantity(reqCtx, cart.CartID, product.ProductID)
+	totalQty := existingQty + input.Quantity
+
+	if product.ProductStock != nil && *product.ProductStock < totalQty {
+		return v1dto.CartDTO{}, utils.NewError(utils.ErrCodeBadRequest, fmt.Sprintf("insufficient stock: available %d, requested total %d", *product.ProductStock, totalQty))
+	}
+
+	_, err = cs.repo.AddOrUpdateItem(reqCtx, sqlc.AddOrUpdateCartItemParams{
+		CartID:    cart.CartID,
+		ProductID: product.ProductID,
+		Quantity:  input.Quantity,
+	})
+	if err != nil {
+		return v1dto.CartDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to add item to cart", err)
+	}
+
+	cacheKey := fmt.Sprintf("cart:user:%s", userUUIDStr)
+	if err := cs.cache.Clear(cacheKey); err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to clear cart cache")
+	}
+
+	return cs.GetMyCart(ctx)
 }

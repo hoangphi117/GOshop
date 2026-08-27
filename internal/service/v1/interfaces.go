@@ -62,5 +62,5 @@ type OrderService interface {
 
 type CartService interface {
 	GetMyCart(ctx *gin.Context) (v1dto.CartDTO, error)
-	// GetCartItems(ctx *gin.Context) ([]v1dto.CartItemDTO, error)
+	AddItemToCart(ctx *gin.Context, input v1dto.AddCartItemInput) (v1dto.CartDTO, error)
 }

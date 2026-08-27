@@ -20,5 +20,6 @@ func (cr *CartRoutes) Register(r *gin.RouterGroup) {
 	cart := r.Group("/cart")
 	{
 		cart.GET("", cr.handler.GetMyCart)
+		cart.POST("/items", cr.handler.AddItemToCart)
 	}
 }

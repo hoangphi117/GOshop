@@ -17,9 +17,10 @@ func NewCartModule(ctx *ModuleContext) *CartModule {
 	// Initialize repository
 	cartRepo := repository.NewSqlCartRepository(ctx.DB)
 	userRepo := repository.NewSqlUserRepository(ctx.DB)
+	productRepo := repository.NewSqlProductRepository(ctx.DB)
 
 	// Initialize service
-	cartService := v1service.NewCartService(cartRepo, userRepo, ctx.Redis)
+	cartService := v1service.NewCartService(cartRepo, userRepo, productRepo, ctx.Redis)
 
 	// Initialize handler
 	cartHandler := v1handler.NewCartHandler(cartService)

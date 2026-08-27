@@ -39,13 +39,11 @@ type AddCartItemInput struct {
 func MapCartItemsToDTO(cartUuid uuid.UUID, rows []sqlc.GetCartItemsWithProductDetailsRow) CartDTO {
 	items := make([]CartItemDTO, 0, len(rows))
 	var totalAmount float64
-	var totalItems int32
 
 	for _, row := range rows {
 		price := utils.NumericToFloat(row.ProductPrice)
 		subtotal := utils.RoundFloat(price*float64(row.CartItemQuantity), 2)
 		totalAmount = utils.RoundFloat(totalAmount+subtotal, 2)
-		totalItems += row.CartItemQuantity
 
 		isAvailable := !row.ProductDeletedAt.Valid &&
 			row.ProductStatus == ProductStatusActive &&
@@ -66,7 +64,7 @@ func MapCartItemsToDTO(cartUuid uuid.UUID, rows []sqlc.GetCartItemsWithProductDe
 
 	return CartDTO{
 		UUID:        cartUuid.String(),
-		TotalItems:  totalItems,
+		TotalItems:  int32(len(rows)),
 		TotalAmount: totalAmount,
 		Items:       items,
 	}
