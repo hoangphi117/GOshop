@@ -59,3 +59,8 @@ type OrderService interface {
 	UpdateOrderShippingInfo(ctx *gin.Context, input sqlc.UpdateOrderShippingInfoParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error)
 	UpdateOrderPaymentStatus(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.UpdateOrderPaymentStatusInput) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error)
 }
+
+type CartService interface {
+	GetMyCart(ctx *gin.Context) (v1dto.CartDTO, error)
+	// GetCartItems(ctx *gin.Context) ([]v1dto.CartItemDTO, error)
+}

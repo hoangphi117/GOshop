@@ -11,6 +11,24 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Cart struct {
+	CartID        int32     `json:"cart_id"`
+	CartUuid      uuid.UUID `json:"cart_uuid"`
+	CartUserID    int32     `json:"cart_user_id"`
+	CartCreatedAt time.Time `json:"cart_created_at"`
+	CartUpdatedAt time.Time `json:"cart_updated_at"`
+}
+
+type CartItem struct {
+	CartItemID        int32     `json:"cart_item_id"`
+	CartItemUuid      uuid.UUID `json:"cart_item_uuid"`
+	CartItemCartID    int32     `json:"cart_item_cart_id"`
+	CartItemProductID int32     `json:"cart_item_product_id"`
+	CartItemQuantity  int32     `json:"cart_item_quantity"`
+	CartItemCreatedAt time.Time `json:"cart_item_created_at"`
+	CartItemUpdatedAt time.Time `json:"cart_item_updated_at"`
+}
+
 type Category struct {
 	CategoryID          int32     `json:"category_id"`
 	CategoryUuid        uuid.UUID `json:"category_uuid"`

@@ -65,3 +65,12 @@ type OrderItemRepository interface {
 	Create(ctx context.Context, tx pgx.Tx, input sqlc.CreateOrderItemParams) (sqlc.OrderItem, error)
 	GetByOrderID(ctx context.Context, orderID int32) ([]sqlc.GetOrderItemsByOrderIDRow, error)
 }
+
+type CartRepository interface {
+	GetOrCreateCart(ctx context.Context, userID int32) (sqlc.Cart, error)
+	GetCartItems(ctx context.Context, cartID int32) ([]sqlc.GetCartItemsWithProductDetailsRow, error)
+	// AddOrUpdateItem(ctx context.Context, params sqlc.AddOrUpdateCartItemParams) (sqlc.CartItem, error)
+	// UpdateItemQuantity(ctx context.Context, params sqlc.SetCartItemQuantityParams) (sqlc.CartItem, error)
+	// DeleteItem(ctx context.Context, itemUUID uuid.UUID) error
+	// ClearCart(ctx context.Context, cartID int32) error
+}
