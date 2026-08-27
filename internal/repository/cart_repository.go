@@ -3,6 +3,8 @@ package repository
 import (
 	"context"
 	"goshop/internal/db/sqlc"
+
+	"github.com/google/uuid"
 )
 
 type SqlCartRepository struct {
@@ -36,4 +38,16 @@ func (cr *SqlCartRepository) GetCartItemQuantity(ctx context.Context, cartID, pr
 		CartID:    cartID,
 		ProductID: productID,
 	})
+}
+
+func (cr *SqlCartRepository) SetCartItemQuantity(ctx context.Context, params sqlc.SetCartItemQuantityParams) (sqlc.CartItem, error) {
+	return cr.db.SetCartItemQuantity(ctx, params)
+}
+
+func (cr *SqlCartRepository) DeleteItem(ctx context.Context, cartID int32, itemUUID uuid.UUID) error {
+	_, err := cr.db.DeleteCartItemByUUID(ctx, sqlc.DeleteCartItemByUUIDParams{
+		CartItemUuid: itemUUID,
+		CartID:       cartID,
+	})
+	return err
 }

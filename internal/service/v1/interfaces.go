@@ -63,4 +63,6 @@ type OrderService interface {
 type CartService interface {
 	GetMyCart(ctx *gin.Context) (v1dto.CartDTO, error)
 	AddItemToCart(ctx *gin.Context, input v1dto.AddCartItemInput) (v1dto.CartDTO, error)
+	UpdateCartItemQuantity(ctx *gin.Context, itemUUID uuid.UUID, input v1dto.UpdateCartItemQuantityInput) (v1dto.CartDTO, error)
+	RemoveItemFromCart(ctx *gin.Context, itemUUID uuid.UUID) (v1dto.CartDTO, error)
 }

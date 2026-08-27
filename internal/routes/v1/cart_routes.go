@@ -21,5 +21,6 @@ func (cr *CartRoutes) Register(r *gin.RouterGroup) {
 	{
 		cart.GET("", cr.handler.GetMyCart)
 		cart.POST("/items", cr.handler.AddItemToCart)
+		cart.PUT("/items/:item_uuid", cr.handler.UpdateCartItemQuantity)
 	}
 }

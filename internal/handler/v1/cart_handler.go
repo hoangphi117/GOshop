@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type CartHandler struct {
@@ -45,4 +46,28 @@ func (ch *CartHandler) AddItemToCart(ctx *gin.Context) {
 	}
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Item added to cart successfully", cart)
+}
+
+func (ch *CartHandler) UpdateCartItemQuantity(ctx *gin.Context) {
+	var itemUUIDStr v1dto.UpdateCartItemUUID
+	if err := ctx.ShouldBindUri(&itemUUIDStr); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	itemUUID, err := uuid.Parse(itemUUIDStr.UUID)
+
+	var input v1dto.UpdateCartItemQuantityInput
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	cart, err := ch.service.UpdateCartItemQuantity(ctx, itemUUID, input)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Cart item quantity updated successfully", cart)
 }

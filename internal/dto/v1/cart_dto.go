@@ -36,6 +36,14 @@ type AddCartItemInput struct {
 	Quantity    int32  `json:"quantity" binding:"required,gte=1,lte=99"`
 }
 
+type UpdateCartItemQuantityInput struct {
+	Quantity *int32 `json:"quantity" binding:"required,gte=0,lte=99"`
+}
+
+type UpdateCartItemUUID struct {
+	UUID string `uri:"item_uuid" binding:"required,uuid"`
+}
+
 func MapCartItemsToDTO(cartUuid uuid.UUID, rows []sqlc.GetCartItemsWithProductDetailsRow) CartDTO {
 	items := make([]CartItemDTO, 0, len(rows))
 	var totalAmount float64
