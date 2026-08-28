@@ -110,3 +110,18 @@ func Int32Value(ptr *int32) int32 {
 	}
 	return *ptr
 }
+
+func StringToPointer(s string) *string {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
+
+func FloatPointerToNumeric(f *float64) pgtype.Numeric {
+	if f == nil {
+		return pgtype.Numeric{Valid: false}
+	}
+	return FloatToNumeric(*f)
+}

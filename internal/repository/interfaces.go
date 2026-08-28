@@ -77,3 +77,8 @@ type CartRepository interface {
 	ClearCart(ctx context.Context, cartID int32) error
 	DeleteCartItemsByProductIDs(ctx context.Context, tx pgx.Tx, cartID int32, productIDs []int32) error
 }
+
+type CouponRepository interface {
+	Create(ctx context.Context, params sqlc.CreateCouponParams) (sqlc.Coupon, error)
+	GetByCode(ctx context.Context, code string) (sqlc.Coupon, error)
+}

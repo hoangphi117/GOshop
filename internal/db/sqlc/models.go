@@ -42,6 +42,35 @@ type Category struct {
 	CategoryUpdatedAt time.Time          `json:"category_updated_at"`
 }
 
+type Coupon struct {
+	CouponID                int32              `json:"coupon_id"`
+	CouponUuid              uuid.UUID          `json:"coupon_uuid"`
+	CouponCode              string             `json:"coupon_code"`
+	CouponName              string             `json:"coupon_name"`
+	CouponDescription       *string            `json:"coupon_description"`
+	CouponType              int32              `json:"coupon_type"`
+	CouponDiscountValue     pgtype.Numeric     `json:"coupon_discount_value"`
+	CouponMaxDiscountAmount pgtype.Numeric     `json:"coupon_max_discount_amount"`
+	CouponMinOrderAmount    pgtype.Numeric     `json:"coupon_min_order_amount"`
+	CouponUsageLimit        *int32             `json:"coupon_usage_limit"`
+	CouponUsedCount         int32              `json:"coupon_used_count"`
+	CouponUserUsageLimit    int32              `json:"coupon_user_usage_limit"`
+	CouponStartDate         time.Time          `json:"coupon_start_date"`
+	CouponEndDate           time.Time          `json:"coupon_end_date"`
+	CouponIsActive          bool               `json:"coupon_is_active"`
+	CouponDeletedAt         pgtype.Timestamptz `json:"coupon_deleted_at"`
+	CouponCreatedAt         time.Time          `json:"coupon_created_at"`
+	CouponUpdatedAt         time.Time          `json:"coupon_updated_at"`
+}
+
+type CouponUsage struct {
+	CouponUsageID       int32     `json:"coupon_usage_id"`
+	CouponUsageCouponID int32     `json:"coupon_usage_coupon_id"`
+	CouponUsageUserID   int32     `json:"coupon_usage_user_id"`
+	CouponUsageOrderID  *int32    `json:"coupon_usage_order_id"`
+	CouponUsageUsedAt   time.Time `json:"coupon_usage_used_at"`
+}
+
 type Order struct {
 	OrderID              int32          `json:"order_id"`
 	OrderUuid            uuid.UUID      `json:"order_uuid"`
@@ -58,10 +87,13 @@ type Order struct {
 	OrderPaymentStatus int32   `json:"order_payment_status"`
 	OrderNote          *string `json:"order_note"`
 	// 1: Pending, 2: Confirmed, 3: Shipped, 4: Delivered, 5: Cancelled, 6: Returned
-	OrderStatus      int32              `json:"order_status"`
-	OrderCancelledAt pgtype.Timestamptz `json:"order_cancelled_at"`
-	OrderCreatedAt   time.Time          `json:"order_created_at"`
-	OrderUpdatedAt   time.Time          `json:"order_updated_at"`
+	OrderStatus         int32              `json:"order_status"`
+	OrderCancelledAt    pgtype.Timestamptz `json:"order_cancelled_at"`
+	OrderCreatedAt      time.Time          `json:"order_created_at"`
+	OrderUpdatedAt      time.Time          `json:"order_updated_at"`
+	OrderCouponID       *int32             `json:"order_coupon_id"`
+	OrderSubtotalAmount pgtype.Numeric     `json:"order_subtotal_amount"`
+	OrderDiscountAmount pgtype.Numeric     `json:"order_discount_amount"`
 }
 
 type OrderItem struct {

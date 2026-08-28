@@ -67,3 +67,7 @@ type CartService interface {
 	RemoveItemFromCart(ctx *gin.Context, itemUUID uuid.UUID) (v1dto.CartDTO, error)
 	ClearMyCart(ctx *gin.Context) error
 }
+
+type CouponService interface {
+	CreateCoupon(ctx *gin.Context, input v1dto.CreateCouponInput) (v1dto.CouponDTO, error)
+}
