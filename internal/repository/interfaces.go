@@ -74,6 +74,6 @@ type CartRepository interface {
 	GetCartItemQuantity(ctx context.Context, cartID, productID int32) (int32, error)
 	SetCartItemQuantity(ctx context.Context, params sqlc.SetCartItemQuantityParams) (sqlc.CartItem, error)
 	DeleteItem(ctx context.Context, cartID int32, itemUUID uuid.UUID) error
-	// ClearCart(ctx context.Context, cartID int32) error
-	// CountCartItems(ctx context.Context, cartID int32) (int64, error)
+	ClearCart(ctx context.Context, cartID int32) error
+	DeleteCartItemsByProductIDs(ctx context.Context, tx pgx.Tx, cartID int32, productIDs []int32) error
 }

@@ -248,3 +248,39 @@ func (cs *cartService) RemoveItemFromCart(ctx *gin.Context, itemUUID uuid.UUID) 
 
 	return cs.GetMyCart(ctx)
 }
+
+func (cs *cartService) ClearMyCart(ctx *gin.Context) error {
+	reqCtx := ctx.Request.Context()
+
+	userUUIDStr, exists := ctx.Get("user_uuid")
+	if !exists || userUUIDStr == "" {
+		return utils.NewError(utils.ErrCodeUnauthorized, "unauthorized")
+	}
+
+	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	if err != nil {
+		return utils.NewError(utils.ErrCodeUnauthorized, "invalid user UUID format")
+	}
+
+	user, err := cs.userRepo.GetByUUID(reqCtx, userUUID)
+	if err != nil {
+		return utils.NewError(utils.ErrCodeNotFound, "user not found")
+	}
+
+	cart, err := cs.repo.GetOrCreateCart(reqCtx, user.UserID)
+	if err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "failed to retrieve or create cart", err)
+	}
+
+	err = cs.repo.ClearCart(reqCtx, cart.CartID)
+	if err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "failed to clear cart", err)
+	}
+
+	cacheKey := fmt.Sprintf("cart:user:%s", userUUIDStr)
+	if err := cs.cache.Clear(cacheKey); err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to clear cart cache")
+	}
+
+	return nil
+}

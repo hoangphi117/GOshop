@@ -21,7 +21,9 @@ func NewOrderModule(ctx *ModuleContext) *OrderModule {
 	productRepo := repository.NewSqlProductRepository(ctx.DB)
 	userRepo := repository.NewSqlUserRepository(ctx.DB)
 
-	orderService := v1service.NewOrderService(orderRepo, orderItemRepo, productRepo, userRepo, ctx.Redis)
+	cartRepo := repository.NewSqlCartRepository(ctx.DB)
+	cartService := v1service.NewCartService(cartRepo, userRepo, productRepo, ctx.Redis)
+	orderService := v1service.NewOrderService(orderRepo, orderItemRepo, productRepo, userRepo, cartService, cartRepo, ctx.Redis)
 
 	orderHandler := v1handler.NewOrderHandler(orderService)
 

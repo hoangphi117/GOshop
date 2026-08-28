@@ -71,3 +71,35 @@ func (ch *CartHandler) UpdateCartItemQuantity(ctx *gin.Context) {
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Cart item quantity updated successfully", cart)
 }
+
+func (ch *CartHandler) RemoveItemFromCart(ctx *gin.Context) {
+	var itemUUIDStr v1dto.UpdateCartItemUUID
+	if err := ctx.ShouldBindUri(&itemUUIDStr); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	itemUUID, err := uuid.Parse(itemUUIDStr.UUID)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "invalid UUID format"))
+		return
+	}
+
+	cartDTO, err := ch.service.RemoveItemFromCart(ctx, itemUUID)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Item removed from cart successfully", cartDTO)
+}
+
+func (ch *CartHandler) ClearMyCart(ctx *gin.Context) {
+	err := ch.service.ClearMyCart(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Cart cleared successfully", nil)
+}

@@ -43,15 +43,19 @@ type orderService struct {
 	orderItemRepo repository.OrderItemRepository
 	productRepo   repository.ProductRepository
 	userRepo      repository.UserRepository
+	cartService   CartService
+	cartRepo      repository.CartRepository
 	cache         cache.RedisCacheService
 }
 
-func NewOrderService(orderRepo repository.OrderRepository, orderItemRepo repository.OrderItemRepository, productRepo repository.ProductRepository, userRepo repository.UserRepository, redisClient *redis.Client) OrderService {
+func NewOrderService(orderRepo repository.OrderRepository, orderItemRepo repository.OrderItemRepository, productRepo repository.ProductRepository, userRepo repository.UserRepository, cartService CartService, cartRepo repository.CartRepository, redisClient *redis.Client) OrderService {
 	return &orderService{
 		orderRepo:     orderRepo,
 		orderItemRepo: orderItemRepo,
 		productRepo:   productRepo,
 		userRepo:      userRepo,
+		cartService:   cartService,
+		cartRepo:      cartRepo,
 		cache:         cache.NewRedisCacheService(redisClient),
 	}
 }
@@ -219,7 +223,10 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "failed to create order", err)
 	}
 
-	for _, item := range preparedItems {
+	purchasedProductIDs := make([]int32, len(preparedItems))
+
+	for i, item := range preparedItems {
+		purchasedProductIDs[i] = item.productID
 		createdItemParams := sqlc.CreateOrderItemParams{
 			OrderItemOrderID:     order.OrderID,
 			OrderItemProductID:   item.productID,
@@ -233,6 +240,11 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 		if err != nil {
 			return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "failed to create order item", err)
 		}
+	}
+
+	cart, cartErr := s.cartRepo.GetCartByUserID(txCtx, user.UserID)
+	if cartErr == nil {
+		_ = s.cartRepo.DeleteCartItemsByProductIDs(txCtx, tx, cart.CartID, purchasedProductIDs)
 	}
 
 	if err := tx.Commit(txCtx); err != nil {
@@ -249,6 +261,9 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 	}
 	if err := s.cache.Clear("orders:*"); err != nil {
 		logger.Log.Warn().Err(err).Msg("Failed to clear order cache")
+	}
+	if err := s.cache.Clear(fmt.Sprintf("cart:user:%s", userUUID.String())); err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to clear cart cache")
 	}
 
 	return order, orderItemsWithDetails, nil

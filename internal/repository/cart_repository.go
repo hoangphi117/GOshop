@@ -5,6 +5,7 @@ import (
 	"goshop/internal/db/sqlc"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 type SqlCartRepository struct {
@@ -50,4 +51,20 @@ func (cr *SqlCartRepository) DeleteItem(ctx context.Context, cartID int32, itemU
 		CartID:       cartID,
 	})
 	return err
+}
+
+func (cr *SqlCartRepository) ClearCart(ctx context.Context, cartID int32) error {
+	return cr.db.ClearCartByCartID(ctx, cartID)
+}
+
+func (cr *SqlCartRepository) DeleteCartItemsByProductIDs(ctx context.Context, tx pgx.Tx, cartID int32, productIDs []int32) error {
+	q := sqlc.New(tx)
+	return q.DeleteCartItemsByProductIDs(ctx, sqlc.DeleteCartItemsByProductIDsParams{
+		CartID:     cartID,
+		ProductIds: productIDs,
+	})
+}
+
+func (cr *SqlCartRepository) CountCartItems(ctx context.Context, cartID int32) (int64, error) {
+	return cr.db.CountCartItems(ctx, cartID)
 }
