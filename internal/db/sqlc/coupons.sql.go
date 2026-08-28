@@ -9,6 +9,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -84,6 +85,115 @@ AND coupon_deleted_at IS NULL
 
 func (q *Queries) GetCouponByCode(ctx context.Context, couponCode string) (Coupon, error) {
 	row := q.db.QueryRow(ctx, getCouponByCode, couponCode)
+	var i Coupon
+	err := row.Scan(
+		&i.CouponID,
+		&i.CouponUuid,
+		&i.CouponCode,
+		&i.CouponName,
+		&i.CouponDescription,
+		&i.CouponType,
+		&i.CouponDiscountValue,
+		&i.CouponMaxDiscountAmount,
+		&i.CouponMinOrderAmount,
+		&i.CouponUsageLimit,
+		&i.CouponUsedCount,
+		&i.CouponUserUsageLimit,
+		&i.CouponStartDate,
+		&i.CouponEndDate,
+		&i.CouponIsActive,
+		&i.CouponDeletedAt,
+		&i.CouponCreatedAt,
+		&i.CouponUpdatedAt,
+	)
+	return i, err
+}
+
+const getCouponByUUID = `-- name: GetCouponByUUID :one
+SELECT coupon_id, coupon_uuid, coupon_code, coupon_name, coupon_description, coupon_type, coupon_discount_value, coupon_max_discount_amount, coupon_min_order_amount, coupon_usage_limit, coupon_used_count, coupon_user_usage_limit, coupon_start_date, coupon_end_date, coupon_is_active, coupon_deleted_at, coupon_created_at, coupon_updated_at FROM coupons
+WHERE coupon_uuid = $1
+AND coupon_deleted_at IS NULL
+`
+
+func (q *Queries) GetCouponByUUID(ctx context.Context, couponUuid uuid.UUID) (Coupon, error) {
+	row := q.db.QueryRow(ctx, getCouponByUUID, couponUuid)
+	var i Coupon
+	err := row.Scan(
+		&i.CouponID,
+		&i.CouponUuid,
+		&i.CouponCode,
+		&i.CouponName,
+		&i.CouponDescription,
+		&i.CouponType,
+		&i.CouponDiscountValue,
+		&i.CouponMaxDiscountAmount,
+		&i.CouponMinOrderAmount,
+		&i.CouponUsageLimit,
+		&i.CouponUsedCount,
+		&i.CouponUserUsageLimit,
+		&i.CouponStartDate,
+		&i.CouponEndDate,
+		&i.CouponIsActive,
+		&i.CouponDeletedAt,
+		&i.CouponCreatedAt,
+		&i.CouponUpdatedAt,
+	)
+	return i, err
+}
+
+const updateCoupon = `-- name: UpdateCoupon :one
+UPDATE coupons
+SET
+    coupon_name                = COALESCE($1, coupon_name),
+    coupon_description         = COALESCE($2, coupon_description),
+    coupon_discount_value      = COALESCE($3, coupon_discount_value),
+    coupon_max_discount_amount = CASE 
+                                    WHEN $4::boolean = true THEN NULL 
+                                    ELSE COALESCE($5, coupon_max_discount_amount)
+                                 END,
+    coupon_min_order_amount    = COALESCE($6, coupon_min_order_amount),
+    coupon_usage_limit         = CASE 
+                                    WHEN $7::boolean = true THEN NULL 
+                                    ELSE COALESCE($8, coupon_usage_limit)
+                                 END,
+    coupon_user_usage_limit    = COALESCE($9, coupon_user_usage_limit),
+    coupon_end_date            = COALESCE($10, coupon_end_date),
+    coupon_is_active           = COALESCE($11, coupon_is_active)
+WHERE coupon_uuid = $12
+AND coupon_deleted_at IS NULL
+RETURNING coupon_id, coupon_uuid, coupon_code, coupon_name, coupon_description, coupon_type, coupon_discount_value, coupon_max_discount_amount, coupon_min_order_amount, coupon_usage_limit, coupon_used_count, coupon_user_usage_limit, coupon_start_date, coupon_end_date, coupon_is_active, coupon_deleted_at, coupon_created_at, coupon_updated_at
+`
+
+type UpdateCouponParams struct {
+	CouponName              *string            `json:"coupon_name"`
+	CouponDescription       *string            `json:"coupon_description"`
+	CouponDiscountValue     pgtype.Numeric     `json:"coupon_discount_value"`
+	ClearMaxDiscount        *bool              `json:"clear_max_discount"`
+	CouponMaxDiscountAmount pgtype.Numeric     `json:"coupon_max_discount_amount"`
+	CouponMinOrderAmount    pgtype.Numeric     `json:"coupon_min_order_amount"`
+	ClearUsageLimit         *bool              `json:"clear_usage_limit"`
+	CouponUsageLimit        *int32             `json:"coupon_usage_limit"`
+	CouponUserUsageLimit    *int32             `json:"coupon_user_usage_limit"`
+	CouponEndDate           pgtype.Timestamptz `json:"coupon_end_date"`
+	CouponIsActive          *bool              `json:"coupon_is_active"`
+	CouponUuid              uuid.UUID          `json:"coupon_uuid"`
+}
+
+func (q *Queries) UpdateCoupon(ctx context.Context, arg UpdateCouponParams) (Coupon, error) {
+	row := q.db.QueryRow(ctx, updateCoupon,
+		arg.CouponName,
+		arg.CouponDescription,
+		arg.CouponDiscountValue,
+		arg.ClearMaxDiscount,
+		arg.CouponMaxDiscountAmount,
+		arg.CouponMinOrderAmount,
+		arg.ClearUsageLimit,
+		arg.CouponUsageLimit,
+		arg.CouponUserUsageLimit,
+		arg.CouponEndDate,
+		arg.CouponIsActive,
+		arg.CouponUuid,
+	)
 	var i Coupon
 	err := row.Scan(
 		&i.CouponID,

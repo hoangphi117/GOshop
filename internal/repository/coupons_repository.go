@@ -3,6 +3,8 @@ package repository
 import (
 	"context"
 	"goshop/internal/db/sqlc"
+
+	"github.com/google/uuid"
 )
 
 type SqlCouponRepository struct {
@@ -21,4 +23,12 @@ func (r *SqlCouponRepository) Create(ctx context.Context, params sqlc.CreateCoup
 
 func (r *SqlCouponRepository) GetByCode(ctx context.Context, code string) (sqlc.Coupon, error) {
 	return r.db.GetCouponByCode(ctx, code)
+}
+
+func (r *SqlCouponRepository) Update(ctx context.Context, params sqlc.UpdateCouponParams) (sqlc.Coupon, error) {
+	return r.db.UpdateCoupon(ctx, params)
+}
+
+func (r *SqlCouponRepository) GetByUUID(ctx context.Context, uuid uuid.UUID) (sqlc.Coupon, error) {
+	return r.db.GetCouponByUUID(ctx, uuid)
 }

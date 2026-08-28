@@ -47,6 +47,7 @@ type Querier interface {
 	GetCategoryBySlug(ctx context.Context, categorySlug string) (Category, error)
 	GetCategoryByUuid(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
 	GetCouponByCode(ctx context.Context, couponCode string) (Coupon, error)
+	GetCouponByUUID(ctx context.Context, couponUuid uuid.UUID) (Coupon, error)
 	GetLatestOrderNumber(ctx context.Context, orderNumber string) (string, error)
 	// Upsert "no-op": if cart already exists for user, return it; otherwise create a new cart and return it.
 	// Atomic, safe for concurrent requests, and avoids race conditions by using INSERT ... ON CONFLICT.
@@ -74,6 +75,7 @@ type Querier interface {
 	TrashProduct(ctx context.Context, productUuid uuid.UUID) (Product, error)
 	TrashUser(ctx context.Context, userUuid uuid.UUID) (User, error)
 	UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (Category, error)
+	UpdateCoupon(ctx context.Context, arg UpdateCouponParams) (Coupon, error)
 	UpdateOrderPaymentStatus(ctx context.Context, arg UpdateOrderPaymentStatusParams) (Order, error)
 	UpdateOrderShippingInfo(ctx context.Context, arg UpdateOrderShippingInfoParams) (Order, error)
 	UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusParams) (Order, error)

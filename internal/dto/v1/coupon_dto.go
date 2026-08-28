@@ -45,6 +45,24 @@ type CreateCouponInput struct {
 	IsActive          *bool    `json:"is_active" binding:"omitempty"`
 }
 
+type UpdateCouponInput struct {
+	Name                   *string  `json:"name" binding:"omitempty,min=2,max=100"`
+	Description            *string  `json:"description" binding:"omitempty,max=500"`
+	DiscountValue          *float64 `json:"discount_value" binding:"omitempty,gt=0"`
+	MaxDiscountAmount      *float64 `json:"max_discount_amount" binding:"omitempty,gt=0"`
+	ClearMaxDiscountAmount *bool    `json:"clear_max_discount_amount" binding:"omitempty"`
+	MinOrderAmount         *float64 `json:"min_order_amount" binding:"omitempty,gte=0"`
+	UsageLimit             *int32   `json:"usage_limit" binding:"omitempty,gte=1"`
+	ClearUsageLimit        *bool    `json:"clear_usage_limit" binding:"omitempty"`
+	UserUsageLimit         *int32   `json:"user_usage_limit" binding:"omitempty,gte=1"`
+	EndDate                *string  `json:"end_date" binding:"omitempty,datetime=2006-01-02T15:04:05Z07:00"`
+	IsActive               *bool    `json:"is_active" binding:"omitempty"`
+}
+
+type GetCouponByUuidParam struct {
+	Uuid string `uri:"uuid" binding:"uuid"`
+}
+
 func MapToCouponDTO(coupon sqlc.Coupon) CouponDTO {
 	typeLabel := "Unknown"
 	switch coupon.CouponType {

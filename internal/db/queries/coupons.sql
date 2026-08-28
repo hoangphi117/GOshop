@@ -11,3 +11,30 @@ INSERT INTO coupons (
 SELECT * FROM coupons
 WHERE coupon_code = $1
 AND coupon_deleted_at IS NULL;
+
+-- name: GetCouponByUUID :one
+SELECT * FROM coupons
+WHERE coupon_uuid = $1
+AND coupon_deleted_at IS NULL;
+
+-- name: UpdateCoupon :one
+UPDATE coupons
+SET
+    coupon_name                = COALESCE(sqlc.narg('coupon_name'), coupon_name),
+    coupon_description         = COALESCE(sqlc.narg('coupon_description'), coupon_description),
+    coupon_discount_value      = COALESCE(sqlc.narg('coupon_discount_value'), coupon_discount_value),
+    coupon_max_discount_amount = CASE 
+                                    WHEN sqlc.narg('clear_max_discount')::boolean = true THEN NULL 
+                                    ELSE COALESCE(sqlc.narg('coupon_max_discount_amount'), coupon_max_discount_amount)
+                                 END,
+    coupon_min_order_amount    = COALESCE(sqlc.narg('coupon_min_order_amount'), coupon_min_order_amount),
+    coupon_usage_limit         = CASE 
+                                    WHEN sqlc.narg('clear_usage_limit')::boolean = true THEN NULL 
+                                    ELSE COALESCE(sqlc.narg('coupon_usage_limit'), coupon_usage_limit)
+                                 END,
+    coupon_user_usage_limit    = COALESCE(sqlc.narg('coupon_user_usage_limit'), coupon_user_usage_limit),
+    coupon_end_date            = COALESCE(sqlc.narg('coupon_end_date'), coupon_end_date),
+    coupon_is_active           = COALESCE(sqlc.narg('coupon_is_active'), coupon_is_active)
+WHERE coupon_uuid = sqlc.arg(coupon_uuid)
+AND coupon_deleted_at IS NULL
+RETURNING *;
