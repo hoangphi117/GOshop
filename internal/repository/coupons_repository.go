@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 type SqlCouponRepository struct {
@@ -132,4 +133,33 @@ func (r *SqlCouponRepository) Restore(ctx context.Context, uuid uuid.UUID) (sqlc
 
 func (r *SqlCouponRepository) Trash(ctx context.Context, uuid uuid.UUID) (sqlc.Coupon, error) {
 	return r.db.TrashCoupon(ctx, uuid)
+}
+
+func (r *SqlCouponRepository) CountUserUsages(ctx context.Context, userID, couponID int32) (int64, error) {
+	return r.db.CountUserCouponUsages(ctx, sqlc.CountUserCouponUsagesParams{
+		CouponUsageUserID:   userID,
+		CouponUsageCouponID: couponID,
+	})
+}
+
+func (r *SqlCouponRepository) RecordUserUsage(ctx context.Context, tx pgx.Tx, params sqlc.RecordCouponUsageParams) (sqlc.CouponUsage, error) {
+
+	q := sqlc.New(tx)
+	couponUsage, err := q.RecordCouponUsage(ctx, params)
+	if err != nil {
+		return sqlc.CouponUsage{}, err
+	}
+
+	return couponUsage, nil
+}
+
+func (r *SqlCouponRepository) IncrementUsedCount(ctx context.Context, tx pgx.Tx, couponID int32) error {
+
+	q := sqlc.New(tx)
+	_, err := q.IncrementCouponUsedCount(ctx, couponID)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

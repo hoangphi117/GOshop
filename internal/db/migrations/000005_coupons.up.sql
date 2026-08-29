@@ -50,6 +50,7 @@ FOR EACH ROW EXECUTE FUNCTION update_coupon_updated_at();
 -- Add columns to the orders table to store coupon information
 ALTER TABLE orders
     ADD COLUMN order_coupon_id       INT DEFAULT NULL REFERENCES coupons(coupon_id),
+    ADD COLUMN order_coupon_code     VARCHAR(50) DEFAULT NULL, -- Snapshot 
     ADD COLUMN order_subtotal_amount NUMERIC(14,2), -- total amount before applying coupon discount, can be NULL for old orders
     ADD COLUMN order_discount_amount NUMERIC(14,2) DEFAULT 0.00 NOT NULL;
 

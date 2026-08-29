@@ -88,4 +88,8 @@ type CouponRepository interface {
 	SoftDelete(ctx context.Context, uuid uuid.UUID) (sqlc.Coupon, error)
 	Restore(ctx context.Context, uuid uuid.UUID) (sqlc.Coupon, error)
 	Trash(ctx context.Context, uuid uuid.UUID) (sqlc.Coupon, error)
+	CountUserUsages(ctx context.Context, userID, couponID int32) (int64, error)
+
+	RecordUserUsage(ctx context.Context, tx pgx.Tx, params sqlc.RecordCouponUsageParams) (sqlc.CouponUsage, error)
+	IncrementUsedCount(ctx context.Context, tx pgx.Tx, couponID int32) error
 }

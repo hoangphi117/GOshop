@@ -15,6 +15,9 @@ type OrderDTO struct {
 	ShippingName    string         `json:"shipping_name"`
 	ShippingPhone   string         `json:"shipping_phone"`
 	ShippingAddress string         `json:"shipping_address"`
+	CouponCode      *string        `json:"coupon_code,omitempty"`
+	SubtotalAmount  float64        `json:"subtotal_amount,omitempty"`
+	DiscountAmount  float64        `json:"discount_amount,omitempty"`
 	TotalAmount     float64        `json:"total_amount"`
 	RefundedAmount  float64        `json:"refunded_amount"`
 	PaymentMethod   string         `json:"payment_method"`
@@ -43,6 +46,7 @@ type CreateOrderInput struct {
 	ShippingAddress string                 `json:"shipping_address" binding:"required,min=5"`
 	PaymentMethod   int32                  `json:"payment_method" binding:"required,oneof=1 2 3"`
 	Note            string                 `json:"note" binding:"omitempty,max=500"`
+	CouponCode      *string                `json:"coupon_code" binding:"omitempty,min=2,max=50"`
 }
 
 type OrderSummaryDTO struct {
@@ -50,6 +54,9 @@ type OrderSummaryDTO struct {
 	OrderNumber    string  `json:"order_number"`
 	ShippingName   string  `json:"shipping_name"`
 	ShippingPhone  string  `json:"shipping_phone"`
+	CouponCode     *string `json:"coupon_code,omitempty"`
+	SubtotalAmount float64 `json:"subtotal_amount,omitempty"`
+	DiscountAmount float64 `json:"discount_amount,omitempty"`
 	TotalAmount    float64 `json:"total_amount"`
 	RefundedAmount float64 `json:"refunded_amount"`
 	PaymentMethod  string  `json:"payment_method"`
@@ -129,6 +136,9 @@ func MapGetOrderByUUIDRowToOrderDTO(order sqlc.GetOrderByUUIDRow, items []sqlc.G
 		ShippingName:    order.OrderShippingName,
 		ShippingPhone:   order.OrderShippingPhone,
 		ShippingAddress: order.OrderShippingAddress,
+		CouponCode:      order.OrderCouponCode,
+		SubtotalAmount:  utils.NumericToFloat(order.OrderSubtotalAmount),
+		DiscountAmount:  utils.NumericToFloat(order.OrderDiscountAmount),
 		TotalAmount:     utils.NumericToFloat(order.OrderTotalAmount),
 		RefundedAmount:  utils.NumericToFloat(order.OrderRefundedAmount),
 		PaymentMethod:   MapPaymentMethodToString(order.OrderPaymentMethod),
@@ -155,6 +165,9 @@ func MapToOrderDTO(order sqlc.Order, items []sqlc.GetOrderItemsByOrderIDRow) Ord
 		ShippingName:    order.OrderShippingName,
 		ShippingPhone:   order.OrderShippingPhone,
 		ShippingAddress: order.OrderShippingAddress,
+		CouponCode:      order.OrderCouponCode,
+		SubtotalAmount:  utils.NumericToFloat(order.OrderSubtotalAmount),
+		DiscountAmount:  utils.NumericToFloat(order.OrderDiscountAmount),
 		TotalAmount:     utils.NumericToFloat(order.OrderTotalAmount),
 		RefundedAmount:  utils.NumericToFloat(order.OrderRefundedAmount),
 		PaymentMethod:   MapPaymentMethodToString(order.OrderPaymentMethod),
@@ -172,6 +185,9 @@ func MapToOrderSummaryDTO(order sqlc.Order) OrderSummaryDTO {
 		OrderNumber:    order.OrderNumber,
 		ShippingName:   order.OrderShippingName,
 		ShippingPhone:  order.OrderShippingPhone,
+		CouponCode:     order.OrderCouponCode,
+		SubtotalAmount: utils.NumericToFloat(order.OrderSubtotalAmount),
+		DiscountAmount: utils.NumericToFloat(order.OrderDiscountAmount),
 		TotalAmount:    utils.NumericToFloat(order.OrderTotalAmount),
 		RefundedAmount: utils.NumericToFloat(order.OrderRefundedAmount),
 		PaymentMethod:  MapPaymentMethodToString(order.OrderPaymentMethod),

@@ -92,6 +92,7 @@ type Order struct {
 	OrderCreatedAt      time.Time          `json:"order_created_at"`
 	OrderUpdatedAt      time.Time          `json:"order_updated_at"`
 	OrderCouponID       *int32             `json:"order_coupon_id"`
+	OrderCouponCode     *string            `json:"order_coupon_code"`
 	OrderSubtotalAmount pgtype.Numeric     `json:"order_subtotal_amount"`
 	OrderDiscountAmount pgtype.Numeric     `json:"order_discount_amount"`
 }

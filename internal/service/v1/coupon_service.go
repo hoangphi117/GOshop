@@ -1,6 +1,7 @@
 package v1service
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/redis/go-redis/v9"
@@ -326,4 +328,38 @@ func (cs *couponService) TrashCoupon(ctx *gin.Context, couponUUID uuid.UUID) (v1
 	}
 
 	return v1dto.MapToCouponDTO(coupon), nil
+}
+
+func (cs *couponService) CountUserCouponUsages(ctx context.Context, userID, couponID int32) (int64, error) {
+	count, err := cs.repo.CountUserUsages(ctx, userID, couponID)
+	if err != nil {
+		return 0, utils.WrapError(utils.ErrCodeInternal, "Failed to count user coupon usages", err)
+	}
+	return count, nil
+}
+
+func (cs *couponService) IncrementCouponUsedCount(ctx context.Context, tx pgx.Tx, couponID int32) error {
+	err := cs.repo.IncrementUsedCount(ctx, tx, couponID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+			return utils.NewError(utils.ErrCodeConflict, "Coupon usage limit reached, please try another coupon")
+		}
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to increment coupon used count", err)
+	}
+	return nil
+}
+
+func (cs *couponService) RecordUserCouponUsage(ctx context.Context, tx pgx.Tx, couponID, userID, orderID int32) (sqlc.CouponUsage, error) {
+	params := sqlc.RecordCouponUsageParams{
+		CouponUsageCouponID: couponID,
+		CouponUsageUserID:   userID,
+		CouponUsageOrderID:  utils.ConvertToInt32Pointer(orderID),
+	}
+
+	couponUsage, err := cs.repo.RecordUserUsage(ctx, tx, params)
+	if err != nil {
+		return sqlc.CouponUsage{}, utils.WrapError(utils.ErrCodeInternal, "Failed to record user coupon usage", err)
+	}
+
+	return couponUsage, nil
 }

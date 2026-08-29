@@ -20,6 +20,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -36,6 +37,9 @@ const (
 	OrderPaymentStatusRefunded          int32 = 4
 	RoleAdmin                           int32 = 1
 	RoleModerator                       int32 = 2
+
+	CouponTypePercentage  int32 = 1
+	CouponTypeFixedAmount int32 = 2
 )
 
 type orderService struct {
@@ -45,10 +49,11 @@ type orderService struct {
 	userRepo      repository.UserRepository
 	cartService   CartService
 	cartRepo      repository.CartRepository
+	couponRepo    repository.CouponRepository
 	cache         cache.RedisCacheService
 }
 
-func NewOrderService(orderRepo repository.OrderRepository, orderItemRepo repository.OrderItemRepository, productRepo repository.ProductRepository, userRepo repository.UserRepository, cartService CartService, cartRepo repository.CartRepository, redisClient *redis.Client) OrderService {
+func NewOrderService(orderRepo repository.OrderRepository, orderItemRepo repository.OrderItemRepository, productRepo repository.ProductRepository, userRepo repository.UserRepository, cartService CartService, cartRepo repository.CartRepository, couponRepo repository.CouponRepository, redisClient *redis.Client) OrderService {
 	return &orderService{
 		orderRepo:     orderRepo,
 		orderItemRepo: orderItemRepo,
@@ -56,6 +61,7 @@ func NewOrderService(orderRepo repository.OrderRepository, orderItemRepo reposit
 		userRepo:      userRepo,
 		cartService:   cartService,
 		cartRepo:      cartRepo,
+		couponRepo:    couponRepo,
 		cache:         cache.NewRedisCacheService(redisClient),
 	}
 }
@@ -162,7 +168,7 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 		productMap[p.ProductUuid.String()] = p
 	}
 
-	var totalAmount float64
+	var subtotalAmount float64
 	preparedItems := make([]preparedItem, 0, len(input.Items))
 
 	// Loop through the input items to validate (status, quantity) and prepare order items
@@ -192,7 +198,7 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 		}
 
 		subtotal := utils.RoundFloat(float64(item.Quantity)*utils.NumericToFloat(product.ProductPrice), 2)
-		totalAmount = utils.RoundFloat(totalAmount+subtotal, 2)
+		subtotalAmount = utils.RoundFloat(subtotalAmount+subtotal, 2)
 
 		preparedItems = append(preparedItems, preparedItem{
 			productID:   product.ProductID,
@@ -203,6 +209,65 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 		})
 	}
 
+	var discountAmount float64
+	var appliedCouponID *int32
+	var appliedCouponCode *string
+
+	// If a coupon code is provided, validate it and apply the discount
+	if input.CouponCode != nil && strings.TrimSpace(*input.CouponCode) != "" {
+		normalizedCode := strings.ToUpper(strings.TrimSpace(*input.CouponCode))
+
+		coupon, err := s.couponRepo.GetByCode(txCtx, normalizedCode)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeNotFound, "Coupon not found")
+			}
+			return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "failed to get coupon", err)
+		}
+		if !coupon.CouponIsActive {
+			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Coupon is not active")
+		}
+
+		now := time.Now()
+		if now.Before(coupon.CouponStartDate) {
+			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Coupon is not yet active")
+		}
+		if now.After(coupon.CouponEndDate) {
+			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Coupon has expired")
+		}
+
+		minOrderAmount := utils.NumericToFloat(coupon.CouponMinOrderAmount)
+		if subtotalAmount < minOrderAmount {
+			return sqlc.Order{}, nil, utils.NewError(
+				utils.ErrCodeBadRequest,
+				fmt.Sprintf("Order subtotal must be at least $%.2f to apply coupon %s", minOrderAmount, coupon.CouponCode),
+			)
+		}
+
+		userUsageCount, err := s.couponRepo.CountUserUsages(txCtx, user.UserID, coupon.CouponID)
+		if err != nil {
+			return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "failed to count user coupon usages", err)
+		}
+		if userUsageCount >= int64(coupon.CouponUserUsageLimit) {
+			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Coupon has been used the maximum number of times")
+		}
+
+		discountAmount = CalculateDiscount(coupon, subtotalAmount)
+
+		err = s.couponRepo.IncrementUsedCount(txCtx, tx, coupon.CouponID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+				return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeConflict, "Coupon usage limit reached, please try another coupon")
+			}
+			return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "failed to increment coupon used count", err)
+		}
+
+		appliedCouponID = &coupon.CouponID
+		appliedCouponCode = &coupon.CouponCode
+	}
+
+	finalTotalAmount := utils.RoundFloat(subtotalAmount-discountAmount, 2)
+
 	orderNumber := generateOrderNumber()
 
 	createOrderParams := sqlc.CreateOrderParams{
@@ -211,7 +276,11 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 		OrderShippingName:    input.ShippingName,
 		OrderShippingPhone:   input.ShippingPhone,
 		OrderShippingAddress: input.ShippingAddress,
-		OrderTotalAmount:     utils.FloatToNumeric(totalAmount),
+		OrderCouponID:        appliedCouponID,
+		OrderCouponCode:      appliedCouponCode,
+		OrderSubtotalAmount:  utils.FloatToNumeric(subtotalAmount),
+		OrderDiscountAmount:  utils.FloatToNumeric(discountAmount),
+		OrderTotalAmount:     utils.FloatToNumeric(finalTotalAmount),
 		OrderPaymentMethod:   input.PaymentMethod,
 		OrderPaymentStatus:   OrderPaymentStatusUnpaid,
 		OrderNote:            &input.Note,
@@ -221,6 +290,17 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 	order, err := s.orderRepo.Create(txCtx, tx, createOrderParams)
 	if err != nil {
 		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "failed to create order", err)
+	}
+
+	if appliedCouponID != nil {
+		_, err = s.couponRepo.RecordUserUsage(txCtx, tx, sqlc.RecordCouponUsageParams{
+			CouponUsageCouponID: *appliedCouponID,
+			CouponUsageUserID:   user.UserID,
+			CouponUsageOrderID:  &order.OrderID,
+		})
+		if err != nil {
+			return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "failed to record coupon usage", err)
+		}
 	}
 
 	purchasedProductIDs := make([]int32, len(preparedItems))
@@ -242,16 +322,21 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 		}
 	}
 
+	// Remove purchased items from the user's cart if it exists
 	cart, cartErr := s.cartRepo.GetCartByUserID(txCtx, user.UserID)
 	if cartErr == nil {
-		_ = s.cartRepo.DeleteCartItemsByProductIDs(txCtx, tx, cart.CartID, purchasedProductIDs)
+		if delErr := s.cartRepo.DeleteCartItemsByProductIDs(txCtx, tx, cart.CartID, purchasedProductIDs); delErr != nil {
+			logger.Log.Warn().Err(delErr).Msg("Failed to cleanup cart items after order creation")
+		}
 	}
 
+	/* ====================== TRANSACTION END ====================== */
 	if err := tx.Commit(txCtx); err != nil {
 		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeInternal, "failed to commit transaction")
 	}
 
-	orderItemsWithDetails, err := s.orderItemRepo.GetByOrderID(txCtx, order.OrderID)
+	// Get order items with details after the transaction is committed
+	orderItemsWithDetails, err := s.orderItemRepo.GetByOrderID(reqCtx, order.OrderID)
 	if err != nil {
 		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "failed to get order items", err)
 	}
@@ -262,11 +347,36 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 	if err := s.cache.Clear("orders:*"); err != nil {
 		logger.Log.Warn().Err(err).Msg("Failed to clear order cache")
 	}
+	if err := s.cache.Clear("coupons:*"); err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to clear coupon cache")
+	}
 	if err := s.cache.Clear(fmt.Sprintf("cart:user:%s", userUUID.String())); err != nil {
 		logger.Log.Warn().Err(err).Msg("Failed to clear cart cache")
 	}
 
 	return order, orderItemsWithDetails, nil
+}
+
+func CalculateDiscount(coupon sqlc.Coupon, orderAmount float64) float64 {
+	var discount float64
+
+	switch coupon.CouponType {
+	case CouponTypePercentage:
+		discount = utils.RoundFloat(orderAmount*utils.NumericToFloat(coupon.CouponDiscountValue)/100, 2)
+		if coupon.CouponMaxDiscountAmount.Valid {
+			maxDiscount := utils.NumericToFloat(coupon.CouponMaxDiscountAmount)
+			if discount > maxDiscount {
+				discount = maxDiscount
+			}
+		}
+	case CouponTypeFixedAmount:
+		discount = utils.NumericToFloat(coupon.CouponDiscountValue)
+		if discount > orderAmount {
+			discount = orderAmount
+		}
+	}
+
+	return discount
 }
 
 func (s *orderService) GetMyOrders(ctx *gin.Context, input v1dto.GetOrdersParam) ([]v1dto.OrderSummaryDTO, int32, error) {

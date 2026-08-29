@@ -23,6 +23,7 @@ type Querier interface {
 	CountCoupons(ctx context.Context, arg CountCouponsParams) (int64, error)
 	CountOrders(ctx context.Context, arg CountOrdersParams) (int64, error)
 	CountProducts(ctx context.Context, arg CountProductsParams) (int64, error)
+	CountUserCouponUsages(ctx context.Context, arg CountUserCouponUsagesParams) (int64, error)
 	CountUsers(ctx context.Context, arg CountUsersParams) (int64, error)
 	CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error)
 	CreateCoupon(ctx context.Context, arg CreateCouponParams) (Coupon, error)
@@ -59,10 +60,16 @@ type Querier interface {
 	GetProductByUUID(ctx context.Context, productUuid uuid.UUID) (GetProductByUUIDRow, error)
 	GetUserByEmail(ctx context.Context, userEmail string) (User, error)
 	GetUserByUUID(ctx context.Context, userUuid uuid.UUID) (User, error)
+	// Atomic, có điều kiện chặn ngay trong WHERE — KHÔNG tách rời check-rồi-ghi
+	// như bản v1. Nếu không còn row trả về (sql.ErrNoRows), nghĩa là mã đã hết
+	// lượt dùng đúng tại thời điểm ghi, dù đã pass check trước đó (race condition
+	// đã bị chặn đúng lúc cần) — đúng pattern DeductStock ở Order module.
+	IncrementCouponUsedCount(ctx context.Context, couponID int32) (Coupon, error)
 	ListUserUserCreatedAtAsc(ctx context.Context, arg ListUserUserCreatedAtAscParams) ([]User, error)
 	ListUserUserCreatedAtDesc(ctx context.Context, arg ListUserUserCreatedAtDescParams) ([]User, error)
 	ListUserUserIdAsc(ctx context.Context, arg ListUserUserIdAscParams) ([]User, error)
 	ListUserUserIdDesc(ctx context.Context, arg ListUserUserIdDescParams) ([]User, error)
+	RecordCouponUsage(ctx context.Context, arg RecordCouponUsageParams) (CouponUsage, error)
 	RestoreCategory(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
 	RestoreCoupon(ctx context.Context, couponUuid uuid.UUID) (Coupon, error)
 	RestoreProduct(ctx context.Context, productUuid uuid.UUID) (Product, error)

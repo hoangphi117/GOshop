@@ -82,3 +82,23 @@ WHERE (
     sqlc.narg(is_active)::bool IS NULL
     OR coupon_is_active = sqlc.narg(is_active)::bool
 );
+
+-- name: CountUserCouponUsages :one
+SELECT count(*) FROM coupon_usages
+WHERE coupon_usage_coupon_id = $1 AND coupon_usage_user_id = $2;
+
+-- name: RecordCouponUsage :one
+INSERT INTO coupon_usages (coupon_usage_coupon_id, coupon_usage_user_id, coupon_usage_order_id)
+VALUES ($1, $2, $3)
+RETURNING *;
+
+-- name: IncrementCouponUsedCount :one
+-- Atomic, có điều kiện chặn ngay trong WHERE — KHÔNG tách rời check-rồi-ghi
+-- như bản v1. Nếu không còn row trả về (sql.ErrNoRows), nghĩa là mã đã hết
+-- lượt dùng đúng tại thời điểm ghi, dù đã pass check trước đó (race condition
+-- đã bị chặn đúng lúc cần) — đúng pattern DeductStock ở Order module.
+UPDATE coupons
+SET coupon_used_count = coupon_used_count + 1
+WHERE coupon_id = sqlc.arg(coupon_id)
+AND (coupon_usage_limit IS NULL OR coupon_used_count < coupon_usage_limit)
+RETURNING *;

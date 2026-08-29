@@ -53,6 +53,23 @@ func (q *Queries) CountCoupons(ctx context.Context, arg CountCouponsParams) (int
 	return count, err
 }
 
+const countUserCouponUsages = `-- name: CountUserCouponUsages :one
+SELECT count(*) FROM coupon_usages
+WHERE coupon_usage_coupon_id = $1 AND coupon_usage_user_id = $2
+`
+
+type CountUserCouponUsagesParams struct {
+	CouponUsageCouponID int32 `json:"coupon_usage_coupon_id"`
+	CouponUsageUserID   int32 `json:"coupon_usage_user_id"`
+}
+
+func (q *Queries) CountUserCouponUsages(ctx context.Context, arg CountUserCouponUsagesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countUserCouponUsages, arg.CouponUsageCouponID, arg.CouponUsageUserID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createCoupon = `-- name: CreateCoupon :one
 INSERT INTO coupons (
     coupon_code, coupon_name, coupon_description, coupon_type,
@@ -177,6 +194,69 @@ func (q *Queries) GetCouponByUUID(ctx context.Context, couponUuid uuid.UUID) (Co
 		&i.CouponDeletedAt,
 		&i.CouponCreatedAt,
 		&i.CouponUpdatedAt,
+	)
+	return i, err
+}
+
+const incrementCouponUsedCount = `-- name: IncrementCouponUsedCount :one
+UPDATE coupons
+SET coupon_used_count = coupon_used_count + 1
+WHERE coupon_id = $1
+AND (coupon_usage_limit IS NULL OR coupon_used_count < coupon_usage_limit)
+RETURNING coupon_id, coupon_uuid, coupon_code, coupon_name, coupon_description, coupon_type, coupon_discount_value, coupon_max_discount_amount, coupon_min_order_amount, coupon_usage_limit, coupon_used_count, coupon_user_usage_limit, coupon_start_date, coupon_end_date, coupon_is_active, coupon_deleted_at, coupon_created_at, coupon_updated_at
+`
+
+// Atomic, có điều kiện chặn ngay trong WHERE — KHÔNG tách rời check-rồi-ghi
+// như bản v1. Nếu không còn row trả về (sql.ErrNoRows), nghĩa là mã đã hết
+// lượt dùng đúng tại thời điểm ghi, dù đã pass check trước đó (race condition
+// đã bị chặn đúng lúc cần) — đúng pattern DeductStock ở Order module.
+func (q *Queries) IncrementCouponUsedCount(ctx context.Context, couponID int32) (Coupon, error) {
+	row := q.db.QueryRow(ctx, incrementCouponUsedCount, couponID)
+	var i Coupon
+	err := row.Scan(
+		&i.CouponID,
+		&i.CouponUuid,
+		&i.CouponCode,
+		&i.CouponName,
+		&i.CouponDescription,
+		&i.CouponType,
+		&i.CouponDiscountValue,
+		&i.CouponMaxDiscountAmount,
+		&i.CouponMinOrderAmount,
+		&i.CouponUsageLimit,
+		&i.CouponUsedCount,
+		&i.CouponUserUsageLimit,
+		&i.CouponStartDate,
+		&i.CouponEndDate,
+		&i.CouponIsActive,
+		&i.CouponDeletedAt,
+		&i.CouponCreatedAt,
+		&i.CouponUpdatedAt,
+	)
+	return i, err
+}
+
+const recordCouponUsage = `-- name: RecordCouponUsage :one
+INSERT INTO coupon_usages (coupon_usage_coupon_id, coupon_usage_user_id, coupon_usage_order_id)
+VALUES ($1, $2, $3)
+RETURNING coupon_usage_id, coupon_usage_coupon_id, coupon_usage_user_id, coupon_usage_order_id, coupon_usage_used_at
+`
+
+type RecordCouponUsageParams struct {
+	CouponUsageCouponID int32  `json:"coupon_usage_coupon_id"`
+	CouponUsageUserID   int32  `json:"coupon_usage_user_id"`
+	CouponUsageOrderID  *int32 `json:"coupon_usage_order_id"`
+}
+
+func (q *Queries) RecordCouponUsage(ctx context.Context, arg RecordCouponUsageParams) (CouponUsage, error) {
+	row := q.db.QueryRow(ctx, recordCouponUsage, arg.CouponUsageCouponID, arg.CouponUsageUserID, arg.CouponUsageOrderID)
+	var i CouponUsage
+	err := row.Scan(
+		&i.CouponUsageID,
+		&i.CouponUsageCouponID,
+		&i.CouponUsageUserID,
+		&i.CouponUsageOrderID,
+		&i.CouponUsageUsedAt,
 	)
 	return i, err
 }

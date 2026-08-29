@@ -2,10 +2,11 @@
 INSERT INTO orders (
     order_number, order_user_id,
     order_shipping_name, order_shipping_phone, order_shipping_address,
-    order_total_amount,
+    order_coupon_id, order_coupon_code,
+    order_subtotal_amount, order_discount_amount, order_total_amount,
     order_payment_method, order_payment_status,
     order_note, order_status
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 RETURNING *;
 
 -- name: GetOrderByUUID :one
