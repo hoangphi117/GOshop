@@ -46,6 +46,23 @@ WHERE coupon_uuid = sqlc.arg(coupon_uuid)
 AND coupon_deleted_at IS NULL
 RETURNING *;
 
+-- name: RestoreCoupon :one
+UPDATE coupons
+SET coupon_deleted_at = NULL, coupon_is_active = true
+WHERE coupon_uuid = $1 AND coupon_deleted_at IS NOT NULL
+RETURNING *;
+
+-- name: TrashCoupon :one
+DELETE FROM coupons
+WHERE coupon_uuid = sqlc.arg(coupon_uuid)::uuid
+  AND coupon_deleted_at IS NOT NULL
+  AND coupon_used_count = 0
+  AND NOT EXISTS (
+      SELECT 1 FROM coupon_usages WHERE coupon_usage_coupon_id = coupons.coupon_id
+  )
+RETURNING *;
+
+
 -- name: CountCoupons :one
 SELECT count(*)
 FROM coupons

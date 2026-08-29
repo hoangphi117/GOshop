@@ -291,3 +291,39 @@ func (cs *couponService) SoftDeleteCoupon(ctx *gin.Context, couponUUID uuid.UUID
 
 	return v1dto.MapToCouponDTO(coupon), nil
 }
+
+func (cs *couponService) RestoreCoupon(ctx *gin.Context, couponUUID uuid.UUID) (v1dto.CouponDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	coupon, err := cs.repo.Restore(reqCtx, couponUUID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return v1dto.CouponDTO{}, utils.NewError(utils.ErrCodeNotFound, "Coupon not found or not soft deleted for restoration")
+		}
+		return v1dto.CouponDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to restore coupon", err)
+	}
+
+	if err := cs.cache.Clear("coupons:*"); err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to clear coupon cache")
+	}
+
+	return v1dto.MapToCouponDTO(coupon), nil
+}
+
+func (cs *couponService) TrashCoupon(ctx *gin.Context, couponUUID uuid.UUID) (v1dto.CouponDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	coupon, err := cs.repo.Trash(reqCtx, couponUUID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return v1dto.CouponDTO{}, utils.NewError(utils.ErrCodeNotFound, "Coupon not found or not soft deleted for trashing")
+		}
+		return v1dto.CouponDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to trash coupon", err)
+	}
+
+	if err := cs.cache.Clear("coupons:*"); err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to clear coupon cache")
+	}
+
+	return v1dto.MapToCouponDTO(coupon), nil
+}

@@ -23,5 +23,7 @@ func (or *AdminCouponRoutes) Register(r *gin.RouterGroup) {
 		coupons.GET("", or.handler.GetAllCoupons)
 		coupons.PUT("/:uuid", or.handler.UpdateCoupon)
 		coupons.DELETE("/:uuid", or.handler.SoftDeleteCoupon)
+		coupons.PUT("/:uuid/restore", or.handler.RestoreCoupon)
+		coupons.DELETE("/:uuid/trash", or.handler.TrashCoupon)
 	}
 }

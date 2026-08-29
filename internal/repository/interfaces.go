@@ -86,4 +86,6 @@ type CouponRepository interface {
 	Update(ctx context.Context, params sqlc.UpdateCouponParams) (sqlc.Coupon, error)
 	CountCoupons(ctx context.Context, search string, coupon_type *int32, isActive *bool, deleted bool) (int64, error)
 	SoftDelete(ctx context.Context, uuid uuid.UUID) (sqlc.Coupon, error)
+	Restore(ctx context.Context, uuid uuid.UUID) (sqlc.Coupon, error)
+	Trash(ctx context.Context, uuid uuid.UUID) (sqlc.Coupon, error)
 }

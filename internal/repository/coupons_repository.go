@@ -125,3 +125,11 @@ func (r *SqlCouponRepository) CountCoupons(ctx context.Context, search string, c
 func (r *SqlCouponRepository) SoftDelete(ctx context.Context, uuid uuid.UUID) (sqlc.Coupon, error) {
 	return r.db.SoftDeleteCouponByUUID(ctx, uuid)
 }
+
+func (r *SqlCouponRepository) Restore(ctx context.Context, uuid uuid.UUID) (sqlc.Coupon, error) {
+	return r.db.RestoreCoupon(ctx, uuid)
+}
+
+func (r *SqlCouponRepository) Trash(ctx context.Context, uuid uuid.UUID) (sqlc.Coupon, error) {
+	return r.db.TrashCoupon(ctx, uuid)
+}

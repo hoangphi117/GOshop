@@ -105,3 +105,47 @@ func (ch *CouponHandler) SoftDeleteCoupon(ctx *gin.Context) {
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Coupon soft deleted successfully", coupon)
 }
+
+func (ch *CouponHandler) RestoreCoupon(ctx *gin.Context) {
+	var params v1dto.GetCouponByUuidParam
+	if err := ctx.ShouldBindUri(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	couponUuid, err := uuid.Parse(params.Uuid)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	coupon, err := ch.service.RestoreCoupon(ctx, couponUuid)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Coupon restored successfully", coupon)
+}
+
+func (ch *CouponHandler) TrashCoupon(ctx *gin.Context) {
+	var params v1dto.GetCouponByUuidParam
+	if err := ctx.ShouldBindUri(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	couponUuid, err := uuid.Parse(params.Uuid)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	_, err = ch.service.TrashCoupon(ctx, couponUuid)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseStatusCode(ctx, http.StatusNoContent)
+}

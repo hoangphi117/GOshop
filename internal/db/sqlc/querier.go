@@ -64,6 +64,7 @@ type Querier interface {
 	ListUserUserIdAsc(ctx context.Context, arg ListUserUserIdAscParams) ([]User, error)
 	ListUserUserIdDesc(ctx context.Context, arg ListUserUserIdDescParams) ([]User, error)
 	RestoreCategory(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
+	RestoreCoupon(ctx context.Context, couponUuid uuid.UUID) (Coupon, error)
 	RestoreProduct(ctx context.Context, productUuid uuid.UUID) (Product, error)
 	RestoreStock(ctx context.Context, arg RestoreStockParams) error
 	RestoreUser(ctx context.Context, userUuid uuid.UUID) (User, error)
@@ -74,6 +75,7 @@ type Querier interface {
 	SoftDeleteProduct(ctx context.Context, productUuid uuid.UUID) (Product, error)
 	SoftDeleteUser(ctx context.Context, userUuid uuid.UUID) (User, error)
 	TrashCategory(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
+	TrashCoupon(ctx context.Context, couponUuid uuid.UUID) (Coupon, error)
 	TrashProduct(ctx context.Context, productUuid uuid.UUID) (Product, error)
 	TrashUser(ctx context.Context, userUuid uuid.UUID) (User, error)
 	UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (Category, error)
