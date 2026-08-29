@@ -69,6 +69,7 @@ type Querier interface {
 	// Dùng cho UpdateQuantity (ghi đè tuyệt đối, không cộng dồn) — khác AddOrUpdateCartItem.
 	SetCartItemQuantity(ctx context.Context, arg SetCartItemQuantityParams) (CartItem, error)
 	SoftDeleteCategory(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
+	SoftDeleteCouponByUUID(ctx context.Context, couponUuid uuid.UUID) (Coupon, error)
 	SoftDeleteProduct(ctx context.Context, productUuid uuid.UUID) (Product, error)
 	SoftDeleteUser(ctx context.Context, userUuid uuid.UUID) (User, error)
 	TrashCategory(ctx context.Context, categoryUuid uuid.UUID) (Category, error)

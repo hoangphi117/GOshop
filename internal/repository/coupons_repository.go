@@ -32,3 +32,7 @@ func (r *SqlCouponRepository) Update(ctx context.Context, params sqlc.UpdateCoup
 func (r *SqlCouponRepository) GetByUUID(ctx context.Context, uuid uuid.UUID) (sqlc.Coupon, error) {
 	return r.db.GetCouponByUUID(ctx, uuid)
 }
+
+func (r *SqlCouponRepository) SoftDelete(ctx context.Context, uuid uuid.UUID) (sqlc.Coupon, error) {
+	return r.db.SoftDeleteCouponByUUID(ctx, uuid)
+}

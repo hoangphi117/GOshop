@@ -141,6 +141,40 @@ func (q *Queries) GetCouponByUUID(ctx context.Context, couponUuid uuid.UUID) (Co
 	return i, err
 }
 
+const softDeleteCouponByUUID = `-- name: SoftDeleteCouponByUUID :one
+UPDATE coupons
+SET coupon_deleted_at = now(), coupon_is_active = false
+WHERE coupon_uuid = $1
+AND coupon_deleted_at IS NULL
+RETURNING coupon_id, coupon_uuid, coupon_code, coupon_name, coupon_description, coupon_type, coupon_discount_value, coupon_max_discount_amount, coupon_min_order_amount, coupon_usage_limit, coupon_used_count, coupon_user_usage_limit, coupon_start_date, coupon_end_date, coupon_is_active, coupon_deleted_at, coupon_created_at, coupon_updated_at
+`
+
+func (q *Queries) SoftDeleteCouponByUUID(ctx context.Context, couponUuid uuid.UUID) (Coupon, error) {
+	row := q.db.QueryRow(ctx, softDeleteCouponByUUID, couponUuid)
+	var i Coupon
+	err := row.Scan(
+		&i.CouponID,
+		&i.CouponUuid,
+		&i.CouponCode,
+		&i.CouponName,
+		&i.CouponDescription,
+		&i.CouponType,
+		&i.CouponDiscountValue,
+		&i.CouponMaxDiscountAmount,
+		&i.CouponMinOrderAmount,
+		&i.CouponUsageLimit,
+		&i.CouponUsedCount,
+		&i.CouponUserUsageLimit,
+		&i.CouponStartDate,
+		&i.CouponEndDate,
+		&i.CouponIsActive,
+		&i.CouponDeletedAt,
+		&i.CouponCreatedAt,
+		&i.CouponUpdatedAt,
+	)
+	return i, err
+}
+
 const updateCoupon = `-- name: UpdateCoupon :one
 UPDATE coupons
 SET

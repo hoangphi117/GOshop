@@ -83,4 +83,5 @@ type CouponRepository interface {
 	GetByCode(ctx context.Context, code string) (sqlc.Coupon, error)
 	GetByUUID(ctx context.Context, uuid uuid.UUID) (sqlc.Coupon, error)
 	Update(ctx context.Context, params sqlc.UpdateCouponParams) (sqlc.Coupon, error)
+	SoftDelete(ctx context.Context, uuid uuid.UUID) (sqlc.Coupon, error)
 }

@@ -71,4 +71,5 @@ type CartService interface {
 type CouponService interface {
 	CreateCoupon(ctx *gin.Context, input v1dto.CreateCouponInput) (v1dto.CouponDTO, error)
 	UpdateCoupon(ctx *gin.Context, couponUUID uuid.UUID, input v1dto.UpdateCouponInput) (v1dto.CouponDTO, error)
+	SoftDeleteCoupon(ctx *gin.Context, couponUUID uuid.UUID) (v1dto.CouponDTO, error)
 }

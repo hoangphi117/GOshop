@@ -192,3 +192,21 @@ func (cs *couponService) UpdateCoupon(ctx *gin.Context, couponUUID uuid.UUID, in
 
 	return v1dto.MapToCouponDTO(updatedCoupon), nil
 }
+
+func (cs *couponService) SoftDeleteCoupon(ctx *gin.Context, couponUUID uuid.UUID) (v1dto.CouponDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	coupon, err := cs.repo.SoftDelete(reqCtx, couponUUID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return v1dto.CouponDTO{}, utils.NewError(utils.ErrCodeNotFound, "Coupon not found")
+		}
+		return v1dto.CouponDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to soft delete coupon", err)
+	}
+
+	if err := cs.cache.Clear("coupons:*"); err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to clear coupon cache")
+	}
+
+	return v1dto.MapToCouponDTO(coupon), nil
+}

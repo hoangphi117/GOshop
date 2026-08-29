@@ -38,3 +38,10 @@ SET
 WHERE coupon_uuid = sqlc.arg(coupon_uuid)
 AND coupon_deleted_at IS NULL
 RETURNING *;
+
+-- name: SoftDeleteCouponByUUID :one
+UPDATE coupons
+SET coupon_deleted_at = now(), coupon_is_active = false
+WHERE coupon_uuid = sqlc.arg(coupon_uuid)
+AND coupon_deleted_at IS NULL
+RETURNING *;
