@@ -45,6 +45,17 @@ type CreateCouponInput struct {
 	IsActive          *bool    `json:"is_active" binding:"omitempty"`
 }
 
+type ListCouponsParam struct {
+	Page     int32  `form:"page,default=1" binding:"omitempty,min=1"`
+	Limit    int32  `form:"limit,default=10" binding:"omitempty,min=1,max=100"`
+	Search   string `form:"search" binding:"omitempty,max=100"`
+	Type     *int32 `form:"type" binding:"omitempty,oneof=1 2"`
+	IsActive *bool  `form:"is_active" binding:"omitempty"`
+	Deleted  bool   `form:"deleted" binding:"omitempty"`
+	OrderBy  string `form:"order_by,default=coupon_created_at" binding:"omitempty,oneof=coupon_id coupon_code coupon_discount_value coupon_used_count coupon_end_date coupon_created_at"`
+	Sort     string `form:"sort,default=desc" binding:"omitempty,oneof=asc desc ASC DESC"`
+}
+
 type UpdateCouponInput struct {
 	Name                   *string  `json:"name" binding:"omitempty,min=2,max=100"`
 	Description            *string  `json:"description" binding:"omitempty,max=500"`

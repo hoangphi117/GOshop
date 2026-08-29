@@ -13,6 +13,46 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countCoupons = `-- name: CountCoupons :one
+SELECT count(*)
+FROM coupons
+WHERE (
+    $1::bool IS NULL
+    OR $1::bool = TRUE AND coupon_deleted_at IS NOT NULL
+    OR $1::bool = FALSE AND coupon_deleted_at IS NULL
+) AND (
+    $2::TEXT IS NULL
+    OR $2::TEXT = ''
+    OR unaccent(coupon_code) ILIKE '%' || unaccent($2::TEXT) || '%'
+    OR unaccent(coupon_name) ILIKE '%' || unaccent($2::TEXT) || '%'
+) AND (
+    $3::int IS NULL
+    OR coupon_type = $3::int
+) AND (
+    $4::bool IS NULL
+    OR coupon_is_active = $4::bool
+)
+`
+
+type CountCouponsParams struct {
+	Deleted  *bool   `json:"deleted"`
+	Search   *string `json:"search"`
+	Type     *int32  `json:"type"`
+	IsActive *bool   `json:"is_active"`
+}
+
+func (q *Queries) CountCoupons(ctx context.Context, arg CountCouponsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countCoupons,
+		arg.Deleted,
+		arg.Search,
+		arg.Type,
+		arg.IsActive,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createCoupon = `-- name: CreateCoupon :one
 INSERT INTO coupons (
     coupon_code, coupon_name, coupon_description, coupon_type,

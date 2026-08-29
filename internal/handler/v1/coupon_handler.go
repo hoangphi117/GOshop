@@ -37,6 +37,25 @@ func (ch *CouponHandler) CreateCoupon(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusCreated, "Coupon created successfully", coupon)
 }
 
+func (ch *CouponHandler) GetAllCoupons(ctx *gin.Context) {
+	var params v1dto.ListCouponsParam
+	if err := ctx.ShouldBindQuery(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	coupons, totalCount, err := ch.service.GetAllCoupons(ctx, params.Search, params.OrderBy, params.Sort, params.Type,
+		params.IsActive, params.Page, params.Limit, params.Deleted)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	paginationResponse := utils.NewPaginationResponse(coupons, params.Page, params.Limit, totalCount)
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Coupons retrieved successfully", paginationResponse)
+}
+
 func (ch *CouponHandler) UpdateCoupon(ctx *gin.Context) {
 	var params v1dto.GetCouponByUuidParam
 	if err := ctx.ShouldBindUri(&params); err != nil {

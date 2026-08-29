@@ -80,8 +80,10 @@ type CartRepository interface {
 
 type CouponRepository interface {
 	Create(ctx context.Context, params sqlc.CreateCouponParams) (sqlc.Coupon, error)
+	GetAll(ctx context.Context, search, orderBy, sort string, coupon_type *int32, isActive *bool, limit, offset int32, deleted bool) ([]sqlc.Coupon, error)
 	GetByCode(ctx context.Context, code string) (sqlc.Coupon, error)
 	GetByUUID(ctx context.Context, uuid uuid.UUID) (sqlc.Coupon, error)
 	Update(ctx context.Context, params sqlc.UpdateCouponParams) (sqlc.Coupon, error)
+	CountCoupons(ctx context.Context, search string, coupon_type *int32, isActive *bool, deleted bool) (int64, error)
 	SoftDelete(ctx context.Context, uuid uuid.UUID) (sqlc.Coupon, error)
 }

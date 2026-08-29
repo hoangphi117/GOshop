@@ -111,6 +111,13 @@ func Int32Value(ptr *int32) int32 {
 	return *ptr
 }
 
+func BoolValue(ptr *bool) bool {
+	if ptr == nil {
+		return false
+	}
+	return *ptr
+}
+
 func StringToPointer(s string) *string {
 	trimmed := strings.TrimSpace(s)
 	if trimmed == "" {

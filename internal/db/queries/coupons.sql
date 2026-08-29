@@ -45,3 +45,23 @@ SET coupon_deleted_at = now(), coupon_is_active = false
 WHERE coupon_uuid = sqlc.arg(coupon_uuid)
 AND coupon_deleted_at IS NULL
 RETURNING *;
+
+-- name: CountCoupons :one
+SELECT count(*)
+FROM coupons
+WHERE (
+    sqlc.narg(deleted)::bool IS NULL
+    OR sqlc.narg(deleted)::bool = TRUE AND coupon_deleted_at IS NOT NULL
+    OR sqlc.narg(deleted)::bool = FALSE AND coupon_deleted_at IS NULL
+) AND (
+    sqlc.narg(search)::TEXT IS NULL
+    OR sqlc.narg(search)::TEXT = ''
+    OR unaccent(coupon_code) ILIKE '%' || unaccent(sqlc.narg(search)::TEXT) || '%'
+    OR unaccent(coupon_name) ILIKE '%' || unaccent(sqlc.narg(search)::TEXT) || '%'
+) AND (
+    sqlc.narg(type)::int IS NULL
+    OR coupon_type = sqlc.narg(type)::int
+) AND (
+    sqlc.narg(is_active)::bool IS NULL
+    OR coupon_is_active = sqlc.narg(is_active)::bool
+);

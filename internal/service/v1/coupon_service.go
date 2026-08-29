@@ -3,6 +3,7 @@ package v1service
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/repository"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/redis/go-redis/v9"
 )
@@ -106,11 +108,90 @@ func (cs *couponService) CreateCoupon(ctx *gin.Context, input v1dto.CreateCoupon
 
 	coupon, err := cs.repo.Create(reqCtx, params)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return v1dto.CouponDTO{}, utils.NewError(utils.ErrCodeConflict, "Coupon code already exists")
+		}
 		return v1dto.CouponDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to create coupon: ", err)
 	}
 
 	if err := cs.cache.Clear("coupons:*"); err != nil {
 		logger.Log.Warn().Err(err).Msg("Failed to clear coupon cache")
+	}
+
+	return v1dto.MapToCouponDTO(coupon), nil
+}
+
+func (cs *couponService) GetAllCoupons(ctx *gin.Context, search, orderBy, sort string, coupon_type *int32, isActive *bool, page, limit int32, deleted bool) ([]v1dto.CouponDTO, int32, error) {
+	reqCtx := ctx.Request.Context()
+
+	if sort == "" {
+		sort = "desc"
+	}
+
+	if orderBy == "" {
+		orderBy = "user_created_at"
+	}
+
+	if page <= 0 {
+		page = 1
+	}
+
+	if limit <= 0 {
+		limitInt := utils.GetIntEnv("DEFAULT_LIMIT", 10)
+		limit = int32(limitInt)
+	}
+
+	offset := (page - 1) * limit
+
+	cacheKey := fmt.Sprintf("coupons:list:p%d:l%d:s%s:t%v:a%v:d%v:ob%s:so%s",
+		page, limit, search,
+		utils.Int32Value(coupon_type), utils.BoolValue(isActive),
+		deleted, orderBy, sort,
+	)
+	var cacheData struct {
+		Coupons []v1dto.CouponDTO `json:"coupons"`
+		Total   int32             `json:"total"`
+	}
+
+	if err := cs.cache.Get(cacheKey, &cacheData); err == nil && cacheData.Coupons != nil {
+		return cacheData.Coupons, cacheData.Total, nil
+	}
+
+	listCoupons, err := cs.repo.GetAll(reqCtx, search, orderBy, sort, coupon_type, isActive, limit, offset, deleted)
+	if err != nil {
+		return []v1dto.CouponDTO{}, 0, utils.WrapError(utils.ErrCodeInternal, "Failed to fetch coupon list", err)
+	}
+
+	total, err := cs.repo.CountCoupons(reqCtx, search, coupon_type, isActive, deleted)
+	if err != nil {
+		return []v1dto.CouponDTO{}, 0, utils.WrapError(utils.ErrCodeInternal, "Failed to count coupons", err)
+	}
+
+	cacheData = struct {
+		Coupons []v1dto.CouponDTO `json:"coupons"`
+		Total   int32             `json:"total"`
+	}{
+		Coupons: v1dto.MapToCouponDTOList(listCoupons),
+		Total:   int32(total),
+	}
+
+	if err := cs.cache.Set(cacheKey, cacheData, 5*time.Minute); err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to set coupon cache")
+	}
+
+	return v1dto.MapToCouponDTOList(listCoupons), int32(total), nil
+}
+
+func (cs *couponService) GetCouponByUUID(ctx *gin.Context, couponUUID uuid.UUID) (v1dto.CouponDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	coupon, err := cs.repo.GetByUUID(reqCtx, couponUUID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return v1dto.CouponDTO{}, utils.NewError(utils.ErrCodeNotFound, "Coupon not found")
+		}
+		return v1dto.CouponDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get coupon", err)
 	}
 
 	return v1dto.MapToCouponDTO(coupon), nil

@@ -20,6 +20,7 @@ func (or *AdminCouponRoutes) Register(r *gin.RouterGroup) {
 	coupons := r.Group("/coupons")
 	{
 		coupons.POST("", or.handler.CreateCoupon)
+		coupons.GET("", or.handler.GetAllCoupons)
 		coupons.PUT("/:uuid", or.handler.UpdateCoupon)
 		coupons.DELETE("/:uuid", or.handler.SoftDeleteCoupon)
 	}

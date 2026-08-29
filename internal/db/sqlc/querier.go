@@ -20,6 +20,7 @@ type Querier interface {
 	ClearCartByCartID(ctx context.Context, cartID int32) error
 	CountCartItems(ctx context.Context, cartID int32) (int64, error)
 	CountCategories(ctx context.Context, arg CountCategoriesParams) (int64, error)
+	CountCoupons(ctx context.Context, arg CountCouponsParams) (int64, error)
 	CountOrders(ctx context.Context, arg CountOrdersParams) (int64, error)
 	CountProducts(ctx context.Context, arg CountProductsParams) (int64, error)
 	CountUsers(ctx context.Context, arg CountUsersParams) (int64, error)
