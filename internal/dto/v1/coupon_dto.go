@@ -45,6 +45,22 @@ type CreateCouponInput struct {
 	IsActive          *bool    `json:"is_active" binding:"omitempty"`
 }
 
+type PreviewCouponInput struct {
+	Code           string  `json:"code" binding:"required,min=2,max=50,alphanum"`
+	SubtotalAmount float64 `json:"subtotal_amount" binding:"required,gt=0"`
+}
+
+type PreviewCouponDTO struct {
+	CouponCode       string  `json:"coupon_code"`
+	CouponName       string  `json:"coupon_name"`
+	CouponType       int32   `json:"coupon_type"` // 1: Percentage, 2: Fixed Amount
+	DiscountValue    float64 `json:"discount_value"`
+	SubtotalAmount   float64 `json:"subtotal_amount"`
+	DiscountAmount   float64 `json:"discount_amount"`
+	FinalTotalAmount float64 `json:"final_total_amount"`
+	MinOrderAmount   float64 `json:"min_order_amount"`
+}
+
 type ListCouponsParam struct {
 	Page     int32  `form:"page,default=1" binding:"omitempty,min=1"`
 	Limit    int32  `form:"limit,default=10" binding:"omitempty,min=1,max=100"`

@@ -149,3 +149,19 @@ func (ch *CouponHandler) TrashCoupon(ctx *gin.Context) {
 
 	utils.ResponseStatusCode(ctx, http.StatusNoContent)
 }
+
+func (ch *CouponHandler) PreviewCoupon(ctx *gin.Context) {
+	var input v1dto.PreviewCouponInput
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	coupon, err := ch.service.PreviewCoupon(ctx, input)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Coupon previewed successfully", coupon)
+}

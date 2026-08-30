@@ -16,8 +16,9 @@ type CouponModule struct {
 func NewCouponModule(ctx *ModuleContext) *CouponModule {
 
 	couponRepo := repository.NewSqlCouponRepository(ctx.DB)
+	userRepo := repository.NewSqlUserRepository(ctx.DB)
 
-	couponService := v1service.NewCouponService(couponRepo, ctx.Redis)
+	couponService := v1service.NewCouponService(couponRepo, userRepo, ctx.Redis)
 
 	couponHandler := v1handler.NewCouponHandler(couponService)
 

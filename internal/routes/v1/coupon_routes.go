@@ -17,9 +17,8 @@ func NewCouponRoutes(handler *v1handler.CouponHandler) *CouponRoutes {
 }
 
 func (or *CouponRoutes) Register(r *gin.RouterGroup) {
-	// coupons := r.Group("/coupons")
-	// {
-	// 	coupons.GET("", or.handler.GetAllCoupons)
-	// 	coupons.GET("/:code", or.handler.GetCouponByCode)
-	// }
+	coupons := r.Group("/coupons")
+	{
+		coupons.POST("/preview", or.handler.PreviewCoupon)
+	}
 }

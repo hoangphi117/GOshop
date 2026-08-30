@@ -23,14 +23,16 @@ import (
 )
 
 type couponService struct {
-	repo  repository.CouponRepository
-	cache cache.RedisCacheService
+	repo     repository.CouponRepository
+	userRepo repository.UserRepository
+	cache    cache.RedisCacheService
 }
 
-func NewCouponService(repo repository.CouponRepository, redisClient *redis.Client) CouponService {
+func NewCouponService(repo repository.CouponRepository, userRepo repository.UserRepository, redisClient *redis.Client) CouponService {
 	return &couponService{
-		repo:  repo,
-		cache: cache.NewRedisCacheService(redisClient),
+		repo:     repo,
+		userRepo: userRepo,
+		cache:    cache.NewRedisCacheService(redisClient),
 	}
 }
 
@@ -362,4 +364,77 @@ func (cs *couponService) RecordUserCouponUsage(ctx context.Context, tx pgx.Tx, c
 	}
 
 	return couponUsage, nil
+}
+
+func (cs *couponService) PreviewCoupon(ctx *gin.Context, input v1dto.PreviewCouponInput) (v1dto.PreviewCouponDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	userUuidStr, ok := ctx.Get("user_uuid")
+	if !ok {
+		return v1dto.PreviewCouponDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+
+	userUuid, err := uuid.Parse(userUuidStr.(string))
+	if err != nil {
+		return v1dto.PreviewCouponDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Invalid user UUID")
+	}
+
+	user, err := cs.userRepo.GetByUUID(reqCtx, userUuid)
+	if err != nil {
+		return v1dto.PreviewCouponDTO{}, utils.WrapError(utils.ErrCodeInternal, "User not found", err)
+	}
+
+	normalizedCode := strings.ToUpper(strings.TrimSpace(input.Code))
+
+	coupon, err := cs.repo.GetByCode(reqCtx, normalizedCode)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return v1dto.PreviewCouponDTO{}, utils.NewError(utils.ErrCodeNotFound, "Coupon not found")
+		}
+		return v1dto.PreviewCouponDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get coupon", err)
+	}
+
+	if !coupon.CouponIsActive {
+		return v1dto.PreviewCouponDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Coupon is not active")
+	}
+
+	now := time.Now()
+	if now.Before(coupon.CouponStartDate) {
+		return v1dto.PreviewCouponDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Coupon is not yet valid")
+	}
+	if now.After(coupon.CouponEndDate) {
+		return v1dto.PreviewCouponDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Coupon has expired")
+	}
+
+	if coupon.CouponUsageLimit != nil && coupon.CouponUsedCount >= *coupon.CouponUsageLimit {
+		return v1dto.PreviewCouponDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Coupon has reached its maximum total usage limit")
+	}
+
+	minOrderAmount := utils.NumericToFloat(coupon.CouponMinOrderAmount)
+	if input.SubtotalAmount < minOrderAmount {
+		return v1dto.PreviewCouponDTO{}, utils.NewError(utils.ErrCodeBadRequest, fmt.Sprintf("Subtotal amount must be at least %.2f to apply this coupon", minOrderAmount))
+	}
+
+	userUsageCount, err := cs.CountUserCouponUsages(reqCtx, user.UserID, coupon.CouponID)
+	if err != nil {
+		return v1dto.PreviewCouponDTO{}, err
+	}
+
+	if userUsageCount >= int64(coupon.CouponUserUsageLimit) {
+		return v1dto.PreviewCouponDTO{}, utils.NewError(utils.ErrCodeBadRequest, "You have reached your usage limit for this coupon")
+	}
+
+	discountAmount := CalculateDiscount(coupon, input.SubtotalAmount)
+	finalTotalAmount := input.SubtotalAmount - discountAmount
+
+	return v1dto.PreviewCouponDTO{
+		CouponCode:       coupon.CouponCode,
+		CouponName:       coupon.CouponName,
+		CouponType:       coupon.CouponType,
+		DiscountValue:    utils.NumericToFloat(coupon.CouponDiscountValue),
+		SubtotalAmount:   input.SubtotalAmount,
+		DiscountAmount:   discountAmount,
+		FinalTotalAmount: finalTotalAmount,
+		MinOrderAmount:   minOrderAmount,
+	}, nil
 }
