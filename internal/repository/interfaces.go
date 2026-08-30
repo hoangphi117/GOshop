@@ -93,3 +93,13 @@ type CouponRepository interface {
 	RecordUserUsage(ctx context.Context, tx pgx.Tx, params sqlc.RecordCouponUsageParams) (sqlc.CouponUsage, error)
 	IncrementUsedCount(ctx context.Context, tx pgx.Tx, couponID int32) error
 }
+
+type PaymentRepository interface {
+	Create(ctx context.Context, tx pgx.Tx, params sqlc.CreatePaymentTransactionParams) (sqlc.PaymentTransaction, error)
+	GetByIdempotencyKey(ctx context.Context, tx pgx.Tx, idempotencyKey string) (sqlc.PaymentTransaction, error)
+}
+
+type WebhookEventRepository interface {
+	InsertEvent(ctx context.Context, tx pgx.Tx, params sqlc.InsertWebhookEventParams) (sqlc.WebhookEvent, error)
+	MarkProcessed(ctx context.Context, tx pgx.Tx, eventID int32) error
+}

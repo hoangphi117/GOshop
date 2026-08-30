@@ -109,6 +109,29 @@ type OrderItem struct {
 	OrderItemCreatedAt   time.Time      `json:"order_item_created_at"`
 }
 
+type PaymentTransaction struct {
+	PtID             int32     `json:"pt_id"`
+	PtUuid           uuid.UUID `json:"pt_uuid"`
+	PtOrderID        int32     `json:"pt_order_id"`
+	PtIdempotencyKey string    `json:"pt_idempotency_key"`
+	// vnpay, momo, cod
+	PtProvider      string         `json:"pt_provider"`
+	PtProviderTxnID *string        `json:"pt_provider_txn_id"`
+	PtProviderUrl   *string        `json:"pt_provider_url"`
+	PtAmount        pgtype.Numeric `json:"pt_amount"`
+	PtCurrency      string         `json:"pt_currency"`
+	// 1: Pending, 2: Paid, 3: Failed, 4: Expired, 5: Refunded
+	PtStatus int32 `json:"pt_status"`
+	// Self-ref to original Paid pt_id for refund records
+	PtRefundOf     *int32             `json:"pt_refund_of"`
+	PtRefundAmount pgtype.Numeric     `json:"pt_refund_amount"`
+	PtPaidAt       pgtype.Timestamptz `json:"pt_paid_at"`
+	PtExpiredAt    pgtype.Timestamptz `json:"pt_expired_at"`
+	PtMetadata     []byte             `json:"pt_metadata"`
+	PtCreatedAt    time.Time          `json:"pt_created_at"`
+	PtUpdatedAt    time.Time          `json:"pt_updated_at"`
+}
+
 type Product struct {
 	ProductID          int32          `json:"product_id"`
 	ProductUuid        uuid.UUID      `json:"product_uuid"`
@@ -143,4 +166,14 @@ type User struct {
 	UserDeletedAt pgtype.Timestamptz `json:"user_deleted_at"`
 	UserCreatedAt time.Time          `json:"user_created_at"`
 	UserUpdatedAt time.Time          `json:"user_updated_at"`
+}
+
+type WebhookEvent struct {
+	WeID              int32     `json:"we_id"`
+	WeProvider        string    `json:"we_provider"`
+	WeExternalEventID string    `json:"we_external_event_id"`
+	WeEventType       string    `json:"we_event_type"`
+	WeRawBody         string    `json:"we_raw_body"`
+	WeProcessed       bool      `json:"we_processed"`
+	WeReceivedAt      time.Time `json:"we_received_at"`
 }

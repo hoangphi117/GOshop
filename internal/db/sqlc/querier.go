@@ -29,6 +29,7 @@ type Querier interface {
 	CreateCoupon(ctx context.Context, arg CreateCouponParams) (Coupon, error)
 	CreateOrder(ctx context.Context, arg CreateOrderParams) (Order, error)
 	CreateOrderItem(ctx context.Context, arg CreateOrderItemParams) (OrderItem, error)
+	CreatePaymentTransaction(ctx context.Context, arg CreatePaymentTransactionParams) (PaymentTransaction, error)
 	CreateProduct(ctx context.Context, arg CreateProductParams) (CreateProductRow, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeductStock(ctx context.Context, arg DeductStockParams) (int64, error)
@@ -56,6 +57,7 @@ type Querier interface {
 	GetOrCreateCartByUserID(ctx context.Context, userID int32) (Cart, error)
 	GetOrderByUUID(ctx context.Context, orderUuid uuid.UUID) (GetOrderByUUIDRow, error)
 	GetOrderItemsByOrderID(ctx context.Context, orderItemOrderID int32) ([]GetOrderItemsByOrderIDRow, error)
+	GetPaymentByIdempotencyKey(ctx context.Context, ptIdempotencyKey string) (PaymentTransaction, error)
 	GetProductBySlug(ctx context.Context, productSlug string) (GetProductBySlugRow, error)
 	GetProductByUUID(ctx context.Context, productUuid uuid.UUID) (GetProductByUUIDRow, error)
 	GetUserByEmail(ctx context.Context, userEmail string) (User, error)
@@ -65,10 +67,12 @@ type Querier interface {
 	// lượt dùng đúng tại thời điểm ghi, dù đã pass check trước đó (race condition
 	// đã bị chặn đúng lúc cần) — đúng pattern DeductStock ở Order module.
 	IncrementCouponUsedCount(ctx context.Context, couponID int32) (Coupon, error)
+	InsertWebhookEvent(ctx context.Context, arg InsertWebhookEventParams) (WebhookEvent, error)
 	ListUserUserCreatedAtAsc(ctx context.Context, arg ListUserUserCreatedAtAscParams) ([]User, error)
 	ListUserUserCreatedAtDesc(ctx context.Context, arg ListUserUserCreatedAtDescParams) ([]User, error)
 	ListUserUserIdAsc(ctx context.Context, arg ListUserUserIdAscParams) ([]User, error)
 	ListUserUserIdDesc(ctx context.Context, arg ListUserUserIdDescParams) ([]User, error)
+	MarkWebhookEventProcessed(ctx context.Context, weID int32) error
 	RecordCouponUsage(ctx context.Context, arg RecordCouponUsageParams) (CouponUsage, error)
 	RestoreCategory(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
 	RestoreCoupon(ctx context.Context, couponUuid uuid.UUID) (Coupon, error)

@@ -35,8 +35,10 @@ const (
 	OrderPaymentStatusPaid              int32 = 2
 	OrderPaymentStatusPartiallyRefunded int32 = 3
 	OrderPaymentStatusRefunded          int32 = 4
-	RoleAdmin                           int32 = 1
-	RoleModerator                       int32 = 2
+	OrderPaymentMethodCOD               int32 = 1
+
+	RoleAdmin     int32 = 1
+	RoleModerator int32 = 2
 
 	CouponTypePercentage  int32 = 1
 	CouponTypeFixedAmount int32 = 2
