@@ -11,7 +11,7 @@ import (
 
 type CreatePaymentIntentInput struct {
 	OrderUUID uuid.UUID `json:"order_uuid" binding:"required,uuid"`
-	Provider  string    `json:"provider" binding:"required,oneof=vnpay momo"`
+	Provider  string    `json:"provider" binding:"required,oneof=momo"`
 }
 
 type PaymentIntentDTO struct {
