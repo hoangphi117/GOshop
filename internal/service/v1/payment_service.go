@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/repository"
@@ -182,10 +183,6 @@ func (s *paymentService) CreatePaymentIntent(ctx *gin.Context, input v1dto.Creat
 		return v1dto.PaymentIntentDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to generate payment URL from provider", err)
 	}
 
-	var providerTxnID *string
-	if providerResp.ProviderTxnID != "" {
-		providerTxnID = &providerResp.ProviderTxnID
-	}
 	var providerURL *string
 	if providerResp.PaymentURL != "" {
 		providerURL = &providerResp.PaymentURL
@@ -195,7 +192,7 @@ func (s *paymentService) CreatePaymentIntent(ctx *gin.Context, input v1dto.Creat
 		PtOrderID:        order.OrderID,
 		PtIdempotencyKey: idempotencyKey,
 		PtProvider:       providerName,
-		PtProviderTxnID:  providerTxnID,
+		PtProviderTxnID:  &txnRef,
 		PtProviderUrl:    providerURL,
 		PtAmount:         order.OrderTotalAmount,
 		PtCurrency:       "VND",
@@ -303,7 +300,7 @@ func (s *paymentService) HandleWebhook(ctx *gin.Context, providerName string) er
 	msgPayload := v1dto.PaymentWebhookMessage{
 		WebhookEventID: event.WeID,
 		OrderUUID:      orderUUID,
-		OrderNumber:    realOrderNumber,
+		OrderNumber:    result.OrderNumber,
 		Provider:       providerName,
 		EventType:      result.EventType,
 		ProviderTxnID:  result.ProviderTxnID,
@@ -345,78 +342,66 @@ func (s *paymentService) ProcessWebhookMessage(headers amqp.Table, body []byte) 
 		newPaymentStatus = PaymentStatusPaid
 	}
 
-	// 1. Tìm Order từ OrderNumber hoặc OrderUUID
-	var targetOrderUUID uuid.UUID
-	var orderID int32
+	/* =================== BEGIN TRANSACTION =================== */
+	tx, err := db.DBPool.Begin(ctx)
+	if err != nil {
+		logger.Log.Error().Err(err).Msg("Failed to begin database transaction")
+		return err
+	}
+	defer tx.Rollback(ctx) // Tự động rollback nếu có lỗi xảy ra trước khi commit
 
-	if msg.OrderNumber != "" {
-		order, err := s.orderRepo.GetByOrderNumber(ctx, msg.OrderNumber)
-		if err == nil {
-			targetOrderUUID = order.OrderUuid
-			orderID = order.OrderID
-		}
+	// 2. TÌM CHÍNH XÁC TRANSACTION BẰNG TXN_REF TRONG 1MS (Dùng index pt_provider_txn_id)
+	// msg.OrderNumber lúc này chứa chuỗi "260831-05-BZ7AMC_1788100000"
+	pt, err := s.paymentRepo.GetByProviderTxnID(ctx, tx, msg.Provider, msg.OrderNumber)
+	if err != nil {
+		logger.Log.Error().
+			Err(err).
+			Str("provider", msg.Provider).
+			Str("txn_ref", msg.OrderNumber).
+			Msg("Payment transaction not found by txn_ref")
+		return err // Trả lỗi để RabbitMQ retry
 	}
 
-	if targetOrderUUID == uuid.Nil && msg.OrderUUID != "" {
-		parsedUUID, err := uuid.Parse(msg.OrderUUID)
+	// 3. CẬP NHẬT TRẠNG THÁI TRANSACTION VÀ GHI ĐÈ MÃ GIAO DỊCH NGÂN HÀNG THẬT
+	_, err = s.paymentRepo.UpdateStatusAtomically(ctx, tx, sqlc.UpdatePaymentStatusAtomicallyParams{
+		PtUuid:              pt.PtUuid,
+		NewStatus:           newPaymentStatus,
+		ProviderTxnID:       &msg.ProviderTxnID, // Lưu mã ngân hàng thật (ví dụ: transId MoMo)
+		AllowedFromStatuses: []int32{PaymentStatusPending},
+	})
+	if err != nil {
+		logger.Log.Error().Err(err).Str("pt_uuid", pt.PtUuid.String()).Msg("Failed to update payment transaction")
+		return err
+	}
+
+	// 4. CẬP NHẬT TRẠNG THÁI ORDER SANG PAID (Dùng pt.PtOrderID hoặc msg.OrderUUID)
+	if msg.Status == "success" {
+		// Tách mã đơn gốc (ví dụ: "260831-05-BZ7AMC")
+		realOrderNumber := strings.Split(msg.OrderNumber, "_")[0]
+
+		order, err := s.orderRepo.GetByOrderNumber(ctx, realOrderNumber)
 		if err == nil {
-			orderRow, err := s.orderRepo.GetByUUID(ctx, parsedUUID)
-			if err == nil {
-				targetOrderUUID = orderRow.OrderUuid
-				orderID = orderRow.OrderID
+			_, err = s.orderRepo.UpdateOrderPaymentStatus(ctx, sqlc.UpdateOrderPaymentStatusParams{
+				OrderUuid:           order.OrderUuid,
+				PaymentStatus:       OrderPaymentStatusPaid,
+				RefundedAmount:      utils.FloatToNumeric(0),
+				AllowedFromStatuses: []int32{OrderPaymentStatusUnpaid},
+			})
+			if err != nil {
+				logger.Log.Error().Err(err).Str("order_number", realOrderNumber).Msg("Failed to update order payment status")
+				return err
 			}
 		}
 	}
 
-	// 2. Tìm payment transaction cần cập nhật
-	var targetTxnUUID uuid.UUID
+	// 5. ĐÁNH DẤU WEBHOOK EVENT ĐÃ XỬ LÝ
+	_ = s.webhookRepo.MarkProcessed(ctx, tx, msg.WebhookEventID)
 
-	// Thử tìm theo ProviderTxnID nếu đã có
-	pt, err := s.paymentRepo.GetByProviderTxnID(ctx, nil, msg.Provider, msg.ProviderTxnID)
-	if err == nil && pt.PtID != 0 {
-		targetTxnUUID = pt.PtUuid
-	} else if orderID != 0 {
-		// Tìm transaction Pending gần nhất của Order này
-		txns, err := s.paymentRepo.GetByOrderID(ctx, nil, orderID)
-		if err == nil {
-			for _, t := range txns {
-				if t.PtStatus == PaymentStatusPending && t.PtProvider == msg.Provider {
-					targetTxnUUID = t.PtUuid
-					break
-				}
-			}
-		}
+	/* =================== COMMIT TRANSACTION =================== */
+	if err := tx.Commit(ctx); err != nil {
+		logger.Log.Error().Err(err).Msg("Failed to commit database transaction")
+		return err
 	}
-
-	// 3. Cập nhật bảng payment_transactions
-	if targetTxnUUID != uuid.Nil {
-		_, err = s.paymentRepo.UpdateStatusAtomically(ctx, nil, sqlc.UpdatePaymentStatusAtomicallyParams{
-			PtUuid:              targetTxnUUID,
-			NewStatus:           newPaymentStatus,
-			ProviderTxnID:       &msg.ProviderTxnID,
-			AllowedFromStatuses: []int32{PaymentStatusPending},
-		})
-		if err != nil {
-			logger.Log.Error().Err(err).Str("txn_uuid", targetTxnUUID.String()).Msg("Failed to update payment transaction status")
-		}
-	}
-
-	// 4. Cập nhật bảng orders sang Paid
-	if msg.Status == "success" && targetOrderUUID != uuid.Nil {
-		_, err = s.orderRepo.UpdateOrderPaymentStatus(ctx, sqlc.UpdateOrderPaymentStatusParams{
-			OrderUuid:           targetOrderUUID,
-			PaymentStatus:       OrderPaymentStatusPaid,
-			RefundedAmount:      utils.FloatToNumeric(0),
-			AllowedFromStatuses: []int32{OrderPaymentStatusUnpaid},
-		})
-		if err != nil {
-			logger.Log.Error().Err(err).Str("order_uuid", targetOrderUUID.String()).Msg("Failed to update order payment status to Paid")
-			return err
-		}
-	}
-
-	// 3. Đánh dấu webhook event đã xử lý
-	_ = s.webhookRepo.MarkProcessed(ctx, nil, msg.WebhookEventID)
 
 	logger.Log.Info().
 		Str("module", "payment").
@@ -424,7 +409,7 @@ func (s *paymentService) ProcessWebhookMessage(headers amqp.Table, body []byte) 
 		Str("order_number", msg.OrderNumber).
 		Str("status", msg.Status).
 		Int64("duration_ms", time.Since(startTime).Milliseconds()).
-		Msg("Payment webhook processed successfully - Order is now Paid")
+		Msg("Payment webhook processed successfully")
 
 	return nil
 }
