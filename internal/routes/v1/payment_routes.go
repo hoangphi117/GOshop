@@ -20,5 +20,6 @@ func (r *PaymentRoutes) Register(rg *gin.RouterGroup) {
 	payments := rg.Group("/payments")
 	{
 		payments.POST("/create-intent", r.handler.CreatePaymentIntent)
+		payments.GET("/order/:order_uuid", r.handler.GetPaymentHistory)
 	}
 }

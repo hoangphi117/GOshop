@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type PaymentHandler struct {
@@ -57,4 +58,26 @@ func (h *PaymentHandler) HandleWebhook(ctx *gin.Context) {
 		"resultCode": 0,
 		"message":    "Success",
 	})
+}
+
+func (h *PaymentHandler) GetPaymentHistory(ctx *gin.Context) {
+	var params v1dto.GetTransactionHistoryByOrderUUID
+	if err := ctx.ShouldBindUri(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	orderUUID, err := uuid.Parse(params.OrderUUID)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	paymentHistory, err := h.paymentService.GetPaymentHistory(ctx, orderUUID)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Payment history retrieved successfully", paymentHistory)
 }

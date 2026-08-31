@@ -84,4 +84,5 @@ type PaymentService interface {
 	CreatePaymentIntent(ctx *gin.Context, input v1dto.CreatePaymentIntentInput) (v1dto.PaymentIntentDTO, error)
 	HandleWebhook(ctx *gin.Context, provider string) error
 	ProcessWebhookMessage(headers amqp.Table, body []byte) error
+	GetPaymentHistory(ctx *gin.Context, orderUUID uuid.UUID) ([]v1dto.PaymentTransactionDTO, error)
 }

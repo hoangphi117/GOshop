@@ -33,3 +33,8 @@ SET
 WHERE pt_uuid = sqlc.arg(pt_uuid)
   AND pt_status = ANY(sqlc.arg(allowed_from_statuses)::int[])
 RETURNING *;
+
+-- name: GetPaymentTransactionsByOrderID :many
+SELECT * FROM payment_transactions
+WHERE pt_order_id = $1
+ORDER BY pt_created_at DESC;

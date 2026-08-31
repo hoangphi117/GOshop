@@ -43,3 +43,7 @@ func (r *SqlPaymentRepository) GetByProviderTxnID(ctx context.Context, tx pgx.Tx
 func (r *SqlPaymentRepository) UpdateStatusAtomically(ctx context.Context, tx pgx.Tx, params sqlc.UpdatePaymentStatusAtomicallyParams) (sqlc.PaymentTransaction, error) {
 	return r.getQuerier(tx).UpdatePaymentStatusAtomically(ctx, params)
 }
+
+func (r *SqlPaymentRepository) GetByOrderID(ctx context.Context, tx pgx.Tx, orderID int32) ([]sqlc.PaymentTransaction, error) {
+	return r.getQuerier(tx).GetPaymentTransactionsByOrderID(ctx, orderID)
+}

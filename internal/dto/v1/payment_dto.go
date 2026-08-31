@@ -1,6 +1,7 @@
 package v1dto
 
 import (
+	"fmt"
 	"goshop/internal/db/sqlc"
 	"goshop/internal/utils"
 	"time"
@@ -50,6 +51,10 @@ type PaymentWebhookMessage struct {
 	Metadata       map[string]string `json:"metadata"`
 }
 
+type GetTransactionHistoryByOrderUUID struct {
+	OrderUUID string `uri:"order_uuid" binding:"uuid"`
+}
+
 func MapToPaymentIntentDTO(pt sqlc.PaymentTransaction, orderUUID uuid.UUID) PaymentIntentDTO {
 	var paymentURL string
 	if pt.PtProviderUrl != nil {
@@ -65,6 +70,40 @@ func MapToPaymentIntentDTO(pt sqlc.PaymentTransaction, orderUUID uuid.UUID) Paym
 		Status:      MapPaymentTxnStatusToString(pt.PtStatus),
 		PaymentURL:  paymentURL,
 		CreatedAt:   pt.PtCreatedAt.Format(time.RFC3339),
+	}
+}
+
+func MapToPaymentTransactionDTO(pt sqlc.PaymentTransaction, orderUUID uuid.UUID) PaymentTransactionDTO {
+	var refundOf *string
+	if pt.PtRefundOf != nil {
+		str := fmt.Sprintf("%d", *pt.PtRefundOf)
+		refundOf = &str
+	}
+
+	var refundAmount *float64
+	if pt.PtRefundAmount.Valid {
+		val := utils.NumericToFloat(pt.PtRefundAmount)
+		refundAmount = &val
+	}
+
+	var paidAt *string
+	if pt.PtPaidAt.Valid {
+		formatted := pt.PtPaidAt.Time.Format(time.RFC3339)
+		paidAt = &formatted
+	}
+
+	return PaymentTransactionDTO{
+		UUID:          pt.PtUuid.String(),
+		OrderUUID:     orderUUID.String(),
+		Provider:      pt.PtProvider,
+		ProviderTxnID: pt.PtProviderTxnID,
+		Amount:        utils.NumericToFloat(pt.PtAmount),
+		Currency:      pt.PtCurrency,
+		Status:        MapPaymentTxnStatusToString(pt.PtStatus),
+		RefundOf:      refundOf,
+		RefundAmount:  refundAmount,
+		PaidAt:        paidAt,
+		CreatedAt:     pt.PtCreatedAt.Format(time.RFC3339),
 	}
 }
 

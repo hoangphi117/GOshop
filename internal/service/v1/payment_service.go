@@ -345,42 +345,73 @@ func (s *paymentService) ProcessWebhookMessage(headers amqp.Table, body []byte) 
 		newPaymentStatus = PaymentStatusPaid
 	}
 
-	// 1. Cập nhật bảng payment_transactions
-	pt, err := s.paymentRepo.GetByProviderTxnID(ctx, nil, msg.Provider, msg.ProviderTxnID)
-	if err == nil && pt.PtID != 0 {
-		_, _ = s.paymentRepo.UpdateStatusAtomically(ctx, nil, sqlc.UpdatePaymentStatusAtomicallyParams{
-			PtUuid:              pt.PtUuid,
-			NewStatus:           newPaymentStatus,
-			ProviderTxnID:      &msg.ProviderTxnID,
-			AllowedFromStatuses: []int32{PaymentStatusPending},
-		})
+	// 1. Tìm Order từ OrderNumber hoặc OrderUUID
+	var targetOrderUUID uuid.UUID
+	var orderID int32
+
+	if msg.OrderNumber != "" {
+		order, err := s.orderRepo.GetByOrderNumber(ctx, msg.OrderNumber)
+		if err == nil {
+			targetOrderUUID = order.OrderUuid
+			orderID = order.OrderID
+		}
 	}
 
-	// 2. Cập nhật bảng orders sang Paid
-	if msg.Status == "success" {
-		var targetUUID uuid.UUID
-		if msg.OrderUUID != "" {
-			targetUUID, _ = uuid.Parse(msg.OrderUUID)
-		}
-
-		if targetUUID == uuid.Nil && msg.OrderNumber != "" {
-			order, err := s.orderRepo.GetByOrderNumber(ctx, msg.OrderNumber)
+	if targetOrderUUID == uuid.Nil && msg.OrderUUID != "" {
+		parsedUUID, err := uuid.Parse(msg.OrderUUID)
+		if err == nil {
+			orderRow, err := s.orderRepo.GetByUUID(ctx, parsedUUID)
 			if err == nil {
-				targetUUID = order.OrderUuid
+				targetOrderUUID = orderRow.OrderUuid
+				orderID = orderRow.OrderID
 			}
 		}
+	}
 
-		if targetUUID != uuid.Nil {
-			_, err = s.orderRepo.UpdateOrderPaymentStatus(ctx, sqlc.UpdateOrderPaymentStatusParams{
-				OrderUuid:           targetUUID,
-				PaymentStatus:       OrderPaymentStatusPaid,
-				RefundedAmount:      utils.FloatToNumeric(0),
-				AllowedFromStatuses: []int32{OrderPaymentStatusUnpaid},
-			})
-			if err != nil {
-				logger.Log.Error().Err(err).Str("order_number", msg.OrderNumber).Msg("Failed to update order payment status to Paid")
-				return err
+	// 2. Tìm payment transaction cần cập nhật
+	var targetTxnUUID uuid.UUID
+
+	// Thử tìm theo ProviderTxnID nếu đã có
+	pt, err := s.paymentRepo.GetByProviderTxnID(ctx, nil, msg.Provider, msg.ProviderTxnID)
+	if err == nil && pt.PtID != 0 {
+		targetTxnUUID = pt.PtUuid
+	} else if orderID != 0 {
+		// Tìm transaction Pending gần nhất của Order này
+		txns, err := s.paymentRepo.GetByOrderID(ctx, nil, orderID)
+		if err == nil {
+			for _, t := range txns {
+				if t.PtStatus == PaymentStatusPending && t.PtProvider == msg.Provider {
+					targetTxnUUID = t.PtUuid
+					break
+				}
 			}
+		}
+	}
+
+	// 3. Cập nhật bảng payment_transactions
+	if targetTxnUUID != uuid.Nil {
+		_, err = s.paymentRepo.UpdateStatusAtomically(ctx, nil, sqlc.UpdatePaymentStatusAtomicallyParams{
+			PtUuid:              targetTxnUUID,
+			NewStatus:           newPaymentStatus,
+			ProviderTxnID:       &msg.ProviderTxnID,
+			AllowedFromStatuses: []int32{PaymentStatusPending},
+		})
+		if err != nil {
+			logger.Log.Error().Err(err).Str("txn_uuid", targetTxnUUID.String()).Msg("Failed to update payment transaction status")
+		}
+	}
+
+	// 4. Cập nhật bảng orders sang Paid
+	if msg.Status == "success" && targetOrderUUID != uuid.Nil {
+		_, err = s.orderRepo.UpdateOrderPaymentStatus(ctx, sqlc.UpdateOrderPaymentStatusParams{
+			OrderUuid:           targetOrderUUID,
+			PaymentStatus:       OrderPaymentStatusPaid,
+			RefundedAmount:      utils.FloatToNumeric(0),
+			AllowedFromStatuses: []int32{OrderPaymentStatusUnpaid},
+		})
+		if err != nil {
+			logger.Log.Error().Err(err).Str("order_uuid", targetOrderUUID.String()).Msg("Failed to update order payment status to Paid")
+			return err
 		}
 	}
 
@@ -396,4 +427,47 @@ func (s *paymentService) ProcessWebhookMessage(headers amqp.Table, body []byte) 
 		Msg("Payment webhook processed successfully - Order is now Paid")
 
 	return nil
+}
+
+func (s *paymentService) GetPaymentHistory(ctx *gin.Context, orderUUID uuid.UUID) ([]v1dto.PaymentTransactionDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	userUuidStr, ok := ctx.Get("user_uuid")
+	if !ok || userUuidStr == "" {
+		return nil, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+
+	userUuid, err := uuid.Parse(userUuidStr.(string))
+	if err != nil {
+		return nil, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
+	}
+
+	user, err := s.userRepo.GetByUUID(reqCtx, userUuid)
+	if err != nil {
+		return nil, utils.NewError(utils.ErrCodeUnauthorized, "User not found")
+	}
+
+	order, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, utils.NewError(utils.ErrCodeNotFound, "Order not found")
+		}
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to get order", err)
+	}
+
+	if order.OrderUserID != user.UserID && user.UserLevel != RoleAdmin && user.UserLevel != RoleModerator {
+		return nil, utils.NewError(utils.ErrCodeForbidden, "You are not authorized to view payment history for this order")
+	}
+
+	paymentTxns, err := s.paymentRepo.GetByOrderID(reqCtx, nil, order.OrderID)
+	if err != nil {
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to get payment transactions", err)
+	}
+
+	var history []v1dto.PaymentTransactionDTO
+	for _, txn := range paymentTxns {
+		history = append(history, v1dto.MapToPaymentTransactionDTO(txn, order.OrderUuid))
+	}
+
+	return history, nil
 }

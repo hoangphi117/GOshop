@@ -130,6 +130,50 @@ func (q *Queries) GetPaymentByProviderTxnID(ctx context.Context, arg GetPaymentB
 	return i, err
 }
 
+const getPaymentTransactionsByOrderID = `-- name: GetPaymentTransactionsByOrderID :many
+SELECT pt_id, pt_uuid, pt_order_id, pt_idempotency_key, pt_provider, pt_provider_txn_id, pt_provider_url, pt_amount, pt_currency, pt_status, pt_refund_of, pt_refund_amount, pt_paid_at, pt_expired_at, pt_metadata, pt_created_at, pt_updated_at FROM payment_transactions
+WHERE pt_order_id = $1
+ORDER BY pt_created_at DESC
+`
+
+func (q *Queries) GetPaymentTransactionsByOrderID(ctx context.Context, ptOrderID int32) ([]PaymentTransaction, error) {
+	rows, err := q.db.Query(ctx, getPaymentTransactionsByOrderID, ptOrderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PaymentTransaction{}
+	for rows.Next() {
+		var i PaymentTransaction
+		if err := rows.Scan(
+			&i.PtID,
+			&i.PtUuid,
+			&i.PtOrderID,
+			&i.PtIdempotencyKey,
+			&i.PtProvider,
+			&i.PtProviderTxnID,
+			&i.PtProviderUrl,
+			&i.PtAmount,
+			&i.PtCurrency,
+			&i.PtStatus,
+			&i.PtRefundOf,
+			&i.PtRefundAmount,
+			&i.PtPaidAt,
+			&i.PtExpiredAt,
+			&i.PtMetadata,
+			&i.PtCreatedAt,
+			&i.PtUpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertWebhookEvent = `-- name: InsertWebhookEvent :one
 INSERT INTO webhook_events (we_provider, we_external_event_id, we_event_type, we_raw_body)
 VALUES ($1, $2, $3, $4)
