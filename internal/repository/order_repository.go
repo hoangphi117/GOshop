@@ -84,11 +84,16 @@ func (r *SqlOrderRepository) UpdateOrderShippingInfo(ctx context.Context, params
 	return order, nil
 }
 
-func (r *SqlOrderRepository) UpdateOrderPaymentStatus(ctx context.Context, params sqlc.UpdateOrderPaymentStatusParams) (sqlc.Order, error) {
-	order, err := r.db.UpdateOrderPaymentStatus(ctx, params)
+func (r *SqlOrderRepository) UpdateOrderPaymentStatus(ctx context.Context, tx pgx.Tx, params sqlc.UpdateOrderPaymentStatusParams) (sqlc.Order, error) {
+	q := r.db
+	if tx != nil {
+		q = sqlc.New(tx) // Run in transaction's context
+	}
+	order, err := q.UpdateOrderPaymentStatus(ctx, params)
 	if err != nil {
 		return sqlc.Order{}, err
 	}
+
 	return order, nil
 }
 

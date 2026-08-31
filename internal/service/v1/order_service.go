@@ -850,7 +850,7 @@ func (s *orderService) UpdateOrderPaymentStatus(ctx *gin.Context, orderUUID uuid
 		AllowedFromStatuses: allowedFromStatuses,
 	}
 
-	updatedOrder, err := s.orderRepo.UpdateOrderPaymentStatus(reqCtx, updateParams)
+	updatedOrder, err := s.orderRepo.UpdateOrderPaymentStatus(reqCtx, nil, updateParams)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeConflict, "Payment status has changed by another request, please refresh")

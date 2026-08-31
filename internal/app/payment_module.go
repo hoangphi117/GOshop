@@ -72,9 +72,11 @@ func NewPaymentModule(ctx *ModuleContext, cacheService cache.RedisCacheService, 
 	paymentHandler := v1handler.NewPaymentHandler(paymentService)
 	paymentRoutes := v1routes.NewPaymentRoutes(paymentHandler)
 	paymentWebhookRoutes := v1routes.NewPaymentWebhookRoutes(paymentHandler)
+	adminPaymentRoutes := v1routes.NewAdminPaymentRoutes(paymentHandler)
 
 	return &PaymentModule{
-		routes: []routes.Route{paymentRoutes, paymentWebhookRoutes},
+		routes:      []routes.Route{paymentRoutes, paymentWebhookRoutes},
+		adminRoutes: []routes.Route{adminPaymentRoutes},
 	}
 }
 

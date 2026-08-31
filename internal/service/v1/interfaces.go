@@ -85,4 +85,5 @@ type PaymentService interface {
 	HandleWebhook(ctx *gin.Context, provider string) error
 	ProcessWebhookMessage(headers amqp.Table, body []byte) error
 	GetPaymentHistory(ctx *gin.Context, orderUUID uuid.UUID) ([]v1dto.PaymentTransactionDTO, error)
+	ConfirmCODPayment(ctx *gin.Context, orderUUID uuid.UUID) error
 }

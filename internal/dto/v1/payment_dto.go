@@ -55,6 +55,10 @@ type GetTransactionHistoryByOrderUUID struct {
 	OrderUUID string `uri:"order_uuid" binding:"uuid"`
 }
 
+type ConfirmCODPaymentInput struct {
+	OrderUUID string `uri:"order_uuid" binding:"uuid"`
+}
+
 func MapToPaymentIntentDTO(pt sqlc.PaymentTransaction, orderUUID uuid.UUID) PaymentIntentDTO {
 	var paymentURL string
 	if pt.PtProviderUrl != nil {

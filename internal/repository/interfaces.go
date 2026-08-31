@@ -57,7 +57,7 @@ type OrderRepository interface {
 	UpdateStatus(ctx context.Context, params sqlc.UpdateOrderStatusParams) (sqlc.Order, error)
 	CancelOrder(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID) (sqlc.Order, error)
 	UpdateOrderShippingInfo(ctx context.Context, params sqlc.UpdateOrderShippingInfoParams) (sqlc.Order, error)
-	UpdateOrderPaymentStatus(ctx context.Context, params sqlc.UpdateOrderPaymentStatusParams) (sqlc.Order, error)
+	UpdateOrderPaymentStatus(ctx context.Context, tx pgx.Tx, params sqlc.UpdateOrderPaymentStatusParams) (sqlc.Order, error)
 	CountOrders(ctx context.Context, userID, status *int32, search string) (int64, error)
 	GetAll(ctx context.Context, userID, status *int32, search, orderBy, sort string, limit, offset int32) ([]sqlc.Order, error)
 }

@@ -23,6 +23,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -201,6 +202,17 @@ func (s *paymentService) CreatePaymentIntent(ctx *gin.Context, input v1dto.Creat
 
 	paymentTxn, err := s.paymentRepo.Create(reqCtx, nil, ptParams)
 	if err != nil {
+		// Kiểm tra nếu là lỗi trùng Idempotency Key
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			logger.Log.Warn().Str("key", idempotencyKey).Msg("Concurrent duplicate payment intent request detected, fetching existing transaction")
+
+			// Graceful Recovery: Lấy transaction vừa được tạo bởi request chạy trước
+			existingTxn, getErr := s.paymentRepo.GetByIdempotencyKey(reqCtx, nil, idempotencyKey)
+			if getErr == nil {
+				return v1dto.MapToPaymentIntentDTO(existingTxn, order.OrderUuid), nil
+			}
+		}
 		return v1dto.PaymentIntentDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to create payment transaction", err)
 	}
 
@@ -277,12 +289,31 @@ func (s *paymentService) HandleWebhook(ctx *gin.Context, providerName string) er
 	}
 
 	event, err := s.webhookRepo.InsertEvent(reqCtx, nil, eventParams)
-	if err != nil || event.WeID == 0 {
-		logger.Log.Info().
-			Str("module", "payment").
-			Str("action", "webhook_received").
+	if err != nil {
+		// Chỉ coi là duplicate khi DB trả về ErrNoRows (do ON CONFLICT DO NOTHING)
+		if errors.Is(err, pgx.ErrNoRows) {
+			logger.Log.Info().
+				Str("provider", providerName).
+				Str("event_id", result.EventID).
+				Msg("Duplicate webhook event received (ON CONFLICT), acknowledging gateway")
+			return nil // Báo 200 OK cho Gateway biết đã nhận rồi, đừng gửi nữa
+		}
+		// Nếu là lỗi DB thật (mất kết nối, timeout...) -> BẮT BUỘC trả lỗi để Handler trả 500
+		// Gateway nhận mã HTTP 500 sẽ tự động Retry lại sau 1p, 5p, 15p
+		logger.Log.Error().
+			Err(err).
+			Str("provider", providerName).
 			Str("event_id", result.EventID).
-			Msg("Duplicate webhook event received, skipping")
+			Msg("Database failure while inserting webhook event")
+		return utils.WrapError(utils.ErrCodeInternal, "failed to persist webhook event", err)
+	}
+
+	// Nếu không lỗi nhưng WeID == 0 (phòng trường hợp thư viện sqlc không trả ErrNoRows)
+	if event.WeID == 0 {
+		logger.Log.Info().
+			Str("provider", providerName).
+			Str("event_id", result.EventID).
+			Msg("Duplicate webhook event received (WeID=0), acknowledging gateway")
 		return nil
 	}
 
@@ -362,6 +393,20 @@ func (s *paymentService) ProcessWebhookMessage(headers amqp.Table, body []byte) 
 		return err // Trả lỗi để RabbitMQ retry
 	}
 
+	// KIỂM TRA IDEMPOTENCY / REDELIVERY: Nếu giao dịch đã ở trạng thái Paid từ trước, ACK ngay lập tức
+	if pt.PtStatus == PaymentStatusPaid {
+		logger.Log.Info().
+			Str("module", "payment").
+			Str("action", "webhook_idempotent_skip").
+			Str("pt_uuid", pt.PtUuid.String()).
+			Str("order_number", msg.OrderNumber).
+			Msg("Payment transaction is already Paid, acknowledging redelivered message as idempotent success")
+
+		_ = s.webhookRepo.MarkProcessed(ctx, tx, msg.WebhookEventID)
+		_ = tx.Commit(ctx)
+		return nil // rả về nil để RabbitMQ ACK message thành công, KHÔNG retry vào DLQ
+	}
+
 	// 3. CẬP NHẬT TRẠNG THÁI TRANSACTION VÀ GHI ĐÈ MÃ GIAO DỊCH NGÂN HÀNG THẬT
 	_, err = s.paymentRepo.UpdateStatusAtomically(ctx, tx, sqlc.UpdatePaymentStatusAtomicallyParams{
 		PtUuid:              pt.PtUuid,
@@ -381,7 +426,7 @@ func (s *paymentService) ProcessWebhookMessage(headers amqp.Table, body []byte) 
 
 		order, err := s.orderRepo.GetByOrderNumber(ctx, realOrderNumber)
 		if err == nil {
-			_, err = s.orderRepo.UpdateOrderPaymentStatus(ctx, sqlc.UpdateOrderPaymentStatusParams{
+			_, err = s.orderRepo.UpdateOrderPaymentStatus(ctx, tx, sqlc.UpdateOrderPaymentStatusParams{
 				OrderUuid:           order.OrderUuid,
 				PaymentStatus:       OrderPaymentStatusPaid,
 				RefundedAmount:      utils.FloatToNumeric(0),
@@ -395,13 +440,21 @@ func (s *paymentService) ProcessWebhookMessage(headers amqp.Table, body []byte) 
 	}
 
 	// 5. ĐÁNH DẤU WEBHOOK EVENT ĐÃ XỬ LÝ
-	_ = s.webhookRepo.MarkProcessed(ctx, tx, msg.WebhookEventID)
+	if err := s.webhookRepo.MarkProcessed(ctx, tx, msg.WebhookEventID); err != nil {
+		logger.Log.Error().
+			Err(err).
+			Int32("webhook_event_id", msg.WebhookEventID).
+			Msg("Failed to mark webhook event as processed")
+		return utils.WrapError(utils.ErrCodeInternal, "failed to mark webhook event as processed", err)
+	}
 
 	/* =================== COMMIT TRANSACTION =================== */
 	if err := tx.Commit(ctx); err != nil {
 		logger.Log.Error().Err(err).Msg("Failed to commit database transaction")
 		return err
 	}
+
+	_ = s.cache.Clear("orders:*")
 
 	logger.Log.Info().
 		Str("module", "payment").
@@ -455,4 +508,91 @@ func (s *paymentService) GetPaymentHistory(ctx *gin.Context, orderUUID uuid.UUID
 	}
 
 	return history, nil
+}
+
+func (s *paymentService) ConfirmCODPayment(ctx *gin.Context, orderUUID uuid.UUID) error {
+	reqCtx := ctx.Request.Context()
+	startTime := time.Now()
+
+	tx, err := db.DBPool.Begin(reqCtx)
+	if err != nil {
+		logger.Log.Error().Err(err).Msg("Failed to begin database transaction for COD confirmation")
+		return utils.WrapError(utils.ErrCodeInternal, "failed to begin database transaction", err)
+	}
+	defer tx.Rollback(reqCtx)
+
+	order, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
+	if err != nil {
+		_ = tx.Rollback(reqCtx)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return utils.NewError(utils.ErrCodeNotFound, "Order not found")
+		}
+		return utils.WrapError(utils.ErrCodeInternal, "failed to get order", err)
+	}
+
+	if order.OrderPaymentMethod != OrderPaymentMethodCOD {
+		_ = tx.Rollback(reqCtx)
+		return utils.NewError(utils.ErrCodeBadRequest, "Order is not a COD order")
+	}
+
+	if order.OrderPaymentStatus == OrderPaymentStatusPaid {
+		_ = tx.Rollback(reqCtx)
+		return utils.NewError(utils.ErrCodeBadRequest, "Order has already been confirmed as paid")
+	}
+
+	if order.OrderStatus == OrderStatusCancelled {
+		_ = tx.Rollback(reqCtx)
+		return utils.NewError(utils.ErrCodeBadRequest, "Order is cancelled, cannot confirm payment")
+	}
+
+	// Tạo record lưu vết trong payment_transactions
+	idempotencyKey := fmt.Sprintf("cod:%s", order.OrderNumber)
+	providerTxnID := fmt.Sprintf("COD_%s", order.OrderNumber)
+
+	ptParams := sqlc.CreatePaymentTransactionParams{
+		PtOrderID:        order.OrderID,
+		PtIdempotencyKey: idempotencyKey,
+		PtProvider:       "cod",
+		PtProviderTxnID:  &providerTxnID,
+		PtAmount:         order.OrderTotalAmount,
+		PtCurrency:       "VND",
+		PtStatus:         PaymentStatusPaid,
+	}
+
+	paymentTxn, err := s.paymentRepo.Create(reqCtx, tx, ptParams)
+	if err != nil {
+		logger.Log.Error().Err(err).Str("order_number", order.OrderNumber).Msg("Failed to create COD payment transaction")
+		return utils.WrapError(utils.ErrCodeInternal, "failed to create payment transaction", err)
+	}
+
+	_, err = s.orderRepo.UpdateOrderPaymentStatus(reqCtx, tx, sqlc.UpdateOrderPaymentStatusParams{
+		OrderUuid:           order.OrderUuid,
+		PaymentStatus:       OrderPaymentStatusPaid,
+		RefundedAmount:      utils.FloatToNumeric(0),
+		AllowedFromStatuses: []int32{OrderPaymentStatusUnpaid},
+	})
+
+	if err != nil {
+		logger.Log.Error().Err(err).Str("order_number", order.OrderNumber).Msg("Failed to update order payment status for COD confirmation")
+		return utils.WrapError(utils.ErrCodeInternal, "failed to update order payment status", err)
+	}
+
+	if err := tx.Commit(reqCtx); err != nil {
+		logger.Log.Error().Err(err).Msg("Failed to commit database transaction for COD confirmation")
+		return utils.WrapError(utils.ErrCodeInternal, "failed to commit database transaction", err)
+	}
+
+	_ = s.cache.Clear("orders:*")
+
+	logger.Log.Info().
+		Str("trace_id", logger.GetTraceId(reqCtx)).
+		Str("module", "payment").
+		Str("action", "confirm_cod").
+		Str("order_number", order.OrderNumber).
+		Str("order_uuid", order.OrderUuid.String()).
+		Str("payment_uuid", paymentTxn.PtUuid.String()).
+		Float64("amount", utils.NumericToFloat(order.OrderTotalAmount)).
+		Int64("duration_ms", time.Since(startTime).Milliseconds()).
+		Msg("COD payment confirmed successfully")
+	return nil
 }

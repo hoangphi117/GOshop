@@ -81,3 +81,24 @@ func (h *PaymentHandler) GetPaymentHistory(ctx *gin.Context) {
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Payment history retrieved successfully", paymentHistory)
 }
+
+func (h *PaymentHandler) ConfirmCODPayment(ctx *gin.Context) {
+	var params v1dto.ConfirmCODPaymentInput
+	if err := ctx.ShouldBindUri(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	orderUUID, err := uuid.Parse(params.OrderUUID)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	if err := h.paymentService.ConfirmCODPayment(ctx, orderUUID); err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "COD payment confirmed successfully", nil)
+}
