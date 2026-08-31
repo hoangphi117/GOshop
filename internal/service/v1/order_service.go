@@ -13,6 +13,7 @@ import (
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
+	"math/big"
 	"slices"
 	"sort"
 	"strings"
@@ -76,28 +77,33 @@ type preparedItem struct {
 	subtotal    float64
 }
 
-const charset = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+const base32Alphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
-func generateOrderNumber() string {
-	now := time.Now()
-	datePrefix := now.Format("060102")
+func GenerateOrderNumber(userID int32) string {
+	now := time.Now().UTC()
+	datePrefix := now.Format("060102") // 6 characters: YYMMDD
 
-	const randomLength = 6
-	randomSuffix := make([]byte, randomLength)
+	// 1. Add user fragment based on userID modulo 256 to ensure uniqueness per user
+	userFragment := fmt.Sprintf("%02X", uint32(userID%256))
 
-	randomBytes := make([]byte, randomLength)
+	// 2. Generate 6 random characters using a cryptographically secure method without modulo bias
+	const entropyLen = 6
+	randomSuffix := make([]byte, entropyLen)
+	alphabetLen := big.NewInt(int64(len(base32Alphabet)))
 
-	_, err := rand.Read(randomBytes)
-	if err != nil {
-		fallbackSuffix := fmt.Sprintf("%06d", now.Nanosecond()%1000000)
-		return fmt.Sprintf("%s-%s", datePrefix, fallbackSuffix)
+	for i := 0; i < entropyLen; i++ {
+		num, err := rand.Int(rand.Reader, alphabetLen)
+		if err != nil {
+			// Safe fallback: use time-based seed if crypto/rand fails
+			nano := now.UnixNano() + int64(i*1000)
+			randomSuffix[i] = base32Alphabet[nano%int64(len(base32Alphabet))]
+			continue
+		}
+		randomSuffix[i] = base32Alphabet[num.Int64()]
 	}
 
-	for i, b := range randomBytes {
-		randomSuffix[i] = charset[int(b)%len(charset)]
-	}
-
-	return fmt.Sprintf("%s-%s", datePrefix, string(randomSuffix))
+	// Format: YYMMDD-UF-RANDOM (Ex: 260831-3F-9K2M4P) -> 16 chars
+	return fmt.Sprintf("%s-%s-%s", datePrefix, userFragment, string(randomSuffix))
 }
 
 func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInput) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
@@ -270,7 +276,7 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 
 	finalTotalAmount := utils.RoundFloat(subtotalAmount-discountAmount, 2)
 
-	orderNumber := generateOrderNumber()
+	orderNumber := GenerateOrderNumber(user.UserID)
 
 	createOrderParams := sqlc.CreateOrderParams{
 		OrderNumber:          orderNumber,

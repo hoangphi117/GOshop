@@ -41,6 +41,14 @@ func (r *SqlOrderRepository) GetByUUID(ctx context.Context, uuid uuid.UUID) (sql
 	return order, nil
 }
 
+func (r *SqlOrderRepository) GetByOrderNumber(ctx context.Context, orderNumber string) (sqlc.GetOrderByOrderNumberRow, error) {
+	order, err := r.db.GetOrderByOrderNumber(ctx, orderNumber)
+	if err != nil {
+		return sqlc.GetOrderByOrderNumberRow{}, err
+	}
+	return order, nil
+}
+
 func (r *SqlOrderRepository) GetLastOrderNumber(ctx context.Context, orderNumber string) (string, error) {
 	lastOrderNumber, err := r.db.GetLatestOrderNumber(ctx, orderNumber)
 	if err != nil {

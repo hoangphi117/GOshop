@@ -22,6 +22,12 @@ WHERE order_number LIKE $1
 ORDER BY order_id DESC
 LIMIT 1;
 
+-- name: GetOrderByOrderNumber :one
+SELECT o.*, u.user_uuid, u.user_fullname
+FROM orders o
+JOIN users u ON u.user_id = o.order_user_id
+WHERE o.order_number = $1;
+
 -- name: UpdateOrderStatus :one
 UPDATE orders
 SET order_status = sqlc.arg(order_status)

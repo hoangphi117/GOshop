@@ -40,6 +40,7 @@ type PaymentTransactionDTO struct {
 
 type PaymentWebhookMessage struct {
 	WebhookEventID int32             `json:"webhook_event_id"`
+	OrderUUID      string            `json:"order_uuid"`
 	Provider       string            `json:"provider"`
 	EventType      string            `json:"event_type"`
 	ProviderTxnID  string            `json:"provider_txn_id"`

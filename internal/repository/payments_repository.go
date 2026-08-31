@@ -32,3 +32,14 @@ func (r *SqlPaymentRepository) Create(ctx context.Context, tx pgx.Tx, input sqlc
 func (r *SqlPaymentRepository) GetByIdempotencyKey(ctx context.Context, tx pgx.Tx, idempotencyKey string) (sqlc.PaymentTransaction, error) {
 	return r.getQuerier(tx).GetPaymentByIdempotencyKey(ctx, idempotencyKey)
 }
+
+func (r *SqlPaymentRepository) GetByProviderTxnID(ctx context.Context, tx pgx.Tx, provider, providerTxnID string) (sqlc.PaymentTransaction, error) {
+	return r.getQuerier(tx).GetPaymentByProviderTxnID(ctx, sqlc.GetPaymentByProviderTxnIDParams{
+		PtProvider:      provider,
+		PtProviderTxnID: &providerTxnID,
+	})
+}
+
+func (r *SqlPaymentRepository) UpdateStatusAtomically(ctx context.Context, tx pgx.Tx, params sqlc.UpdatePaymentStatusAtomicallyParams) (sqlc.PaymentTransaction, error) {
+	return r.getQuerier(tx).UpdatePaymentStatusAtomically(ctx, params)
+}

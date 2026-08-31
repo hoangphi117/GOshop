@@ -19,6 +19,7 @@ func NewPaymentWebhookRoutes(handler *v1handler.PaymentHandler) *PaymentWebhookR
 func (r *PaymentWebhookRoutes) Register(rg *gin.RouterGroup) {
 	webhooks := rg.Group("/webhooks/payment")
 	{
-		_ = webhooks
+		webhooks.POST("/:provider", r.handler.HandleWebhook)
+		webhooks.GET("/:provider", r.handler.HandleWebhook) // VNPay IPN
 	}
 }

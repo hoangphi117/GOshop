@@ -1,8 +1,15 @@
 package v1service
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/repository"
@@ -11,12 +18,11 @@ import (
 	"goshop/pkg/logger"
 	"goshop/pkg/payment"
 	"goshop/pkg/rabbitmq"
-	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 const (
@@ -62,8 +68,9 @@ func NewPaymentService(
 		webhookBaseURL: webhookBaseURL,
 	}
 }
-func (s *paymentService) CreatePaymentIntent(ctx *gin.Context, input v1dto.CreatePaymentIntentInput) (v1dto.PaymentIntentDTO, error) {
 
+// 1. TẠO PAYMENT INTENT
+func (s *paymentService) CreatePaymentIntent(ctx *gin.Context, input v1dto.CreatePaymentIntentInput) (v1dto.PaymentIntentDTO, error) {
 	reqCtx := ctx.Request.Context()
 	startTime := time.Now()
 
@@ -90,12 +97,10 @@ func (s *paymentService) CreatePaymentIntent(ctx *gin.Context, input v1dto.Creat
 		return v1dto.PaymentIntentDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to get order", err)
 	}
 
-	// Check if the order belongs to the authenticated user
 	if order.OrderUserID != user.UserID {
 		return v1dto.PaymentIntentDTO{}, utils.NewError(utils.ErrCodeForbidden, "You are not authorized to pay for this order")
 	}
 
-	// Check order status
 	if order.OrderPaymentStatus == OrderPaymentStatusPaid {
 		return v1dto.PaymentIntentDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Order has already been paid")
 	}
@@ -113,15 +118,13 @@ func (s *paymentService) CreatePaymentIntent(ctx *gin.Context, input v1dto.Creat
 		return v1dto.PaymentIntentDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Order amount is 0, online payment is not required")
 	}
 
-	// IDEMPOTENCY LAYER 1 (Prevent double-charge when FE retries)
+	// Idempotency check via Redis and DB
 	idempotencyKey := strings.TrimSpace(ctx.GetHeader("X-Idempotency-Key"))
 	if idempotencyKey == "" {
 		return v1dto.PaymentIntentDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Missing X-Idempotency-Key header")
 	}
 
 	redisKey := fmt.Sprintf("idem:payment:%s", idempotencyKey)
-
-	// Fast-path: Check redis cache
 	var cachedDTO v1dto.PaymentIntentDTO
 	if err := s.cache.Get(redisKey, &cachedDTO); err == nil {
 		if cachedDTO.OrderUUID != order.OrderUuid.String() {
@@ -130,7 +133,6 @@ func (s *paymentService) CreatePaymentIntent(ctx *gin.Context, input v1dto.Creat
 		return cachedDTO, nil
 	}
 
-	// Slow-path: Check DB. tx = nil because this is a independent query
 	existingTxn, err := s.paymentRepo.GetByIdempotencyKey(reqCtx, nil, idempotencyKey)
 	if err == nil {
 		if existingTxn.PtOrderID != order.OrderID {
@@ -138,20 +140,25 @@ func (s *paymentService) CreatePaymentIntent(ctx *gin.Context, input v1dto.Creat
 		}
 		dto := v1dto.MapToPaymentIntentDTO(existingTxn, order.OrderUuid)
 		_ = s.cache.Set(redisKey, dto, 24*time.Hour)
-
 		return dto, nil
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return v1dto.PaymentIntentDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to check idempotency key", err)
 	}
 
-	// Get Provider and create payment url
 	providerName := strings.ToLower(strings.TrimSpace(input.Provider))
 	provider, exists := s.providers[providerName]
 	if !exists {
 		return v1dto.PaymentIntentDTO{}, utils.NewError(utils.ErrCodeBadRequest, fmt.Sprintf("Unsupported payment provider: %s", providerName))
 	}
 
+	// Ghép OrderNumber (16 ký tự) + Timestamp để tạo TxnRef duy nhất
 	txnRef := fmt.Sprintf("%s_%d", order.OrderNumber, time.Now().Unix())
+
+	webhookBase := strings.TrimRight(s.webhookBaseURL, "/")
+	if !strings.Contains(webhookBase, "/api/v1/webhooks/payment") {
+		webhookBase = fmt.Sprintf("%s/api/v1/webhooks/payment", webhookBase)
+	}
+	webhookURL := fmt.Sprintf("%s/%s", webhookBase, providerName)
 
 	paymentReq := payment.CreatePaymentRequest{
 		OrderNumber: txnRef,
@@ -159,11 +166,10 @@ func (s *paymentService) CreatePaymentIntent(ctx *gin.Context, input v1dto.Creat
 		Currency:    "VND",
 		Description: fmt.Sprintf("Payment for order %s", order.OrderNumber),
 		ReturnURL:   s.returnURL,
-		WebhookURL:  fmt.Sprintf("%s/%s", s.webhookBaseURL, providerName),
+		WebhookURL:  webhookURL,
 		ClientIP:    ctx.ClientIP(),
 	}
 	providerResp, err := provider.CreatePaymentURL(reqCtx, paymentReq)
-
 	if err != nil {
 		logger.Log.Error().
 			Err(err).
@@ -176,12 +182,10 @@ func (s *paymentService) CreatePaymentIntent(ctx *gin.Context, input v1dto.Creat
 		return v1dto.PaymentIntentDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to generate payment URL from provider", err)
 	}
 
-	// Write new PaymentTransaction to DB
 	var providerTxnID *string
 	if providerResp.ProviderTxnID != "" {
 		providerTxnID = &providerResp.ProviderTxnID
 	}
-
 	var providerURL *string
 	if providerResp.PaymentURL != "" {
 		providerURL = &providerResp.PaymentURL
@@ -204,14 +208,13 @@ func (s *paymentService) CreatePaymentIntent(ctx *gin.Context, input v1dto.Creat
 	}
 
 	responseDTO := v1dto.MapToPaymentIntentDTO(paymentTxn, order.OrderUuid)
-
-	// Save to redis cache for future idempotent requests
 	_ = s.cache.Set(redisKey, responseDTO, 24*time.Hour)
 
 	logger.Log.Info().
 		Str("trace_id", logger.GetTraceId(reqCtx)).
 		Str("module", "payment").
 		Str("action", "create_intent").
+		Str("order_number", order.OrderNumber).
 		Str("order_uuid", order.OrderUuid.String()).
 		Str("payment_uuid", paymentTxn.PtUuid.String()).
 		Str("provider", providerName).
@@ -221,4 +224,176 @@ func (s *paymentService) CreatePaymentIntent(ctx *gin.Context, input v1dto.Creat
 		Msg("Payment intent created successfully")
 
 	return responseDTO, nil
+}
+
+// 2. NHẬN WEBHOOK TỪ CỔNG (VERIFY + DEDUP + PUSH RABBITMQ)
+func (s *paymentService) HandleWebhook(ctx *gin.Context, providerName string) error {
+	reqCtx := ctx.Request.Context()
+	startTime := time.Now()
+
+	providerName = strings.ToLower(strings.TrimSpace(providerName))
+	provider, exists := s.providers[providerName]
+	if !exists {
+		return utils.NewError(utils.ErrCodeBadRequest, fmt.Sprintf("Unsupported payment provider: %s", providerName))
+	}
+
+	var rawPayload []byte
+	var err error
+	if ctx.Request.Method == http.MethodGet {
+		rawPayload = []byte(ctx.Request.URL.RawQuery)
+	} else {
+		rawPayload, err = io.ReadAll(ctx.Request.Body)
+		if err != nil {
+			return utils.NewError(utils.ErrCodeBadRequest, "Failed to read request body")
+		}
+	}
+
+	headers := make(map[string]string)
+	for k, v := range ctx.Request.Header {
+		if len(v) > 0 {
+			headers[k] = v[0]
+		}
+	}
+
+	// Verify HMAC signature
+	if err := provider.VerifyWebhook(rawPayload, headers); err != nil {
+		logger.Log.Warn().
+			Err(err).
+			Str("module", "payment").
+			Str("action", "webhook_received").
+			Str("provider", providerName).
+			Msg("Invalid webhook signature")
+		return utils.NewError(utils.ErrCodeUnauthorized, "Invalid webhook signature")
+	}
+
+	result, err := provider.ParseWebhookPayload(rawPayload)
+	if err != nil {
+		return utils.WrapError(utils.ErrCodeBadRequest, "Failed to parse webhook payload", err)
+	}
+
+	// Dedup qua bảng webhook_events
+	eventParams := sqlc.InsertWebhookEventParams{
+		WeProvider:        providerName,
+		WeExternalEventID: result.EventID,
+		WeEventType:       result.EventType,
+		WeRawBody:         string(rawPayload),
+	}
+
+	event, err := s.webhookRepo.InsertEvent(reqCtx, nil, eventParams)
+	if err != nil || event.WeID == 0 {
+		logger.Log.Info().
+			Str("module", "payment").
+			Str("action", "webhook_received").
+			Str("event_id", result.EventID).
+			Msg("Duplicate webhook event received, skipping")
+		return nil
+	}
+
+	// Tách lấy OrderNumber gốc (16 ký tự)
+	orderNumberParts := strings.Split(result.OrderNumber, "_")
+	realOrderNumber := orderNumberParts[0]
+
+	// Lấy order để lấy OrderUUID
+	var orderUUID string
+	order, err := s.orderRepo.GetByOrderNumber(reqCtx, realOrderNumber)
+	if err == nil {
+		orderUUID = order.OrderUuid.String()
+	}
+
+	msgPayload := v1dto.PaymentWebhookMessage{
+		WebhookEventID: event.WeID,
+		OrderUUID:      orderUUID,
+		OrderNumber:    realOrderNumber,
+		Provider:       providerName,
+		EventType:      result.EventType,
+		ProviderTxnID:  result.ProviderTxnID,
+		Amount:         result.Amount,
+		Status:         string(result.Status),
+		Metadata:       result.Metadata,
+	}
+
+	if err := s.rabbitmq.Publish(reqCtx, "payment.webhook", msgPayload); err != nil {
+		logger.Log.Error().Err(err).Msg("Failed to publish payment webhook to RabbitMQ")
+		return utils.WrapError(utils.ErrCodeInternal, "failed to enqueue webhook event", err)
+	}
+
+	logger.Log.Info().
+		Str("module", "payment").
+		Str("action", "webhook_received").
+		Str("provider", providerName).
+		Str("event_id", result.EventID).
+		Str("order_number", realOrderNumber).
+		Int64("duration_ms", time.Since(startTime).Milliseconds()).
+		Msg("Payment webhook accepted and enqueued")
+
+	return nil
+}
+
+// 3. CONSUMER XỬ LÝ MESSAGE CẬP NHẬT TRẠNG THÁI TRONG DB
+func (s *paymentService) ProcessWebhookMessage(headers amqp.Table, body []byte) error {
+	ctx := context.Background()
+	startTime := time.Now()
+
+	var msg v1dto.PaymentWebhookMessage
+	if err := json.Unmarshal(body, &msg); err != nil {
+		logger.Log.Error().Err(err).Msg("Failed to unmarshal payment webhook message")
+		return err
+	}
+
+	var newPaymentStatus int32 = PaymentStatusFailed
+	if msg.Status == "success" {
+		newPaymentStatus = PaymentStatusPaid
+	}
+
+	// 1. Cập nhật bảng payment_transactions
+	pt, err := s.paymentRepo.GetByProviderTxnID(ctx, nil, msg.Provider, msg.ProviderTxnID)
+	if err == nil && pt.PtID != 0 {
+		_, _ = s.paymentRepo.UpdateStatusAtomically(ctx, nil, sqlc.UpdatePaymentStatusAtomicallyParams{
+			PtUuid:              pt.PtUuid,
+			NewStatus:           newPaymentStatus,
+			ProviderTxnID:      &msg.ProviderTxnID,
+			AllowedFromStatuses: []int32{PaymentStatusPending},
+		})
+	}
+
+	// 2. Cập nhật bảng orders sang Paid
+	if msg.Status == "success" {
+		var targetUUID uuid.UUID
+		if msg.OrderUUID != "" {
+			targetUUID, _ = uuid.Parse(msg.OrderUUID)
+		}
+
+		if targetUUID == uuid.Nil && msg.OrderNumber != "" {
+			order, err := s.orderRepo.GetByOrderNumber(ctx, msg.OrderNumber)
+			if err == nil {
+				targetUUID = order.OrderUuid
+			}
+		}
+
+		if targetUUID != uuid.Nil {
+			_, err = s.orderRepo.UpdateOrderPaymentStatus(ctx, sqlc.UpdateOrderPaymentStatusParams{
+				OrderUuid:           targetUUID,
+				PaymentStatus:       OrderPaymentStatusPaid,
+				RefundedAmount:      utils.FloatToNumeric(0),
+				AllowedFromStatuses: []int32{OrderPaymentStatusUnpaid},
+			})
+			if err != nil {
+				logger.Log.Error().Err(err).Str("order_number", msg.OrderNumber).Msg("Failed to update order payment status to Paid")
+				return err
+			}
+		}
+	}
+
+	// 3. Đánh dấu webhook event đã xử lý
+	_ = s.webhookRepo.MarkProcessed(ctx, nil, msg.WebhookEventID)
+
+	logger.Log.Info().
+		Str("module", "payment").
+		Str("action", "webhook_processed").
+		Str("order_number", msg.OrderNumber).
+		Str("status", msg.Status).
+		Int64("duration_ms", time.Since(startTime).Milliseconds()).
+		Msg("Payment webhook processed successfully - Order is now Paid")
+
+	return nil
 }

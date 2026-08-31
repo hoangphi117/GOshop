@@ -8,6 +8,7 @@ package sqlc
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -94,6 +95,41 @@ func (q *Queries) GetPaymentByIdempotencyKey(ctx context.Context, ptIdempotencyK
 	return i, err
 }
 
+const getPaymentByProviderTxnID = `-- name: GetPaymentByProviderTxnID :one
+SELECT pt_id, pt_uuid, pt_order_id, pt_idempotency_key, pt_provider, pt_provider_txn_id, pt_provider_url, pt_amount, pt_currency, pt_status, pt_refund_of, pt_refund_amount, pt_paid_at, pt_expired_at, pt_metadata, pt_created_at, pt_updated_at FROM payment_transactions
+WHERE pt_provider = $1 AND pt_provider_txn_id = $2
+`
+
+type GetPaymentByProviderTxnIDParams struct {
+	PtProvider      string  `json:"pt_provider"`
+	PtProviderTxnID *string `json:"pt_provider_txn_id"`
+}
+
+func (q *Queries) GetPaymentByProviderTxnID(ctx context.Context, arg GetPaymentByProviderTxnIDParams) (PaymentTransaction, error) {
+	row := q.db.QueryRow(ctx, getPaymentByProviderTxnID, arg.PtProvider, arg.PtProviderTxnID)
+	var i PaymentTransaction
+	err := row.Scan(
+		&i.PtID,
+		&i.PtUuid,
+		&i.PtOrderID,
+		&i.PtIdempotencyKey,
+		&i.PtProvider,
+		&i.PtProviderTxnID,
+		&i.PtProviderUrl,
+		&i.PtAmount,
+		&i.PtCurrency,
+		&i.PtStatus,
+		&i.PtRefundOf,
+		&i.PtRefundAmount,
+		&i.PtPaidAt,
+		&i.PtExpiredAt,
+		&i.PtMetadata,
+		&i.PtCreatedAt,
+		&i.PtUpdatedAt,
+	)
+	return i, err
+}
+
 const insertWebhookEvent = `-- name: InsertWebhookEvent :one
 INSERT INTO webhook_events (we_provider, we_external_event_id, we_event_type, we_raw_body)
 VALUES ($1, $2, $3, $4)
@@ -135,4 +171,56 @@ UPDATE webhook_events SET we_processed = TRUE WHERE we_id = $1
 func (q *Queries) MarkWebhookEventProcessed(ctx context.Context, weID int32) error {
 	_, err := q.db.Exec(ctx, markWebhookEventProcessed, weID)
 	return err
+}
+
+const updatePaymentStatusAtomically = `-- name: UpdatePaymentStatusAtomically :one
+UPDATE payment_transactions
+SET
+    pt_status          = $1,
+    pt_provider_txn_id = COALESCE($2, pt_provider_txn_id),
+    pt_paid_at         = CASE WHEN $1::int = 2 THEN now() ELSE pt_paid_at END,
+    pt_expired_at      = CASE WHEN $1::int = 4 THEN now() ELSE pt_expired_at END,
+    pt_metadata        = COALESCE($3::jsonb, pt_metadata)
+WHERE pt_uuid = $4
+  AND pt_status = ANY($5::int[])
+RETURNING pt_id, pt_uuid, pt_order_id, pt_idempotency_key, pt_provider, pt_provider_txn_id, pt_provider_url, pt_amount, pt_currency, pt_status, pt_refund_of, pt_refund_amount, pt_paid_at, pt_expired_at, pt_metadata, pt_created_at, pt_updated_at
+`
+
+type UpdatePaymentStatusAtomicallyParams struct {
+	NewStatus           int32     `json:"new_status"`
+	ProviderTxnID       *string   `json:"provider_txn_id"`
+	Metadata            []byte    `json:"metadata"`
+	PtUuid              uuid.UUID `json:"pt_uuid"`
+	AllowedFromStatuses []int32   `json:"allowed_from_statuses"`
+}
+
+func (q *Queries) UpdatePaymentStatusAtomically(ctx context.Context, arg UpdatePaymentStatusAtomicallyParams) (PaymentTransaction, error) {
+	row := q.db.QueryRow(ctx, updatePaymentStatusAtomically,
+		arg.NewStatus,
+		arg.ProviderTxnID,
+		arg.Metadata,
+		arg.PtUuid,
+		arg.AllowedFromStatuses,
+	)
+	var i PaymentTransaction
+	err := row.Scan(
+		&i.PtID,
+		&i.PtUuid,
+		&i.PtOrderID,
+		&i.PtIdempotencyKey,
+		&i.PtProvider,
+		&i.PtProviderTxnID,
+		&i.PtProviderUrl,
+		&i.PtAmount,
+		&i.PtCurrency,
+		&i.PtStatus,
+		&i.PtRefundOf,
+		&i.PtRefundAmount,
+		&i.PtPaidAt,
+		&i.PtExpiredAt,
+		&i.PtMetadata,
+		&i.PtCreatedAt,
+		&i.PtUpdatedAt,
+	)
+	return i, err
 }

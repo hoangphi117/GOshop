@@ -6,6 +6,7 @@ import (
 	"goshop/internal/utils"
 	"goshop/internal/validation"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -34,4 +35,26 @@ func (h *PaymentHandler) CreatePaymentIntent(ctx *gin.Context) {
 	}
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Payment intent created successfully", result)
+}
+
+func (h *PaymentHandler) HandleWebhook(ctx *gin.Context) {
+	provider := ctx.Param("provider")
+
+	if err := h.paymentService.HandleWebhook(ctx, provider); err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	if strings.ToLower(provider) == "vnpay" {
+		ctx.JSON(http.StatusOK, gin.H{
+			"RspCode": "00",
+			"Message": "Confirm Success",
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"resultCode": 0,
+		"message":    "Success",
+	})
 }

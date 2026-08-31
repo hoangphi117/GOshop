@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	v1handler "goshop/internal/handler/v1"
 	"goshop/internal/repository"
 	"goshop/internal/routes"
@@ -8,6 +9,7 @@ import (
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
+	"goshop/pkg/logger"
 	"goshop/pkg/mail"
 	"goshop/pkg/payment"
 	"goshop/pkg/rabbitmq"
@@ -59,6 +61,13 @@ func NewPaymentModule(ctx *ModuleContext, cacheService cache.RedisCacheService, 
 		paymentRepo, orderRepo, userRepo, webhookRepo,
 		providers, cacheService, rabbitmqService, returnURL, webhookBaseURL,
 	)
+
+	go func() {
+		err := rabbitmqService.Consume(context.Background(), "payment.webhook", paymentService.ProcessWebhookMessage)
+		if err != nil {
+			logger.Log.Error().Err(err).Msg("Failed to start RabbitMQ consumer for payment.webhook")
+		}
+	}()
 
 	paymentHandler := v1handler.NewPaymentHandler(paymentService)
 	paymentRoutes := v1routes.NewPaymentRoutes(paymentHandler)

@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type UserService interface {
@@ -81,4 +82,6 @@ type CouponService interface {
 
 type PaymentService interface {
 	CreatePaymentIntent(ctx *gin.Context, input v1dto.CreatePaymentIntentInput) (v1dto.PaymentIntentDTO, error)
+	HandleWebhook(ctx *gin.Context, provider string) error
+	ProcessWebhookMessage(headers amqp.Table, body []byte) error
 }
