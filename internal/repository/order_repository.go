@@ -120,7 +120,27 @@ func (r *SqlOrderRepository) GetAll(
 	limit, offset int32,
 ) ([]sqlc.Order, error) {
 	query := `
-		SELECT o.*
+		SELECT 
+			o.order_id,
+			o.order_uuid,
+			o.order_number,
+			o.order_user_id,
+			o.order_shipping_name,
+			o.order_shipping_phone,
+			o.order_shipping_address,
+			o.order_total_amount,
+			o.order_refunded_amount,
+			o.order_payment_method,
+			o.order_payment_status,
+			o.order_note,
+			o.order_status,
+			o.order_cancelled_at,
+			o.order_created_at,
+			o.order_updated_at,
+			o.order_coupon_id,
+			o.order_coupon_code,
+			o.order_subtotal_amount,
+			o.order_discount_amount
 		FROM orders o
 		WHERE 1=1
 	`
@@ -192,6 +212,10 @@ func (r *SqlOrderRepository) GetAll(
 			&o.OrderCancelledAt,
 			&o.OrderCreatedAt,
 			&o.OrderUpdatedAt,
+			&o.OrderCouponID,
+			&o.OrderCouponCode,
+			&o.OrderSubtotalAmount,
+			&o.OrderDiscountAmount,
 		); err != nil {
 			return nil, err
 		}
