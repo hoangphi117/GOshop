@@ -41,6 +41,18 @@ func (r *SqlOrderRepository) GetByUUID(ctx context.Context, uuid uuid.UUID) (sql
 	return order, nil
 }
 
+func (r *SqlOrderRepository) GetByUUIDForUpdate(ctx context.Context, tx pgx.Tx, uuid uuid.UUID) (sqlc.Order, error) {
+	q := r.db
+	if tx != nil {
+		q = sqlc.New(tx)
+	}
+	order, err := q.GetOrderByUUIDForUpdate(ctx, uuid)
+	if err != nil {
+		return sqlc.Order{}, err
+	}
+	return order, nil
+}
+
 func (r *SqlOrderRepository) GetByOrderNumber(ctx context.Context, orderNumber string) (sqlc.GetOrderByOrderNumberRow, error) {
 	order, err := r.db.GetOrderByOrderNumber(ctx, orderNumber)
 	if err != nil {

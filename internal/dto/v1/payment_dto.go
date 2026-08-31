@@ -59,6 +59,12 @@ type ConfirmCODPaymentInput struct {
 	OrderUUID string `uri:"order_uuid" binding:"uuid"`
 }
 
+type RefundPaymentInput struct {
+	OrderUUID string  `json:"order_uuid" binding:"required,uuid"`
+	Amount    float64 `json:"amount" binding:"required,gt=0"`
+	Reason    string  `json:"reason" binding:"required,max=500"`
+}
+
 func MapToPaymentIntentDTO(pt sqlc.PaymentTransaction, orderUUID uuid.UUID) PaymentIntentDTO {
 	var paymentURL string
 	if pt.PtProviderUrl != nil {

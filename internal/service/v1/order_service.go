@@ -35,7 +35,7 @@ const (
 	OrderPaymentStatusUnpaid            int32 = 1
 	OrderPaymentStatusPaid              int32 = 2
 	OrderPaymentStatusPartiallyRefunded int32 = 3
-	OrderPaymentStatusRefunded          int32 = 4
+	OrderPaymentStatusFullyRefunded     int32 = 4
 	OrderPaymentMethodCOD               int32 = 1
 
 	RoleAdmin     int32 = 1
@@ -809,7 +809,7 @@ func (s *orderService) UpdateOrderPaymentStatus(ctx *gin.Context, orderUUID uuid
 		}
 		allowedFromStatuses = []int32{OrderPaymentStatusUnpaid}
 
-	case OrderPaymentStatusPartiallyRefunded, OrderPaymentStatusRefunded:
+	case OrderPaymentStatusPartiallyRefunded, OrderPaymentStatusFullyRefunded:
 		if existingOrder.OrderPaymentStatus != OrderPaymentStatusPaid && existingOrder.OrderPaymentStatus != OrderPaymentStatusPartiallyRefunded {
 			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Only Paid or Partially Refunded orders can be refunded")
 		}
@@ -832,7 +832,7 @@ func (s *orderService) UpdateOrderPaymentStatus(ctx *gin.Context, orderUUID uuid
 		}
 
 		if newTotalRefunded >= totalAmount {
-			targetPaymentStatus = OrderPaymentStatusRefunded
+			targetPaymentStatus = OrderPaymentStatusFullyRefunded
 		} else {
 			targetPaymentStatus = OrderPaymentStatusPartiallyRefunded
 		}

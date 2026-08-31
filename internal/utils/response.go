@@ -30,6 +30,7 @@ const (
 	ErrCodeUnauthorized    ErrorCode = "UNAUTHORIZED"
 	ErrCodeTooManyRequests ErrorCode = "TOO_MANY_REQUESTS"
 	ErrCodeForbidden       ErrorCode = "FORBIDDEN"
+	ErrCodeBadGateway      ErrorCode = "BAD_GATEWAY"
 )
 
 func (ae *AppError) Error() string {
@@ -127,6 +128,8 @@ func httpStatusFromCode(code ErrorCode) int {
 		return http.StatusTooManyRequests
 	case ErrCodeForbidden:
 		return http.StatusForbidden
+	case ErrCodeBadGateway:
+		return http.StatusBadGateway
 	default:
 		return http.StatusInternalServerError
 	}

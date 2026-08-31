@@ -14,9 +14,14 @@ import (
 
 const createPaymentTransaction = `-- name: CreatePaymentTransaction :one
 INSERT INTO payment_transactions (
-    pt_order_id, pt_idempotency_key, pt_provider,
-    pt_provider_txn_id, pt_provider_url,
-    pt_amount, pt_currency, pt_status
+    pt_order_id, 
+    pt_idempotency_key, 
+    pt_provider,
+    pt_provider_txn_id, 
+    pt_provider_url,
+    pt_amount, 
+    pt_currency, 
+    pt_status
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING pt_id, pt_uuid, pt_order_id, pt_idempotency_key, pt_provider, pt_provider_txn_id, pt_provider_url, pt_amount, pt_currency, pt_status, pt_refund_of, pt_refund_amount, pt_paid_at, pt_expired_at, pt_metadata, pt_created_at, pt_updated_at
 `
@@ -42,6 +47,80 @@ func (q *Queries) CreatePaymentTransaction(ctx context.Context, arg CreatePaymen
 		arg.PtAmount,
 		arg.PtCurrency,
 		arg.PtStatus,
+	)
+	var i PaymentTransaction
+	err := row.Scan(
+		&i.PtID,
+		&i.PtUuid,
+		&i.PtOrderID,
+		&i.PtIdempotencyKey,
+		&i.PtProvider,
+		&i.PtProviderTxnID,
+		&i.PtProviderUrl,
+		&i.PtAmount,
+		&i.PtCurrency,
+		&i.PtStatus,
+		&i.PtRefundOf,
+		&i.PtRefundAmount,
+		&i.PtPaidAt,
+		&i.PtExpiredAt,
+		&i.PtMetadata,
+		&i.PtCreatedAt,
+		&i.PtUpdatedAt,
+	)
+	return i, err
+}
+
+const createRefundTransaction = `-- name: CreateRefundTransaction :one
+INSERT INTO payment_transactions (
+    pt_order_id, 
+    pt_idempotency_key, 
+    pt_provider,
+    pt_provider_txn_id, 
+    pt_amount, 
+    pt_currency, 
+    pt_status,
+    pt_refund_of, 
+    pt_refund_amount,
+    pt_paid_at
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8,
+    $9,
+    now()
+)
+RETURNING pt_id, pt_uuid, pt_order_id, pt_idempotency_key, pt_provider, pt_provider_txn_id, pt_provider_url, pt_amount, pt_currency, pt_status, pt_refund_of, pt_refund_amount, pt_paid_at, pt_expired_at, pt_metadata, pt_created_at, pt_updated_at
+`
+
+type CreateRefundTransactionParams struct {
+	OrderID        int32          `json:"order_id"`
+	IdempotencyKey string         `json:"idempotency_key"`
+	Provider       string         `json:"provider"`
+	ProviderTxnID  *string        `json:"provider_txn_id"`
+	Amount         pgtype.Numeric `json:"amount"`
+	Currency       string         `json:"currency"`
+	Status         int32          `json:"status"`
+	RefundOf       *int32         `json:"refund_of"`
+	RefundAmount   pgtype.Numeric `json:"refund_amount"`
+}
+
+func (q *Queries) CreateRefundTransaction(ctx context.Context, arg CreateRefundTransactionParams) (PaymentTransaction, error) {
+	row := q.db.QueryRow(ctx, createRefundTransaction,
+		arg.OrderID,
+		arg.IdempotencyKey,
+		arg.Provider,
+		arg.ProviderTxnID,
+		arg.Amount,
+		arg.Currency,
+		arg.Status,
+		arg.RefundOf,
+		arg.RefundAmount,
 	)
 	var i PaymentTransaction
 	err := row.Scan(

@@ -291,6 +291,40 @@ func (q *Queries) GetOrderByUUID(ctx context.Context, orderUuid uuid.UUID) (GetO
 	return i, err
 }
 
+const getOrderByUUIDForUpdate = `-- name: GetOrderByUUIDForUpdate :one
+SELECT order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at, order_coupon_id, order_coupon_code, order_subtotal_amount, order_discount_amount FROM orders
+WHERE order_uuid = $1
+FOR UPDATE
+`
+
+func (q *Queries) GetOrderByUUIDForUpdate(ctx context.Context, orderUuid uuid.UUID) (Order, error) {
+	row := q.db.QueryRow(ctx, getOrderByUUIDForUpdate, orderUuid)
+	var i Order
+	err := row.Scan(
+		&i.OrderID,
+		&i.OrderUuid,
+		&i.OrderNumber,
+		&i.OrderUserID,
+		&i.OrderShippingName,
+		&i.OrderShippingPhone,
+		&i.OrderShippingAddress,
+		&i.OrderTotalAmount,
+		&i.OrderRefundedAmount,
+		&i.OrderPaymentMethod,
+		&i.OrderPaymentStatus,
+		&i.OrderNote,
+		&i.OrderStatus,
+		&i.OrderCancelledAt,
+		&i.OrderCreatedAt,
+		&i.OrderUpdatedAt,
+		&i.OrderCouponID,
+		&i.OrderCouponCode,
+		&i.OrderSubtotalAmount,
+		&i.OrderDiscountAmount,
+	)
+	return i, err
+}
+
 const updateOrderPaymentStatus = `-- name: UpdateOrderPaymentStatus :one
 UPDATE orders
 SET

@@ -27,12 +27,12 @@ func NewPaymentModule(ctx *ModuleContext, cacheService cache.RedisCacheService, 
 	userRepo := repository.NewSqlUserRepository(ctx.DB)
 
 	paymentConfig := payment.PaymentConfig{
-		VNPay: payment.VNPayConfig{
-			TmnCode:    utils.GetEnv("VNPAY_TMN_CODE", ""),
-			HashSecret: utils.GetEnv("VNPAY_HASH_SECRET", ""),
-			BaseURL:    utils.GetEnv("VNPAY_BASE_URL", ""),
-			QueryURL:   utils.GetEnv("VNPAY_QUERY_URL", ""),
-		},
+		// VNPay: payment.VNPayConfig{
+		// 	TmnCode:    utils.GetEnv("VNPAY_TMN_CODE", ""),
+		// 	HashSecret: utils.GetEnv("VNPAY_HASH_SECRET", ""),
+		// 	BaseURL:    utils.GetEnv("VNPAY_BASE_URL", ""),
+		// 	QueryURL:   utils.GetEnv("VNPAY_QUERY_URL", ""),
+		// },
 		MoMo: payment.MoMoConfig{
 			PartnerCode: utils.GetEnv("MOMO_PARTNER_CODE", ""),
 			AccessKey:   utils.GetEnv("MOMO_ACCESS_KEY", ""),
@@ -43,11 +43,11 @@ func NewPaymentModule(ctx *ModuleContext, cacheService cache.RedisCacheService, 
 	}
 
 	providers := make(map[string]payment.PaymentProvider)
-	if vnpayFactory, err := payment.NewProviderFactory(payment.ProviderVNPay, paymentConfig); err == nil {
-		if p, err := vnpayFactory.CreateProvider(); err == nil {
-			providers["vnpay"] = p
-		}
-	}
+	// if vnpayFactory, err := payment.NewProviderFactory(payment.ProviderVNPay, paymentConfig); err == nil {
+	// 	if p, err := vnpayFactory.CreateProvider(); err == nil {
+	// 		providers["vnpay"] = p
+	// 	}
+	// }
 	if momoFactory, err := payment.NewProviderFactory(payment.ProviderMoMo, paymentConfig); err == nil {
 		if p, err := momoFactory.CreateProvider(); err == nil {
 			providers["momo"] = p

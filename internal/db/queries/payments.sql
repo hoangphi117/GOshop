@@ -1,8 +1,13 @@
 -- name: CreatePaymentTransaction :one
 INSERT INTO payment_transactions (
-    pt_order_id, pt_idempotency_key, pt_provider,
-    pt_provider_txn_id, pt_provider_url,
-    pt_amount, pt_currency, pt_status
+    pt_order_id, 
+    pt_idempotency_key, 
+    pt_provider,
+    pt_provider_txn_id, 
+    pt_provider_url,
+    pt_amount, 
+    pt_currency, 
+    pt_status
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING *;
 
@@ -38,3 +43,29 @@ RETURNING *;
 SELECT * FROM payment_transactions
 WHERE pt_order_id = $1
 ORDER BY pt_created_at DESC;
+
+-- name: CreateRefundTransaction :one
+INSERT INTO payment_transactions (
+    pt_order_id, 
+    pt_idempotency_key, 
+    pt_provider,
+    pt_provider_txn_id, 
+    pt_amount, 
+    pt_currency, 
+    pt_status,
+    pt_refund_of, 
+    pt_refund_amount,
+    pt_paid_at
+) VALUES (
+    sqlc.arg(order_id),
+    sqlc.arg(idempotency_key),
+    sqlc.arg(provider),
+    sqlc.arg(provider_txn_id),
+    sqlc.arg(amount),
+    sqlc.arg(currency),
+    sqlc.arg(status),
+    sqlc.arg(refund_of),
+    sqlc.arg(refund_amount),
+    now()
+)
+RETURNING *;

@@ -15,6 +15,11 @@ FROM orders o
 JOIN users u ON u.user_id = o.order_user_id
 WHERE o.order_uuid = $1;
 
+-- name: GetOrderByUUIDForUpdate :one
+SELECT * FROM orders
+WHERE order_uuid = $1
+FOR UPDATE;
+
 
 -- name: GetLatestOrderNumber :one
 SELECT order_number FROM orders

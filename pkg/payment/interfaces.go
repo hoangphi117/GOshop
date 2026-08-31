@@ -36,9 +36,27 @@ type WebhookResult struct {
 	Metadata      map[string]string
 }
 
+type RefundRequest struct {
+	OrderNumber     string
+	ProviderTxnID   string  // Mã giao dịch ngân hàng gốc từ gateway (ví dụ: "2345678901" MoMo hoặc "14567890" VNPay)
+	Amount          float64 // Số tiền yêu cầu hoàn (VND)
+	TotalAmount     float64 // Tổng tiền đơn hàng gốc
+	Reason          string
+	TransactionDate string
+	CreatedBy       string
+	ClientIP        string
+}
+type RefundResponse struct {
+	RefundTxnID string
+	Amount      float64
+	Status      TransactionStatus // "success" / "failed"
+	Message     string            // Thông báo từ Gateway
+}
+
 type PaymentProvider interface {
 	CreatePaymentURL(ctx context.Context, req CreatePaymentRequest) (CreatePaymentResponse, error)
 	VerifyWebhook(payload []byte, headers map[string]string) error
 	ParseWebhookPayload(payload []byte) (WebhookResult, error)
 	QueryTransactionStatus(ctx context.Context, providerTxnID string) (TransactionStatus, error)
+	Refund(ctx context.Context, req RefundRequest) (RefundResponse, error)
 }

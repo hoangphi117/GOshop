@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -47,6 +48,27 @@ type momoCreateResponse struct {
 	RequestID    string `json:"requestId"`
 	Amount       int64  `json:"amount"`
 	PayURL       string `json:"payUrl"`
+	ResultCode   int    `json:"resultCode"`
+	Message      string `json:"message"`
+	ResponseTime int64  `json:"responseTime"`
+}
+
+type momoRefundRequest struct {
+	PartnerCode string `json:"partnerCode"`
+	OrderID     string `json:"orderId"`   // Mã đơn hoàn (unique request: e.g. orderNumber-refund-timestamp)
+	RequestID   string `json:"requestId"` // Unique request id
+	Amount      int64  `json:"amount"`    // Số tiền hoàn
+	TransID     int64  `json:"transId"`   // Mã giao dịch thanh toán gốc của MoMo
+	Lang        string `json:"lang"`
+	Description string `json:"description"` // Lý do hoàn
+	Signature   string `json:"signature"`
+}
+type momoRefundResponse struct {
+	PartnerCode  string `json:"partnerCode"`
+	OrderID      string `json:"orderId"`
+	RequestID    string `json:"requestId"`
+	Amount       int64  `json:"amount"`
+	TransID      int64  `json:"transId"` // Mã giao dịch refund từ MoMo
 	ResultCode   int    `json:"resultCode"`
 	Message      string `json:"message"`
 	ResponseTime int64  `json:"responseTime"`
@@ -181,4 +203,75 @@ func hmacSHA256(key, data string) string {
 	h := hmac.New(sha256.New, []byte(key))
 	h.Write([]byte(data))
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+func (p *momoProvider) Refund(ctx context.Context, req RefundRequest) (RefundResponse, error) {
+	transIDInt, err := strconv.ParseInt(req.ProviderTxnID, 10, 64)
+	if err != nil {
+		return RefundResponse{}, fmt.Errorf("invalid MoMo original transId: %v", err)
+	}
+
+	requestID := fmt.Sprintf("req-ref-%s-%d", req.OrderNumber, time.Now().UnixNano())
+	refundOrderID := fmt.Sprintf("ref-%s-%d", req.OrderNumber, time.Now().Unix())
+	amountInt := int64(req.Amount)
+	description := req.Reason
+	if description == "" {
+		description = fmt.Sprintf("Refund for order %s", req.OrderNumber)
+	}
+
+	rawSignature := fmt.Sprintf(
+		"accessKey=%s&amount=%d&description=%s&orderId=%s&partnerCode=%s&requestId=%s&transId=%d",
+		p.config.AccessKey, amountInt, description, refundOrderID, p.config.PartnerCode, requestID, transIDInt,
+	)
+
+	signature := hmacSHA256(p.config.SecretKey, rawSignature)
+
+	refundPayload := momoRefundRequest{
+		PartnerCode: p.config.PartnerCode,
+		OrderID:     refundOrderID,
+		RequestID:   requestID,
+		Amount:      amountInt,
+		TransID:     transIDInt,
+		Lang:        "vi",
+		Description: description,
+		Signature:   signature,
+	}
+
+	bodyBytes, err := json.Marshal(refundPayload)
+	if err != nil {
+		return RefundResponse{}, err
+	}
+
+	refundURL := strings.Replace(p.config.Endpoint, "/create", "/refund", 1)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, refundURL, bytes.NewBuffer(bodyBytes))
+	if err != nil {
+		return RefundResponse{}, err
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := p.client.Do(httpReq)
+	if err != nil {
+		return RefundResponse{}, fmt.Errorf("failed to call MoMo refund API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var momoResp momoRefundResponse
+	if err := json.NewDecoder(resp.Body).Decode(&momoResp); err != nil {
+		return RefundResponse{}, fmt.Errorf("failed to decode MoMo refund response: %w", err)
+	}
+
+	if momoResp.ResultCode != 0 {
+		return RefundResponse{
+			Status:  TxnStatusFailed,
+			Message: momoResp.Message,
+		}, fmt.Errorf("momo refund rejected with code %d: %s", momoResp.ResultCode, momoResp.Message)
+	}
+
+	return RefundResponse{
+		RefundTxnID: strconv.FormatInt(momoResp.TransID, 10),
+		Amount:      float64(momoResp.Amount),
+		Status:      TxnStatusSuccess,
+		Message:     momoResp.Message,
+	}, nil
 }

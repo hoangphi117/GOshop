@@ -20,5 +20,6 @@ func (r *AdminPaymentRoutes) Register(rg *gin.RouterGroup) {
 	payments := rg.Group("/payments")
 	{
 		payments.POST("/:order_uuid/confirm-cod", r.handler.ConfirmCODPayment)
+		payments.POST("/refund", r.handler.RefundPayment)
 	}
 }

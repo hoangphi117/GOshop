@@ -102,3 +102,19 @@ func (h *PaymentHandler) ConfirmCODPayment(ctx *gin.Context) {
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "COD payment confirmed successfully", nil)
 }
+
+func (h *PaymentHandler) RefundPayment(ctx *gin.Context) {
+	var input v1dto.RefundPaymentInput
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	refundResult, err := h.paymentService.RefundPayment(ctx, input)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Refund processed successfully", refundResult)
+}
