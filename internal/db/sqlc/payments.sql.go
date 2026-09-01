@@ -18,19 +18,21 @@ INSERT INTO payment_transactions (
     pt_order_id, 
     pt_idempotency_key, 
     pt_provider,
+    pt_txn_ref,
     pt_provider_txn_id, 
     pt_provider_url,
     pt_amount, 
     pt_currency, 
     pt_status
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING pt_id, pt_uuid, pt_order_id, pt_idempotency_key, pt_provider, pt_provider_txn_id, pt_provider_url, pt_amount, pt_currency, pt_status, pt_refund_of, pt_refund_amount, pt_paid_at, pt_expired_at, pt_metadata, pt_created_at, pt_updated_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+RETURNING pt_id, pt_uuid, pt_order_id, pt_idempotency_key, pt_provider, pt_txn_ref, pt_provider_txn_id, pt_provider_url, pt_amount, pt_currency, pt_status, pt_refund_of, pt_refund_amount, pt_paid_at, pt_expired_at, pt_metadata, pt_created_at, pt_updated_at
 `
 
 type CreatePaymentTransactionParams struct {
 	PtOrderID        int32          `json:"pt_order_id"`
 	PtIdempotencyKey string         `json:"pt_idempotency_key"`
 	PtProvider       string         `json:"pt_provider"`
+	PtTxnRef         *string        `json:"pt_txn_ref"`
 	PtProviderTxnID  *string        `json:"pt_provider_txn_id"`
 	PtProviderUrl    *string        `json:"pt_provider_url"`
 	PtAmount         pgtype.Numeric `json:"pt_amount"`
@@ -43,6 +45,7 @@ func (q *Queries) CreatePaymentTransaction(ctx context.Context, arg CreatePaymen
 		arg.PtOrderID,
 		arg.PtIdempotencyKey,
 		arg.PtProvider,
+		arg.PtTxnRef,
 		arg.PtProviderTxnID,
 		arg.PtProviderUrl,
 		arg.PtAmount,
@@ -56,6 +59,7 @@ func (q *Queries) CreatePaymentTransaction(ctx context.Context, arg CreatePaymen
 		&i.PtOrderID,
 		&i.PtIdempotencyKey,
 		&i.PtProvider,
+		&i.PtTxnRef,
 		&i.PtProviderTxnID,
 		&i.PtProviderUrl,
 		&i.PtAmount,
@@ -96,7 +100,7 @@ INSERT INTO payment_transactions (
     $9,
     now()
 )
-RETURNING pt_id, pt_uuid, pt_order_id, pt_idempotency_key, pt_provider, pt_provider_txn_id, pt_provider_url, pt_amount, pt_currency, pt_status, pt_refund_of, pt_refund_amount, pt_paid_at, pt_expired_at, pt_metadata, pt_created_at, pt_updated_at
+RETURNING pt_id, pt_uuid, pt_order_id, pt_idempotency_key, pt_provider, pt_txn_ref, pt_provider_txn_id, pt_provider_url, pt_amount, pt_currency, pt_status, pt_refund_of, pt_refund_amount, pt_paid_at, pt_expired_at, pt_metadata, pt_created_at, pt_updated_at
 `
 
 type CreateRefundTransactionParams struct {
@@ -130,6 +134,7 @@ func (q *Queries) CreateRefundTransaction(ctx context.Context, arg CreateRefundT
 		&i.PtOrderID,
 		&i.PtIdempotencyKey,
 		&i.PtProvider,
+		&i.PtTxnRef,
 		&i.PtProviderTxnID,
 		&i.PtProviderUrl,
 		&i.PtAmount,
@@ -147,7 +152,7 @@ func (q *Queries) CreateRefundTransaction(ctx context.Context, arg CreateRefundT
 }
 
 const getPaymentByIdempotencyKey = `-- name: GetPaymentByIdempotencyKey :one
-SELECT pt_id, pt_uuid, pt_order_id, pt_idempotency_key, pt_provider, pt_provider_txn_id, pt_provider_url, pt_amount, pt_currency, pt_status, pt_refund_of, pt_refund_amount, pt_paid_at, pt_expired_at, pt_metadata, pt_created_at, pt_updated_at FROM payment_transactions WHERE pt_idempotency_key = $1
+SELECT pt_id, pt_uuid, pt_order_id, pt_idempotency_key, pt_provider, pt_txn_ref, pt_provider_txn_id, pt_provider_url, pt_amount, pt_currency, pt_status, pt_refund_of, pt_refund_amount, pt_paid_at, pt_expired_at, pt_metadata, pt_created_at, pt_updated_at FROM payment_transactions WHERE pt_idempotency_key = $1
 `
 
 func (q *Queries) GetPaymentByIdempotencyKey(ctx context.Context, ptIdempotencyKey string) (PaymentTransaction, error) {
@@ -159,6 +164,7 @@ func (q *Queries) GetPaymentByIdempotencyKey(ctx context.Context, ptIdempotencyK
 		&i.PtOrderID,
 		&i.PtIdempotencyKey,
 		&i.PtProvider,
+		&i.PtTxnRef,
 		&i.PtProviderTxnID,
 		&i.PtProviderUrl,
 		&i.PtAmount,
@@ -176,7 +182,7 @@ func (q *Queries) GetPaymentByIdempotencyKey(ctx context.Context, ptIdempotencyK
 }
 
 const getPaymentByProviderTxnID = `-- name: GetPaymentByProviderTxnID :one
-SELECT pt_id, pt_uuid, pt_order_id, pt_idempotency_key, pt_provider, pt_provider_txn_id, pt_provider_url, pt_amount, pt_currency, pt_status, pt_refund_of, pt_refund_amount, pt_paid_at, pt_expired_at, pt_metadata, pt_created_at, pt_updated_at FROM payment_transactions
+SELECT pt_id, pt_uuid, pt_order_id, pt_idempotency_key, pt_provider, pt_txn_ref, pt_provider_txn_id, pt_provider_url, pt_amount, pt_currency, pt_status, pt_refund_of, pt_refund_amount, pt_paid_at, pt_expired_at, pt_metadata, pt_created_at, pt_updated_at FROM payment_transactions
 WHERE pt_provider = $1 AND pt_provider_txn_id = $2
 `
 
@@ -194,6 +200,43 @@ func (q *Queries) GetPaymentByProviderTxnID(ctx context.Context, arg GetPaymentB
 		&i.PtOrderID,
 		&i.PtIdempotencyKey,
 		&i.PtProvider,
+		&i.PtTxnRef,
+		&i.PtProviderTxnID,
+		&i.PtProviderUrl,
+		&i.PtAmount,
+		&i.PtCurrency,
+		&i.PtStatus,
+		&i.PtRefundOf,
+		&i.PtRefundAmount,
+		&i.PtPaidAt,
+		&i.PtExpiredAt,
+		&i.PtMetadata,
+		&i.PtCreatedAt,
+		&i.PtUpdatedAt,
+	)
+	return i, err
+}
+
+const getPaymentByTxnRef = `-- name: GetPaymentByTxnRef :one
+SELECT pt_id, pt_uuid, pt_order_id, pt_idempotency_key, pt_provider, pt_txn_ref, pt_provider_txn_id, pt_provider_url, pt_amount, pt_currency, pt_status, pt_refund_of, pt_refund_amount, pt_paid_at, pt_expired_at, pt_metadata, pt_created_at, pt_updated_at FROM payment_transactions
+WHERE pt_provider = $1 AND pt_txn_ref = $2
+`
+
+type GetPaymentByTxnRefParams struct {
+	PtProvider string  `json:"pt_provider"`
+	PtTxnRef   *string `json:"pt_txn_ref"`
+}
+
+func (q *Queries) GetPaymentByTxnRef(ctx context.Context, arg GetPaymentByTxnRefParams) (PaymentTransaction, error) {
+	row := q.db.QueryRow(ctx, getPaymentByTxnRef, arg.PtProvider, arg.PtTxnRef)
+	var i PaymentTransaction
+	err := row.Scan(
+		&i.PtID,
+		&i.PtUuid,
+		&i.PtOrderID,
+		&i.PtIdempotencyKey,
+		&i.PtProvider,
+		&i.PtTxnRef,
 		&i.PtProviderTxnID,
 		&i.PtProviderUrl,
 		&i.PtAmount,
@@ -211,7 +254,7 @@ func (q *Queries) GetPaymentByProviderTxnID(ctx context.Context, arg GetPaymentB
 }
 
 const getPaymentTransactionsByOrderID = `-- name: GetPaymentTransactionsByOrderID :many
-SELECT pt_id, pt_uuid, pt_order_id, pt_idempotency_key, pt_provider, pt_provider_txn_id, pt_provider_url, pt_amount, pt_currency, pt_status, pt_refund_of, pt_refund_amount, pt_paid_at, pt_expired_at, pt_metadata, pt_created_at, pt_updated_at FROM payment_transactions
+SELECT pt_id, pt_uuid, pt_order_id, pt_idempotency_key, pt_provider, pt_txn_ref, pt_provider_txn_id, pt_provider_url, pt_amount, pt_currency, pt_status, pt_refund_of, pt_refund_amount, pt_paid_at, pt_expired_at, pt_metadata, pt_created_at, pt_updated_at FROM payment_transactions
 WHERE pt_order_id = $1
 ORDER BY pt_created_at DESC
 `
@@ -231,6 +274,7 @@ func (q *Queries) GetPaymentTransactionsByOrderID(ctx context.Context, ptOrderID
 			&i.PtOrderID,
 			&i.PtIdempotencyKey,
 			&i.PtProvider,
+			&i.PtTxnRef,
 			&i.PtProviderTxnID,
 			&i.PtProviderUrl,
 			&i.PtAmount,
@@ -261,6 +305,7 @@ SELECT
     pt.pt_order_id,
     pt.pt_idempotency_key,
     pt.pt_provider,
+    pt.pt_txn_ref,
     pt.pt_provider_txn_id,
     pt.pt_provider_url,
     pt.pt_amount,
@@ -299,6 +344,7 @@ type GetPendingTransactionsOlderThanRow struct {
 	PtOrderID        int32              `json:"pt_order_id"`
 	PtIdempotencyKey string             `json:"pt_idempotency_key"`
 	PtProvider       string             `json:"pt_provider"`
+	PtTxnRef         *string            `json:"pt_txn_ref"`
 	PtProviderTxnID  *string            `json:"pt_provider_txn_id"`
 	PtProviderUrl    *string            `json:"pt_provider_url"`
 	PtAmount         pgtype.Numeric     `json:"pt_amount"`
@@ -333,6 +379,7 @@ func (q *Queries) GetPendingTransactionsOlderThan(ctx context.Context, arg GetPe
 			&i.PtOrderID,
 			&i.PtIdempotencyKey,
 			&i.PtProvider,
+			&i.PtTxnRef,
 			&i.PtProviderTxnID,
 			&i.PtProviderUrl,
 			&i.PtAmount,
@@ -414,7 +461,7 @@ SET
     pt_metadata        = COALESCE($3::jsonb, pt_metadata)
 WHERE pt_uuid = $4
   AND pt_status = ANY($5::int[])
-RETURNING pt_id, pt_uuid, pt_order_id, pt_idempotency_key, pt_provider, pt_provider_txn_id, pt_provider_url, pt_amount, pt_currency, pt_status, pt_refund_of, pt_refund_amount, pt_paid_at, pt_expired_at, pt_metadata, pt_created_at, pt_updated_at
+RETURNING pt_id, pt_uuid, pt_order_id, pt_idempotency_key, pt_provider, pt_txn_ref, pt_provider_txn_id, pt_provider_url, pt_amount, pt_currency, pt_status, pt_refund_of, pt_refund_amount, pt_paid_at, pt_expired_at, pt_metadata, pt_created_at, pt_updated_at
 `
 
 type UpdatePaymentStatusAtomicallyParams struct {
@@ -440,6 +487,7 @@ func (q *Queries) UpdatePaymentStatusAtomically(ctx context.Context, arg UpdateP
 		&i.PtOrderID,
 		&i.PtIdempotencyKey,
 		&i.PtProvider,
+		&i.PtTxnRef,
 		&i.PtProviderTxnID,
 		&i.PtProviderUrl,
 		&i.PtAmount,

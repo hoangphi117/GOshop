@@ -82,3 +82,7 @@ func (cs *redisCacheService) Exists(key string) (bool, error) {
 	}
 	return count > 0, nil
 }
+
+func (cs *redisCacheService) Del(key string) error {
+	return cs.rdb.Del(cs.ctx, key).Err()
+}

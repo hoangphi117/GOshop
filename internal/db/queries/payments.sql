@@ -3,16 +3,21 @@ INSERT INTO payment_transactions (
     pt_order_id, 
     pt_idempotency_key, 
     pt_provider,
+    pt_txn_ref,
     pt_provider_txn_id, 
     pt_provider_url,
     pt_amount, 
     pt_currency, 
     pt_status
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING *;
 
 -- name: GetPaymentByIdempotencyKey :one
 SELECT * FROM payment_transactions WHERE pt_idempotency_key = $1;
+
+-- name: GetPaymentByTxnRef :one
+SELECT * FROM payment_transactions
+WHERE pt_provider = $1 AND pt_txn_ref = $2;
 
 -- name: GetPaymentByProviderTxnID :one
 SELECT * FROM payment_transactions
@@ -77,6 +82,7 @@ SELECT
     pt.pt_order_id,
     pt.pt_idempotency_key,
     pt.pt_provider,
+    pt.pt_txn_ref,
     pt.pt_provider_txn_id,
     pt.pt_provider_url,
     pt.pt_amount,

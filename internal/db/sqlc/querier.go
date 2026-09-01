@@ -62,6 +62,7 @@ type Querier interface {
 	GetOrderItemsByOrderID(ctx context.Context, orderItemOrderID int32) ([]GetOrderItemsByOrderIDRow, error)
 	GetPaymentByIdempotencyKey(ctx context.Context, ptIdempotencyKey string) (PaymentTransaction, error)
 	GetPaymentByProviderTxnID(ctx context.Context, arg GetPaymentByProviderTxnIDParams) (PaymentTransaction, error)
+	GetPaymentByTxnRef(ctx context.Context, arg GetPaymentByTxnRefParams) (PaymentTransaction, error)
 	GetPaymentTransactionsByOrderID(ctx context.Context, ptOrderID int32) ([]PaymentTransaction, error)
 	GetPendingTransactionsOlderThan(ctx context.Context, arg GetPendingTransactionsOlderThanParams) ([]GetPendingTransactionsOlderThanRow, error)
 	GetProductBySlug(ctx context.Context, productSlug string) (GetProductBySlugRow, error)

@@ -116,6 +116,7 @@ type PaymentTransaction struct {
 	PtIdempotencyKey string    `json:"pt_idempotency_key"`
 	// vnpay, momo, cod
 	PtProvider      string         `json:"pt_provider"`
+	PtTxnRef        *string        `json:"pt_txn_ref"`
 	PtProviderTxnID *string        `json:"pt_provider_txn_id"`
 	PtProviderUrl   *string        `json:"pt_provider_url"`
 	PtAmount        pgtype.Numeric `json:"pt_amount"`

@@ -8,4 +8,5 @@ type RedisCacheService interface {
 	Get(key string, dest any) error
 	Clear(pattern string) error
 	Exists(key string) (bool, error)
+	Del(key string) error
 }

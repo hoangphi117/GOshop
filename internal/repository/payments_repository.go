@@ -33,6 +33,13 @@ func (r *SqlPaymentRepository) GetByIdempotencyKey(ctx context.Context, tx pgx.T
 	return r.getQuerier(tx).GetPaymentByIdempotencyKey(ctx, idempotencyKey)
 }
 
+func (r *SqlPaymentRepository) GetByTxnRef(ctx context.Context, tx pgx.Tx, provider, txnRef string) (sqlc.PaymentTransaction, error) {
+	return r.getQuerier(tx).GetPaymentByTxnRef(ctx, sqlc.GetPaymentByTxnRefParams{
+		PtProvider: provider,
+		PtTxnRef:   &txnRef,
+	})
+}
+
 func (r *SqlPaymentRepository) GetByProviderTxnID(ctx context.Context, tx pgx.Tx, provider, providerTxnID string) (sqlc.PaymentTransaction, error) {
 	return r.getQuerier(tx).GetPaymentByProviderTxnID(ctx, sqlc.GetPaymentByProviderTxnIDParams{
 		PtProvider:      provider,

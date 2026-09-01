@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS payment_transactions (
 
     -- Provider: 'vnpay', 'momo', 'cod'
     pt_provider          VARCHAR(20) NOT NULL,
-    pt_provider_txn_id   VARCHAR(100) DEFAULT NULL, -- Mã giao dịch gateway (NULL cho COD)
+    pt_txn_ref           VARCHAR(100) DEFAULT NULL, -- Mã merchant gửi gateway (ví dụ 260901-05-517W7S_1788231742)
+    pt_provider_txn_id   VARCHAR(100) DEFAULT NULL, -- Mã giao dịch gateway (transId)
     pt_provider_url      TEXT DEFAULT NULL,          -- URL redirect (NULL cho COD)
 
     pt_amount            NUMERIC(14,2) NOT NULL CHECK (pt_amount > 0),
@@ -43,6 +44,10 @@ CREATE INDEX idx_pt_pending_online ON payment_transactions(pt_status, pt_created
 
 -- Lookup by order_id
 CREATE INDEX idx_pt_order ON payment_transactions(pt_order_id, pt_status);
+
+-- Lookup by txn_ref (Merchant gateway reference)
+CREATE INDEX idx_pt_txn_ref ON payment_transactions(pt_provider, pt_txn_ref)
+    WHERE pt_txn_ref IS NOT NULL;
 
 -- Webhook lookup: tìm transaction theo provider_txn_id
 CREATE INDEX idx_pt_provider_txn ON payment_transactions(pt_provider, pt_provider_txn_id)

@@ -194,7 +194,8 @@ func (s *paymentService) CreatePaymentIntent(ctx *gin.Context, input v1dto.Creat
 		PtOrderID:        order.OrderID,
 		PtIdempotencyKey: idempotencyKey,
 		PtProvider:       providerName,
-		PtProviderTxnID:  &txnRef,
+		PtTxnRef:         &txnRef,
+		PtProviderTxnID:  nil,
 		PtProviderUrl:    providerURL,
 		PtAmount:         order.OrderTotalAmount,
 		PtCurrency:       "VND",
@@ -382,9 +383,13 @@ func (s *paymentService) ProcessWebhookMessage(headers amqp.Table, body []byte) 
 	}
 	defer tx.Rollback(ctx) // Tự động rollback nếu có lỗi xảy ra trước khi commit
 
-	// 2. TÌM CHÍNH XÁC TRANSACTION BẰNG TXN_REF TRONG 1MS (Dùng index pt_provider_txn_id)
+	// 2. TÌM CHÍNH XÁC TRANSACTION BẰNG TXN_REF (Dùng index pt_txn_ref hoặc fallback pt_provider_txn_id)
 	// msg.OrderNumber lúc này chứa chuỗi "260831-05-BZ7AMC_1788100000"
-	pt, err := s.paymentRepo.GetByProviderTxnID(ctx, tx, msg.Provider, msg.OrderNumber)
+	pt, err := s.paymentRepo.GetByTxnRef(ctx, tx, msg.Provider, msg.OrderNumber)
+	if err != nil {
+		// Fallback cho các bản ghi cũ
+		pt, err = s.paymentRepo.GetByProviderTxnID(ctx, tx, msg.Provider, msg.OrderNumber)
+	}
 	if err != nil {
 		logger.Log.Error().
 			Err(err).
@@ -838,6 +843,22 @@ func (s *paymentService) RefundPayment(ctx *gin.Context, input v1dto.RefundPayme
 
 func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 	startTime := time.Now()
+
+	// 0. Distributed Lock: Chống race condition khi có nhiều instance chạy cron song song
+	lockKey := "lock:payment:reconciliation"
+	acquired, err := s.cache.SetNX(lockKey, "locked", 4*time.Minute)
+	if err != nil {
+		logger.Log.Error().Err(err).Msg("Reconciliation: Failed to acquire distributed lock in Redis")
+		return err
+	}
+	if !acquired {
+		logger.Log.Info().Msg("Reconciliation: Another instance is currently running reconciliation, skipping this cycle")
+		return nil
+	}
+	defer func() {
+		_ = s.cache.Del(lockKey)
+	}()
+
 	olderThan := time.Now().Add(-15 * time.Minute)
 
 	// 1. Lấy danh sách tối đa 50 giao dịch Pending tạo trước 15 phút (kèm thông tin Order và User qua JOIN)
@@ -872,24 +893,15 @@ func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 			continue
 		}
 
+		// Xác định queryOrderID: Ưu tiên cột pt_txn_ref chuyên dụng
 		queryOrderID := txn.OrderNumber
-
-		// Ưu tiên 1: Lấy txn_ref từ metadata JSONB
-		if len(txn.PtMetadata) > 0 {
-			var meta map[string]interface{}
-			if err := json.Unmarshal(txn.PtMetadata, &meta); err == nil {
-				if ref, ok := meta["txn_ref"].(string); ok && ref != "" {
-					queryOrderID = ref
-				}
-			}
-		}
-
-		// Ưu tiên 2: Nếu metadata chưa có nhưng pt_provider_txn_id chứa txnRef (có dấu "_")
-		if queryOrderID == txn.OrderNumber && txn.PtProviderTxnID != nil && strings.Contains(*txn.PtProviderTxnID, "_") {
+		if txn.PtTxnRef != nil && *txn.PtTxnRef != "" {
+			queryOrderID = *txn.PtTxnRef
+		} else if txn.PtProviderTxnID != nil && *txn.PtProviderTxnID != "" {
 			queryOrderID = *txn.PtProviderTxnID
 		}
 
-		// A. Gọi API Cổng thanh toán để kiểm tra trạng thái thực tế theo txnRef/orderId
+		// A. Gọi API Cổng thanh toán để kiểm tra trạng thái thực tế theo txnRef
 		status, err := provider.QueryTransactionStatus(ctx, queryOrderID)
 		if err != nil {
 			logger.Log.Warn().
@@ -917,7 +929,16 @@ func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 			})
 			if err != nil {
 				_ = tx.Rollback(ctx)
-				logger.Log.Error().Err(err).Str("pt_uuid", txn.PtUuid.String()).Msg("Reconciliation: Failed to update payment status to Paid")
+				if errors.Is(err, pgx.ErrNoRows) {
+					logger.Log.Info().
+						Str("pt_uuid", txn.PtUuid.String()).
+						Msg("Reconciliation: Transaction was already updated concurrently (idempotent skip)")
+				} else {
+					logger.Log.Error().
+						Err(err).
+						Str("pt_uuid", txn.PtUuid.String()).
+						Msg("Reconciliation: DB error updating payment status to Paid")
+				}
 				continue
 			}
 
@@ -928,10 +949,19 @@ func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 				RefundedAmount:      utils.FloatToNumeric(0),
 				AllowedFromStatuses: []int32{OrderPaymentStatusUnpaid, OrderPaymentStatusPaid},
 			})
-			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-				_ = tx.Rollback(ctx)
-				logger.Log.Error().Err(err).Str("order_number", txn.OrderNumber).Msg("Reconciliation: Failed to update order payment status to Paid")
-				continue
+			if err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					logger.Log.Info().
+						Str("order_number", txn.OrderNumber).
+						Msg("Reconciliation: Order was already updated concurrently (idempotent skip)")
+				} else {
+					_ = tx.Rollback(ctx)
+					logger.Log.Error().
+						Err(err).
+						Str("order_number", txn.OrderNumber).
+						Msg("Reconciliation: DB error updating order payment status to Paid")
+					continue
+				}
 			}
 
 			if err := tx.Commit(ctx); err != nil {
@@ -954,7 +984,16 @@ func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 			})
 			if err != nil {
 				_ = tx.Rollback(ctx)
-				logger.Log.Error().Err(err).Str("pt_uuid", txn.PtUuid.String()).Msg("Reconciliation: Failed to expire pending transaction")
+				if errors.Is(err, pgx.ErrNoRows) {
+					logger.Log.Info().
+						Str("pt_uuid", txn.PtUuid.String()).
+						Msg("Reconciliation: Transaction was already updated concurrently before expiring (idempotent skip)")
+				} else {
+					logger.Log.Error().
+						Err(err).
+						Str("pt_uuid", txn.PtUuid.String()).
+						Msg("Reconciliation: DB error expiring pending transaction")
+				}
 				continue
 			}
 
