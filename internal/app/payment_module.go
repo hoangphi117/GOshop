@@ -13,6 +13,7 @@ import (
 	"goshop/pkg/mail"
 	"goshop/pkg/payment"
 	"goshop/pkg/rabbitmq"
+	"time"
 )
 
 type PaymentModule struct {
@@ -62,6 +63,20 @@ func NewPaymentModule(ctx *ModuleContext, cacheService cache.RedisCacheService, 
 	paymentRoutes := v1routes.NewPaymentRoutes(paymentHandler)
 	paymentWebhookRoutes := v1routes.NewPaymentWebhookRoutes(paymentHandler)
 	adminPaymentRoutes := v1routes.NewAdminPaymentRoutes(paymentHandler)
+
+	// Background worker đối soát giao dịch định kỳ 5 phút
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute) // 5 phút
+		defer ticker.Stop()
+
+		logger.Log.Info().Msg("Payment reconciliation background worker started (interval: 5m)")
+
+		for range ticker.C {
+			if err := paymentService.ReconcilePendingPayments(context.Background()); err != nil {
+				logger.Log.Error().Err(err).Msg("Error occurred during periodic payment reconciliation")
+			}
+		}
+	}()
 
 	return &PaymentModule{
 		routes:      []routes.Route{paymentRoutes, paymentWebhookRoutes},

@@ -69,3 +69,38 @@ INSERT INTO payment_transactions (
     now()
 )
 RETURNING *;
+
+-- name: GetPendingTransactionsOlderThan :many
+SELECT 
+    pt.pt_id,
+    pt.pt_uuid,
+    pt.pt_order_id,
+    pt.pt_idempotency_key,
+    pt.pt_provider,
+    pt.pt_provider_txn_id,
+    pt.pt_provider_url,
+    pt.pt_amount,
+    pt.pt_currency,
+    pt.pt_status,
+    pt.pt_refund_of,
+    pt.pt_refund_amount,
+    pt.pt_paid_at,
+    pt.pt_expired_at,
+    pt.pt_metadata,
+    pt.pt_created_at,
+    pt.pt_updated_at,
+    o.order_uuid,
+    o.order_number,
+    o.order_total_amount,
+    u.user_uuid,
+    u.user_fullname
+FROM payment_transactions pt
+JOIN orders o ON o.order_id = pt.pt_order_id
+JOIN users u ON u.user_id = o.order_user_id
+WHERE pt.pt_status = 1
+  AND pt.pt_provider != 'cod'
+  AND pt.pt_created_at < sqlc.arg(older_than)
+ORDER BY pt.pt_created_at ASC
+LIMIT sqlc.arg(lim);
+
+

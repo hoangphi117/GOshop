@@ -1,6 +1,7 @@
 package v1service
 
 import (
+	"context"
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
 
@@ -87,4 +88,5 @@ type PaymentService interface {
 	GetPaymentHistory(ctx *gin.Context, orderUUID uuid.UUID) ([]v1dto.PaymentTransactionDTO, error)
 	ConfirmCODPayment(ctx *gin.Context, orderUUID uuid.UUID) error
 	RefundPayment(ctx *gin.Context, input v1dto.RefundPaymentInput) (v1dto.PaymentTransactionDTO, error)
+	ReconcilePendingPayments(ctx context.Context) error
 }

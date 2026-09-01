@@ -408,11 +408,16 @@ func (s *paymentService) ProcessWebhookMessage(headers amqp.Table, body []byte) 
 		return nil // rả về nil để RabbitMQ ACK message thành công, KHÔNG retry vào DLQ
 	}
 
-	// 3. CẬP NHẬT TRẠNG THÁI TRANSACTION VÀ GHI ĐÈ MÃ GIAO DỊCH NGÂN HÀNG THẬT
+	// 3. CẬP NHẬT TRẠNG THÁI TRANSACTION VÀ GHI ĐÈ MÃ GIAO DỊCH NGÂN HÀNG THẬT (LƯU KÈM TXN_REF VÀO METADATA)
+	metaBytes, _ := json.Marshal(map[string]interface{}{
+		"txn_ref":  msg.OrderNumber,
+		"trans_id": msg.ProviderTxnID,
+	})
 	_, err = s.paymentRepo.UpdateStatusAtomically(ctx, tx, sqlc.UpdatePaymentStatusAtomicallyParams{
 		PtUuid:              pt.PtUuid,
 		NewStatus:           newPaymentStatus,
 		ProviderTxnID:       &msg.ProviderTxnID, // Lưu mã ngân hàng thật (ví dụ: transId MoMo)
+		Metadata:            metaBytes,
 		AllowedFromStatuses: []int32{PaymentStatusPending},
 	})
 	if err != nil {
@@ -830,3 +835,156 @@ func (s *paymentService) RefundPayment(ctx *gin.Context, input v1dto.RefundPayme
 
 	return v1dto.MapToPaymentTransactionDTO(finalRefundTxn, order.OrderUuid), nil
 }
+
+func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
+	startTime := time.Now()
+	olderThan := time.Now().Add(-15 * time.Minute)
+
+	// 1. Lấy danh sách tối đa 50 giao dịch Pending tạo trước 15 phút (kèm thông tin Order và User qua JOIN)
+	pendingTxns, err := s.paymentRepo.GetPendingTransactionsOlderThan(ctx, nil, sqlc.GetPendingTransactionsOlderThanParams{
+		OlderThan: olderThan,
+		Lim:       50,
+	})
+	if err != nil {
+		logger.Log.Error().Err(err).Msg("Reconciliation: Failed to fetch pending payment transactions")
+		return utils.WrapError(utils.ErrCodeInternal, "failed to fetch pending transactions for reconciliation", err)
+	}
+
+	if len(pendingTxns) == 0 {
+		return nil // Không có giao dịch treo cần xử lý
+	}
+
+	logger.Log.Info().
+		Int("count", len(pendingTxns)).
+		Msg("Reconciliation: Processing expired/pending payment transactions")
+
+	successCount := 0
+	expiredCount := 0
+
+	// 2. Duyệt từng giao dịch treo để đối soát
+	for _, txn := range pendingTxns {
+		provider, exists := s.providers[txn.PtProvider]
+		if !exists {
+			logger.Log.Warn().
+				Str("provider", txn.PtProvider).
+				Str("pt_uuid", txn.PtUuid.String()).
+				Msg("Reconciliation: Provider not supported, skipping")
+			continue
+		}
+
+		queryOrderID := txn.OrderNumber
+
+		// Ưu tiên 1: Lấy txn_ref từ metadata JSONB
+		if len(txn.PtMetadata) > 0 {
+			var meta map[string]interface{}
+			if err := json.Unmarshal(txn.PtMetadata, &meta); err == nil {
+				if ref, ok := meta["txn_ref"].(string); ok && ref != "" {
+					queryOrderID = ref
+				}
+			}
+		}
+
+		// Ưu tiên 2: Nếu metadata chưa có nhưng pt_provider_txn_id chứa txnRef (có dấu "_")
+		if queryOrderID == txn.OrderNumber && txn.PtProviderTxnID != nil && strings.Contains(*txn.PtProviderTxnID, "_") {
+			queryOrderID = *txn.PtProviderTxnID
+		}
+
+		// A. Gọi API Cổng thanh toán để kiểm tra trạng thái thực tế theo txnRef/orderId
+		status, err := provider.QueryTransactionStatus(ctx, queryOrderID)
+		if err != nil {
+			logger.Log.Warn().
+				Err(err).
+				Str("provider", txn.PtProvider).
+				Str("query_order_id", queryOrderID).
+				Msg("Reconciliation: Failed to query transaction status from gateway")
+			continue
+		}
+
+		// B. Bắt đầu Database Transaction để cập nhật Atomic
+		tx, err := db.DBPool.Begin(ctx)
+		if err != nil {
+			logger.Log.Error().Err(err).Msg("Reconciliation: Failed to begin db transaction")
+			continue
+		}
+
+		switch status {
+		case payment.TxnStatusSuccess:
+			// TRƯỜNG HỢP 1: Khách đã trả tiền thành công nhưng Webhook bị rớt mạng -> Bù trạng thái PAID (2)
+			_, err = s.paymentRepo.UpdateStatusAtomically(ctx, tx, sqlc.UpdatePaymentStatusAtomicallyParams{
+				PtUuid:              txn.PtUuid,
+				NewStatus:           PaymentStatusPaid,
+				AllowedFromStatuses: []int32{PaymentStatusPending},
+			})
+			if err != nil {
+				_ = tx.Rollback(ctx)
+				logger.Log.Error().Err(err).Str("pt_uuid", txn.PtUuid.String()).Msg("Reconciliation: Failed to update payment status to Paid")
+				continue
+			}
+
+			// Cập nhật trạng thái Order sang Paid (Hỗ trợ idempotent nếu Order đã là Paid)
+			_, err = s.orderRepo.UpdateOrderPaymentStatus(ctx, tx, sqlc.UpdateOrderPaymentStatusParams{
+				OrderUuid:           txn.OrderUuid,
+				PaymentStatus:       OrderPaymentStatusPaid,
+				RefundedAmount:      utils.FloatToNumeric(0),
+				AllowedFromStatuses: []int32{OrderPaymentStatusUnpaid, OrderPaymentStatusPaid},
+			})
+			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+				_ = tx.Rollback(ctx)
+				logger.Log.Error().Err(err).Str("order_number", txn.OrderNumber).Msg("Reconciliation: Failed to update order payment status to Paid")
+				continue
+			}
+
+			if err := tx.Commit(ctx); err != nil {
+				logger.Log.Error().Err(err).Msg("Reconciliation: Failed to commit Paid update")
+				continue
+			}
+
+			successCount++
+			logger.Log.Info().
+				Str("order_number", txn.OrderNumber).
+				Str("pt_uuid", txn.PtUuid.String()).
+				Msg("Reconciliation: Successfully recovered missed paid transaction")
+
+		case payment.TxnStatusFailed, payment.TxnStatusExpired:
+			// TRƯỜNG HỢP 2: Khách bỏ ngang / Giao dịch thất bại / Quá hạn -> Cập nhật EXPIRED (4)
+			_, err = s.paymentRepo.UpdateStatusAtomically(ctx, tx, sqlc.UpdatePaymentStatusAtomicallyParams{
+				PtUuid:              txn.PtUuid,
+				NewStatus:           PaymentStatusExpired, // 4: Expired
+				AllowedFromStatuses: []int32{PaymentStatusPending},
+			})
+			if err != nil {
+				_ = tx.Rollback(ctx)
+				logger.Log.Error().Err(err).Str("pt_uuid", txn.PtUuid.String()).Msg("Reconciliation: Failed to expire pending transaction")
+				continue
+			}
+
+			if err := tx.Commit(ctx); err != nil {
+				logger.Log.Error().Err(err).Msg("Reconciliation: Failed to commit Expired update")
+				continue
+			}
+
+			expiredCount++
+			logger.Log.Info().
+				Str("pt_uuid", txn.PtUuid.String()).
+				Msg("Reconciliation: Marked abandoned payment transaction as Expired")
+
+		case payment.TxnStatusPending:
+			// Khách vẫn đang trong thời gian mở app (chưa hết hạn gateway) -> Giữ nguyên chờ lần quét sau
+			_ = tx.Rollback(ctx)
+		}
+	}
+
+	// 3. Xóa cache đơn hàng nếu có cập nhật
+	if successCount > 0 {
+		_ = s.cache.Clear("orders:*")
+	}
+
+	logger.Log.Info().
+		Int("recovered_paid", successCount).
+		Int("marked_expired", expiredCount).
+		Int64("duration_ms", time.Since(startTime).Milliseconds()).
+		Msg("Reconciliation: Job finished successfully")
+
+	return nil
+}
+

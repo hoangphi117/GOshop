@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"goshop/pkg/logger"
 	"net/http"
 	"strconv"
 	"strings"
@@ -195,8 +196,85 @@ func (p *momoProvider) ParseWebhookPayload(payload []byte) (WebhookResult, error
 	}, nil
 }
 
-func (p *momoProvider) QueryTransactionStatus(ctx context.Context, providerTxnID string) (TransactionStatus, error) {
-	return TxnStatusPending, nil
+type momoQueryRequest struct {
+	PartnerCode string `json:"partnerCode"`
+	OrderID     string `json:"orderId"`
+	RequestID   string `json:"requestId"`
+	Lang        string `json:"lang"`
+	Signature   string `json:"signature"`
+}
+
+type momoQueryResponse struct {
+	PartnerCode  string `json:"partnerCode"`
+	OrderID      string `json:"orderId"`
+	RequestID    string `json:"requestId"`
+	ExtraData    string `json:"extraData"`
+	Amount       int64  `json:"amount"`
+	TransID      int64  `json:"transId"`
+	PayType      string `json:"payType"`
+	ResultCode   int    `json:"resultCode"`
+	Message      string `json:"message"`
+	ResponseTime int64  `json:"responseTime"`
+}
+
+func (p *momoProvider) QueryTransactionStatus(ctx context.Context, orderNumber string) (TransactionStatus, error) {
+	requestID := fmt.Sprintf("req-query-%s-%d", orderNumber, time.Now().UnixNano())
+	rawSignature := fmt.Sprintf(
+		"accessKey=%s&orderId=%s&partnerCode=%s&requestId=%s",
+		p.config.AccessKey, orderNumber, p.config.PartnerCode, requestID,
+	)
+	signature := hmacSHA256(p.config.SecretKey, rawSignature)
+
+	payload := momoQueryRequest{
+		PartnerCode: p.config.PartnerCode,
+		OrderID:     orderNumber,
+		RequestID:   requestID,
+		Lang:        "vi",
+		Signature:   signature,
+	}
+
+	bodyBytes, err := json.Marshal(payload)
+	if err != nil {
+		return TxnStatusFailed, fmt.Errorf("failed to marshal query payload: %w", err)
+	}
+
+	queryURL := p.config.QueryURL
+	if queryURL == "" {
+		queryURL = "https://test-payment.momo.vn/v2/gateway/api/query"
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", queryURL, bytes.NewBuffer(bodyBytes))
+	if err != nil {
+		return TxnStatusFailed, fmt.Errorf("failed to create query request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := p.client.Do(httpReq)
+	if err != nil {
+		return TxnStatusFailed, fmt.Errorf("failed to execute query request to MoMo: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var queryResp momoQueryResponse
+	if err := json.NewDecoder(resp.Body).Decode(&queryResp); err != nil {
+		return TxnStatusFailed, fmt.Errorf("failed to decode query response: %w", err)
+	}
+
+	logger.Log.Info().
+		Str("order_id", orderNumber).
+		Int("result_code", queryResp.ResultCode).
+		Str("message", queryResp.Message).
+		Int64("trans_id", queryResp.TransID).
+		Msg("MoMo query transaction status response")
+
+	switch queryResp.ResultCode {
+	case 0:
+		return TxnStatusSuccess, nil
+	case 1000:
+		return TxnStatusPending, nil
+	default:
+		return TxnStatusExpired, nil
+	}
 }
 
 func hmacSHA256(key, data string) string {

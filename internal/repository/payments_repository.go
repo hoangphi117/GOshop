@@ -51,3 +51,7 @@ func (r *SqlPaymentRepository) GetByOrderID(ctx context.Context, tx pgx.Tx, orde
 func (r *SqlPaymentRepository) CreateRefund(ctx context.Context, tx pgx.Tx, params sqlc.CreateRefundTransactionParams) (sqlc.PaymentTransaction, error) {
 	return r.getQuerier(tx).CreateRefundTransaction(ctx, params)
 }
+
+func (r *SqlPaymentRepository) GetPendingTransactionsOlderThan(ctx context.Context, tx pgx.Tx, params sqlc.GetPendingTransactionsOlderThanParams) ([]sqlc.GetPendingTransactionsOlderThanRow, error) {
+	return r.getQuerier(tx).GetPendingTransactionsOlderThan(ctx, params)
+}
