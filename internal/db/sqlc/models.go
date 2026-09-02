@@ -169,6 +169,19 @@ type User struct {
 	UserUpdatedAt time.Time          `json:"user_updated_at"`
 }
 
+type UserAddress struct {
+	UaID        int32     `json:"ua_id"`
+	UaUuid      uuid.UUID `json:"ua_uuid"`
+	UaUserID    int32     `json:"ua_user_id"`
+	UaLabel     string    `json:"ua_label"`
+	UaName      string    `json:"ua_name"`
+	UaPhone     string    `json:"ua_phone"`
+	UaAddress   string    `json:"ua_address"`
+	UaIsDefault bool      `json:"ua_is_default"`
+	UaCreatedAt time.Time `json:"ua_created_at"`
+	UaUpdatedAt time.Time `json:"ua_updated_at"`
+}
+
 type WebhookEvent struct {
 	WeID              int32     `json:"we_id"`
 	WeProvider        string    `json:"we_provider"`

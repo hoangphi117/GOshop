@@ -18,11 +18,13 @@ type Querier interface {
 	AddOrUpdateCartItem(ctx context.Context, arg AddOrUpdateCartItemParams) (CartItem, error)
 	CancelOrder(ctx context.Context, orderUuid uuid.UUID) (Order, error)
 	ClearCartByCartID(ctx context.Context, cartID int32) error
+	ClearDefaultAddress(ctx context.Context, uaUserID int32) error
 	CountCartItems(ctx context.Context, cartID int32) (int64, error)
 	CountCategories(ctx context.Context, arg CountCategoriesParams) (int64, error)
 	CountCoupons(ctx context.Context, arg CountCouponsParams) (int64, error)
 	CountOrders(ctx context.Context, arg CountOrdersParams) (int64, error)
 	CountProducts(ctx context.Context, arg CountProductsParams) (int64, error)
+	CountUserAddresses(ctx context.Context, uaUserID int32) (int64, error)
 	CountUserCouponUsages(ctx context.Context, arg CountUserCouponUsagesParams) (int64, error)
 	CountUsers(ctx context.Context, arg CountUsersParams) (int64, error)
 	CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error)
@@ -33,6 +35,7 @@ type Querier interface {
 	CreateProduct(ctx context.Context, arg CreateProductParams) (CreateProductRow, error)
 	CreateRefundTransaction(ctx context.Context, arg CreateRefundTransactionParams) (PaymentTransaction, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	CreateUserAddress(ctx context.Context, arg CreateUserAddressParams) (UserAddress, error)
 	DeductStock(ctx context.Context, arg DeductStockParams) (int64, error)
 	DeleteCartItemByUUID(ctx context.Context, arg DeleteCartItemByUUIDParams) (CartItem, error)
 	// Dùng cho bước "dọn giỏ hàng sau khi đặt" — xóa CHỌN

@@ -91,3 +91,7 @@ type PaymentService interface {
 	RefundPayment(ctx *gin.Context, input v1dto.RefundPaymentInput) (v1dto.PaymentTransactionDTO, error)
 	ReconcilePendingPayments(ctx context.Context) error
 }
+
+type AddressService interface {
+	CreateUserAddress(ctx *gin.Context, input v1dto.CreateAddressInput) (v1dto.AddressDTO, error)
+}
