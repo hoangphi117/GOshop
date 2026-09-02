@@ -22,3 +22,8 @@ UPDATE user_addresses SET
 WHERE ua_uuid = $1 AND ua_user_id = $2
 RETURNING *;
 
+-- name: SetDefaultAddress :one
+UPDATE user_addresses
+SET ua_is_default = TRUE
+WHERE ua_uuid = $1 AND ua_user_id = $2
+RETURNING *;

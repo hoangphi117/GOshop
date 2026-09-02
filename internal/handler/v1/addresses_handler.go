@@ -64,3 +64,24 @@ func (ah *AddressHandler) UpdateUserAddress(ctx *gin.Context) {
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Address updated successfully", addressDTO)
 }
+
+func (ah *AddressHandler) SetDefaultUserAddress(ctx *gin.Context) {
+	var param v1dto.AddressUUIDParam
+	if err := ctx.ShouldBindUri(&param); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	addressUUID, err := uuid.Parse(param.UUID)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid address UUID"))
+		return
+	}
+
+	if err := ah.service.SetDefaultUserAddress(ctx, addressUUID); err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Default address updated successfully", nil)
+}

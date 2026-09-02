@@ -4,6 +4,7 @@ import (
 	"context"
 	"goshop/internal/db/sqlc"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -35,4 +36,12 @@ func (uar *SqlAddressRepository) ClearDefault(ctx context.Context, tx pgx.Tx, us
 
 func (uar *SqlAddressRepository) Update(ctx context.Context, params sqlc.UpdateUserAddressParams) (sqlc.UserAddress, error) {
 	return uar.db.UpdateUserAddress(ctx, params)
+}
+
+func (uar *SqlAddressRepository) SetDefault(ctx context.Context, tx pgx.Tx, userID int32, addressUUID uuid.UUID) (sqlc.UserAddress, error) {
+	q := sqlc.New(tx)
+	return q.SetDefaultAddress(ctx, sqlc.SetDefaultAddressParams{
+		UaUserID: userID,
+		UaUuid:   addressUUID,
+	})
 }

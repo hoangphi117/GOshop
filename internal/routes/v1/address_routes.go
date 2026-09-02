@@ -21,5 +21,6 @@ func (ar *AddressRoutes) Register(r *gin.RouterGroup) {
 	{
 		addresses.POST("", ar.handler.CreateUserAddress)
 		addresses.PUT("/:uuid", ar.handler.UpdateUserAddress)
+		addresses.PATCH("/:uuid/default", ar.handler.SetDefaultUserAddress)
 	}
 }

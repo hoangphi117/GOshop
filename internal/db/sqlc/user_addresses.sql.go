@@ -75,6 +75,36 @@ func (q *Queries) CreateUserAddress(ctx context.Context, arg CreateUserAddressPa
 	return i, err
 }
 
+const setDefaultAddress = `-- name: SetDefaultAddress :one
+UPDATE user_addresses
+SET ua_is_default = TRUE
+WHERE ua_uuid = $1 AND ua_user_id = $2
+RETURNING ua_id, ua_uuid, ua_user_id, ua_label, ua_name, ua_phone, ua_address, ua_is_default, ua_created_at, ua_updated_at
+`
+
+type SetDefaultAddressParams struct {
+	UaUuid   uuid.UUID `json:"ua_uuid"`
+	UaUserID int32     `json:"ua_user_id"`
+}
+
+func (q *Queries) SetDefaultAddress(ctx context.Context, arg SetDefaultAddressParams) (UserAddress, error) {
+	row := q.db.QueryRow(ctx, setDefaultAddress, arg.UaUuid, arg.UaUserID)
+	var i UserAddress
+	err := row.Scan(
+		&i.UaID,
+		&i.UaUuid,
+		&i.UaUserID,
+		&i.UaLabel,
+		&i.UaName,
+		&i.UaPhone,
+		&i.UaAddress,
+		&i.UaIsDefault,
+		&i.UaCreatedAt,
+		&i.UaUpdatedAt,
+	)
+	return i, err
+}
+
 const updateUserAddress = `-- name: UpdateUserAddress :one
 UPDATE user_addresses SET
     ua_label   = COALESCE($3, ua_label),

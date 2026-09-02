@@ -178,3 +178,52 @@ func (as *addressService) UpdateUserAddress(ctx *gin.Context, addressUUID uuid.U
 
 	return v1dto.MapToAddressDTO(updatedAddress), nil
 }
+
+func (as *addressService) SetDefaultUserAddress(ctx *gin.Context, addressUUID uuid.UUID) error {
+	reqCtx := ctx.Request.Context()
+
+	userUUIDStr, ok := ctx.Get("user_uuid")
+	if !ok {
+		return utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+
+	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	if err != nil {
+		return utils.NewError(utils.ErrCodeBadRequest, "Invalid user UUID")
+	}
+
+	user, err := as.userRepo.GetByUUID(reqCtx, userUUID)
+	if err != nil {
+		return utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
+
+	txCtx, cancel := context.WithTimeout(reqCtx, 5*time.Second)
+	defer cancel()
+
+	tx, err := db.BeginTx(txCtx)
+	if err != nil {
+		return utils.NewError(utils.ErrCodeInternal, "Failed to begin transaction")
+	}
+	defer tx.Rollback(txCtx)
+
+	// 1. Clear previous default address (if any)
+	if err := as.repo.ClearDefault(txCtx, tx, user.UserID); err != nil {
+		return utils.NewError(utils.ErrCodeInternal, "Failed to clear default address")
+	}
+
+	// 2. Set target address as default & check ownership simultaneously
+	_, err = as.repo.SetDefault(txCtx, tx, user.UserID, addressUUID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return utils.NewError(utils.ErrCodeNotFound, "Address not found")
+		}
+		return utils.NewError(utils.ErrCodeInternal, "Failed to set default address")
+	}
+
+	// 3. Commit transaction
+	if err := tx.Commit(txCtx); err != nil {
+		return utils.NewError(utils.ErrCodeInternal, "Failed to commit transaction")
+	}
+
+	return nil
+}
