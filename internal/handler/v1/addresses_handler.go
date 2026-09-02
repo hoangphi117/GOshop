@@ -85,3 +85,24 @@ func (ah *AddressHandler) SetDefaultUserAddress(ctx *gin.Context) {
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Default address updated successfully", nil)
 }
+
+func (ah *AddressHandler) DeleteUserAddress(ctx *gin.Context) {
+	var param v1dto.AddressUUIDParam
+	if err := ctx.ShouldBindUri(&param); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	addressUUID, err := uuid.Parse(param.UUID)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid address UUID"))
+		return
+	}
+
+	if err := ah.service.DeleteUserAddress(ctx, addressUUID); err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseStatusCode(ctx, http.StatusNoContent)
+}

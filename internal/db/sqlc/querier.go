@@ -41,6 +41,7 @@ type Querier interface {
 	// Dùng cho bước "dọn giỏ hàng sau khi đặt" — xóa CHỌN
 	// LỌC theo danh sách product_id có trong đơn vừa tạo, không xóa sạch toàn bộ giỏ.
 	DeleteCartItemsByProductIDs(ctx context.Context, arg DeleteCartItemsByProductIDsParams) error
+	DeleteUserAddress(ctx context.Context, arg DeleteUserAddressParams) (bool, error)
 	GetByUUIDsForUpdate(ctx context.Context, uuids []uuid.UUID) ([]GetByUUIDsForUpdateRow, error)
 	// Khác GetOrCreateCartByUserID: KHÔNG tự tạo cart nếu chưa có. Dùng cho
 	// CleanupCartAfterOrder — nếu user chưa từng có giỏ hàng (mua thẳng, không qua
@@ -92,6 +93,7 @@ type Querier interface {
 	// Dùng cho UpdateQuantity (ghi đè tuyệt đối, không cộng dồn) — khác AddOrUpdateCartItem.
 	SetCartItemQuantity(ctx context.Context, arg SetCartItemQuantityParams) (CartItem, error)
 	SetDefaultAddress(ctx context.Context, arg SetDefaultAddressParams) (UserAddress, error)
+	SetLatestAddressAsDefault(ctx context.Context, uaUserID int32) error
 	SoftDeleteCategory(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
 	SoftDeleteCouponByUUID(ctx context.Context, couponUuid uuid.UUID) (Coupon, error)
 	SoftDeleteProduct(ctx context.Context, productUuid uuid.UUID) (Product, error)

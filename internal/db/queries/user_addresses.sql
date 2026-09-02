@@ -27,3 +27,18 @@ UPDATE user_addresses
 SET ua_is_default = TRUE
 WHERE ua_uuid = $1 AND ua_user_id = $2
 RETURNING *;
+
+-- name: DeleteUserAddress :one
+DELETE FROM user_addresses
+WHERE ua_uuid = $1 AND ua_user_id = $2
+RETURNING ua_is_default;
+
+-- name: SetLatestAddressAsDefault :exec
+UPDATE user_addresses
+SET ua_is_default = TRUE
+WHERE ua_id = (
+    SELECT sub.ua_id FROM user_addresses sub
+    WHERE sub.ua_user_id = $1
+    ORDER BY sub.ua_created_at DESC
+    LIMIT 1
+);

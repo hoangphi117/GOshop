@@ -75,6 +75,24 @@ func (q *Queries) CreateUserAddress(ctx context.Context, arg CreateUserAddressPa
 	return i, err
 }
 
+const deleteUserAddress = `-- name: DeleteUserAddress :one
+DELETE FROM user_addresses
+WHERE ua_uuid = $1 AND ua_user_id = $2
+RETURNING ua_is_default
+`
+
+type DeleteUserAddressParams struct {
+	UaUuid   uuid.UUID `json:"ua_uuid"`
+	UaUserID int32     `json:"ua_user_id"`
+}
+
+func (q *Queries) DeleteUserAddress(ctx context.Context, arg DeleteUserAddressParams) (bool, error) {
+	row := q.db.QueryRow(ctx, deleteUserAddress, arg.UaUuid, arg.UaUserID)
+	var ua_is_default bool
+	err := row.Scan(&ua_is_default)
+	return ua_is_default, err
+}
+
 const setDefaultAddress = `-- name: SetDefaultAddress :one
 UPDATE user_addresses
 SET ua_is_default = TRUE
@@ -103,6 +121,22 @@ func (q *Queries) SetDefaultAddress(ctx context.Context, arg SetDefaultAddressPa
 		&i.UaUpdatedAt,
 	)
 	return i, err
+}
+
+const setLatestAddressAsDefault = `-- name: SetLatestAddressAsDefault :exec
+UPDATE user_addresses
+SET ua_is_default = TRUE
+WHERE ua_id = (
+    SELECT sub.ua_id FROM user_addresses sub
+    WHERE sub.ua_user_id = $1
+    ORDER BY sub.ua_created_at DESC
+    LIMIT 1
+)
+`
+
+func (q *Queries) SetLatestAddressAsDefault(ctx context.Context, uaUserID int32) error {
+	_, err := q.db.Exec(ctx, setLatestAddressAsDefault, uaUserID)
+	return err
 }
 
 const updateUserAddress = `-- name: UpdateUserAddress :one

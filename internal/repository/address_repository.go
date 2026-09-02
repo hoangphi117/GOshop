@@ -45,3 +45,20 @@ func (uar *SqlAddressRepository) SetDefault(ctx context.Context, tx pgx.Tx, user
 		UaUuid:   addressUUID,
 	})
 }
+
+func (uar *SqlAddressRepository) Delete(ctx context.Context, tx pgx.Tx, userID int32, addressUUID uuid.UUID) (bool, error) {
+	q := sqlc.New(tx)
+	result, err := q.DeleteUserAddress(ctx, sqlc.DeleteUserAddressParams{
+		UaUserID: userID,
+		UaUuid:   addressUUID,
+	})
+	if err != nil {
+		return false, err
+	}
+	return result, nil
+}
+
+func (uar *SqlAddressRepository) SetLatestAsDefault(ctx context.Context, tx pgx.Tx, userID int32) error {
+	q := sqlc.New(tx)
+	return q.SetLatestAddressAsDefault(ctx, userID)
+}

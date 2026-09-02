@@ -118,4 +118,6 @@ type AddressRepository interface {
 	ClearDefault(ctx context.Context, tx pgx.Tx, userID int32) error
 	Update(ctx context.Context, params sqlc.UpdateUserAddressParams) (sqlc.UserAddress, error)
 	SetDefault(ctx context.Context, tx pgx.Tx, userID int32, addressUUID uuid.UUID) (sqlc.UserAddress, error)
+	Delete(ctx context.Context, tx pgx.Tx, userID int32, addressUUID uuid.UUID) (bool, error)
+	SetLatestAsDefault(ctx context.Context, tx pgx.Tx, userID int32) error
 }
