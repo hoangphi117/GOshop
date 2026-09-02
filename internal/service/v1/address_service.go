@@ -7,6 +7,7 @@ import (
 	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/repository"
 	"goshop/internal/utils"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -43,6 +44,16 @@ func (as *addressService) CreateUserAddress(ctx *gin.Context, input v1dto.Create
 		return v1dto.AddressDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
 	}
 
+	// Sanitize inputs
+	label := strings.TrimSpace(input.Label)
+	name := strings.TrimSpace(input.Name)
+	phone := strings.TrimSpace(input.Phone)
+	addressText := strings.TrimSpace(input.Address)
+
+	if label == "" || name == "" || phone == "" || addressText == "" {
+		return v1dto.AddressDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Address fields cannot be blank")
+	}
+
 	txCtx, cancel := context.WithTimeout(reqCtx, 5*time.Second)
 	defer cancel()
 
@@ -72,10 +83,10 @@ func (as *addressService) CreateUserAddress(ctx *gin.Context, input v1dto.Create
 
 	createAddressParams := sqlc.CreateUserAddressParams{
 		UaUserID:    user.UserID,
-		UaLabel:     input.Label,
-		UaName:      input.Name,
-		UaPhone:     input.Phone,
-		UaAddress:   input.Address,
+		UaLabel:     label,
+		UaName:      name,
+		UaPhone:     phone,
+		UaAddress:   addressText,
 		UaIsDefault: input.IsDefault,
 	}
 
