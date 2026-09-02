@@ -13,6 +13,7 @@ import (
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
+	"goshop/pkg/pdf"
 	"math/big"
 	"slices"
 	"sort"
@@ -888,6 +889,122 @@ func (s *orderService) UpdateOrderPaymentStatus(ctx *gin.Context, orderUUID uuid
 	userKey := fmt.Sprintf("orders:user:%s:*", existingOrder.UserUuid.String())
 	_ = s.cache.Clear(userKey)
 	_ = s.cache.Clear("orders:admin:*")
+	_ = s.cache.Del(fmt.Sprintf("invoice:pdf:%s", existingOrder.OrderUuid.String()))
 
 	return updatedOrder, orderItems, nil
+}
+
+type cachedInvoicePDF struct {
+	Bytes    []byte `json:"bytes"`
+	FileName string `json:"file_name"`
+}
+
+func (s *orderService) GetOrderInvoicePDF(ctx *gin.Context, orderUUID uuid.UUID) ([]byte, string, error) {
+	reqCtx := ctx.Request.Context()
+
+	userUUIDStr, ok := ctx.Get("user_uuid")
+	if !ok || userUUIDStr == "" {
+		return nil, "", utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+
+	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	if err != nil {
+		return nil, "", utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
+	}
+
+	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
+	if err != nil {
+		return nil, "", utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
+
+	order, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, "", utils.NewError(utils.ErrCodeNotFound, "Order not found")
+		}
+		return nil, "", utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
+	}
+
+	if order.OrderPaymentStatus == OrderPaymentStatusUnpaid {
+		return nil, "", utils.NewError(utils.ErrCodeBadRequest, "Invoice is not available until payment is confirmed")
+	}
+
+	if order.OrderUserID != user.UserID && user.UserLevel != RoleAdmin && user.UserLevel != RoleModerator {
+		return nil, "", utils.NewError(utils.ErrCodeForbidden, "Access denied")
+	}
+
+	// 1. Kiểm tra cache Redis (Nếu đã sinh PDF trước đó -> trả về ngay trong ~1ms)
+	cacheKey := fmt.Sprintf("invoice:pdf:%s", orderUUID.String())
+	var cached cachedInvoicePDF
+	if err := s.cache.Get(cacheKey, &cached); err == nil && len(cached.Bytes) > 0 {
+		return cached.Bytes, cached.FileName, nil
+	}
+
+	orderItems, err := s.orderItemRepo.GetByOrderID(reqCtx, order.OrderID)
+	if err != nil {
+		return nil, "", utils.WrapError(utils.ErrCodeInternal, "Failed to get order items", err)
+	}
+
+	items := make([]pdf.InvoiceItem, len(orderItems))
+	for i, item := range orderItems {
+		items[i] = pdf.InvoiceItem{
+			ProductName: item.OrderItemProductName,
+			Quantity:    int(item.OrderItemQuantity),
+			UnitPrice:   utils.NumericToFloat(item.OrderItemPrice),
+			Subtotal:    utils.NumericToFloat(item.OrderItemSubtotal),
+		}
+	}
+
+	paymentMethod := "COD (Cash on Delivery)"
+	switch order.OrderPaymentMethod {
+	case OrderPaymentMethodOnline:
+		paymentMethod = "Bank Transfer / Online Payment"
+	case OrderPaymentMethodEWallet:
+		paymentMethod = "E-Wallet Payment"
+	}
+
+	paymentStatus := "UNPAID"
+	switch order.OrderPaymentStatus {
+	case OrderPaymentStatusPaid:
+		paymentStatus = "PAID"
+	case OrderPaymentStatusPartiallyRefunded:
+		paymentStatus = "PARTIALLY REFUNDED"
+	case OrderPaymentStatusFullyRefunded:
+		paymentStatus = "FULLY REFUNDED"
+	}
+
+	couponCode := ""
+	if order.OrderCouponCode != nil {
+		couponCode = *order.OrderCouponCode
+	}
+
+	invoiceData := pdf.InvoiceData{
+		OrderNumber:     order.OrderNumber,
+		OrderDate:       order.OrderCreatedAt,
+		CustomerName:    order.OrderShippingName,
+		CustomerPhone:   order.OrderShippingPhone,
+		CustomerAddress: order.OrderShippingAddress,
+		PaymentMethod:   paymentMethod,
+		PaymentStatus:   paymentStatus,
+		Items:           items,
+		SubtotalAmount:  utils.NumericToFloat(order.OrderSubtotalAmount),
+		DiscountAmount:  utils.NumericToFloat(order.OrderDiscountAmount),
+		CouponCode:      couponCode,
+		TotalAmount:     utils.NumericToFloat(order.OrderTotalAmount),
+	}
+
+	pdfBytes, err := pdf.GenerateInvoicePDF(invoiceData)
+	if err != nil {
+		return nil, "", utils.WrapError(utils.ErrCodeInternal, "Failed to generate invoice PDF", err)
+	}
+
+	fileName := fmt.Sprintf("Invoice_%s.pdf", order.OrderNumber)
+
+	// 2. Lưu vào Redis Cache (TTL 24h) cho các lần truy cập tiếp theo
+	_ = s.cache.Set(cacheKey, cachedInvoicePDF{
+		Bytes:    pdfBytes,
+		FileName: fileName,
+	}, 24*time.Hour)
+
+	return pdfBytes, fileName, nil
 }

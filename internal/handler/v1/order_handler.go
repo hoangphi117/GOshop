@@ -1,6 +1,7 @@
 package v1handler
 
 import (
+	"fmt"
 	v1dto "goshop/internal/dto/v1"
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/utils"
@@ -210,4 +211,35 @@ func (oh *OrderHandler) UpdateOrderPaymentStatus(ctx *gin.Context) {
 
 	updatedOrderDTO := v1dto.MapToOrderDTO(updatedOrder, updatedOrderItems)
 	utils.ResponseSuccess(ctx, http.StatusOK, "Payment status updated successfully", updatedOrderDTO)
+}
+
+func (oh *OrderHandler) DownloadInvoice(ctx *gin.Context) {
+	var params v1dto.GetOrderByUUIDParam
+	if err := ctx.ShouldBindUri(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	orderUUID, err := uuid.Parse(params.UUID)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid order UUID"))
+		return
+	}
+
+	pdfBytes, fileName, err := oh.service.GetOrderInvoicePDF(ctx, orderUUID)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	disposition := "inline"
+	if ctx.Query("action") == "download" {
+		disposition = "attachment"
+	}
+
+	ctx.Header("Content-Disposition", fmt.Sprintf("%s; filename=\"%s\"", disposition, fileName))
+	ctx.Header("Content-Type", "application/pdf")
+	ctx.Header("Content-Length", fmt.Sprintf("%d", len(pdfBytes)))
+	ctx.Header("Cache-Control", "private, max-age=86400")
+	ctx.Data(http.StatusOK, "application/pdf", pdfBytes)
 }
