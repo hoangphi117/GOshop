@@ -40,3 +40,11 @@ func MapToAddressDTO(a sqlc.UserAddress) AddressDTO {
 		IsDefault: a.UaIsDefault,
 	}
 }
+
+func MapToAddressDTOs(addresses []sqlc.UserAddress) []AddressDTO {
+	result := make([]AddressDTO, len(addresses))
+	for i, a := range addresses {
+		result[i] = MapToAddressDTO(a)
+	}
+	return result
+}

@@ -62,3 +62,14 @@ func (uar *SqlAddressRepository) SetLatestAsDefault(ctx context.Context, tx pgx.
 	q := sqlc.New(tx)
 	return q.SetLatestAddressAsDefault(ctx, userID)
 }
+
+func (uar *SqlAddressRepository) GetByUserID(ctx context.Context, userID int32) ([]sqlc.UserAddress, error) {
+	return uar.db.GetUserAddressesByUserID(ctx, userID)
+}
+
+func (uar *SqlAddressRepository) GetByUUID(ctx context.Context, userID int32, addressUUID uuid.UUID) (sqlc.UserAddress, error) {
+	return uar.db.GetUserAddressByUUID(ctx, sqlc.GetUserAddressByUUIDParams{
+		UaUserID: userID,
+		UaUuid:   addressUUID,
+	})
+}

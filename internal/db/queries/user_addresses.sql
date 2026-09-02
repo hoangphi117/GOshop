@@ -42,3 +42,12 @@ WHERE ua_id = (
     ORDER BY sub.ua_created_at DESC
     LIMIT 1
 );
+
+-- name: GetUserAddressesByUserID :many
+SELECT * FROM user_addresses
+WHERE ua_user_id = $1
+ORDER BY ua_is_default DESC, ua_created_at DESC;
+
+-- name: GetUserAddressByUUID :one
+SELECT * FROM user_addresses
+WHERE ua_uuid = $1 AND ua_user_id = $2;

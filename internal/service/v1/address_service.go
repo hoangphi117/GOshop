@@ -106,6 +106,69 @@ func (as *addressService) CreateUserAddress(ctx *gin.Context, input v1dto.Create
 	return addressDTO, nil
 }
 
+func (as *addressService) GetMyAddresses(ctx *gin.Context) ([]v1dto.AddressDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	userUUIDStr, ok := ctx.Get("user_uuid")
+	if !ok {
+		return nil, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+
+	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	if err != nil {
+		return nil, utils.NewError(utils.ErrCodeBadRequest, "Invalid user UUID")
+	}
+
+	user, err := as.userRepo.GetByUUID(reqCtx, userUUID)
+	if err != nil {
+		return nil, utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
+
+	addresses, err := as.repo.GetByUserID(reqCtx, user.UserID)
+	if err != nil {
+		return nil, utils.NewError(utils.ErrCodeInternal, "Failed to retrieve addresses")
+	}
+
+	if len(addresses) == 0 {
+		return []v1dto.AddressDTO{}, utils.NewError(utils.ErrCodeNotFound, "No addresses found")
+	}
+
+	return v1dto.MapToAddressDTOs(addresses), nil
+}
+
+func (as *addressService) GetAddressByUUID(ctx *gin.Context, addressUUID uuid.UUID) (v1dto.AddressDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	userUUIDStr, ok := ctx.Get("user_uuid")
+	if !ok {
+		return v1dto.AddressDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+
+	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	if err != nil {
+		return v1dto.AddressDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Invalid user UUID")
+	}
+
+	user, err := as.userRepo.GetByUUID(reqCtx, userUUID)
+	if err != nil {
+		return v1dto.AddressDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
+
+	address, err := as.repo.GetByUUID(reqCtx, user.UserID, addressUUID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return v1dto.AddressDTO{}, utils.NewError(utils.ErrCodeNotFound, "Address not found")
+		}
+		return v1dto.AddressDTO{}, utils.NewError(utils.ErrCodeInternal, "Failed to retrieve address")
+	}
+
+	if address.UaUserID != user.UserID {
+		return v1dto.AddressDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+
+	return v1dto.MapToAddressDTO(address), nil
+}
+
 func (as *addressService) UpdateUserAddress(ctx *gin.Context, addressUUID uuid.UUID, input v1dto.UpdateAddressInput) (v1dto.AddressDTO, error) {
 	reqCtx := ctx.Request.Context()
 

@@ -71,6 +71,8 @@ type Querier interface {
 	GetPendingTransactionsOlderThan(ctx context.Context, arg GetPendingTransactionsOlderThanParams) ([]GetPendingTransactionsOlderThanRow, error)
 	GetProductBySlug(ctx context.Context, productSlug string) (GetProductBySlugRow, error)
 	GetProductByUUID(ctx context.Context, productUuid uuid.UUID) (GetProductByUUIDRow, error)
+	GetUserAddressByUUID(ctx context.Context, arg GetUserAddressByUUIDParams) (UserAddress, error)
+	GetUserAddressesByUserID(ctx context.Context, uaUserID int32) ([]UserAddress, error)
 	GetUserByEmail(ctx context.Context, userEmail string) (User, error)
 	GetUserByUUID(ctx context.Context, userUuid uuid.UUID) (User, error)
 	// Atomic, có điều kiện chặn ngay trong WHERE — KHÔNG tách rời check-rồi-ghi

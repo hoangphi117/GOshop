@@ -114,9 +114,11 @@ type WebhookEventRepository interface {
 
 type AddressRepository interface {
 	Create(ctx context.Context, tx pgx.Tx, params sqlc.CreateUserAddressParams) (sqlc.UserAddress, error)
-	Count(ctx context.Context, userID int32) (int64, error)
+	GetByUUID(ctx context.Context, userID int32, addressUUID uuid.UUID) (sqlc.UserAddress, error)
+	GetByUserID(ctx context.Context, userID int32) ([]sqlc.UserAddress, error)
 	ClearDefault(ctx context.Context, tx pgx.Tx, userID int32) error
 	Update(ctx context.Context, params sqlc.UpdateUserAddressParams) (sqlc.UserAddress, error)
+	Count(ctx context.Context, userID int32) (int64, error)
 	SetDefault(ctx context.Context, tx pgx.Tx, userID int32, addressUUID uuid.UUID) (sqlc.UserAddress, error)
 	Delete(ctx context.Context, tx pgx.Tx, userID int32, addressUUID uuid.UUID) (bool, error)
 	SetLatestAsDefault(ctx context.Context, tx pgx.Tx, userID int32) error

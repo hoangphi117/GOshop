@@ -93,6 +93,71 @@ func (q *Queries) DeleteUserAddress(ctx context.Context, arg DeleteUserAddressPa
 	return ua_is_default, err
 }
 
+const getUserAddressByUUID = `-- name: GetUserAddressByUUID :one
+SELECT ua_id, ua_uuid, ua_user_id, ua_label, ua_name, ua_phone, ua_address, ua_is_default, ua_created_at, ua_updated_at FROM user_addresses
+WHERE ua_uuid = $1 AND ua_user_id = $2
+`
+
+type GetUserAddressByUUIDParams struct {
+	UaUuid   uuid.UUID `json:"ua_uuid"`
+	UaUserID int32     `json:"ua_user_id"`
+}
+
+func (q *Queries) GetUserAddressByUUID(ctx context.Context, arg GetUserAddressByUUIDParams) (UserAddress, error) {
+	row := q.db.QueryRow(ctx, getUserAddressByUUID, arg.UaUuid, arg.UaUserID)
+	var i UserAddress
+	err := row.Scan(
+		&i.UaID,
+		&i.UaUuid,
+		&i.UaUserID,
+		&i.UaLabel,
+		&i.UaName,
+		&i.UaPhone,
+		&i.UaAddress,
+		&i.UaIsDefault,
+		&i.UaCreatedAt,
+		&i.UaUpdatedAt,
+	)
+	return i, err
+}
+
+const getUserAddressesByUserID = `-- name: GetUserAddressesByUserID :many
+SELECT ua_id, ua_uuid, ua_user_id, ua_label, ua_name, ua_phone, ua_address, ua_is_default, ua_created_at, ua_updated_at FROM user_addresses
+WHERE ua_user_id = $1
+ORDER BY ua_is_default DESC, ua_created_at DESC
+`
+
+func (q *Queries) GetUserAddressesByUserID(ctx context.Context, uaUserID int32) ([]UserAddress, error) {
+	rows, err := q.db.Query(ctx, getUserAddressesByUserID, uaUserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []UserAddress{}
+	for rows.Next() {
+		var i UserAddress
+		if err := rows.Scan(
+			&i.UaID,
+			&i.UaUuid,
+			&i.UaUserID,
+			&i.UaLabel,
+			&i.UaName,
+			&i.UaPhone,
+			&i.UaAddress,
+			&i.UaIsDefault,
+			&i.UaCreatedAt,
+			&i.UaUpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setDefaultAddress = `-- name: SetDefaultAddress :one
 UPDATE user_addresses
 SET ua_is_default = TRUE
