@@ -32,11 +32,14 @@ const (
 	OrderStatusDelivered                int32 = 4
 	OrderStatusCancelled                int32 = 5
 	OrderStatusReturned                 int32 = 6
+	OrderStatusRefunded                 int32 = 6
 	OrderPaymentStatusUnpaid            int32 = 1
 	OrderPaymentStatusPaid              int32 = 2
 	OrderPaymentStatusPartiallyRefunded int32 = 3
 	OrderPaymentStatusFullyRefunded     int32 = 4
 	OrderPaymentMethodCOD               int32 = 1
+	OrderPaymentMethodOnline            int32 = 2
+	OrderPaymentMethodEWallet           int32 = 3
 
 	RoleAdmin     int32 = 1
 	RoleModerator int32 = 2

@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"math"
 	"math/big"
 	"regexp"
@@ -131,4 +132,46 @@ func FloatPointerToNumeric(f *float64) pgtype.Numeric {
 		return pgtype.Numeric{Valid: false}
 	}
 	return FloatToNumeric(*f)
+}
+
+// FormatCurrency định dạng số tiền VND có phân cách hàng nghìn (ví dụ: 150000 -> "150,000 VND")
+func FormatCurrency(amount float64) string {
+	return FormatMoney(amount, "VND")
+}
+
+// FormatMoney định dạng số tiền kèm đơn vị tiền tệ tùy chọn (ví dụ: 1500000, "VND" -> "1,500,000 VND")
+func FormatMoney(amount float64, currency string) string {
+	isNegative := amount < 0
+	if isNegative {
+		amount = -amount
+	}
+
+	integerPart := int64(amount)
+	str := fmt.Sprintf("%d", integerPart)
+	n := len(str)
+
+	var result []byte
+	rem := n % 3
+	if rem > 0 {
+		result = append(result, str[:rem]...)
+		if n > rem {
+			result = append(result, ',')
+		}
+	}
+	for i := rem; i < n; i += 3 {
+		result = append(result, str[i:i+3]...)
+		if i+3 < n {
+			result = append(result, ',')
+		}
+	}
+
+	formatted := string(result)
+	if isNegative {
+		formatted = "-" + formatted
+	}
+
+	if currency == "" {
+		return formatted
+	}
+	return fmt.Sprintf("%s %s", formatted, strings.ToUpper(currency))
 }

@@ -87,7 +87,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		NewOrderModule(ctx),
 		NewCartModule(ctx),
 		NewCouponModule(ctx),
-		NewPaymentModule(ctx, cacheRedisService, mailService, rabbitmqService),
+		NewPaymentModule(ctx, cacheRedisService, rabbitmqService),
 		NewAuthModule(ctx, tokenService, cacheRedisService, mailService, rabbitmqService, cfg.AppURL),
 	}
 

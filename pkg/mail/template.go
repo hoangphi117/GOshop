@@ -8,6 +8,78 @@ import (
 	"time"
 )
 
+/* ============================================================
+   HELPER FUNCTIONS
+   ============================================================ */
+
+var (
+	// Múi giờ Việt Nam (UTC+7 / ICT) cho hiển thị email người dùng
+	vnLocation = time.FixedZone("ICT", 7*3600)
+)
+
+func formatVNTime(t time.Time) string {
+	if t.IsZero() {
+		t = time.Now()
+	}
+	return t.In(vnLocation).Format("15:04:05 02/01/2006")
+}
+
+func formatDuration(d time.Duration) string {
+	d = d.Round(time.Second)
+
+	h := d / time.Hour
+	d -= h * time.Hour
+	m := d / time.Minute
+	d -= m * time.Minute
+	s := d / time.Second
+
+	var parts []string
+	if h > 0 {
+		parts = append(parts, fmt.Sprintf("%dh", h))
+	}
+	if m > 0 {
+		parts = append(parts, fmt.Sprintf("%dm", m))
+	}
+	if s > 0 && h == 0 && m == 0 {
+		parts = append(parts, fmt.Sprintf("%ds", s))
+	}
+
+	if len(parts) == 0 {
+		return "0s"
+	}
+
+	return strings.Join(parts, " ")
+}
+
+func FormatCurrency(amount float64) string {
+	integerPart := int64(amount)
+	str := fmt.Sprintf("%d", integerPart)
+	n := len(str)
+	if n <= 3 {
+		return fmt.Sprintf("%s VND", str)
+	}
+
+	var result []byte
+	rem := n % 3
+	if rem > 0 {
+		result = append(result, str[:rem]...)
+		if n > rem {
+			result = append(result, ',')
+		}
+	}
+	for i := rem; i < n; i += 3 {
+		result = append(result, str[i:i+3]...)
+		if i+3 < n {
+			result = append(result, ',')
+		}
+	}
+	return fmt.Sprintf("%s VND", string(result))
+}
+
+/* ============================================================
+   RESET PASSWORD TEMPLATE
+   ============================================================ */
+
 const resetPasswordHTMLTmpl = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -122,32 +194,3 @@ func ResetPasswordTemplate(userName, resetLink string, expiresIn time.Duration, 
 
 	return htmlBuf.String(), textBuf.String(), nil
 }
-
-func formatDuration(d time.Duration) string {
-	d = d.Round(time.Second)
-
-	h := d / time.Hour
-	d -= h * time.Hour
-	m := d / time.Minute
-	d -= m * time.Minute
-	s := d / time.Second
-
-	var parts []string
-	if h > 0 {
-		parts = append(parts, fmt.Sprintf("%dh", h))
-	}
-	if m > 0 {
-		parts = append(parts, fmt.Sprintf("%dm", m))
-	}
-	if s > 0 && h == 0 && m == 0 {
-		parts = append(parts, fmt.Sprintf("%ds", s))
-	}
-
-	if len(parts) == 0 {
-		return "0s"
-	}
-
-	return strings.Join(parts, " ")
-}
-
-
