@@ -2,6 +2,10 @@ package v1dto
 
 import "goshop/internal/db/sqlc"
 
+type AddressUUIDParam struct {
+	UUID string `uri:"uuid" binding:"required,uuid"`
+}
+
 type CreateAddressInput struct {
 	Label     string `json:"label"      binding:"required,max=50"`
 	Name      string `json:"name"       binding:"required,min=2,max=100"`
@@ -17,6 +21,13 @@ type AddressDTO struct {
 	Phone     string `json:"phone"`
 	Address   string `json:"address"`
 	IsDefault bool   `json:"is_default"`
+}
+
+type UpdateAddressInput struct {
+	Label   *string `json:"label"    binding:"omitempty,max=50"`
+	Name    *string `json:"name"     binding:"omitempty,min=2,max=100"`
+	Phone   *string `json:"phone"    binding:"omitempty,min=9,max=20"`
+	Address *string `json:"address"  binding:"omitempty,min=5"`
 }
 
 func MapToAddressDTO(a sqlc.UserAddress) AddressDTO {

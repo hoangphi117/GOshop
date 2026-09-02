@@ -2,6 +2,8 @@ package v1service
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
@@ -102,4 +104,77 @@ func (as *addressService) CreateUserAddress(ctx *gin.Context, input v1dto.Create
 	addressDTO := v1dto.MapToAddressDTO(address)
 
 	return addressDTO, nil
+}
+
+func (as *addressService) UpdateUserAddress(ctx *gin.Context, addressUUID uuid.UUID, input v1dto.UpdateAddressInput) (v1dto.AddressDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	userUUIDStr, ok := ctx.Get("user_uuid")
+	if !ok {
+		return v1dto.AddressDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+
+	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	if err != nil {
+		return v1dto.AddressDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Invalid user UUID")
+	}
+
+	user, err := as.userRepo.GetByUUID(reqCtx, userUUID)
+	if err != nil {
+		return v1dto.AddressDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
+
+	// Sanitize and validate inputs if provided
+	var label, name, phone, addressText *string
+
+	if input.Label != nil {
+		trimmed := strings.TrimSpace(*input.Label)
+		if trimmed == "" {
+			return v1dto.AddressDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Label cannot be blank")
+		}
+		label = &trimmed
+	}
+
+	if input.Name != nil {
+		trimmed := strings.TrimSpace(*input.Name)
+		if trimmed == "" {
+			return v1dto.AddressDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Name cannot be blank")
+		}
+		name = &trimmed
+	}
+
+	if input.Phone != nil {
+		trimmed := strings.TrimSpace(*input.Phone)
+		if trimmed == "" {
+			return v1dto.AddressDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Phone cannot be blank")
+		}
+		phone = &trimmed
+	}
+
+	if input.Address != nil {
+		trimmed := strings.TrimSpace(*input.Address)
+		if trimmed == "" {
+			return v1dto.AddressDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Address cannot be blank")
+		}
+		addressText = &trimmed
+	}
+
+	updateParams := sqlc.UpdateUserAddressParams{
+		UaUuid:   addressUUID,
+		UaUserID: user.UserID,
+		Label:    label,
+		Name:     name,
+		Phone:    phone,
+		Address:  addressText,
+	}
+
+	updatedAddress, err := as.repo.Update(reqCtx, updateParams)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return v1dto.AddressDTO{}, utils.NewError(utils.ErrCodeNotFound, "Address not found")
+		}
+		return v1dto.AddressDTO{}, utils.NewError(utils.ErrCodeInternal, "Failed to update address")
+	}
+
+	return v1dto.MapToAddressDTO(updatedAddress), nil
 }

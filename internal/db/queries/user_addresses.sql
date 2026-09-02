@@ -12,3 +12,13 @@ WHERE ua_user_id = $1;
 UPDATE user_addresses
 SET ua_is_default = FALSE
 WHERE ua_user_id = $1 AND ua_is_default = TRUE;
+
+-- name: UpdateUserAddress :one
+UPDATE user_addresses SET
+    ua_label   = COALESCE(sqlc.narg('label'), ua_label),
+    ua_name    = COALESCE(sqlc.narg('name'), ua_name),
+    ua_phone   = COALESCE(sqlc.narg('phone'), ua_phone),
+    ua_address = COALESCE(sqlc.narg('address'), ua_address)
+WHERE ua_uuid = $1 AND ua_user_id = $2
+RETURNING *;
+

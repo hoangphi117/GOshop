@@ -19,6 +19,7 @@ func NewAddressRoutes(handler *v1handler.AddressHandler) *AddressRoutes {
 func (ar *AddressRoutes) Register(r *gin.RouterGroup) {
 	addresses := r.Group("/addresses")
 	{
-		addresses.POST("/", ar.handler.CreateUserAddress)
+		addresses.POST("", ar.handler.CreateUserAddress)
+		addresses.PUT("/:uuid", ar.handler.UpdateUserAddress)
 	}
 }

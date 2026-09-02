@@ -32,3 +32,7 @@ func (uar *SqlAddressRepository) ClearDefault(ctx context.Context, tx pgx.Tx, us
 
 	return q.ClearDefaultAddress(ctx, userID)
 }
+
+func (uar *SqlAddressRepository) Update(ctx context.Context, params sqlc.UpdateUserAddressParams) (sqlc.UserAddress, error) {
+	return uar.db.UpdateUserAddress(ctx, params)
+}

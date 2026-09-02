@@ -7,6 +7,8 @@ package sqlc
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 const clearDefaultAddress = `-- name: ClearDefaultAddress :exec
@@ -56,6 +58,50 @@ func (q *Queries) CreateUserAddress(ctx context.Context, arg CreateUserAddressPa
 		arg.UaPhone,
 		arg.UaAddress,
 		arg.UaIsDefault,
+	)
+	var i UserAddress
+	err := row.Scan(
+		&i.UaID,
+		&i.UaUuid,
+		&i.UaUserID,
+		&i.UaLabel,
+		&i.UaName,
+		&i.UaPhone,
+		&i.UaAddress,
+		&i.UaIsDefault,
+		&i.UaCreatedAt,
+		&i.UaUpdatedAt,
+	)
+	return i, err
+}
+
+const updateUserAddress = `-- name: UpdateUserAddress :one
+UPDATE user_addresses SET
+    ua_label   = COALESCE($3, ua_label),
+    ua_name    = COALESCE($4, ua_name),
+    ua_phone   = COALESCE($5, ua_phone),
+    ua_address = COALESCE($6, ua_address)
+WHERE ua_uuid = $1 AND ua_user_id = $2
+RETURNING ua_id, ua_uuid, ua_user_id, ua_label, ua_name, ua_phone, ua_address, ua_is_default, ua_created_at, ua_updated_at
+`
+
+type UpdateUserAddressParams struct {
+	UaUuid   uuid.UUID `json:"ua_uuid"`
+	UaUserID int32     `json:"ua_user_id"`
+	Label    *string   `json:"label"`
+	Name     *string   `json:"name"`
+	Phone    *string   `json:"phone"`
+	Address  *string   `json:"address"`
+}
+
+func (q *Queries) UpdateUserAddress(ctx context.Context, arg UpdateUserAddressParams) (UserAddress, error) {
+	row := q.db.QueryRow(ctx, updateUserAddress,
+		arg.UaUuid,
+		arg.UaUserID,
+		arg.Label,
+		arg.Name,
+		arg.Phone,
+		arg.Address,
 	)
 	var i UserAddress
 	err := row.Scan(

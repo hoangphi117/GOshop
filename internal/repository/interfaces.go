@@ -116,4 +116,5 @@ type AddressRepository interface {
 	Create(ctx context.Context, tx pgx.Tx, params sqlc.CreateUserAddressParams) (sqlc.UserAddress, error)
 	Count(ctx context.Context, userID int32) (int64, error)
 	ClearDefault(ctx context.Context, tx pgx.Tx, userID int32) error
+	Update(ctx context.Context, params sqlc.UpdateUserAddressParams) (sqlc.UserAddress, error)
 }
