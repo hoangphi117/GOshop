@@ -2,7 +2,10 @@ package repository
 
 import (
 	"context"
+	"fmt"
+	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -41,4 +44,103 @@ func (rr *SqlReviewRepository) CheckExists(ctx context.Context, userID, productI
 func (rr *SqlReviewRepository) RecalcRating(ctx context.Context, tx pgx.Tx, productID int32) error {
 	q := sqlc.New(tx)
 	return q.RecalcProductRating(ctx, productID)
+}
+
+func (rr *SqlReviewRepository) GetByProduct(ctx context.Context, productID int32, rating *int32, hasMedia *bool, orderBy, sort string, limit, offset int32) ([]ReviewRow, error) {
+	query := `SELECT 
+				r.review_id, r.review_uuid, r.review_rating, r.review_title, 
+				r.review_comment, r.review_images, r.review_video_url, r.review_has_media,
+				r.review_created_at, r.review_updated_at,
+				u.user_fullname AS reviewer_name
+			FROM product_reviews r
+			JOIN users u ON u.user_id = r.review_user_id
+			WHERE r.review_product_id = $1 AND r.review_status = 1`
+
+	args := []any{productID}
+	argIdx := 2
+
+	if rating != nil {
+		query += fmt.Sprintf(" AND r.review_rating = $%d", argIdx)
+		args = append(args, *rating)
+		argIdx++
+	}
+
+	if hasMedia != nil {
+		query += fmt.Sprintf(" AND r.review_has_media = $%d", argIdx)
+		args = append(args, *hasMedia)
+		argIdx++
+	}
+
+	order := "DESC"
+	if strings.ToLower(sort) == "asc" {
+		order = "ASC"
+	}
+
+	switch orderBy {
+	case "rating":
+		query += fmt.Sprintf(" ORDER BY r.review_rating %s, r.review_created_at DESC", order)
+	case "created_at":
+		query += fmt.Sprintf(" ORDER BY r.review_created_at %s", order)
+	default:
+		query += fmt.Sprintf(" ORDER BY r.review_created_at %s", order)
+	}
+
+	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argIdx, argIdx+1)
+	args = append(args, limit, offset)
+
+	rows, err := db.DBPool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var reviews []ReviewRow
+	for rows.Next() {
+		var r ReviewRow
+		if err := rows.Scan(
+			&r.ReviewID,
+			&r.ReviewUUID,
+			&r.ReviewRating,
+			&r.ReviewTitle,
+			&r.ReviewComment,
+			&r.ReviewImages,
+			&r.ReviewVideoURL,
+			&r.ReviewHasMedia,
+			&r.ReviewCreatedAt,
+			&r.ReviewUpdatedAt,
+			&r.ReviewerName,
+		); err != nil {
+			return nil, err
+		}
+		reviews = append(reviews, r)
+	}
+
+	return reviews, nil
+}
+
+func (rr *SqlReviewRepository) CountByProduct(ctx context.Context, productID int32, rating *int32, hasMedia *bool) (int64, error) {
+	query := `SELECT COUNT(*) 
+				FROM product_reviews r 
+				WHERE r.review_product_id = $1 AND r.review_status = 1`
+
+	args := []any{productID}
+	argIdx := 2
+
+	if rating != nil {
+		query += fmt.Sprintf(" AND r.review_rating = $%d", argIdx)
+		args = append(args, *rating)
+		argIdx++
+	}
+
+	if hasMedia != nil {
+		query += fmt.Sprintf(" AND r.review_has_media = $%d", argIdx)
+		args = append(args, *hasMedia)
+		argIdx++
+	}
+
+	var count int64
+	if err := db.DBPool.QueryRow(ctx, query, args...).Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
 }

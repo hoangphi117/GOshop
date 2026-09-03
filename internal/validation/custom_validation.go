@@ -139,7 +139,7 @@ func HandleValidationErrors(err error) gin.H {
 			case "min":
 				errors[fieldPath] = fmt.Sprintf("%s must be at least %s characters", fieldPath, e.Param())
 			case "max":
-				errors[fieldPath] = fmt.Sprintf("%s must be no more than %s characters", fieldPath, e.Param())
+				errors[fieldPath] = fmt.Sprintf("%s must be no more than %s", fieldPath, e.Param())
 			case "min_float":
 				errors[fieldPath] = fmt.Sprintf("%s must be greater than %s", fieldPath, e.Param())
 			case "max_float":

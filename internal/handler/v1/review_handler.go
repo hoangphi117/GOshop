@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type ReviewHandler struct {
@@ -87,4 +88,43 @@ func (h *ReviewHandler) cleanupFiles(fileNames []string, uploadDir string) {
 	for _, name := range fileNames {
 		_ = os.Remove(filepath.Join(uploadDir, name))
 	}
+}
+
+func (rh *ReviewHandler) GetProductReviews(ctx *gin.Context) {
+	var param v1dto.ProductReviewsParam
+	if err := ctx.ShouldBindUri(&param); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	productUUID, err := uuid.Parse(param.ProductUUID)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid product UUID"))
+		return
+	}
+
+	var query v1dto.GetReviewsQuery
+	if err := ctx.ShouldBindQuery(&query); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	reviews, total, err := rh.service.GetProductReviews(ctx, productUUID, query)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	page := query.Page
+	if page <= 0 {
+		page = 1
+	}
+
+	limit := query.Limit
+	if limit <= 0 {
+		limit = 10
+	}
+
+	paginationResponse := utils.NewPaginationResponse(reviews, page, limit, total)
+	utils.ResponseSuccess(ctx, http.StatusOK, "Product reviews retrieved successfully", paginationResponse)
 }

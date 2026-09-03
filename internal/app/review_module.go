@@ -29,10 +29,11 @@ func NewReviewModule(ctx *ModuleContext) *ReviewModule {
 
 	// Initialize routes
 	reviewRoutes := v1routes.NewReviewRoutes(reviewHandler)
+	reviewPublicRoutes := v1routes.NewReviewPublicRoutes(reviewHandler)
 	adminReviewRoutes := v1routes.NewAdminReviewRoutes(reviewHandler)
 
 	return &ReviewModule{
-		routes:      []routes.Route{reviewRoutes},
+		routes:      []routes.Route{reviewRoutes, reviewPublicRoutes},
 		adminRoutes: []routes.Route{adminReviewRoutes},
 	}
 }

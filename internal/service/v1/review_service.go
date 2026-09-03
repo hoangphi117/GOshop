@@ -2,6 +2,7 @@ package v1service
 
 import (
 	"context"
+	"fmt"
 	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
@@ -137,4 +138,95 @@ func (rs *reviewService) CreateReview(ctx *gin.Context, input v1dto.CreateReview
 	}(input.ProductUUID)
 
 	return v1dto.MapCreatedReviewToDTO(review, user.UserFullname, product.ProductUuid.String(), order.OrderUuid.String()), nil
+}
+
+func (rs *reviewService) GetProductReviews(ctx *gin.Context, productUUID uuid.UUID, query v1dto.GetReviewsQuery) ([]v1dto.ReviewDTO, int32, error) {
+	reqCtx := ctx.Request.Context()
+
+	page := query.Page
+	if page <= 0 {
+		page = 1
+	}
+
+	limit := query.Limit
+	if limit <= 0 {
+		limit = 10
+	}
+
+	offset := (page - 1) * limit
+	cacheKey := rs.generateReviewCacheKey(productUUID.String(), query.Rating, query.HasMedia, query.OrderBy, query.Sort, page, limit)
+	var cacheData struct {
+		Reviews []v1dto.ReviewDTO `json:"reviews"`
+		Total   int32             `json:"total"`
+	}
+
+	if err := rs.cache.Get(cacheKey, &cacheData); err == nil && cacheData.Reviews != nil {
+		return cacheData.Reviews, cacheData.Total, nil
+	}
+
+	product, err := rs.productRepo.GetByUUID(reqCtx, productUUID)
+	if err != nil {
+		return nil, 0, utils.NewError(utils.ErrCodeNotFound, "Product not found")
+	}
+
+	var total int32
+	if query.Rating == nil && query.HasMedia == nil {
+		total = product.ProductReviewCount
+	} else {
+		count, err := rs.repo.CountByProduct(reqCtx, product.ProductID, query.Rating, query.HasMedia)
+		if err != nil {
+			return nil, 0, utils.WrapError(utils.ErrCodeInternal, "Failed to count reviews", err)
+		}
+		total = int32(count)
+	}
+
+	reviewRows, err := rs.repo.GetByProduct(reqCtx, product.ProductID, query.Rating, query.HasMedia, query.OrderBy, query.Sort, limit, offset)
+	if err != nil {
+		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "Failed to get reviews", err)
+	}
+
+	reviewDTOs := make([]v1dto.ReviewDTO, len(reviewRows))
+	for i, r := range reviewRows {
+		images := r.ReviewImages
+		if images == nil {
+			images = []string{}
+		}
+		reviewDTOs[i] = v1dto.ReviewDTO{
+			UUID:         r.ReviewUUID.String(),
+			ReviewerName: r.ReviewerName,
+			Rating:       int32(r.ReviewRating),
+			Title:        r.ReviewTitle,
+			Comment:      r.ReviewComment,
+			Images:       images,
+			VideoURL:     r.ReviewVideoURL,
+			HasMedia:     r.ReviewHasMedia,
+			CreatedAt:    r.ReviewCreatedAt.Format("2006-01-02 15:04:05"),
+			UpdatedAt:    r.ReviewUpdatedAt.Format("2006-01-02 15:04:05"),
+		}
+	}
+
+	cacheData = struct {
+		Reviews []v1dto.ReviewDTO `json:"reviews"`
+		Total   int32             `json:"total"`
+	}{
+		Reviews: reviewDTOs,
+		Total:   total,
+	}
+
+	_ = rs.cache.Set(cacheKey, cacheData, 5*time.Minute)
+
+	return reviewDTOs, total, nil
+}
+
+func (rs *reviewService) generateReviewCacheKey(productUUID string, rating *int32, hasMedia *bool, orderBy, sort string, page, limit int32) string {
+	ratingStr := "all"
+	if rating != nil {
+		ratingStr = fmt.Sprintf("%d", *rating)
+	}
+	mediaStr := "all"
+	if hasMedia != nil {
+		mediaStr = fmt.Sprintf("%t", *hasMedia)
+	}
+	return fmt.Sprintf("reviews:product:%s:rating:%s:media:%s:order:%s:sort:%s:p:%d:l:%d",
+		productUUID, ratingStr, mediaStr, orderBy, sort, page, limit)
 }
