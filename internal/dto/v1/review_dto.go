@@ -1,6 +1,25 @@
 package v1dto
 
-import "goshop/internal/db/sqlc"
+import (
+	"goshop/internal/db/sqlc"
+	"time"
+
+	"github.com/google/uuid"
+)
+
+type ReviewRow struct {
+	ReviewID        int32
+	ReviewUUID      uuid.UUID
+	ReviewRating    int16
+	ReviewTitle     *string
+	ReviewComment   *string
+	ReviewImages    []string
+	ReviewVideoURL  *string
+	ReviewHasMedia  bool
+	ReviewCreatedAt time.Time
+	ReviewUpdatedAt time.Time
+	ReviewerName    string
+}
 
 type ReviewUUIDParam struct {
 	UUID string `uri:"uuid" binding:"required,uuid"`
@@ -11,6 +30,8 @@ type ProductReviewsParam struct {
 
 type ReviewDTO struct {
 	UUID         string   `json:"uuid"`
+	ProductUUID  string   `json:"product_uuid,omitempty"`
+	OrderUUID    string   `json:"order_uuid,omitempty"`
 	ReviewerName string   `json:"reviewer_name"`
 	Rating       int32    `json:"rating"`
 	Title        *string  `json:"title,omitempty"`
@@ -19,7 +40,7 @@ type ReviewDTO struct {
 	VideoURL     *string  `json:"video_url,omitempty"`
 	HasMedia     bool     `json:"has_media"`
 	CreatedAt    string   `json:"created_at"`
-	UpdatedAt    string   `json:"updated_at"`
+	UpdatedAt    string   `json:"updated_at,omitempty"`
 }
 
 // ── Create Input ───────────────────────────────────────────────
@@ -44,20 +65,6 @@ type GetReviewsQuery struct {
 type GetMyReviewsQuery struct {
 	Page  int32 `form:"page"      binding:"omitempty,gte=1"`
 	Limit int32 `form:"limit"     binding:"omitempty,gte=1,lte=50"`
-}
-
-// ── Response DTO ─────────────────────────────────────────────
-type ReviewResponseDTO struct {
-	UUID         string   `json:"uuid"`
-	ProductUUID  string   `json:"product_uuid"`
-	OrderUUID    string   `json:"order_uuid"`
-	ReviewerName string   `json:"reviewer_name"`
-	Rating       int32    `json:"rating"`
-	Title        *string  `json:"title,omitempty"`
-	Comment      *string  `json:"comment,omitempty"`
-	ImageURLs    []string `json:"images"`
-	VideoURL     *string  `json:"video_url,omitempty"`
-	CreatedAt    string   `json:"created_at"`
 }
 
 type MyReviewDTO struct {
@@ -88,14 +95,13 @@ type RatingSummaryRow struct {
 
 // ── Mapping Functions ─────────────────────────────────────────────
 
-func MapCreatedReviewToDTO(r sqlc.ProductReview, reviewerName, productUUID, orderUUID string) ReviewResponseDTO {
-
+func MapCreatedReviewToDTO(r sqlc.ProductReview, reviewerName, productUUID, orderUUID string) ReviewDTO {
 	images := r.ReviewImages
 	if r.ReviewImages == nil {
 		images = []string{}
 	}
 
-	return ReviewResponseDTO{
+	return ReviewDTO{
 		UUID:         r.ReviewUuid.String(),
 		ProductUUID:  productUUID,
 		OrderUUID:    orderUUID,
@@ -103,9 +109,11 @@ func MapCreatedReviewToDTO(r sqlc.ProductReview, reviewerName, productUUID, orde
 		Rating:       int32(r.ReviewRating),
 		Title:        r.ReviewTitle,
 		Comment:      r.ReviewComment,
-		ImageURLs:    images,
+		Images:       images,
 		VideoURL:     r.ReviewVideoUrl,
+		HasMedia:     r.ReviewHasMedia,
 		CreatedAt:    r.ReviewCreatedAt.Format("2006-01-02 15:04:05"),
+		UpdatedAt:    r.ReviewUpdatedAt.Format("2006-01-02 15:04:05"),
 	}
 }
 

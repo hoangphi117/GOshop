@@ -102,7 +102,7 @@ type AddressService interface {
 }
 
 type ReviewService interface {
-	CreateReview(ctx *gin.Context, input v1dto.CreateReviewInput, imageURLs []string, videoURL *string) (v1dto.ReviewResponseDTO, error)
+	CreateReview(ctx *gin.Context, input v1dto.CreateReviewInput, imageURLs []string, videoURL *string) (v1dto.ReviewDTO, error)
 	GetProductReviews(ctx *gin.Context, productUUID uuid.UUID, query v1dto.GetReviewsQuery) ([]v1dto.ReviewDTO, int32, error)
 	GetProductRatingSummary(ctx *gin.Context, productUUID uuid.UUID) (v1dto.RatingSummaryRow, error)
 	GetMyReviews(ctx *gin.Context, query v1dto.GetMyReviewsQuery) ([]v1dto.MyReviewDTO, int32, error)

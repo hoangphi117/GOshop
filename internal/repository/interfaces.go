@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 	"goshop/internal/db/sqlc"
-	"time"
+	v1dto "goshop/internal/dto/v1"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -125,28 +125,15 @@ type AddressRepository interface {
 	SetLatestAsDefault(ctx context.Context, tx pgx.Tx, userID int32) error
 }
 
-type ReviewRow struct {
-	ReviewID        int32
-	ReviewUUID      uuid.UUID
-	ReviewRating    int16
-	ReviewTitle     *string
-	ReviewComment   *string
-	ReviewImages    []string
-	ReviewVideoURL  *string
-	ReviewHasMedia  bool
-	ReviewCreatedAt time.Time
-	ReviewUpdatedAt time.Time
-	ReviewerName    string
-}
-
 type ReviewRepository interface {
 	Create(ctx context.Context, tx pgx.Tx, params sqlc.CreateReviewParams) (sqlc.ProductReview, error)
 	CheckPurchased(ctx context.Context, orderID, userID, productID int32) (bool, error)
 	CheckExists(ctx context.Context, userID, productID, orderID int32) (bool, error)
 	RecalcRating(ctx context.Context, tx pgx.Tx, productID int32) error
-	GetByProduct(ctx context.Context, productID int32, rating *int32, hasMedia *bool, orderBy, sort string, limit, offset int32) ([]ReviewRow, error)
+	GetByProduct(ctx context.Context, productID int32, rating *int32, hasMedia *bool, orderBy, sort string, limit, offset int32) ([]v1dto.ReviewRow, error)
 	CountByProduct(ctx context.Context, productID int32, rating *int32, hasMedia *bool) (int64, error)
 	GetRatingSummary(ctx context.Context, productID int32) (sqlc.GetProductRatingSummaryRow, error)
 	GetByUserID(ctx context.Context, userID int32, limit, offset int32) ([]sqlc.GetReviewsByUserIDRow, error)
 	CountByUserID(ctx context.Context, userID int32) (int64, error)
 }
+

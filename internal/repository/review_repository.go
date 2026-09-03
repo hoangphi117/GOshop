@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
+	v1dto "goshop/internal/dto/v1"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -46,7 +47,7 @@ func (rr *SqlReviewRepository) RecalcRating(ctx context.Context, tx pgx.Tx, prod
 	return q.RecalcProductRating(ctx, productID)
 }
 
-func (rr *SqlReviewRepository) GetByProduct(ctx context.Context, productID int32, rating *int32, hasMedia *bool, orderBy, sort string, limit, offset int32) ([]ReviewRow, error) {
+func (rr *SqlReviewRepository) GetByProduct(ctx context.Context, productID int32, rating *int32, hasMedia *bool, orderBy, sort string, limit, offset int32) ([]v1dto.ReviewRow, error) {
 	query := `SELECT 
 				r.review_id, r.review_uuid, r.review_rating, r.review_title, 
 				r.review_comment, r.review_images, r.review_video_url, r.review_has_media,
@@ -94,9 +95,9 @@ func (rr *SqlReviewRepository) GetByProduct(ctx context.Context, productID int32
 	}
 	defer rows.Close()
 
-	var reviews []ReviewRow
+	var reviews []v1dto.ReviewRow
 	for rows.Next() {
-		var r ReviewRow
+		var r v1dto.ReviewRow
 		if err := rows.Scan(
 			&r.ReviewID,
 			&r.ReviewUUID,
