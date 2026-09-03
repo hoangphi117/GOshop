@@ -1,8 +1,8 @@
 -- name: CreateReview :one
 INSERT INTO product_reviews (
     review_user_id, review_product_id, review_order_id,
-    review_rating, review_title, review_comment
-) VALUES ($1, $2, $3, $4, $5, $6)
+    review_rating, review_title, review_comment, review_images, review_video_url, review_has_media
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING *;
 
 -- name: CheckUserPurchasedProduct :one

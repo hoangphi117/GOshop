@@ -3,6 +3,7 @@ DROP FUNCTION IF EXISTS set_review_updated_at_fn();
 DROP INDEX IF EXISTS idx_reviews_unique_per_order;
 DROP INDEX IF EXISTS idx_reviews_user;
 DROP INDEX IF EXISTS idx_reviews_product;
+DROP INDEX IF EXISTS idx_reviews_product_filter;
 DROP TABLE IF EXISTS product_reviews;
 
 ALTER TABLE products

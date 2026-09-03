@@ -162,6 +162,9 @@ type ProductReview struct {
 	ReviewRating    int16     `json:"review_rating"`
 	ReviewTitle     *string   `json:"review_title"`
 	ReviewComment   *string   `json:"review_comment"`
+	ReviewImages    []string  `json:"review_images"`
+	ReviewVideoUrl  *string   `json:"review_video_url"`
+	ReviewHasMedia  bool      `json:"review_has_media"`
 	// 1: Visible, 2: Hidden, 3: Reported
 	ReviewStatus    int16     `json:"review_status"`
 	ReviewCreatedAt time.Time `json:"review_created_at"`

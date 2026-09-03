@@ -13,59 +13,96 @@ import (
 	"github.com/google/uuid"
 )
 
-var allowExts = map[string]bool{
+type MediaType string
+
+const (
+	MediaTypeImage MediaType = "image"
+	MediaTypeVideo MediaType = "video"
+)
+
+var allowImageExts = map[string]bool{
 	".jpg":  true,
 	".jpeg": true,
 	".png":  true,
+	".webp": true,
 }
 
-var allowMimeTypes = map[string]bool{
+var allowImageMimeTypes = map[string]bool{
 	"image/jpeg": true,
 	"image/png":  true,
+	"image/webp": true,
 }
 
-const maxSize = 5 << 20
+var allowVideoExts = map[string]bool{
+	".mp4":  true,
+	".webm": true,
+	".mov":  true,
+}
 
-func ValidateAndSaveFile(fileHeader *multipart.FileHeader, uploadDir string) (string, error) {
+var allowVideoMimeTypes = map[string]bool{
+	"video/mp4":       true,
+	"video/webm":      true,
+	"video/quicktime": true,
+}
+
+const (
+	MaxImageSize = 5 << 20
+	MaxVideoSize = 30 << 20
+)
+
+func ValidateAndSaveFile(fileHeader *multipart.FileHeader, uploadDir string) (string, MediaType, error) {
 	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
-	if !allowExts[ext] {
-		return "", errors.New("unsupported file extension")
+
+	var mediaType MediaType
+	var maxSize int64
+	var allowMimes map[string]bool
+
+	if allowImageExts[ext] {
+		mediaType = MediaTypeImage
+		maxSize = MaxImageSize
+		allowMimes = allowImageMimeTypes
+	} else if allowVideoExts[ext] {
+		mediaType = MediaTypeVideo
+		maxSize = MaxVideoSize
+		allowMimes = allowVideoMimeTypes
+	} else {
+		return "", "", errors.New("unsupported file type (allowed: jpg, jpeg, png, webp, mp4, webm, mov)")
 	}
 
 	if fileHeader.Size > maxSize {
-		return "", errors.New("file is too large (max 5MB)")
+		return "", "", fmt.Errorf("file is too large (max %dMB for %s)", maxSize/(1<<20), mediaType)
 	}
 
 	file, err := fileHeader.Open()
 	if err != nil {
-		return "", errors.New("cannot open file")
+		return "", "", errors.New("cannot open file")
 	}
 	defer file.Close()
 
 	buffer := make([]byte, 512)
 	_, err = file.Read(buffer)
 	if err != nil {
-		return "", errors.New("cannot read file")
+		return "", "", errors.New("cannot read file")
 	}
 
 	mimeType := http.DetectContentType(buffer)
-	if !allowMimeTypes[mimeType] {
-		return "", fmt.Errorf("invalid MIME type: %s", mimeType)
+	if !allowMimes[mimeType] && mimeType != "application/octet-stream" {
+		return "", "", fmt.Errorf("invalid MIME type: %s", mimeType)
 	}
 
 	//Change file name
 	fileName := fmt.Sprintf("%s%s", uuid.New().String(), ext)
 
-	if err := os.MkdirAll("./uploads", os.ModePerm); err != nil {
-		return "", errors.New("cannot create uploads folder")
+	if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
+		return "", "", errors.New("cannot create uploads folder")
 	}
 
 	savePath := filepath.Join(uploadDir, fileName)
 	if err := SaveFile(fileHeader, savePath); err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	return fileName, nil
+	return fileName, mediaType, nil
 }
 
 func SaveFile(fileHeader *multipart.FileHeader, destination string) error {

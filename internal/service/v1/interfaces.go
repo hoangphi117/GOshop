@@ -102,5 +102,5 @@ type AddressService interface {
 }
 
 type ReviewService interface {
-	CreateReview(ctx *gin.Context, input v1dto.CreateReviewInput) (v1dto.ReviewResponseDTO, error)
+	CreateReview(ctx *gin.Context, input v1dto.CreateReviewInput, imageURLs []string, videoURL *string) (v1dto.ReviewResponseDTO, error)
 }

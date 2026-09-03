@@ -3,6 +3,7 @@ package v1service
 import (
 	"context"
 	"goshop/internal/db"
+	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/repository"
 	"goshop/internal/utils"
@@ -33,7 +34,7 @@ func NewReviewService(repo repository.ReviewRepository, userRepo repository.User
 	}
 }
 
-func (rs *reviewService) CreateReview(ctx *gin.Context, input v1dto.CreateReviewInput) (v1dto.ReviewResponseDTO, error) {
+func (rs *reviewService) CreateReview(ctx *gin.Context, input v1dto.CreateReviewInput, imageURLs []string, videoURL *string) (v1dto.ReviewResponseDTO, error) {
 	reqCtx := ctx.Request.Context()
 
 	userUUIDStr, ok := ctx.Get("user_uuid")
@@ -96,7 +97,19 @@ func (rs *reviewService) CreateReview(ctx *gin.Context, input v1dto.CreateReview
 	}
 	defer tx.Rollback(txCtx)
 
-	createParams := input.MapToCreateParams(user.UserID, product.ProductID, order.OrderID)
+	hasMedia := len(imageURLs) > 0 || videoURL != nil
+
+	createParams := sqlc.CreateReviewParams{
+		ReviewUserID:    user.UserID,
+		ReviewProductID: product.ProductID,
+		ReviewOrderID:   order.OrderID,
+		ReviewRating:    int16(input.Rating),
+		ReviewTitle:     input.Title,
+		ReviewComment:   input.Comment,
+		ReviewImages:    imageURLs,
+		ReviewVideoUrl:  videoURL,
+		ReviewHasMedia:  hasMedia,
+	}
 
 	review, err := rs.repo.Create(txCtx, tx, createParams)
 	if err != nil {

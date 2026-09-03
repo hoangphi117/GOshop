@@ -37,3 +37,6 @@ Thumbs.db
 
 # CI
 coverage.out
+
+# User uploads
+uploads/

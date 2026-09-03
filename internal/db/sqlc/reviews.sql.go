@@ -58,18 +58,21 @@ func (q *Queries) CheckUserPurchasedProduct(ctx context.Context, arg CheckUserPu
 const createReview = `-- name: CreateReview :one
 INSERT INTO product_reviews (
     review_user_id, review_product_id, review_order_id,
-    review_rating, review_title, review_comment
-) VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING review_id, review_uuid, review_user_id, review_product_id, review_order_id, review_rating, review_title, review_comment, review_status, review_created_at, review_updated_at
+    review_rating, review_title, review_comment, review_images, review_video_url, review_has_media
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+RETURNING review_id, review_uuid, review_user_id, review_product_id, review_order_id, review_rating, review_title, review_comment, review_images, review_video_url, review_has_media, review_status, review_created_at, review_updated_at
 `
 
 type CreateReviewParams struct {
-	ReviewUserID    int32   `json:"review_user_id"`
-	ReviewProductID int32   `json:"review_product_id"`
-	ReviewOrderID   int32   `json:"review_order_id"`
-	ReviewRating    int16   `json:"review_rating"`
-	ReviewTitle     *string `json:"review_title"`
-	ReviewComment   *string `json:"review_comment"`
+	ReviewUserID    int32    `json:"review_user_id"`
+	ReviewProductID int32    `json:"review_product_id"`
+	ReviewOrderID   int32    `json:"review_order_id"`
+	ReviewRating    int16    `json:"review_rating"`
+	ReviewTitle     *string  `json:"review_title"`
+	ReviewComment   *string  `json:"review_comment"`
+	ReviewImages    []string `json:"review_images"`
+	ReviewVideoUrl  *string  `json:"review_video_url"`
+	ReviewHasMedia  bool     `json:"review_has_media"`
 }
 
 func (q *Queries) CreateReview(ctx context.Context, arg CreateReviewParams) (ProductReview, error) {
@@ -80,6 +83,9 @@ func (q *Queries) CreateReview(ctx context.Context, arg CreateReviewParams) (Pro
 		arg.ReviewRating,
 		arg.ReviewTitle,
 		arg.ReviewComment,
+		arg.ReviewImages,
+		arg.ReviewVideoUrl,
+		arg.ReviewHasMedia,
 	)
 	var i ProductReview
 	err := row.Scan(
@@ -91,6 +97,9 @@ func (q *Queries) CreateReview(ctx context.Context, arg CreateReviewParams) (Pro
 		&i.ReviewRating,
 		&i.ReviewTitle,
 		&i.ReviewComment,
+		&i.ReviewImages,
+		&i.ReviewVideoUrl,
+		&i.ReviewHasMedia,
 		&i.ReviewStatus,
 		&i.ReviewCreatedAt,
 		&i.ReviewUpdatedAt,

@@ -10,6 +10,9 @@ CREATE TABLE IF NOT EXISTS product_reviews (
     review_rating      SMALLINT NOT NULL CHECK (review_rating BETWEEN 1 AND 5),
     review_title       VARCHAR(200),
     review_comment     TEXT,
+    review_images      TEXT[] DEFAULT '{}' NOT NULL,
+    review_video_url   TEXT,
+    review_has_media   BOOLEAN DEFAULT false NOT NULL,
     review_status      SMALLINT DEFAULT 1 NOT NULL CHECK (review_status IN (1, 2, 3)),
     review_created_at  TIMESTAMPTZ DEFAULT now() NOT NULL,
     review_updated_at  TIMESTAMPTZ DEFAULT now() NOT NULL
@@ -25,6 +28,7 @@ ALTER TABLE products
 -- Indexes
 CREATE INDEX idx_reviews_product ON product_reviews(review_product_id, review_status, review_created_at DESC);
 CREATE INDEX idx_reviews_user ON product_reviews(review_user_id, review_created_at DESC);
+CREATE INDEX idx_reviews_product_filter ON product_reviews(review_product_id, review_status, review_rating, review_has_media, review_created_at DESC);
 
 -- Unique constraint: 1 user can only review a product once per order
 CREATE UNIQUE INDEX idx_reviews_unique_per_order 
