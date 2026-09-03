@@ -150,3 +150,29 @@ func (rh *ReviewHandler) GetProductRatingSummary(ctx *gin.Context) {
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Get rating summary successfully", summary)
 }
+
+func (rh *ReviewHandler) GetMyReviews(ctx *gin.Context) {
+	var query v1dto.GetMyReviewsQuery
+	if err := ctx.ShouldBindQuery(&query); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	reviews, total, err := rh.service.GetMyReviews(ctx, query)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	page := query.Page
+	if page <= 0 {
+		page = 1
+	}
+	limit := query.Limit
+	if limit <= 0 {
+		limit = 10
+	}
+
+	paginationResponse := utils.NewPaginationResponse(reviews, page, limit, total)
+	utils.ResponseSuccess(ctx, http.StatusOK, "Get my reviews successfully", paginationResponse)
+}

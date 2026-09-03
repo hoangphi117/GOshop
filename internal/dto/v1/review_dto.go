@@ -41,6 +41,11 @@ type GetReviewsQuery struct {
 	Sort     string `form:"sort"      binding:"omitempty,oneof=asc desc"`
 }
 
+type GetMyReviewsQuery struct {
+	Page  int32 `form:"page"      binding:"omitempty,gte=1"`
+	Limit int32 `form:"limit"     binding:"omitempty,gte=1,lte=50"`
+}
+
 // ── Response DTO ─────────────────────────────────────────────
 type ReviewResponseDTO struct {
 	UUID         string   `json:"uuid"`
@@ -53,6 +58,21 @@ type ReviewResponseDTO struct {
 	ImageURLs    []string `json:"images"`
 	VideoURL     *string  `json:"video_url,omitempty"`
 	CreatedAt    string   `json:"created_at"`
+}
+
+type MyReviewDTO struct {
+	UUID            string   `json:"uuid"`
+	ProductUUID     string   `json:"product_uuid"`
+	ProductName     string   `json:"product_name"`
+	ProductSlug     string   `json:"product_slug"`
+	ProductImageURL *string  `json:"product_image_url,omitempty"`
+	Rating          int32    `json:"rating"`
+	Title           *string  `json:"title,omitempty"`
+	Comment         *string  `json:"comment,omitempty"`
+	Images          []string `json:"images"`
+	VideoURL        *string  `json:"video_url,omitempty"`
+	HasMedia        bool     `json:"has_media"`
+	CreatedAt       string   `json:"created_at"`
 }
 
 type RatingSummaryRow struct {
@@ -87,4 +107,33 @@ func MapCreatedReviewToDTO(r sqlc.ProductReview, reviewerName, productUUID, orde
 		VideoURL:     r.ReviewVideoUrl,
 		CreatedAt:    r.ReviewCreatedAt.Format("2006-01-02 15:04:05"),
 	}
+}
+
+func MapToMyReviewDTO(r sqlc.GetReviewsByUserIDRow) MyReviewDTO {
+	images := r.ReviewImages
+	if images == nil {
+		images = []string{}
+	}
+	return MyReviewDTO{
+		UUID:            r.ReviewUuid.String(),
+		ProductUUID:     r.ProductUuid.String(),
+		ProductName:     r.ProductName,
+		ProductSlug:     r.ProductSlug,
+		ProductImageURL: r.ProductImageUrl,
+		Rating:          int32(r.ReviewRating),
+		Title:           r.ReviewTitle,
+		Comment:         r.ReviewComment,
+		Images:          images,
+		VideoURL:        r.ReviewVideoUrl,
+		HasMedia:        r.ReviewHasMedia,
+		CreatedAt:       r.ReviewCreatedAt.Format("2006-01-02 15:04:05"),
+	}
+}
+
+func MapToMyReviewDTOs(rows []sqlc.GetReviewsByUserIDRow) []MyReviewDTO {
+	result := make([]MyReviewDTO, len(rows))
+	for i, r := range rows {
+		result[i] = MapToMyReviewDTO(r)
+	}
+	return result
 }

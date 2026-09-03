@@ -50,3 +50,28 @@ SELECT
     COUNT(*) FILTER (WHERE review_rating = 1)::bigint AS one_star
 FROM product_reviews
 WHERE review_product_id = $1 AND review_status = 1;
+
+-- name: GetReviewsByUserID :many
+SELECT
+    r.review_id,
+    r.review_uuid,
+    r.review_rating,
+    r.review_title,
+    r.review_comment,
+    r.review_images,
+    r.review_video_url,
+    r.review_has_media,
+    r.review_created_at,
+    p.product_uuid,
+    p.product_name,
+    p.product_slug,
+    p.product_image_url
+FROM product_reviews r
+JOIN products p ON p.product_id = r.review_product_id
+WHERE r.review_user_id = $1
+ORDER BY r.review_created_at DESC
+LIMIT $2 OFFSET $3;
+
+-- name: CountReviewsByUserID :one
+SELECT COUNT(*)::bigint FROM product_reviews
+WHERE review_user_id = $1;

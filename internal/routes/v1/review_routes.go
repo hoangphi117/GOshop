@@ -20,5 +20,7 @@ func (rr *ReviewRoutes) Register(r *gin.RouterGroup) {
 	reviews := r.Group("/reviews")
 	{
 		reviews.POST("/", rr.handler.CreateReview)
+		reviews.GET("/me", rr.handler.GetMyReviews)
+
 	}
 }

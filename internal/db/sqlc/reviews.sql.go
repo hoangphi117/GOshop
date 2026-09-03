@@ -7,6 +7,9 @@ package sqlc
 
 import (
 	"context"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 const checkReviewExists = `-- name: CheckReviewExists :one
@@ -53,6 +56,18 @@ func (q *Queries) CheckUserPurchasedProduct(ctx context.Context, arg CheckUserPu
 	var purchased bool
 	err := row.Scan(&purchased)
 	return purchased, err
+}
+
+const countReviewsByUserID = `-- name: CountReviewsByUserID :one
+SELECT COUNT(*)::bigint FROM product_reviews
+WHERE review_user_id = $1
+`
+
+func (q *Queries) CountReviewsByUserID(ctx context.Context, reviewUserID int32) (int64, error) {
+	row := q.db.QueryRow(ctx, countReviewsByUserID, reviewUserID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const createReview = `-- name: CreateReview :one
@@ -146,6 +161,84 @@ func (q *Queries) GetProductRatingSummary(ctx context.Context, reviewProductID i
 		&i.OneStar,
 	)
 	return i, err
+}
+
+const getReviewsByUserID = `-- name: GetReviewsByUserID :many
+SELECT
+    r.review_id,
+    r.review_uuid,
+    r.review_rating,
+    r.review_title,
+    r.review_comment,
+    r.review_images,
+    r.review_video_url,
+    r.review_has_media,
+    r.review_created_at,
+    p.product_uuid,
+    p.product_name,
+    p.product_slug,
+    p.product_image_url
+FROM product_reviews r
+JOIN products p ON p.product_id = r.review_product_id
+WHERE r.review_user_id = $1
+ORDER BY r.review_created_at DESC
+LIMIT $2 OFFSET $3
+`
+
+type GetReviewsByUserIDParams struct {
+	ReviewUserID int32 `json:"review_user_id"`
+	Limit        int32 `json:"limit"`
+	Offset       int32 `json:"offset"`
+}
+
+type GetReviewsByUserIDRow struct {
+	ReviewID        int32     `json:"review_id"`
+	ReviewUuid      uuid.UUID `json:"review_uuid"`
+	ReviewRating    int16     `json:"review_rating"`
+	ReviewTitle     *string   `json:"review_title"`
+	ReviewComment   *string   `json:"review_comment"`
+	ReviewImages    []string  `json:"review_images"`
+	ReviewVideoUrl  *string   `json:"review_video_url"`
+	ReviewHasMedia  bool      `json:"review_has_media"`
+	ReviewCreatedAt time.Time `json:"review_created_at"`
+	ProductUuid     uuid.UUID `json:"product_uuid"`
+	ProductName     string    `json:"product_name"`
+	ProductSlug     string    `json:"product_slug"`
+	ProductImageUrl *string   `json:"product_image_url"`
+}
+
+func (q *Queries) GetReviewsByUserID(ctx context.Context, arg GetReviewsByUserIDParams) ([]GetReviewsByUserIDRow, error) {
+	rows, err := q.db.Query(ctx, getReviewsByUserID, arg.ReviewUserID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetReviewsByUserIDRow{}
+	for rows.Next() {
+		var i GetReviewsByUserIDRow
+		if err := rows.Scan(
+			&i.ReviewID,
+			&i.ReviewUuid,
+			&i.ReviewRating,
+			&i.ReviewTitle,
+			&i.ReviewComment,
+			&i.ReviewImages,
+			&i.ReviewVideoUrl,
+			&i.ReviewHasMedia,
+			&i.ReviewCreatedAt,
+			&i.ProductUuid,
+			&i.ProductName,
+			&i.ProductSlug,
+			&i.ProductImageUrl,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const recalcProductRating = `-- name: RecalcProductRating :exec

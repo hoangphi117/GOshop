@@ -148,3 +148,15 @@ func (rr *SqlReviewRepository) CountByProduct(ctx context.Context, productID int
 func (rr *SqlReviewRepository) GetRatingSummary(ctx context.Context, productID int32) (sqlc.GetProductRatingSummaryRow, error) {
 	return rr.db.GetProductRatingSummary(ctx, productID)
 }
+
+func (rr *SqlReviewRepository) GetByUserID(ctx context.Context, userID int32, limit, offset int32) ([]sqlc.GetReviewsByUserIDRow, error) {
+	return rr.db.GetReviewsByUserID(ctx, sqlc.GetReviewsByUserIDParams{
+		ReviewUserID: userID,
+		Limit:        limit,
+		Offset:       offset,
+	})
+}
+
+func (rr *SqlReviewRepository) CountByUserID(ctx context.Context, userID int32) (int64, error) {
+	return rr.db.CountReviewsByUserID(ctx, userID)
+}

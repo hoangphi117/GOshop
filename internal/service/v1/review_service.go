@@ -265,3 +265,43 @@ func (rs *reviewService) GetProductRatingSummary(ctx *gin.Context, productUUID u
 
 	return summaryDTO, nil
 }
+
+func (rs *reviewService) GetMyReviews(ctx *gin.Context, query v1dto.GetMyReviewsQuery) ([]v1dto.MyReviewDTO, int32, error) {
+	reqCtx := ctx.Request.Context()
+	userUUIDStr, ok := ctx.Get("user_uuid")
+	if !ok {
+		return nil, 0, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	if err != nil {
+		return nil, 0, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID")
+	}
+	user, err := rs.userRepo.GetByUUID(reqCtx, userUUID)
+	if err != nil {
+		return nil, 0, utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
+	page := query.Page
+	if page <= 0 {
+		page = 1
+	}
+	limit := query.Limit
+	if limit <= 0 {
+		limit = 10
+	}
+
+	offset := (page - 1) * limit
+
+	total, err := rs.repo.CountByUserID(reqCtx, user.UserID)
+	if err != nil {
+		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "Failed to count user reviews", err)
+	}
+	if total == 0 {
+		return []v1dto.MyReviewDTO{}, 0, nil
+	}
+
+	rows, err := rs.repo.GetByUserID(reqCtx, user.UserID, limit, offset)
+	if err != nil {
+		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "Failed to get user reviews", err)
+	}
+	return v1dto.MapToMyReviewDTOs(rows), int32(total), nil
+}
