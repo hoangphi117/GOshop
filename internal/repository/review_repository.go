@@ -144,3 +144,7 @@ func (rr *SqlReviewRepository) CountByProduct(ctx context.Context, productID int
 	}
 	return count, nil
 }
+
+func (rr *SqlReviewRepository) GetRatingSummary(ctx context.Context, productID int32) (sqlc.GetProductRatingSummaryRow, error) {
+	return rr.db.GetProductRatingSummary(ctx, productID)
+}

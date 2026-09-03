@@ -128,3 +128,25 @@ func (rh *ReviewHandler) GetProductReviews(ctx *gin.Context) {
 	paginationResponse := utils.NewPaginationResponse(reviews, page, limit, total)
 	utils.ResponseSuccess(ctx, http.StatusOK, "Product reviews retrieved successfully", paginationResponse)
 }
+
+func (rh *ReviewHandler) GetProductRatingSummary(ctx *gin.Context) {
+	var param v1dto.ProductReviewsParam
+	if err := ctx.ShouldBindUri(&param); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	productUUID, err := uuid.Parse(param.ProductUUID)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid product UUID"))
+		return
+	}
+
+	summary, err := rh.service.GetProductRatingSummary(ctx, productUUID)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Get rating summary successfully", summary)
+}

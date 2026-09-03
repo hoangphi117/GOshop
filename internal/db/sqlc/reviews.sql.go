@@ -107,6 +107,47 @@ func (q *Queries) CreateReview(ctx context.Context, arg CreateReviewParams) (Pro
 	return i, err
 }
 
+const getProductRatingSummary = `-- name: GetProductRatingSummary :one
+SELECT
+    COUNT(*)::bigint AS total_reviews,
+    COALESCE(ROUND(AVG(review_rating)::numeric, 1), 0.0)::float8 AS avg_rating,
+    COUNT(*) FILTER (WHERE review_has_media = TRUE)::bigint AS with_media_count,
+    COUNT(*) FILTER (WHERE review_rating = 5)::bigint AS five_star,
+    COUNT(*) FILTER (WHERE review_rating = 4)::bigint AS four_star,
+    COUNT(*) FILTER (WHERE review_rating = 3)::bigint AS three_star,
+    COUNT(*) FILTER (WHERE review_rating = 2)::bigint AS two_star,
+    COUNT(*) FILTER (WHERE review_rating = 1)::bigint AS one_star
+FROM product_reviews
+WHERE review_product_id = $1 AND review_status = 1
+`
+
+type GetProductRatingSummaryRow struct {
+	TotalReviews   int64   `json:"total_reviews"`
+	AvgRating      float64 `json:"avg_rating"`
+	WithMediaCount int64   `json:"with_media_count"`
+	FiveStar       int64   `json:"five_star"`
+	FourStar       int64   `json:"four_star"`
+	ThreeStar      int64   `json:"three_star"`
+	TwoStar        int64   `json:"two_star"`
+	OneStar        int64   `json:"one_star"`
+}
+
+func (q *Queries) GetProductRatingSummary(ctx context.Context, reviewProductID int32) (GetProductRatingSummaryRow, error) {
+	row := q.db.QueryRow(ctx, getProductRatingSummary, reviewProductID)
+	var i GetProductRatingSummaryRow
+	err := row.Scan(
+		&i.TotalReviews,
+		&i.AvgRating,
+		&i.WithMediaCount,
+		&i.FiveStar,
+		&i.FourStar,
+		&i.ThreeStar,
+		&i.TwoStar,
+		&i.OneStar,
+	)
+	return i, err
+}
+
 const recalcProductRating = `-- name: RecalcProductRating :exec
 UPDATE products SET
     product_avg_rating = COALESCE(

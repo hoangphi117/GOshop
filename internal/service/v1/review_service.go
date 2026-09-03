@@ -230,3 +230,38 @@ func (rs *reviewService) generateReviewCacheKey(productUUID string, rating *int3
 	return fmt.Sprintf("reviews:product:%s:rating:%s:media:%s:order:%s:sort:%s:p:%d:l:%d",
 		productUUID, ratingStr, mediaStr, orderBy, sort, page, limit)
 }
+
+func (rs *reviewService) GetProductRatingSummary(ctx *gin.Context, productUUID uuid.UUID) (v1dto.RatingSummaryRow, error) {
+	reqCtx := ctx.Request.Context()
+
+	cacheKey := "reviews:summary:" + productUUID.String()
+	var summaryDTO v1dto.RatingSummaryRow
+	if err := rs.cache.Get(cacheKey, &summaryDTO); err == nil {
+		return summaryDTO, nil
+	}
+
+	product, err := rs.productRepo.GetByUUID(reqCtx, productUUID)
+	if err != nil {
+		return v1dto.RatingSummaryRow{}, utils.NewError(utils.ErrCodeNotFound, "Product not found")
+	}
+
+	summary, err := rs.repo.GetRatingSummary(reqCtx, product.ProductID)
+	if err != nil {
+		return v1dto.RatingSummaryRow{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get rating summary", err)
+	}
+
+	summaryDTO = v1dto.RatingSummaryRow{
+		TotalReviews:   summary.TotalReviews,
+		AvgRating:      summary.AvgRating,
+		WithMediaCount: summary.WithMediaCount,
+		FiveStar:       summary.FiveStar,
+		FourStar:       summary.FourStar,
+		ThreeStar:      summary.ThreeStar,
+		TwoStar:        summary.TwoStar,
+		OneStar:        summary.OneStar,
+	}
+
+	_ = rs.cache.Set(cacheKey, summaryDTO, 5*time.Minute)
+
+	return summaryDTO, nil
+}

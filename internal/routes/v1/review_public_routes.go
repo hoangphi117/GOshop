@@ -18,5 +18,6 @@ func (rpr *ReviewPublicRoutes) Register(r *gin.RouterGroup) {
 	products := r.Group("/products")
 	{
 		products.GET("/:uuid/reviews", rpr.handler.GetProductReviews)
+		products.GET("/:uuid/reviews/summary", rpr.handler.GetProductRatingSummary)
 	}
 }

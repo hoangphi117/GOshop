@@ -55,6 +55,17 @@ type ReviewResponseDTO struct {
 	CreatedAt    string   `json:"created_at"`
 }
 
+type RatingSummaryRow struct {
+	TotalReviews   int64
+	AvgRating      float64
+	WithMediaCount int64
+	FiveStar       int64
+	FourStar       int64
+	ThreeStar      int64
+	TwoStar        int64
+	OneStar        int64
+}
+
 // ── Mapping Functions ─────────────────────────────────────────────
 
 func MapCreatedReviewToDTO(r sqlc.ProductReview, reviewerName, productUUID, orderUUID string) ReviewResponseDTO {

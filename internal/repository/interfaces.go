@@ -146,4 +146,5 @@ type ReviewRepository interface {
 	RecalcRating(ctx context.Context, tx pgx.Tx, productID int32) error
 	GetByProduct(ctx context.Context, productID int32, rating *int32, hasMedia *bool, orderBy, sort string, limit, offset int32) ([]ReviewRow, error)
 	CountByProduct(ctx context.Context, productID int32, rating *int32, hasMedia *bool) (int64, error)
+	GetRatingSummary(ctx context.Context, productID int32) (sqlc.GetProductRatingSummaryRow, error)
 }

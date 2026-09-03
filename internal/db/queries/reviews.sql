@@ -37,3 +37,16 @@ UPDATE products SET
         WHERE pr.review_product_id = $1 AND pr.review_status = 1
     )
 WHERE product_id = $1;
+
+-- name: GetProductRatingSummary :one
+SELECT
+    COUNT(*)::bigint AS total_reviews,
+    COALESCE(ROUND(AVG(review_rating)::numeric, 1), 0.0)::float8 AS avg_rating,
+    COUNT(*) FILTER (WHERE review_has_media = TRUE)::bigint AS with_media_count,
+    COUNT(*) FILTER (WHERE review_rating = 5)::bigint AS five_star,
+    COUNT(*) FILTER (WHERE review_rating = 4)::bigint AS four_star,
+    COUNT(*) FILTER (WHERE review_rating = 3)::bigint AS three_star,
+    COUNT(*) FILTER (WHERE review_rating = 2)::bigint AS two_star,
+    COUNT(*) FILTER (WHERE review_rating = 1)::bigint AS one_star
+FROM product_reviews
+WHERE review_product_id = $1 AND review_status = 1;
