@@ -123,3 +123,10 @@ type AddressRepository interface {
 	Delete(ctx context.Context, tx pgx.Tx, userID int32, addressUUID uuid.UUID) (bool, error)
 	SetLatestAsDefault(ctx context.Context, tx pgx.Tx, userID int32) error
 }
+
+type ReviewRepository interface {
+	Create(ctx context.Context, tx pgx.Tx, params sqlc.CreateReviewParams) (sqlc.ProductReview, error)
+	CheckPurchased(ctx context.Context, orderID, userID, productID int32) (bool, error)
+	CheckExists(ctx context.Context, userID, productID, orderID int32) (bool, error)
+	RecalcRating(ctx context.Context, tx pgx.Tx, productID int32) error
+}

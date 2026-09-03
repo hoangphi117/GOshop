@@ -100,3 +100,7 @@ type AddressService interface {
 	SetDefaultUserAddress(ctx *gin.Context, addressUUID uuid.UUID) error
 	DeleteUserAddress(ctx *gin.Context, addressUUID uuid.UUID) error
 }
+
+type ReviewService interface {
+	CreateReview(ctx *gin.Context, input v1dto.CreateReviewInput) (v1dto.ReviewResponseDTO, error)
+}

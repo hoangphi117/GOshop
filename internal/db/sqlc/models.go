@@ -145,10 +145,27 @@ type Product struct {
 	ProductCategoryID  int32          `json:"product_category_id"`
 	ProductImageUrl    *string        `json:"product_image_url"`
 	// 1: Active, 2: Inactive, 3: Out of Stock
-	ProductStatus    int32              `json:"product_status"`
-	ProductDeletedAt pgtype.Timestamptz `json:"product_deleted_at"`
-	ProductCreatedAt time.Time          `json:"product_created_at"`
-	ProductUpdatedAt time.Time          `json:"product_updated_at"`
+	ProductStatus      int32              `json:"product_status"`
+	ProductDeletedAt   pgtype.Timestamptz `json:"product_deleted_at"`
+	ProductCreatedAt   time.Time          `json:"product_created_at"`
+	ProductUpdatedAt   time.Time          `json:"product_updated_at"`
+	ProductAvgRating   pgtype.Numeric     `json:"product_avg_rating"`
+	ProductReviewCount int32              `json:"product_review_count"`
+}
+
+type ProductReview struct {
+	ReviewID        int32     `json:"review_id"`
+	ReviewUuid      uuid.UUID `json:"review_uuid"`
+	ReviewUserID    int32     `json:"review_user_id"`
+	ReviewProductID int32     `json:"review_product_id"`
+	ReviewOrderID   int32     `json:"review_order_id"`
+	ReviewRating    int16     `json:"review_rating"`
+	ReviewTitle     *string   `json:"review_title"`
+	ReviewComment   *string   `json:"review_comment"`
+	// 1: Visible, 2: Hidden, 3: Reported
+	ReviewStatus    int16     `json:"review_status"`
+	ReviewCreatedAt time.Time `json:"review_created_at"`
+	ReviewUpdatedAt time.Time `json:"review_updated_at"`
 }
 
 type User struct {

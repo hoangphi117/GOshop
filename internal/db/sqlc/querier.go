@@ -17,6 +17,8 @@ type Querier interface {
 	// stock nghiêm ngặt.
 	AddOrUpdateCartItem(ctx context.Context, arg AddOrUpdateCartItemParams) (CartItem, error)
 	CancelOrder(ctx context.Context, orderUuid uuid.UUID) (Order, error)
+	CheckReviewExists(ctx context.Context, arg CheckReviewExistsParams) (bool, error)
+	CheckUserPurchasedProduct(ctx context.Context, arg CheckUserPurchasedProductParams) (bool, error)
 	ClearCartByCartID(ctx context.Context, cartID int32) error
 	ClearDefaultAddress(ctx context.Context, uaUserID int32) error
 	CountCartItems(ctx context.Context, cartID int32) (int64, error)
@@ -34,6 +36,7 @@ type Querier interface {
 	CreatePaymentTransaction(ctx context.Context, arg CreatePaymentTransactionParams) (PaymentTransaction, error)
 	CreateProduct(ctx context.Context, arg CreateProductParams) (CreateProductRow, error)
 	CreateRefundTransaction(ctx context.Context, arg CreateRefundTransactionParams) (PaymentTransaction, error)
+	CreateReview(ctx context.Context, arg CreateReviewParams) (ProductReview, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	CreateUserAddress(ctx context.Context, arg CreateUserAddressParams) (UserAddress, error)
 	DeductStock(ctx context.Context, arg DeductStockParams) (int64, error)
@@ -86,6 +89,7 @@ type Querier interface {
 	ListUserUserIdAsc(ctx context.Context, arg ListUserUserIdAscParams) ([]User, error)
 	ListUserUserIdDesc(ctx context.Context, arg ListUserUserIdDescParams) ([]User, error)
 	MarkWebhookEventProcessed(ctx context.Context, weID int32) error
+	RecalcProductRating(ctx context.Context, reviewProductID int32) error
 	RecordCouponUsage(ctx context.Context, arg RecordCouponUsageParams) (CouponUsage, error)
 	RestoreCategory(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
 	RestoreCoupon(ctx context.Context, couponUuid uuid.UUID) (Coupon, error)
