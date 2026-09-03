@@ -138,5 +138,7 @@ type ReviewRepository interface {
 	GetByUUID(ctx context.Context, reviewUUID uuid.UUID) (sqlc.GetReviewByUUIDRow, error)
 	Update(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReviewParams) (sqlc.ProductReview, error)
 	Delete(ctx context.Context, tx pgx.Tx, reviewID int32) error
+	AdminGetAll(ctx context.Context, status *int16, rating *int32, productUUID, search *string, orderBy, sort string, limit, offset int32) ([]v1dto.AdminReviewRow, error)
+	AdminCount(ctx context.Context, status *int16, rating *int32, productID *int32, search *string) (int64, error)
+	UpdateStatus(ctx context.Context, tx pgx.Tx, reviewID int32, status int16) (sqlc.ProductReview, error)
 }
-

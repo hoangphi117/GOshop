@@ -364,3 +364,37 @@ func (q *Queries) UpdateReview(ctx context.Context, arg UpdateReviewParams) (Pro
 	)
 	return i, err
 }
+
+const updateReviewStatus = `-- name: UpdateReviewStatus :one
+UPDATE product_reviews SET
+    review_status = $2
+WHERE review_id = $1
+RETURNING review_id, review_uuid, review_user_id, review_product_id, review_order_id, review_rating, review_title, review_comment, review_images, review_video_url, review_has_media, review_status, review_created_at, review_updated_at
+`
+
+type UpdateReviewStatusParams struct {
+	ReviewID     int32 `json:"review_id"`
+	ReviewStatus int16 `json:"review_status"`
+}
+
+func (q *Queries) UpdateReviewStatus(ctx context.Context, arg UpdateReviewStatusParams) (ProductReview, error) {
+	row := q.db.QueryRow(ctx, updateReviewStatus, arg.ReviewID, arg.ReviewStatus)
+	var i ProductReview
+	err := row.Scan(
+		&i.ReviewID,
+		&i.ReviewUuid,
+		&i.ReviewUserID,
+		&i.ReviewProductID,
+		&i.ReviewOrderID,
+		&i.ReviewRating,
+		&i.ReviewTitle,
+		&i.ReviewComment,
+		&i.ReviewImages,
+		&i.ReviewVideoUrl,
+		&i.ReviewHasMedia,
+		&i.ReviewStatus,
+		&i.ReviewCreatedAt,
+		&i.ReviewUpdatedAt,
+	)
+	return i, err
+}

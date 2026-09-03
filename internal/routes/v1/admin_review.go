@@ -17,8 +17,9 @@ func NewAdminReviewRoutes(handler *v1handler.ReviewHandler) *AdminReviewRoutes {
 }
 
 func (ur *AdminReviewRoutes) Register(r *gin.RouterGroup) {
-	// reviews := r.Group("/reviews")
-	// {
-
-	// }
+	reviews := r.Group("/reviews")
+	{
+		reviews.GET("", ur.handler.AdminGetAllReviews)
+		reviews.PATCH("/:uuid/status", ur.handler.UpdateReviewStatus)
+	}
 }

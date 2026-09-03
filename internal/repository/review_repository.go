@@ -177,3 +177,126 @@ func (rr *SqlReviewRepository) Delete(ctx context.Context, tx pgx.Tx, reviewID i
 	return q.DeleteReview(ctx, reviewID)
 }
 
+func (rr *SqlReviewRepository) UpdateStatus(ctx context.Context, tx pgx.Tx, reviewID int32, status int16) (sqlc.ProductReview, error) {
+	q := sqlc.New(tx)
+	return q.UpdateReviewStatus(ctx, sqlc.UpdateReviewStatusParams{
+		ReviewID:     reviewID,
+		ReviewStatus: status,
+	})
+}
+
+func (rr *SqlReviewRepository) AdminGetAll(ctx context.Context, status *int16, rating *int32, productUUID, search *string, orderBy, sort string, limit, offset int32) ([]v1dto.AdminReviewRow, error) {
+	query := `SELECT 
+				r.review_id, r.review_uuid, 
+				p.product_uuid, p.product_name,
+				o.order_uuid,
+				u.user_fullname AS reviewer_name, u.user_email AS reviewer_email,
+				r.review_rating, r.review_title, r.review_comment,
+				r.review_images, r.review_video_url, r.review_has_media,
+				r.review_status, r.review_created_at, r.review_updated_at
+			FROM product_reviews r
+			JOIN products p ON p.product_id = r.review_product_id
+			JOIN orders o ON o.order_id = r.review_order_id
+			JOIN users u ON u.user_id = r.review_user_id
+			WHERE 1=1`
+
+	args := []any{}
+	argIdx := 1
+
+	if status != nil {
+		query += fmt.Sprintf(" AND r.review_status = $%d", argIdx)
+		args = append(args, *status)
+		argIdx++
+	}
+
+	if rating != nil {
+		query += fmt.Sprintf(" AND r.review_rating = $%d", argIdx)
+		args = append(args, *rating)
+		argIdx++
+	}
+
+	if productUUID != nil {
+		query += fmt.Sprintf(" AND p.product_uuid = $%d", argIdx)
+		args = append(args, *productUUID)
+		argIdx++
+	}
+
+	if search != nil && *search != "" {
+		query += fmt.Sprintf(" AND (unaccent(r.review_title) ILIKE '%%' || unaccent($%d) || '%%' OR unaccent(r.review_comment) ILIKE '%%' || unaccent($%d) || '%%')", argIdx, argIdx)
+		args = append(args, *search)
+		argIdx++
+	}
+
+	order := "DESC"
+	if strings.ToLower(sort) == "asc" {
+		order = "ASC"
+	}
+
+	switch orderBy {
+	case "rating":
+		query += fmt.Sprintf(" ORDER BY r.review_rating %s, r.review_created_at DESC", order)
+	case "created_at":
+		query += fmt.Sprintf(" ORDER BY r.review_created_at %s", order)
+	default:
+		query += fmt.Sprintf(" ORDER BY r.review_created_at %s", order)
+	}
+
+	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argIdx, argIdx+1)
+	args = append(args, limit, offset)
+
+	rows, err := db.DBPool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var reviews []v1dto.AdminReviewRow
+	for rows.Next() {
+		var r v1dto.AdminReviewRow
+		if err := rows.Scan(
+			&r.ReviewID, &r.ReviewUUID,
+			&r.ProductUUID, &r.ProductName,
+			&r.OrderUUID,
+			&r.ReviewerName, &r.ReviewerEmail,
+			&r.ReviewRating, &r.ReviewTitle, &r.ReviewComment,
+			&r.ReviewImages, &r.ReviewVideoURL, &r.ReviewHasMedia,
+			&r.ReviewStatus, &r.ReviewCreatedAt, &r.ReviewUpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		reviews = append(reviews, r)
+	}
+
+	return reviews, nil
+}
+
+func (rr *SqlReviewRepository) AdminCount(ctx context.Context, status *int16, rating *int32, productID *int32, search *string) (int64, error) {
+	query := `SELECT COUNT(*) FROM product_reviews r WHERE 1=1`
+	args := []any{}
+	argIdx := 1
+	if status != nil {
+		query += fmt.Sprintf(" AND r.review_status = $%d", argIdx)
+		args = append(args, *status)
+		argIdx++
+	}
+	if rating != nil {
+		query += fmt.Sprintf(" AND r.review_rating = $%d", argIdx)
+		args = append(args, *rating)
+		argIdx++
+	}
+	if productID != nil {
+		query += fmt.Sprintf(" AND r.review_product_id = $%d", argIdx)
+		args = append(args, *productID)
+		argIdx++
+	}
+	if search != nil && *search != "" {
+		query += fmt.Sprintf(" AND (unaccent(r.review_title) ILIKE '%%' || unaccent($%d) || '%%' OR unaccent(r.review_comment) ILIKE '%%' || unaccent($%d) || '%%')", argIdx, argIdx)
+		args = append(args, *search)
+		argIdx++
+	}
+	var count int64
+	if err := db.DBPool.QueryRow(ctx, query, args...).Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}

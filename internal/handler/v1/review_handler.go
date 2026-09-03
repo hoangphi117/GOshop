@@ -226,3 +226,57 @@ func (rh *ReviewHandler) DeleteReview(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Review deleted successfully", nil)
 }
 
+func (rh *ReviewHandler) UpdateReviewStatus(ctx *gin.Context) {
+	var param v1dto.ReviewUUIDParam
+	if err := ctx.ShouldBindUri(&param); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	reviewUUID, err := uuid.Parse(param.UUID)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid review UUID"))
+		return
+	}
+
+	var input v1dto.UpdateReviewStatusInput
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	updatedReview, err := rh.service.UpdateReviewStatus(ctx, reviewUUID, input)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Review status updated successfully", updatedReview)
+}
+
+func (rh *ReviewHandler) AdminGetAllReviews(ctx *gin.Context) {
+	var query v1dto.AdminGetReviewsQuery
+	if err := ctx.ShouldBindQuery(&query); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	reviews, total, err := rh.service.AdminGetAllReviews(ctx, query)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	page := query.Page
+	if page <= 0 {
+		page = 1
+	}
+
+	limit := query.Limit
+	if limit <= 0 {
+		limit = 10
+	}
+
+	paginationResponse := utils.NewPaginationResponse(reviews, page, limit, total)
+	utils.ResponseSuccess(ctx, http.StatusOK, "Admin reviews retrieved successfully", paginationResponse)
+}

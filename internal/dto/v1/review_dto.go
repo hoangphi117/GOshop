@@ -43,6 +43,43 @@ type ReviewDTO struct {
 	UpdatedAt    string   `json:"updated_at,omitempty"`
 }
 
+type AdminReviewDTO struct {
+	UUID          string   `json:"uuid"`
+	ProductUUID   string   `json:"product_uuid"`
+	ProductName   string   `json:"product_name"`
+	OrderUUID     string   `json:"order_uuid"`
+	ReviewerName  string   `json:"reviewer_name"`
+	ReviewerEmail string   `json:"reviewer_email"`
+	Rating        int32    `json:"rating"`
+	Title         *string  `json:"title,omitempty"`
+	Comment       *string  `json:"comment,omitempty"`
+	Images        []string `json:"images"`
+	VideoURL      *string  `json:"video_url,omitempty"`
+	HasMedia      bool     `json:"has_media"`
+	Status        int16    `json:"status"` // 1: Visible, 2: Hidden, 3: Reported
+	CreatedAt     string   `json:"created_at"`
+	UpdatedAt     string   `json:"updated_at"`
+}
+
+type AdminReviewRow struct {
+	ReviewID        int32
+	ReviewUUID      uuid.UUID
+	ProductUUID     uuid.UUID
+	ProductName     string
+	OrderUUID       uuid.UUID
+	ReviewerName    string
+	ReviewerEmail   string
+	ReviewRating    int16
+	ReviewTitle     *string
+	ReviewComment   *string
+	ReviewImages    []string
+	ReviewVideoURL  *string
+	ReviewHasMedia  bool
+	ReviewStatus    int16
+	ReviewCreatedAt time.Time
+	ReviewUpdatedAt time.Time
+}
+
 // ── Create Input ───────────────────────────────────────────────
 type CreateReviewInput struct {
 	ProductUUID string  `form:"product_uuid" binding:"required,uuid"`
@@ -58,6 +95,10 @@ type UpdateReviewInput struct {
 	Comment *string `json:"comment" binding:"omitempty,max=2000"`
 }
 
+type UpdateReviewStatusInput struct {
+	Status int16 `json:"status" binding:"required,oneof=1 2 3"` // 1: Visible, 2: Hidden, 3: Reported
+}
+
 // ── Query Parameters ───────────────────────────────────────────────
 type GetReviewsQuery struct {
 	Page     int32  `form:"page"      binding:"omitempty,gte=1"`
@@ -66,6 +107,17 @@ type GetReviewsQuery struct {
 	HasMedia *bool  `form:"has_media" binding:"omitempty"`
 	OrderBy  string `form:"order_by"  binding:"omitempty,oneof=created_at rating"`
 	Sort     string `form:"sort"      binding:"omitempty,oneof=asc desc"`
+}
+
+type AdminGetReviewsQuery struct {
+	Page        int32   `form:"page"         binding:"omitempty,gte=1"`
+	Limit       int32   `form:"limit"        binding:"omitempty,gte=1,lte=100"`
+	Status      *int16  `form:"status"       binding:"omitempty,oneof=1 2 3"` // 1: Visible, 2: Hidden, 3: Reported
+	Rating      *int32  `form:"rating"       binding:"omitempty,min=1,max=5"`
+	ProductUUID *string `form:"product_uuid" binding:"omitempty,uuid"`
+	Search      *string `form:"search"       binding:"omitempty,max=100"`
+	OrderBy     string  `form:"order_by"     binding:"omitempty,oneof=created_at rating"`
+	Sort        string  `form:"sort"         binding:"omitempty,oneof=asc desc"`
 }
 
 type GetMyReviewsQuery struct {

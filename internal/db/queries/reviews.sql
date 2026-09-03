@@ -96,3 +96,8 @@ RETURNING *;
 DELETE FROM product_reviews
 WHERE review_id = $1;
 
+-- name: UpdateReviewStatus :one
+UPDATE product_reviews SET
+    review_status = $2
+WHERE review_id = $1
+RETURNING *;

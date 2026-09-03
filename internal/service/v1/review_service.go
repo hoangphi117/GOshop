@@ -446,3 +446,102 @@ func (rs *reviewService) DeleteReview(ctx *gin.Context, reviewUUID uuid.UUID) er
 	return nil
 }
 
+// Admin
+
+func (rs *reviewService) AdminGetAllReviews(ctx *gin.Context, query v1dto.AdminGetReviewsQuery) ([]v1dto.AdminReviewRow, int32, error) {
+	reqCtx := ctx.Request.Context()
+
+	page := query.Page
+	if page <= 0 {
+		page = 1
+	}
+
+	limit := query.Limit
+	if limit <= 0 {
+		limit = 10
+	}
+
+	offset := (page - 1) * limit
+
+	var productID *int32
+	if query.ProductUUID != nil && *query.ProductUUID != "" {
+		pUUID, err := uuid.Parse(*query.ProductUUID)
+		if err != nil {
+			return nil, 0, utils.NewError(utils.ErrCodeBadRequest, "Invalid product UUID")
+		}
+		product, err := rs.productRepo.GetByUUID(reqCtx, pUUID)
+		if err != nil {
+			return nil, 0, utils.NewError(utils.ErrCodeNotFound, "Product not found")
+		}
+		productID = &product.ProductID
+	}
+
+	total, err := rs.repo.AdminCount(reqCtx, query.Status, query.Rating, productID, query.Search)
+	if err != nil {
+		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "Failed to count reviews", err)
+	}
+
+	if total == 0 {
+		return []v1dto.AdminReviewRow{}, 0, nil
+	}
+
+	rows, err := rs.repo.AdminGetAll(reqCtx, query.Status, query.Rating, query.ProductUUID, query.Search, "r.review_created_at", query.Sort, limit, offset)
+	if err != nil {
+		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "Failed to get reviews", err)
+	}
+	return rows, int32(total), nil
+}
+
+func (rs *reviewService) UpdateReviewStatus(ctx *gin.Context, reviewUUID uuid.UUID, input v1dto.UpdateReviewStatusInput) (v1dto.ReviewDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	review, err := rs.repo.GetByUUID(reqCtx, reviewUUID)
+	if err != nil {
+		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeNotFound, "Review not found")
+	}
+
+	txCtx, cancel := context.WithTimeout(reqCtx, 5*time.Second)
+	defer cancel()
+
+	tx, err := db.BeginTx(txCtx)
+	if err != nil {
+		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to start transaction", err)
+	}
+	defer tx.Rollback(txCtx)
+
+	updatedReview, err := rs.repo.UpdateStatus(txCtx, tx, review.ReviewID, input.Status)
+	if err != nil {
+		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to update review status", err)
+	}
+
+	if err := rs.repo.RecalcRating(txCtx, tx, review.ReviewProductID); err != nil {
+		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to recalculate product rating", err)
+	}
+
+	if err := tx.Commit(txCtx); err != nil {
+		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
+	}
+
+	go func(pUUID string) {
+		_ = rs.cache.Clear("reviews:product:" + pUUID + ":*")
+		_ = rs.cache.Del("reviews:summary:" + pUUID)
+		_ = rs.cache.Clear("products:*")
+	}(review.ProductUuid.String())
+
+	images := updatedReview.ReviewImages
+	if images == nil {
+		images = []string{}
+	}
+
+	return v1dto.ReviewDTO{
+		UUID:      updatedReview.ReviewUuid.String(),
+		Rating:    int32(updatedReview.ReviewRating),
+		Title:     updatedReview.ReviewTitle,
+		Comment:   updatedReview.ReviewComment,
+		Images:    images,
+		VideoURL:  updatedReview.ReviewVideoUrl,
+		HasMedia:  updatedReview.ReviewHasMedia,
+		CreatedAt: updatedReview.ReviewCreatedAt.Format("2006-01-02 15:04:05"),
+		UpdatedAt: updatedReview.ReviewUpdatedAt.Format("2006-01-02 15:04:05"),
+	}, nil
+}

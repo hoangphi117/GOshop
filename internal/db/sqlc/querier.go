@@ -122,6 +122,7 @@ type Querier interface {
 	UpdatePaymentStatusAtomically(ctx context.Context, arg UpdatePaymentStatusAtomicallyParams) (PaymentTransaction, error)
 	UpdateProduct(ctx context.Context, arg UpdateProductParams) (UpdateProductRow, error)
 	UpdateReview(ctx context.Context, arg UpdateReviewParams) (ProductReview, error)
+	UpdateReviewStatus(ctx context.Context, arg UpdateReviewStatusParams) (ProductReview, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 	UpdateUserAddress(ctx context.Context, arg UpdateUserAddressParams) (UserAddress, error)
 }
