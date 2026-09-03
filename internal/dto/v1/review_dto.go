@@ -39,6 +39,7 @@ type ReviewDTO struct {
 	Images       []string `json:"images"`
 	VideoURL     *string  `json:"video_url,omitempty"`
 	HasMedia     bool     `json:"has_media"`
+	CanEdit      bool     `json:"can_edit"`
 	CreatedAt    string   `json:"created_at"`
 	UpdatedAt    string   `json:"updated_at,omitempty"`
 }
@@ -137,6 +138,7 @@ type MyReviewDTO struct {
 	Images          []string `json:"images"`
 	VideoURL        *string  `json:"video_url,omitempty"`
 	HasMedia        bool     `json:"has_media"`
+	CanEdit         bool     `json:"can_edit"`
 	CreatedAt       string   `json:"created_at"`
 }
 
@@ -170,6 +172,7 @@ func MapCreatedReviewToDTO(r sqlc.ProductReview, reviewerName, productUUID, orde
 		Images:       images,
 		VideoURL:     r.ReviewVideoUrl,
 		HasMedia:     r.ReviewHasMedia,
+		CanEdit:      true,
 		CreatedAt:    r.ReviewCreatedAt.Format("2006-01-02 15:04:05"),
 		UpdatedAt:    r.ReviewUpdatedAt.Format("2006-01-02 15:04:05"),
 	}
@@ -180,6 +183,9 @@ func MapToMyReviewDTO(r sqlc.GetReviewsByUserIDRow) MyReviewDTO {
 	if images == nil {
 		images = []string{}
 	}
+
+	canEdit := (r.ReviewEditCount == 0) && (time.Since(r.ReviewCreatedAt) <= 30*24*time.Hour)
+
 	return MyReviewDTO{
 		UUID:            r.ReviewUuid.String(),
 		ProductUUID:     r.ProductUuid.String(),
@@ -192,6 +198,7 @@ func MapToMyReviewDTO(r sqlc.GetReviewsByUserIDRow) MyReviewDTO {
 		Images:          images,
 		VideoURL:        r.ReviewVideoUrl,
 		HasMedia:        r.ReviewHasMedia,
+		CanEdit:         canEdit,
 		CreatedAt:       r.ReviewCreatedAt.Format("2006-01-02 15:04:05"),
 	}
 }

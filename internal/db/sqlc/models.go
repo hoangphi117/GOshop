@@ -167,6 +167,7 @@ type ProductReview struct {
 	ReviewHasMedia  bool      `json:"review_has_media"`
 	// 1: Visible, 2: Hidden, 3: Reported
 	ReviewStatus    int16     `json:"review_status"`
+	ReviewEditCount int32     `json:"review_edit_count"`
 	ReviewCreatedAt time.Time `json:"review_created_at"`
 	ReviewUpdatedAt time.Time `json:"review_updated_at"`
 }

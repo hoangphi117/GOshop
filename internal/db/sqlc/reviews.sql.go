@@ -75,7 +75,7 @@ INSERT INTO product_reviews (
     review_user_id, review_product_id, review_order_id,
     review_rating, review_title, review_comment, review_images, review_video_url, review_has_media
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING review_id, review_uuid, review_user_id, review_product_id, review_order_id, review_rating, review_title, review_comment, review_images, review_video_url, review_has_media, review_status, review_created_at, review_updated_at
+RETURNING review_id, review_uuid, review_user_id, review_product_id, review_order_id, review_rating, review_title, review_comment, review_images, review_video_url, review_has_media, review_status, review_edit_count, review_created_at, review_updated_at
 `
 
 type CreateReviewParams struct {
@@ -116,6 +116,7 @@ func (q *Queries) CreateReview(ctx context.Context, arg CreateReviewParams) (Pro
 		&i.ReviewVideoUrl,
 		&i.ReviewHasMedia,
 		&i.ReviewStatus,
+		&i.ReviewEditCount,
 		&i.ReviewCreatedAt,
 		&i.ReviewUpdatedAt,
 	)
@@ -175,7 +176,7 @@ func (q *Queries) GetProductRatingSummary(ctx context.Context, reviewProductID i
 
 const getReviewByUUID = `-- name: GetReviewByUUID :one
 SELECT 
-    r.review_id, r.review_uuid, r.review_user_id, r.review_product_id, r.review_order_id, r.review_rating, r.review_title, r.review_comment, r.review_images, r.review_video_url, r.review_has_media, r.review_status, r.review_created_at, r.review_updated_at,
+    r.review_id, r.review_uuid, r.review_user_id, r.review_product_id, r.review_order_id, r.review_rating, r.review_title, r.review_comment, r.review_images, r.review_video_url, r.review_has_media, r.review_status, r.review_edit_count, r.review_created_at, r.review_updated_at,
     p.product_uuid
 FROM product_reviews r
 JOIN products p ON p.product_id = r.review_product_id
@@ -195,6 +196,7 @@ type GetReviewByUUIDRow struct {
 	ReviewVideoUrl  *string   `json:"review_video_url"`
 	ReviewHasMedia  bool      `json:"review_has_media"`
 	ReviewStatus    int16     `json:"review_status"`
+	ReviewEditCount int32     `json:"review_edit_count"`
 	ReviewCreatedAt time.Time `json:"review_created_at"`
 	ReviewUpdatedAt time.Time `json:"review_updated_at"`
 	ProductUuid     uuid.UUID `json:"product_uuid"`
@@ -216,6 +218,7 @@ func (q *Queries) GetReviewByUUID(ctx context.Context, reviewUuid uuid.UUID) (Ge
 		&i.ReviewVideoUrl,
 		&i.ReviewHasMedia,
 		&i.ReviewStatus,
+		&i.ReviewEditCount,
 		&i.ReviewCreatedAt,
 		&i.ReviewUpdatedAt,
 		&i.ProductUuid,
@@ -233,6 +236,7 @@ SELECT
     r.review_images,
     r.review_video_url,
     r.review_has_media,
+    r.review_edit_count,
     r.review_created_at,
     p.product_uuid,
     p.product_name,
@@ -260,6 +264,7 @@ type GetReviewsByUserIDRow struct {
 	ReviewImages    []string  `json:"review_images"`
 	ReviewVideoUrl  *string   `json:"review_video_url"`
 	ReviewHasMedia  bool      `json:"review_has_media"`
+	ReviewEditCount int32     `json:"review_edit_count"`
 	ReviewCreatedAt time.Time `json:"review_created_at"`
 	ProductUuid     uuid.UUID `json:"product_uuid"`
 	ProductName     string    `json:"product_name"`
@@ -285,6 +290,7 @@ func (q *Queries) GetReviewsByUserID(ctx context.Context, arg GetReviewsByUserID
 			&i.ReviewImages,
 			&i.ReviewVideoUrl,
 			&i.ReviewHasMedia,
+			&i.ReviewEditCount,
 			&i.ReviewCreatedAt,
 			&i.ProductUuid,
 			&i.ProductName,
@@ -326,9 +332,10 @@ const updateReview = `-- name: UpdateReview :one
 UPDATE product_reviews SET
     review_rating = $2,
     review_title = $3,
-    review_comment = $4
+    review_comment = $4,
+    review_edit_count = review_edit_count + 1
 WHERE review_id = $1
-RETURNING review_id, review_uuid, review_user_id, review_product_id, review_order_id, review_rating, review_title, review_comment, review_images, review_video_url, review_has_media, review_status, review_created_at, review_updated_at
+RETURNING review_id, review_uuid, review_user_id, review_product_id, review_order_id, review_rating, review_title, review_comment, review_images, review_video_url, review_has_media, review_status, review_edit_count, review_created_at, review_updated_at
 `
 
 type UpdateReviewParams struct {
@@ -359,6 +366,7 @@ func (q *Queries) UpdateReview(ctx context.Context, arg UpdateReviewParams) (Pro
 		&i.ReviewVideoUrl,
 		&i.ReviewHasMedia,
 		&i.ReviewStatus,
+		&i.ReviewEditCount,
 		&i.ReviewCreatedAt,
 		&i.ReviewUpdatedAt,
 	)
@@ -369,7 +377,7 @@ const updateReviewStatus = `-- name: UpdateReviewStatus :one
 UPDATE product_reviews SET
     review_status = $2
 WHERE review_id = $1
-RETURNING review_id, review_uuid, review_user_id, review_product_id, review_order_id, review_rating, review_title, review_comment, review_images, review_video_url, review_has_media, review_status, review_created_at, review_updated_at
+RETURNING review_id, review_uuid, review_user_id, review_product_id, review_order_id, review_rating, review_title, review_comment, review_images, review_video_url, review_has_media, review_status, review_edit_count, review_created_at, review_updated_at
 `
 
 type UpdateReviewStatusParams struct {
@@ -393,6 +401,7 @@ func (q *Queries) UpdateReviewStatus(ctx context.Context, arg UpdateReviewStatus
 		&i.ReviewVideoUrl,
 		&i.ReviewHasMedia,
 		&i.ReviewStatus,
+		&i.ReviewEditCount,
 		&i.ReviewCreatedAt,
 		&i.ReviewUpdatedAt,
 	)

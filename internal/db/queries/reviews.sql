@@ -61,6 +61,7 @@ SELECT
     r.review_images,
     r.review_video_url,
     r.review_has_media,
+    r.review_edit_count,
     r.review_created_at,
     p.product_uuid,
     p.product_name,
@@ -88,7 +89,8 @@ WHERE r.review_uuid = $1;
 UPDATE product_reviews SET
     review_rating = $2,
     review_title = $3,
-    review_comment = $4
+    review_comment = $4,
+    review_edit_count = review_edit_count + 1
 WHERE review_id = $1
 RETURNING *;
 

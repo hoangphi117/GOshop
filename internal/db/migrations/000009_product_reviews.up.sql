@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS product_reviews (
     review_video_url   TEXT,
     review_has_media   BOOLEAN DEFAULT false NOT NULL,
     review_status      SMALLINT DEFAULT 1 NOT NULL CHECK (review_status IN (1, 2, 3)),
+    review_edit_count  INT DEFAULT 0 NOT NULL,
     review_created_at  TIMESTAMPTZ DEFAULT now() NOT NULL,
     review_updated_at  TIMESTAMPTZ DEFAULT now() NOT NULL
 );

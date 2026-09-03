@@ -303,6 +303,7 @@ func (rs *reviewService) GetMyReviews(ctx *gin.Context, query v1dto.GetMyReviews
 	if err != nil {
 		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "Failed to get user reviews", err)
 	}
+
 	return v1dto.MapToMyReviewDTOs(rows), int32(total), nil
 }
 
@@ -331,6 +332,15 @@ func (rs *reviewService) UpdateReview(ctx *gin.Context, reviewUUID uuid.UUID, in
 
 	if review.ReviewUserID != user.UserID {
 		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeForbidden, "You do not have permission to update this review")
+	}
+
+	if review.ReviewEditCount >= 1 {
+		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeBadRequest, "You can only edit your review once")
+	}
+
+	const maxEditDuration = 30 * 24 * time.Hour
+	if time.Since(review.ReviewCreatedAt) > maxEditDuration {
+		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeBadRequest, "You can only edit your review within 30 days of posting")
 	}
 
 	txCtx, cancel := context.WithTimeout(reqCtx, 5*time.Second)
@@ -383,6 +393,7 @@ func (rs *reviewService) UpdateReview(ctx *gin.Context, reviewUUID uuid.UUID, in
 		Images:       images,
 		VideoURL:     updatedReview.ReviewVideoUrl,
 		HasMedia:     updatedReview.ReviewHasMedia,
+		CanEdit:      false,
 		CreatedAt:    updatedReview.ReviewCreatedAt.Format("2006-01-02 15:04:05"),
 		UpdatedAt:    updatedReview.ReviewUpdatedAt.Format("2006-01-02 15:04:05"),
 	}, nil
@@ -447,7 +458,6 @@ func (rs *reviewService) DeleteReview(ctx *gin.Context, reviewUUID uuid.UUID) er
 }
 
 // Admin
-
 func (rs *reviewService) AdminGetAllReviews(ctx *gin.Context, query v1dto.AdminGetReviewsQuery) ([]v1dto.AdminReviewRow, int32, error) {
 	reqCtx := ctx.Request.Context()
 
