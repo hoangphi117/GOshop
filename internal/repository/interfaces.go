@@ -135,5 +135,8 @@ type ReviewRepository interface {
 	GetRatingSummary(ctx context.Context, productID int32) (sqlc.GetProductRatingSummaryRow, error)
 	GetByUserID(ctx context.Context, userID int32, limit, offset int32) ([]sqlc.GetReviewsByUserIDRow, error)
 	CountByUserID(ctx context.Context, userID int32) (int64, error)
+	GetByUUID(ctx context.Context, reviewUUID uuid.UUID) (sqlc.GetReviewByUUIDRow, error)
+	Update(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReviewParams) (sqlc.ProductReview, error)
+	Delete(ctx context.Context, tx pgx.Tx, reviewID int32) error
 }
 

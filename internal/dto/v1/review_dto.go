@@ -52,6 +52,12 @@ type CreateReviewInput struct {
 	Comment     *string `form:"comment"      binding:"omitempty,max=2000"`
 }
 
+type UpdateReviewInput struct {
+	Rating  int32   `json:"rating"  binding:"required,min=1,max=5"`
+	Title   *string `json:"title"   binding:"omitempty,max=200"`
+	Comment *string `json:"comment" binding:"omitempty,max=2000"`
+}
+
 // ── Query Parameters ───────────────────────────────────────────────
 type GetReviewsQuery struct {
 	Page     int32  `form:"page"      binding:"omitempty,gte=1"`

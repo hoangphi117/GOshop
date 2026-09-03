@@ -176,3 +176,53 @@ func (rh *ReviewHandler) GetMyReviews(ctx *gin.Context) {
 	paginationResponse := utils.NewPaginationResponse(reviews, page, limit, total)
 	utils.ResponseSuccess(ctx, http.StatusOK, "Get my reviews successfully", paginationResponse)
 }
+
+func (rh *ReviewHandler) UpdateReview(ctx *gin.Context) {
+	var param v1dto.ReviewUUIDParam
+	if err := ctx.ShouldBindUri(&param); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	reviewUUID, err := uuid.Parse(param.UUID)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid review UUID"))
+		return
+	}
+
+	var input v1dto.UpdateReviewInput
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	updatedReview, err := rh.service.UpdateReview(ctx, reviewUUID, input)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Review updated successfully", updatedReview)
+}
+
+func (rh *ReviewHandler) DeleteReview(ctx *gin.Context) {
+	var param v1dto.ReviewUUIDParam
+	if err := ctx.ShouldBindUri(&param); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	reviewUUID, err := uuid.Parse(param.UUID)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid review UUID"))
+		return
+	}
+
+	if err := rh.service.DeleteReview(ctx, reviewUUID); err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Review deleted successfully", nil)
+}
+

@@ -75,3 +75,24 @@ LIMIT $2 OFFSET $3;
 -- name: CountReviewsByUserID :one
 SELECT COUNT(*)::bigint FROM product_reviews
 WHERE review_user_id = $1;
+
+-- name: GetReviewByUUID :one
+SELECT 
+    r.*,
+    p.product_uuid
+FROM product_reviews r
+JOIN products p ON p.product_id = r.review_product_id
+WHERE r.review_uuid = $1;
+
+-- name: UpdateReview :one
+UPDATE product_reviews SET
+    review_rating = $2,
+    review_title = $3,
+    review_comment = $4
+WHERE review_id = $1
+RETURNING *;
+
+-- name: DeleteReview :exec
+DELETE FROM product_reviews
+WHERE review_id = $1;
+

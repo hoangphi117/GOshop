@@ -8,6 +8,7 @@ import (
 	v1dto "goshop/internal/dto/v1"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -161,3 +162,18 @@ func (rr *SqlReviewRepository) GetByUserID(ctx context.Context, userID int32, li
 func (rr *SqlReviewRepository) CountByUserID(ctx context.Context, userID int32) (int64, error) {
 	return rr.db.CountReviewsByUserID(ctx, userID)
 }
+
+func (rr *SqlReviewRepository) GetByUUID(ctx context.Context, reviewUUID uuid.UUID) (sqlc.GetReviewByUUIDRow, error) {
+	return rr.db.GetReviewByUUID(ctx, reviewUUID)
+}
+
+func (rr *SqlReviewRepository) Update(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReviewParams) (sqlc.ProductReview, error) {
+	q := sqlc.New(tx)
+	return q.UpdateReview(ctx, params)
+}
+
+func (rr *SqlReviewRepository) Delete(ctx context.Context, tx pgx.Tx, reviewID int32) error {
+	q := sqlc.New(tx)
+	return q.DeleteReview(ctx, reviewID)
+}
+

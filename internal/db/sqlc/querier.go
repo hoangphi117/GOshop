@@ -45,6 +45,7 @@ type Querier interface {
 	// Dùng cho bước "dọn giỏ hàng sau khi đặt" — xóa CHỌN
 	// LỌC theo danh sách product_id có trong đơn vừa tạo, không xóa sạch toàn bộ giỏ.
 	DeleteCartItemsByProductIDs(ctx context.Context, arg DeleteCartItemsByProductIDsParams) error
+	DeleteReview(ctx context.Context, reviewID int32) error
 	DeleteUserAddress(ctx context.Context, arg DeleteUserAddressParams) (bool, error)
 	GetByUUIDsForUpdate(ctx context.Context, uuids []uuid.UUID) ([]GetByUUIDsForUpdateRow, error)
 	// Khác GetOrCreateCartByUserID: KHÔNG tự tạo cart nếu chưa có. Dùng cho
@@ -76,6 +77,7 @@ type Querier interface {
 	GetProductBySlug(ctx context.Context, productSlug string) (GetProductBySlugRow, error)
 	GetProductByUUID(ctx context.Context, productUuid uuid.UUID) (GetProductByUUIDRow, error)
 	GetProductRatingSummary(ctx context.Context, reviewProductID int32) (GetProductRatingSummaryRow, error)
+	GetReviewByUUID(ctx context.Context, reviewUuid uuid.UUID) (GetReviewByUUIDRow, error)
 	GetReviewsByUserID(ctx context.Context, arg GetReviewsByUserIDParams) ([]GetReviewsByUserIDRow, error)
 	GetUserAddressByUUID(ctx context.Context, arg GetUserAddressByUUIDParams) (UserAddress, error)
 	GetUserAddressesByUserID(ctx context.Context, uaUserID int32) ([]UserAddress, error)
@@ -119,6 +121,7 @@ type Querier interface {
 	UpdatePassword(ctx context.Context, arg UpdatePasswordParams) (User, error)
 	UpdatePaymentStatusAtomically(ctx context.Context, arg UpdatePaymentStatusAtomicallyParams) (PaymentTransaction, error)
 	UpdateProduct(ctx context.Context, arg UpdateProductParams) (UpdateProductRow, error)
+	UpdateReview(ctx context.Context, arg UpdateReviewParams) (ProductReview, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 	UpdateUserAddress(ctx context.Context, arg UpdateUserAddressParams) (UserAddress, error)
 }

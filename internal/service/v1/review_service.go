@@ -305,3 +305,144 @@ func (rs *reviewService) GetMyReviews(ctx *gin.Context, query v1dto.GetMyReviews
 	}
 	return v1dto.MapToMyReviewDTOs(rows), int32(total), nil
 }
+
+func (rs *reviewService) UpdateReview(ctx *gin.Context, reviewUUID uuid.UUID, input v1dto.UpdateReviewInput) (v1dto.ReviewDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	userUUIDStr, ok := ctx.Get("user_uuid")
+	if !ok {
+		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+
+	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	if err != nil {
+		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID")
+	}
+
+	user, err := rs.userRepo.GetByUUID(reqCtx, userUUID)
+	if err != nil {
+		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "User not found")
+	}
+
+	review, err := rs.repo.GetByUUID(reqCtx, reviewUUID)
+	if err != nil {
+		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeNotFound, "Review not found")
+	}
+
+	if review.ReviewUserID != user.UserID {
+		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeForbidden, "You do not have permission to update this review")
+	}
+
+	txCtx, cancel := context.WithTimeout(reqCtx, 5*time.Second)
+	defer cancel()
+
+	tx, err := db.BeginTx(txCtx)
+	if err != nil {
+		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to start transaction", err)
+	}
+	defer tx.Rollback(txCtx)
+
+	updateParams := sqlc.UpdateReviewParams{
+		ReviewID:      review.ReviewID,
+		ReviewRating:  int16(input.Rating),
+		ReviewTitle:   input.Title,
+		ReviewComment: input.Comment,
+	}
+
+	updatedReview, err := rs.repo.Update(txCtx, tx, updateParams)
+	if err != nil {
+		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to update review", err)
+	}
+
+	if err := rs.repo.RecalcRating(txCtx, tx, review.ReviewProductID); err != nil {
+		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to recalculate product rating", err)
+	}
+
+	if err := tx.Commit(txCtx); err != nil {
+		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
+	}
+
+	// Async clear cache
+	go func(pUUID string) {
+		_ = rs.cache.Clear("reviews:product:" + pUUID + ":*")
+		_ = rs.cache.Del("reviews:summary:" + pUUID)
+		_ = rs.cache.Clear("products:*")
+	}(review.ProductUuid.String())
+
+	images := updatedReview.ReviewImages
+	if images == nil {
+		images = []string{}
+	}
+
+	return v1dto.ReviewDTO{
+		UUID:         updatedReview.ReviewUuid.String(),
+		ReviewerName: user.UserFullname,
+		Rating:       int32(updatedReview.ReviewRating),
+		Title:        updatedReview.ReviewTitle,
+		Comment:      updatedReview.ReviewComment,
+		Images:       images,
+		VideoURL:     updatedReview.ReviewVideoUrl,
+		HasMedia:     updatedReview.ReviewHasMedia,
+		CreatedAt:    updatedReview.ReviewCreatedAt.Format("2006-01-02 15:04:05"),
+		UpdatedAt:    updatedReview.ReviewUpdatedAt.Format("2006-01-02 15:04:05"),
+	}, nil
+}
+
+func (rs *reviewService) DeleteReview(ctx *gin.Context, reviewUUID uuid.UUID) error {
+	reqCtx := ctx.Request.Context()
+
+	userUUIDStr, ok := ctx.Get("user_uuid")
+	if !ok {
+		return utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+
+	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	if err != nil {
+		return utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID")
+	}
+
+	user, err := rs.userRepo.GetByUUID(reqCtx, userUUID)
+	if err != nil {
+		return utils.NewError(utils.ErrCodeUnauthorized, "User not found")
+	}
+
+	review, err := rs.repo.GetByUUID(reqCtx, reviewUUID)
+	if err != nil {
+		return utils.NewError(utils.ErrCodeNotFound, "Review not found")
+	}
+
+	if review.ReviewUserID != user.UserID {
+		return utils.NewError(utils.ErrCodeForbidden, "You do not have permission to delete this review")
+	}
+
+	txCtx, cancel := context.WithTimeout(reqCtx, 5*time.Second)
+	defer cancel()
+
+	tx, err := db.BeginTx(txCtx)
+	if err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to start transaction", err)
+	}
+	defer tx.Rollback(txCtx)
+
+	if err := rs.repo.Delete(txCtx, tx, review.ReviewID); err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to delete review", err)
+	}
+
+	if err := rs.repo.RecalcRating(txCtx, tx, review.ReviewProductID); err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to recalculate product rating", err)
+	}
+
+	if err := tx.Commit(txCtx); err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
+	}
+
+	// Async clear cache
+	go func(pUUID string) {
+		_ = rs.cache.Clear("reviews:product:" + pUUID + ":*")
+		_ = rs.cache.Del("reviews:summary:" + pUUID)
+		_ = rs.cache.Clear("products:*")
+	}(review.ProductUuid.String())
+
+	return nil
+}
+
