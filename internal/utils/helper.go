@@ -106,3 +106,21 @@ func Slugify(s string) string {
 
 	return slug
 }
+
+func MaskName(name string) string {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return "***"
+	}
+
+	runes := []rune(trimmed)
+	n := len(runes)
+	if n == 1 {
+		return string(runes[0]) + "***"
+	}
+	if n == 2 {
+		return string(runes[0]) + "***" + string(runes[1])
+	}
+
+	return string(runes[0]) + "***" + string(runes[n-1])
+}

@@ -193,7 +193,7 @@ func (rs *reviewService) GetProductReviews(ctx *gin.Context, productUUID uuid.UU
 		}
 		reviewDTOs[i] = v1dto.ReviewDTO{
 			UUID:         r.ReviewUUID.String(),
-			ReviewerName: r.ReviewerName,
+			ReviewerName: utils.MaskName(r.ReviewerName),
 			Rating:       int32(r.ReviewRating),
 			Title:        r.ReviewTitle,
 			Comment:      r.ReviewComment,
