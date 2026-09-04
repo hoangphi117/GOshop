@@ -87,14 +87,20 @@ type Order struct {
 	OrderPaymentStatus int32   `json:"order_payment_status"`
 	OrderNote          *string `json:"order_note"`
 	// 1: Pending, 2: Confirmed, 3: Shipped, 4: Delivered, 5: Cancelled, 6: Returned
-	OrderStatus         int32              `json:"order_status"`
-	OrderCancelledAt    pgtype.Timestamptz `json:"order_cancelled_at"`
-	OrderCreatedAt      time.Time          `json:"order_created_at"`
-	OrderUpdatedAt      time.Time          `json:"order_updated_at"`
-	OrderCouponID       *int32             `json:"order_coupon_id"`
-	OrderCouponCode     *string            `json:"order_coupon_code"`
-	OrderSubtotalAmount pgtype.Numeric     `json:"order_subtotal_amount"`
-	OrderDiscountAmount pgtype.Numeric     `json:"order_discount_amount"`
+	OrderStatus           int32              `json:"order_status"`
+	OrderCancelledAt      pgtype.Timestamptz `json:"order_cancelled_at"`
+	OrderCreatedAt        time.Time          `json:"order_created_at"`
+	OrderUpdatedAt        time.Time          `json:"order_updated_at"`
+	OrderCouponID         *int32             `json:"order_coupon_id"`
+	OrderCouponCode       *string            `json:"order_coupon_code"`
+	OrderSubtotalAmount   pgtype.Numeric     `json:"order_subtotal_amount"`
+	OrderDiscountAmount   pgtype.Numeric     `json:"order_discount_amount"`
+	OrderShippingProvider *string            `json:"order_shipping_provider"`
+	OrderShippingCode     *string            `json:"order_shipping_code"`
+	OrderShippingFee      pgtype.Numeric     `json:"order_shipping_fee"`
+	OrderExpectedDelivery pgtype.Timestamptz `json:"order_expected_delivery"`
+	OrderDeliveredAt      pgtype.Timestamptz `json:"order_delivered_at"`
+	OrderReturnedAt       pgtype.Timestamptz `json:"order_returned_at"`
 }
 
 type OrderItem struct {
@@ -107,6 +113,28 @@ type OrderItem struct {
 	OrderItemQuantity    int32          `json:"order_item_quantity"`
 	OrderItemSubtotal    pgtype.Numeric `json:"order_item_subtotal"`
 	OrderItemCreatedAt   time.Time      `json:"order_item_created_at"`
+}
+
+type OrderReturn struct {
+	ReturnID      int32     `json:"return_id"`
+	ReturnUuid    uuid.UUID `json:"return_uuid"`
+	ReturnOrderID int32     `json:"return_order_id"`
+	ReturnUserID  int32     `json:"return_user_id"`
+	ReturnReason  string    `json:"return_reason"`
+	// 1: Pending, 2: Approved, 3: Rejected, 4: Completed
+	ReturnStatus    int16     `json:"return_status"`
+	ReturnAdminNote *string   `json:"return_admin_note"`
+	ReturnCreatedAt time.Time `json:"return_created_at"`
+	ReturnUpdatedAt time.Time `json:"return_updated_at"`
+}
+
+type OrderTrackingEvent struct {
+	EventID        int32     `json:"event_id"`
+	EventOrderID   int32     `json:"event_order_id"`
+	EventStatus    string    `json:"event_status"`
+	EventNote      *string   `json:"event_note"`
+	EventSource    string    `json:"event_source"`
+	EventCreatedAt time.Time `json:"event_created_at"`
 }
 
 type PaymentTransaction struct {

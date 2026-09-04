@@ -14,6 +14,7 @@ import (
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 	"goshop/pkg/pdf"
+	"goshop/pkg/shipping"
 	"math/big"
 	"slices"
 	"sort"
@@ -23,6 +24,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -50,26 +52,38 @@ const (
 )
 
 type orderService struct {
-	orderRepo     repository.OrderRepository
-	orderItemRepo repository.OrderItemRepository
-	productRepo   repository.ProductRepository
-	userRepo      repository.UserRepository
-	cartService   CartService
-	cartRepo      repository.CartRepository
-	couponRepo    repository.CouponRepository
-	cache         cache.RedisCacheService
+	orderRepo       repository.OrderRepository
+	orderItemRepo   repository.OrderItemRepository
+	productRepo     repository.ProductRepository
+	userRepo        repository.UserRepository
+	cartService     CartService
+	cartRepo        repository.CartRepository
+	couponRepo      repository.CouponRepository
+	trackingRepo    repository.TrackingRepository
+	cache           cache.RedisCacheService
+	shippingFactory *shipping.ShippingFactory
 }
 
-func NewOrderService(orderRepo repository.OrderRepository, orderItemRepo repository.OrderItemRepository, productRepo repository.ProductRepository, userRepo repository.UserRepository, cartService CartService, cartRepo repository.CartRepository, couponRepo repository.CouponRepository, redisClient *redis.Client) OrderService {
+func NewOrderService(orderRepo repository.OrderRepository, orderItemRepo repository.OrderItemRepository,
+	productRepo repository.ProductRepository,
+	userRepo repository.UserRepository,
+	cartService CartService,
+	cartRepo repository.CartRepository,
+	couponRepo repository.CouponRepository,
+	trackingRepo repository.TrackingRepository,
+	redisClient *redis.Client,
+	shippingFactory *shipping.ShippingFactory) OrderService {
 	return &orderService{
-		orderRepo:     orderRepo,
-		orderItemRepo: orderItemRepo,
-		productRepo:   productRepo,
-		userRepo:      userRepo,
-		cartService:   cartService,
-		cartRepo:      cartRepo,
-		couponRepo:    couponRepo,
-		cache:         cache.NewRedisCacheService(redisClient),
+		orderRepo:       orderRepo,
+		orderItemRepo:   orderItemRepo,
+		productRepo:     productRepo,
+		userRepo:        userRepo,
+		cartService:     cartService,
+		cartRepo:        cartRepo,
+		couponRepo:      couponRepo,
+		trackingRepo:    trackingRepo,
+		cache:           cache.NewRedisCacheService(redisClient),
+		shippingFactory: shippingFactory,
 	}
 }
 
@@ -1007,4 +1021,142 @@ func (s *orderService) GetOrderInvoicePDF(ctx *gin.Context, orderUUID uuid.UUID)
 	}, 24*time.Hour)
 
 	return pdfBytes, fileName, nil
+}
+
+// Shipping
+
+func (s *orderService) CreateShipping(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.CreateShippingInput) (v1dto.ShippingResponseDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	order, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return v1dto.ShippingResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "Order not found")
+		}
+		return v1dto.ShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
+	}
+
+	if order.OrderStatus != OrderStatusConfirmed {
+		return v1dto.ShippingResponseDTO{}, utils.NewError(utils.ErrCodeBadRequest,
+			fmt.Sprintf("Cannot create shipping for order with status %d. Order must be Confirmed.", order.OrderStatus))
+	}
+
+	if order.OrderShippingCode != nil && strings.TrimSpace(*order.OrderShippingCode) != "" {
+		return v1dto.ShippingResponseDTO{},
+			utils.NewError(utils.ErrCodeConflict, "Shipping already created for this order")
+	}
+
+	orderItems, err := s.orderItemRepo.GetByOrderID(reqCtx, order.OrderID)
+	if err != nil {
+		return v1dto.ShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order items", err)
+	}
+
+	if len(orderItems) == 0 {
+		return v1dto.ShippingResponseDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Order contains no items")
+	}
+
+	shippingItems := make([]shipping.ShippingItem, 0, len(orderItems))
+	for _, item := range orderItems {
+		shippingItems = append(shippingItems, shipping.ShippingItem{
+			Name:     item.OrderItemProductName,
+			Quantity: int(item.OrderItemQuantity),
+			Price:    utils.NumericToFloat(item.OrderItemPrice),
+			Weight:   input.Weight / len(orderItems), // Chia đều hoặc lấy theo sản phẩm
+		})
+	}
+
+	// Calculate COD amount if applicable
+	var codAmount float64
+	if order.OrderPaymentMethod == OrderPaymentMethodCOD && order.OrderPaymentStatus == OrderPaymentStatusUnpaid {
+		codAmount = utils.NumericToFloat(order.OrderTotalAmount)
+	}
+
+	provider, err := s.shippingFactory.GetProvider(input.Provider)
+	if err != nil {
+		return v1dto.ShippingResponseDTO{}, utils.NewError(utils.ErrCodeBadRequest, err.Error())
+	}
+
+	callbackURL := utils.GetEnv("GHN_CALLBACK_URL", "")
+
+	ghnReq := shipping.CreateOrderRequest{
+		ToName:       order.OrderShippingName,
+		ToPhone:      order.OrderShippingPhone,
+		ToAddress:    order.OrderShippingAddress,
+		ToDistrictID: input.DistrictID,
+		ToWardCode:   input.WardCode,
+		Weight:       input.Weight,
+		Length:       input.Length,
+		Width:        input.Width,
+		Height:       input.Height,
+		Items:        shippingItems,
+		Note:         input.Note,
+		RequiredNote: input.RequiredNote,
+		CODAmount:    codAmount,
+		CallbackURL:  callbackURL,
+	}
+
+	ghnResp, err := provider.CreateShippingOrder(reqCtx, ghnReq)
+	if err != nil {
+		return v1dto.ShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to create shipping order with GHN", err)
+	}
+
+	tx, err := db.BeginTx(reqCtx)
+	if err != nil {
+		_ = provider.CancelShippingOrder(context.Background(), ghnResp.ShippingCode) // Attempt to cancel the shipping order if DB transaction fails
+		return v1dto.ShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to begin database transaction", err)
+	}
+	defer tx.Rollback(reqCtx)
+
+	var expectedDelivery pgtype.Timestamptz
+	if ghnResp.ExpectedDelivery != nil {
+		expectedDelivery = pgtype.Timestamptz{
+			Time:  *ghnResp.ExpectedDelivery,
+			Valid: true,
+		}
+	}
+
+	updatedOrder, err := s.orderRepo.UpdateShippingAndStatus(reqCtx, tx, orderUUID, sqlc.UpdateOrderShippingAndStatusParams{
+		ShippingProvider: &input.Provider,
+		ShippingCode:     &ghnResp.ShippingCode,
+		ShippingFee:      utils.FloatToNumeric(ghnResp.ShippingFee),
+		ExpectedDelivery: expectedDelivery,
+		OrderStatus:      OrderStatusShipped,
+		OrderUuid:        orderUUID,
+	})
+	if err != nil {
+		_ = provider.CancelShippingOrder(context.Background(), ghnResp.ShippingCode) // Attempt to cancel the shipping order if DB update fails
+		return v1dto.ShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to update order with shipping info", err)
+	}
+
+	eventNote := fmt.Sprintf("Shipping created with provider %s, code %s, fee: %.0f đ", strings.ToUpper(input.Provider), ghnResp.ShippingCode, ghnResp.ShippingFee)
+
+	_, err = s.trackingRepo.InsertEvent(reqCtx, tx, sqlc.InsertTrackingEventParams{
+		EventOrderID: order.OrderID,
+		EventStatus:  "shipped",
+		EventNote:    &eventNote,
+		EventSource:  "admin",
+	})
+
+	if err != nil {
+		_ = provider.CancelShippingOrder(context.Background(), ghnResp.ShippingCode)
+		return v1dto.ShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to insert tracking event", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		_ = provider.CancelShippingOrder(context.Background(), ghnResp.ShippingCode)
+		return v1dto.ShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
+	}
+
+	_ = s.cache.Clear(fmt.Sprintf("order:%s", orderUUID.String()))
+
+	return v1dto.ShippingResponseDTO{
+		OrderUUID:        updatedOrder.OrderUuid.String(),
+		OrderNumber:      updatedOrder.OrderNumber,
+		ShippingProvider: input.Provider,
+		ShippingCode:     ghnResp.ShippingCode,
+		ShippingFee:      ghnResp.ShippingFee,
+		ExpectedDelivery: ghnResp.ExpectedDelivery,
+		OrderStatus:      "Shipped",
+		CreatedAt:        updatedOrder.OrderUpdatedAt,
+	}, nil
 }

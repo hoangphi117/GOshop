@@ -20,7 +20,7 @@ SET
     order_cancelled_at = NOW()
 WHERE order_uuid = $1
 AND order_status IN (1, 2)
-RETURNING order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at, order_coupon_id, order_coupon_code, order_subtotal_amount, order_discount_amount
+RETURNING order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at, order_coupon_id, order_coupon_code, order_subtotal_amount, order_discount_amount, order_shipping_provider, order_shipping_code, order_shipping_fee, order_expected_delivery, order_delivered_at, order_returned_at
 `
 
 func (q *Queries) CancelOrder(ctx context.Context, orderUuid uuid.UUID) (Order, error) {
@@ -47,6 +47,12 @@ func (q *Queries) CancelOrder(ctx context.Context, orderUuid uuid.UUID) (Order, 
 		&i.OrderCouponCode,
 		&i.OrderSubtotalAmount,
 		&i.OrderDiscountAmount,
+		&i.OrderShippingProvider,
+		&i.OrderShippingCode,
+		&i.OrderShippingFee,
+		&i.OrderExpectedDelivery,
+		&i.OrderDeliveredAt,
+		&i.OrderReturnedAt,
 	)
 	return i, err
 }
@@ -90,7 +96,7 @@ INSERT INTO orders (
     order_payment_method, order_payment_status,
     order_note, order_status
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-RETURNING order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at, order_coupon_id, order_coupon_code, order_subtotal_amount, order_discount_amount
+RETURNING order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at, order_coupon_id, order_coupon_code, order_subtotal_amount, order_discount_amount, order_shipping_provider, order_shipping_code, order_shipping_fee, order_expected_delivery, order_delivered_at, order_returned_at
 `
 
 type CreateOrderParams struct {
@@ -149,6 +155,12 @@ func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) (Order
 		&i.OrderCouponCode,
 		&i.OrderSubtotalAmount,
 		&i.OrderDiscountAmount,
+		&i.OrderShippingProvider,
+		&i.OrderShippingCode,
+		&i.OrderShippingFee,
+		&i.OrderExpectedDelivery,
+		&i.OrderDeliveredAt,
+		&i.OrderReturnedAt,
 	)
 	return i, err
 }
@@ -168,35 +180,41 @@ func (q *Queries) GetLatestOrderNumber(ctx context.Context, orderNumber string) 
 }
 
 const getOrderByOrderNumber = `-- name: GetOrderByOrderNumber :one
-SELECT o.order_id, o.order_uuid, o.order_number, o.order_user_id, o.order_shipping_name, o.order_shipping_phone, o.order_shipping_address, o.order_total_amount, o.order_refunded_amount, o.order_payment_method, o.order_payment_status, o.order_note, o.order_status, o.order_cancelled_at, o.order_created_at, o.order_updated_at, o.order_coupon_id, o.order_coupon_code, o.order_subtotal_amount, o.order_discount_amount, u.user_uuid, u.user_fullname
+SELECT o.order_id, o.order_uuid, o.order_number, o.order_user_id, o.order_shipping_name, o.order_shipping_phone, o.order_shipping_address, o.order_total_amount, o.order_refunded_amount, o.order_payment_method, o.order_payment_status, o.order_note, o.order_status, o.order_cancelled_at, o.order_created_at, o.order_updated_at, o.order_coupon_id, o.order_coupon_code, o.order_subtotal_amount, o.order_discount_amount, o.order_shipping_provider, o.order_shipping_code, o.order_shipping_fee, o.order_expected_delivery, o.order_delivered_at, o.order_returned_at, u.user_uuid, u.user_fullname
 FROM orders o
 JOIN users u ON u.user_id = o.order_user_id
 WHERE o.order_number = $1
 `
 
 type GetOrderByOrderNumberRow struct {
-	OrderID              int32              `json:"order_id"`
-	OrderUuid            uuid.UUID          `json:"order_uuid"`
-	OrderNumber          string             `json:"order_number"`
-	OrderUserID          int32              `json:"order_user_id"`
-	OrderShippingName    string             `json:"order_shipping_name"`
-	OrderShippingPhone   string             `json:"order_shipping_phone"`
-	OrderShippingAddress string             `json:"order_shipping_address"`
-	OrderTotalAmount     pgtype.Numeric     `json:"order_total_amount"`
-	OrderRefundedAmount  pgtype.Numeric     `json:"order_refunded_amount"`
-	OrderPaymentMethod   int32              `json:"order_payment_method"`
-	OrderPaymentStatus   int32              `json:"order_payment_status"`
-	OrderNote            *string            `json:"order_note"`
-	OrderStatus          int32              `json:"order_status"`
-	OrderCancelledAt     pgtype.Timestamptz `json:"order_cancelled_at"`
-	OrderCreatedAt       time.Time          `json:"order_created_at"`
-	OrderUpdatedAt       time.Time          `json:"order_updated_at"`
-	OrderCouponID        *int32             `json:"order_coupon_id"`
-	OrderCouponCode      *string            `json:"order_coupon_code"`
-	OrderSubtotalAmount  pgtype.Numeric     `json:"order_subtotal_amount"`
-	OrderDiscountAmount  pgtype.Numeric     `json:"order_discount_amount"`
-	UserUuid             uuid.UUID          `json:"user_uuid"`
-	UserFullname         string             `json:"user_fullname"`
+	OrderID               int32              `json:"order_id"`
+	OrderUuid             uuid.UUID          `json:"order_uuid"`
+	OrderNumber           string             `json:"order_number"`
+	OrderUserID           int32              `json:"order_user_id"`
+	OrderShippingName     string             `json:"order_shipping_name"`
+	OrderShippingPhone    string             `json:"order_shipping_phone"`
+	OrderShippingAddress  string             `json:"order_shipping_address"`
+	OrderTotalAmount      pgtype.Numeric     `json:"order_total_amount"`
+	OrderRefundedAmount   pgtype.Numeric     `json:"order_refunded_amount"`
+	OrderPaymentMethod    int32              `json:"order_payment_method"`
+	OrderPaymentStatus    int32              `json:"order_payment_status"`
+	OrderNote             *string            `json:"order_note"`
+	OrderStatus           int32              `json:"order_status"`
+	OrderCancelledAt      pgtype.Timestamptz `json:"order_cancelled_at"`
+	OrderCreatedAt        time.Time          `json:"order_created_at"`
+	OrderUpdatedAt        time.Time          `json:"order_updated_at"`
+	OrderCouponID         *int32             `json:"order_coupon_id"`
+	OrderCouponCode       *string            `json:"order_coupon_code"`
+	OrderSubtotalAmount   pgtype.Numeric     `json:"order_subtotal_amount"`
+	OrderDiscountAmount   pgtype.Numeric     `json:"order_discount_amount"`
+	OrderShippingProvider *string            `json:"order_shipping_provider"`
+	OrderShippingCode     *string            `json:"order_shipping_code"`
+	OrderShippingFee      pgtype.Numeric     `json:"order_shipping_fee"`
+	OrderExpectedDelivery pgtype.Timestamptz `json:"order_expected_delivery"`
+	OrderDeliveredAt      pgtype.Timestamptz `json:"order_delivered_at"`
+	OrderReturnedAt       pgtype.Timestamptz `json:"order_returned_at"`
+	UserUuid              uuid.UUID          `json:"user_uuid"`
+	UserFullname          string             `json:"user_fullname"`
 }
 
 func (q *Queries) GetOrderByOrderNumber(ctx context.Context, orderNumber string) (GetOrderByOrderNumberRow, error) {
@@ -223,6 +241,12 @@ func (q *Queries) GetOrderByOrderNumber(ctx context.Context, orderNumber string)
 		&i.OrderCouponCode,
 		&i.OrderSubtotalAmount,
 		&i.OrderDiscountAmount,
+		&i.OrderShippingProvider,
+		&i.OrderShippingCode,
+		&i.OrderShippingFee,
+		&i.OrderExpectedDelivery,
+		&i.OrderDeliveredAt,
+		&i.OrderReturnedAt,
 		&i.UserUuid,
 		&i.UserFullname,
 	)
@@ -230,35 +254,41 @@ func (q *Queries) GetOrderByOrderNumber(ctx context.Context, orderNumber string)
 }
 
 const getOrderByUUID = `-- name: GetOrderByUUID :one
-SELECT o.order_id, o.order_uuid, o.order_number, o.order_user_id, o.order_shipping_name, o.order_shipping_phone, o.order_shipping_address, o.order_total_amount, o.order_refunded_amount, o.order_payment_method, o.order_payment_status, o.order_note, o.order_status, o.order_cancelled_at, o.order_created_at, o.order_updated_at, o.order_coupon_id, o.order_coupon_code, o.order_subtotal_amount, o.order_discount_amount, u.user_uuid, u.user_fullname
+SELECT o.order_id, o.order_uuid, o.order_number, o.order_user_id, o.order_shipping_name, o.order_shipping_phone, o.order_shipping_address, o.order_total_amount, o.order_refunded_amount, o.order_payment_method, o.order_payment_status, o.order_note, o.order_status, o.order_cancelled_at, o.order_created_at, o.order_updated_at, o.order_coupon_id, o.order_coupon_code, o.order_subtotal_amount, o.order_discount_amount, o.order_shipping_provider, o.order_shipping_code, o.order_shipping_fee, o.order_expected_delivery, o.order_delivered_at, o.order_returned_at, u.user_uuid, u.user_fullname
 FROM orders o
 JOIN users u ON u.user_id = o.order_user_id
 WHERE o.order_uuid = $1
 `
 
 type GetOrderByUUIDRow struct {
-	OrderID              int32              `json:"order_id"`
-	OrderUuid            uuid.UUID          `json:"order_uuid"`
-	OrderNumber          string             `json:"order_number"`
-	OrderUserID          int32              `json:"order_user_id"`
-	OrderShippingName    string             `json:"order_shipping_name"`
-	OrderShippingPhone   string             `json:"order_shipping_phone"`
-	OrderShippingAddress string             `json:"order_shipping_address"`
-	OrderTotalAmount     pgtype.Numeric     `json:"order_total_amount"`
-	OrderRefundedAmount  pgtype.Numeric     `json:"order_refunded_amount"`
-	OrderPaymentMethod   int32              `json:"order_payment_method"`
-	OrderPaymentStatus   int32              `json:"order_payment_status"`
-	OrderNote            *string            `json:"order_note"`
-	OrderStatus          int32              `json:"order_status"`
-	OrderCancelledAt     pgtype.Timestamptz `json:"order_cancelled_at"`
-	OrderCreatedAt       time.Time          `json:"order_created_at"`
-	OrderUpdatedAt       time.Time          `json:"order_updated_at"`
-	OrderCouponID        *int32             `json:"order_coupon_id"`
-	OrderCouponCode      *string            `json:"order_coupon_code"`
-	OrderSubtotalAmount  pgtype.Numeric     `json:"order_subtotal_amount"`
-	OrderDiscountAmount  pgtype.Numeric     `json:"order_discount_amount"`
-	UserUuid             uuid.UUID          `json:"user_uuid"`
-	UserFullname         string             `json:"user_fullname"`
+	OrderID               int32              `json:"order_id"`
+	OrderUuid             uuid.UUID          `json:"order_uuid"`
+	OrderNumber           string             `json:"order_number"`
+	OrderUserID           int32              `json:"order_user_id"`
+	OrderShippingName     string             `json:"order_shipping_name"`
+	OrderShippingPhone    string             `json:"order_shipping_phone"`
+	OrderShippingAddress  string             `json:"order_shipping_address"`
+	OrderTotalAmount      pgtype.Numeric     `json:"order_total_amount"`
+	OrderRefundedAmount   pgtype.Numeric     `json:"order_refunded_amount"`
+	OrderPaymentMethod    int32              `json:"order_payment_method"`
+	OrderPaymentStatus    int32              `json:"order_payment_status"`
+	OrderNote             *string            `json:"order_note"`
+	OrderStatus           int32              `json:"order_status"`
+	OrderCancelledAt      pgtype.Timestamptz `json:"order_cancelled_at"`
+	OrderCreatedAt        time.Time          `json:"order_created_at"`
+	OrderUpdatedAt        time.Time          `json:"order_updated_at"`
+	OrderCouponID         *int32             `json:"order_coupon_id"`
+	OrderCouponCode       *string            `json:"order_coupon_code"`
+	OrderSubtotalAmount   pgtype.Numeric     `json:"order_subtotal_amount"`
+	OrderDiscountAmount   pgtype.Numeric     `json:"order_discount_amount"`
+	OrderShippingProvider *string            `json:"order_shipping_provider"`
+	OrderShippingCode     *string            `json:"order_shipping_code"`
+	OrderShippingFee      pgtype.Numeric     `json:"order_shipping_fee"`
+	OrderExpectedDelivery pgtype.Timestamptz `json:"order_expected_delivery"`
+	OrderDeliveredAt      pgtype.Timestamptz `json:"order_delivered_at"`
+	OrderReturnedAt       pgtype.Timestamptz `json:"order_returned_at"`
+	UserUuid              uuid.UUID          `json:"user_uuid"`
+	UserFullname          string             `json:"user_fullname"`
 }
 
 func (q *Queries) GetOrderByUUID(ctx context.Context, orderUuid uuid.UUID) (GetOrderByUUIDRow, error) {
@@ -285,6 +315,12 @@ func (q *Queries) GetOrderByUUID(ctx context.Context, orderUuid uuid.UUID) (GetO
 		&i.OrderCouponCode,
 		&i.OrderSubtotalAmount,
 		&i.OrderDiscountAmount,
+		&i.OrderShippingProvider,
+		&i.OrderShippingCode,
+		&i.OrderShippingFee,
+		&i.OrderExpectedDelivery,
+		&i.OrderDeliveredAt,
+		&i.OrderReturnedAt,
 		&i.UserUuid,
 		&i.UserFullname,
 	)
@@ -292,7 +328,7 @@ func (q *Queries) GetOrderByUUID(ctx context.Context, orderUuid uuid.UUID) (GetO
 }
 
 const getOrderByUUIDForUpdate = `-- name: GetOrderByUUIDForUpdate :one
-SELECT order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at, order_coupon_id, order_coupon_code, order_subtotal_amount, order_discount_amount FROM orders
+SELECT order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at, order_coupon_id, order_coupon_code, order_subtotal_amount, order_discount_amount, order_shipping_provider, order_shipping_code, order_shipping_fee, order_expected_delivery, order_delivered_at, order_returned_at FROM orders
 WHERE order_uuid = $1
 FOR UPDATE
 `
@@ -321,6 +357,12 @@ func (q *Queries) GetOrderByUUIDForUpdate(ctx context.Context, orderUuid uuid.UU
 		&i.OrderCouponCode,
 		&i.OrderSubtotalAmount,
 		&i.OrderDiscountAmount,
+		&i.OrderShippingProvider,
+		&i.OrderShippingCode,
+		&i.OrderShippingFee,
+		&i.OrderExpectedDelivery,
+		&i.OrderDeliveredAt,
+		&i.OrderReturnedAt,
 	)
 	return i, err
 }
@@ -332,7 +374,7 @@ SET
     order_refunded_amount = $2
 WHERE order_uuid = $3
   AND order_payment_status = ANY($4::int[])
-RETURNING order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at, order_coupon_id, order_coupon_code, order_subtotal_amount, order_discount_amount
+RETURNING order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at, order_coupon_id, order_coupon_code, order_subtotal_amount, order_discount_amount, order_shipping_provider, order_shipping_code, order_shipping_fee, order_expected_delivery, order_delivered_at, order_returned_at
 `
 
 type UpdateOrderPaymentStatusParams struct {
@@ -371,6 +413,12 @@ func (q *Queries) UpdateOrderPaymentStatus(ctx context.Context, arg UpdateOrderP
 		&i.OrderCouponCode,
 		&i.OrderSubtotalAmount,
 		&i.OrderDiscountAmount,
+		&i.OrderShippingProvider,
+		&i.OrderShippingCode,
+		&i.OrderShippingFee,
+		&i.OrderExpectedDelivery,
+		&i.OrderDeliveredAt,
+		&i.OrderReturnedAt,
 	)
 	return i, err
 }
@@ -385,7 +433,7 @@ SET
 WHERE order_uuid = $5
   AND order_status = ANY($6::int[]) -- Check atomic in DB
   AND order_cancelled_at IS NULL
-RETURNING order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at, order_coupon_id, order_coupon_code, order_subtotal_amount, order_discount_amount
+RETURNING order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at, order_coupon_id, order_coupon_code, order_subtotal_amount, order_discount_amount, order_shipping_provider, order_shipping_code, order_shipping_fee, order_expected_delivery, order_delivered_at, order_returned_at
 `
 
 type UpdateOrderShippingInfoParams struct {
@@ -428,6 +476,12 @@ func (q *Queries) UpdateOrderShippingInfo(ctx context.Context, arg UpdateOrderSh
 		&i.OrderCouponCode,
 		&i.OrderSubtotalAmount,
 		&i.OrderDiscountAmount,
+		&i.OrderShippingProvider,
+		&i.OrderShippingCode,
+		&i.OrderShippingFee,
+		&i.OrderExpectedDelivery,
+		&i.OrderDeliveredAt,
+		&i.OrderReturnedAt,
 	)
 	return i, err
 }
@@ -436,7 +490,7 @@ const updateOrderStatus = `-- name: UpdateOrderStatus :one
 UPDATE orders
 SET order_status = $1
 WHERE order_uuid = $2
-RETURNING order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at, order_coupon_id, order_coupon_code, order_subtotal_amount, order_discount_amount
+RETURNING order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at, order_coupon_id, order_coupon_code, order_subtotal_amount, order_discount_amount, order_shipping_provider, order_shipping_code, order_shipping_fee, order_expected_delivery, order_delivered_at, order_returned_at
 `
 
 type UpdateOrderStatusParams struct {
@@ -468,6 +522,12 @@ func (q *Queries) UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusPa
 		&i.OrderCouponCode,
 		&i.OrderSubtotalAmount,
 		&i.OrderDiscountAmount,
+		&i.OrderShippingProvider,
+		&i.OrderShippingCode,
+		&i.OrderShippingFee,
+		&i.OrderExpectedDelivery,
+		&i.OrderDeliveredAt,
+		&i.OrderReturnedAt,
 	)
 	return i, err
 }

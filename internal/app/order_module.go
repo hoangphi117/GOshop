@@ -6,6 +6,9 @@ import (
 	"goshop/internal/routes"
 	v1routes "goshop/internal/routes/v1"
 	v1service "goshop/internal/service/v1"
+	"goshop/internal/utils"
+	"goshop/pkg/shipping"
+	"strconv"
 )
 
 type OrderModule struct {
@@ -17,6 +20,13 @@ func NewOrderModule(ctx *ModuleContext) *OrderModule {
 
 	orderRepo := repository.NewSqlOrderRepository(ctx.DB)
 	orderItemRepo := repository.NewSqlOrderItemRepository(ctx.DB)
+	trackingRepo := repository.NewSqlTrackingRepository(ctx.DB)
+
+	ghnToken := utils.GetEnv("GHN_TOKEN", "")
+	ghnShopID, _ := strconv.Atoi(utils.GetEnv("GHN_SHOP_ID", "0"))
+	ghnBaseURL := utils.GetEnv("GHN_BASE_URL", "")
+	ghnAdapter := shipping.NewGHNAdapter(ghnToken, ghnShopID, ghnBaseURL)
+	shippingFactory := shipping.NewShippingFactory(ghnAdapter)
 
 	productRepo := repository.NewSqlProductRepository(ctx.DB)
 	userRepo := repository.NewSqlUserRepository(ctx.DB)
@@ -26,7 +36,8 @@ func NewOrderModule(ctx *ModuleContext) *OrderModule {
 
 	couponRepo := repository.NewSqlCouponRepository(ctx.DB)
 
-	orderService := v1service.NewOrderService(orderRepo, orderItemRepo, productRepo, userRepo, cartService, cartRepo, couponRepo, ctx.Redis)
+	orderService := v1service.NewOrderService(orderRepo, orderItemRepo, productRepo, userRepo,
+		cartService, cartRepo, couponRepo, trackingRepo, ctx.Redis, shippingFactory)
 
 	orderHandler := v1handler.NewOrderHandler(orderService)
 

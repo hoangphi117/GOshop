@@ -245,3 +245,19 @@ func (r *SqlOrderRepository) GetAll(
 
 	return orders, nil
 }
+
+// Shipping
+
+func (r *SqlOrderRepository) UpdateShippingAndStatus(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID, params sqlc.UpdateOrderShippingAndStatusParams) (sqlc.Order, error) {
+	q := r.db
+	if tx != nil {
+		q = sqlc.New(tx)
+	}
+
+	order, err := q.UpdateOrderShippingAndStatus(ctx, params)
+	if err != nil {
+		return sqlc.Order{}, err
+	}
+
+	return order, nil
+}

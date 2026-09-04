@@ -23,5 +23,8 @@ func (or *AdminOrderRoutes) Register(r *gin.RouterGroup) {
 		orders.GET("/:uuid", or.handler.GetOrderByUUID)
 		orders.PATCH("/:uuid", or.handler.UpdateOrderStatus)
 		orders.PATCH("/:uuid/payment-status", or.handler.UpdateOrderPaymentStatus)
+
+		// Shipping
+		orders.POST("/:uuid/shipping", or.handler.CreateShipping)
 	}
 }

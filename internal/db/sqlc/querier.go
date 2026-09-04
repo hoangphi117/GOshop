@@ -86,6 +86,7 @@ type Querier interface {
 	GetProductRatingSummary(ctx context.Context, reviewProductID int32) (GetProductRatingSummaryRow, error)
 	GetReviewByUUID(ctx context.Context, reviewUuid uuid.UUID) (GetReviewByUUIDRow, error)
 	GetReviewsByUserID(ctx context.Context, arg GetReviewsByUserIDParams) ([]GetReviewsByUserIDRow, error)
+	GetTrackingEventsByOrderID(ctx context.Context, eventOrderID int32) ([]OrderTrackingEvent, error)
 	GetUserAddressByUUID(ctx context.Context, arg GetUserAddressByUUIDParams) (UserAddress, error)
 	GetUserAddressesByUserID(ctx context.Context, uaUserID int32) ([]UserAddress, error)
 	GetUserByEmail(ctx context.Context, userEmail string) (User, error)
@@ -98,6 +99,7 @@ type Querier interface {
 	IncrementHelpfulCount(ctx context.Context, reviewID int32) (int32, error)
 	InsertHelpfulVote(ctx context.Context, arg InsertHelpfulVoteParams) error
 	InsertReviewReport(ctx context.Context, arg InsertReviewReportParams) error
+	InsertTrackingEvent(ctx context.Context, arg InsertTrackingEventParams) (OrderTrackingEvent, error)
 	InsertWebhookEvent(ctx context.Context, arg InsertWebhookEventParams) (WebhookEvent, error)
 	ListUserUserCreatedAtAsc(ctx context.Context, arg ListUserUserCreatedAtAscParams) ([]User, error)
 	ListUserUserCreatedAtDesc(ctx context.Context, arg ListUserUserCreatedAtDescParams) ([]User, error)
@@ -127,6 +129,7 @@ type Querier interface {
 	UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (Category, error)
 	UpdateCoupon(ctx context.Context, arg UpdateCouponParams) (Coupon, error)
 	UpdateOrderPaymentStatus(ctx context.Context, arg UpdateOrderPaymentStatusParams) (Order, error)
+	UpdateOrderShippingAndStatus(ctx context.Context, arg UpdateOrderShippingAndStatusParams) (Order, error)
 	UpdateOrderShippingInfo(ctx context.Context, arg UpdateOrderShippingInfoParams) (Order, error)
 	UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusParams) (Order, error)
 	UpdatePassword(ctx context.Context, arg UpdatePasswordParams) (User, error)

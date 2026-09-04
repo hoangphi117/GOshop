@@ -84,4 +84,3 @@ WHERE (
     OR unaccent(order_shipping_name) ILIKE '%' || unaccent(sqlc.narg(search)::TEXT) || '%'
     OR order_shipping_phone ILIKE '%' || sqlc.narg(search)::TEXT || '%'
 );
-

@@ -243,3 +243,33 @@ func (oh *OrderHandler) DownloadInvoice(ctx *gin.Context) {
 	ctx.Header("Cache-Control", "private, max-age=86400")
 	ctx.Data(http.StatusOK, "application/pdf", pdfBytes)
 }
+
+// SHIPPING
+
+func (oh *OrderHandler) CreateShipping(ctx *gin.Context) {
+	var params v1dto.CreateShippingParams
+	if err := ctx.ShouldBindUri(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	var input v1dto.CreateShippingInput
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	orderUUID, err := uuid.Parse(params.UUID)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid order UUID"))
+		return
+	}
+
+	res, err := oh.service.CreateShipping(ctx, orderUUID, input)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusCreated, "Shipping order created successfully", res)
+}
