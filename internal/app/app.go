@@ -84,7 +84,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	modules := []Module{
 		NewUserModule(ctx),
 		NewProductModule(ctx),
-		NewOrderModule(ctx),
+		NewOrderModule(ctx, rabbitmqService),
 		NewCartModule(ctx),
 		NewCouponModule(ctx),
 		NewPaymentModule(ctx, cacheRedisService, rabbitmqService),

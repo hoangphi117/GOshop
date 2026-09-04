@@ -63,7 +63,8 @@ type OrderService interface {
 	GetOrderInvoicePDF(ctx *gin.Context, orderUUID uuid.UUID) ([]byte, string, error)
 
 	// Shipping
-	CreateShipping(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.CreateShippingInput) (v1dto.ShippingResponseDTO, error)
+	CreateShipping(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.CreateShippingInput) (v1dto.AsyncShippingResponseDTO, error)
+	ProcessShippingOrderMessage(headers amqp.Table, body []byte) error
 }
 
 type CartService interface {

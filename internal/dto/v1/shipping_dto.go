@@ -28,3 +28,16 @@ type ShippingResponseDTO struct {
 	OrderStatus      string     `json:"order_status"` // "Shipped"
 	CreatedAt        time.Time  `json:"created_at"`
 }
+
+type CreateShippingQueueMessage struct {
+	OrderUUID  string              `json:"order_uuid"`
+	Input      CreateShippingInput `json:"input"`
+	EnqueuedAt time.Time           `json:"enqueued_at"`
+}
+
+// Response trả về ngay lập tức cho Admin (HTTP 202)
+type AsyncShippingResponseDTO struct {
+	OrderUUID string `json:"order_uuid"`
+	Status    string `json:"status"` // "processing"
+	Message   string `json:"message"`
+}

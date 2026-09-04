@@ -1,12 +1,15 @@
 package app
 
 import (
+	"context"
 	v1handler "goshop/internal/handler/v1"
 	"goshop/internal/repository"
 	"goshop/internal/routes"
 	v1routes "goshop/internal/routes/v1"
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/utils"
+	"goshop/pkg/logger"
+	"goshop/pkg/rabbitmq"
 	"goshop/pkg/shipping"
 	"strconv"
 )
@@ -16,12 +19,13 @@ type OrderModule struct {
 	adminRoutes []routes.Route
 }
 
-func NewOrderModule(ctx *ModuleContext) *OrderModule {
+func NewOrderModule(ctx *ModuleContext, rabbitmqService rabbitmq.RabbitMQService) *OrderModule {
 
 	orderRepo := repository.NewSqlOrderRepository(ctx.DB)
 	orderItemRepo := repository.NewSqlOrderItemRepository(ctx.DB)
 	trackingRepo := repository.NewSqlTrackingRepository(ctx.DB)
 
+	// Giao Hàng Nhanh (GHN) Adapter
 	ghnToken := utils.GetEnv("GHN_TOKEN", "")
 	ghnShopID, _ := strconv.Atoi(utils.GetEnv("GHN_SHOP_ID", "0"))
 	ghnBaseURL := utils.GetEnv("GHN_BASE_URL", "")
@@ -37,7 +41,14 @@ func NewOrderModule(ctx *ModuleContext) *OrderModule {
 	couponRepo := repository.NewSqlCouponRepository(ctx.DB)
 
 	orderService := v1service.NewOrderService(orderRepo, orderItemRepo, productRepo, userRepo,
-		cartService, cartRepo, couponRepo, trackingRepo, ctx.Redis, shippingFactory)
+		cartService, cartRepo, couponRepo, trackingRepo, ctx.Redis, shippingFactory, rabbitmqService)
+
+	go func() {
+		err := rabbitmqService.Consume(context.Background(), v1service.QueueShippingCreate, orderService.ProcessShippingOrderMessage)
+		if err != nil {
+			logger.Log.Error().Err(err).Msg("Failed to start RabbitMQ consumer for shipping.order.create")
+		}
+	}()
 
 	orderHandler := v1handler.NewOrderHandler(orderService)
 

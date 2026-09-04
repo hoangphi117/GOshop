@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"goshop/internal/db"
@@ -14,6 +15,7 @@ import (
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 	"goshop/pkg/pdf"
+	"goshop/pkg/rabbitmq"
 	"goshop/pkg/shipping"
 	"math/big"
 	"slices"
@@ -25,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -49,6 +52,8 @@ const (
 
 	CouponTypePercentage  int32 = 1
 	CouponTypeFixedAmount int32 = 2
+
+	QueueShippingCreate = "shipping.order.create"
 )
 
 type orderService struct {
@@ -62,6 +67,7 @@ type orderService struct {
 	trackingRepo    repository.TrackingRepository
 	cache           cache.RedisCacheService
 	shippingFactory *shipping.ShippingFactory
+	rabbitmq        rabbitmq.RabbitMQService
 }
 
 func NewOrderService(orderRepo repository.OrderRepository, orderItemRepo repository.OrderItemRepository,
@@ -72,7 +78,8 @@ func NewOrderService(orderRepo repository.OrderRepository, orderItemRepo reposit
 	couponRepo repository.CouponRepository,
 	trackingRepo repository.TrackingRepository,
 	redisClient *redis.Client,
-	shippingFactory *shipping.ShippingFactory) OrderService {
+	shippingFactory *shipping.ShippingFactory,
+	rabbitmq rabbitmq.RabbitMQService) OrderService {
 	return &orderService{
 		orderRepo:       orderRepo,
 		orderItemRepo:   orderItemRepo,
@@ -84,6 +91,7 @@ func NewOrderService(orderRepo repository.OrderRepository, orderItemRepo reposit
 		trackingRepo:    trackingRepo,
 		cache:           cache.NewRedisCacheService(redisClient),
 		shippingFactory: shippingFactory,
+		rabbitmq:        rabbitmq,
 	}
 }
 
@@ -1025,34 +1033,72 @@ func (s *orderService) GetOrderInvoicePDF(ctx *gin.Context, orderUUID uuid.UUID)
 
 // Shipping
 
-func (s *orderService) CreateShipping(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.CreateShippingInput) (v1dto.ShippingResponseDTO, error) {
+func (s *orderService) CreateShipping(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.CreateShippingInput) (v1dto.AsyncShippingResponseDTO, error) {
 	reqCtx := ctx.Request.Context()
 
 	order, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return v1dto.ShippingResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "Order not found")
+			return v1dto.AsyncShippingResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "Order not found")
 		}
-		return v1dto.ShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
+		return v1dto.AsyncShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
 	}
 
 	if order.OrderStatus != OrderStatusConfirmed {
-		return v1dto.ShippingResponseDTO{}, utils.NewError(utils.ErrCodeBadRequest,
+		return v1dto.AsyncShippingResponseDTO{}, utils.NewError(utils.ErrCodeBadRequest,
 			fmt.Sprintf("Cannot create shipping for order with status %d. Order must be Confirmed.", order.OrderStatus))
 	}
 
 	if order.OrderShippingCode != nil && strings.TrimSpace(*order.OrderShippingCode) != "" {
-		return v1dto.ShippingResponseDTO{},
+		return v1dto.AsyncShippingResponseDTO{},
 			utils.NewError(utils.ErrCodeConflict, "Shipping already created for this order")
 	}
 
-	orderItems, err := s.orderItemRepo.GetByOrderID(reqCtx, order.OrderID)
-	if err != nil {
-		return v1dto.ShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order items", err)
+	msg := v1dto.CreateShippingQueueMessage{
+		OrderUUID:  orderUUID.String(),
+		Input:      input,
+		EnqueuedAt: time.Now(),
 	}
 
-	if len(orderItems) == 0 {
-		return v1dto.ShippingResponseDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Order contains no items")
+	if err := s.rabbitmq.Publish(reqCtx, QueueShippingCreate, msg); err != nil {
+		logger.Log.Error().Err(err).Str("order_uuid", orderUUID.String()).Msg("Failed to enqueue shipping creation")
+		return v1dto.AsyncShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to enqueue shipping creation", err)
+	}
+
+	return v1dto.AsyncShippingResponseDTO{
+		OrderUUID: orderUUID.String(),
+		Status:    "processing",
+		Message:   "Yêu cầu tạo vận đơn đã được tiếp nhận và đang được hệ thống xử lý",
+	}, nil
+}
+
+func (s *orderService) ProcessShippingOrderMessage(headers amqp.Table, body []byte) error {
+	ctx := context.Background()
+
+	var msg v1dto.CreateShippingQueueMessage
+	if err := json.Unmarshal(body, &msg); err != nil {
+		logger.Log.Error().Err(err).Msg("Failed to unmarshal shipping creation message")
+		return err
+	}
+
+	orderUUID, err := uuid.Parse(msg.OrderUUID)
+	if err != nil {
+		return err
+	}
+
+	order, err := s.orderRepo.GetByUUID(ctx, orderUUID)
+	if err != nil {
+		return err
+	}
+
+	if order.OrderStatus != OrderStatusConfirmed {
+		logger.Log.Warn().Str("order_uuid", msg.OrderUUID).Msg("Order is no longer Confirmed, skipping shipping creation")
+		return nil
+	}
+
+	orderItems, err := s.orderItemRepo.GetByOrderID(ctx, order.OrderID)
+	if err != nil {
+		return err
 	}
 
 	shippingItems := make([]shipping.ShippingItem, 0, len(orderItems))
@@ -1061,52 +1107,54 @@ func (s *orderService) CreateShipping(ctx *gin.Context, orderUUID uuid.UUID, inp
 			Name:     item.OrderItemProductName,
 			Quantity: int(item.OrderItemQuantity),
 			Price:    utils.NumericToFloat(item.OrderItemPrice),
-			Weight:   input.Weight / len(orderItems), // Chia đều hoặc lấy theo sản phẩm
+			Weight:   msg.Input.Weight / len(orderItems),
 		})
 	}
 
-	// Calculate COD amount if applicable
 	var codAmount float64
 	if order.OrderPaymentMethod == OrderPaymentMethodCOD && order.OrderPaymentStatus == OrderPaymentStatusUnpaid {
 		codAmount = utils.NumericToFloat(order.OrderTotalAmount)
 	}
-
-	provider, err := s.shippingFactory.GetProvider(input.Provider)
+	provider, err := s.shippingFactory.GetProvider(msg.Input.Provider)
 	if err != nil {
-		return v1dto.ShippingResponseDTO{}, utils.NewError(utils.ErrCodeBadRequest, err.Error())
+		return err
 	}
-
-	callbackURL := utils.GetEnv("GHN_CALLBACK_URL", "")
-
 	ghnReq := shipping.CreateOrderRequest{
 		ToName:       order.OrderShippingName,
 		ToPhone:      order.OrderShippingPhone,
 		ToAddress:    order.OrderShippingAddress,
-		ToDistrictID: input.DistrictID,
-		ToWardCode:   input.WardCode,
-		Weight:       input.Weight,
-		Length:       input.Length,
-		Width:        input.Width,
-		Height:       input.Height,
+		ToDistrictID: msg.Input.DistrictID,
+		ToWardCode:   msg.Input.WardCode,
+		Weight:       msg.Input.Weight,
+		Length:       msg.Input.Length,
+		Width:        msg.Input.Width,
+		Height:       msg.Input.Height,
 		Items:        shippingItems,
-		Note:         input.Note,
-		RequiredNote: input.RequiredNote,
+		Note:         msg.Input.Note,
+		RequiredNote: msg.Input.RequiredNote,
 		CODAmount:    codAmount,
-		CallbackURL:  callbackURL,
+		CallbackURL:  utils.GetEnv("GHN_CALLBACK_URL", ""),
 	}
 
-	ghnResp, err := provider.CreateShippingOrder(reqCtx, ghnReq)
+	ghnResp, err := provider.CreateShippingOrder(ctx, ghnReq)
 	if err != nil {
-		return v1dto.ShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to create shipping order with GHN", err)
+		logger.Log.Error().Err(err).Str("order_uuid", msg.OrderUUID).Msg("GHN API creation failed")
+		failNote := fmt.Sprintf("Tạo vận đơn GHN thất bại: %s", err.Error())
+		_, _ = s.trackingRepo.InsertEvent(ctx, nil, sqlc.InsertTrackingEventParams{
+			EventOrderID: order.OrderID,
+			EventStatus:  "shipping_failed",
+			EventNote:    &failNote,
+			EventSource:  "system",
+		})
+		return err
 	}
 
-	tx, err := db.BeginTx(reqCtx)
+	tx, err := db.BeginTx(ctx)
 	if err != nil {
-		_ = provider.CancelShippingOrder(context.Background(), ghnResp.ShippingCode) // Attempt to cancel the shipping order if DB transaction fails
-		return v1dto.ShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to begin database transaction", err)
+		_ = provider.CancelShippingOrder(ctx, ghnResp.ShippingCode)
+		return err
 	}
-	defer tx.Rollback(reqCtx)
-
+	defer tx.Rollback(ctx)
 	var expectedDelivery pgtype.Timestamptz
 	if ghnResp.ExpectedDelivery != nil {
 		expectedDelivery = pgtype.Timestamptz{
@@ -1114,9 +1162,8 @@ func (s *orderService) CreateShipping(ctx *gin.Context, orderUUID uuid.UUID, inp
 			Valid: true,
 		}
 	}
-
-	updatedOrder, err := s.orderRepo.UpdateShippingAndStatus(reqCtx, tx, orderUUID, sqlc.UpdateOrderShippingAndStatusParams{
-		ShippingProvider: &input.Provider,
+	_, err = s.orderRepo.UpdateShippingAndStatus(ctx, tx, orderUUID, sqlc.UpdateOrderShippingAndStatusParams{
+		ShippingProvider: &msg.Input.Provider,
 		ShippingCode:     &ghnResp.ShippingCode,
 		ShippingFee:      utils.FloatToNumeric(ghnResp.ShippingFee),
 		ExpectedDelivery: expectedDelivery,
@@ -1124,39 +1171,28 @@ func (s *orderService) CreateShipping(ctx *gin.Context, orderUUID uuid.UUID, inp
 		OrderUuid:        orderUUID,
 	})
 	if err != nil {
-		_ = provider.CancelShippingOrder(context.Background(), ghnResp.ShippingCode) // Attempt to cancel the shipping order if DB update fails
-		return v1dto.ShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to update order with shipping info", err)
+		_ = provider.CancelShippingOrder(ctx, ghnResp.ShippingCode)
+		return err
 	}
-
-	eventNote := fmt.Sprintf("Shipping created with provider %s, code %s, fee: %.0f đ", strings.ToUpper(input.Provider), ghnResp.ShippingCode, ghnResp.ShippingFee)
-
-	_, err = s.trackingRepo.InsertEvent(reqCtx, tx, sqlc.InsertTrackingEventParams{
+	// Ghi nhận tracking timeline
+	eventNote := fmt.Sprintf("Tạo đơn vận chuyển qua %s thành công. Mã vận đơn: %s, Cước: %.0f đ",
+		strings.ToUpper(msg.Input.Provider), ghnResp.ShippingCode, ghnResp.ShippingFee)
+	_, err = s.trackingRepo.InsertEvent(ctx, tx, sqlc.InsertTrackingEventParams{
 		EventOrderID: order.OrderID,
 		EventStatus:  "shipped",
 		EventNote:    &eventNote,
 		EventSource:  "admin",
 	})
-
 	if err != nil {
-		_ = provider.CancelShippingOrder(context.Background(), ghnResp.ShippingCode)
-		return v1dto.ShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to insert tracking event", err)
+		_ = provider.CancelShippingOrder(ctx, ghnResp.ShippingCode)
+		return err
 	}
-
 	if err := tx.Commit(ctx); err != nil {
-		_ = provider.CancelShippingOrder(context.Background(), ghnResp.ShippingCode)
-		return v1dto.ShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
+		_ = provider.CancelShippingOrder(ctx, ghnResp.ShippingCode)
+		return err
 	}
-
 	_ = s.cache.Clear(fmt.Sprintf("order:%s", orderUUID.String()))
+	logger.Log.Info().Str("order_uuid", msg.OrderUUID).Str("shipping_code", ghnResp.ShippingCode).Msg("Shipping order created successfully via RabbitMQ")
+	return nil
 
-	return v1dto.ShippingResponseDTO{
-		OrderUUID:        updatedOrder.OrderUuid.String(),
-		OrderNumber:      updatedOrder.OrderNumber,
-		ShippingProvider: input.Provider,
-		ShippingCode:     ghnResp.ShippingCode,
-		ShippingFee:      ghnResp.ShippingFee,
-		ExpectedDelivery: ghnResp.ExpectedDelivery,
-		OrderStatus:      "Shipped",
-		CreatedAt:        updatedOrder.OrderUpdatedAt,
-	}, nil
 }
