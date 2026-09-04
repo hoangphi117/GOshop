@@ -141,4 +141,5 @@ type ReviewRepository interface {
 	AdminGetAll(ctx context.Context, status *int16, rating *int32, productUUID, search *string, orderBy, sort string, limit, offset int32) ([]v1dto.AdminReviewRow, error)
 	AdminCount(ctx context.Context, status *int16, rating *int32, productID *int32, search *string) (int64, error)
 	UpdateStatus(ctx context.Context, tx pgx.Tx, reviewID int32, status int16) (sqlc.ProductReview, error)
+	Reply(ctx context.Context, tx pgx.Tx, reviewID int32, reply string) (sqlc.ProductReview, error)
 }

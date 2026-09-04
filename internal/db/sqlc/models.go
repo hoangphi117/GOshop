@@ -166,10 +166,12 @@ type ProductReview struct {
 	ReviewVideoUrl  *string   `json:"review_video_url"`
 	ReviewHasMedia  bool      `json:"review_has_media"`
 	// 1: Visible, 2: Hidden, 3: Reported
-	ReviewStatus    int16     `json:"review_status"`
-	ReviewEditCount int32     `json:"review_edit_count"`
-	ReviewCreatedAt time.Time `json:"review_created_at"`
-	ReviewUpdatedAt time.Time `json:"review_updated_at"`
+	ReviewStatus    int16              `json:"review_status"`
+	ReviewEditCount int32              `json:"review_edit_count"`
+	ReviewReply     *string            `json:"review_reply"`
+	ReviewReplyAt   pgtype.Timestamptz `json:"review_reply_at"`
+	ReviewCreatedAt time.Time          `json:"review_created_at"`
+	ReviewUpdatedAt time.Time          `json:"review_updated_at"`
 }
 
 type User struct {

@@ -280,3 +280,31 @@ func (rh *ReviewHandler) AdminGetAllReviews(ctx *gin.Context) {
 	paginationResponse := utils.NewPaginationResponse(reviews, page, limit, total)
 	utils.ResponseSuccess(ctx, http.StatusOK, "Admin reviews retrieved successfully", paginationResponse)
 }
+
+func (rh *ReviewHandler) AdminReplyReview(ctx *gin.Context) {
+	var param v1dto.ReviewUUIDParam
+	if err := ctx.ShouldBindUri(&param); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	reviewUUID, err := uuid.Parse(param.UUID)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid review UUID"))
+		return
+	}
+
+	var input v1dto.ReplyReviewInput
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	updatedReview, err := rh.service.AdminReplyReview(ctx, reviewUUID, input)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Reply posted successfully", updatedReview)
+}

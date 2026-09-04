@@ -96,6 +96,7 @@ type Querier interface {
 	MarkWebhookEventProcessed(ctx context.Context, weID int32) error
 	RecalcProductRating(ctx context.Context, reviewProductID int32) error
 	RecordCouponUsage(ctx context.Context, arg RecordCouponUsageParams) (CouponUsage, error)
+	ReplyReview(ctx context.Context, arg ReplyReviewParams) (ProductReview, error)
 	RestoreCategory(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
 	RestoreCoupon(ctx context.Context, couponUuid uuid.UUID) (Coupon, error)
 	RestoreProduct(ctx context.Context, productUuid uuid.UUID) (Product, error)

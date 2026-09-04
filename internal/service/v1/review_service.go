@@ -200,6 +200,8 @@ func (rs *reviewService) GetProductReviews(ctx *gin.Context, productUUID uuid.UU
 			Images:       images,
 			VideoURL:     r.ReviewVideoURL,
 			HasMedia:     r.ReviewHasMedia,
+			Reply:        r.ReviewReply,
+			ReplyAt:      utils.StringToPointer(r.ReviewReplyAt.Format("2006-01-02 15:04:05")),
 			CreatedAt:    r.ReviewCreatedAt.Format("2006-01-02 15:04:05"),
 			UpdatedAt:    r.ReviewUpdatedAt.Format("2006-01-02 15:04:05"),
 		}
@@ -560,6 +562,62 @@ func (rs *reviewService) UpdateReviewStatus(ctx *gin.Context, reviewUUID uuid.UU
 		Images:    images,
 		VideoURL:  updatedReview.ReviewVideoUrl,
 		HasMedia:  updatedReview.ReviewHasMedia,
+		CreatedAt: updatedReview.ReviewCreatedAt.Format("2006-01-02 15:04:05"),
+		UpdatedAt: updatedReview.ReviewUpdatedAt.Format("2006-01-02 15:04:05"),
+	}, nil
+}
+
+func (rs *reviewService) AdminReplyReview(ctx *gin.Context, reviewUUID uuid.UUID, input v1dto.ReplyReviewInput) (v1dto.ReviewDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	review, err := rs.repo.GetByUUID(reqCtx, reviewUUID)
+	if err != nil {
+		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeNotFound, "Review not found")
+	}
+
+	txCtx, cancel := context.WithTimeout(reqCtx, 5*time.Second)
+	defer cancel()
+
+	tx, err := db.BeginTx(txCtx)
+	if err != nil {
+		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to start transaction", err)
+	}
+	defer tx.Rollback(txCtx)
+
+	updatedReview, err := rs.repo.Reply(txCtx, tx, review.ReviewID, input.Reply)
+	if err != nil {
+		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to reply to review", err)
+	}
+
+	if err := tx.Commit(txCtx); err != nil {
+		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
+	}
+
+	go func(pUUID string) {
+		_ = rs.cache.Clear("reviews:product:" + pUUID + ":*")
+	}(review.ProductUuid.String())
+
+	images := updatedReview.ReviewImages
+	if images == nil {
+		images = []string{}
+	}
+
+	var replyAt *string
+	if updatedReview.ReviewReplyAt.Valid {
+		formatted := updatedReview.ReviewReplyAt.Time.Format("2006-01-02 15:04:05")
+		replyAt = &formatted
+	}
+
+	return v1dto.ReviewDTO{
+		UUID:      updatedReview.ReviewUuid.String(),
+		Rating:    int32(updatedReview.ReviewRating),
+		Title:     updatedReview.ReviewTitle,
+		Comment:   updatedReview.ReviewComment,
+		Images:    images,
+		VideoURL:  updatedReview.ReviewVideoUrl,
+		HasMedia:  updatedReview.ReviewHasMedia,
+		Reply:     updatedReview.ReviewReply,
+		ReplyAt:   replyAt,
 		CreatedAt: updatedReview.ReviewCreatedAt.Format("2006-01-02 15:04:05"),
 		UpdatedAt: updatedReview.ReviewUpdatedAt.Format("2006-01-02 15:04:05"),
 	}, nil

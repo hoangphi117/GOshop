@@ -19,6 +19,8 @@ type ReviewRow struct {
 	ReviewCreatedAt time.Time
 	ReviewUpdatedAt time.Time
 	ReviewerName    string
+	ReviewReply     *string
+	ReviewReplyAt   *time.Time
 }
 
 type ReviewUUIDParam struct {
@@ -40,26 +42,10 @@ type ReviewDTO struct {
 	VideoURL     *string  `json:"video_url,omitempty"`
 	HasMedia     bool     `json:"has_media"`
 	CanEdit      bool     `json:"can_edit"`
+	Reply        *string  `json:"reply,omitempty"`
+	ReplyAt      *string  `json:"reply_at,omitempty"`
 	CreatedAt    string   `json:"created_at"`
 	UpdatedAt    string   `json:"updated_at,omitempty"`
-}
-
-type AdminReviewDTO struct {
-	UUID          string   `json:"uuid"`
-	ProductUUID   string   `json:"product_uuid"`
-	ProductName   string   `json:"product_name"`
-	OrderUUID     string   `json:"order_uuid"`
-	ReviewerName  string   `json:"reviewer_name"`
-	ReviewerEmail string   `json:"reviewer_email"`
-	Rating        int32    `json:"rating"`
-	Title         *string  `json:"title,omitempty"`
-	Comment       *string  `json:"comment,omitempty"`
-	Images        []string `json:"images"`
-	VideoURL      *string  `json:"video_url,omitempty"`
-	HasMedia      bool     `json:"has_media"`
-	Status        int16    `json:"status"` // 1: Visible, 2: Hidden, 3: Reported
-	CreatedAt     string   `json:"created_at"`
-	UpdatedAt     string   `json:"updated_at"`
 }
 
 type AdminReviewRow struct {
@@ -76,12 +62,14 @@ type AdminReviewRow struct {
 	ReviewImages    []string
 	ReviewVideoURL  *string
 	ReviewHasMedia  bool
+	ReviewReply     *string
+	ReviewReplyAt   *time.Time
 	ReviewStatus    int16
 	ReviewCreatedAt time.Time
 	ReviewUpdatedAt time.Time
 }
 
-// ── Create Input ───────────────────────────────────────────────
+// ── Input ───────────────────────────────────────────────
 type CreateReviewInput struct {
 	ProductUUID string  `form:"product_uuid" binding:"required,uuid"`
 	OrderUUID   string  `form:"order_uuid"   binding:"required,uuid"`
@@ -98,6 +86,10 @@ type UpdateReviewInput struct {
 
 type UpdateReviewStatusInput struct {
 	Status int16 `json:"status" binding:"required,oneof=1 2 3"` // 1: Visible, 2: Hidden, 3: Reported
+}
+
+type ReplyReviewInput struct {
+	Reply string `json:"reply" binding:"required,min=1,max=2000"`
 }
 
 // ── Query Parameters ───────────────────────────────────────────────

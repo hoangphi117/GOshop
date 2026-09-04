@@ -103,3 +103,10 @@ UPDATE product_reviews SET
     review_status = $2
 WHERE review_id = $1
 RETURNING *;
+
+-- name: ReplyReview :one
+UPDATE product_reviews SET
+    review_reply = $2,
+    review_reply_at = now()
+WHERE review_id = $1
+RETURNING *;

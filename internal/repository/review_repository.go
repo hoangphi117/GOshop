@@ -52,7 +52,7 @@ func (rr *SqlReviewRepository) GetByProduct(ctx context.Context, productID int32
 	query := `SELECT 
 				r.review_id, r.review_uuid, r.review_rating, r.review_title, 
 				r.review_comment, r.review_images, r.review_video_url, r.review_has_media,
-				r.review_created_at, r.review_updated_at,
+				r.review_reply, r.review_reply_at, r.review_created_at, r.review_updated_at,
 				u.user_fullname AS reviewer_name
 			FROM product_reviews r
 			JOIN users u ON u.user_id = r.review_user_id
@@ -108,6 +108,8 @@ func (rr *SqlReviewRepository) GetByProduct(ctx context.Context, productID int32
 			&r.ReviewImages,
 			&r.ReviewVideoURL,
 			&r.ReviewHasMedia,
+			&r.ReviewReply,
+			&r.ReviewReplyAt,
 			&r.ReviewCreatedAt,
 			&r.ReviewUpdatedAt,
 			&r.ReviewerName,
@@ -193,7 +195,8 @@ func (rr *SqlReviewRepository) AdminGetAll(ctx context.Context, status *int16, r
 				u.user_fullname AS reviewer_name, u.user_email AS reviewer_email,
 				r.review_rating, r.review_title, r.review_comment,
 				r.review_images, r.review_video_url, r.review_has_media,
-				r.review_status, r.review_created_at, r.review_updated_at
+				r.review_status, r.review_reply, r.review_reply_at,
+				r.review_created_at, r.review_updated_at,
 			FROM product_reviews r
 			JOIN products p ON p.product_id = r.review_product_id
 			JOIN orders o ON o.order_id = r.review_order_id
@@ -260,7 +263,9 @@ func (rr *SqlReviewRepository) AdminGetAll(ctx context.Context, status *int16, r
 			&r.ReviewerName, &r.ReviewerEmail,
 			&r.ReviewRating, &r.ReviewTitle, &r.ReviewComment,
 			&r.ReviewImages, &r.ReviewVideoURL, &r.ReviewHasMedia,
-			&r.ReviewStatus, &r.ReviewCreatedAt, &r.ReviewUpdatedAt,
+			&r.ReviewStatus,
+			&r.ReviewReply, &r.ReviewReplyAt,
+			&r.ReviewCreatedAt, &r.ReviewUpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -299,4 +304,12 @@ func (rr *SqlReviewRepository) AdminCount(ctx context.Context, status *int16, ra
 		return 0, err
 	}
 	return count, nil
+}
+
+func (rr *SqlReviewRepository) Reply(ctx context.Context, tx pgx.Tx, reviewID int32, reply string) (sqlc.ProductReview, error) {
+	q := sqlc.New(tx)
+	return q.ReplyReview(ctx, sqlc.ReplyReviewParams{
+		ReviewID:    reviewID,
+		ReviewReply: &reply,
+	})
 }
