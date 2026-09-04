@@ -308,3 +308,71 @@ func (rh *ReviewHandler) AdminReplyReview(ctx *gin.Context) {
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Reply posted successfully", updatedReview)
 }
+
+func (rh *ReviewHandler) ToggleHelpfulVote(ctx *gin.Context) {
+	var param v1dto.ReviewUUIDParam
+	if err := ctx.ShouldBindUri(&param); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	reviewUUID, err := uuid.Parse(param.UUID)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid review UUID"))
+		return
+	}
+
+	response, err := rh.service.ToggleHelpfulVote(ctx, reviewUUID)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Helpful vote toggled successfully", response)
+}
+
+func (rh *ReviewHandler) ReportReview(ctx *gin.Context) {
+	var param v1dto.ReviewUUIDParam
+	if err := ctx.ShouldBindUri(&param); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	reviewUUID, err := uuid.Parse(param.UUID)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid review UUID"))
+		return
+	}
+
+	var input v1dto.ReportReviewInput
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	if err := rh.service.ReportReview(ctx, reviewUUID, input); err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Review reported successfully", nil)
+}
+
+func (rh *ReviewHandler) AdminForceDeleteReview(ctx *gin.Context) {
+	var param v1dto.ReviewUUIDParam
+	if err := ctx.ShouldBindUri(&param); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+	reviewUUID, err := uuid.Parse(param.UUID)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid review UUID"))
+		return
+	}
+
+	if err := rh.service.AdminForceDeleteReview(ctx, reviewUUID); err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+	utils.ResponseSuccess(ctx, http.StatusOK, "Review permanently deleted by admin", nil)
+}

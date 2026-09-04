@@ -111,4 +111,7 @@ type ReviewService interface {
 	DeleteReview(ctx *gin.Context, reviewUUID uuid.UUID) error
 	AdminGetAllReviews(ctx *gin.Context, query v1dto.AdminGetReviewsQuery) ([]v1dto.AdminReviewRow, int32, error)
 	AdminReplyReview(ctx *gin.Context, reviewUUID uuid.UUID, input v1dto.ReplyReviewInput) (v1dto.ReviewDTO, error)
+	ToggleHelpfulVote(ctx *gin.Context, reviewUUID uuid.UUID) (v1dto.ToggleHelpfulResponseDTO, error)
+	ReportReview(ctx *gin.Context, reviewUUID uuid.UUID, input v1dto.ReportReviewInput) error
+	AdminForceDeleteReview(ctx *gin.Context, reviewUUID uuid.UUID) error
 }

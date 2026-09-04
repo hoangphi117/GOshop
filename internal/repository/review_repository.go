@@ -53,7 +53,7 @@ func (rr *SqlReviewRepository) GetByProduct(ctx context.Context, productID int32
 				r.review_id, r.review_uuid, r.review_rating, r.review_title, 
 				r.review_comment, r.review_images, r.review_video_url, r.review_has_media,
 				r.review_reply, r.review_reply_at, r.review_created_at, r.review_updated_at,
-				u.user_fullname AS reviewer_name
+				r.review_helpful_count, u.user_fullname AS reviewer_name
 			FROM product_reviews r
 			JOIN users u ON u.user_id = r.review_user_id
 			WHERE r.review_product_id = $1 AND r.review_status = 1`
@@ -81,8 +81,8 @@ func (rr *SqlReviewRepository) GetByProduct(ctx context.Context, productID int32
 	switch orderBy {
 	case "rating":
 		query += fmt.Sprintf(" ORDER BY r.review_rating %s, r.review_created_at DESC", order)
-	case "created_at":
-		query += fmt.Sprintf(" ORDER BY r.review_created_at %s", order)
+	case "helpful":
+		query += fmt.Sprintf(" ORDER BY r.review_helpful_count %s, r.review_created_at DESC", order)
 	default:
 		query += fmt.Sprintf(" ORDER BY r.review_created_at %s", order)
 	}
@@ -112,6 +112,7 @@ func (rr *SqlReviewRepository) GetByProduct(ctx context.Context, productID int32
 			&r.ReviewReplyAt,
 			&r.ReviewCreatedAt,
 			&r.ReviewUpdatedAt,
+			&r.ReviewHelpfulCount,
 			&r.ReviewerName,
 		); err != nil {
 			return nil, err
@@ -196,7 +197,7 @@ func (rr *SqlReviewRepository) AdminGetAll(ctx context.Context, status *int16, r
 				r.review_rating, r.review_title, r.review_comment,
 				r.review_images, r.review_video_url, r.review_has_media,
 				r.review_status, r.review_reply, r.review_reply_at,
-				r.review_created_at, r.review_updated_at,
+				r.review_created_at, r.review_updated_at, r.review_helpful_count
 			FROM product_reviews r
 			JOIN products p ON p.product_id = r.review_product_id
 			JOIN orders o ON o.order_id = r.review_order_id
@@ -238,8 +239,8 @@ func (rr *SqlReviewRepository) AdminGetAll(ctx context.Context, status *int16, r
 	switch orderBy {
 	case "rating":
 		query += fmt.Sprintf(" ORDER BY r.review_rating %s, r.review_created_at DESC", order)
-	case "created_at":
-		query += fmt.Sprintf(" ORDER BY r.review_created_at %s", order)
+	case "helpful":
+		query += fmt.Sprintf(" ORDER BY r.review_helpful_count %s, r.review_created_at DESC", order)
 	default:
 		query += fmt.Sprintf(" ORDER BY r.review_created_at %s", order)
 	}
@@ -265,7 +266,7 @@ func (rr *SqlReviewRepository) AdminGetAll(ctx context.Context, status *int16, r
 			&r.ReviewImages, &r.ReviewVideoURL, &r.ReviewHasMedia,
 			&r.ReviewStatus,
 			&r.ReviewReply, &r.ReviewReplyAt,
-			&r.ReviewCreatedAt, &r.ReviewUpdatedAt,
+			&r.ReviewCreatedAt, &r.ReviewUpdatedAt, &r.ReviewHelpfulCount,
 		); err != nil {
 			return nil, err
 		}
@@ -312,4 +313,54 @@ func (rr *SqlReviewRepository) Reply(ctx context.Context, tx pgx.Tx, reviewID in
 		ReviewID:    reviewID,
 		ReviewReply: &reply,
 	})
+}
+
+func (rr *SqlReviewRepository) HasHelpfulVote(ctx context.Context, userID, reviewID int32) (bool, error) {
+	return rr.db.CheckUserVotedHelpful(ctx, sqlc.CheckUserVotedHelpfulParams{
+		UserID:   userID,
+		ReviewID: reviewID,
+	})
+}
+
+func (rr *SqlReviewRepository) AddHelpfulVote(ctx context.Context, tx pgx.Tx, userID, reviewID int32) (int32, error) {
+	q := sqlc.New(tx)
+
+	if err := q.InsertHelpfulVote(ctx, sqlc.InsertHelpfulVoteParams{
+		UserID:   userID,
+		ReviewID: reviewID,
+	}); err != nil {
+		return 0, err
+	}
+
+	return q.IncrementHelpfulCount(ctx, reviewID)
+}
+
+func (rr *SqlReviewRepository) RemoveHelpfulVote(ctx context.Context, tx pgx.Tx, userID, reviewID int32) (int32, error) {
+	q := sqlc.New(tx)
+
+	if err := q.DeleteHelpfulVote(ctx, sqlc.DeleteHelpfulVoteParams{
+		UserID:   userID,
+		ReviewID: reviewID,
+	}); err != nil {
+		return 0, err
+	}
+
+	return q.DecrementHelpfulCount(ctx, reviewID)
+}
+
+func (rr *SqlReviewRepository) HasReported(ctx context.Context, userID, reviewID int32) (bool, error) {
+	return rr.db.CheckUserReportedReview(ctx, sqlc.CheckUserReportedReviewParams{
+		UserID:   userID,
+		ReviewID: reviewID,
+	})
+}
+
+func (rr *SqlReviewRepository) CreateReport(ctx context.Context, tx pgx.Tx, params sqlc.InsertReviewReportParams) error {
+	q := sqlc.New(tx)
+	return q.InsertReviewReport(ctx, params)
+}
+
+func (rr *SqlReviewRepository) CountReports(ctx context.Context, tx pgx.Tx, reviewID int32) (int64, error) {
+	q := sqlc.New(tx)
+	return q.CountReportsByReviewID(ctx, reviewID)
 }

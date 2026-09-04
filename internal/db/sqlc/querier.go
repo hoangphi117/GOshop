@@ -19,6 +19,10 @@ type Querier interface {
 	CancelOrder(ctx context.Context, orderUuid uuid.UUID) (Order, error)
 	CheckReviewExists(ctx context.Context, arg CheckReviewExistsParams) (bool, error)
 	CheckUserPurchasedProduct(ctx context.Context, arg CheckUserPurchasedProductParams) (bool, error)
+	// Review Reports Queries
+	CheckUserReportedReview(ctx context.Context, arg CheckUserReportedReviewParams) (bool, error)
+	// Helpful Votes Queries
+	CheckUserVotedHelpful(ctx context.Context, arg CheckUserVotedHelpfulParams) (bool, error)
 	ClearCartByCartID(ctx context.Context, cartID int32) error
 	ClearDefaultAddress(ctx context.Context, uaUserID int32) error
 	CountCartItems(ctx context.Context, cartID int32) (int64, error)
@@ -26,6 +30,7 @@ type Querier interface {
 	CountCoupons(ctx context.Context, arg CountCouponsParams) (int64, error)
 	CountOrders(ctx context.Context, arg CountOrdersParams) (int64, error)
 	CountProducts(ctx context.Context, arg CountProductsParams) (int64, error)
+	CountReportsByReviewID(ctx context.Context, reviewID int32) (int64, error)
 	CountReviewsByUserID(ctx context.Context, reviewUserID int32) (int64, error)
 	CountUserAddresses(ctx context.Context, uaUserID int32) (int64, error)
 	CountUserCouponUsages(ctx context.Context, arg CountUserCouponUsagesParams) (int64, error)
@@ -40,11 +45,13 @@ type Querier interface {
 	CreateReview(ctx context.Context, arg CreateReviewParams) (ProductReview, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	CreateUserAddress(ctx context.Context, arg CreateUserAddressParams) (UserAddress, error)
+	DecrementHelpfulCount(ctx context.Context, reviewID int32) (int32, error)
 	DeductStock(ctx context.Context, arg DeductStockParams) (int64, error)
 	DeleteCartItemByUUID(ctx context.Context, arg DeleteCartItemByUUIDParams) (CartItem, error)
 	// Dùng cho bước "dọn giỏ hàng sau khi đặt" — xóa CHỌN
 	// LỌC theo danh sách product_id có trong đơn vừa tạo, không xóa sạch toàn bộ giỏ.
 	DeleteCartItemsByProductIDs(ctx context.Context, arg DeleteCartItemsByProductIDsParams) error
+	DeleteHelpfulVote(ctx context.Context, arg DeleteHelpfulVoteParams) error
 	DeleteReview(ctx context.Context, reviewID int32) error
 	DeleteUserAddress(ctx context.Context, arg DeleteUserAddressParams) (bool, error)
 	GetByUUIDsForUpdate(ctx context.Context, uuids []uuid.UUID) ([]GetByUUIDsForUpdateRow, error)
@@ -88,6 +95,9 @@ type Querier interface {
 	// lượt dùng đúng tại thời điểm ghi, dù đã pass check trước đó (race condition
 	// đã bị chặn đúng lúc cần) — đúng pattern DeductStock ở Order module.
 	IncrementCouponUsedCount(ctx context.Context, couponID int32) (Coupon, error)
+	IncrementHelpfulCount(ctx context.Context, reviewID int32) (int32, error)
+	InsertHelpfulVote(ctx context.Context, arg InsertHelpfulVoteParams) error
+	InsertReviewReport(ctx context.Context, arg InsertReviewReportParams) error
 	InsertWebhookEvent(ctx context.Context, arg InsertWebhookEventParams) (WebhookEvent, error)
 	ListUserUserCreatedAtAsc(ctx context.Context, arg ListUserUserCreatedAtAscParams) ([]User, error)
 	ListUserUserCreatedAtDesc(ctx context.Context, arg ListUserUserCreatedAtDescParams) ([]User, error)

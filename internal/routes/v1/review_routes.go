@@ -23,5 +23,7 @@ func (rr *ReviewRoutes) Register(r *gin.RouterGroup) {
 		reviews.GET("/me", rr.handler.GetMyReviews)
 		reviews.PUT("/:uuid", rr.handler.UpdateReview)
 		reviews.DELETE("/:uuid", rr.handler.DeleteReview)
+		reviews.POST("/:uuid/helpful", rr.handler.ToggleHelpfulVote)
+		reviews.POST("/:uuid/report", rr.handler.ReportReview)
 	}
 }

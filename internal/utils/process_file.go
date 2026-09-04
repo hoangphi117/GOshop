@@ -124,7 +124,7 @@ func SaveFile(fileHeader *multipart.FileHeader, destination string) error {
 	return err
 }
 
-func DeleteFiles(filePaths ...string) {
+func DeleteUploadedFiles(filePaths ...string) {
 	for _, path := range filePaths {
 		if strings.TrimSpace(path) == "" {
 			continue

@@ -8,26 +8,20 @@ import (
 )
 
 type ReviewRow struct {
-	ReviewID        int32
-	ReviewUUID      uuid.UUID
-	ReviewRating    int16
-	ReviewTitle     *string
-	ReviewComment   *string
-	ReviewImages    []string
-	ReviewVideoURL  *string
-	ReviewHasMedia  bool
-	ReviewCreatedAt time.Time
-	ReviewUpdatedAt time.Time
-	ReviewerName    string
-	ReviewReply     *string
-	ReviewReplyAt   *time.Time
-}
-
-type ReviewUUIDParam struct {
-	UUID string `uri:"uuid" binding:"required,uuid"`
-}
-type ProductReviewsParam struct {
-	ProductUUID string `uri:"uuid" binding:"required,uuid"`
+	ReviewID           int32
+	ReviewUUID         uuid.UUID
+	ReviewRating       int16
+	ReviewTitle        *string
+	ReviewComment      *string
+	ReviewImages       []string
+	ReviewVideoURL     *string
+	ReviewHasMedia     bool
+	ReviewerName       string
+	ReviewReply        *string
+	ReviewReplyAt      *time.Time
+	ReviewHelpfulCount int32
+	ReviewCreatedAt    time.Time
+	ReviewUpdatedAt    time.Time
 }
 
 type ReviewDTO struct {
@@ -44,29 +38,36 @@ type ReviewDTO struct {
 	CanEdit      bool     `json:"can_edit"`
 	Reply        *string  `json:"reply,omitempty"`
 	ReplyAt      *string  `json:"reply_at,omitempty"`
+	HelpfulCount int32    `json:"helpful_count"`
 	CreatedAt    string   `json:"created_at"`
 	UpdatedAt    string   `json:"updated_at,omitempty"`
 }
 
 type AdminReviewRow struct {
-	ReviewID        int32
-	ReviewUUID      uuid.UUID
-	ProductUUID     uuid.UUID
-	ProductName     string
-	OrderUUID       uuid.UUID
-	ReviewerName    string
-	ReviewerEmail   string
-	ReviewRating    int16
-	ReviewTitle     *string
-	ReviewComment   *string
-	ReviewImages    []string
-	ReviewVideoURL  *string
-	ReviewHasMedia  bool
-	ReviewReply     *string
-	ReviewReplyAt   *time.Time
-	ReviewStatus    int16
-	ReviewCreatedAt time.Time
-	ReviewUpdatedAt time.Time
+	ReviewID           int32
+	ReviewUUID         uuid.UUID
+	ProductUUID        uuid.UUID
+	ProductName        string
+	OrderUUID          uuid.UUID
+	ReviewerName       string
+	ReviewerEmail      string
+	ReviewRating       int16
+	ReviewTitle        *string
+	ReviewComment      *string
+	ReviewImages       []string
+	ReviewVideoURL     *string
+	ReviewHasMedia     bool
+	ReviewReply        *string
+	ReviewReplyAt      *time.Time
+	ReviewStatus       int16
+	ReviewCreatedAt    time.Time
+	ReviewUpdatedAt    time.Time
+	ReviewHelpfulCount int32
+}
+
+type ToggleHelpfulResponseDTO struct {
+	Voted        bool  `json:"voted"`         // true: đã vote, false: đã hủy vote
+	HelpfulCount int32 `json:"helpful_count"` // số lượng vote mới nhất
 }
 
 // ── Input ───────────────────────────────────────────────
@@ -92,13 +93,18 @@ type ReplyReviewInput struct {
 	Reply string `json:"reply" binding:"required,min=1,max=2000"`
 }
 
+type ReportReviewInput struct {
+	Reason  string  `json:"reason"  binding:"required,oneof=spam inappropriate fake other"`
+	Details *string `json:"details" binding:"omitempty,max=500"`
+}
+
 // ── Query Parameters ───────────────────────────────────────────────
 type GetReviewsQuery struct {
 	Page     int32  `form:"page"      binding:"omitempty,gte=1"`
 	Limit    int32  `form:"limit"     binding:"omitempty,gte=1,lte=100"`
 	Rating   *int32 `form:"rating"    binding:"omitempty,min=1,max=5"`
 	HasMedia *bool  `form:"has_media" binding:"omitempty"`
-	OrderBy  string `form:"order_by"  binding:"omitempty,oneof=created_at rating"`
+	OrderBy  string `form:"order_by"  binding:"omitempty,oneof=created_at rating helpful"`
 	Sort     string `form:"sort"      binding:"omitempty,oneof=asc desc"`
 }
 
@@ -116,6 +122,13 @@ type AdminGetReviewsQuery struct {
 type GetMyReviewsQuery struct {
 	Page  int32 `form:"page"      binding:"omitempty,gte=1"`
 	Limit int32 `form:"limit"     binding:"omitempty,gte=1,lte=50"`
+}
+
+type ReviewUUIDParam struct {
+	UUID string `uri:"uuid" binding:"required,uuid"`
+}
+type ProductReviewsParam struct {
+	ProductUUID string `uri:"uuid" binding:"required,uuid"`
 }
 
 type MyReviewDTO struct {

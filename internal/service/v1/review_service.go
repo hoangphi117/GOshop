@@ -17,6 +17,12 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+const (
+	ReviewStatusVisible  int16 = 1
+	ReviewStatusHidden   int16 = 2
+	ReviewStatusReported int16 = 3
+)
+
 type reviewService struct {
 	repo        repository.ReviewRepository
 	userRepo    repository.UserRepository
@@ -34,6 +40,8 @@ func NewReviewService(repo repository.ReviewRepository, userRepo repository.User
 		cache:       cache.NewRedisCacheService(redisClient),
 	}
 }
+
+// CRUD
 
 func (rs *reviewService) CreateReview(ctx *gin.Context, input v1dto.CreateReviewInput, imageURLs []string, videoURL *string) (v1dto.ReviewDTO, error) {
 	reqCtx := ctx.Request.Context()
@@ -87,6 +95,10 @@ func (rs *reviewService) CreateReview(ctx *gin.Context, input v1dto.CreateReview
 	}
 	if isExists {
 		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Review already exists for this product")
+	}
+
+	if err := utils.ValidateReviewContent(input.Title, input.Comment); err != nil {
+		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeBadRequest, err.Error())
 	}
 
 	txCtx, cancel := context.WithTimeout(reqCtx, 5*time.Second)
@@ -202,6 +214,7 @@ func (rs *reviewService) GetProductReviews(ctx *gin.Context, productUUID uuid.UU
 			HasMedia:     r.ReviewHasMedia,
 			Reply:        r.ReviewReply,
 			ReplyAt:      utils.StringToPointer(r.ReviewReplyAt.Format("2006-01-02 15:04:05")),
+			HelpfulCount: r.ReviewHelpfulCount,
 			CreatedAt:    r.ReviewCreatedAt.Format("2006-01-02 15:04:05"),
 			UpdatedAt:    r.ReviewUpdatedAt.Format("2006-01-02 15:04:05"),
 		}
@@ -345,6 +358,10 @@ func (rs *reviewService) UpdateReview(ctx *gin.Context, reviewUUID uuid.UUID, in
 		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeBadRequest, "You can only edit your review within 30 days of posting")
 	}
 
+	if err := utils.ValidateReviewContent(input.Title, input.Comment); err != nil {
+		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeBadRequest, err.Error())
+	}
+
 	txCtx, cancel := context.WithTimeout(reqCtx, 5*time.Second)
 	defer cancel()
 
@@ -462,9 +479,153 @@ func (rs *reviewService) DeleteReview(ctx *gin.Context, reviewUUID uuid.UUID) er
 		if videoURL != nil {
 			filesToDelete = append(filesToDelete, *videoURL)
 		}
-		utils.DeleteFiles(filesToDelete...)
+		utils.DeleteUploadedFiles(filesToDelete...)
 	}(review.ReviewImages, review.ReviewVideoUrl)
 
+	return nil
+}
+
+// Action
+
+func (rs *reviewService) ToggleHelpfulVote(ctx *gin.Context, reviewUUID uuid.UUID) (v1dto.ToggleHelpfulResponseDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	userUUIDStr, ok := ctx.Get("user_uuid")
+	if !ok {
+		return v1dto.ToggleHelpfulResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+
+	userUUID, _ := uuid.Parse(userUUIDStr.(string))
+	user, err := rs.userRepo.GetByUUID(reqCtx, userUUID)
+	if err != nil {
+		return v1dto.ToggleHelpfulResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "User not found")
+	}
+
+	review, err := rs.repo.GetByUUID(reqCtx, reviewUUID)
+	if err != nil {
+		return v1dto.ToggleHelpfulResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "Review not found")
+	}
+
+	// Check if the user is trying to vote for their own review
+	if review.ReviewUserID == user.UserID {
+		return v1dto.ToggleHelpfulResponseDTO{}, utils.NewError(utils.ErrCodeBadRequest, "You cannot vote for your own review")
+	}
+
+	txCtx, cancel := context.WithTimeout(reqCtx, 5*time.Second)
+	defer cancel()
+	tx, err := db.BeginTx(txCtx)
+	if err != nil {
+		return v1dto.ToggleHelpfulResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to start transaction", err)
+	}
+	defer tx.Rollback(txCtx)
+
+	hasVoted, err := rs.repo.HasHelpfulVote(txCtx, user.UserID, review.ReviewID)
+	if err != nil {
+		return v1dto.ToggleHelpfulResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to check vote status", err)
+	}
+
+	var newCount int32
+	var voted bool
+
+	if hasVoted {
+		newCount, err = rs.repo.RemoveHelpfulVote(txCtx, tx, user.UserID, review.ReviewID)
+		if err != nil {
+			return v1dto.ToggleHelpfulResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to remove helpful vote", err)
+		}
+		voted = false
+	} else {
+		newCount, err = rs.repo.AddHelpfulVote(txCtx, tx, user.UserID, review.ReviewID)
+		if err != nil {
+			return v1dto.ToggleHelpfulResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to add helpful vote", err)
+		}
+		voted = true
+	}
+
+	if err != nil {
+		return v1dto.ToggleHelpfulResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to toggle vote", err)
+	}
+
+	if err := tx.Commit(txCtx); err != nil {
+		return v1dto.ToggleHelpfulResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
+	}
+
+	go func(pUUID string) {
+		_ = rs.cache.Clear("reviews:product:" + pUUID + ":*")
+	}(review.ProductUuid.String())
+
+	return v1dto.ToggleHelpfulResponseDTO{
+		Voted:        voted,
+		HelpfulCount: newCount,
+	}, nil
+}
+
+func (rs *reviewService) ReportReview(ctx *gin.Context, reviewUUID uuid.UUID, input v1dto.ReportReviewInput) error {
+	reqCtx := ctx.Request.Context()
+
+	userUUIDStr, ok := ctx.Get("user_uuid")
+	if !ok {
+		return utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+
+	userUUID, _ := uuid.Parse(userUUIDStr.(string))
+	user, err := rs.userRepo.GetByUUID(reqCtx, userUUID)
+	if err != nil {
+		return utils.NewError(utils.ErrCodeUnauthorized, "User not found")
+	}
+
+	review, err := rs.repo.GetByUUID(reqCtx, reviewUUID)
+
+	if err != nil {
+		return utils.NewError(utils.ErrCodeNotFound, "Review not found")
+	}
+	if review.ReviewUserID == user.UserID {
+		return utils.NewError(utils.ErrCodeBadRequest, "You cannot report your own review")
+	}
+
+	reported, err := rs.repo.HasReported(reqCtx, user.UserID, review.ReviewID)
+	if err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to check report status", err)
+	}
+	if reported {
+		return utils.NewError(utils.ErrCodeBadRequest, "You have already reported this review")
+	}
+
+	txCtx, cancel := context.WithTimeout(reqCtx, 5*time.Second)
+	defer cancel()
+
+	tx, err := db.BeginTx(txCtx)
+	if err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to start transaction", err)
+	}
+	defer tx.Rollback(txCtx)
+
+	if err := rs.repo.CreateReport(txCtx, tx, sqlc.InsertReviewReportParams{
+		UserID:   user.UserID,
+		ReviewID: review.ReviewID,
+		Reason:   input.Reason,
+	}); err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to report review", err)
+	}
+
+	count, err := rs.repo.CountReports(txCtx, tx, review.ReviewID)
+	if err == nil && count >= 3 && review.ReviewStatus == ReviewStatusVisible {
+		if _, err := rs.repo.UpdateStatus(txCtx, tx, review.ReviewID, ReviewStatusReported); err != nil {
+			return utils.WrapError(utils.ErrCodeInternal, "Failed to update review status", err)
+		}
+		err := rs.repo.RecalcRating(txCtx, tx, review.ReviewProductID)
+		if err != nil {
+			return utils.WrapError(utils.ErrCodeInternal, "Failed to recalculate product rating", err)
+		}
+	}
+
+	if err := tx.Commit(txCtx); err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
+	}
+
+	go func(pUUID string) {
+		_ = rs.cache.Clear("reviews:product:" + pUUID + ":*")
+		_ = rs.cache.Del("reviews:summary:" + pUUID)
+	}(review.ProductUuid.String())
 	return nil
 }
 
@@ -621,4 +782,50 @@ func (rs *reviewService) AdminReplyReview(ctx *gin.Context, reviewUUID uuid.UUID
 		CreatedAt: updatedReview.ReviewCreatedAt.Format("2006-01-02 15:04:05"),
 		UpdatedAt: updatedReview.ReviewUpdatedAt.Format("2006-01-02 15:04:05"),
 	}, nil
+}
+
+func (rs *reviewService) AdminForceDeleteReview(ctx *gin.Context, reviewUUID uuid.UUID) error {
+	reqCtx := ctx.Request.Context()
+
+	review, err := rs.repo.GetByUUID(reqCtx, reviewUUID)
+	if err != nil {
+		return utils.NewError(utils.ErrCodeNotFound, "Review not found")
+	}
+
+	txCtx, cancel := context.WithTimeout(reqCtx, 5*time.Second)
+	defer cancel()
+	tx, err := db.BeginTx(txCtx)
+	if err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to begin transaction", err)
+	}
+	defer tx.Rollback(txCtx)
+
+	if err := rs.repo.Delete(txCtx, tx, review.ReviewID); err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to force delete review", err)
+	}
+
+	if err := rs.repo.RecalcRating(txCtx, tx, review.ReviewProductID); err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to recalculate product rating", err)
+	}
+
+	if err := tx.Commit(txCtx); err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
+	}
+
+	go func(pUUID string) {
+		_ = rs.cache.Clear("reviews:product:" + pUUID + ":*")
+		_ = rs.cache.Del("reviews:summary:" + pUUID)
+		_ = rs.cache.Clear("products:*")
+	}(review.ProductUuid.String())
+
+	go func(images []string, videoURL *string) {
+		files := make([]string, 0, len(images)+1)
+		files = append(files, images...)
+		if videoURL != nil && *videoURL != "" {
+			files = append(files, *videoURL)
+		}
+		utils.DeleteUploadedFiles(files...)
+	}(review.ReviewImages, review.ReviewVideoUrl)
+
+	return nil
 }

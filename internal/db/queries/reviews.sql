@@ -110,3 +110,48 @@ UPDATE product_reviews SET
     review_reply_at = now()
 WHERE review_id = $1
 RETURNING *;
+
+-- Helpful Votes Queries
+
+-- name: CheckUserVotedHelpful :one
+SELECT EXISTS(
+    SELECT 1 FROM product_review_helpful_votes 
+    WHERE review_id = $1 AND user_id = $2
+) AS has_voted;
+
+-- name: InsertHelpfulVote :exec
+INSERT INTO product_review_helpful_votes (review_id, user_id)
+VALUES ($1, $2);
+
+-- name: DeleteHelpfulVote :exec
+DELETE FROM product_review_helpful_votes
+WHERE review_id = $1 AND user_id = $2;
+
+-- name: IncrementHelpfulCount :one
+UPDATE product_reviews SET
+    review_helpful_count = review_helpful_count + 1
+WHERE review_id = $1
+RETURNING review_helpful_count;
+
+-- name: DecrementHelpfulCount :one
+UPDATE product_reviews SET
+    review_helpful_count = GREATEST(review_helpful_count - 1, 0)
+WHERE review_id = $1
+RETURNING review_helpful_count;
+
+-- Review Reports Queries
+
+-- name: CheckUserReportedReview :one
+SELECT EXISTS(
+    SELECT 1 FROM product_review_reports 
+    WHERE review_id = $1 AND user_id = $2
+) AS has_reported;
+
+-- name: InsertReviewReport :exec
+INSERT INTO product_review_reports (
+    review_id, user_id, reason, details
+) VALUES ($1, $2, $3, $4);
+
+-- name: CountReportsByReviewID :one
+SELECT COUNT(*)::bigint FROM product_review_reports
+WHERE review_id = $1;

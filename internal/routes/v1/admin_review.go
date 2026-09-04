@@ -22,5 +22,6 @@ func (ur *AdminReviewRoutes) Register(r *gin.RouterGroup) {
 		reviews.GET("", ur.handler.AdminGetAllReviews)
 		reviews.PATCH("/:uuid/status", ur.handler.UpdateReviewStatus)
 		reviews.PATCH("/:uuid/reply", ur.handler.AdminReplyReview)
+		reviews.DELETE("/:uuid", ur.handler.AdminForceDeleteReview)
 	}
 }
