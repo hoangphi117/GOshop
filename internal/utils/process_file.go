@@ -3,6 +3,7 @@ package utils
 import (
 	"errors"
 	"fmt"
+	"goshop/pkg/logger"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -121,4 +122,27 @@ func SaveFile(fileHeader *multipart.FileHeader, destination string) error {
 	_, err = io.Copy(out, src)
 
 	return err
+}
+
+func DeleteFiles(filePaths ...string) {
+	for _, path := range filePaths {
+		if strings.TrimSpace(path) == "" {
+			continue
+		}
+
+		// Path sanitization to prevent directory traversal attacks
+		clean := filepath.Clean(path)
+		clean = strings.TrimPrefix(clean, string(filepath.Separator))
+		clean = strings.TrimPrefix(clean, "/")
+		clean = strings.TrimPrefix(clean, "\\")
+
+		// Ensure the file is within the "uploads" directory
+		if !strings.HasPrefix(clean, "uploads"+string(filepath.Separator)) && !strings.HasPrefix(clean, "uploads/") {
+			continue
+		}
+
+		if err := os.Remove(clean); err != nil && !os.IsNotExist(err) {
+			logger.Log.Warn().Err(err).Str("filepath", clean).Msg("Failed to delete physical uploaded file")
+		}
+	}
 }

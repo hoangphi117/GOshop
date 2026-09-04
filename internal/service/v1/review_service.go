@@ -454,6 +454,15 @@ func (rs *reviewService) DeleteReview(ctx *gin.Context, reviewUUID uuid.UUID) er
 		_ = rs.cache.Clear("products:*")
 	}(review.ProductUuid.String())
 
+	go func(images []string, videoURL *string) {
+		filesToDelete := make([]string, 0, len(images)+1)
+		filesToDelete = append(filesToDelete, images...)
+		if videoURL != nil {
+			filesToDelete = append(filesToDelete, *videoURL)
+		}
+		utils.DeleteFiles(filesToDelete...)
+	}(review.ReviewImages, review.ReviewVideoUrl)
+
 	return nil
 }
 
