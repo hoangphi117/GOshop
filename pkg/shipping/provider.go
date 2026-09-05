@@ -40,10 +40,18 @@ type TrackingInfo struct {
 	UpdatedAt  *time.Time
 }
 
+type PrintBillResponse struct {
+	Token   string `json:"token"`
+	PrintA5 string `json:"print_a5"`
+	Print80 string `json:"print_80x80"`
+	Print52 string `json:"print_52x70"`
+}
+
 type ShippingProvider interface {
 	Name() string
 	CreateShippingOrder(ctx context.Context, req CreateOrderRequest) (*CreateOrderResponse, error)
 	GetTrackingInfo(ctx context.Context, shippingCode string) (*TrackingInfo, error)
 	CancelShippingOrder(ctx context.Context, shippingCode string) error
 	CalculateFee(ctx context.Context, req CreateOrderRequest) (float64, error)
+	GetPrintBillURL(ctx context.Context, shippingCode string) (*PrintBillResponse, error)
 }

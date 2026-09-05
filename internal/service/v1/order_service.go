@@ -1578,3 +1578,50 @@ func (s *orderService) CancelShipping(ctx *gin.Context, orderUUID uuid.UUID, inp
 		Message:      "Hủy vận đơn thành công. Đơn hàng đã quay về trạng thái Chờ giao hàng.",
 	}, nil
 }
+
+func (s *orderService) GetPrintBill(ctx *gin.Context, orderUUID uuid.UUID) (v1dto.PrintBillResponseDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	order, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return v1dto.PrintBillResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "Order not found")
+		}
+		return v1dto.PrintBillResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
+	}
+
+	if order.OrderShippingCode == nil || strings.TrimSpace(*order.OrderShippingCode) == "" {
+		return v1dto.PrintBillResponseDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Order does not have a valid shipping code")
+	}
+
+	shippingCode := *order.OrderShippingCode
+	providerName := "ghn"
+	if order.OrderShippingProvider != nil && strings.TrimSpace(*order.OrderShippingProvider) != "" {
+		providerName = *order.OrderShippingProvider
+	}
+
+	provider, err := s.shippingFactory.GetProvider(providerName)
+	if err != nil {
+		return v1dto.PrintBillResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get shipping provider", err)
+	}
+
+	res, err := provider.GetPrintBillURL(reqCtx, shippingCode)
+	if err != nil {
+		logger.Log.Error().
+			Err(err).
+			Str("provider", providerName).
+			Str("shipping_code", shippingCode).
+			Msg("Failed to get print bill URL from provider")
+		return v1dto.PrintBillResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get print bill URL from provider", err)
+	}
+
+	return v1dto.PrintBillResponseDTO{
+		OrderUUID:    orderUUID.String(),
+		OrderNumber:  order.OrderNumber,
+		ShippingCode: shippingCode,
+		Token:        res.Token,
+		PrintA5:      res.PrintA5,
+		Print80x80:   res.Print80,
+		Print52x70:   res.Print52,
+	}, nil
+}

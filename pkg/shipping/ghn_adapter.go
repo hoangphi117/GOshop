@@ -82,10 +82,18 @@ type ghnItem struct {
 	Weight   int    `json:"weight,omitempty"`
 }
 
-type ghnCreateOrderResponseData struct {
-	OrderCode            string    `json:"order_code"`
-	TotalFee             float64   `json:"total_fee"`
-	ExpectedDeliveryTime time.Time `json:"expected_delivery_time"`
+// ── Payload ─────────────────────────────────────────────────────────────
+
+type ghnCancelPayload struct {
+	OrderCodes []string `json:"order_codes"`
+}
+
+type ghnDetailPayload struct {
+	OrderCode string `json:"order_code"`
+}
+
+type ghnGenTokenPayload struct {
+	OrderCodes []string `json:"order_codes"`
 }
 
 type ghnFeePayload struct {
@@ -99,18 +107,7 @@ type ghnFeePayload struct {
 	InsuranceValue int    `json:"insurance_value,omitempty"`
 }
 
-type ghnFeeResponseData struct {
-	Total      float64 `json:"total"`
-	ServiceFee float64 `json:"service_fee"`
-}
-
-type ghnCancelPayload struct {
-	OrderCodes []string `json:"order_codes"`
-}
-
-type ghnDetailPayload struct {
-	OrderCode string `json:"order_code"`
-}
+// ── Response ─────────────────────────────────────────────────────────────=
 
 type ghnDetailResponseData struct {
 	OrderCode string `json:"order_code"`
@@ -121,9 +118,23 @@ type ghnDetailResponseData struct {
 	} `json:"log"`
 }
 
+type ghnGenTokenResponseData struct {
+	Token string `json:"token"`
+}
+
+type ghnCreateOrderResponseData struct {
+	OrderCode            string    `json:"order_code"`
+	TotalFee             float64   `json:"total_fee"`
+	ExpectedDeliveryTime time.Time `json:"expected_delivery_time"`
+}
+
+type ghnFeeResponseData struct {
+	Total      float64 `json:"total"`
+	ServiceFee float64 `json:"service_fee"`
+}
+
 // ── Implementation of ShippingProvider ─────────────────────────────────────────
 
-// CreateShippingOrder gọi API GHN tạo đơn giao hàng
 func (a *GHNAdapter) CreateShippingOrder(ctx context.Context, req CreateOrderRequest) (*CreateOrderResponse, error) {
 	requiredNote := req.RequiredNote
 	if requiredNote == "" {
@@ -194,7 +205,6 @@ func (a *GHNAdapter) CreateShippingOrder(ctx context.Context, req CreateOrderReq
 	}, nil
 }
 
-// CalculateFee tính phí vận chuyển tạm tính từ GHN
 func (a *GHNAdapter) CalculateFee(ctx context.Context, req CreateOrderRequest) (float64, error) {
 	weight := req.Weight
 	if weight <= 0 {
@@ -226,7 +236,6 @@ func (a *GHNAdapter) CalculateFee(ctx context.Context, req CreateOrderRequest) (
 	return resData.Total, nil
 }
 
-// CancelShippingOrder hủy đơn vận chuyển trên hệ thống GHN
 func (a *GHNAdapter) CancelShippingOrder(ctx context.Context, shippingCode string) error {
 	payload := ghnCancelPayload{
 		OrderCodes: []string{shippingCode},
@@ -241,7 +250,6 @@ func (a *GHNAdapter) CancelShippingOrder(ctx context.Context, shippingCode strin
 	return nil
 }
 
-// GetTrackingInfo tra cứu trạng thái vận chuyển từ GHN
 func (a *GHNAdapter) GetTrackingInfo(ctx context.Context, shippingCode string) (*TrackingInfo, error) {
 	payload := ghnDetailPayload{
 		OrderCode: shippingCode,
@@ -271,6 +279,29 @@ func (a *GHNAdapter) GetTrackingInfo(ctx context.Context, shippingCode string) (
 		Status:     resData.Status,
 		StatusText: mapGHNStatusText(resData.Status),
 		UpdatedAt:  updatedAt,
+	}, nil
+}
+
+func (a *GHNAdapter) GetPrintBillURL(ctx context.Context, shippingCode string) (*PrintBillResponse, error) {
+	payload := ghnGenTokenPayload{
+		OrderCodes: []string{shippingCode},
+	}
+
+	endpoint := fmt.Sprintf("%s/shiip/public-api/v2/a5/gen-token", a.baseURL)
+	body, err := a.doRequest(ctx, http.MethodPost, endpoint, payload)
+	if err != nil {
+		return nil, fmt.Errorf("ghn gen print token failed: %w", err)
+	}
+
+	var resData ghnGenTokenResponseData
+	if err := json.Unmarshal(body, &resData); err != nil {
+		return nil, fmt.Errorf("failed to parse ghn gen token response: %w", err)
+	}
+	return &PrintBillResponse{
+		Token:   resData.Token,
+		PrintA5: fmt.Sprintf("%s/a5/public-api/printA5?token=%s", a.baseURL, resData.Token),
+		Print80: fmt.Sprintf("%s/a5/public-api/print80x80?token=%s", a.baseURL, resData.Token),
+		Print52: fmt.Sprintf("%s/a5/public-api/print52x70?token=%s", a.baseURL, resData.Token),
 	}, nil
 }
 

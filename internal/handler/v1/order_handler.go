@@ -366,3 +366,25 @@ func (oh *OrderHandler) CancelShipping(ctx *gin.Context) {
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Shipping order cancelled successfully", res)
 }
+
+func (oh *OrderHandler) GetPrintBill(ctx *gin.Context) {
+	var params v1dto.GetPrintBillParams
+	if err := ctx.ShouldBindUri(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	orderUUID, err := uuid.Parse(params.UUID)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid order UUID"))
+		return
+	}
+
+	res, err := oh.service.GetPrintBill(ctx, orderUUID)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Shipping bill print URLs generated successfully", res)
+}

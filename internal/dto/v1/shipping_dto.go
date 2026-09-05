@@ -20,6 +20,10 @@ type CancelShippingParams struct {
 	UUID string `uri:"uuid" binding:"required,uuid"`
 }
 
+type GetPrintBillParams struct {
+	UUID string `uri:"uuid" binding:"required,uuid"`
+}
+
 // ── Input ───────────────────────────────────────────────
 
 type CreateShippingInput struct {
@@ -114,6 +118,16 @@ type CancelShippingResponseDTO struct {
 	ShippingCode string `json:"shipping_code"`
 	OrderStatus  string `json:"order_status"` // "Confirmed"
 	Message      string `json:"message"`
+}
+
+type PrintBillResponseDTO struct {
+	OrderUUID    string `json:"order_uuid"`
+	OrderNumber  string `json:"order_number"`
+	ShippingCode string `json:"shipping_code"`
+	Token        string `json:"token"`
+	PrintA5      string `json:"print_a5"`
+	Print80x80   string `json:"print_80x80"`
+	Print52x70   string `json:"print_52x70"`
 }
 
 // ── Helper Functions ────────────────────────────────────────────────
