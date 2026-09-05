@@ -30,6 +30,17 @@ type CreateShippingInput struct {
 	Note         string `json:"note" binding:"omitempty,max=500"`
 }
 
+type CalculateShippingFeeInput struct {
+	Provider       string  `json:"provider" binding:"required,oneof=ghn manual"`
+	DistrictID     int     `json:"district_id" binding:"required"`
+	WardCode       string  `json:"ward_code" binding:"required"`
+	Weight         int     `json:"weight" binding:"required,gte=1"`           // gram (tổng khối lượng)
+	Length         int     `json:"length" binding:"omitempty,gte=0"`          // cm
+	Width          int     `json:"width" binding:"omitempty,gte=0"`           // cm
+	Height         int     `json:"height" binding:"omitempty,gte=0"`          // cm
+	InsuranceValue float64 `json:"insurance_value" binding:"omitempty,gte=0"` // Giá trị khai giá bảo hiểm
+}
+
 // ── DTO ───────────────────────────────────────────────
 
 // Thông tin từng mốc sự kiện trong timeline
@@ -82,6 +93,11 @@ type OrderTimelineResponseDTO struct {
 	OrderUUID   string             `json:"order_uuid"`
 	OrderNumber string             `json:"order_number"`
 	Events      []TrackingEventDTO `json:"events"`
+}
+
+type ShippingFeeResponseDTO struct {
+	Provider    string  `json:"provider"`
+	ShippingFee float64 `json:"shipping_fee"`
 }
 
 // ── Helper Functions ────────────────────────────────────────────────

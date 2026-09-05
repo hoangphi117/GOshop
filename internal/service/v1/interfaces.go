@@ -67,6 +67,7 @@ type OrderService interface {
 	ProcessShippingOrderMessage(headers amqp.Table, body []byte) error
 	GetOrderTimeline(ctx *gin.Context, orderUUID uuid.UUID) (v1dto.OrderTimelineResponseDTO, error)
 	HandleShippingWebhook(ctx *gin.Context, rawBody []byte, payload v1dto.GHNWebhookPayload) error
+	CalculateShippingFee(ctx *gin.Context, input v1dto.CalculateShippingFeeInput) (v1dto.ShippingFeeResponseDTO, error)
 }
 
 type CartService interface {

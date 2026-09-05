@@ -1282,7 +1282,7 @@ func (s *orderService) HandleShippingWebhook(ctx *gin.Context, rawBody []byte, p
 
 	ghnStatus := strings.ToLower(strings.TrimSpace(payload.Status))
 
-	// 1. Tạo externalEventID để dedup qua bảng webhook_events
+	// Tạo externalEventID để dedup qua bảng webhook_events
 	var eventTime int64
 	if !payload.Time.IsZero() {
 		eventTime = payload.Time.Unix()
@@ -1321,7 +1321,6 @@ func (s *orderService) HandleShippingWebhook(ctx *gin.Context, rawBody []byte, p
 		return nil
 	}
 
-	// 2. Tìm đơn hàng tương ứng với mã vận đơn
 	order, err := s.orderRepo.GetByShippingCode(reqCtx, payload.OrderCode)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -1332,7 +1331,7 @@ func (s *orderService) HandleShippingWebhook(ctx *gin.Context, rawBody []byte, p
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to get order by shipping code", err)
 	}
 
-	// 3. Xử lý nghiệp vụ theo trạng thái từ GHN
+	// Xử lý nghiệp vụ theo trạng thái từ GHN
 	switch ghnStatus {
 	case "delivered":
 		if order.OrderStatus == OrderStatusDelivered {
@@ -1430,4 +1429,46 @@ func (s *orderService) HandleShippingWebhook(ctx *gin.Context, rawBody []byte, p
 	}
 
 	return nil
+}
+
+func (s *orderService) CalculateShippingFee(ctx *gin.Context, input v1dto.CalculateShippingFeeInput) (v1dto.ShippingFeeResponseDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	provider, err := s.shippingFactory.GetProvider(input.Provider)
+	if err != nil {
+		return v1dto.ShippingFeeResponseDTO{}, utils.NewError(
+			utils.ErrCodeBadRequest,
+			fmt.Sprintf("Unsupported shipping provider: %s", input.Provider),
+		)
+	}
+
+	req := shipping.CreateOrderRequest{
+		ToDistrictID: input.DistrictID,
+		ToWardCode:   input.WardCode,
+		Weight:       input.Weight,
+		Length:       input.Length,
+		Width:        input.Width,
+		Height:       input.Height,
+		CODAmount:    input.InsuranceValue,
+	}
+
+	fee, err := provider.CalculateFee(reqCtx, req)
+	if err != nil {
+		logger.Log.Error().
+			Err(err).
+			Str("provider", input.Provider).
+			Int("district_id", input.DistrictID).
+			Str("ward_code", input.WardCode).
+			Msg("Failed to calculate shipping fee from provider")
+		return v1dto.ShippingFeeResponseDTO{}, utils.WrapError(
+			utils.ErrCodeInternal,
+			"Failed to calculate shipping fee from shipping provider",
+			err,
+		)
+	}
+
+	return v1dto.ShippingFeeResponseDTO{
+		Provider:    input.Provider,
+		ShippingFee: fee,
+	}, nil
 }

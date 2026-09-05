@@ -325,3 +325,19 @@ func (oh *OrderHandler) HandleShippingWebhook(ctx *gin.Context) {
 		"message": "Webhook processed successfully",
 	})
 }
+
+func (oh *OrderHandler) CalculateShippingFee(ctx *gin.Context) {
+	var input v1dto.CalculateShippingFeeInput
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	res, err := oh.service.CalculateShippingFee(ctx, input)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Shipping fee calculated successfully", res)
+}
