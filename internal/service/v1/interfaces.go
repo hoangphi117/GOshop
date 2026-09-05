@@ -66,6 +66,7 @@ type OrderService interface {
 	CreateShipping(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.CreateShippingInput) (v1dto.AsyncShippingResponseDTO, error)
 	ProcessShippingOrderMessage(headers amqp.Table, body []byte) error
 	GetOrderTimeline(ctx *gin.Context, orderUUID uuid.UUID) (v1dto.OrderTimelineResponseDTO, error)
+	HandleShippingWebhook(ctx *gin.Context, rawBody []byte, payload v1dto.GHNWebhookPayload) error
 }
 
 type CartService interface {

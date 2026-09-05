@@ -61,6 +61,16 @@ type CreateShippingQueueMessage struct {
 	EnqueuedAt time.Time           `json:"enqueued_at"`
 }
 
+type GHNWebhookPayload struct {
+	OrderCode   string    `json:"OrderCode" binding:"required"` // Mã vận đơn
+	Status      string    `json:"Status" binding:"required"`    // delivered, delivering, return,...
+	Time        time.Time `json:"Time"`
+	CODAmount   float64   `json:"CODAmount"`
+	TotalFee    float64   `json:"TotalFee"`
+	Description string    `json:"Description"` // Lý do nếu giao thất bại hoặc trả hàng
+	Warehouse   string    `json:"Warehouse"`
+}
+
 // Response trả về ngay lập tức cho Admin (HTTP 202)
 type AsyncShippingResponseDTO struct {
 	OrderUUID string `json:"order_uuid"`

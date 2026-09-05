@@ -39,9 +39,10 @@ func NewOrderModule(ctx *ModuleContext, rabbitmqService rabbitmq.RabbitMQService
 	cartService := v1service.NewCartService(cartRepo, userRepo, productRepo, ctx.Redis)
 
 	couponRepo := repository.NewSqlCouponRepository(ctx.DB)
+	webhookRepo := repository.NewSqlWebhookEventRepository(ctx.DB)
 
 	orderService := v1service.NewOrderService(orderRepo, orderItemRepo, productRepo, userRepo,
-		cartService, cartRepo, couponRepo, trackingRepo, ctx.Redis, shippingFactory, rabbitmqService)
+		cartService, cartRepo, couponRepo, trackingRepo, webhookRepo, ctx.Redis, shippingFactory, rabbitmqService)
 
 	go func() {
 		err := rabbitmqService.Consume(context.Background(), v1service.QueueShippingCreate, orderService.ProcessShippingOrderMessage)
@@ -55,8 +56,10 @@ func NewOrderModule(ctx *ModuleContext, rabbitmqService rabbitmq.RabbitMQService
 	orderRoutes := v1routes.NewOrderRoutes(orderHandler)
 	adminOrderRoutes := v1routes.NewAdminOrderRoutes(orderHandler)
 
+	shippingWebhookRoutes := v1routes.NewShippingWebhookRoutes(orderHandler)
+
 	return &OrderModule{
-		routes:      []routes.Route{orderRoutes},
+		routes:      []routes.Route{orderRoutes, shippingWebhookRoutes},
 		adminRoutes: []routes.Route{adminOrderRoutes},
 	}
 

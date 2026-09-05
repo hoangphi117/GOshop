@@ -1,6 +1,7 @@
 package v1handler
 
 import (
+	"encoding/json"
 	"fmt"
 	v1dto "goshop/internal/dto/v1"
 	v1service "goshop/internal/service/v1"
@@ -294,4 +295,33 @@ func (oh *OrderHandler) GetOrderTimeline(ctx *gin.Context) {
 	}
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Order timeline retrieved successfully", timeline)
+}
+
+func (oh *OrderHandler) HandleShippingWebhook(ctx *gin.Context) {
+	rawBody, err := ctx.GetRawData()
+	if err != nil {
+		utils.ResponseError(ctx, utils.WrapError(utils.ErrCodeBadRequest, "Failed to read request body", err))
+		return
+	}
+
+	var payload v1dto.GHNWebhookPayload
+	if err := json.Unmarshal(rawBody, &payload); err != nil {
+		utils.ResponseError(ctx, utils.WrapError(utils.ErrCodeBadRequest, "Invalid JSON payload", err))
+		return
+	}
+
+	if payload.OrderCode == "" || payload.Status == "" {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "OrderCode and Status are required"))
+		return
+	}
+
+	if err := oh.service.HandleShippingWebhook(ctx, rawBody, payload); err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"code":    200,
+		"message": "Webhook processed successfully",
+	})
 }

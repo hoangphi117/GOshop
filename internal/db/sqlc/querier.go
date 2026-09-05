@@ -73,6 +73,7 @@ type Querier interface {
 	// Atomic, safe for concurrent requests, and avoids race conditions by using INSERT ... ON CONFLICT.
 	GetOrCreateCartByUserID(ctx context.Context, userID int32) (Cart, error)
 	GetOrderByOrderNumber(ctx context.Context, orderNumber string) (GetOrderByOrderNumberRow, error)
+	GetOrderByShippingCode(ctx context.Context, orderShippingCode *string) (GetOrderByShippingCodeRow, error)
 	GetOrderByUUID(ctx context.Context, orderUuid uuid.UUID) (GetOrderByUUIDRow, error)
 	GetOrderByUUIDForUpdate(ctx context.Context, orderUuid uuid.UUID) (Order, error)
 	GetOrderItemsByOrderID(ctx context.Context, orderItemOrderID int32) ([]GetOrderItemsByOrderIDRow, error)
@@ -105,6 +106,7 @@ type Querier interface {
 	ListUserUserCreatedAtDesc(ctx context.Context, arg ListUserUserCreatedAtDescParams) ([]User, error)
 	ListUserUserIdAsc(ctx context.Context, arg ListUserUserIdAscParams) ([]User, error)
 	ListUserUserIdDesc(ctx context.Context, arg ListUserUserIdDescParams) ([]User, error)
+	MarkOrderDeliveredByShippingCode(ctx context.Context, shippingCode *string) (Order, error)
 	MarkWebhookEventProcessed(ctx context.Context, weID int32) error
 	RecalcProductRating(ctx context.Context, reviewProductID int32) error
 	RecordCouponUsage(ctx context.Context, arg RecordCouponUsageParams) (CouponUsage, error)

@@ -12,6 +12,86 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const getOrderByShippingCode = `-- name: GetOrderByShippingCode :one
+SELECT order_id, order_uuid, order_number, order_status, order_payment_method, order_payment_status, order_shipping_code
+FROM orders
+WHERE order_shipping_code = $1
+LIMIT 1
+`
+
+type GetOrderByShippingCodeRow struct {
+	OrderID            int32     `json:"order_id"`
+	OrderUuid          uuid.UUID `json:"order_uuid"`
+	OrderNumber        string    `json:"order_number"`
+	OrderStatus        int32     `json:"order_status"`
+	OrderPaymentMethod int32     `json:"order_payment_method"`
+	OrderPaymentStatus int32     `json:"order_payment_status"`
+	OrderShippingCode  *string   `json:"order_shipping_code"`
+}
+
+func (q *Queries) GetOrderByShippingCode(ctx context.Context, orderShippingCode *string) (GetOrderByShippingCodeRow, error) {
+	row := q.db.QueryRow(ctx, getOrderByShippingCode, orderShippingCode)
+	var i GetOrderByShippingCodeRow
+	err := row.Scan(
+		&i.OrderID,
+		&i.OrderUuid,
+		&i.OrderNumber,
+		&i.OrderStatus,
+		&i.OrderPaymentMethod,
+		&i.OrderPaymentStatus,
+		&i.OrderShippingCode,
+	)
+	return i, err
+}
+
+const markOrderDeliveredByShippingCode = `-- name: MarkOrderDeliveredByShippingCode :one
+UPDATE orders SET
+    order_status = 4,
+    order_delivered_at = now(),
+    order_payment_status = CASE 
+        WHEN order_payment_method = 1 THEN 2 -- COD -> Paid (Đã thu tiền)
+        ELSE order_payment_status 
+    END,
+    order_updated_at = now()
+WHERE order_shipping_code = $1
+  AND order_status = 3 -- Chỉ update nếu đơn đang ở trạng thái Shipped (Idempotent)
+RETURNING order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at, order_coupon_id, order_coupon_code, order_subtotal_amount, order_discount_amount, order_shipping_provider, order_shipping_code, order_shipping_fee, order_expected_delivery, order_delivered_at, order_returned_at
+`
+
+func (q *Queries) MarkOrderDeliveredByShippingCode(ctx context.Context, shippingCode *string) (Order, error) {
+	row := q.db.QueryRow(ctx, markOrderDeliveredByShippingCode, shippingCode)
+	var i Order
+	err := row.Scan(
+		&i.OrderID,
+		&i.OrderUuid,
+		&i.OrderNumber,
+		&i.OrderUserID,
+		&i.OrderShippingName,
+		&i.OrderShippingPhone,
+		&i.OrderShippingAddress,
+		&i.OrderTotalAmount,
+		&i.OrderRefundedAmount,
+		&i.OrderPaymentMethod,
+		&i.OrderPaymentStatus,
+		&i.OrderNote,
+		&i.OrderStatus,
+		&i.OrderCancelledAt,
+		&i.OrderCreatedAt,
+		&i.OrderUpdatedAt,
+		&i.OrderCouponID,
+		&i.OrderCouponCode,
+		&i.OrderSubtotalAmount,
+		&i.OrderDiscountAmount,
+		&i.OrderShippingProvider,
+		&i.OrderShippingCode,
+		&i.OrderShippingFee,
+		&i.OrderExpectedDelivery,
+		&i.OrderDeliveredAt,
+		&i.OrderReturnedAt,
+	)
+	return i, err
+}
+
 const updateOrderShippingAndStatus = `-- name: UpdateOrderShippingAndStatus :one
 UPDATE orders SET
     order_shipping_provider = $1,

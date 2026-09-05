@@ -261,3 +261,16 @@ func (r *SqlOrderRepository) UpdateShippingAndStatus(ctx context.Context, tx pgx
 
 	return order, nil
 }
+
+func (r *SqlOrderRepository) GetByShippingCode(ctx context.Context, shippingCode string) (sqlc.GetOrderByShippingCodeRow, error) {
+	return r.db.GetOrderByShippingCode(ctx, &shippingCode)
+}
+
+func (r *SqlOrderRepository) MarkDeliveredByShippingCode(ctx context.Context, tx pgx.Tx, shippingCode string) (sqlc.Order, error) {
+	q := r.db
+	if tx != nil {
+		q = sqlc.New(tx)
+	}
+
+	return q.MarkOrderDeliveredByShippingCode(ctx, &shippingCode)
+}
