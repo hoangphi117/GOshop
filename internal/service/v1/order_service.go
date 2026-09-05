@@ -1478,3 +1478,103 @@ func (s *orderService) CalculateShippingFee(ctx *gin.Context, input v1dto.Calcul
 		ShippingFee: fee,
 	}, nil
 }
+
+func (s *orderService) CancelShipping(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.CancelShippingInput) (v1dto.CancelShippingResponseDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	order, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return v1dto.CancelShippingResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "Order not found")
+		}
+		return v1dto.CancelShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
+	}
+
+	if order.OrderStatus != OrderStatusShipped {
+		return v1dto.CancelShippingResponseDTO{}, utils.NewError(
+			utils.ErrCodeBadRequest,
+			fmt.Sprintf("Cannot cancel shipping for order with status %d. Order must be in Shipped status.", order.OrderStatus),
+		)
+	}
+
+	if order.OrderShippingCode == nil || strings.TrimSpace(*order.OrderShippingCode) == "" {
+		return v1dto.CancelShippingResponseDTO{}, utils.NewError(
+			utils.ErrCodeBadRequest,
+			"Order does not have a valid shipping code",
+		)
+	}
+
+	shippingCode := *order.OrderShippingCode
+	providerName := "ghn"
+	if order.OrderShippingProvider != nil && strings.TrimSpace(*order.OrderShippingProvider) != "" {
+		providerName = *order.OrderShippingProvider
+	}
+
+	provider, err := s.shippingFactory.GetProvider(providerName)
+	if err != nil {
+		return v1dto.CancelShippingResponseDTO{}, utils.NewError(
+			utils.ErrCodeBadRequest,
+			fmt.Sprintf("Unsupported shipping provider: %s", providerName),
+		)
+	}
+
+	if err := provider.CancelShippingOrder(reqCtx, shippingCode); err != nil {
+		logger.Log.Error().
+			Err(err).
+			Str("provider", providerName).
+			Str("shipping_code", shippingCode).
+			Msg("Failed to cancel shipping order with provider")
+		return v1dto.CancelShippingResponseDTO{}, utils.WrapError(
+			utils.ErrCodeInternal,
+			"Failed to cancel shipping order with provider",
+			err,
+		)
+	}
+
+	txCtx, cancel := context.WithTimeout(reqCtx, 10*time.Second)
+	defer cancel()
+
+	tx, err := db.BeginTx(txCtx)
+	if err != nil {
+		return v1dto.CancelShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to begin transaction", err)
+	}
+	defer tx.Rollback(txCtx)
+
+	updatedOrder, err := s.orderRepo.CancelShipping(txCtx, tx, orderUUID)
+	if err != nil {
+		return v1dto.CancelShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to update order status after shipping cancellation", err)
+	}
+
+	eventNote := fmt.Sprintf("Hủy vận đơn %s (%s) thành công.", strings.ToUpper(providerName), shippingCode)
+	if input.Reason != "" {
+		eventNote += fmt.Sprintf(" Lý do: %s", input.Reason)
+	}
+
+	_, err = s.trackingRepo.InsertEvent(reqCtx, tx, sqlc.InsertTrackingEventParams{
+		EventOrderID: order.OrderID,
+		EventStatus:  "shipping_cancelled",
+		EventNote:    &eventNote,
+		EventSource:  "admin",
+	})
+	if err != nil {
+		return v1dto.CancelShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to record tracking event", err)
+	}
+	if err := tx.Commit(reqCtx); err != nil {
+		return v1dto.CancelShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
+	}
+
+	_ = s.cache.Clear(fmt.Sprintf("order:%s", orderUUID.String()))
+
+	logger.Log.Info().
+		Str("order_number", order.OrderNumber).
+		Str("shipping_code", shippingCode).
+		Msg("Order shipping cancelled successfully")
+
+	return v1dto.CancelShippingResponseDTO{
+		OrderUUID:    orderUUID.String(),
+		OrderNumber:  updatedOrder.OrderNumber,
+		ShippingCode: shippingCode,
+		OrderStatus:  "Confirmed",
+		Message:      "Hủy vận đơn thành công. Đơn hàng đã quay về trạng thái Chờ giao hàng.",
+	}, nil
+}

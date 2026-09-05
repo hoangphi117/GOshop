@@ -17,6 +17,7 @@ type Querier interface {
 	// stock nghiêm ngặt.
 	AddOrUpdateCartItem(ctx context.Context, arg AddOrUpdateCartItemParams) (CartItem, error)
 	CancelOrder(ctx context.Context, orderUuid uuid.UUID) (Order, error)
+	CancelOrderShipping(ctx context.Context, orderUuid uuid.UUID) (Order, error)
 	CheckReviewExists(ctx context.Context, arg CheckReviewExistsParams) (bool, error)
 	CheckUserPurchasedProduct(ctx context.Context, arg CheckUserPurchasedProductParams) (bool, error)
 	// Review Reports Queries

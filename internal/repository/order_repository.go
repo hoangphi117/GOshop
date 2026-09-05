@@ -274,3 +274,17 @@ func (r *SqlOrderRepository) MarkDeliveredByShippingCode(ctx context.Context, tx
 
 	return q.MarkOrderDeliveredByShippingCode(ctx, &shippingCode)
 }
+
+func (r *SqlOrderRepository) CancelShipping(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID) (sqlc.Order, error) {
+	q := r.db
+	if tx != nil {
+		q = sqlc.New(tx)
+	}
+
+	order, err := q.CancelOrderShipping(ctx, orderUUID)
+	if err != nil {
+		return sqlc.Order{}, err
+	}
+
+	return order, nil
+}

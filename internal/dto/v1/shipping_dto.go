@@ -16,6 +16,10 @@ type GetOrderTimeLineParams struct {
 	UUID string `uri:"uuid" binding:"required,uuid"`
 }
 
+type CancelShippingParams struct {
+	UUID string `uri:"uuid" binding:"required,uuid"`
+}
+
 // ── Input ───────────────────────────────────────────────
 
 type CreateShippingInput struct {
@@ -39,6 +43,10 @@ type CalculateShippingFeeInput struct {
 	Width          int     `json:"width" binding:"omitempty,gte=0"`           // cm
 	Height         int     `json:"height" binding:"omitempty,gte=0"`          // cm
 	InsuranceValue float64 `json:"insurance_value" binding:"omitempty,gte=0"` // Giá trị khai giá bảo hiểm
+}
+
+type CancelShippingInput struct {
+	Reason string `json:"reason" binding:"omitempty,max=500"` // Lý do hủy đơn vận chuyển
 }
 
 // ── DTO ───────────────────────────────────────────────
@@ -98,6 +106,14 @@ type OrderTimelineResponseDTO struct {
 type ShippingFeeResponseDTO struct {
 	Provider    string  `json:"provider"`
 	ShippingFee float64 `json:"shipping_fee"`
+}
+
+type CancelShippingResponseDTO struct {
+	OrderUUID    string `json:"order_uuid"`
+	OrderNumber  string `json:"order_number"`
+	ShippingCode string `json:"shipping_code"`
+	OrderStatus  string `json:"order_status"` // "Confirmed"
+	Message      string `json:"message"`
 }
 
 // ── Helper Functions ────────────────────────────────────────────────

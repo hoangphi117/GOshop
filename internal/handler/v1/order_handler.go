@@ -341,3 +341,28 @@ func (oh *OrderHandler) CalculateShippingFee(ctx *gin.Context) {
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Shipping fee calculated successfully", res)
 }
+
+func (oh *OrderHandler) CancelShipping(ctx *gin.Context) {
+	var params v1dto.CancelShippingParams
+	if err := ctx.ShouldBindUri(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	var input v1dto.CancelShippingInput
+	_ = ctx.ShouldBindJSON(&input)
+
+	orderUUID, err := uuid.Parse(params.UUID)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid order UUID"))
+		return
+	}
+
+	res, err := oh.service.CancelShipping(ctx, orderUUID, input)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Shipping order cancelled successfully", res)
+}

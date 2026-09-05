@@ -28,3 +28,13 @@ UPDATE orders SET
 WHERE order_shipping_code = sqlc.arg(shipping_code)
   AND order_status = 3 -- Chỉ update nếu đơn đang ở trạng thái Shipped (Idempotent)
 RETURNING *;
+
+-- name: CancelOrderShipping :one
+UPDATE orders SET
+    order_shipping_provider = NULL,
+    order_shipping_code     = NULL,
+    order_status            = 2, -- Quay về Confirmed (Chờ giao hàng)
+    order_updated_at        = now()
+WHERE order_uuid = sqlc.arg(order_uuid)
+  AND order_status = 3        -- Optimistic lock: Chỉ cho phép hủy khi đơn đang ở trạng thái Shipped
+RETURNING *;

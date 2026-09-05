@@ -26,5 +26,7 @@ func (or *AdminOrderRoutes) Register(r *gin.RouterGroup) {
 
 		// Shipping
 		orders.POST("/:uuid/shipping", or.handler.CreateShipping)
+		orders.POST("/:uuid/shipping/cancel", or.handler.CancelShipping)
+
 	}
 }
