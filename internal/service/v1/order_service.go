@@ -364,6 +364,15 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 		}
 	}
 
+	// Record the initial order tracking event
+	createNote := "Order created and pending confirmation"
+	_, err = s.trackingRepo.InsertEvent(txCtx, tx, sqlc.InsertTrackingEventParams{
+		EventOrderID: order.OrderID,
+		EventStatus:  "pending",
+		EventNote:    &createNote,
+		EventSource:  "user",
+	})
+
 	/* ====================== TRANSACTION END ====================== */
 	if err := tx.Commit(txCtx); err != nil {
 		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeInternal, "failed to commit transaction")
@@ -630,6 +639,23 @@ func (s *orderService) UpdateOrderStatus(ctx *gin.Context, input sqlc.UpdateOrde
 		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "failed to update order status", err)
 	}
 
+	var statusNote string
+	switch input.OrderStatus {
+	case OrderStatusConfirmed:
+		statusNote = "Order was confirmed by shop admin."
+	case OrderStatusDelivered:
+		statusNote = "Order was marked as delivered."
+	}
+
+	if statusNote != "" {
+		_, _ = s.trackingRepo.InsertEvent(context, nil, sqlc.InsertTrackingEventParams{
+			EventOrderID: updatedOrder.OrderID,
+			EventStatus:  v1dto.MapOrderStatusToString(input.OrderStatus),
+			EventNote:    &statusNote,
+			EventSource:  "admin",
+		})
+	}
+
 	orderItems, err := s.orderItemRepo.GetByOrderID(context, updatedOrder.OrderID)
 	if err != nil {
 		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "failed to get order items", err)
@@ -714,6 +740,14 @@ func (s *orderService) CancelOrder(ctx *gin.Context, orderUUID uuid.UUID) error 
 			return utils.WrapError(utils.ErrCodeInternal, "failed to restore stock", err)
 		}
 	}
+
+	cancelNote := "Order cancelled."
+	_, _ = s.trackingRepo.InsertEvent(txCtx, tx, sqlc.InsertTrackingEventParams{
+		EventOrderID: orderRow.OrderID,
+		EventStatus:  "cancelled",
+		EventNote:    &cancelNote,
+		EventSource:  "user",
+	})
 
 	if err := tx.Commit(txCtx); err != nil {
 		return utils.NewError(utils.ErrCodeInternal, "failed to commit transaction")
@@ -1195,4 +1229,47 @@ func (s *orderService) ProcessShippingOrderMessage(headers amqp.Table, body []by
 	logger.Log.Info().Str("order_uuid", msg.OrderUUID).Str("shipping_code", ghnResp.ShippingCode).Msg("Shipping order created successfully via RabbitMQ")
 	return nil
 
+}
+
+func (s *orderService) GetOrderTimeline(ctx *gin.Context, orderUUID uuid.UUID) (v1dto.OrderTimelineResponseDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	userUUIDStr, ok := ctx.Get("user_uuid")
+	if !ok || userUUIDStr == "" {
+		return v1dto.OrderTimelineResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+
+	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	if err != nil {
+		return v1dto.OrderTimelineResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
+	}
+
+	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
+	if err != nil {
+		return v1dto.OrderTimelineResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
+
+	order, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return v1dto.OrderTimelineResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "Order not found")
+		}
+		return v1dto.OrderTimelineResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
+	}
+
+	// Check if the user is the owner of the order or has admin/moderator privileges
+	isAdminOrMod := user.UserLevel == RoleAdmin || user.UserLevel == RoleModerator
+	if order.OrderUserID != user.UserID && !isAdminOrMod {
+		return v1dto.OrderTimelineResponseDTO{}, utils.NewError(utils.ErrCodeForbidden, "Access denied")
+	}
+
+	events, err := s.trackingRepo.GetByOrderID(reqCtx, order.OrderID)
+	if err != nil {
+		return v1dto.OrderTimelineResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get tracking events", err)
+	}
+	return v1dto.OrderTimelineResponseDTO{
+		OrderUUID:   order.OrderUuid.String(),
+		OrderNumber: order.OrderNumber,
+		Events:      v1dto.MapToEventDTOs(events),
+	}, nil
 }

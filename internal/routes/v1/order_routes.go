@@ -25,5 +25,7 @@ func (or *OrderRoutes) Register(r *gin.RouterGroup) {
 		orders.PATCH("/:uuid/cancel", or.handler.CancelOrder)
 		orders.PUT("/:uuid/shipping-info", or.handler.UpdateOrderShippingInfo)
 		orders.GET("/:uuid/invoice", or.handler.DownloadInvoice)
+
+		orders.GET("/:uuid/timeline", or.handler.GetOrderTimeline)
 	}
 }

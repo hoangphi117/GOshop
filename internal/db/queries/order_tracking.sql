@@ -8,6 +8,13 @@ INSERT INTO order_tracking_events (
 RETURNING *;
 
 -- name: GetTrackingEventsByOrderID :many
-SELECT * FROM order_tracking_events
+SELECT 
+    event_id, 
+    event_order_id, 
+    event_status, 
+    event_note, 
+    event_source, 
+    event_created_at 
+FROM order_tracking_events
 WHERE event_order_id = $1
 ORDER BY event_created_at ASC;

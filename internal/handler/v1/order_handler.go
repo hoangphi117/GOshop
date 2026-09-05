@@ -273,3 +273,25 @@ func (oh *OrderHandler) CreateShipping(ctx *gin.Context) {
 
 	utils.ResponseSuccess(ctx, http.StatusCreated, "Shipping order created successfully", res)
 }
+
+func (oh *OrderHandler) GetOrderTimeline(ctx *gin.Context) {
+	var params v1dto.GetOrderTimeLineParams
+	if err := ctx.ShouldBindUri(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	orderUUID, err := uuid.Parse(params.UUID)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid order UUID"))
+		return
+	}
+
+	timeline, err := oh.service.GetOrderTimeline(ctx, orderUUID)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Order timeline retrieved successfully", timeline)
+}

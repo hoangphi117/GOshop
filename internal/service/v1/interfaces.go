@@ -65,6 +65,7 @@ type OrderService interface {
 	// Shipping
 	CreateShipping(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.CreateShippingInput) (v1dto.AsyncShippingResponseDTO, error)
 	ProcessShippingOrderMessage(headers amqp.Table, body []byte) error
+	GetOrderTimeline(ctx *gin.Context, orderUUID uuid.UUID) (v1dto.OrderTimelineResponseDTO, error)
 }
 
 type CartService interface {
