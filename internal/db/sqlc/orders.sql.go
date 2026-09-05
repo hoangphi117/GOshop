@@ -92,10 +92,10 @@ INSERT INTO orders (
     order_number, order_user_id,
     order_shipping_name, order_shipping_phone, order_shipping_address,
     order_coupon_id, order_coupon_code,
-    order_subtotal_amount, order_discount_amount, order_total_amount,
+    order_subtotal_amount, order_discount_amount, order_shipping_fee, order_total_amount,
     order_payment_method, order_payment_status,
     order_note, order_status
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 RETURNING order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at, order_coupon_id, order_coupon_code, order_subtotal_amount, order_discount_amount, order_shipping_provider, order_shipping_code, order_shipping_fee, order_expected_delivery, order_delivered_at, order_returned_at
 `
 
@@ -109,6 +109,7 @@ type CreateOrderParams struct {
 	OrderCouponCode      *string        `json:"order_coupon_code"`
 	OrderSubtotalAmount  pgtype.Numeric `json:"order_subtotal_amount"`
 	OrderDiscountAmount  pgtype.Numeric `json:"order_discount_amount"`
+	OrderShippingFee     pgtype.Numeric `json:"order_shipping_fee"`
 	OrderTotalAmount     pgtype.Numeric `json:"order_total_amount"`
 	OrderPaymentMethod   int32          `json:"order_payment_method"`
 	OrderPaymentStatus   int32          `json:"order_payment_status"`
@@ -127,6 +128,7 @@ func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) (Order
 		arg.OrderCouponCode,
 		arg.OrderSubtotalAmount,
 		arg.OrderDiscountAmount,
+		arg.OrderShippingFee,
 		arg.OrderTotalAmount,
 		arg.OrderPaymentMethod,
 		arg.OrderPaymentStatus,

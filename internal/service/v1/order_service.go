@@ -303,7 +303,12 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 		appliedCouponCode = &coupon.CouponCode
 	}
 
-	finalTotalAmount := utils.RoundFloat(subtotalAmount-discountAmount, 2)
+	shippingFee := utils.RoundFloat(input.ShippingFee, 2)
+
+	finalTotalAmount := utils.RoundFloat(subtotalAmount-discountAmount+shippingFee, 2)
+	if finalTotalAmount < 0 {
+		finalTotalAmount = 0
+	}
 
 	orderNumber := GenerateOrderNumber(user.UserID)
 
@@ -313,6 +318,7 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 		OrderShippingName:    input.ShippingName,
 		OrderShippingPhone:   input.ShippingPhone,
 		OrderShippingAddress: input.ShippingAddress,
+		OrderShippingFee:     utils.FloatToNumeric(shippingFee),
 		OrderCouponID:        appliedCouponID,
 		OrderCouponCode:      appliedCouponCode,
 		OrderSubtotalAmount:  utils.FloatToNumeric(subtotalAmount),
