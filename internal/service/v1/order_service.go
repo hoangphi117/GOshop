@@ -54,6 +54,8 @@ const (
 	CouponTypeFixedAmount int32 = 2
 
 	QueueShippingCreate = "shipping.order.create"
+
+	addressCacheTTL = 30 * 24 * time.Hour
 )
 
 type orderService struct {
@@ -1624,4 +1626,90 @@ func (s *orderService) GetPrintBill(ctx *gin.Context, orderUUID uuid.UUID) (v1dt
 		Print80x80:   res.Print80,
 		Print52x70:   res.Print52,
 	}, nil
+}
+
+func (s *orderService) GetProvinces(ctx *gin.Context) ([]v1dto.ProvinceDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	cacheKey := "shipping:ghn:provinces"
+	var cached []v1dto.ProvinceDTO
+	if err := s.cache.Get(cacheKey, &cached); err == nil && len(cached) > 0 {
+		return cached, nil
+	}
+
+	provider, err := s.shippingFactory.GetProvider("ghn")
+	if err != nil {
+		return nil, utils.NewError(utils.ErrCodeInternal, "GHN provider not configured")
+	}
+
+	ghnAdapter, ok := provider.(*shipping.GHNAdapter)
+	if !ok {
+		return nil, utils.NewError(utils.ErrCodeInternal, "Invalid GHN provider adapter")
+	}
+
+	provinces, err := ghnAdapter.GetProvinces(reqCtx)
+	if err != nil {
+		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to get provinces from GHN", err)
+	}
+
+	_ = s.cache.Set(cacheKey, provinces, 24*time.Hour)
+
+	return provinces, nil
+}
+
+func (s *orderService) GetDistricts(ctx *gin.Context, provinceID int) ([]v1dto.DistrictDTO, error) {
+
+	reqCtx := ctx.Request.Context()
+
+	cacheKey := fmt.Sprintf("shipping:ghn:districts:%d", provinceID)
+	var cached []v1dto.DistrictDTO
+	if err := s.cache.Get(cacheKey, &cached); err == nil && len(cached) > 0 {
+		return cached, nil
+	}
+
+	provider, err := s.shippingFactory.GetProvider("ghn")
+	if err != nil {
+		return nil, utils.NewError(utils.ErrCodeInternal, "GHN provider not configured")
+	}
+
+	ghnAdapter, ok := provider.(*shipping.GHNAdapter)
+	if !ok {
+		return nil, utils.NewError(utils.ErrCodeInternal, "Invalid GHN provider adapter")
+	}
+
+	districts, err := ghnAdapter.GetDistricts(reqCtx, provinceID)
+	if err != nil {
+		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to fetch districts from GHN", err)
+
+	}
+	_ = s.cache.Set(cacheKey, districts, addressCacheTTL)
+
+	return districts, nil
+}
+func (s *orderService) GetWards(ctx *gin.Context, districtID int) ([]v1dto.WardDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	cacheKey := fmt.Sprintf("shipping:ghn:wards:%d", districtID)
+	var cached []v1dto.WardDTO
+	if err := s.cache.Get(cacheKey, &cached); err == nil && len(cached) > 0 {
+		return cached, nil
+	}
+
+	provider, err := s.shippingFactory.GetProvider("ghn")
+	if err != nil {
+		return nil, utils.NewError(utils.ErrCodeInternal, "GHN provider not configured")
+	}
+
+	ghnAdapter, ok := provider.(*shipping.GHNAdapter)
+	if !ok {
+		return nil, utils.NewError(utils.ErrCodeInternal, "Invalid GHN provider adapter")
+	}
+
+	wards, err := ghnAdapter.GetWards(reqCtx, districtID)
+	if err != nil {
+		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to fetch wards from GHN", err)
+	}
+	_ = s.cache.Set(cacheKey, wards, addressCacheTTL)
+
+	return wards, nil
 }

@@ -388,3 +388,42 @@ func (oh *OrderHandler) GetPrintBill(ctx *gin.Context) {
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Shipping bill print URLs generated successfully", res)
 }
+
+func (oh *OrderHandler) GetProvinces(ctx *gin.Context) {
+	provinces, err := oh.service.GetProvinces(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+	utils.ResponseSuccess(ctx, http.StatusOK, "Provinces retrieved successfully", provinces)
+}
+
+func (oh *OrderHandler) GetDistricts(ctx *gin.Context) {
+	var query v1dto.GetDistrictsQuery
+	if err := ctx.ShouldBindQuery(&query); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	districts, err := oh.service.GetDistricts(ctx, query.ProvinceID)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+	utils.ResponseSuccess(ctx, http.StatusOK, "Districts retrieved successfully", districts)
+}
+
+func (oh *OrderHandler) GetWards(ctx *gin.Context) {
+	var query v1dto.GetWardsQuery
+	if err := ctx.ShouldBindQuery(&query); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	wards, err := oh.service.GetWards(ctx, query.DistrictID)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+	utils.ResponseSuccess(ctx, http.StatusOK, "Wards retrieved successfully", wards)
+}

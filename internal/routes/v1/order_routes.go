@@ -28,5 +28,6 @@ func (or *OrderRoutes) Register(r *gin.RouterGroup) {
 
 		orders.GET("/:uuid/timeline", or.handler.GetOrderTimeline)
 		orders.POST("/calculate-fee", or.handler.CalculateShippingFee)
+
 	}
 }

@@ -70,6 +70,9 @@ type OrderService interface {
 	CalculateShippingFee(ctx *gin.Context, input v1dto.CalculateShippingFeeInput) (v1dto.ShippingFeeResponseDTO, error)
 	CancelShipping(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.CancelShippingInput) (v1dto.CancelShippingResponseDTO, error)
 	GetPrintBill(ctx *gin.Context, orderUUID uuid.UUID) (v1dto.PrintBillResponseDTO, error)
+	GetProvinces(ctx *gin.Context) ([]v1dto.ProvinceDTO, error)
+	GetDistricts(ctx *gin.Context, provinceID int) ([]v1dto.DistrictDTO, error)
+	GetWards(ctx *gin.Context, districtID int) ([]v1dto.WardDTO, error)
 }
 
 type CartService interface {

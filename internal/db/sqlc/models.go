@@ -238,16 +238,22 @@ type User struct {
 }
 
 type UserAddress struct {
-	UaID        int32     `json:"ua_id"`
-	UaUuid      uuid.UUID `json:"ua_uuid"`
-	UaUserID    int32     `json:"ua_user_id"`
-	UaLabel     string    `json:"ua_label"`
-	UaName      string    `json:"ua_name"`
-	UaPhone     string    `json:"ua_phone"`
-	UaAddress   string    `json:"ua_address"`
-	UaIsDefault bool      `json:"ua_is_default"`
-	UaCreatedAt time.Time `json:"ua_created_at"`
-	UaUpdatedAt time.Time `json:"ua_updated_at"`
+	UaID           int32     `json:"ua_id"`
+	UaUuid         uuid.UUID `json:"ua_uuid"`
+	UaUserID       int32     `json:"ua_user_id"`
+	UaLabel        string    `json:"ua_label"`
+	UaName         string    `json:"ua_name"`
+	UaPhone        string    `json:"ua_phone"`
+	UaAddress      string    `json:"ua_address"`
+	UaIsDefault    bool      `json:"ua_is_default"`
+	UaCreatedAt    time.Time `json:"ua_created_at"`
+	UaUpdatedAt    time.Time `json:"ua_updated_at"`
+	UaProvinceID   *int32    `json:"ua_province_id"`
+	UaProvinceName *string   `json:"ua_province_name"`
+	UaDistrictID   *int32    `json:"ua_district_id"`
+	UaDistrictName *string   `json:"ua_district_name"`
+	UaWardCode     *string   `json:"ua_ward_code"`
+	UaWardName     *string   `json:"ua_ward_name"`
 }
 
 type WebhookEvent struct {

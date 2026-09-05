@@ -127,6 +127,22 @@ func StringToPointer(s string) *string {
 	return &trimmed
 }
 
+func NilToString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+func Ptr32ToPtrInt(ptr *int32) *int {
+	if ptr == nil {
+		return nil
+	}
+
+	value := int(*ptr)
+	return &value
+}
+
 func FloatPointerToNumeric(f *float64) pgtype.Numeric {
 	if f == nil {
 		return pgtype.Numeric{Valid: false}
