@@ -52,6 +52,7 @@ const (
 	OrderReturnStatusApproved  int16 = 2
 	OrderReturnStatusRejected  int16 = 3
 	OrderReturnStatusCompleted int16 = 4
+	OrderReturnStatusCancelled int16 = 5
 
 	RoleAdmin     int32 = 1
 	RoleModerator int32 = 2
@@ -1984,5 +1985,115 @@ func (s *orderService) AdminUpdateReturnStatus(ctx *gin.Context, returnUUID uuid
 		StatusText: v1dto.MapReturnStatusToVietnamese(updatedReturn.ReturnStatus),
 		AdminNote:  updatedReturn.ReturnAdminNote,
 		UpdatedAt:  updatedReturn.ReturnUpdatedAt,
+	}, nil
+}
+
+func (s *orderService) GetOrderReturnDetails(ctx *gin.Context, orderUUID uuid.UUID) (v1dto.OrderReturnDetailDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	userUUIDStr, ok := ctx.Get("user_uuid")
+	if !ok || userUUIDStr == "" {
+		return v1dto.OrderReturnDetailDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+
+	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	if err != nil {
+		return v1dto.OrderReturnDetailDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
+	}
+
+	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
+	if err != nil {
+		return v1dto.OrderReturnDetailDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
+
+	var returnRequest sqlc.OrderReturn
+	var orderOrderID int32
+	var orderOrderUUID uuid.UUID
+	var orderNumber string
+	var orderUserID int32
+	var orderTotalAmount float64
+
+	// Hỗ trợ truyền UUID của đơn hàng hoặc UUID của chính yêu cầu trả hàng
+	orderByUUID, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
+	if err == nil {
+		orderOrderID = orderByUUID.OrderID
+		orderOrderUUID = orderByUUID.OrderUuid
+		orderNumber = orderByUUID.OrderNumber
+		orderUserID = orderByUUID.OrderUserID
+		orderTotalAmount = utils.NumericToFloat(orderByUUID.OrderTotalAmount)
+
+		returnRequest, err = s.orderReturnRepo.GetLatestByOrderID(reqCtx, orderOrderID)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return v1dto.OrderReturnDetailDTO{}, utils.NewError(utils.ErrCodeNotFound, "Không tìm thấy yêu cầu trả hàng cho đơn hàng này")
+			}
+			return v1dto.OrderReturnDetailDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get return request", err)
+		}
+	} else if errors.Is(err, pgx.ErrNoRows) {
+		returnByUUID, rErr := s.orderReturnRepo.GetByUUID(reqCtx, orderUUID)
+		if rErr != nil {
+			if errors.Is(rErr, pgx.ErrNoRows) {
+				return v1dto.OrderReturnDetailDTO{}, utils.NewError(utils.ErrCodeNotFound, "Không tìm thấy đơn hàng hoặc yêu cầu trả hàng")
+			}
+			return v1dto.OrderReturnDetailDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get return request", rErr)
+		}
+		returnRequest = returnByUUID
+
+		orderRow, oErr := s.orderRepo.GetByID(reqCtx, returnRequest.ReturnOrderID)
+		if oErr != nil {
+			return v1dto.OrderReturnDetailDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order for return request", oErr)
+		}
+		orderOrderID = orderRow.OrderID
+		orderOrderUUID = orderRow.OrderUuid
+		orderNumber = orderRow.OrderNumber
+		orderUserID = orderRow.OrderUserID
+		orderTotalAmount = utils.NumericToFloat(orderRow.OrderTotalAmount)
+	} else {
+		return v1dto.OrderReturnDetailDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
+	}
+
+	isAdminOrMod := user.UserLevel == RoleAdmin || user.UserLevel == RoleModerator
+	if orderUserID != user.UserID && !isAdminOrMod {
+		return v1dto.OrderReturnDetailDTO{}, utils.NewError(utils.ErrCodeForbidden, "Access denied")
+	}
+
+	events, err := s.trackingRepo.GetByOrderID(reqCtx, orderOrderID)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return v1dto.OrderReturnDetailDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get tracking events", err)
+	}
+
+	returnEvents := make([]v1dto.TrackingEventDTO, 0)
+	for _, ev := range events {
+		if strings.HasPrefix(ev.EventStatus, "return_") || ev.EventStatus == "returned" {
+			var note *string
+			if ev.EventNote != nil && strings.TrimSpace(*ev.EventNote) != "" {
+				note = ev.EventNote
+			}
+			returnEvents = append(returnEvents, v1dto.TrackingEventDTO{
+				EventID:    ev.EventID,
+				Status:     ev.EventStatus,
+				StatusText: v1dto.MapTrackingStatusToText(ev.EventStatus),
+				Note:       note,
+				Source:     ev.EventSource,
+				CreatedAt:  ev.EventCreatedAt,
+			})
+		}
+	}
+
+	return v1dto.OrderReturnDetailDTO{
+		ReturnUUID:  returnRequest.ReturnUuid.String(),
+		OrderUUID:   orderOrderUUID.String(),
+		OrderNumber: orderNumber,
+		Reason:      returnRequest.ReturnReason,
+		Images:      returnRequest.ReturnImages,
+		VideoURL:    returnRequest.ReturnVideoUrl,
+		Status:      returnRequest.ReturnStatus,
+		StatusName:  v1dto.MapReturnStatusToString(returnRequest.ReturnStatus),
+		StatusText:  v1dto.MapReturnStatusToVietnamese(returnRequest.ReturnStatus),
+		AdminNote:   returnRequest.ReturnAdminNote,
+		TotalAmount: orderTotalAmount,
+		CreatedAt:   returnRequest.ReturnCreatedAt,
+		UpdatedAt:   returnRequest.ReturnUpdatedAt,
+		Events:      returnEvents,
 	}, nil
 }

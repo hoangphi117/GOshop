@@ -212,6 +212,32 @@ func (q *Queries) GetActiveReturnByOrderID(ctx context.Context, returnOrderID in
 	return i, err
 }
 
+const getLatestReturnByOrderID = `-- name: GetLatestReturnByOrderID :one
+SELECT return_id, return_uuid, return_order_id, return_user_id, return_reason, return_status, return_admin_note, return_created_at, return_updated_at, return_images, return_video_url FROM order_returns
+WHERE return_order_id = $1
+ORDER BY return_created_at DESC
+LIMIT 1
+`
+
+func (q *Queries) GetLatestReturnByOrderID(ctx context.Context, returnOrderID int32) (OrderReturn, error) {
+	row := q.db.QueryRow(ctx, getLatestReturnByOrderID, returnOrderID)
+	var i OrderReturn
+	err := row.Scan(
+		&i.ReturnID,
+		&i.ReturnUuid,
+		&i.ReturnOrderID,
+		&i.ReturnUserID,
+		&i.ReturnReason,
+		&i.ReturnStatus,
+		&i.ReturnAdminNote,
+		&i.ReturnCreatedAt,
+		&i.ReturnUpdatedAt,
+		&i.ReturnImages,
+		&i.ReturnVideoUrl,
+	)
+	return i, err
+}
+
 const getReturnByUUID = `-- name: GetReturnByUUID :one
 SELECT return_id, return_uuid, return_order_id, return_user_id, return_reason, return_status, return_admin_note, return_created_at, return_updated_at, return_images, return_video_url FROM order_returns
 WHERE return_uuid = $1

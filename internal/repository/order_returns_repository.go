@@ -35,6 +35,14 @@ func (r *SqlOrderReturnsRepository) GetActiveByOrderID(ctx context.Context, orde
 	return returnOrder, nil
 }
 
+func (r *SqlOrderReturnsRepository) GetLatestByOrderID(ctx context.Context, orderID int32) (sqlc.OrderReturn, error) {
+	returnOrder, err := r.db.GetLatestReturnByOrderID(ctx, orderID)
+	if err != nil {
+		return sqlc.OrderReturn{}, err
+	}
+	return returnOrder, nil
+}
+
 func (r *SqlOrderReturnsRepository) GetReturns(ctx context.Context, params sqlc.AdminGetReturnsParams) ([]sqlc.AdminGetReturnsRow, error) {
 	returns, err := r.db.AdminGetReturns(ctx, params)
 	if err != nil {

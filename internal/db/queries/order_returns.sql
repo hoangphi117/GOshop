@@ -17,6 +17,12 @@ WHERE return_order_id = $1
   AND return_status IN (1, 2) -- 1: Pending, 2: Approved
 LIMIT 1;
 
+-- name: GetLatestReturnByOrderID :one
+SELECT * FROM order_returns
+WHERE return_order_id = $1
+ORDER BY return_created_at DESC
+LIMIT 1;
+
 -- name: GetReturnByUUID :one
 SELECT * FROM order_returns
 WHERE return_uuid = $1;

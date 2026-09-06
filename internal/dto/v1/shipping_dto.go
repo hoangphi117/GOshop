@@ -210,6 +210,23 @@ type AdminReturnSummaryDTO struct {
 	UpdatedAt     time.Time `json:"updated_at"`
 }
 
+type OrderReturnDetailDTO struct {
+	ReturnUUID  string             `json:"return_uuid"`
+	OrderUUID   string             `json:"order_uuid"`
+	OrderNumber string             `json:"order_number"`
+	Reason      string             `json:"reason"`
+	Images      []string           `json:"images"`
+	VideoURL    *string            `json:"video_url,omitempty"`
+	Status      int16              `json:"status"`
+	StatusName  string             `json:"status_name"` // "Pending", "Approved", "Rejected", "Completed", "Cancelled"
+	StatusText  string             `json:"status_text"` // "Chờ duyệt", "Đã chấp thuận (Chờ gửi hàng về)", ...
+	AdminNote   *string            `json:"admin_note,omitempty"`
+	TotalAmount float64            `json:"total_amount"`
+	CreatedAt   time.Time          `json:"created_at"`
+	UpdatedAt   time.Time          `json:"updated_at"`
+	Events      []TrackingEventDTO `json:"events"`
+}
+
 // ── Helper Functions ────────────────────────────────────────────────
 
 func MapTrackingStatusToText(status string) string {
@@ -230,10 +247,18 @@ func MapTrackingStatusToText(status string) string {
 		return "Giao hàng thành công"
 	case "cancelled", "auto_cancelled":
 		return "Đơn hàng đã hủy"
+	case "shipping_cancelled":
+		return "Vận đơn giao hàng đã hủy"
 	case "return_requested":
 		return "Yêu cầu trả hàng"
+	case "return_approved":
+		return "Yêu cầu trả hàng đã được chấp thuận"
+	case "return_rejected":
+		return "Yêu cầu trả hàng đã bị từ chối"
+	case "return_cancelled":
+		return "Yêu cầu trả hàng đã hủy"
 	case "returned":
-		return "Đã hoàn trả hàng"
+		return "Đã hoàn trả hàng thành công"
 	default:
 		return status
 	}
@@ -268,6 +293,8 @@ func MapReturnStatusToString(status int16) string {
 		return "Rejected"
 	case 4:
 		return "Completed"
+	case 5:
+		return "Cancelled"
 	default:
 		return "Unknown"
 	}
@@ -283,6 +310,8 @@ func MapReturnStatusToVietnamese(status int16) string {
 		return "Đã từ chối"
 	case 4:
 		return "Đã hoàn tất (Đã nhận hàng & hoàn tiền)"
+	case 5:
+		return "Đã hủy bởi người mua"
 	default:
 		return "Không xác định"
 	}

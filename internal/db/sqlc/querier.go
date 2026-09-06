@@ -74,6 +74,7 @@ type Querier interface {
 	GetCouponByCode(ctx context.Context, couponCode string) (Coupon, error)
 	GetCouponByUUID(ctx context.Context, couponUuid uuid.UUID) (Coupon, error)
 	GetLatestOrderNumber(ctx context.Context, orderNumber string) (string, error)
+	GetLatestReturnByOrderID(ctx context.Context, returnOrderID int32) (OrderReturn, error)
 	// Upsert "no-op": if cart already exists for user, return it; otherwise create a new cart and return it.
 	// Atomic, safe for concurrent requests, and avoids race conditions by using INSERT ... ON CONFLICT.
 	GetOrCreateCartByUserID(ctx context.Context, userID int32) (Cart, error)

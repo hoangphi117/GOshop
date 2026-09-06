@@ -502,6 +502,28 @@ func (oh *OrderHandler) RequestOrderReturn(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusCreated, "Order return request created successfully", returnDTO)
 }
 
+func (oh *OrderHandler) GetOrderReturnDetails(ctx *gin.Context) {
+	var params v1dto.GetOrderByUUIDParam
+	if err := ctx.ShouldBindUri(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	orderUUID, err := uuid.Parse(params.UUID)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid order UUID"))
+		return
+	}
+
+	res, err := oh.service.GetOrderReturnDetails(ctx, orderUUID)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Order return details retrieved successfully", res)
+}
+
 func (oh *OrderHandler) cleanupFiles(fileNames []string, uploadDir string) {
 	for _, name := range fileNames {
 		_ = os.Remove(filepath.Join(uploadDir, name))

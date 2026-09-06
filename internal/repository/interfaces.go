@@ -74,6 +74,7 @@ type OrderRepository interface {
 type OrderReturnsRepository interface {
 	Create(ctx context.Context, tx pgx.Tx, params sqlc.CreateOrderReturnParams) (sqlc.OrderReturn, error)
 	GetActiveByOrderID(ctx context.Context, orderID int32) (sqlc.OrderReturn, error)
+	GetLatestByOrderID(ctx context.Context, orderID int32) (sqlc.OrderReturn, error)
 	GetReturns(ctx context.Context, params sqlc.AdminGetReturnsParams) ([]sqlc.AdminGetReturnsRow, error)
 	GetByUUID(ctx context.Context, returnUUID uuid.UUID) (sqlc.OrderReturn, error)
 	CountReturns(ctx context.Context, params sqlc.AdminCountReturnsParams) (int64, error)
