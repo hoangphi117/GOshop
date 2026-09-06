@@ -1787,18 +1787,40 @@ func (s *orderService) RequestOrderReturn(ctx *gin.Context, orderUUID uuid.UUID,
 	}
 	defer tx.Rollback(reqCtx)
 
+	var bankName *string
+	if strings.TrimSpace(input.BankName) != "" {
+		bn := strings.TrimSpace(input.BankName)
+		bankName = &bn
+	}
+	var bankAccount *string
+	if strings.TrimSpace(input.BankAccount) != "" {
+		ba := strings.TrimSpace(input.BankAccount)
+		bankAccount = &ba
+	}
+	var bankAccountName *string
+	if strings.TrimSpace(input.BankAccountName) != "" {
+		ban := strings.ToUpper(strings.TrimSpace(input.BankAccountName))
+		bankAccountName = &ban
+	}
+
 	createdReturn, err := s.orderReturnRepo.Create(reqCtx, tx, sqlc.CreateOrderReturnParams{
-		ReturnOrderID:  order.OrderID,
-		ReturnReason:   input.Reason,
-		ReturnUserID:   user.UserID,
-		ReturnImages:   imageURLs,
-		ReturnVideoUrl: videoURL,
+		ReturnOrderID:         order.OrderID,
+		ReturnReason:          input.Reason,
+		ReturnUserID:          user.UserID,
+		ReturnImages:          imageURLs,
+		ReturnVideoUrl:        videoURL,
+		ReturnBankName:        bankName,
+		ReturnBankAccount:     bankAccount,
+		ReturnBankAccountName: bankAccountName,
 	})
 	if err != nil {
 		return v1dto.OrderReturnDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to create return request", err)
 	}
 
 	eventNote := fmt.Sprintf("Return request created by user. Reason: %s", input.Reason)
+	if bankName != nil && bankAccount != nil {
+		eventNote += fmt.Sprintf(" (Refund Bank: %s - %s)", *bankName, *bankAccount)
+	}
 	_, err = s.trackingRepo.InsertEvent(reqCtx, tx, sqlc.InsertTrackingEventParams{
 		EventOrderID: order.OrderID,
 		EventStatus:  "return_requested",
@@ -1816,14 +1838,17 @@ func (s *orderService) RequestOrderReturn(ctx *gin.Context, orderUUID uuid.UUID,
 	_ = s.cache.Clear(fmt.Sprintf("order:%s", orderUUID.String()))
 
 	return v1dto.OrderReturnDTO{
-		ReturnUUID:  createdReturn.ReturnUuid.String(),
-		OrderUUID:   orderUUID.String(),
-		OrderNumber: order.OrderNumber,
-		Reason:      createdReturn.ReturnReason,
-		Images:      createdReturn.ReturnImages,
-		VideoURL:    createdReturn.ReturnVideoUrl,
-		Status:      v1dto.MapReturnStatusToString(createdReturn.ReturnStatus),
-		CreatedAt:   createdReturn.ReturnCreatedAt,
+		ReturnUUID:      createdReturn.ReturnUuid.String(),
+		OrderUUID:       orderUUID.String(),
+		OrderNumber:     order.OrderNumber,
+		Reason:          createdReturn.ReturnReason,
+		Images:          createdReturn.ReturnImages,
+		VideoURL:        createdReturn.ReturnVideoUrl,
+		Status:          v1dto.MapReturnStatusToString(createdReturn.ReturnStatus),
+		BankName:        createdReturn.ReturnBankName,
+		BankAccount:     createdReturn.ReturnBankAccount,
+		BankAccountName: createdReturn.ReturnBankAccountName,
+		CreatedAt:       createdReturn.ReturnCreatedAt,
 	}, nil
 }
 

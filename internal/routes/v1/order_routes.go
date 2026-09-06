@@ -33,6 +33,7 @@ func (or *OrderRoutes) Register(r *gin.RouterGroup) {
 		orders.GET("/:uuid/return", or.handler.GetOrderReturnDetails)
 		orders.PATCH("/:uuid/return/cancel", or.handler.CancelOrderReturn)
 		orders.POST("/:uuid/return/shipping-info", or.handler.SubmitReturnShipping)
+		orders.POST("/:uuid/return/shipping", or.handler.SubmitReturnShipping)
 		orders.PUT("/:uuid/return/bank-account", or.handler.UpdateReturnBankAccount)
 	}
 }

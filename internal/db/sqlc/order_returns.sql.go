@@ -356,19 +356,25 @@ INSERT INTO order_returns (
     return_reason,
     return_images,
     return_video_url,
+    return_bank_name,
+    return_bank_account,
+    return_bank_account_name,
     return_status
 ) VALUES (
-    $1, $2, $3, $4, $5, 1 -- 1: Pending
+    $1, $2, $3, $4, $5, $6, $7, $8, 1 -- 1: Pending
 )
 RETURNING return_id, return_uuid, return_order_id, return_user_id, return_reason, return_status, return_admin_note, return_created_at, return_updated_at, return_images, return_video_url, return_shipping_provider, return_shipping_code, return_shipping_note, return_bank_name, return_bank_account, return_bank_account_name
 `
 
 type CreateOrderReturnParams struct {
-	ReturnOrderID  int32    `json:"return_order_id"`
-	ReturnUserID   int32    `json:"return_user_id"`
-	ReturnReason   string   `json:"return_reason"`
-	ReturnImages   []string `json:"return_images"`
-	ReturnVideoUrl *string  `json:"return_video_url"`
+	ReturnOrderID         int32    `json:"return_order_id"`
+	ReturnUserID          int32    `json:"return_user_id"`
+	ReturnReason          string   `json:"return_reason"`
+	ReturnImages          []string `json:"return_images"`
+	ReturnVideoUrl        *string  `json:"return_video_url"`
+	ReturnBankName        *string  `json:"return_bank_name"`
+	ReturnBankAccount     *string  `json:"return_bank_account"`
+	ReturnBankAccountName *string  `json:"return_bank_account_name"`
 }
 
 func (q *Queries) CreateOrderReturn(ctx context.Context, arg CreateOrderReturnParams) (OrderReturn, error) {
@@ -378,6 +384,9 @@ func (q *Queries) CreateOrderReturn(ctx context.Context, arg CreateOrderReturnPa
 		arg.ReturnReason,
 		arg.ReturnImages,
 		arg.ReturnVideoUrl,
+		arg.ReturnBankName,
+		arg.ReturnBankAccount,
+		arg.ReturnBankAccountName,
 	)
 	var i OrderReturn
 	err := row.Scan(

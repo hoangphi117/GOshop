@@ -5,9 +5,12 @@ INSERT INTO order_returns (
     return_reason,
     return_images,
     return_video_url,
+    return_bank_name,
+    return_bank_account,
+    return_bank_account_name,
     return_status
 ) VALUES (
-    $1, $2, $3, $4, $5, 1 -- 1: Pending
+    $1, $2, $3, $4, $5, $6, $7, $8, 1 -- 1: Pending
 )
 RETURNING *;
 

@@ -84,7 +84,10 @@ type CancelShippingInput struct {
 }
 
 type CreateOrderReturnInput struct {
-	Reason string `form:"reason" json:"reason" binding:"required,min=10,max=1000"`
+	Reason          string `form:"reason" json:"reason" binding:"required,min=10,max=1000"`
+	BankName        string `form:"bank_name" json:"bank_name" binding:"omitempty,max=100"`
+	BankAccount     string `form:"bank_account" json:"bank_account" binding:"omitempty,max=50"`
+	BankAccountName string `form:"bank_account_name" json:"bank_account_name" binding:"omitempty,max=100"`
 }
 
 type CancelOrderReturnInput struct {
@@ -132,14 +135,17 @@ type WardDTO struct {
 }
 
 type OrderReturnDTO struct {
-	ReturnUUID  string    `json:"return_uuid"`
-	OrderUUID   string    `json:"order_uuid"`
-	OrderNumber string    `json:"order_number"`
-	Reason      string    `json:"reason"`
-	Images      []string  `json:"images"`
-	VideoURL    *string   `json:"video_url,omitempty"`
-	Status      string    `json:"status"` // "Pending", "Approved", "Rejected", "Completed"
-	CreatedAt   time.Time `json:"created_at"`
+	ReturnUUID      string    `json:"return_uuid"`
+	OrderUUID       string    `json:"order_uuid"`
+	OrderNumber     string    `json:"order_number"`
+	Reason          string    `json:"reason"`
+	Images          []string  `json:"images"`
+	VideoURL        *string   `json:"video_url,omitempty"`
+	Status          string    `json:"status"` // "Pending", "Approved", "Rejected", "Completed"
+	BankName        *string   `json:"bank_name,omitempty"`
+	BankAccount     *string   `json:"bank_account,omitempty"`
+	BankAccountName *string   `json:"bank_account_name,omitempty"`
+	CreatedAt       time.Time `json:"created_at"`
 }
 
 // ── Response ───────────────────────────────────────────────
