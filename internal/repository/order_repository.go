@@ -40,6 +40,13 @@ func (r *SqlOrderRepository) GetByUUID(ctx context.Context, uuid uuid.UUID) (sql
 	}
 	return order, nil
 }
+func (r *SqlOrderRepository) GetByID(ctx context.Context, orderID int32) (sqlc.GetOrderByIDRow, error) {
+	order, err := r.db.GetOrderByID(ctx, orderID)
+	if err != nil {
+		return sqlc.GetOrderByIDRow{}, err
+	}
+	return order, nil
+}
 
 func (r *SqlOrderRepository) GetByUUIDForUpdate(ctx context.Context, tx pgx.Tx, uuid uuid.UUID) (sqlc.Order, error) {
 	q := r.db

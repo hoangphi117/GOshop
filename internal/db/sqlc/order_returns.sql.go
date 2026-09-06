@@ -7,9 +7,137 @@ package sqlc
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const adminCountReturns = `-- name: AdminCountReturns :one
+SELECT COUNT(*)
+FROM order_returns r
+JOIN orders o ON o.order_id = r.return_order_id
+JOIN users u ON u.user_id = r.return_user_id
+WHERE ($1::smallint IS NULL OR r.return_status = $1)
+  AND ($2::text IS NULL OR (
+      o.order_number ILIKE '%' || $2 || '%'
+      OR o.order_shipping_name ILIKE '%' || $2 || '%'
+      OR o.order_shipping_phone ILIKE '%' || $2 || '%'
+      OR u.user_email ILIKE '%' || $2 || '%'
+  ))
+`
+
+type AdminCountReturnsParams struct {
+	Status *int16  `json:"status"`
+	Search *string `json:"search"`
+}
+
+func (q *Queries) AdminCountReturns(ctx context.Context, arg AdminCountReturnsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, adminCountReturns, arg.Status, arg.Search)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const adminGetReturns = `-- name: AdminGetReturns :many
+SELECT 
+    r.return_id, r.return_uuid, r.return_order_id, r.return_user_id,
+    r.return_reason, r.return_images, r.return_video_url, r.return_status,
+    r.return_admin_note, r.return_created_at, r.return_updated_at,
+    o.order_uuid, o.order_number, o.order_shipping_name, o.order_shipping_phone,
+    o.order_total_amount, o.order_payment_method, o.order_payment_status,
+    u.user_uuid, u.user_fullname, u.user_email
+FROM order_returns r
+JOIN orders o ON o.order_id = r.return_order_id
+JOIN users u ON u.user_id = r.return_user_id
+WHERE ($1::smallint IS NULL OR r.return_status = $1)
+  AND ($2::text IS NULL OR (
+      o.order_number ILIKE '%' || $2 || '%'
+      OR o.order_shipping_name ILIKE '%' || $2 || '%'
+      OR o.order_shipping_phone ILIKE '%' || $2 || '%'
+      OR u.user_email ILIKE '%' || $2 || '%'
+  ))
+ORDER BY r.return_created_at DESC
+LIMIT $4 OFFSET $3
+`
+
+type AdminGetReturnsParams struct {
+	Status *int16  `json:"status"`
+	Search *string `json:"search"`
+	Offset int32   `json:"offset"`
+	Limit  int32   `json:"limit"`
+}
+
+type AdminGetReturnsRow struct {
+	ReturnID           int32          `json:"return_id"`
+	ReturnUuid         uuid.UUID      `json:"return_uuid"`
+	ReturnOrderID      int32          `json:"return_order_id"`
+	ReturnUserID       int32          `json:"return_user_id"`
+	ReturnReason       string         `json:"return_reason"`
+	ReturnImages       []string       `json:"return_images"`
+	ReturnVideoUrl     *string        `json:"return_video_url"`
+	ReturnStatus       int16          `json:"return_status"`
+	ReturnAdminNote    *string        `json:"return_admin_note"`
+	ReturnCreatedAt    time.Time      `json:"return_created_at"`
+	ReturnUpdatedAt    time.Time      `json:"return_updated_at"`
+	OrderUuid          uuid.UUID      `json:"order_uuid"`
+	OrderNumber        string         `json:"order_number"`
+	OrderShippingName  string         `json:"order_shipping_name"`
+	OrderShippingPhone string         `json:"order_shipping_phone"`
+	OrderTotalAmount   pgtype.Numeric `json:"order_total_amount"`
+	OrderPaymentMethod int32          `json:"order_payment_method"`
+	OrderPaymentStatus int32          `json:"order_payment_status"`
+	UserUuid           uuid.UUID      `json:"user_uuid"`
+	UserFullname       string         `json:"user_fullname"`
+	UserEmail          string         `json:"user_email"`
+}
+
+func (q *Queries) AdminGetReturns(ctx context.Context, arg AdminGetReturnsParams) ([]AdminGetReturnsRow, error) {
+	rows, err := q.db.Query(ctx, adminGetReturns,
+		arg.Status,
+		arg.Search,
+		arg.Offset,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminGetReturnsRow{}
+	for rows.Next() {
+		var i AdminGetReturnsRow
+		if err := rows.Scan(
+			&i.ReturnID,
+			&i.ReturnUuid,
+			&i.ReturnOrderID,
+			&i.ReturnUserID,
+			&i.ReturnReason,
+			&i.ReturnImages,
+			&i.ReturnVideoUrl,
+			&i.ReturnStatus,
+			&i.ReturnAdminNote,
+			&i.ReturnCreatedAt,
+			&i.ReturnUpdatedAt,
+			&i.OrderUuid,
+			&i.OrderNumber,
+			&i.OrderShippingName,
+			&i.OrderShippingPhone,
+			&i.OrderTotalAmount,
+			&i.OrderPaymentMethod,
+			&i.OrderPaymentStatus,
+			&i.UserUuid,
+			&i.UserFullname,
+			&i.UserEmail,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
 
 const createOrderReturn = `-- name: CreateOrderReturn :one
 INSERT INTO order_returns (
@@ -91,6 +219,40 @@ WHERE return_uuid = $1
 
 func (q *Queries) GetReturnByUUID(ctx context.Context, returnUuid uuid.UUID) (OrderReturn, error) {
 	row := q.db.QueryRow(ctx, getReturnByUUID, returnUuid)
+	var i OrderReturn
+	err := row.Scan(
+		&i.ReturnID,
+		&i.ReturnUuid,
+		&i.ReturnOrderID,
+		&i.ReturnUserID,
+		&i.ReturnReason,
+		&i.ReturnStatus,
+		&i.ReturnAdminNote,
+		&i.ReturnCreatedAt,
+		&i.ReturnUpdatedAt,
+		&i.ReturnImages,
+		&i.ReturnVideoUrl,
+	)
+	return i, err
+}
+
+const updateReturnStatus = `-- name: UpdateReturnStatus :one
+UPDATE order_returns SET
+    return_status     = $1,
+    return_admin_note = $2,
+    return_updated_at = now()
+WHERE return_uuid = $3
+RETURNING return_id, return_uuid, return_order_id, return_user_id, return_reason, return_status, return_admin_note, return_created_at, return_updated_at, return_images, return_video_url
+`
+
+type UpdateReturnStatusParams struct {
+	Status     int16     `json:"status"`
+	AdminNote  *string   `json:"admin_note"`
+	ReturnUuid uuid.UUID `json:"return_uuid"`
+}
+
+func (q *Queries) UpdateReturnStatus(ctx context.Context, arg UpdateReturnStatusParams) (OrderReturn, error) {
+	row := q.db.QueryRow(ctx, updateReturnStatus, arg.Status, arg.AdminNote, arg.ReturnUuid)
 	var i OrderReturn
 	err := row.Scan(
 		&i.ReturnID,

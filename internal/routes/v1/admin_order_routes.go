@@ -29,5 +29,11 @@ func (or *AdminOrderRoutes) Register(r *gin.RouterGroup) {
 		orders.POST("/:uuid/shipping/cancel", or.handler.CancelShipping)
 		orders.GET("/:uuid/shipping/print-bill", or.handler.GetPrintBill)
 
+		returns := r.Group("/returns")
+		{
+			returns.GET("", or.handler.AdminGetReturns)                 // GET /api/v1/admin/returns
+			returns.PATCH("/:uuid", or.handler.AdminUpdateReturnStatus) // PATCH /api/v1/admin/returns/:uuid
+		}
+
 	}
 }

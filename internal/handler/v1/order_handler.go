@@ -507,3 +507,58 @@ func (oh *OrderHandler) cleanupFiles(fileNames []string, uploadDir string) {
 		_ = os.Remove(filepath.Join(uploadDir, name))
 	}
 }
+
+func (oh *OrderHandler) AdminGetReturns(ctx *gin.Context) {
+	var query v1dto.AdminGetReturnsQuery
+	if err := ctx.ShouldBindQuery(&query); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	returns, total, err := oh.service.AdminGetReturns(ctx, query)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	page := query.Page
+	if page < 1 {
+		page = 1
+	}
+	limit := query.Limit
+	if limit < 1 {
+		limit = 10
+	}
+
+	paginationResponse := utils.NewPaginationResponse(returns, page, limit, int32(total))
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Return requests retrieved successfully", paginationResponse)
+}
+
+func (oh *OrderHandler) AdminUpdateReturnStatus(ctx *gin.Context) {
+	var param v1dto.ReturnUUIDParam
+	if err := ctx.ShouldBindUri(&param); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	returnUUID, err := uuid.Parse(param.UUID)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid return UUID"))
+		return
+	}
+
+	var input v1dto.AdminUpdateReturnInput
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	res, err := oh.service.AdminUpdateReturnStatus(ctx, returnUUID, input)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Return request status updated successfully", res)
+}

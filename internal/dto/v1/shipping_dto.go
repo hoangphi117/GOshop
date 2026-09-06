@@ -24,6 +24,10 @@ type GetPrintBillParams struct {
 	UUID string `uri:"uuid" binding:"required,uuid"`
 }
 
+type ReturnUUIDParam struct {
+	UUID string `uri:"uuid" binding:"required,uuid"`
+}
+
 type CreateOrderReturnParam struct {
 	UUID string `uri:"uuid" binding:"required,uuid"`
 }
@@ -34,6 +38,13 @@ type GetDistrictsQuery struct {
 
 type GetWardsQuery struct {
 	DistrictID int `form:"district_id" binding:"required,gt=0"`
+}
+
+type AdminGetReturnsQuery struct {
+	Status *int16 `form:"status" binding:"omitempty,oneof=1 2 3 4"` // 1: Pending, 2: Approved, 3: Rejected, 4: Completed
+	Search string `form:"search" binding:"omitempty,max=100"`
+	Page   int32  `form:"page"   binding:"omitempty,gte=1"`
+	Limit  int32  `form:"limit"  binding:"omitempty,gte=1,lte=100"`
 }
 
 // ── Input ───────────────────────────────────────────────
@@ -67,6 +78,11 @@ type CancelShippingInput struct {
 
 type CreateOrderReturnInput struct {
 	Reason string `form:"reason" json:"reason" binding:"required,min=10,max=1000"`
+}
+
+type AdminUpdateReturnInput struct {
+	Status    int16   `json:"status"     binding:"required,oneof=2 3 4"` // 2: Approved, 3: Rejected, 4: Completed
+	AdminNote *string `json:"admin_note" binding:"omitempty,max=500"`
 }
 
 // ── DTO ───────────────────────────────────────────────
@@ -174,6 +190,26 @@ type PrintBillResponseDTO struct {
 	Print52x70   string `json:"print_52x70"`
 }
 
+type AdminReturnSummaryDTO struct {
+	ReturnUUID    string    `json:"return_uuid"`
+	OrderUUID     string    `json:"order_uuid"`
+	OrderNumber   string    `json:"order_number"`
+	CustomerName  string    `json:"customer_name"`  // o.OrderShippingName
+	CustomerPhone string    `json:"customer_phone"` // o.OrderShippingPhone
+	CustomerEmail string    `json:"customer_email"` // u.UserEmail
+	TotalAmount   float64   `json:"total_amount"`
+	PaymentMethod string    `json:"payment_method"`
+	PaymentStatus string    `json:"payment_status"`
+	Reason        string    `json:"reason"`
+	Images        []string  `json:"images"`
+	VideoURL      *string   `json:"video_url,omitempty"`
+	Status        int16     `json:"status"`
+	StatusText    string    `json:"status_text"`
+	AdminNote     *string   `json:"admin_note,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
 // ── Helper Functions ────────────────────────────────────────────────
 
 func MapTrackingStatusToText(status string) string {
@@ -234,5 +270,20 @@ func MapReturnStatusToString(status int16) string {
 		return "Completed"
 	default:
 		return "Unknown"
+	}
+}
+
+func MapReturnStatusToVietnamese(status int16) string {
+	switch status {
+	case 1:
+		return "Chờ duyệt"
+	case 2:
+		return "Đã chấp thuận (Chờ gửi hàng về)"
+	case 3:
+		return "Đã từ chối"
+	case 4:
+		return "Đã hoàn tất (Đã nhận hàng & hoàn tiền)"
+	default:
+		return "Không xác định"
 	}
 }

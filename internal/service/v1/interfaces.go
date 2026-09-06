@@ -75,6 +75,8 @@ type OrderService interface {
 	GetWards(ctx *gin.Context, districtID int) ([]v1dto.WardDTO, error)
 
 	RequestOrderReturn(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.CreateOrderReturnInput, imageURLs []string, videoURL *string) (v1dto.OrderReturnDTO, error)
+	AdminGetReturns(ctx *gin.Context, query v1dto.AdminGetReturnsQuery) ([]v1dto.AdminReturnSummaryDTO, int64, error)
+	AdminUpdateReturnStatus(ctx *gin.Context, returnUUID uuid.UUID, input v1dto.AdminUpdateReturnInput) (v1dto.AdminReturnSummaryDTO, error)
 }
 
 type CartService interface {

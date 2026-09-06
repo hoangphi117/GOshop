@@ -15,6 +15,12 @@ FROM orders o
 JOIN users u ON u.user_id = o.order_user_id
 WHERE o.order_uuid = $1;
 
+-- name: GetOrderByID :one
+SELECT o.*, u.user_uuid, u.user_fullname
+FROM orders o
+JOIN users u ON u.user_id = o.order_user_id
+WHERE o.order_id = $1;
+
 -- name: GetOrderByUUIDForUpdate :one
 SELECT * FROM orders
 WHERE order_uuid = $1

@@ -16,6 +16,8 @@ type Querier interface {
 	// Stock check thực hiện ở tầng service TRƯỚC khi gọi query này — không block cứng ở đây vì Order mới là nơi enforce
 	// stock nghiêm ngặt.
 	AddOrUpdateCartItem(ctx context.Context, arg AddOrUpdateCartItemParams) (CartItem, error)
+	AdminCountReturns(ctx context.Context, arg AdminCountReturnsParams) (int64, error)
+	AdminGetReturns(ctx context.Context, arg AdminGetReturnsParams) ([]AdminGetReturnsRow, error)
 	CancelOrder(ctx context.Context, orderUuid uuid.UUID) (Order, error)
 	CancelOrderShipping(ctx context.Context, orderUuid uuid.UUID) (Order, error)
 	CheckReviewExists(ctx context.Context, arg CheckReviewExistsParams) (bool, error)
@@ -75,6 +77,7 @@ type Querier interface {
 	// Upsert "no-op": if cart already exists for user, return it; otherwise create a new cart and return it.
 	// Atomic, safe for concurrent requests, and avoids race conditions by using INSERT ... ON CONFLICT.
 	GetOrCreateCartByUserID(ctx context.Context, userID int32) (Cart, error)
+	GetOrderByID(ctx context.Context, orderID int32) (GetOrderByIDRow, error)
 	GetOrderByOrderNumber(ctx context.Context, orderNumber string) (GetOrderByOrderNumberRow, error)
 	GetOrderByShippingCode(ctx context.Context, orderShippingCode *string) (GetOrderByShippingCodeRow, error)
 	GetOrderByUUID(ctx context.Context, orderUuid uuid.UUID) (GetOrderByUUIDRow, error)
@@ -141,6 +144,7 @@ type Querier interface {
 	UpdatePassword(ctx context.Context, arg UpdatePasswordParams) (User, error)
 	UpdatePaymentStatusAtomically(ctx context.Context, arg UpdatePaymentStatusAtomicallyParams) (PaymentTransaction, error)
 	UpdateProduct(ctx context.Context, arg UpdateProductParams) (UpdateProductRow, error)
+	UpdateReturnStatus(ctx context.Context, arg UpdateReturnStatusParams) (OrderReturn, error)
 	UpdateReview(ctx context.Context, arg UpdateReviewParams) (ProductReview, error)
 	UpdateReviewStatus(ctx context.Context, arg UpdateReviewStatusParams) (ProductReview, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)

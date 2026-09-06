@@ -32,13 +32,14 @@ import (
 )
 
 const (
-	OrderStatusPending                  int32 = 1
-	OrderStatusConfirmed                int32 = 2
-	OrderStatusShipped                  int32 = 3
-	OrderStatusDelivered                int32 = 4
-	OrderStatusCancelled                int32 = 5
-	OrderStatusReturned                 int32 = 6
-	OrderStatusRefunded                 int32 = 6
+	OrderStatusPending   int32 = 1
+	OrderStatusConfirmed int32 = 2
+	OrderStatusShipped   int32 = 3
+	OrderStatusDelivered int32 = 4
+	OrderStatusCancelled int32 = 5
+	OrderStatusReturned  int32 = 6
+	OrderStatusRefunded  int32 = 6
+
 	OrderPaymentStatusUnpaid            int32 = 1
 	OrderPaymentStatusPaid              int32 = 2
 	OrderPaymentStatusPartiallyRefunded int32 = 3
@@ -46,6 +47,11 @@ const (
 	OrderPaymentMethodCOD               int32 = 1
 	OrderPaymentMethodOnline            int32 = 2
 	OrderPaymentMethodEWallet           int32 = 3
+
+	OrderReturnStatusPending   int16 = 1
+	OrderReturnStatusApproved  int16 = 2
+	OrderReturnStatusRejected  int16 = 3
+	OrderReturnStatusCompleted int16 = 4
 
 	RoleAdmin     int32 = 1
 	RoleModerator int32 = 2
@@ -1810,5 +1816,173 @@ func (s *orderService) RequestOrderReturn(ctx *gin.Context, orderUUID uuid.UUID,
 		VideoURL:    createdReturn.ReturnVideoUrl,
 		Status:      v1dto.MapReturnStatusToString(createdReturn.ReturnStatus),
 		CreatedAt:   createdReturn.ReturnCreatedAt,
+	}, nil
+}
+
+func (s *orderService) AdminGetReturns(ctx *gin.Context, query v1dto.AdminGetReturnsQuery) ([]v1dto.AdminReturnSummaryDTO, int64, error) {
+	reqCtx := ctx.Request.Context()
+
+	page := query.Page
+	if page <= 0 {
+		page = 1
+	}
+
+	limit := query.Limit
+	if limit <= 0 || limit > 100 {
+		limit = 10
+	}
+	offset := (page - 1) * limit
+
+	var search *string
+	if strings.TrimSpace(query.Search) != "" {
+		trimmed := strings.TrimSpace(query.Search)
+		search = &trimmed
+	}
+
+	total, err := s.orderReturnRepo.CountReturns(reqCtx, sqlc.AdminCountReturnsParams{
+		Status: query.Status,
+		Search: search,
+	})
+	if err != nil {
+		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "Failed to count returns requests", err)
+	}
+
+	rows, err := s.orderReturnRepo.GetReturns(reqCtx, sqlc.AdminGetReturnsParams{
+		Status: query.Status,
+		Search: search,
+		Limit:  int32(limit),
+		Offset: int32(offset),
+	})
+	if err != nil {
+		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "Failed to get returns requests", err)
+	}
+
+	result := make([]v1dto.AdminReturnSummaryDTO, len(rows))
+	for i, r := range rows {
+		result[i] = v1dto.AdminReturnSummaryDTO{
+			ReturnUUID:    r.ReturnUuid.String(),
+			OrderUUID:     r.OrderUuid.String(),
+			OrderNumber:   r.OrderNumber,
+			CustomerName:  r.OrderShippingName,
+			CustomerPhone: r.OrderShippingPhone,
+			CustomerEmail: r.UserEmail,
+			TotalAmount:   utils.NumericToFloat(r.OrderTotalAmount),
+			PaymentMethod: v1dto.MapPaymentMethodToString(r.OrderPaymentMethod),
+			PaymentStatus: v1dto.MapPaymentStatusToString(r.OrderPaymentStatus),
+			Reason:        r.ReturnReason,
+			Images:        r.ReturnImages,
+			VideoURL:      r.ReturnVideoUrl,
+			Status:        r.ReturnStatus,
+			StatusText:    v1dto.MapReturnStatusToVietnamese(r.ReturnStatus),
+			AdminNote:     r.ReturnAdminNote,
+			CreatedAt:     r.ReturnCreatedAt,
+			UpdatedAt:     r.ReturnUpdatedAt,
+		}
+	}
+	return result, total, nil
+}
+
+func (s *orderService) AdminUpdateReturnStatus(ctx *gin.Context, returnUUID uuid.UUID, input v1dto.AdminUpdateReturnInput) (v1dto.AdminReturnSummaryDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	returnRequest, err := s.orderReturnRepo.GetByUUID(reqCtx, returnUUID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return v1dto.AdminReturnSummaryDTO{}, utils.NewError(utils.ErrCodeNotFound, "Return request not found")
+		}
+		return v1dto.AdminReturnSummaryDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get return request", err)
+	}
+
+	if returnRequest.ReturnStatus == OrderReturnStatusCompleted || returnRequest.ReturnStatus == OrderReturnStatusRejected {
+		return v1dto.AdminReturnSummaryDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Cannot update a completed or rejected return request")
+	}
+
+	if input.Status == OrderReturnStatusCompleted && returnRequest.ReturnStatus != 2 {
+		return v1dto.AdminReturnSummaryDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Return request must be in 'Approved' status before marking as 'Completed'")
+	}
+
+	order, err := s.orderRepo.GetByID(reqCtx, returnRequest.ReturnOrderID)
+	if err != nil {
+		return v1dto.AdminReturnSummaryDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order for return request", err)
+	}
+
+	txCtx, cancel := context.WithTimeout(reqCtx, 10*time.Second)
+	defer cancel()
+
+	tx, err := db.BeginTx(txCtx)
+	if err != nil {
+		return v1dto.AdminReturnSummaryDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to begin transaction", err)
+	}
+	defer tx.Rollback(txCtx)
+
+	updatedReturn, err := s.orderReturnRepo.UpdateStatus(reqCtx, tx, sqlc.UpdateReturnStatusParams{
+		ReturnUuid: returnUUID,
+		Status:     input.Status,
+		AdminNote:  input.AdminNote,
+	})
+	if err != nil {
+		return v1dto.AdminReturnSummaryDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to update return request status", err)
+	}
+
+	noteStr := ""
+	if input.AdminNote != nil && strings.TrimSpace(*input.AdminNote) != "" {
+		noteStr = *input.AdminNote
+	}
+
+	switch input.Status {
+	case OrderReturnStatusApproved:
+		eventNote := fmt.Sprintf("Request approved. Please ship the package back to the warehouse. Note: %s", noteStr)
+		_, _ = s.trackingRepo.InsertEvent(reqCtx, tx, sqlc.InsertTrackingEventParams{
+			EventOrderID: returnRequest.ReturnOrderID,
+			EventStatus:  "return_approved",
+			EventNote:    &eventNote,
+			EventSource:  "admin",
+		})
+	case OrderReturnStatusRejected:
+		eventNote := fmt.Sprintf("Request rejected. Reason: %s", noteStr)
+		_, _ = s.trackingRepo.InsertEvent(reqCtx, tx, sqlc.InsertTrackingEventParams{
+			EventOrderID: returnRequest.ReturnOrderID,
+			EventStatus:  "return_rejected",
+			EventNote:    &eventNote,
+			EventSource:  "admin",
+		})
+	case OrderReturnStatusCompleted:
+		_, err := s.orderRepo.UpdateStatus(txCtx, sqlc.UpdateOrderStatusParams{
+			OrderUuid:   order.OrderUuid,
+			OrderStatus: OrderStatusReturned,
+		})
+		if err != nil {
+			return v1dto.AdminReturnSummaryDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to update order status to Returned", err)
+		}
+
+		// Restock
+		orderItems, err := s.orderItemRepo.GetByOrderID(txCtx, order.OrderID)
+		if err == nil {
+			for _, item := range orderItems {
+				_ = s.productRepo.RestoreStock(txCtx, tx, item.OrderItemProductID, item.OrderItemQuantity)
+			}
+		}
+
+		eventNote := fmt.Sprintf("Kho đã nhận hàng hoàn về kho thành công và khôi phục tồn kho. Đang chờ kế toán thực hiện hoàn tiền. Ghi chú: %s", noteStr)
+		_, _ = s.trackingRepo.InsertEvent(reqCtx, tx, sqlc.InsertTrackingEventParams{
+			EventOrderID: returnRequest.ReturnOrderID,
+			EventStatus:  "returned",
+			EventNote:    &eventNote,
+			EventSource:  "admin",
+		})
+	}
+
+	if err := tx.Commit(txCtx); err != nil {
+		return v1dto.AdminReturnSummaryDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
+	}
+
+	_ = s.cache.Clear(fmt.Sprintf("order:%s", order.OrderUuid.String()))
+
+	return v1dto.AdminReturnSummaryDTO{
+		ReturnUUID: updatedReturn.ReturnUuid.String(),
+		Status:     updatedReturn.ReturnStatus,
+		StatusText: v1dto.MapReturnStatusToVietnamese(updatedReturn.ReturnStatus),
+		AdminNote:  updatedReturn.ReturnAdminNote,
+		UpdatedAt:  updatedReturn.ReturnUpdatedAt,
 	}, nil
 }

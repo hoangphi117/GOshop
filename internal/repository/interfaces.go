@@ -54,6 +54,7 @@ type OrderRepository interface {
 	Create(ctx context.Context, tx pgx.Tx, input sqlc.CreateOrderParams) (sqlc.Order, error)
 	GetLastOrderNumber(ctx context.Context, orderNumber string) (string, error)
 	GetByUUID(ctx context.Context, uuid uuid.UUID) (sqlc.GetOrderByUUIDRow, error)
+	GetByID(ctx context.Context, orderID int32) (sqlc.GetOrderByIDRow, error)
 	GetByUUIDForUpdate(ctx context.Context, tx pgx.Tx, uuid uuid.UUID) (sqlc.Order, error)
 	GetByOrderNumber(ctx context.Context, orderNumber string) (sqlc.GetOrderByOrderNumberRow, error)
 	UpdateStatus(ctx context.Context, params sqlc.UpdateOrderStatusParams) (sqlc.Order, error)
@@ -73,6 +74,10 @@ type OrderRepository interface {
 type OrderReturnsRepository interface {
 	Create(ctx context.Context, tx pgx.Tx, params sqlc.CreateOrderReturnParams) (sqlc.OrderReturn, error)
 	GetActiveByOrderID(ctx context.Context, orderID int32) (sqlc.OrderReturn, error)
+	GetReturns(ctx context.Context, params sqlc.AdminGetReturnsParams) ([]sqlc.AdminGetReturnsRow, error)
+	GetByUUID(ctx context.Context, returnUUID uuid.UUID) (sqlc.OrderReturn, error)
+	CountReturns(ctx context.Context, params sqlc.AdminCountReturnsParams) (int64, error)
+	UpdateStatus(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReturnStatusParams) (sqlc.OrderReturn, error)
 }
 
 type TrackingRepository interface {

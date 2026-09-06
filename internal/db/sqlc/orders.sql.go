@@ -181,6 +181,80 @@ func (q *Queries) GetLatestOrderNumber(ctx context.Context, orderNumber string) 
 	return order_number, err
 }
 
+const getOrderByID = `-- name: GetOrderByID :one
+SELECT o.order_id, o.order_uuid, o.order_number, o.order_user_id, o.order_shipping_name, o.order_shipping_phone, o.order_shipping_address, o.order_total_amount, o.order_refunded_amount, o.order_payment_method, o.order_payment_status, o.order_note, o.order_status, o.order_cancelled_at, o.order_created_at, o.order_updated_at, o.order_coupon_id, o.order_coupon_code, o.order_subtotal_amount, o.order_discount_amount, o.order_shipping_provider, o.order_shipping_code, o.order_shipping_fee, o.order_expected_delivery, o.order_delivered_at, o.order_returned_at, u.user_uuid, u.user_fullname
+FROM orders o
+JOIN users u ON u.user_id = o.order_user_id
+WHERE o.order_id = $1
+`
+
+type GetOrderByIDRow struct {
+	OrderID               int32              `json:"order_id"`
+	OrderUuid             uuid.UUID          `json:"order_uuid"`
+	OrderNumber           string             `json:"order_number"`
+	OrderUserID           int32              `json:"order_user_id"`
+	OrderShippingName     string             `json:"order_shipping_name"`
+	OrderShippingPhone    string             `json:"order_shipping_phone"`
+	OrderShippingAddress  string             `json:"order_shipping_address"`
+	OrderTotalAmount      pgtype.Numeric     `json:"order_total_amount"`
+	OrderRefundedAmount   pgtype.Numeric     `json:"order_refunded_amount"`
+	OrderPaymentMethod    int32              `json:"order_payment_method"`
+	OrderPaymentStatus    int32              `json:"order_payment_status"`
+	OrderNote             *string            `json:"order_note"`
+	OrderStatus           int32              `json:"order_status"`
+	OrderCancelledAt      pgtype.Timestamptz `json:"order_cancelled_at"`
+	OrderCreatedAt        time.Time          `json:"order_created_at"`
+	OrderUpdatedAt        time.Time          `json:"order_updated_at"`
+	OrderCouponID         *int32             `json:"order_coupon_id"`
+	OrderCouponCode       *string            `json:"order_coupon_code"`
+	OrderSubtotalAmount   pgtype.Numeric     `json:"order_subtotal_amount"`
+	OrderDiscountAmount   pgtype.Numeric     `json:"order_discount_amount"`
+	OrderShippingProvider *string            `json:"order_shipping_provider"`
+	OrderShippingCode     *string            `json:"order_shipping_code"`
+	OrderShippingFee      pgtype.Numeric     `json:"order_shipping_fee"`
+	OrderExpectedDelivery pgtype.Timestamptz `json:"order_expected_delivery"`
+	OrderDeliveredAt      pgtype.Timestamptz `json:"order_delivered_at"`
+	OrderReturnedAt       pgtype.Timestamptz `json:"order_returned_at"`
+	UserUuid              uuid.UUID          `json:"user_uuid"`
+	UserFullname          string             `json:"user_fullname"`
+}
+
+func (q *Queries) GetOrderByID(ctx context.Context, orderID int32) (GetOrderByIDRow, error) {
+	row := q.db.QueryRow(ctx, getOrderByID, orderID)
+	var i GetOrderByIDRow
+	err := row.Scan(
+		&i.OrderID,
+		&i.OrderUuid,
+		&i.OrderNumber,
+		&i.OrderUserID,
+		&i.OrderShippingName,
+		&i.OrderShippingPhone,
+		&i.OrderShippingAddress,
+		&i.OrderTotalAmount,
+		&i.OrderRefundedAmount,
+		&i.OrderPaymentMethod,
+		&i.OrderPaymentStatus,
+		&i.OrderNote,
+		&i.OrderStatus,
+		&i.OrderCancelledAt,
+		&i.OrderCreatedAt,
+		&i.OrderUpdatedAt,
+		&i.OrderCouponID,
+		&i.OrderCouponCode,
+		&i.OrderSubtotalAmount,
+		&i.OrderDiscountAmount,
+		&i.OrderShippingProvider,
+		&i.OrderShippingCode,
+		&i.OrderShippingFee,
+		&i.OrderExpectedDelivery,
+		&i.OrderDeliveredAt,
+		&i.OrderReturnedAt,
+		&i.UserUuid,
+		&i.UserFullname,
+	)
+	return i, err
+}
+
 const getOrderByOrderNumber = `-- name: GetOrderByOrderNumber :one
 SELECT o.order_id, o.order_uuid, o.order_number, o.order_user_id, o.order_shipping_name, o.order_shipping_phone, o.order_shipping_address, o.order_total_amount, o.order_refunded_amount, o.order_payment_method, o.order_payment_status, o.order_note, o.order_status, o.order_cancelled_at, o.order_created_at, o.order_updated_at, o.order_coupon_id, o.order_coupon_code, o.order_subtotal_amount, o.order_discount_amount, o.order_shipping_provider, o.order_shipping_code, o.order_shipping_fee, o.order_expected_delivery, o.order_delivered_at, o.order_returned_at, u.user_uuid, u.user_fullname
 FROM orders o
