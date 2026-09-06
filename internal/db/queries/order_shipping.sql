@@ -38,3 +38,17 @@ UPDATE orders SET
 WHERE order_uuid = sqlc.arg(order_uuid)
   AND order_status = 3        -- Optimistic lock: Chỉ cho phép hủy khi đơn đang ở trạng thái Shipped
 RETURNING *;
+
+-- name: MarkOrderDeliveredByUUID :one
+UPDATE orders SET
+    order_status = 4,
+    order_delivered_at = now(),
+    order_payment_status = CASE 
+        WHEN order_payment_method = 1 THEN 2 -- COD -> Paid (Đã thu tiền)
+        ELSE order_payment_status 
+    END,
+    order_updated_at = now()
+WHERE order_uuid = sqlc.arg(order_uuid)
+  AND order_status = 3 -- Chỉ update nếu đơn đang ở trạng thái Shipped
+RETURNING *;
+

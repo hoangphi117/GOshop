@@ -1599,6 +1599,107 @@ func (s *orderService) CancelShipping(ctx *gin.Context, orderUUID uuid.UUID, inp
 	}, nil
 }
 
+func (s *orderService) ConfirmOrderDelivery(ctx *gin.Context, orderUUID uuid.UUID) (v1dto.ConfirmDeliveryResponseDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	userUUIDStr, ok := ctx.Get("user_uuid")
+	if !ok || userUUIDStr == "" {
+		return v1dto.ConfirmDeliveryResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	if err != nil {
+		return v1dto.ConfirmDeliveryResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
+	}
+	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
+	if err != nil {
+		return v1dto.ConfirmDeliveryResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
+
+	order, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return v1dto.ConfirmDeliveryResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "Order not found")
+		}
+		return v1dto.ConfirmDeliveryResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
+	}
+
+	isAdminOrMod := user.UserLevel == RoleAdmin || user.UserLevel == RoleModerator
+	if order.OrderUserID != user.UserID && !isAdminOrMod {
+		return v1dto.ConfirmDeliveryResponseDTO{}, utils.NewError(utils.ErrCodeForbidden, "Access denied")
+	}
+
+	if order.OrderStatus == OrderStatusDelivered {
+		return v1dto.ConfirmDeliveryResponseDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Order is already marked as delivered")
+	}
+
+	if order.OrderStatus != OrderStatusShipped {
+		var errMsg string
+		switch order.OrderStatus {
+		case OrderStatusPending:
+			errMsg = "Order is pending and has not been processed yet"
+		case OrderStatusConfirmed:
+			errMsg = "Order is confirmed but has not been shipped yet. Delivery can only be confirmed once shipped"
+		case OrderStatusCancelled:
+			errMsg = "Cannot confirm delivery for a cancelled order"
+		case OrderStatusReturned:
+			errMsg = "Cannot confirm delivery for a returned order"
+		default:
+			errMsg = fmt.Sprintf("Cannot confirm delivery for an order with status: %s", v1dto.MapOrderStatusToString(order.OrderStatus))
+		}
+		return v1dto.ConfirmDeliveryResponseDTO{}, utils.NewError(utils.ErrCodeBadRequest, errMsg)
+	}
+
+	txCtx, cancel := context.WithTimeout(reqCtx, 10*time.Second)
+	defer cancel()
+
+	tx, err := db.BeginTx(txCtx)
+	if err != nil {
+		return v1dto.ConfirmDeliveryResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to begin transaction", err)
+	}
+	defer tx.Rollback(txCtx)
+
+	updatedOrder, err := s.orderRepo.MarkDeliveredByUUID(txCtx, tx, orderUUID)
+	if err != nil {
+		return v1dto.ConfirmDeliveryResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to update order to delivered", err)
+	}
+
+	eventNote := "Customer confirmed order receipt."
+	_, err = s.trackingRepo.InsertEvent(txCtx, tx, sqlc.InsertTrackingEventParams{
+		EventOrderID: order.OrderID,
+		EventStatus:  "delivered",
+		EventNote:    &eventNote,
+		EventSource:  "user",
+	})
+	if err != nil {
+		return v1dto.ConfirmDeliveryResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to record tracking event", err)
+	}
+
+	if err := tx.Commit(txCtx); err != nil {
+		return v1dto.ConfirmDeliveryResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
+	}
+
+	_ = s.cache.Clear(fmt.Sprintf("order:%s", orderUUID.String()))
+	_ = s.cache.Clear("orders:*")
+
+	var deliveredAt *time.Time
+	if updatedOrder.OrderDeliveredAt.Valid {
+		deliveredAt = &updatedOrder.OrderDeliveredAt.Time
+	}
+
+	return v1dto.ConfirmDeliveryResponseDTO{
+		OrderUUID:         updatedOrder.OrderUuid.String(),
+		OrderNumber:       updatedOrder.OrderNumber,
+		OrderStatus:       updatedOrder.OrderStatus,
+		StatusName:        v1dto.MapOrderStatusToString(updatedOrder.OrderStatus),
+		StatusText:        v1dto.MapOrderStatusToVietnamese(updatedOrder.OrderStatus),
+		PaymentMethod:     v1dto.MapPaymentMethodToString(updatedOrder.OrderPaymentMethod),
+		PaymentStatus:     updatedOrder.OrderPaymentStatus,
+		PaymentStatusName: v1dto.MapPaymentStatusToString(updatedOrder.OrderPaymentStatus),
+		DeliveredAt:       deliveredAt,
+		Message:           "Order delivery confirmed successfully. You can now leave a product review or request a return within 7 days.",
+	}, nil
+}
+
 func (s *orderService) GetPrintBill(ctx *gin.Context, orderUUID uuid.UUID) (v1dto.PrintBillResponseDTO, error) {
 	reqCtx := ctx.Request.Context()
 

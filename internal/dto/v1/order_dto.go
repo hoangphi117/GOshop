@@ -1,6 +1,8 @@
 package v1dto
 
 import (
+	"time"
+
 	"goshop/internal/db/sqlc"
 	"goshop/internal/utils"
 
@@ -271,4 +273,36 @@ func MapPaymentStatusToString(status int32) string {
 	default:
 		return "Unknown"
 	}
+}
+
+func MapOrderStatusToVietnamese(status int32) string {
+	switch status {
+	case 1:
+		return "Chờ xử lý"
+	case 2:
+		return "Đã xác nhận"
+	case 3:
+		return "Đang giao hàng"
+	case 4:
+		return "Đã giao hàng"
+	case 5:
+		return "Đã hủy"
+	case 6:
+		return "Đã trả hàng"
+	default:
+		return "Không xác định"
+	}
+}
+
+type ConfirmDeliveryResponseDTO struct {
+	OrderUUID         string     `json:"order_uuid"`
+	OrderNumber       string     `json:"order_number"`
+	OrderStatus       int32      `json:"order_status"`
+	StatusName        string     `json:"status_name"`
+	StatusText        string     `json:"status_text"`
+	PaymentMethod     string     `json:"payment_method"`
+	PaymentStatus     int32      `json:"payment_status"`
+	PaymentStatusName string     `json:"payment_status_name"`
+	DeliveredAt       *time.Time `json:"delivered_at"`
+	Message           string     `json:"message"`
 }

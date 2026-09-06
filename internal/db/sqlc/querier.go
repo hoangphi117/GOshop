@@ -119,6 +119,7 @@ type Querier interface {
 	ListUserUserIdAsc(ctx context.Context, arg ListUserUserIdAscParams) ([]User, error)
 	ListUserUserIdDesc(ctx context.Context, arg ListUserUserIdDescParams) ([]User, error)
 	MarkOrderDeliveredByShippingCode(ctx context.Context, shippingCode *string) (Order, error)
+	MarkOrderDeliveredByUUID(ctx context.Context, orderUuid uuid.UUID) (Order, error)
 	MarkWebhookEventProcessed(ctx context.Context, weID int32) error
 	RecalcProductRating(ctx context.Context, reviewProductID int32) error
 	RecordCouponUsage(ctx context.Context, arg RecordCouponUsageParams) (CouponUsage, error)
