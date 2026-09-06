@@ -584,3 +584,28 @@ func (oh *OrderHandler) AdminUpdateReturnStatus(ctx *gin.Context) {
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Return request status updated successfully", res)
 }
+
+func (oh *OrderHandler) CancelOrderReturn(ctx *gin.Context) {
+	var params v1dto.GetOrderByUUIDParam
+	if err := ctx.ShouldBindUri(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	orderUUID, err := uuid.Parse(params.UUID)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid order UUID"))
+		return
+	}
+
+	var input v1dto.CancelOrderReturnInput
+	_ = ctx.ShouldBindJSON(&input)
+
+	res, err := oh.service.CancelOrderReturn(ctx, orderUUID, input)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Order return cancelled successfully", res)
+}

@@ -2097,3 +2097,123 @@ func (s *orderService) GetOrderReturnDetails(ctx *gin.Context, orderUUID uuid.UU
 		Events:      returnEvents,
 	}, nil
 }
+
+func (s *orderService) CancelOrderReturn(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.CancelOrderReturnInput) (v1dto.CancelOrderReturnResponseDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	userUUIDStr, ok := ctx.Get("user_uuid")
+	if !ok || userUUIDStr == "" {
+		return v1dto.CancelOrderReturnResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	if err != nil {
+		return v1dto.CancelOrderReturnResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
+	}
+	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
+	if err != nil {
+		return v1dto.CancelOrderReturnResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
+
+	var returnRequest sqlc.OrderReturn
+	var orderOrderUUID uuid.UUID
+	var orderNumber string
+	var orderUserID int32
+
+	orderByUUID, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
+	if err == nil {
+		orderOrderUUID = orderByUUID.OrderUuid
+		orderNumber = orderByUUID.OrderNumber
+		orderUserID = orderByUUID.OrderUserID
+
+		returnRequest, err = s.orderReturnRepo.GetLatestByOrderID(reqCtx, orderByUUID.OrderID)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return v1dto.CancelOrderReturnResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "No return request found for this order")
+			}
+			return v1dto.CancelOrderReturnResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get return request", err)
+		}
+	} else if errors.Is(err, pgx.ErrNoRows) {
+		returnByUUID, rErr := s.orderReturnRepo.GetByUUID(reqCtx, orderUUID)
+		if rErr != nil {
+			if errors.Is(rErr, pgx.ErrNoRows) {
+				return v1dto.CancelOrderReturnResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "No return request found for this order")
+			}
+			return v1dto.CancelOrderReturnResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get return request", rErr)
+		}
+		returnRequest = returnByUUID
+
+		orderRow, oErr := s.orderRepo.GetByID(reqCtx, returnRequest.ReturnOrderID)
+		if oErr != nil {
+			return v1dto.CancelOrderReturnResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order for return request", oErr)
+		}
+		orderOrderUUID = orderRow.OrderUuid
+		orderNumber = orderRow.OrderNumber
+		orderUserID = orderRow.OrderUserID
+	} else {
+		return v1dto.CancelOrderReturnResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
+	}
+
+	isAdminOrMod := user.UserLevel == RoleAdmin || user.UserLevel == RoleModerator
+	if orderUserID != user.UserID && !isAdminOrMod {
+		return v1dto.CancelOrderReturnResponseDTO{}, utils.NewError(utils.ErrCodeForbidden, "Access denied")
+	}
+
+	if returnRequest.ReturnStatus == OrderReturnStatusCancelled {
+		return v1dto.CancelOrderReturnResponseDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Return request is already cancelled")
+	}
+
+	if returnRequest.ReturnStatus != OrderReturnStatusPending {
+		return v1dto.CancelOrderReturnResponseDTO{}, utils.NewError(utils.ErrCodeBadRequest, fmt.Sprintf("Only pending return requests can be cancelled, current: %s", v1dto.MapReturnStatusToVietnamese(returnRequest.ReturnStatus)))
+	}
+
+	txCtx, cancel := context.WithTimeout(reqCtx, 10*time.Second)
+	defer cancel()
+
+	tx, err := db.BeginTx(txCtx)
+	if err != nil {
+		return v1dto.CancelOrderReturnResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to begin transaction", err)
+	}
+	defer tx.Rollback(txCtx)
+
+	note := "User cancelled the return request."
+	if strings.TrimSpace(input.Reason) != "" {
+		note += fmt.Sprintf(" Reason: %s", strings.TrimSpace(input.Reason))
+	}
+
+	updatedReturn, err := s.orderReturnRepo.UpdateStatus(reqCtx, tx, sqlc.UpdateReturnStatusParams{
+		ReturnUuid: returnRequest.ReturnUuid,
+		Status:     OrderReturnStatusCancelled,
+		AdminNote:  &note,
+	})
+	if err != nil {
+		return v1dto.CancelOrderReturnResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to update return request status", err)
+	}
+
+	_, err = s.trackingRepo.InsertEvent(reqCtx, tx, sqlc.InsertTrackingEventParams{
+		EventOrderID: returnRequest.ReturnOrderID,
+		EventStatus:  "return_cancelled",
+		EventNote:    &note,
+		EventSource:  "user",
+	})
+	if err != nil {
+		return v1dto.CancelOrderReturnResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to record return cancellation tracking event", err)
+	}
+
+	if err := tx.Commit(txCtx); err != nil {
+		return v1dto.CancelOrderReturnResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
+	}
+
+	_ = s.cache.Clear(fmt.Sprintf("order:%s", orderOrderUUID.String()))
+
+	return v1dto.CancelOrderReturnResponseDTO{
+		ReturnUUID:   updatedReturn.ReturnUuid.String(),
+		OrderUUID:    orderOrderUUID.String(),
+		OrderNumber:  orderNumber,
+		Status:       updatedReturn.ReturnStatus,
+		StatusName:   v1dto.MapReturnStatusToString(updatedReturn.ReturnStatus),
+		StatusText:   v1dto.MapReturnStatusToVietnamese(updatedReturn.ReturnStatus),
+		CancelReason: input.Reason,
+		UpdatedAt:    updatedReturn.ReturnUpdatedAt,
+		Message:      "Return request cancelled successfully.",
+	}, nil
+}

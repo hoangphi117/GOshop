@@ -30,6 +30,7 @@ func (or *OrderRoutes) Register(r *gin.RouterGroup) {
 		orders.POST("/calculate-fee", or.handler.CalculateShippingFee)
 		orders.POST("/:uuid/return", or.handler.RequestOrderReturn)
 		orders.GET("/:uuid/return", or.handler.GetOrderReturnDetails)
+		orders.POST("/:uuid/return/cancel", or.handler.CancelOrderReturn)
 
 	}
 }

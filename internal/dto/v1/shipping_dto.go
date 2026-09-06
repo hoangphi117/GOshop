@@ -80,6 +80,10 @@ type CreateOrderReturnInput struct {
 	Reason string `form:"reason" json:"reason" binding:"required,min=10,max=1000"`
 }
 
+type CancelOrderReturnInput struct {
+	Reason string `json:"reason" binding:"omitempty,max=500"`
+}
+
 type AdminUpdateReturnInput struct {
 	Status    int16   `json:"status"     binding:"required,oneof=2 3 4"` // 2: Approved, 3: Rejected, 4: Completed
 	AdminNote *string `json:"admin_note" binding:"omitempty,max=500"`
@@ -225,6 +229,18 @@ type OrderReturnDetailDTO struct {
 	CreatedAt   time.Time          `json:"created_at"`
 	UpdatedAt   time.Time          `json:"updated_at"`
 	Events      []TrackingEventDTO `json:"events"`
+}
+
+type CancelOrderReturnResponseDTO struct {
+	ReturnUUID   string    `json:"return_uuid"`
+	OrderUUID    string    `json:"order_uuid"`
+	OrderNumber  string    `json:"order_number"`
+	Status       int16     `json:"status"`      // 5
+	StatusName   string    `json:"status_name"` // "Cancelled"
+	StatusText   string    `json:"status_text"` // "Đã hủy bởi người mua"
+	CancelReason string    `json:"cancel_reason,omitempty"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	Message      string    `json:"message"`
 }
 
 // ── Helper Functions ────────────────────────────────────────────────
