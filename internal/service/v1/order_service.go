@@ -1890,6 +1890,123 @@ func (s *orderService) AdminGetReturns(ctx *gin.Context, query v1dto.AdminGetRet
 	return result, total, nil
 }
 
+func (s *orderService) AdminGetReturnDetail(ctx *gin.Context, returnUUID uuid.UUID) (v1dto.AdminReturnDetailDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	userUUIDStr, ok := ctx.Get("user_uuid")
+	if !ok || userUUIDStr == "" {
+		return v1dto.AdminReturnDetailDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+
+	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	if err != nil {
+		return v1dto.AdminReturnDetailDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
+	}
+
+	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
+	if err != nil {
+		return v1dto.AdminReturnDetailDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
+
+	if user.UserLevel != RoleAdmin && user.UserLevel != RoleModerator {
+		return v1dto.AdminReturnDetailDTO{}, utils.NewError(utils.ErrCodeForbidden, "Admin or Moderator access required")
+	}
+
+	var returnRow sqlc.AdminGetReturnByUUIDRow
+	returnByUUID, err := s.orderReturnRepo.AdminGetReturnByUUID(reqCtx, returnUUID)
+	if err == nil {
+		returnRow = returnByUUID
+	} else if errors.Is(err, pgx.ErrNoRows) {
+		// Fallback: check if the provided UUID is an order UUID
+		orderByUUID, oErr := s.orderRepo.GetByUUID(reqCtx, returnUUID)
+		if oErr != nil {
+			if errors.Is(oErr, pgx.ErrNoRows) {
+				return v1dto.AdminReturnDetailDTO{}, utils.NewError(utils.ErrCodeNotFound, "Return request or order not found")
+			}
+			return v1dto.AdminReturnDetailDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", oErr)
+		}
+		latestReturn, lErr := s.orderReturnRepo.AdminGetLatestReturnByOrderID(reqCtx, orderByUUID.OrderID)
+		if lErr != nil {
+			if errors.Is(lErr, pgx.ErrNoRows) {
+				return v1dto.AdminReturnDetailDTO{}, utils.NewError(utils.ErrCodeNotFound, "No return request found for this order")
+			}
+			return v1dto.AdminReturnDetailDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get return request", lErr)
+		}
+		returnRow = sqlc.AdminGetReturnByUUIDRow(latestReturn)
+	} else {
+		return v1dto.AdminReturnDetailDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get return request", err)
+	}
+
+	items, err := s.orderItemRepo.GetByOrderID(reqCtx, returnRow.OrderID)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return v1dto.AdminReturnDetailDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order items", err)
+	}
+
+	itemsDTO := make([]v1dto.OrderItemDTO, len(items))
+	for i, item := range items {
+		itemsDTO[i] = v1dto.MapToOrderItemRowDTO(item)
+	}
+
+	events, err := s.trackingRepo.GetByOrderID(reqCtx, returnRow.OrderID)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return v1dto.AdminReturnDetailDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get tracking events", err)
+	}
+
+	returnEvents := make([]v1dto.TrackingEventDTO, 0)
+	for _, ev := range events {
+		if strings.HasPrefix(ev.EventStatus, "return_") || ev.EventStatus == "returned" || ev.EventStatus == "refunded" {
+			var note *string
+			if ev.EventNote != nil && strings.TrimSpace(*ev.EventNote) != "" {
+				note = ev.EventNote
+			}
+			returnEvents = append(returnEvents, v1dto.TrackingEventDTO{
+				EventID:    ev.EventID,
+				Status:     ev.EventStatus,
+				StatusText: v1dto.MapTrackingStatusToText(ev.EventStatus),
+				Note:       note,
+				Source:     ev.EventSource,
+				CreatedAt:  ev.EventCreatedAt,
+			})
+		}
+	}
+
+	return v1dto.AdminReturnDetailDTO{
+		ReturnUUID:       returnRow.ReturnUuid.String(),
+		Reason:           returnRow.ReturnReason,
+		Images:           returnRow.ReturnImages,
+		VideoURL:         returnRow.ReturnVideoUrl,
+		Status:           returnRow.ReturnStatus,
+		StatusName:       v1dto.MapReturnStatusToString(returnRow.ReturnStatus),
+		StatusText:       v1dto.MapReturnStatusToVietnamese(returnRow.ReturnStatus),
+		AdminNote:        returnRow.ReturnAdminNote,
+		ShippingProvider: returnRow.ReturnShippingProvider,
+		ShippingCode:     returnRow.ReturnShippingCode,
+		ShippingNote:     returnRow.ReturnShippingNote,
+		CreatedAt:        returnRow.ReturnCreatedAt,
+		UpdatedAt:        returnRow.ReturnUpdatedAt,
+		Customer: v1dto.ReturnCustomerDTO{
+			UserUUID: returnRow.UserUuid.String(),
+			FullName: returnRow.UserFullname,
+			Email:    returnRow.UserEmail,
+		},
+		Order: v1dto.ReturnOrderInfoDTO{
+			OrderUUID:       returnRow.OrderUuid.String(),
+			OrderNumber:     returnRow.OrderNumber,
+			TotalAmount:     utils.NumericToFloat(returnRow.OrderTotalAmount),
+			RefundedAmount:  utils.NumericToFloat(returnRow.OrderRefundedAmount),
+			PaymentMethod:   v1dto.MapPaymentMethodToString(returnRow.OrderPaymentMethod),
+			PaymentStatus:   v1dto.MapPaymentStatusToString(returnRow.OrderPaymentStatus),
+			OrderStatus:     v1dto.MapOrderStatusToString(returnRow.OrderStatus),
+			ShippingName:    returnRow.OrderShippingName,
+			ShippingPhone:   returnRow.OrderShippingPhone,
+			ShippingAddress: returnRow.OrderShippingAddress,
+			CreatedAt:       returnRow.OrderCreatedAt,
+		},
+		Items:  itemsDTO,
+		Events: returnEvents,
+	}, nil
+}
+
 func (s *orderService) AdminUpdateReturnStatus(ctx *gin.Context, returnUUID uuid.UUID, input v1dto.AdminUpdateReturnInput) (v1dto.AdminReturnSummaryDTO, error) {
 	reqCtx := ctx.Request.Context()
 

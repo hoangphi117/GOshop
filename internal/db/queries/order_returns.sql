@@ -103,3 +103,37 @@ WHERE r.return_user_id = sqlc.arg('user_id')
   AND (sqlc.narg('status')::smallint IS NULL OR r.return_status = sqlc.narg('status'))
   AND (sqlc.narg('search')::text IS NULL OR o.order_number ILIKE '%' || sqlc.narg('search') || '%');
 
+-- name: AdminGetReturnByUUID :one
+SELECT 
+    r.return_id, r.return_uuid, r.return_order_id, r.return_user_id,
+    r.return_reason, r.return_images, r.return_video_url, r.return_status,
+    r.return_admin_note, r.return_shipping_provider, r.return_shipping_code,
+    r.return_shipping_note, r.return_created_at, r.return_updated_at,
+    o.order_id, o.order_uuid, o.order_number, o.order_total_amount, o.order_refunded_amount,
+    o.order_payment_method, o.order_payment_status, o.order_status,
+    o.order_shipping_name, o.order_shipping_phone, o.order_shipping_address,
+    o.order_created_at,
+    u.user_uuid, u.user_fullname, u.user_email
+FROM order_returns r
+JOIN orders o ON o.order_id = r.return_order_id
+JOIN users u ON u.user_id = r.return_user_id
+WHERE r.return_uuid = $1;
+
+-- name: AdminGetLatestReturnByOrderID :one
+SELECT 
+    r.return_id, r.return_uuid, r.return_order_id, r.return_user_id,
+    r.return_reason, r.return_images, r.return_video_url, r.return_status,
+    r.return_admin_note, r.return_shipping_provider, r.return_shipping_code,
+    r.return_shipping_note, r.return_created_at, r.return_updated_at,
+    o.order_id, o.order_uuid, o.order_number, o.order_total_amount, o.order_refunded_amount,
+    o.order_payment_method, o.order_payment_status, o.order_status,
+    o.order_shipping_name, o.order_shipping_phone, o.order_shipping_address,
+    o.order_created_at,
+    u.user_uuid, u.user_fullname, u.user_email
+FROM order_returns r
+JOIN orders o ON o.order_id = r.return_order_id
+JOIN users u ON u.user_id = r.return_user_id
+WHERE r.return_order_id = $1
+ORDER BY r.return_created_at DESC
+LIMIT 1;
+

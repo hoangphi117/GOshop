@@ -584,6 +584,28 @@ func (oh *OrderHandler) AdminGetReturns(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Return requests retrieved successfully", paginationResponse)
 }
 
+func (oh *OrderHandler) AdminGetReturnDetail(ctx *gin.Context) {
+	var param v1dto.ReturnUUIDParam
+	if err := ctx.ShouldBindUri(&param); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	returnUUID, err := uuid.Parse(param.UUID)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid return UUID"))
+		return
+	}
+
+	res, err := oh.service.AdminGetReturnDetail(ctx, returnUUID)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Return request details retrieved successfully", res)
+}
+
 func (oh *OrderHandler) AdminUpdateReturnStatus(ctx *gin.Context) {
 	var param v1dto.ReturnUUIDParam
 	if err := ctx.ShouldBindUri(&param); err != nil {

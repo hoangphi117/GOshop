@@ -78,6 +78,7 @@ type OrderService interface {
 	GetOrderReturnDetails(ctx *gin.Context, orderUUID uuid.UUID) (v1dto.OrderReturnDetailDTO, error)
 	GetMyOrderReturns(ctx *gin.Context, query v1dto.GetMyOrderReturnsQuery) ([]v1dto.UserReturnSummaryDTO, int64, error)
 	AdminGetReturns(ctx *gin.Context, query v1dto.AdminGetReturnsQuery) ([]v1dto.AdminReturnSummaryDTO, int64, error)
+	AdminGetReturnDetail(ctx *gin.Context, returnUUID uuid.UUID) (v1dto.AdminReturnDetailDTO, error)
 	AdminUpdateReturnStatus(ctx *gin.Context, returnUUID uuid.UUID, input v1dto.AdminUpdateReturnInput) (v1dto.AdminReturnSummaryDTO, error)
 	CancelOrderReturn(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.CancelOrderReturnInput) (v1dto.CancelOrderReturnResponseDTO, error)
 	SubmitReturnShipping(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.SubmitReturnShippingInput) (v1dto.SubmitReturnShippingResponseDTO, error)

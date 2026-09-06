@@ -39,6 +39,180 @@ func (q *Queries) AdminCountReturns(ctx context.Context, arg AdminCountReturnsPa
 	return count, err
 }
 
+const adminGetLatestReturnByOrderID = `-- name: AdminGetLatestReturnByOrderID :one
+SELECT 
+    r.return_id, r.return_uuid, r.return_order_id, r.return_user_id,
+    r.return_reason, r.return_images, r.return_video_url, r.return_status,
+    r.return_admin_note, r.return_shipping_provider, r.return_shipping_code,
+    r.return_shipping_note, r.return_created_at, r.return_updated_at,
+    o.order_id, o.order_uuid, o.order_number, o.order_total_amount, o.order_refunded_amount,
+    o.order_payment_method, o.order_payment_status, o.order_status,
+    o.order_shipping_name, o.order_shipping_phone, o.order_shipping_address,
+    o.order_created_at,
+    u.user_uuid, u.user_fullname, u.user_email
+FROM order_returns r
+JOIN orders o ON o.order_id = r.return_order_id
+JOIN users u ON u.user_id = r.return_user_id
+WHERE r.return_order_id = $1
+ORDER BY r.return_created_at DESC
+LIMIT 1
+`
+
+type AdminGetLatestReturnByOrderIDRow struct {
+	ReturnID               int32          `json:"return_id"`
+	ReturnUuid             uuid.UUID      `json:"return_uuid"`
+	ReturnOrderID          int32          `json:"return_order_id"`
+	ReturnUserID           int32          `json:"return_user_id"`
+	ReturnReason           string         `json:"return_reason"`
+	ReturnImages           []string       `json:"return_images"`
+	ReturnVideoUrl         *string        `json:"return_video_url"`
+	ReturnStatus           int16          `json:"return_status"`
+	ReturnAdminNote        *string        `json:"return_admin_note"`
+	ReturnShippingProvider *string        `json:"return_shipping_provider"`
+	ReturnShippingCode     *string        `json:"return_shipping_code"`
+	ReturnShippingNote     *string        `json:"return_shipping_note"`
+	ReturnCreatedAt        time.Time      `json:"return_created_at"`
+	ReturnUpdatedAt        time.Time      `json:"return_updated_at"`
+	OrderID                int32          `json:"order_id"`
+	OrderUuid              uuid.UUID      `json:"order_uuid"`
+	OrderNumber            string         `json:"order_number"`
+	OrderTotalAmount       pgtype.Numeric `json:"order_total_amount"`
+	OrderRefundedAmount    pgtype.Numeric `json:"order_refunded_amount"`
+	OrderPaymentMethod     int32          `json:"order_payment_method"`
+	OrderPaymentStatus     int32          `json:"order_payment_status"`
+	OrderStatus            int32          `json:"order_status"`
+	OrderShippingName      string         `json:"order_shipping_name"`
+	OrderShippingPhone     string         `json:"order_shipping_phone"`
+	OrderShippingAddress   string         `json:"order_shipping_address"`
+	OrderCreatedAt         time.Time      `json:"order_created_at"`
+	UserUuid               uuid.UUID      `json:"user_uuid"`
+	UserFullname           string         `json:"user_fullname"`
+	UserEmail              string         `json:"user_email"`
+}
+
+func (q *Queries) AdminGetLatestReturnByOrderID(ctx context.Context, returnOrderID int32) (AdminGetLatestReturnByOrderIDRow, error) {
+	row := q.db.QueryRow(ctx, adminGetLatestReturnByOrderID, returnOrderID)
+	var i AdminGetLatestReturnByOrderIDRow
+	err := row.Scan(
+		&i.ReturnID,
+		&i.ReturnUuid,
+		&i.ReturnOrderID,
+		&i.ReturnUserID,
+		&i.ReturnReason,
+		&i.ReturnImages,
+		&i.ReturnVideoUrl,
+		&i.ReturnStatus,
+		&i.ReturnAdminNote,
+		&i.ReturnShippingProvider,
+		&i.ReturnShippingCode,
+		&i.ReturnShippingNote,
+		&i.ReturnCreatedAt,
+		&i.ReturnUpdatedAt,
+		&i.OrderID,
+		&i.OrderUuid,
+		&i.OrderNumber,
+		&i.OrderTotalAmount,
+		&i.OrderRefundedAmount,
+		&i.OrderPaymentMethod,
+		&i.OrderPaymentStatus,
+		&i.OrderStatus,
+		&i.OrderShippingName,
+		&i.OrderShippingPhone,
+		&i.OrderShippingAddress,
+		&i.OrderCreatedAt,
+		&i.UserUuid,
+		&i.UserFullname,
+		&i.UserEmail,
+	)
+	return i, err
+}
+
+const adminGetReturnByUUID = `-- name: AdminGetReturnByUUID :one
+SELECT 
+    r.return_id, r.return_uuid, r.return_order_id, r.return_user_id,
+    r.return_reason, r.return_images, r.return_video_url, r.return_status,
+    r.return_admin_note, r.return_shipping_provider, r.return_shipping_code,
+    r.return_shipping_note, r.return_created_at, r.return_updated_at,
+    o.order_id, o.order_uuid, o.order_number, o.order_total_amount, o.order_refunded_amount,
+    o.order_payment_method, o.order_payment_status, o.order_status,
+    o.order_shipping_name, o.order_shipping_phone, o.order_shipping_address,
+    o.order_created_at,
+    u.user_uuid, u.user_fullname, u.user_email
+FROM order_returns r
+JOIN orders o ON o.order_id = r.return_order_id
+JOIN users u ON u.user_id = r.return_user_id
+WHERE r.return_uuid = $1
+`
+
+type AdminGetReturnByUUIDRow struct {
+	ReturnID               int32          `json:"return_id"`
+	ReturnUuid             uuid.UUID      `json:"return_uuid"`
+	ReturnOrderID          int32          `json:"return_order_id"`
+	ReturnUserID           int32          `json:"return_user_id"`
+	ReturnReason           string         `json:"return_reason"`
+	ReturnImages           []string       `json:"return_images"`
+	ReturnVideoUrl         *string        `json:"return_video_url"`
+	ReturnStatus           int16          `json:"return_status"`
+	ReturnAdminNote        *string        `json:"return_admin_note"`
+	ReturnShippingProvider *string        `json:"return_shipping_provider"`
+	ReturnShippingCode     *string        `json:"return_shipping_code"`
+	ReturnShippingNote     *string        `json:"return_shipping_note"`
+	ReturnCreatedAt        time.Time      `json:"return_created_at"`
+	ReturnUpdatedAt        time.Time      `json:"return_updated_at"`
+	OrderID                int32          `json:"order_id"`
+	OrderUuid              uuid.UUID      `json:"order_uuid"`
+	OrderNumber            string         `json:"order_number"`
+	OrderTotalAmount       pgtype.Numeric `json:"order_total_amount"`
+	OrderRefundedAmount    pgtype.Numeric `json:"order_refunded_amount"`
+	OrderPaymentMethod     int32          `json:"order_payment_method"`
+	OrderPaymentStatus     int32          `json:"order_payment_status"`
+	OrderStatus            int32          `json:"order_status"`
+	OrderShippingName      string         `json:"order_shipping_name"`
+	OrderShippingPhone     string         `json:"order_shipping_phone"`
+	OrderShippingAddress   string         `json:"order_shipping_address"`
+	OrderCreatedAt         time.Time      `json:"order_created_at"`
+	UserUuid               uuid.UUID      `json:"user_uuid"`
+	UserFullname           string         `json:"user_fullname"`
+	UserEmail              string         `json:"user_email"`
+}
+
+func (q *Queries) AdminGetReturnByUUID(ctx context.Context, returnUuid uuid.UUID) (AdminGetReturnByUUIDRow, error) {
+	row := q.db.QueryRow(ctx, adminGetReturnByUUID, returnUuid)
+	var i AdminGetReturnByUUIDRow
+	err := row.Scan(
+		&i.ReturnID,
+		&i.ReturnUuid,
+		&i.ReturnOrderID,
+		&i.ReturnUserID,
+		&i.ReturnReason,
+		&i.ReturnImages,
+		&i.ReturnVideoUrl,
+		&i.ReturnStatus,
+		&i.ReturnAdminNote,
+		&i.ReturnShippingProvider,
+		&i.ReturnShippingCode,
+		&i.ReturnShippingNote,
+		&i.ReturnCreatedAt,
+		&i.ReturnUpdatedAt,
+		&i.OrderID,
+		&i.OrderUuid,
+		&i.OrderNumber,
+		&i.OrderTotalAmount,
+		&i.OrderRefundedAmount,
+		&i.OrderPaymentMethod,
+		&i.OrderPaymentStatus,
+		&i.OrderStatus,
+		&i.OrderShippingName,
+		&i.OrderShippingPhone,
+		&i.OrderShippingAddress,
+		&i.OrderCreatedAt,
+		&i.UserUuid,
+		&i.UserFullname,
+		&i.UserEmail,
+	)
+	return i, err
+}
+
 const adminGetReturns = `-- name: AdminGetReturns :many
 SELECT 
     r.return_id, r.return_uuid, r.return_order_id, r.return_user_id,

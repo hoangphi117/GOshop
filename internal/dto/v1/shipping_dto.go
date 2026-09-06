@@ -265,6 +265,46 @@ type OrderReturnDetailDTO struct {
 	Events      []TrackingEventDTO `json:"events"`
 }
 
+type ReturnCustomerDTO struct {
+	UserUUID string `json:"user_uuid"`
+	FullName string `json:"fullname"`
+	Email    string `json:"email"`
+}
+
+type ReturnOrderInfoDTO struct {
+	OrderUUID       string    `json:"order_uuid"`
+	OrderNumber     string    `json:"order_number"`
+	TotalAmount     float64   `json:"total_amount"`
+	RefundedAmount  float64   `json:"refunded_amount"`
+	PaymentMethod   string    `json:"payment_method"`
+	PaymentStatus   string    `json:"payment_status"`
+	OrderStatus     string    `json:"order_status"`
+	ShippingName    string    `json:"shipping_name"`
+	ShippingPhone   string    `json:"shipping_phone"`
+	ShippingAddress string    `json:"shipping_address"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
+type AdminReturnDetailDTO struct {
+	ReturnUUID       string             `json:"return_uuid"`
+	Reason           string             `json:"reason"`
+	Images           []string           `json:"images"`
+	VideoURL         *string            `json:"video_url,omitempty"`
+	Status           int16              `json:"status"`
+	StatusName       string             `json:"status_name"` // "Pending", "Approved", "Rejected", "Completed", "Cancelled"
+	StatusText       string             `json:"status_text"` // "Chờ duyệt", "Đã chấp thuận (Chờ gửi hàng về)", ...
+	AdminNote        *string            `json:"admin_note,omitempty"`
+	ShippingProvider *string            `json:"shipping_provider,omitempty"`
+	ShippingCode     *string            `json:"shipping_code,omitempty"`
+	ShippingNote     *string            `json:"shipping_note,omitempty"`
+	CreatedAt        time.Time          `json:"created_at"`
+	UpdatedAt        time.Time          `json:"updated_at"`
+	Customer         ReturnCustomerDTO  `json:"customer"`
+	Order            ReturnOrderInfoDTO `json:"order"`
+	Items            []OrderItemDTO     `json:"items"`
+	Events           []TrackingEventDTO `json:"events"`
+}
+
 type CancelOrderReturnResponseDTO struct {
 	ReturnUUID   string    `json:"return_uuid"`
 	OrderUUID    string    `json:"order_uuid"`

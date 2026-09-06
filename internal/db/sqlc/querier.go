@@ -17,6 +17,8 @@ type Querier interface {
 	// stock nghiêm ngặt.
 	AddOrUpdateCartItem(ctx context.Context, arg AddOrUpdateCartItemParams) (CartItem, error)
 	AdminCountReturns(ctx context.Context, arg AdminCountReturnsParams) (int64, error)
+	AdminGetLatestReturnByOrderID(ctx context.Context, returnOrderID int32) (AdminGetLatestReturnByOrderIDRow, error)
+	AdminGetReturnByUUID(ctx context.Context, returnUuid uuid.UUID) (AdminGetReturnByUUIDRow, error)
 	AdminGetReturns(ctx context.Context, arg AdminGetReturnsParams) ([]AdminGetReturnsRow, error)
 	CancelOrder(ctx context.Context, orderUuid uuid.UUID) (Order, error)
 	CancelOrderShipping(ctx context.Context, orderUuid uuid.UUID) (Order, error)

@@ -35,6 +35,7 @@ func (or *AdminOrderRoutes) Register(r *gin.RouterGroup) {
 	returns := r.Group("/returns")
 	{
 		returns.GET("", or.handler.AdminGetReturns)                       // GET /api/v1/admin/returns
+		returns.GET("/:uuid", or.handler.AdminGetReturnDetail)            // GET /api/v1/admin/returns/:uuid
 		returns.PATCH("/:uuid", or.handler.AdminUpdateReturnStatus)       // PATCH /api/v1/admin/returns/:uuid
 		returns.POST("/:uuid/refund", or.handler.AdminProcessReturnRefund) // POST /api/v1/admin/returns/:uuid/refund
 	}

@@ -84,6 +84,14 @@ func (r *SqlOrderReturnsRepository) CountReturnsByUserID(ctx context.Context, pa
 	return count, nil
 }
 
+func (r *SqlOrderReturnsRepository) AdminGetReturnByUUID(ctx context.Context, returnUUID uuid.UUID) (sqlc.AdminGetReturnByUUIDRow, error) {
+	return r.db.AdminGetReturnByUUID(ctx, returnUUID)
+}
+
+func (r *SqlOrderReturnsRepository) AdminGetLatestReturnByOrderID(ctx context.Context, orderID int32) (sqlc.AdminGetLatestReturnByOrderIDRow, error) {
+	return r.db.AdminGetLatestReturnByOrderID(ctx, orderID)
+}
+
 func (r *SqlOrderReturnsRepository) UpdateStatus(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReturnStatusParams) (sqlc.OrderReturn, error) {
 	q := sqlc.New(tx)
 	returnOrder, err := q.UpdateReturnStatus(ctx, params)
