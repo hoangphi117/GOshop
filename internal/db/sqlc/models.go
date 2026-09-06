@@ -126,6 +126,8 @@ type OrderReturn struct {
 	ReturnAdminNote *string   `json:"return_admin_note"`
 	ReturnCreatedAt time.Time `json:"return_created_at"`
 	ReturnUpdatedAt time.Time `json:"return_updated_at"`
+	ReturnImages    []string  `json:"return_images"`
+	ReturnVideoUrl  *string   `json:"return_video_url"`
 }
 
 type OrderTrackingEvent struct {

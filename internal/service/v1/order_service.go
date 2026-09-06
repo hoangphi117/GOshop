@@ -61,6 +61,7 @@ const (
 type orderService struct {
 	orderRepo       repository.OrderRepository
 	orderItemRepo   repository.OrderItemRepository
+	orderReturnRepo repository.OrderReturnsRepository
 	productRepo     repository.ProductRepository
 	userRepo        repository.UserRepository
 	cartService     CartService
@@ -73,7 +74,9 @@ type orderService struct {
 	rabbitmq        rabbitmq.RabbitMQService
 }
 
-func NewOrderService(orderRepo repository.OrderRepository, orderItemRepo repository.OrderItemRepository,
+func NewOrderService(orderRepo repository.OrderRepository,
+	orderItemRepo repository.OrderItemRepository,
+	orderReturnRepo repository.OrderReturnsRepository,
 	productRepo repository.ProductRepository,
 	userRepo repository.UserRepository,
 	cartService CartService,
@@ -87,6 +90,7 @@ func NewOrderService(orderRepo repository.OrderRepository, orderItemRepo reposit
 	return &orderService{
 		orderRepo:       orderRepo,
 		orderItemRepo:   orderItemRepo,
+		orderReturnRepo: orderReturnRepo,
 		productRepo:     productRepo,
 		userRepo:        userRepo,
 		cartService:     cartService,
@@ -1686,6 +1690,7 @@ func (s *orderService) GetDistricts(ctx *gin.Context, provinceID int) ([]v1dto.D
 
 	return districts, nil
 }
+
 func (s *orderService) GetWards(ctx *gin.Context, districtID int) ([]v1dto.WardDTO, error) {
 	reqCtx := ctx.Request.Context()
 
@@ -1712,4 +1717,98 @@ func (s *orderService) GetWards(ctx *gin.Context, districtID int) ([]v1dto.WardD
 	_ = s.cache.Set(cacheKey, wards, addressCacheTTL)
 
 	return wards, nil
+}
+
+func (s *orderService) RequestOrderReturn(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.CreateOrderReturnInput, imageURLs []string, videoURL *string) (v1dto.OrderReturnDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	userUUIDStr, ok := ctx.Get("user_uuid")
+	if !ok || userUUIDStr == "" {
+		return v1dto.OrderReturnDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+
+	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	if err != nil {
+		return v1dto.OrderReturnDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
+	}
+
+	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
+	if err != nil {
+		return v1dto.OrderReturnDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
+
+	order, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return v1dto.OrderReturnDTO{}, utils.NewError(utils.ErrCodeNotFound, "Order not found")
+		}
+		return v1dto.OrderReturnDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
+	}
+
+	if order.OrderUserID != user.UserID {
+		return v1dto.OrderReturnDTO{}, utils.NewError(utils.ErrCodeForbidden, "Access denied")
+	}
+
+	if order.OrderStatus != OrderStatusDelivered {
+		return v1dto.OrderReturnDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Order is not eligible for return. Only delivered orders can be returned.")
+	}
+
+	if order.OrderDeliveredAt.Valid {
+		deliveredTime := order.OrderDeliveredAt.Time
+		if time.Since(deliveredTime) > 7*24*time.Hour {
+			return v1dto.OrderReturnDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Return request period has expired. Returns can only be requested within 7 days of delivery.")
+		}
+	}
+
+	existingReturn, err := s.orderReturnRepo.GetActiveByOrderID(reqCtx, order.OrderID)
+	if err == nil && existingReturn.ReturnID > 0 {
+		return v1dto.OrderReturnDTO{}, utils.NewError(utils.ErrCodeConflict, "An active return request already exists for this order")
+	} else if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return v1dto.OrderReturnDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to check existing return request", err)
+	}
+
+	tx, err := db.BeginTx(reqCtx)
+	if err != nil {
+		return v1dto.OrderReturnDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to begin transaction", err)
+	}
+	defer tx.Rollback(reqCtx)
+
+	createdReturn, err := s.orderReturnRepo.Create(reqCtx, tx, sqlc.CreateOrderReturnParams{
+		ReturnOrderID:  order.OrderID,
+		ReturnReason:   input.Reason,
+		ReturnUserID:   user.UserID,
+		ReturnImages:   imageURLs,
+		ReturnVideoUrl: videoURL,
+	})
+	if err != nil {
+		return v1dto.OrderReturnDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to create return request", err)
+	}
+
+	eventNote := fmt.Sprintf("Return request created by user. Reason: %s", input.Reason)
+	_, err = s.trackingRepo.InsertEvent(reqCtx, tx, sqlc.InsertTrackingEventParams{
+		EventOrderID: order.OrderID,
+		EventStatus:  "return_requested",
+		EventNote:    &eventNote,
+		EventSource:  "user",
+	})
+	if err != nil {
+		return v1dto.OrderReturnDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to record return tracking event", err)
+	}
+
+	if err := tx.Commit(reqCtx); err != nil {
+		return v1dto.OrderReturnDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
+	}
+
+	_ = s.cache.Clear(fmt.Sprintf("order:%s", orderUUID.String()))
+
+	return v1dto.OrderReturnDTO{
+		ReturnUUID:  createdReturn.ReturnUuid.String(),
+		OrderUUID:   orderUUID.String(),
+		OrderNumber: order.OrderNumber,
+		Reason:      createdReturn.ReturnReason,
+		Images:      createdReturn.ReturnImages,
+		VideoURL:    createdReturn.ReturnVideoUrl,
+		Status:      v1dto.MapReturnStatusToString(createdReturn.ReturnStatus),
+		CreatedAt:   createdReturn.ReturnCreatedAt,
+	}, nil
 }

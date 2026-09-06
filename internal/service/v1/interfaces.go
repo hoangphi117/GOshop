@@ -73,6 +73,8 @@ type OrderService interface {
 	GetProvinces(ctx *gin.Context) ([]v1dto.ProvinceDTO, error)
 	GetDistricts(ctx *gin.Context, provinceID int) ([]v1dto.DistrictDTO, error)
 	GetWards(ctx *gin.Context, districtID int) ([]v1dto.WardDTO, error)
+
+	RequestOrderReturn(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.CreateOrderReturnInput, imageURLs []string, videoURL *string) (v1dto.OrderReturnDTO, error)
 }
 
 type CartService interface {

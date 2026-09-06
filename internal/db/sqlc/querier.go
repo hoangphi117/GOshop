@@ -40,6 +40,7 @@ type Querier interface {
 	CreateCoupon(ctx context.Context, arg CreateCouponParams) (Coupon, error)
 	CreateOrder(ctx context.Context, arg CreateOrderParams) (Order, error)
 	CreateOrderItem(ctx context.Context, arg CreateOrderItemParams) (OrderItem, error)
+	CreateOrderReturn(ctx context.Context, arg CreateOrderReturnParams) (OrderReturn, error)
 	CreatePaymentTransaction(ctx context.Context, arg CreatePaymentTransactionParams) (PaymentTransaction, error)
 	CreateProduct(ctx context.Context, arg CreateProductParams) (CreateProductRow, error)
 	CreateRefundTransaction(ctx context.Context, arg CreateRefundTransactionParams) (PaymentTransaction, error)
@@ -55,6 +56,7 @@ type Querier interface {
 	DeleteHelpfulVote(ctx context.Context, arg DeleteHelpfulVoteParams) error
 	DeleteReview(ctx context.Context, reviewID int32) error
 	DeleteUserAddress(ctx context.Context, arg DeleteUserAddressParams) (bool, error)
+	GetActiveReturnByOrderID(ctx context.Context, returnOrderID int32) (OrderReturn, error)
 	GetByUUIDsForUpdate(ctx context.Context, uuids []uuid.UUID) ([]GetByUUIDsForUpdateRow, error)
 	// Khác GetOrCreateCartByUserID: KHÔNG tự tạo cart nếu chưa có. Dùng cho
 	// CleanupCartAfterOrder — nếu user chưa từng có giỏ hàng (mua thẳng, không qua
@@ -86,6 +88,7 @@ type Querier interface {
 	GetProductBySlug(ctx context.Context, productSlug string) (GetProductBySlugRow, error)
 	GetProductByUUID(ctx context.Context, productUuid uuid.UUID) (GetProductByUUIDRow, error)
 	GetProductRatingSummary(ctx context.Context, reviewProductID int32) (GetProductRatingSummaryRow, error)
+	GetReturnByUUID(ctx context.Context, returnUuid uuid.UUID) (OrderReturn, error)
 	GetReviewByUUID(ctx context.Context, reviewUuid uuid.UUID) (GetReviewByUUIDRow, error)
 	GetReviewsByUserID(ctx context.Context, arg GetReviewsByUserIDParams) ([]GetReviewsByUserIDRow, error)
 	GetTrackingEventsByOrderID(ctx context.Context, eventOrderID int32) ([]OrderTrackingEvent, error)

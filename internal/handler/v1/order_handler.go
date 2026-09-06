@@ -8,6 +8,8 @@ import (
 	"goshop/internal/utils"
 	"goshop/internal/validation"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -426,4 +428,82 @@ func (oh *OrderHandler) GetWards(ctx *gin.Context) {
 		return
 	}
 	utils.ResponseSuccess(ctx, http.StatusOK, "Wards retrieved successfully", wards)
+}
+
+func (oh *OrderHandler) RequestOrderReturn(ctx *gin.Context) {
+	var params v1dto.GetOrderByUUIDParam
+	if err := ctx.ShouldBindUri(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	orderUUID, err := uuid.Parse(params.UUID)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid order UUID"))
+		return
+	}
+
+	var input v1dto.CreateOrderReturnInput
+	if err := ctx.ShouldBind(&input); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	form, _ := ctx.MultipartForm()
+	var images []string
+	var videoURL *string
+	var savedFiles []string
+
+	uploadDir := "./uploads/returns/"
+
+	if form != nil && form.File["files"] != nil {
+		files := form.File["files"]
+		if len(files) > 6 {
+			utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "You can upload a maximum of 5 images and 1 video"))
+			return
+		}
+
+		for _, fileHeader := range files {
+			fileName, mediaType, err := utils.ValidateAndSaveFile(fileHeader, uploadDir)
+			if err != nil {
+				oh.cleanupFiles(savedFiles, uploadDir)
+				utils.ResponseError(ctx, err)
+				return
+			}
+			savedFiles = append(savedFiles, fileName)
+			fileRelativePath := fmt.Sprintf("/uploads/returns/%s", fileName)
+
+			switch mediaType {
+			case "image":
+				if len(images) >= 5 {
+					oh.cleanupFiles(savedFiles, uploadDir)
+					utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "You can upload a maximum of 5 images"))
+					return
+				}
+				images = append(images, fileRelativePath)
+			case "video":
+				if videoURL != nil {
+					oh.cleanupFiles(savedFiles, uploadDir)
+					utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "You can upload only 1 video"))
+					return
+				}
+				videoURL = &fileRelativePath
+			}
+		}
+	}
+
+	returnDTO, err := oh.service.RequestOrderReturn(ctx, orderUUID, input, images, videoURL)
+	if err != nil {
+		oh.cleanupFiles(savedFiles, uploadDir)
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusCreated, "Order return request created successfully", returnDTO)
+}
+
+func (oh *OrderHandler) cleanupFiles(fileNames []string, uploadDir string) {
+	for _, name := range fileNames {
+		_ = os.Remove(filepath.Join(uploadDir, name))
+	}
 }

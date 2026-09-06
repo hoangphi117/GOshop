@@ -24,6 +24,10 @@ type GetPrintBillParams struct {
 	UUID string `uri:"uuid" binding:"required,uuid"`
 }
 
+type CreateOrderReturnParam struct {
+	UUID string `uri:"uuid" binding:"required,uuid"`
+}
+
 type GetDistrictsQuery struct {
 	ProvinceID int `form:"province_id" binding:"required,gt=0"`
 }
@@ -61,6 +65,10 @@ type CancelShippingInput struct {
 	Reason string `json:"reason" binding:"omitempty,max=500"` // Lý do hủy đơn vận chuyển
 }
 
+type CreateOrderReturnInput struct {
+	Reason string `form:"reason" json:"reason" binding:"required,min=10,max=1000"`
+}
+
 // ── DTO ───────────────────────────────────────────────
 
 // Thông tin từng mốc sự kiện trong timeline
@@ -88,6 +96,17 @@ type WardDTO struct {
 	WardCode   string `json:"ward_code"`
 	DistrictID int    `json:"district_id"`
 	WardName   string `json:"ward_name"`
+}
+
+type OrderReturnDTO struct {
+	ReturnUUID  string    `json:"return_uuid"`
+	OrderUUID   string    `json:"order_uuid"`
+	OrderNumber string    `json:"order_number"`
+	Reason      string    `json:"reason"`
+	Images      []string  `json:"images"`
+	VideoURL    *string   `json:"video_url,omitempty"`
+	Status      string    `json:"status"` // "Pending", "Approved", "Rejected", "Completed"
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 // ── Response ───────────────────────────────────────────────
@@ -201,4 +220,19 @@ func MapToEventDTOs(events []sqlc.OrderTrackingEvent) []TrackingEventDTO {
 		})
 	}
 	return eventDTOs
+}
+
+func MapReturnStatusToString(status int16) string {
+	switch status {
+	case 1:
+		return "Pending"
+	case 2:
+		return "Approved"
+	case 3:
+		return "Rejected"
+	case 4:
+		return "Completed"
+	default:
+		return "Unknown"
+	}
 }

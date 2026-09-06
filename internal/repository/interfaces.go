@@ -70,6 +70,11 @@ type OrderRepository interface {
 	CancelShipping(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID) (sqlc.Order, error)
 }
 
+type OrderReturnsRepository interface {
+	Create(ctx context.Context, tx pgx.Tx, params sqlc.CreateOrderReturnParams) (sqlc.OrderReturn, error)
+	GetActiveByOrderID(ctx context.Context, orderID int32) (sqlc.OrderReturn, error)
+}
+
 type TrackingRepository interface {
 	InsertEvent(ctx context.Context, tx pgx.Tx, params sqlc.InsertTrackingEventParams) (sqlc.OrderTrackingEvent, error)
 	GetByOrderID(ctx context.Context, orderID int32) ([]sqlc.OrderTrackingEvent, error)

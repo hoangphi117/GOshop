@@ -23,6 +23,7 @@ func NewOrderModule(ctx *ModuleContext, rabbitmqService rabbitmq.RabbitMQService
 
 	orderRepo := repository.NewSqlOrderRepository(ctx.DB)
 	orderItemRepo := repository.NewSqlOrderItemRepository(ctx.DB)
+	orderReturnRepo := repository.NewSqlOrderReturnsRepository(ctx.DB)
 	trackingRepo := repository.NewSqlTrackingRepository(ctx.DB)
 
 	// Giao Hàng Nhanh (GHN) Adapter
@@ -41,7 +42,7 @@ func NewOrderModule(ctx *ModuleContext, rabbitmqService rabbitmq.RabbitMQService
 	couponRepo := repository.NewSqlCouponRepository(ctx.DB)
 	webhookRepo := repository.NewSqlWebhookEventRepository(ctx.DB)
 
-	orderService := v1service.NewOrderService(orderRepo, orderItemRepo, productRepo, userRepo,
+	orderService := v1service.NewOrderService(orderRepo, orderItemRepo, orderReturnRepo, productRepo, userRepo,
 		cartService, cartRepo, couponRepo, trackingRepo, webhookRepo, ctx.Redis, shippingFactory, rabbitmqService)
 
 	go func() {
