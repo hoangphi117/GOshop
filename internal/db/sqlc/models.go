@@ -121,13 +121,16 @@ type OrderReturn struct {
 	ReturnOrderID int32     `json:"return_order_id"`
 	ReturnUserID  int32     `json:"return_user_id"`
 	ReturnReason  string    `json:"return_reason"`
-	// 1: Pending, 2: Approved, 3: Rejected, 4: Completed
-	ReturnStatus    int16     `json:"return_status"`
-	ReturnAdminNote *string   `json:"return_admin_note"`
-	ReturnCreatedAt time.Time `json:"return_created_at"`
-	ReturnUpdatedAt time.Time `json:"return_updated_at"`
-	ReturnImages    []string  `json:"return_images"`
-	ReturnVideoUrl  *string   `json:"return_video_url"`
+	// 1: Pending, 2: Approved, 3: Rejected, 4: Completed, 5: Cancelled
+	ReturnStatus           int16     `json:"return_status"`
+	ReturnAdminNote        *string   `json:"return_admin_note"`
+	ReturnCreatedAt        time.Time `json:"return_created_at"`
+	ReturnUpdatedAt        time.Time `json:"return_updated_at"`
+	ReturnImages           []string  `json:"return_images"`
+	ReturnVideoUrl         *string   `json:"return_video_url"`
+	ReturnShippingProvider *string   `json:"return_shipping_provider"`
+	ReturnShippingCode     *string   `json:"return_shipping_code"`
+	ReturnShippingNote     *string   `json:"return_shipping_note"`
 }
 
 type OrderTrackingEvent struct {

@@ -609,3 +609,31 @@ func (oh *OrderHandler) CancelOrderReturn(ctx *gin.Context) {
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Order return cancelled successfully", res)
 }
+
+func (oh *OrderHandler) SubmitReturnShipping(ctx *gin.Context) {
+	var params v1dto.GetOrderByUUIDParam
+	if err := ctx.ShouldBindUri(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	orderUUID, err := uuid.Parse(params.UUID)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid order UUID"))
+		return
+	}
+
+	var input v1dto.SubmitReturnShippingInput
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	res, err := oh.service.SubmitReturnShipping(ctx, orderUUID, input)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Return shipping information submitted successfully", res)
+}

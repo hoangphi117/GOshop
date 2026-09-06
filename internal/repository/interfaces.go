@@ -79,6 +79,7 @@ type OrderReturnsRepository interface {
 	GetByUUID(ctx context.Context, returnUUID uuid.UUID) (sqlc.OrderReturn, error)
 	CountReturns(ctx context.Context, params sqlc.AdminCountReturnsParams) (int64, error)
 	UpdateStatus(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReturnStatusParams) (sqlc.OrderReturn, error)
+	UpdateReturnShippingInfo(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReturnShippingInfoParams) (sqlc.OrderReturn, error)
 }
 
 type TrackingRepository interface {

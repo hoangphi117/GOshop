@@ -76,3 +76,12 @@ func (r *SqlOrderReturnsRepository) UpdateStatus(ctx context.Context, tx pgx.Tx,
 	}
 	return returnOrder, nil
 }
+
+func (r *SqlOrderReturnsRepository) UpdateReturnShippingInfo(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReturnShippingInfoParams) (sqlc.OrderReturn, error) {
+	q := sqlc.New(tx)
+	returnOrder, err := q.UpdateReturnShippingInfo(ctx, params)
+	if err != nil {
+		return sqlc.OrderReturn{}, err
+	}
+	return returnOrder, nil
+}

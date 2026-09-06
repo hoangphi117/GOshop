@@ -61,11 +61,19 @@ WHERE (sqlc.narg('status')::smallint IS NULL OR r.return_status = sqlc.narg('sta
       OR u.user_email ILIKE '%' || sqlc.narg('search') || '%'
   ));
 
-
 -- name: UpdateReturnStatus :one
 UPDATE order_returns SET
     return_status     = sqlc.arg('status'),
     return_admin_note = sqlc.narg('admin_note'),
     return_updated_at = now()
 WHERE return_uuid = sqlc.arg('return_uuid')
+RETURNING *;
+
+-- name: UpdateReturnShippingInfo :one
+UPDATE order_returns SET
+    return_shipping_provider = $1,
+    return_shipping_code     = $2,
+    return_shipping_note     = $3,
+    return_updated_at        = now()
+WHERE return_uuid = $4
 RETURNING *;

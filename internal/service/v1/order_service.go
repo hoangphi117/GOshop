@@ -2217,3 +2217,136 @@ func (s *orderService) CancelOrderReturn(ctx *gin.Context, orderUUID uuid.UUID, 
 		Message:      "Return request cancelled successfully.",
 	}, nil
 }
+
+func (s *orderService) SubmitReturnShipping(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.SubmitReturnShippingInput) (v1dto.SubmitReturnShippingResponseDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	userUUIDStr, ok := ctx.Get("user_uuid")
+	if !ok || userUUIDStr == "" {
+		return v1dto.SubmitReturnShippingResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	if err != nil {
+		return v1dto.SubmitReturnShippingResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
+	}
+	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
+	if err != nil {
+		return v1dto.SubmitReturnShippingResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
+
+	var returnRequest sqlc.OrderReturn
+	var orderOrderUUID uuid.UUID
+	var orderNumber string
+	var orderUserID int32
+
+	orderByUUID, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
+	if err == nil {
+		orderOrderUUID = orderByUUID.OrderUuid
+		orderNumber = orderByUUID.OrderNumber
+		orderUserID = orderByUUID.OrderUserID
+		returnRequest, err = s.orderReturnRepo.GetLatestByOrderID(reqCtx, orderByUUID.OrderID)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return v1dto.SubmitReturnShippingResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "No return request found for this order")
+			}
+			return v1dto.SubmitReturnShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get return request", err)
+		}
+	} else if errors.Is(err, pgx.ErrNoRows) {
+		returnByUUID, rErr := s.orderReturnRepo.GetByUUID(reqCtx, orderUUID)
+		if rErr != nil {
+			if errors.Is(rErr, pgx.ErrNoRows) {
+				return v1dto.SubmitReturnShippingResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "No order or return request found")
+			}
+			return v1dto.SubmitReturnShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get return request", rErr)
+		}
+		returnRequest = returnByUUID
+		orderRow, oErr := s.orderRepo.GetByID(reqCtx, returnRequest.ReturnOrderID)
+		if oErr != nil {
+			return v1dto.SubmitReturnShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order for return request", oErr)
+		}
+		orderOrderUUID = orderRow.OrderUuid
+		orderNumber = orderRow.OrderNumber
+		orderUserID = orderRow.OrderUserID
+	} else {
+		return v1dto.SubmitReturnShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
+	}
+
+	isAdminOrMod := user.UserLevel == RoleAdmin || user.UserLevel == RoleModerator
+	if orderUserID != user.UserID && returnRequest.ReturnUserID != user.UserID && !isAdminOrMod {
+		return v1dto.SubmitReturnShippingResponseDTO{}, utils.NewError(utils.ErrCodeForbidden, "Access denied")
+	}
+
+	if returnRequest.ReturnStatus != OrderReturnStatusApproved {
+		var errMsg string
+		switch returnRequest.ReturnStatus {
+		case OrderReturnStatusPending:
+			errMsg = "Return request is pending approval. Please do not ship the item without store approval."
+		case OrderReturnStatusRejected:
+			errMsg = "Return request has been rejected. You cannot update shipping information."
+		case OrderReturnStatusCompleted:
+			errMsg = "Return request has been completed."
+		case OrderReturnStatusCancelled:
+			errMsg = "Return request has been cancelled."
+		default:
+			errMsg = "Invalid return request status for updating shipping information."
+		}
+		return v1dto.SubmitReturnShippingResponseDTO{}, utils.NewError(utils.ErrCodeBadRequest, errMsg)
+	}
+
+	provider := strings.TrimSpace(input.ShippingProvider)
+	shippingCode := strings.ToUpper(strings.TrimSpace(input.ShippingCode))
+	var note *string
+	if strings.TrimSpace(input.Note) != "" {
+		n := strings.TrimSpace(input.Note)
+		note = &n
+	}
+
+	txCtx, cancel := context.WithTimeout(reqCtx, 10*time.Second)
+	defer cancel()
+	tx, err := db.BeginTx(txCtx)
+	if err != nil {
+		return v1dto.SubmitReturnShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to begin transaction", err)
+	}
+	defer tx.Rollback(txCtx)
+	updatedReturn, err := s.orderReturnRepo.UpdateReturnShippingInfo(txCtx, tx, sqlc.UpdateReturnShippingInfoParams{
+		ReturnShippingProvider: &provider,
+		ReturnShippingCode:     &shippingCode,
+		ReturnShippingNote:     note,
+		ReturnUuid:             returnRequest.ReturnUuid,
+	})
+	if err != nil {
+		return v1dto.SubmitReturnShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to update return shipping info", err)
+	}
+
+	eventNote := fmt.Sprintf("User submitted return shipping info for %s (Tracking Code: %s).", strings.ToUpper(provider), shippingCode)
+	if note != nil {
+		eventNote += fmt.Sprintf(" Note: %s", *note)
+	}
+	_, err = s.trackingRepo.InsertEvent(txCtx, tx, sqlc.InsertTrackingEventParams{
+		EventOrderID: returnRequest.ReturnOrderID,
+		EventStatus:  "return_shipping_submitted",
+		EventNote:    &eventNote,
+		EventSource:  "user",
+	})
+	if err != nil {
+		return v1dto.SubmitReturnShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to record tracking event", err)
+	}
+	if err := tx.Commit(txCtx); err != nil {
+		return v1dto.SubmitReturnShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
+	}
+
+	_ = s.cache.Clear(fmt.Sprintf("order:%s", orderOrderUUID.String()))
+	return v1dto.SubmitReturnShippingResponseDTO{
+		ReturnUUID:       updatedReturn.ReturnUuid.String(),
+		OrderUUID:        orderOrderUUID.String(),
+		OrderNumber:      orderNumber,
+		ShippingProvider: provider,
+		ShippingCode:     shippingCode,
+		Note:             note,
+		Status:           updatedReturn.ReturnStatus,
+		StatusName:       v1dto.MapReturnStatusToString(updatedReturn.ReturnStatus),
+		StatusText:       v1dto.MapReturnStatusToVietnamese(updatedReturn.ReturnStatus),
+		UpdatedAt:        updatedReturn.ReturnUpdatedAt,
+		Message:          "Return shipping information submitted successfully. Please wait for the store to process your return request.",
+	}, nil
+}

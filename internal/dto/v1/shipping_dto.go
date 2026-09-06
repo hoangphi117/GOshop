@@ -89,6 +89,12 @@ type AdminUpdateReturnInput struct {
 	AdminNote *string `json:"admin_note" binding:"omitempty,max=500"`
 }
 
+type SubmitReturnShippingInput struct {
+	ShippingProvider string `json:"shipping_provider" binding:"required,min=2,max=50"`
+	ShippingCode     string `json:"shipping_code" binding:"required,min=3,max=100"`
+	Note             string `json:"note" binding:"omitempty,max=500"`
+}
+
 // ── DTO ───────────────────────────────────────────────
 
 // Thông tin từng mốc sự kiện trong timeline
@@ -241,6 +247,20 @@ type CancelOrderReturnResponseDTO struct {
 	CancelReason string    `json:"cancel_reason,omitempty"`
 	UpdatedAt    time.Time `json:"updated_at"`
 	Message      string    `json:"message"`
+}
+
+type SubmitReturnShippingResponseDTO struct {
+	ReturnUUID       string    `json:"return_uuid"`
+	OrderUUID        string    `json:"order_uuid"`
+	OrderNumber      string    `json:"order_number"`
+	ShippingProvider string    `json:"shipping_provider"`
+	ShippingCode     string    `json:"shipping_code"`
+	Note             *string   `json:"note,omitempty"`
+	Status           int16     `json:"status"`
+	StatusName       string    `json:"status_name"`
+	StatusText       string    `json:"status_text"`
+	UpdatedAt        time.Time `json:"updated_at"`
+	Message          string    `json:"message"`
 }
 
 // ── Helper Functions ────────────────────────────────────────────────
