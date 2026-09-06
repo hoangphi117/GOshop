@@ -14,6 +14,7 @@ import (
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
+	"goshop/pkg/payment"
 	"goshop/pkg/pdf"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/shipping"
@@ -66,19 +67,21 @@ const (
 )
 
 type orderService struct {
-	orderRepo       repository.OrderRepository
-	orderItemRepo   repository.OrderItemRepository
-	orderReturnRepo repository.OrderReturnsRepository
-	productRepo     repository.ProductRepository
-	userRepo        repository.UserRepository
-	cartService     CartService
-	cartRepo        repository.CartRepository
-	couponRepo      repository.CouponRepository
-	trackingRepo    repository.TrackingRepository
-	webhookRepo     repository.WebhookEventRepository
-	cache           cache.RedisCacheService
-	shippingFactory *shipping.ShippingFactory
-	rabbitmq        rabbitmq.RabbitMQService
+	orderRepo        repository.OrderRepository
+	orderItemRepo    repository.OrderItemRepository
+	orderReturnRepo  repository.OrderReturnsRepository
+	productRepo      repository.ProductRepository
+	userRepo         repository.UserRepository
+	cartService      CartService
+	cartRepo         repository.CartRepository
+	couponRepo       repository.CouponRepository
+	trackingRepo     repository.TrackingRepository
+	webhookRepo      repository.WebhookEventRepository
+	paymentRepo      repository.PaymentRepository
+	paymentProviders map[string]payment.PaymentProvider
+	cache            cache.RedisCacheService
+	shippingFactory  *shipping.ShippingFactory
+	rabbitmq         rabbitmq.RabbitMQService
 }
 
 func NewOrderService(orderRepo repository.OrderRepository,
@@ -91,23 +94,27 @@ func NewOrderService(orderRepo repository.OrderRepository,
 	couponRepo repository.CouponRepository,
 	trackingRepo repository.TrackingRepository,
 	webhookRepo repository.WebhookEventRepository,
+	paymentRepo repository.PaymentRepository,
+	paymentProviders map[string]payment.PaymentProvider,
 	redisClient *redis.Client,
 	shippingFactory *shipping.ShippingFactory,
 	rabbitmq rabbitmq.RabbitMQService) OrderService {
 	return &orderService{
-		orderRepo:       orderRepo,
-		orderItemRepo:   orderItemRepo,
-		orderReturnRepo: orderReturnRepo,
-		productRepo:     productRepo,
-		userRepo:        userRepo,
-		cartService:     cartService,
-		cartRepo:        cartRepo,
-		couponRepo:      couponRepo,
-		trackingRepo:    trackingRepo,
-		webhookRepo:     webhookRepo,
-		cache:           cache.NewRedisCacheService(redisClient),
-		shippingFactory: shippingFactory,
-		rabbitmq:        rabbitmq,
+		orderRepo:        orderRepo,
+		orderItemRepo:    orderItemRepo,
+		orderReturnRepo:  orderReturnRepo,
+		productRepo:      productRepo,
+		userRepo:         userRepo,
+		cartService:      cartService,
+		cartRepo:         cartRepo,
+		couponRepo:       couponRepo,
+		trackingRepo:     trackingRepo,
+		webhookRepo:      webhookRepo,
+		paymentRepo:      paymentRepo,
+		paymentProviders: paymentProviders,
+		cache:            cache.NewRedisCacheService(redisClient),
+		shippingFactory:  shippingFactory,
+		rabbitmq:         rabbitmq,
 	}
 }
 
@@ -2098,6 +2105,92 @@ func (s *orderService) GetOrderReturnDetails(ctx *gin.Context, orderUUID uuid.UU
 	}, nil
 }
 
+func (s *orderService) GetMyOrderReturns(ctx *gin.Context, query v1dto.GetMyOrderReturnsQuery) ([]v1dto.UserReturnSummaryDTO, int64, error) {
+	reqCtx := ctx.Request.Context()
+
+	userUUIDStr, ok := ctx.Get("user_uuid")
+	if !ok || userUUIDStr == "" {
+		return nil, 0, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+
+	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	if err != nil {
+		return nil, 0, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
+	}
+
+	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
+	if err != nil {
+		return nil, 0, utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
+
+	page := query.Page
+	if page <= 0 {
+		page = 1
+	}
+
+	limit := query.Limit
+	if limit <= 0 || limit > 100 {
+		limit = 10
+	}
+	offset := (page - 1) * limit
+
+	var search *string
+	if strings.TrimSpace(query.Search) != "" {
+		trimmed := strings.TrimSpace(query.Search)
+		search = &trimmed
+	}
+
+	total, err := s.orderReturnRepo.CountReturnsByUserID(reqCtx, sqlc.CountReturnsByUserIDParams{
+		UserID: user.UserID,
+		Status: query.Status,
+		Search: search,
+	})
+	if err != nil {
+		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "Failed to count return requests", err)
+	}
+
+	if total == 0 {
+		return []v1dto.UserReturnSummaryDTO{}, 0, nil
+	}
+
+	rows, err := s.orderReturnRepo.GetReturnsByUserID(reqCtx, sqlc.GetReturnsByUserIDParams{
+		UserID: user.UserID,
+		Status: query.Status,
+		Search: search,
+		Limit:  limit,
+		Offset: offset,
+	})
+	if err != nil {
+		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "Failed to get return requests", err)
+	}
+
+	result := make([]v1dto.UserReturnSummaryDTO, len(rows))
+	for i, r := range rows {
+		result[i] = v1dto.UserReturnSummaryDTO{
+			ReturnUUID:       r.ReturnUuid.String(),
+			OrderUUID:        r.OrderUuid.String(),
+			OrderNumber:      r.OrderNumber,
+			TotalAmount:      utils.NumericToFloat(r.OrderTotalAmount),
+			PaymentMethod:    v1dto.MapPaymentMethodToString(r.OrderPaymentMethod),
+			PaymentStatus:    v1dto.MapPaymentStatusToString(r.OrderPaymentStatus),
+			Reason:           r.ReturnReason,
+			Images:           r.ReturnImages,
+			VideoURL:         r.ReturnVideoUrl,
+			Status:           r.ReturnStatus,
+			StatusName:       v1dto.MapReturnStatusToString(r.ReturnStatus),
+			StatusText:       v1dto.MapReturnStatusToVietnamese(r.ReturnStatus),
+			AdminNote:        r.ReturnAdminNote,
+			ShippingProvider: r.ReturnShippingProvider,
+			ShippingCode:     r.ReturnShippingCode,
+			ShippingNote:     r.ReturnShippingNote,
+			CreatedAt:        r.ReturnCreatedAt,
+			UpdatedAt:        r.ReturnUpdatedAt,
+		}
+	}
+
+	return result, total, nil
+}
+
 func (s *orderService) CancelOrderReturn(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.CancelOrderReturnInput) (v1dto.CancelOrderReturnResponseDTO, error) {
 	reqCtx := ctx.Request.Context()
 
@@ -2348,5 +2441,251 @@ func (s *orderService) SubmitReturnShipping(ctx *gin.Context, orderUUID uuid.UUI
 		StatusText:       v1dto.MapReturnStatusToVietnamese(updatedReturn.ReturnStatus),
 		UpdatedAt:        updatedReturn.ReturnUpdatedAt,
 		Message:          "Return shipping information submitted successfully. Please wait for the store to process your return request.",
+	}, nil
+}
+
+func (s *orderService) AdminProcessReturnRefund(ctx *gin.Context, returnUUID uuid.UUID, input v1dto.AdminReturnRefundInput) (v1dto.AdminReturnRefundResponseDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	userUUIDStr, ok := ctx.Get("user_uuid")
+	if !ok || userUUIDStr == "" {
+		return v1dto.AdminReturnRefundResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+
+	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	if err != nil {
+		return v1dto.AdminReturnRefundResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
+	}
+
+	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
+	if err != nil {
+		return v1dto.AdminReturnRefundResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
+
+	if user.UserLevel != RoleAdmin && user.UserLevel != RoleModerator {
+		return v1dto.AdminReturnRefundResponseDTO{}, utils.NewError(utils.ErrCodeForbidden, "Admin or Moderator access required")
+	}
+
+	var returnRequest sqlc.OrderReturn
+	var orderID int32
+
+	returnByUUID, err := s.orderReturnRepo.GetByUUID(reqCtx, returnUUID)
+	if err == nil {
+		returnRequest = returnByUUID
+		orderID = returnRequest.ReturnOrderID
+	} else if errors.Is(err, pgx.ErrNoRows) {
+		orderByUUID, oErr := s.orderRepo.GetByUUID(reqCtx, returnUUID)
+		if oErr != nil {
+			if errors.Is(oErr, pgx.ErrNoRows) {
+				return v1dto.AdminReturnRefundResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "Return request or order not found")
+			}
+			return v1dto.AdminReturnRefundResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", oErr)
+		}
+		orderID = orderByUUID.OrderID
+		latestReturn, lErr := s.orderReturnRepo.GetLatestByOrderID(reqCtx, orderID)
+		if lErr != nil {
+			return v1dto.AdminReturnRefundResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "No return request found for this order")
+		}
+		returnRequest = latestReturn
+	} else {
+		return v1dto.AdminReturnRefundResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get return request", err)
+	}
+
+	if returnRequest.ReturnStatus != OrderReturnStatusCompleted && returnRequest.ReturnStatus != OrderReturnStatusApproved {
+		return v1dto.AdminReturnRefundResponseDTO{}, utils.NewError(
+			utils.ErrCodeBadRequest,
+			fmt.Sprintf("Refund can only be processed when return request is Approved or Completed. Current status: %s",
+				v1dto.MapReturnStatusToString(returnRequest.ReturnStatus)),
+		)
+	}
+
+	txCtx, cancel := context.WithTimeout(reqCtx, 15*time.Second)
+	defer cancel()
+
+	tx, err := db.BeginTx(txCtx)
+	if err != nil {
+		return v1dto.AdminReturnRefundResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to begin transaction", err)
+	}
+	defer tx.Rollback(txCtx)
+
+	orderInfo, err := s.orderRepo.GetByID(txCtx, orderID)
+	if err != nil {
+		return v1dto.AdminReturnRefundResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
+	}
+
+	order, err := s.orderRepo.GetByUUIDForUpdate(txCtx, tx, orderInfo.OrderUuid)
+	if err != nil {
+		return v1dto.AdminReturnRefundResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to lock order for refund", err)
+	}
+
+	if order.OrderPaymentStatus != OrderPaymentStatusPaid && order.OrderPaymentStatus != OrderPaymentStatusPartiallyRefunded {
+		return v1dto.AdminReturnRefundResponseDTO{}, utils.NewError(
+			utils.ErrCodeBadRequest,
+			fmt.Sprintf("Order is unpaid or not in an eligible state for refund. Current payment status: %s",
+				v1dto.MapPaymentStatusToString(order.OrderPaymentStatus)),
+		)
+	}
+
+	totalAmount := utils.NumericToFloat(order.OrderTotalAmount)
+	currentRefunded := utils.NumericToFloat(order.OrderRefundedAmount)
+	remainingRefundable := totalAmount - currentRefunded
+
+	if remainingRefundable <= 0 {
+		return v1dto.AdminReturnRefundResponseDTO{}, utils.NewError(utils.ErrCodeBadRequest, "This order has already been fully refunded")
+	}
+
+	refundAmount := remainingRefundable
+	if input.Amount != nil && *input.Amount > 0 {
+		if *input.Amount > remainingRefundable {
+			return v1dto.AdminReturnRefundResponseDTO{}, utils.NewError(
+				utils.ErrCodeBadRequest,
+				fmt.Sprintf("Refund amount (%.2f) exceeds maximum refundable balance (%.2f)", *input.Amount, remainingRefundable),
+			)
+		}
+		refundAmount = *input.Amount
+	}
+
+	reason := input.Reason
+	if strings.TrimSpace(reason) == "" {
+		reason = fmt.Sprintf("Refund for return request: %s", returnRequest.ReturnReason)
+	}
+
+	var refundTxnID string
+	providerName := "cod"
+
+	txns, err := s.paymentRepo.GetByOrderID(txCtx, tx, order.OrderID)
+	if err != nil {
+		return v1dto.AdminReturnRefundResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get payment history", err)
+	}
+
+	var originalTxn *sqlc.PaymentTransaction
+	for _, t := range txns {
+		if t.PtStatus == PaymentStatusPaid && t.PtRefundOf == nil {
+			originalTxn = &t
+			break
+		}
+	}
+
+	if order.OrderPaymentMethod != OrderPaymentMethodCOD && originalTxn != nil && originalTxn.PtProvider != "cod" {
+		providerName = originalTxn.PtProvider
+		provider, exists := s.paymentProviders[providerName]
+		if !exists {
+			return v1dto.AdminReturnRefundResponseDTO{}, utils.NewError(
+				utils.ErrCodeBadRequest,
+				fmt.Sprintf("Payment provider '%s' does not support automated refund API. Please process refund via manual bank transfer.", providerName),
+			)
+		}
+
+		origProviderTxnID := ""
+		if originalTxn.PtProviderTxnID != nil {
+			origProviderTxnID = *originalTxn.PtProviderTxnID
+		}
+
+		refundResp, gErr := provider.Refund(txCtx, payment.RefundRequest{
+			OrderNumber:   order.OrderNumber,
+			ProviderTxnID: origProviderTxnID,
+			Amount:        refundAmount,
+			TotalAmount:   totalAmount,
+			Reason:        reason,
+		})
+		if gErr != nil {
+			logger.Log.Error().Err(gErr).Str("provider", providerName).Msg("Gateway refund failed")
+			return v1dto.AdminReturnRefundResponseDTO{}, utils.WrapError(
+				utils.ErrCodeBadGateway,
+				fmt.Sprintf("Payment gateway %s rejected refund request: %v", strings.ToUpper(providerName), gErr),
+				gErr,
+			)
+		}
+		refundTxnID = refundResp.RefundTxnID
+	} else {
+		providerName = "bank_transfer"
+		if strings.TrimSpace(input.BankTxnRef) != "" {
+			refundTxnID = strings.TrimSpace(input.BankTxnRef)
+		} else {
+			refundTxnID = fmt.Sprintf("REFUND_BANK_%s_%d", order.OrderNumber, time.Now().Unix())
+		}
+	}
+
+	idempotencyKey := fmt.Sprintf("refund:return:%s:%.0f:%d", returnRequest.ReturnUuid.String(), refundAmount, time.Now().Unix())
+	refundNumeric := utils.FloatToNumeric(refundAmount)
+	var origPtID *int32
+	if originalTxn != nil {
+		origPtID = &originalTxn.PtID
+	}
+
+	_, err = s.paymentRepo.CreateRefund(txCtx, tx, sqlc.CreateRefundTransactionParams{
+		OrderID:        order.OrderID,
+		IdempotencyKey: idempotencyKey,
+		Provider:       providerName,
+		ProviderTxnID:  &refundTxnID,
+		Amount:         refundNumeric,
+		Currency:       "VND",
+		Status:         PaymentStatusPaid,
+		RefundOf:       origPtID,
+		RefundAmount:   refundNumeric,
+	})
+	if err != nil {
+		return v1dto.AdminReturnRefundResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to create refund transaction", err)
+	}
+
+	newTotalRefunded := currentRefunded + refundAmount
+	var newOrderStatus int32 = OrderPaymentStatusPartiallyRefunded
+	if newTotalRefunded >= totalAmount {
+		newOrderStatus = OrderPaymentStatusFullyRefunded
+	}
+
+	_, err = s.orderRepo.UpdateOrderPaymentStatus(txCtx, tx, sqlc.UpdateOrderPaymentStatusParams{
+		OrderUuid:           order.OrderUuid,
+		PaymentStatus:       newOrderStatus,
+		RefundedAmount:      utils.FloatToNumeric(newTotalRefunded),
+		AllowedFromStatuses: []int32{OrderPaymentStatusPaid, OrderPaymentStatusPartiallyRefunded},
+	})
+	if err != nil {
+		return v1dto.AdminReturnRefundResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to update order payment status", err)
+	}
+
+	eventNote := fmt.Sprintf("Refund processed successfully: %.0f VND via %s. Txn ID: %s.",
+		refundAmount, strings.ToUpper(providerName), refundTxnID)
+	if strings.TrimSpace(input.AccountingNote) != "" {
+		eventNote += fmt.Sprintf(" Note: %s", strings.TrimSpace(input.AccountingNote))
+	}
+
+	_, err = s.trackingRepo.InsertEvent(txCtx, tx, sqlc.InsertTrackingEventParams{
+		EventOrderID: order.OrderID,
+		EventStatus:  "refunded",
+		EventNote:    &eventNote,
+		EventSource:  "admin",
+	})
+	if err != nil {
+		return v1dto.AdminReturnRefundResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to record refund tracking event", err)
+	}
+
+	if err := tx.Commit(txCtx); err != nil {
+		return v1dto.AdminReturnRefundResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
+	}
+
+	_ = s.cache.Clear(fmt.Sprintf("order:%s", order.OrderUuid.String()))
+	_ = s.cache.Clear("orders:*")
+
+	logger.Log.Info().
+		Str("return_uuid", returnRequest.ReturnUuid.String()).
+		Str("order_number", order.OrderNumber).
+		Float64("refund_amount", refundAmount).
+		Str("refund_txn_id", refundTxnID).
+		Msg("Admin processed return refund successfully")
+
+	return v1dto.AdminReturnRefundResponseDTO{
+		ReturnUUID:       returnRequest.ReturnUuid.String(),
+		OrderUUID:        order.OrderUuid.String(),
+		OrderNumber:      order.OrderNumber,
+		RefundAmount:     refundAmount,
+		TotalRefunded:    newTotalRefunded,
+		OrderTotalAmount: totalAmount,
+		PaymentMethod:    v1dto.MapPaymentMethodToString(order.OrderPaymentMethod),
+		PaymentStatus:    v1dto.MapPaymentStatusToString(newOrderStatus),
+		RefundTxnID:      refundTxnID,
+		RefundProvider:   providerName,
+		RefundedAt:       time.Now(),
+		Message:          "Return refund processed successfully.",
 	}, nil
 }

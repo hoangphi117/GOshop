@@ -41,7 +41,14 @@ type GetWardsQuery struct {
 }
 
 type AdminGetReturnsQuery struct {
-	Status *int16 `form:"status" binding:"omitempty,oneof=1 2 3 4"` // 1: Pending, 2: Approved, 3: Rejected, 4: Completed
+	Status *int16 `form:"status" binding:"omitempty,oneof=1 2 3 4 5"` // 1: Pending, 2: Approved, 3: Rejected, 4: Completed, 5: Cancelled
+	Search string `form:"search" binding:"omitempty,max=100"`
+	Page   int32  `form:"page"   binding:"omitempty,gte=1"`
+	Limit  int32  `form:"limit"  binding:"omitempty,gte=1,lte=100"`
+}
+
+type GetMyOrderReturnsQuery struct {
+	Status *int16 `form:"status" binding:"omitempty,oneof=1 2 3 4 5"` // 1: Pending, 2: Approved, 3: Rejected, 4: Completed, 5: Cancelled
 	Search string `form:"search" binding:"omitempty,max=100"`
 	Page   int32  `form:"page"   binding:"omitempty,gte=1"`
 	Limit  int32  `form:"limit"  binding:"omitempty,gte=1,lte=100"`
@@ -220,6 +227,27 @@ type AdminReturnSummaryDTO struct {
 	UpdatedAt     time.Time `json:"updated_at"`
 }
 
+type UserReturnSummaryDTO struct {
+	ReturnUUID       string    `json:"return_uuid"`
+	OrderUUID        string    `json:"order_uuid"`
+	OrderNumber      string    `json:"order_number"`
+	TotalAmount      float64   `json:"total_amount"`
+	PaymentMethod    string    `json:"payment_method"`
+	PaymentStatus    string    `json:"payment_status"`
+	Reason           string    `json:"reason"`
+	Images           []string  `json:"images"`
+	VideoURL         *string   `json:"video_url,omitempty"`
+	Status           int16     `json:"status"`
+	StatusName       string    `json:"status_name"` // "Pending", "Approved", "Rejected", "Completed", "Cancelled"
+	StatusText       string    `json:"status_text"` // "Chờ duyệt", "Đã chấp thuận (Chờ gửi hàng về)", ...
+	AdminNote        *string   `json:"admin_note,omitempty"`
+	ShippingProvider *string   `json:"shipping_provider,omitempty"`
+	ShippingCode     *string   `json:"shipping_code,omitempty"`
+	ShippingNote     *string   `json:"shipping_note,omitempty"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}
+
 type OrderReturnDetailDTO struct {
 	ReturnUUID  string             `json:"return_uuid"`
 	OrderUUID   string             `json:"order_uuid"`
@@ -247,6 +275,31 @@ type CancelOrderReturnResponseDTO struct {
 	CancelReason string    `json:"cancel_reason,omitempty"`
 	UpdatedAt    time.Time `json:"updated_at"`
 	Message      string    `json:"message"`
+}
+
+type AdminReturnRefundInput struct {
+	Amount          *float64 `json:"amount" binding:"omitempty,gt=0"`
+	Reason          string   `json:"reason" binding:"omitempty,max=500"`
+	BankName        string   `json:"bank_name" binding:"omitempty,max=100"`
+	BankAccount     string   `json:"bank_account" binding:"omitempty,max=50"`
+	BankAccountName string   `json:"bank_account_name" binding:"omitempty,max=100"`
+	BankTxnRef      string   `json:"bank_txn_ref" binding:"omitempty,max=100"`
+	AccountingNote  string   `json:"accounting_note" binding:"omitempty,max=500"`
+}
+
+type AdminReturnRefundResponseDTO struct {
+	ReturnUUID       string    `json:"return_uuid"`
+	OrderUUID        string    `json:"order_uuid"`
+	OrderNumber      string    `json:"order_number"`
+	RefundAmount     float64   `json:"refund_amount"`
+	TotalRefunded    float64   `json:"total_refunded"`
+	OrderTotalAmount float64   `json:"order_total_amount"`
+	PaymentMethod    string    `json:"payment_method"`
+	PaymentStatus    string    `json:"payment_status"`
+	RefundTxnID      string    `json:"refund_txn_id"`
+	RefundProvider   string    `json:"refund_provider"`
+	RefundedAt       time.Time `json:"refunded_at"`
+	Message          string    `json:"message"`
 }
 
 type SubmitReturnShippingResponseDTO struct {

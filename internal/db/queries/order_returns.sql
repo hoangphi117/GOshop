@@ -77,3 +77,29 @@ UPDATE order_returns SET
     return_updated_at        = now()
 WHERE return_uuid = $4
 RETURNING *;
+
+-- name: GetReturnsByUserID :many
+SELECT 
+    r.return_id, r.return_uuid, r.return_order_id, r.return_user_id,
+    r.return_reason, r.return_images, r.return_video_url, r.return_status,
+    r.return_admin_note, r.return_shipping_provider, r.return_shipping_code,
+    r.return_shipping_note, r.return_created_at, r.return_updated_at,
+    o.order_uuid, o.order_number, o.order_total_amount,
+    o.order_payment_method, o.order_payment_status,
+    o.order_shipping_name, o.order_shipping_phone
+FROM order_returns r
+JOIN orders o ON o.order_id = r.return_order_id
+WHERE r.return_user_id = sqlc.arg('user_id')
+  AND (sqlc.narg('status')::smallint IS NULL OR r.return_status = sqlc.narg('status'))
+  AND (sqlc.narg('search')::text IS NULL OR o.order_number ILIKE '%' || sqlc.narg('search') || '%')
+ORDER BY r.return_created_at DESC
+LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');
+
+-- name: CountReturnsByUserID :one
+SELECT COUNT(*)
+FROM order_returns r
+JOIN orders o ON o.order_id = r.return_order_id
+WHERE r.return_user_id = sqlc.arg('user_id')
+  AND (sqlc.narg('status')::smallint IS NULL OR r.return_status = sqlc.narg('status'))
+  AND (sqlc.narg('search')::text IS NULL OR o.order_number ILIKE '%' || sqlc.narg('search') || '%');
+

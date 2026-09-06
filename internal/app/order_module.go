@@ -9,6 +9,7 @@ import (
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/utils"
 	"goshop/pkg/logger"
+	"goshop/pkg/payment"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/shipping"
 	"strconv"
@@ -42,8 +43,26 @@ func NewOrderModule(ctx *ModuleContext, rabbitmqService rabbitmq.RabbitMQService
 	couponRepo := repository.NewSqlCouponRepository(ctx.DB)
 	webhookRepo := repository.NewSqlWebhookEventRepository(ctx.DB)
 
+	paymentRepo := repository.NewSqlPaymentRepository(ctx.DB)
+	paymentConfig := payment.PaymentConfig{
+		MoMo: payment.MoMoConfig{
+			PartnerCode: utils.GetEnv("MOMO_PARTNER_CODE", ""),
+			AccessKey:   utils.GetEnv("MOMO_ACCESS_KEY", ""),
+			SecretKey:   utils.GetEnv("MOMO_SECRET_KEY", ""),
+			Endpoint:    utils.GetEnv("MOMO_ENDPOINT", ""),
+			QueryURL:    utils.GetEnv("MOMO_QUERY_URL", ""),
+		},
+	}
+
+	paymentProviders := make(map[string]payment.PaymentProvider)
+	if momoFactory, err := payment.NewProviderFactory(payment.ProviderMoMo, paymentConfig); err == nil {
+		if p, err := momoFactory.CreateProvider(); err == nil {
+			paymentProviders["momo"] = p
+		}
+	}
+
 	orderService := v1service.NewOrderService(orderRepo, orderItemRepo, orderReturnRepo, productRepo, userRepo,
-		cartService, cartRepo, couponRepo, trackingRepo, webhookRepo, ctx.Redis, shippingFactory, rabbitmqService)
+		cartService, cartRepo, couponRepo, trackingRepo, webhookRepo, paymentRepo, paymentProviders, ctx.Redis, shippingFactory, rabbitmqService)
 
 	go func() {
 		err := rabbitmqService.Consume(context.Background(), v1service.QueueShippingCreate, orderService.ProcessShippingOrderMessage)

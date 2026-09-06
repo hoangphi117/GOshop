@@ -68,6 +68,22 @@ func (r *SqlOrderReturnsRepository) CountReturns(ctx context.Context, params sql
 	return count, nil
 }
 
+func (r *SqlOrderReturnsRepository) GetReturnsByUserID(ctx context.Context, params sqlc.GetReturnsByUserIDParams) ([]sqlc.GetReturnsByUserIDRow, error) {
+	returns, err := r.db.GetReturnsByUserID(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	return returns, nil
+}
+
+func (r *SqlOrderReturnsRepository) CountReturnsByUserID(ctx context.Context, params sqlc.CountReturnsByUserIDParams) (int64, error) {
+	count, err := r.db.CountReturnsByUserID(ctx, params)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 func (r *SqlOrderReturnsRepository) UpdateStatus(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReturnStatusParams) (sqlc.OrderReturn, error) {
 	q := sqlc.New(tx)
 	returnOrder, err := q.UpdateReturnStatus(ctx, params)

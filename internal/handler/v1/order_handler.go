@@ -524,6 +524,33 @@ func (oh *OrderHandler) GetOrderReturnDetails(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Order return details retrieved successfully", res)
 }
 
+func (oh *OrderHandler) GetMyOrderReturns(ctx *gin.Context) {
+	var query v1dto.GetMyOrderReturnsQuery
+	if err := ctx.ShouldBindQuery(&query); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	returns, total, err := oh.service.GetMyOrderReturns(ctx, query)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	page := query.Page
+	if page < 1 {
+		page = 1
+	}
+	limit := query.Limit
+	if limit < 1 {
+		limit = 10
+	}
+
+	paginationResponse := utils.NewPaginationResponse(returns, page, limit, int32(total))
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Return requests retrieved successfully", paginationResponse)
+}
+
 func (oh *OrderHandler) cleanupFiles(fileNames []string, uploadDir string) {
 	for _, name := range fileNames {
 		_ = os.Remove(filepath.Join(uploadDir, name))
@@ -636,4 +663,29 @@ func (oh *OrderHandler) SubmitReturnShipping(ctx *gin.Context) {
 	}
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Return shipping information submitted successfully", res)
+}
+
+func (oh *OrderHandler) AdminProcessReturnRefund(ctx *gin.Context) {
+	var param v1dto.ReturnUUIDParam
+	if err := ctx.ShouldBindUri(&param); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	returnUUID, err := uuid.Parse(param.UUID)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid return UUID"))
+		return
+	}
+
+	var input v1dto.AdminReturnRefundInput
+	_ = ctx.ShouldBindJSON(&input)
+
+	res, err := oh.service.AdminProcessReturnRefund(ctx, returnUUID, input)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Return refund processed successfully", res)
 }

@@ -20,6 +20,7 @@ func (or *OrderRoutes) Register(r *gin.RouterGroup) {
 	orders := r.Group("/orders")
 	{
 		orders.GET("", or.handler.GetMyOrders)
+		orders.GET("/returns", or.handler.GetMyOrderReturns)
 		orders.GET("/:uuid", or.handler.GetOrderByUUID)
 		orders.POST("", or.handler.CreateOrder)
 		orders.PATCH("/:uuid/cancel", or.handler.CancelOrder)

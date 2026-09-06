@@ -139,6 +139,28 @@ func (q *Queries) AdminGetReturns(ctx context.Context, arg AdminGetReturnsParams
 	return items, nil
 }
 
+const countReturnsByUserID = `-- name: CountReturnsByUserID :one
+SELECT COUNT(*)
+FROM order_returns r
+JOIN orders o ON o.order_id = r.return_order_id
+WHERE r.return_user_id = $1
+  AND ($2::smallint IS NULL OR r.return_status = $2)
+  AND ($3::text IS NULL OR o.order_number ILIKE '%' || $3 || '%')
+`
+
+type CountReturnsByUserIDParams struct {
+	UserID int32   `json:"user_id"`
+	Status *int16  `json:"status"`
+	Search *string `json:"search"`
+}
+
+func (q *Queries) CountReturnsByUserID(ctx context.Context, arg CountReturnsByUserIDParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countReturnsByUserID, arg.UserID, arg.Status, arg.Search)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createOrderReturn = `-- name: CreateOrderReturn :one
 INSERT INTO order_returns (
     return_order_id,
@@ -272,6 +294,104 @@ func (q *Queries) GetReturnByUUID(ctx context.Context, returnUuid uuid.UUID) (Or
 		&i.ReturnShippingNote,
 	)
 	return i, err
+}
+
+const getReturnsByUserID = `-- name: GetReturnsByUserID :many
+SELECT 
+    r.return_id, r.return_uuid, r.return_order_id, r.return_user_id,
+    r.return_reason, r.return_images, r.return_video_url, r.return_status,
+    r.return_admin_note, r.return_shipping_provider, r.return_shipping_code,
+    r.return_shipping_note, r.return_created_at, r.return_updated_at,
+    o.order_uuid, o.order_number, o.order_total_amount,
+    o.order_payment_method, o.order_payment_status,
+    o.order_shipping_name, o.order_shipping_phone
+FROM order_returns r
+JOIN orders o ON o.order_id = r.return_order_id
+WHERE r.return_user_id = $1
+  AND ($2::smallint IS NULL OR r.return_status = $2)
+  AND ($3::text IS NULL OR o.order_number ILIKE '%' || $3 || '%')
+ORDER BY r.return_created_at DESC
+LIMIT $5 OFFSET $4
+`
+
+type GetReturnsByUserIDParams struct {
+	UserID int32   `json:"user_id"`
+	Status *int16  `json:"status"`
+	Search *string `json:"search"`
+	Offset int32   `json:"offset"`
+	Limit  int32   `json:"limit"`
+}
+
+type GetReturnsByUserIDRow struct {
+	ReturnID               int32          `json:"return_id"`
+	ReturnUuid             uuid.UUID      `json:"return_uuid"`
+	ReturnOrderID          int32          `json:"return_order_id"`
+	ReturnUserID           int32          `json:"return_user_id"`
+	ReturnReason           string         `json:"return_reason"`
+	ReturnImages           []string       `json:"return_images"`
+	ReturnVideoUrl         *string        `json:"return_video_url"`
+	ReturnStatus           int16          `json:"return_status"`
+	ReturnAdminNote        *string        `json:"return_admin_note"`
+	ReturnShippingProvider *string        `json:"return_shipping_provider"`
+	ReturnShippingCode     *string        `json:"return_shipping_code"`
+	ReturnShippingNote     *string        `json:"return_shipping_note"`
+	ReturnCreatedAt        time.Time      `json:"return_created_at"`
+	ReturnUpdatedAt        time.Time      `json:"return_updated_at"`
+	OrderUuid              uuid.UUID      `json:"order_uuid"`
+	OrderNumber            string         `json:"order_number"`
+	OrderTotalAmount       pgtype.Numeric `json:"order_total_amount"`
+	OrderPaymentMethod     int32          `json:"order_payment_method"`
+	OrderPaymentStatus     int32          `json:"order_payment_status"`
+	OrderShippingName      string         `json:"order_shipping_name"`
+	OrderShippingPhone     string         `json:"order_shipping_phone"`
+}
+
+func (q *Queries) GetReturnsByUserID(ctx context.Context, arg GetReturnsByUserIDParams) ([]GetReturnsByUserIDRow, error) {
+	rows, err := q.db.Query(ctx, getReturnsByUserID,
+		arg.UserID,
+		arg.Status,
+		arg.Search,
+		arg.Offset,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetReturnsByUserIDRow{}
+	for rows.Next() {
+		var i GetReturnsByUserIDRow
+		if err := rows.Scan(
+			&i.ReturnID,
+			&i.ReturnUuid,
+			&i.ReturnOrderID,
+			&i.ReturnUserID,
+			&i.ReturnReason,
+			&i.ReturnImages,
+			&i.ReturnVideoUrl,
+			&i.ReturnStatus,
+			&i.ReturnAdminNote,
+			&i.ReturnShippingProvider,
+			&i.ReturnShippingCode,
+			&i.ReturnShippingNote,
+			&i.ReturnCreatedAt,
+			&i.ReturnUpdatedAt,
+			&i.OrderUuid,
+			&i.OrderNumber,
+			&i.OrderTotalAmount,
+			&i.OrderPaymentMethod,
+			&i.OrderPaymentStatus,
+			&i.OrderShippingName,
+			&i.OrderShippingPhone,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const updateReturnShippingInfo = `-- name: UpdateReturnShippingInfo :one
