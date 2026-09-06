@@ -109,3 +109,12 @@ func (r *SqlOrderReturnsRepository) UpdateReturnShippingInfo(ctx context.Context
 	}
 	return returnOrder, nil
 }
+
+func (r *SqlOrderReturnsRepository) UpdateReturnBankAccount(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReturnBankAccountParams) (sqlc.OrderReturn, error) {
+	q := sqlc.New(tx)
+	returnOrder, err := q.UpdateReturnBankAccount(ctx, params)
+	if err != nil {
+		return sqlc.OrderReturn{}, err
+	}
+	return returnOrder, nil
+}

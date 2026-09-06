@@ -108,7 +108,8 @@ SELECT
     r.return_id, r.return_uuid, r.return_order_id, r.return_user_id,
     r.return_reason, r.return_images, r.return_video_url, r.return_status,
     r.return_admin_note, r.return_shipping_provider, r.return_shipping_code,
-    r.return_shipping_note, r.return_created_at, r.return_updated_at,
+    r.return_shipping_note, r.return_bank_name, r.return_bank_account,
+    r.return_bank_account_name, r.return_created_at, r.return_updated_at,
     o.order_id, o.order_uuid, o.order_number, o.order_total_amount, o.order_refunded_amount,
     o.order_payment_method, o.order_payment_status, o.order_status,
     o.order_shipping_name, o.order_shipping_phone, o.order_shipping_address,
@@ -124,7 +125,8 @@ SELECT
     r.return_id, r.return_uuid, r.return_order_id, r.return_user_id,
     r.return_reason, r.return_images, r.return_video_url, r.return_status,
     r.return_admin_note, r.return_shipping_provider, r.return_shipping_code,
-    r.return_shipping_note, r.return_created_at, r.return_updated_at,
+    r.return_shipping_note, r.return_bank_name, r.return_bank_account,
+    r.return_bank_account_name, r.return_created_at, r.return_updated_at,
     o.order_id, o.order_uuid, o.order_number, o.order_total_amount, o.order_refunded_amount,
     o.order_payment_method, o.order_payment_status, o.order_status,
     o.order_shipping_name, o.order_shipping_phone, o.order_shipping_address,
@@ -136,4 +138,14 @@ JOIN users u ON u.user_id = r.return_user_id
 WHERE r.return_order_id = $1
 ORDER BY r.return_created_at DESC
 LIMIT 1;
+
+-- name: UpdateReturnBankAccount :one
+UPDATE order_returns SET
+    return_bank_name         = $1,
+    return_bank_account      = $2,
+    return_bank_account_name = $3,
+    return_updated_at        = now()
+WHERE return_uuid = $4
+RETURNING *;
+
 

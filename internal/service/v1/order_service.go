@@ -1982,6 +1982,9 @@ func (s *orderService) AdminGetReturnDetail(ctx *gin.Context, returnUUID uuid.UU
 		ShippingProvider: returnRow.ReturnShippingProvider,
 		ShippingCode:     returnRow.ReturnShippingCode,
 		ShippingNote:     returnRow.ReturnShippingNote,
+		BankName:         returnRow.ReturnBankName,
+		BankAccount:      returnRow.ReturnBankAccount,
+		BankAccountName:  returnRow.ReturnBankAccountName,
 		CreatedAt:        returnRow.ReturnCreatedAt,
 		UpdatedAt:        returnRow.ReturnUpdatedAt,
 		Customer: v1dto.ReturnCustomerDTO{
@@ -2112,6 +2115,71 @@ func (s *orderService) AdminUpdateReturnStatus(ctx *gin.Context, returnUUID uuid
 	}, nil
 }
 
+type resolvedOrderReturn struct {
+	Return           sqlc.OrderReturn
+	OrderID          int32
+	OrderUUID        uuid.UUID
+	OrderNumber      string
+	OrderUserID      int32
+	OrderTotalAmount float64
+}
+
+// resolveOrderReturn resolves the associated return request and order info given either an order UUID or a return request UUID.
+func (s *orderService) resolveOrderReturn(ctx context.Context, identifier uuid.UUID) (*resolvedOrderReturn, error) {
+	var res resolvedOrderReturn
+
+	// 1. Check if identifier is an Order UUID
+	orderByUUID, err := s.orderRepo.GetByUUID(ctx, identifier)
+	if err == nil {
+		res.OrderID = orderByUUID.OrderID
+		res.OrderUUID = orderByUUID.OrderUuid
+		res.OrderNumber = orderByUUID.OrderNumber
+		res.OrderUserID = orderByUUID.OrderUserID
+		res.OrderTotalAmount = utils.NumericToFloat(orderByUUID.OrderTotalAmount)
+
+		returnReq, rErr := s.orderReturnRepo.GetLatestByOrderID(ctx, res.OrderID)
+		if rErr != nil {
+			if errors.Is(rErr, pgx.ErrNoRows) {
+				return nil, utils.NewError(utils.ErrCodeNotFound, "No return request found for this order")
+			}
+			return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to get return request", rErr)
+		}
+		res.Return = returnReq
+		return &res, nil
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
+	}
+
+	// 2. Fallback: Check if identifier is a Return Request UUID
+	returnByUUID, rErr := s.orderReturnRepo.GetByUUID(ctx, identifier)
+	if rErr != nil {
+		if errors.Is(rErr, pgx.ErrNoRows) {
+			return nil, utils.NewError(utils.ErrCodeNotFound, "Order or return request not found")
+		}
+		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to get return request", rErr)
+	}
+	res.Return = returnByUUID
+
+	orderRow, oErr := s.orderRepo.GetByID(ctx, returnByUUID.ReturnOrderID)
+	if oErr != nil {
+		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to get order for return request", oErr)
+	}
+	res.OrderID = orderRow.OrderID
+	res.OrderUUID = orderRow.OrderUuid
+	res.OrderNumber = orderRow.OrderNumber
+	res.OrderUserID = orderRow.OrderUserID
+	res.OrderTotalAmount = utils.NumericToFloat(orderRow.OrderTotalAmount)
+
+	return &res, nil
+}
+
+func isReturnAccessibleByUser(user sqlc.User, res *resolvedOrderReturn) bool {
+	if user.UserLevel == RoleAdmin || user.UserLevel == RoleModerator {
+		return true
+	}
+	return user.UserID == res.OrderUserID || user.UserID == res.Return.ReturnUserID
+}
+
 func (s *orderService) GetOrderReturnDetails(ctx *gin.Context, orderUUID uuid.UUID) (v1dto.OrderReturnDetailDTO, error) {
 	reqCtx := ctx.Request.Context()
 
@@ -2130,58 +2198,16 @@ func (s *orderService) GetOrderReturnDetails(ctx *gin.Context, orderUUID uuid.UU
 		return v1dto.OrderReturnDetailDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
 	}
 
-	var returnRequest sqlc.OrderReturn
-	var orderOrderID int32
-	var orderOrderUUID uuid.UUID
-	var orderNumber string
-	var orderUserID int32
-	var orderTotalAmount float64
-
-	// Hỗ trợ truyền UUID của đơn hàng hoặc UUID của chính yêu cầu trả hàng
-	orderByUUID, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
-	if err == nil {
-		orderOrderID = orderByUUID.OrderID
-		orderOrderUUID = orderByUUID.OrderUuid
-		orderNumber = orderByUUID.OrderNumber
-		orderUserID = orderByUUID.OrderUserID
-		orderTotalAmount = utils.NumericToFloat(orderByUUID.OrderTotalAmount)
-
-		returnRequest, err = s.orderReturnRepo.GetLatestByOrderID(reqCtx, orderOrderID)
-		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return v1dto.OrderReturnDetailDTO{}, utils.NewError(utils.ErrCodeNotFound, "Không tìm thấy yêu cầu trả hàng cho đơn hàng này")
-			}
-			return v1dto.OrderReturnDetailDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get return request", err)
-		}
-	} else if errors.Is(err, pgx.ErrNoRows) {
-		returnByUUID, rErr := s.orderReturnRepo.GetByUUID(reqCtx, orderUUID)
-		if rErr != nil {
-			if errors.Is(rErr, pgx.ErrNoRows) {
-				return v1dto.OrderReturnDetailDTO{}, utils.NewError(utils.ErrCodeNotFound, "Không tìm thấy đơn hàng hoặc yêu cầu trả hàng")
-			}
-			return v1dto.OrderReturnDetailDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get return request", rErr)
-		}
-		returnRequest = returnByUUID
-
-		orderRow, oErr := s.orderRepo.GetByID(reqCtx, returnRequest.ReturnOrderID)
-		if oErr != nil {
-			return v1dto.OrderReturnDetailDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order for return request", oErr)
-		}
-		orderOrderID = orderRow.OrderID
-		orderOrderUUID = orderRow.OrderUuid
-		orderNumber = orderRow.OrderNumber
-		orderUserID = orderRow.OrderUserID
-		orderTotalAmount = utils.NumericToFloat(orderRow.OrderTotalAmount)
-	} else {
-		return v1dto.OrderReturnDetailDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
+	resolved, err := s.resolveOrderReturn(reqCtx, orderUUID)
+	if err != nil {
+		return v1dto.OrderReturnDetailDTO{}, err
 	}
 
-	isAdminOrMod := user.UserLevel == RoleAdmin || user.UserLevel == RoleModerator
-	if orderUserID != user.UserID && !isAdminOrMod {
+	if !isReturnAccessibleByUser(user, resolved) {
 		return v1dto.OrderReturnDetailDTO{}, utils.NewError(utils.ErrCodeForbidden, "Access denied")
 	}
 
-	events, err := s.trackingRepo.GetByOrderID(reqCtx, orderOrderID)
+	events, err := s.trackingRepo.GetByOrderID(reqCtx, resolved.OrderID)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return v1dto.OrderReturnDetailDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get tracking events", err)
 	}
@@ -2205,20 +2231,26 @@ func (s *orderService) GetOrderReturnDetails(ctx *gin.Context, orderUUID uuid.UU
 	}
 
 	return v1dto.OrderReturnDetailDTO{
-		ReturnUUID:  returnRequest.ReturnUuid.String(),
-		OrderUUID:   orderOrderUUID.String(),
-		OrderNumber: orderNumber,
-		Reason:      returnRequest.ReturnReason,
-		Images:      returnRequest.ReturnImages,
-		VideoURL:    returnRequest.ReturnVideoUrl,
-		Status:      returnRequest.ReturnStatus,
-		StatusName:  v1dto.MapReturnStatusToString(returnRequest.ReturnStatus),
-		StatusText:  v1dto.MapReturnStatusToVietnamese(returnRequest.ReturnStatus),
-		AdminNote:   returnRequest.ReturnAdminNote,
-		TotalAmount: orderTotalAmount,
-		CreatedAt:   returnRequest.ReturnCreatedAt,
-		UpdatedAt:   returnRequest.ReturnUpdatedAt,
-		Events:      returnEvents,
+		ReturnUUID:       resolved.Return.ReturnUuid.String(),
+		OrderUUID:        resolved.OrderUUID.String(),
+		OrderNumber:      resolved.OrderNumber,
+		Reason:           resolved.Return.ReturnReason,
+		Images:           resolved.Return.ReturnImages,
+		VideoURL:         resolved.Return.ReturnVideoUrl,
+		Status:           resolved.Return.ReturnStatus,
+		StatusName:       v1dto.MapReturnStatusToString(resolved.Return.ReturnStatus),
+		StatusText:       v1dto.MapReturnStatusToVietnamese(resolved.Return.ReturnStatus),
+		AdminNote:        resolved.Return.ReturnAdminNote,
+		ShippingProvider: resolved.Return.ReturnShippingProvider,
+		ShippingCode:     resolved.Return.ReturnShippingCode,
+		ShippingNote:     resolved.Return.ReturnShippingNote,
+		BankName:         resolved.Return.ReturnBankName,
+		BankAccount:      resolved.Return.ReturnBankAccount,
+		BankAccountName:  resolved.Return.ReturnBankAccountName,
+		TotalAmount:      resolved.OrderTotalAmount,
+		CreatedAt:        resolved.Return.ReturnCreatedAt,
+		UpdatedAt:        resolved.Return.ReturnUpdatedAt,
+		Events:           returnEvents,
 	}, nil
 }
 
@@ -2324,50 +2356,16 @@ func (s *orderService) CancelOrderReturn(ctx *gin.Context, orderUUID uuid.UUID, 
 		return v1dto.CancelOrderReturnResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
 	}
 
-	var returnRequest sqlc.OrderReturn
-	var orderOrderUUID uuid.UUID
-	var orderNumber string
-	var orderUserID int32
-
-	orderByUUID, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
-	if err == nil {
-		orderOrderUUID = orderByUUID.OrderUuid
-		orderNumber = orderByUUID.OrderNumber
-		orderUserID = orderByUUID.OrderUserID
-
-		returnRequest, err = s.orderReturnRepo.GetLatestByOrderID(reqCtx, orderByUUID.OrderID)
-		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return v1dto.CancelOrderReturnResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "No return request found for this order")
-			}
-			return v1dto.CancelOrderReturnResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get return request", err)
-		}
-	} else if errors.Is(err, pgx.ErrNoRows) {
-		returnByUUID, rErr := s.orderReturnRepo.GetByUUID(reqCtx, orderUUID)
-		if rErr != nil {
-			if errors.Is(rErr, pgx.ErrNoRows) {
-				return v1dto.CancelOrderReturnResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "No return request found for this order")
-			}
-			return v1dto.CancelOrderReturnResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get return request", rErr)
-		}
-		returnRequest = returnByUUID
-
-		orderRow, oErr := s.orderRepo.GetByID(reqCtx, returnRequest.ReturnOrderID)
-		if oErr != nil {
-			return v1dto.CancelOrderReturnResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order for return request", oErr)
-		}
-		orderOrderUUID = orderRow.OrderUuid
-		orderNumber = orderRow.OrderNumber
-		orderUserID = orderRow.OrderUserID
-	} else {
-		return v1dto.CancelOrderReturnResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
+	resolved, err := s.resolveOrderReturn(reqCtx, orderUUID)
+	if err != nil {
+		return v1dto.CancelOrderReturnResponseDTO{}, err
 	}
 
-	isAdminOrMod := user.UserLevel == RoleAdmin || user.UserLevel == RoleModerator
-	if orderUserID != user.UserID && !isAdminOrMod {
+	if !isReturnAccessibleByUser(user, resolved) {
 		return v1dto.CancelOrderReturnResponseDTO{}, utils.NewError(utils.ErrCodeForbidden, "Access denied")
 	}
 
+	returnRequest := resolved.Return
 	if returnRequest.ReturnStatus == OrderReturnStatusCancelled {
 		return v1dto.CancelOrderReturnResponseDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Return request is already cancelled")
 	}
@@ -2413,12 +2411,12 @@ func (s *orderService) CancelOrderReturn(ctx *gin.Context, orderUUID uuid.UUID, 
 		return v1dto.CancelOrderReturnResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
 	}
 
-	_ = s.cache.Clear(fmt.Sprintf("order:%s", orderOrderUUID.String()))
+	_ = s.cache.Clear(fmt.Sprintf("order:%s", resolved.OrderUUID.String()))
 
 	return v1dto.CancelOrderReturnResponseDTO{
 		ReturnUUID:   updatedReturn.ReturnUuid.String(),
-		OrderUUID:    orderOrderUUID.String(),
-		OrderNumber:  orderNumber,
+		OrderUUID:    resolved.OrderUUID.String(),
+		OrderNumber:  resolved.OrderNumber,
 		Status:       updatedReturn.ReturnStatus,
 		StatusName:   v1dto.MapReturnStatusToString(updatedReturn.ReturnStatus),
 		StatusText:   v1dto.MapReturnStatusToVietnamese(updatedReturn.ReturnStatus),
@@ -2444,48 +2442,16 @@ func (s *orderService) SubmitReturnShipping(ctx *gin.Context, orderUUID uuid.UUI
 		return v1dto.SubmitReturnShippingResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
 	}
 
-	var returnRequest sqlc.OrderReturn
-	var orderOrderUUID uuid.UUID
-	var orderNumber string
-	var orderUserID int32
-
-	orderByUUID, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
-	if err == nil {
-		orderOrderUUID = orderByUUID.OrderUuid
-		orderNumber = orderByUUID.OrderNumber
-		orderUserID = orderByUUID.OrderUserID
-		returnRequest, err = s.orderReturnRepo.GetLatestByOrderID(reqCtx, orderByUUID.OrderID)
-		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return v1dto.SubmitReturnShippingResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "No return request found for this order")
-			}
-			return v1dto.SubmitReturnShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get return request", err)
-		}
-	} else if errors.Is(err, pgx.ErrNoRows) {
-		returnByUUID, rErr := s.orderReturnRepo.GetByUUID(reqCtx, orderUUID)
-		if rErr != nil {
-			if errors.Is(rErr, pgx.ErrNoRows) {
-				return v1dto.SubmitReturnShippingResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "No order or return request found")
-			}
-			return v1dto.SubmitReturnShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get return request", rErr)
-		}
-		returnRequest = returnByUUID
-		orderRow, oErr := s.orderRepo.GetByID(reqCtx, returnRequest.ReturnOrderID)
-		if oErr != nil {
-			return v1dto.SubmitReturnShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order for return request", oErr)
-		}
-		orderOrderUUID = orderRow.OrderUuid
-		orderNumber = orderRow.OrderNumber
-		orderUserID = orderRow.OrderUserID
-	} else {
-		return v1dto.SubmitReturnShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
+	resolved, err := s.resolveOrderReturn(reqCtx, orderUUID)
+	if err != nil {
+		return v1dto.SubmitReturnShippingResponseDTO{}, err
 	}
 
-	isAdminOrMod := user.UserLevel == RoleAdmin || user.UserLevel == RoleModerator
-	if orderUserID != user.UserID && returnRequest.ReturnUserID != user.UserID && !isAdminOrMod {
+	if !isReturnAccessibleByUser(user, resolved) {
 		return v1dto.SubmitReturnShippingResponseDTO{}, utils.NewError(utils.ErrCodeForbidden, "Access denied")
 	}
 
+	returnRequest := resolved.Return
 	if returnRequest.ReturnStatus != OrderReturnStatusApproved {
 		var errMsg string
 		switch returnRequest.ReturnStatus {
@@ -2545,11 +2511,11 @@ func (s *orderService) SubmitReturnShipping(ctx *gin.Context, orderUUID uuid.UUI
 		return v1dto.SubmitReturnShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
 	}
 
-	_ = s.cache.Clear(fmt.Sprintf("order:%s", orderOrderUUID.String()))
+	_ = s.cache.Clear(fmt.Sprintf("order:%s", resolved.OrderUUID.String()))
 	return v1dto.SubmitReturnShippingResponseDTO{
 		ReturnUUID:       updatedReturn.ReturnUuid.String(),
-		OrderUUID:        orderOrderUUID.String(),
-		OrderNumber:      orderNumber,
+		OrderUUID:        resolved.OrderUUID.String(),
+		OrderNumber:      resolved.OrderNumber,
 		ShippingProvider: provider,
 		ShippingCode:     shippingCode,
 		Note:             note,
@@ -2558,6 +2524,99 @@ func (s *orderService) SubmitReturnShipping(ctx *gin.Context, orderUUID uuid.UUI
 		StatusText:       v1dto.MapReturnStatusToVietnamese(updatedReturn.ReturnStatus),
 		UpdatedAt:        updatedReturn.ReturnUpdatedAt,
 		Message:          "Return shipping information submitted successfully. Please wait for the store to process your return request.",
+	}, nil
+}
+
+func (s *orderService) UpdateReturnBankAccount(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.UpdateReturnBankAccountInput) (v1dto.UpdateReturnBankAccountResponseDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	userUUIDStr, ok := ctx.Get("user_uuid")
+	if !ok || userUUIDStr == "" {
+		return v1dto.UpdateReturnBankAccountResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	if err != nil {
+		return v1dto.UpdateReturnBankAccountResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
+	}
+	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
+	if err != nil {
+		return v1dto.UpdateReturnBankAccountResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
+
+	resolved, err := s.resolveOrderReturn(reqCtx, orderUUID)
+	if err != nil {
+		return v1dto.UpdateReturnBankAccountResponseDTO{}, err
+	}
+
+	if !isReturnAccessibleByUser(user, resolved) {
+		return v1dto.UpdateReturnBankAccountResponseDTO{}, utils.NewError(utils.ErrCodeForbidden, "Access denied")
+	}
+
+	returnRequest := resolved.Return
+	if returnRequest.ReturnStatus != OrderReturnStatusPending && returnRequest.ReturnStatus != OrderReturnStatusApproved {
+		var errMsg string
+		switch returnRequest.ReturnStatus {
+		case OrderReturnStatusRejected:
+			errMsg = "Return request has been rejected. You cannot update bank account information."
+		case OrderReturnStatusCompleted:
+			errMsg = "Return request has been completed and refunded. You cannot update bank account information."
+		case OrderReturnStatusCancelled:
+			errMsg = "Return request has been cancelled. You cannot update bank account information."
+		default:
+			errMsg = "Invalid return request status for updating bank account information."
+		}
+		return v1dto.UpdateReturnBankAccountResponseDTO{}, utils.NewError(utils.ErrCodeBadRequest, errMsg)
+	}
+
+	bankName := strings.TrimSpace(input.BankName)
+	bankAccount := strings.TrimSpace(input.BankAccount)
+	bankAccountName := strings.ToUpper(strings.TrimSpace(input.BankAccountName))
+
+	txCtx, cancel := context.WithTimeout(reqCtx, 10*time.Second)
+	defer cancel()
+	tx, err := db.BeginTx(txCtx)
+	if err != nil {
+		return v1dto.UpdateReturnBankAccountResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to begin transaction", err)
+	}
+	defer tx.Rollback(txCtx)
+
+	updatedReturn, err := s.orderReturnRepo.UpdateReturnBankAccount(txCtx, tx, sqlc.UpdateReturnBankAccountParams{
+		ReturnBankName:        &bankName,
+		ReturnBankAccount:     &bankAccount,
+		ReturnBankAccountName: &bankAccountName,
+		ReturnUuid:            returnRequest.ReturnUuid,
+	})
+	if err != nil {
+		return v1dto.UpdateReturnBankAccountResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to update return bank account", err)
+	}
+
+	eventNote := fmt.Sprintf("Customer updated refund bank account: %s - %s (%s)", bankName, bankAccount, bankAccountName)
+	_, _ = s.trackingRepo.InsertEvent(txCtx, tx, sqlc.InsertTrackingEventParams{
+		EventOrderID: returnRequest.ReturnOrderID,
+		EventStatus:  "return_bank_updated",
+		EventNote:    &eventNote,
+		EventSource:  "user",
+	})
+
+	if err := tx.Commit(txCtx); err != nil {
+		return v1dto.UpdateReturnBankAccountResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
+	}
+
+	_ = s.cache.Clear(fmt.Sprintf("order:%s", resolved.OrderUUID.String()))
+	_ = s.cache.Clear("orders:*")
+
+	return v1dto.UpdateReturnBankAccountResponseDTO{
+		ReturnUUID:      returnRequest.ReturnUuid.String(),
+		OrderUUID:       resolved.OrderUUID.String(),
+		OrderNumber:     resolved.OrderNumber,
+		BankName:        bankName,
+		BankAccount:     bankAccount,
+		BankAccountName: bankAccountName,
+		Status:          updatedReturn.ReturnStatus,
+		StatusName:      v1dto.MapReturnStatusToString(updatedReturn.ReturnStatus),
+		StatusText:      v1dto.MapReturnStatusToVietnamese(updatedReturn.ReturnStatus),
+		UpdatedAt:       updatedReturn.ReturnUpdatedAt,
+		Message:         "Bank account information updated successfully.",
 	}, nil
 }
 
@@ -2583,30 +2642,12 @@ func (s *orderService) AdminProcessReturnRefund(ctx *gin.Context, returnUUID uui
 		return v1dto.AdminReturnRefundResponseDTO{}, utils.NewError(utils.ErrCodeForbidden, "Admin or Moderator access required")
 	}
 
-	var returnRequest sqlc.OrderReturn
-	var orderID int32
-
-	returnByUUID, err := s.orderReturnRepo.GetByUUID(reqCtx, returnUUID)
-	if err == nil {
-		returnRequest = returnByUUID
-		orderID = returnRequest.ReturnOrderID
-	} else if errors.Is(err, pgx.ErrNoRows) {
-		orderByUUID, oErr := s.orderRepo.GetByUUID(reqCtx, returnUUID)
-		if oErr != nil {
-			if errors.Is(oErr, pgx.ErrNoRows) {
-				return v1dto.AdminReturnRefundResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "Return request or order not found")
-			}
-			return v1dto.AdminReturnRefundResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", oErr)
-		}
-		orderID = orderByUUID.OrderID
-		latestReturn, lErr := s.orderReturnRepo.GetLatestByOrderID(reqCtx, orderID)
-		if lErr != nil {
-			return v1dto.AdminReturnRefundResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "No return request found for this order")
-		}
-		returnRequest = latestReturn
-	} else {
-		return v1dto.AdminReturnRefundResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get return request", err)
+	resolved, err := s.resolveOrderReturn(reqCtx, returnUUID)
+	if err != nil {
+		return v1dto.AdminReturnRefundResponseDTO{}, err
 	}
+
+	returnRequest := resolved.Return
 
 	if returnRequest.ReturnStatus != OrderReturnStatusCompleted && returnRequest.ReturnStatus != OrderReturnStatusApproved {
 		return v1dto.AdminReturnRefundResponseDTO{}, utils.NewError(
@@ -2625,12 +2666,7 @@ func (s *orderService) AdminProcessReturnRefund(ctx *gin.Context, returnUUID uui
 	}
 	defer tx.Rollback(txCtx)
 
-	orderInfo, err := s.orderRepo.GetByID(txCtx, orderID)
-	if err != nil {
-		return v1dto.AdminReturnRefundResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
-	}
-
-	order, err := s.orderRepo.GetByUUIDForUpdate(txCtx, tx, orderInfo.OrderUuid)
+	order, err := s.orderRepo.GetByUUIDForUpdate(txCtx, tx, resolved.OrderUUID)
 	if err != nil {
 		return v1dto.AdminReturnRefundResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to lock order for refund", err)
 	}

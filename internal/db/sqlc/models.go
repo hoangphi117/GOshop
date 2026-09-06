@@ -131,6 +131,9 @@ type OrderReturn struct {
 	ReturnShippingProvider *string   `json:"return_shipping_provider"`
 	ReturnShippingCode     *string   `json:"return_shipping_code"`
 	ReturnShippingNote     *string   `json:"return_shipping_note"`
+	ReturnBankName         *string   `json:"return_bank_name"`
+	ReturnBankAccount      *string   `json:"return_bank_account"`
+	ReturnBankAccountName  *string   `json:"return_bank_account_name"`
 }
 
 type OrderTrackingEvent struct {

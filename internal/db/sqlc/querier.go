@@ -149,6 +149,7 @@ type Querier interface {
 	UpdatePassword(ctx context.Context, arg UpdatePasswordParams) (User, error)
 	UpdatePaymentStatusAtomically(ctx context.Context, arg UpdatePaymentStatusAtomicallyParams) (PaymentTransaction, error)
 	UpdateProduct(ctx context.Context, arg UpdateProductParams) (UpdateProductRow, error)
+	UpdateReturnBankAccount(ctx context.Context, arg UpdateReturnBankAccountParams) (OrderReturn, error)
 	UpdateReturnShippingInfo(ctx context.Context, arg UpdateReturnShippingInfoParams) (OrderReturn, error)
 	UpdateReturnStatus(ctx context.Context, arg UpdateReturnStatusParams) (OrderReturn, error)
 	UpdateReview(ctx context.Context, arg UpdateReviewParams) (ProductReview, error)

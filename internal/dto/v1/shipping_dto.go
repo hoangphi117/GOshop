@@ -244,25 +244,34 @@ type UserReturnSummaryDTO struct {
 	ShippingProvider *string   `json:"shipping_provider,omitempty"`
 	ShippingCode     *string   `json:"shipping_code,omitempty"`
 	ShippingNote     *string   `json:"shipping_note,omitempty"`
+	BankName         *string   `json:"bank_name,omitempty"`
+	BankAccount      *string   `json:"bank_account,omitempty"`
+	BankAccountName  *string   `json:"bank_account_name,omitempty"`
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
 }
 
 type OrderReturnDetailDTO struct {
-	ReturnUUID  string             `json:"return_uuid"`
-	OrderUUID   string             `json:"order_uuid"`
-	OrderNumber string             `json:"order_number"`
-	Reason      string             `json:"reason"`
-	Images      []string           `json:"images"`
-	VideoURL    *string            `json:"video_url,omitempty"`
-	Status      int16              `json:"status"`
-	StatusName  string             `json:"status_name"` // "Pending", "Approved", "Rejected", "Completed", "Cancelled"
-	StatusText  string             `json:"status_text"` // "Chờ duyệt", "Đã chấp thuận (Chờ gửi hàng về)", ...
-	AdminNote   *string            `json:"admin_note,omitempty"`
-	TotalAmount float64            `json:"total_amount"`
-	CreatedAt   time.Time          `json:"created_at"`
-	UpdatedAt   time.Time          `json:"updated_at"`
-	Events      []TrackingEventDTO `json:"events"`
+	ReturnUUID       string             `json:"return_uuid"`
+	OrderUUID        string             `json:"order_uuid"`
+	OrderNumber      string             `json:"order_number"`
+	Reason           string             `json:"reason"`
+	Images           []string           `json:"images"`
+	VideoURL         *string            `json:"video_url,omitempty"`
+	Status           int16              `json:"status"`
+	StatusName       string             `json:"status_name"` // "Pending", "Approved", "Rejected", "Completed", "Cancelled"
+	StatusText       string             `json:"status_text"` // "Chờ duyệt", "Đã chấp thuận (Chờ gửi hàng về)", ...
+	AdminNote        *string            `json:"admin_note,omitempty"`
+	ShippingProvider *string            `json:"shipping_provider,omitempty"`
+	ShippingCode     *string            `json:"shipping_code,omitempty"`
+	ShippingNote     *string            `json:"shipping_note,omitempty"`
+	BankName         *string            `json:"bank_name,omitempty"`
+	BankAccount      *string            `json:"bank_account,omitempty"`
+	BankAccountName  *string            `json:"bank_account_name,omitempty"`
+	TotalAmount      float64            `json:"total_amount"`
+	CreatedAt        time.Time          `json:"created_at"`
+	UpdatedAt        time.Time          `json:"updated_at"`
+	Events           []TrackingEventDTO `json:"events"`
 }
 
 type ReturnCustomerDTO struct {
@@ -297,12 +306,35 @@ type AdminReturnDetailDTO struct {
 	ShippingProvider *string            `json:"shipping_provider,omitempty"`
 	ShippingCode     *string            `json:"shipping_code,omitempty"`
 	ShippingNote     *string            `json:"shipping_note,omitempty"`
+	BankName         *string            `json:"bank_name,omitempty"`
+	BankAccount      *string            `json:"bank_account,omitempty"`
+	BankAccountName  *string            `json:"bank_account_name,omitempty"`
 	CreatedAt        time.Time          `json:"created_at"`
 	UpdatedAt        time.Time          `json:"updated_at"`
 	Customer         ReturnCustomerDTO  `json:"customer"`
 	Order            ReturnOrderInfoDTO `json:"order"`
 	Items            []OrderItemDTO     `json:"items"`
 	Events           []TrackingEventDTO `json:"events"`
+}
+
+type UpdateReturnBankAccountInput struct {
+	BankName        string `json:"bank_name" binding:"required,min=2,max=100"`
+	BankAccount     string `json:"bank_account" binding:"required,min=5,max=50"`
+	BankAccountName string `json:"bank_account_name" binding:"required,min=2,max=100"`
+}
+
+type UpdateReturnBankAccountResponseDTO struct {
+	ReturnUUID      string    `json:"return_uuid"`
+	OrderUUID       string    `json:"order_uuid"`
+	OrderNumber     string    `json:"order_number"`
+	BankName        string    `json:"bank_name"`
+	BankAccount     string    `json:"bank_account"`
+	BankAccountName string    `json:"bank_account_name"`
+	Status          int16     `json:"status"`
+	StatusName      string    `json:"status_name"`
+	StatusText      string    `json:"status_text"`
+	UpdatedAt       time.Time `json:"updated_at"`
+	Message         string    `json:"message"`
 }
 
 type CancelOrderReturnResponseDTO struct {
