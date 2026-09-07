@@ -39,3 +39,8 @@ UPDATE notifications SET
     notification_read_at  = now()
 WHERE notification_user_id = $1
   AND notification_is_read = FALSE;
+
+-- name: DeleteNotification :exec
+DELETE FROM notifications
+WHERE notification_uuid    = sqlc.arg(notification_uuid)
+  AND notification_user_id = sqlc.arg(user_id);

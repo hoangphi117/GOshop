@@ -147,4 +147,5 @@ type NotificationService interface {
 	GetUnreadNotificationCount(ctx *gin.Context) (v1dto.UnreadCountDTO, error)
 	MarkNotificationAsRead(ctx *gin.Context, notificationUUID uuid.UUID) (v1dto.NotificationDTO, error)
 	MarkAllNotificationsAsRead(ctx *gin.Context) error
+	DeleteNotification(ctx *gin.Context, notificationUUID uuid.UUID) error
 }

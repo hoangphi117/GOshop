@@ -100,3 +100,25 @@ func (h *NotificationHandler) MarkAllNotificationsAsRead(ctx *gin.Context) {
 	}
 	utils.ResponseSuccess(ctx, http.StatusOK, "All notifications marked as read successfully", nil)
 }
+
+func (h *NotificationHandler) DeleteNotification(ctx *gin.Context) {
+	var params v1dto.NotificationUUID
+	if err := ctx.ShouldBindUri(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	notifUUID, err := uuid.Parse(params.UUID.String())
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid notification UUID"))
+		return
+	}
+
+	err = h.notificationService.DeleteNotification(ctx, notifUUID)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusNoContent, "Notification deleted successfully", nil)
+}

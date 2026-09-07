@@ -54,3 +54,10 @@ func (r *SqlNotificationRepository) MarkAsRead(ctx context.Context, notifUUID uu
 func (r *SqlNotificationRepository) MarkAllAsRead(ctx context.Context, userID int32) error {
 	return r.db.MarkAllNotificationsRead(ctx, userID)
 }
+
+func (r *SqlNotificationRepository) Delete(ctx context.Context, notifUUID uuid.UUID, userID int32) error {
+	return r.db.DeleteNotification(ctx, sqlc.DeleteNotificationParams{
+		NotificationUuid: notifUUID,
+		UserID:           userID,
+	})
+}

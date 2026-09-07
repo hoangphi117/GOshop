@@ -23,6 +23,6 @@ func (nr *NotificationRoutes) Register(r *gin.RouterGroup) {
 		notifications.GET("/me/unread", nr.handler.GetUnreadCount)
 		notifications.PATCH("/read-all", nr.handler.MarkAllNotificationsAsRead)
 		notifications.PATCH("/:uuid/read", nr.handler.MarkNotificationAsRead)
-
+		notifications.DELETE("/:uuid", nr.handler.DeleteNotification)
 	}
 }

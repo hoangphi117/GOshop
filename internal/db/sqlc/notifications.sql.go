@@ -80,6 +80,22 @@ func (q *Queries) CreateNotification(ctx context.Context, arg CreateNotification
 	return i, err
 }
 
+const deleteNotification = `-- name: DeleteNotification :exec
+DELETE FROM notifications
+WHERE notification_uuid    = $1
+  AND notification_user_id = $2
+`
+
+type DeleteNotificationParams struct {
+	NotificationUuid uuid.UUID `json:"notification_uuid"`
+	UserID           int32     `json:"user_id"`
+}
+
+func (q *Queries) DeleteNotification(ctx context.Context, arg DeleteNotificationParams) error {
+	_, err := q.db.Exec(ctx, deleteNotification, arg.NotificationUuid, arg.UserID)
+	return err
+}
+
 const getNotificationsByUserId = `-- name: GetNotificationsByUserId :many
 SELECT notification_id, notification_uuid, notification_user_id, notification_type, notification_title, notification_body, notification_data, notification_is_read, notification_read_at, notification_created_at FROM notifications
 WHERE notification_user_id = $1

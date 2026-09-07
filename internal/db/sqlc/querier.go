@@ -62,6 +62,7 @@ type Querier interface {
 	// LỌC theo danh sách product_id có trong đơn vừa tạo, không xóa sạch toàn bộ giỏ.
 	DeleteCartItemsByProductIDs(ctx context.Context, arg DeleteCartItemsByProductIDsParams) error
 	DeleteHelpfulVote(ctx context.Context, arg DeleteHelpfulVoteParams) error
+	DeleteNotification(ctx context.Context, arg DeleteNotificationParams) error
 	DeleteReview(ctx context.Context, reviewID int32) error
 	DeleteUserAddress(ctx context.Context, arg DeleteUserAddressParams) (bool, error)
 	GetActiveReturnByOrderID(ctx context.Context, returnOrderID int32) (OrderReturn, error)

@@ -245,3 +245,36 @@ func (s *notificationService) MarkAllNotificationsAsRead(ctx *gin.Context) error
 
 	return nil
 }
+
+func (s *notificationService) DeleteNotification(ctx *gin.Context, notificationUUID uuid.UUID) error {
+	reqCtx := ctx.Request.Context()
+
+	userUUIDStr, exists := ctx.Get("user_uuid")
+	if !exists {
+		return utils.NewError(utils.ErrCodeUnauthorized, "User unauthorized")
+	}
+
+	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	if err != nil {
+		return utils.NewError(utils.ErrCodeBadRequest, "Invalid user UUID")
+	}
+
+	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
+	if err != nil {
+		return utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
+
+	err = s.notificationRepo.Delete(reqCtx, notificationUUID, user.UserID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return utils.NewError(utils.ErrCodeNotFound, "Notification not found")
+		}
+		logger.Log.Error().Err(err).
+			Str("notification_uuid", notificationUUID.String()).
+			Int32("user_id", user.UserID).
+			Msg("Failed to delete notification")
+		return utils.NewError(utils.ErrCodeInternal, "Failed to delete notification")
+	}
+
+	return nil
+}

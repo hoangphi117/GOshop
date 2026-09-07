@@ -192,4 +192,5 @@ type NotificationRepository interface {
 	CountUnreadByUserID(ctx context.Context, userID int32) (int64, error)
 	MarkAsRead(ctx context.Context, notifUUID uuid.UUID, userID int32) (sqlc.Notification, error)
 	MarkAllAsRead(ctx context.Context, userID int32) error
+	Delete(ctx context.Context, notifUUID uuid.UUID, userID int32) error
 }
