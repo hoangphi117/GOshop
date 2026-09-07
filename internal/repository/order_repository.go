@@ -304,3 +304,7 @@ func (r *SqlOrderRepository) CancelShipping(ctx context.Context, tx pgx.Tx, orde
 
 	return order, nil
 }
+
+func (r *SqlOrderRepository) GetActiveShippedOrders(ctx context.Context, limit int32) ([]sqlc.Order, error) {
+	return r.db.GetActiveShippedOrders(ctx, limit)
+}

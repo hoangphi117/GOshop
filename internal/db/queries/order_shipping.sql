@@ -52,3 +52,12 @@ WHERE order_uuid = sqlc.arg(order_uuid)
   AND order_status = 3 -- Chỉ update nếu đơn đang ở trạng thái Shipped
 RETURNING *;
 
+-- name: GetActiveShippedOrders :many
+SELECT * FROM orders
+WHERE order_status = 3
+  AND order_shipping_code IS NOT NULL
+  AND order_shipping_code != ''
+  AND order_cancelled_at IS NULL
+ORDER BY order_updated_at ASC
+LIMIT $1;
+

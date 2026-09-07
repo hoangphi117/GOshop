@@ -57,6 +57,63 @@ func (q *Queries) CancelOrderShipping(ctx context.Context, orderUuid uuid.UUID) 
 	return i, err
 }
 
+const getActiveShippedOrders = `-- name: GetActiveShippedOrders :many
+SELECT order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at, order_coupon_id, order_coupon_code, order_subtotal_amount, order_discount_amount, order_shipping_provider, order_shipping_code, order_shipping_fee, order_expected_delivery, order_delivered_at, order_returned_at FROM orders
+WHERE order_status = 3
+  AND order_shipping_code IS NOT NULL
+  AND order_shipping_code != ''
+  AND order_cancelled_at IS NULL
+ORDER BY order_updated_at ASC
+LIMIT $1
+`
+
+func (q *Queries) GetActiveShippedOrders(ctx context.Context, limit int32) ([]Order, error) {
+	rows, err := q.db.Query(ctx, getActiveShippedOrders, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Order{}
+	for rows.Next() {
+		var i Order
+		if err := rows.Scan(
+			&i.OrderID,
+			&i.OrderUuid,
+			&i.OrderNumber,
+			&i.OrderUserID,
+			&i.OrderShippingName,
+			&i.OrderShippingPhone,
+			&i.OrderShippingAddress,
+			&i.OrderTotalAmount,
+			&i.OrderRefundedAmount,
+			&i.OrderPaymentMethod,
+			&i.OrderPaymentStatus,
+			&i.OrderNote,
+			&i.OrderStatus,
+			&i.OrderCancelledAt,
+			&i.OrderCreatedAt,
+			&i.OrderUpdatedAt,
+			&i.OrderCouponID,
+			&i.OrderCouponCode,
+			&i.OrderSubtotalAmount,
+			&i.OrderDiscountAmount,
+			&i.OrderShippingProvider,
+			&i.OrderShippingCode,
+			&i.OrderShippingFee,
+			&i.OrderExpectedDelivery,
+			&i.OrderDeliveredAt,
+			&i.OrderReturnedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getOrderByShippingCode = `-- name: GetOrderByShippingCode :one
 SELECT order_id, order_uuid, order_number, order_status, order_payment_method, order_payment_status, order_shipping_code
 FROM orders

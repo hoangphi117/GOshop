@@ -67,6 +67,7 @@ type Querier interface {
 	DeleteReview(ctx context.Context, reviewID int32) error
 	DeleteUserAddress(ctx context.Context, arg DeleteUserAddressParams) (bool, error)
 	GetActiveReturnByOrderID(ctx context.Context, returnOrderID int32) (OrderReturn, error)
+	GetActiveShippedOrders(ctx context.Context, limit int32) ([]Order, error)
 	GetByUUIDsForUpdate(ctx context.Context, uuids []uuid.UUID) ([]GetByUUIDsForUpdateRow, error)
 	// Khác GetOrCreateCartByUserID: KHÔNG tự tạo cart nếu chưa có. Dùng cho
 	// CleanupCartAfterOrder — nếu user chưa từng có giỏ hàng (mua thẳng, không qua

@@ -83,6 +83,14 @@ type SyncTrackingResponseDTO struct {
 	Message          string             `json:"message"`
 }
 
+type SyncActiveShippingStatsDTO struct {
+	ScannedCount   int       `json:"scanned_count"`
+	SyncedCount    int       `json:"synced_count"`
+	DeliveredCount int       `json:"delivered_count"`
+	FailedCount    int       `json:"failed_count"`
+	SyncedAt       time.Time `json:"synced_at"`
+}
+
 type GetOrdersParam struct {
 	Search  string `form:"search" binding:"omitempty,min=2,max=50"`
 	Page    int32  `form:"page" binding:"omitempty,gte=1"`

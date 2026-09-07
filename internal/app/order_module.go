@@ -14,6 +14,7 @@ import (
 	"goshop/pkg/shipping"
 	"goshop/pkg/ws"
 	"strconv"
+	"time"
 )
 
 type OrderModule struct {
@@ -73,6 +74,28 @@ func NewOrderModule(ctx *ModuleContext, wsHub ws.Hub, rabbitmqService rabbitmq.R
 		err := rabbitmqService.Consume(context.Background(), v1service.QueueShippingCreate, orderService.ProcessShippingOrderMessage)
 		if err != nil {
 			logger.Log.Error().Err(err).Msg("Failed to start RabbitMQ consumer for shipping.order.create")
+		}
+	}()
+
+	// Background worker đồng bộ trạng thái đơn vận chuyển từ GHN định kỳ (Cronjob)
+	go func() {
+		intervalMinutes, _ := strconv.Atoi(utils.GetEnv("SHIPPING_SYNC_INTERVAL_MINUTES", "30"))
+		if intervalMinutes <= 0 {
+			intervalMinutes = 30
+		}
+		interval := time.Duration(intervalMinutes) * time.Minute
+
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+
+		logger.Log.Info().
+			Int("interval_minutes", intervalMinutes).
+			Msg("Shipping tracking sync cronjob worker started")
+
+		for range ticker.C {
+			if _, err := orderService.SyncActiveShippingOrders(context.Background()); err != nil {
+				logger.Log.Error().Err(err).Msg("Error occurred during periodic shipping sync cronjob")
+			}
 		}
 	}()
 

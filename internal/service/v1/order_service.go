@@ -3243,3 +3243,191 @@ func (s *orderService) SyncOrderTracking(ctx *gin.Context, orderUUID uuid.UUID) 
 		Message:          "Order tracking information synchronized successfully from GHN.",
 	}, nil
 }
+
+func (s *orderService) AdminSyncActiveShippingOrders(ctx *gin.Context) (v1dto.SyncActiveShippingStatsDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	userUUIDStr, ok := ctx.Get("user_uuid")
+	if !ok || userUUIDStr == "" {
+		return v1dto.SyncActiveShippingStatsDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+
+	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	if err != nil {
+		return v1dto.SyncActiveShippingStatsDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
+	}
+
+	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
+	if err != nil {
+		return v1dto.SyncActiveShippingStatsDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
+
+	if user.UserLevel != RoleAdmin && user.UserLevel != RoleModerator {
+		return v1dto.SyncActiveShippingStatsDTO{}, utils.NewError(utils.ErrCodeForbidden, "Access denied")
+	}
+
+	return s.SyncActiveShippingOrders(reqCtx)
+}
+
+func (s *orderService) SyncActiveShippingOrders(ctx context.Context) (v1dto.SyncActiveShippingStatsDTO, error) {
+	const batchLimit int32 = 50
+	orders, err := s.orderRepo.GetActiveShippedOrders(ctx, batchLimit)
+	if err != nil {
+		logger.Log.Error().Err(err).Msg("Failed to query active shipped orders for sync cronjob")
+		return v1dto.SyncActiveShippingStatsDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to query active shipped orders", err)
+	}
+
+	stats := v1dto.SyncActiveShippingStatsDTO{
+		ScannedCount: len(orders),
+		SyncedAt:     time.Now().UTC(),
+	}
+
+	if len(orders) == 0 {
+		logger.Log.Debug().Msg("No active shipped orders found for cronjob synchronization")
+		return stats, nil
+	}
+
+	logger.Log.Info().
+		Int("orders_to_scan", len(orders)).
+		Msg("Starting background shipping sync cronjob batch")
+
+	for _, order := range orders {
+		select {
+		case <-ctx.Done():
+			logger.Log.Warn().Msg("Shipping cronjob synchronization aborted due to context cancellation")
+			return stats, ctx.Err()
+		default:
+		}
+
+		if order.OrderShippingCode == nil || strings.TrimSpace(*order.OrderShippingCode) == "" {
+			continue
+		}
+		shippingCode := strings.TrimSpace(*order.OrderShippingCode)
+
+		providerName := "ghn"
+		if order.OrderShippingProvider != nil && strings.TrimSpace(*order.OrderShippingProvider) != "" {
+			providerName = strings.TrimSpace(*order.OrderShippingProvider)
+		}
+
+		provider, err := s.shippingFactory.GetProvider(providerName)
+		if err != nil {
+			logger.Log.Warn().
+				Str("provider", providerName).
+				Str("order_number", order.OrderNumber).
+				Msg("Shipping provider not supported in sync cronjob")
+			stats.FailedCount++
+			continue
+		}
+
+		trackingInfo, err := provider.GetTrackingInfo(ctx, shippingCode)
+		if err != nil {
+			logger.Log.Warn().
+				Err(err).
+				Str("order_number", order.OrderNumber).
+				Str("shipping_code", shippingCode).
+				Msg("Failed to query tracking info in sync cronjob")
+			stats.FailedCount++
+			time.Sleep(200 * time.Millisecond)
+			continue
+		}
+
+		stats.SyncedCount++
+		ghnStatus := strings.ToLower(strings.TrimSpace(trackingInfo.Status))
+
+		if ghnStatus == "delivered" && order.OrderStatus != OrderStatusDelivered {
+			txCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			tx, err := db.BeginTx(txCtx)
+			if err != nil {
+				cancel()
+				logger.Log.Error().Err(err).Str("order_number", order.OrderNumber).Msg("Failed to begin transaction for order delivery update")
+				stats.FailedCount++
+				continue
+			}
+
+			updatedOrder, err := s.orderRepo.MarkDeliveredByShippingCode(txCtx, tx, shippingCode)
+			if err != nil {
+				_ = tx.Rollback(txCtx)
+				cancel()
+				logger.Log.Error().Err(err).Str("order_number", order.OrderNumber).Msg("Failed to mark order delivered in sync cronjob")
+				stats.FailedCount++
+				continue
+			}
+
+			eventNote := fmt.Sprintf("Cronjob Sync: %s", trackingInfo.StatusText)
+			_, err = s.trackingRepo.InsertEvent(txCtx, tx, sqlc.InsertTrackingEventParams{
+				EventOrderID: order.OrderID,
+				EventStatus:  "delivered",
+				EventNote:    &eventNote,
+				EventSource:  "ghn_cron",
+			})
+			if err != nil {
+				_ = tx.Rollback(txCtx)
+				cancel()
+				logger.Log.Error().Err(err).Str("order_number", order.OrderNumber).Msg("Failed to record tracking event in sync cronjob")
+				stats.FailedCount++
+				continue
+			}
+
+			if err := tx.Commit(txCtx); err != nil {
+				cancel()
+				logger.Log.Error().Err(err).Str("order_number", order.OrderNumber).Msg("Failed to commit transaction in sync cronjob")
+				stats.FailedCount++
+				continue
+			}
+			cancel()
+
+			stats.DeliveredCount++
+			_ = s.cache.Clear(fmt.Sprintf("order:%s", order.OrderUuid.String()))
+			_ = s.cache.Clear("orders:*")
+
+			go func(ord sqlc.Order, code string) {
+				_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
+					UserID: ord.OrderUserID,
+					Type:   "order_delivered",
+					Title:  "Order Delivered Successfully",
+					Body:   fmt.Sprintf("Your order #%s has been delivered by GHN.", ord.OrderNumber),
+					Data: map[string]any{
+						"order_uuid":    ord.OrderUuid.String(),
+						"shipping_code": code,
+					},
+				})
+			}(updatedOrder, shippingCode)
+
+			logger.Log.Info().
+				Str("order_number", order.OrderNumber).
+				Str("shipping_code", shippingCode).
+				Msg("Order transitioned to DELIVERED via shipping sync cronjob")
+		} else if ghnStatus != "" {
+			existingEvents, err := s.trackingRepo.GetByOrderID(ctx, order.OrderID)
+			if err == nil {
+				hasStatusAlready := false
+				for _, ev := range existingEvents {
+					if strings.EqualFold(ev.EventStatus, ghnStatus) {
+						hasStatusAlready = true
+						break
+					}
+				}
+				if !hasStatusAlready {
+					eventNote := fmt.Sprintf("GHN update: %s", trackingInfo.StatusText)
+					_, _ = s.trackingRepo.InsertEvent(ctx, nil, sqlc.InsertTrackingEventParams{
+						EventOrderID: order.OrderID,
+						EventStatus:  ghnStatus,
+						EventNote:    &eventNote,
+						EventSource:  "ghn_cron",
+					})
+				}
+			}
+		}
+
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	logger.Log.Info().
+		Int("scanned", stats.ScannedCount).
+		Int("synced", stats.SyncedCount).
+		Int("delivered", stats.DeliveredCount).
+		Int("failed", stats.FailedCount).
+		Msg("Shipping sync cronjob batch completed successfully")
+
+	return stats, nil
+}

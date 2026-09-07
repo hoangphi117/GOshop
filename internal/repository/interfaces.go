@@ -70,6 +70,7 @@ type OrderRepository interface {
 	MarkDeliveredByShippingCode(ctx context.Context, tx pgx.Tx, shippingCode string) (sqlc.Order, error)
 	MarkDeliveredByUUID(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID) (sqlc.Order, error)
 	CancelShipping(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID) (sqlc.Order, error)
+	GetActiveShippedOrders(ctx context.Context, limit int32) ([]sqlc.Order, error)
 }
 
 type OrderReturnsRepository interface {

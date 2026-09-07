@@ -783,3 +783,13 @@ func (oh *OrderHandler) SyncOrderTracking(ctx *gin.Context) {
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Sync tracking successfully", result)
 }
+
+func (oh *OrderHandler) AdminSyncActiveTracking(ctx *gin.Context) {
+	stats, err := oh.service.AdminSyncActiveShippingOrders(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Batch active shipping tracking synchronized successfully", stats)
+}
