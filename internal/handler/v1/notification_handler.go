@@ -79,7 +79,7 @@ func (h *NotificationHandler) MarkNotificationAsRead(ctx *gin.Context) {
 
 	notifUUID, err := uuid.Parse(params.UUID.String())
 	if err != nil {
-		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid order UUID"))
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid notification UUID"))
 		return
 	}
 

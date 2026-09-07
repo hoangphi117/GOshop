@@ -67,21 +67,22 @@ const (
 )
 
 type orderService struct {
-	orderRepo        repository.OrderRepository
-	orderItemRepo    repository.OrderItemRepository
-	orderReturnRepo  repository.OrderReturnsRepository
-	productRepo      repository.ProductRepository
-	userRepo         repository.UserRepository
-	cartService      CartService
-	cartRepo         repository.CartRepository
-	couponRepo       repository.CouponRepository
-	trackingRepo     repository.TrackingRepository
-	webhookRepo      repository.WebhookEventRepository
-	paymentRepo      repository.PaymentRepository
-	paymentProviders map[string]payment.PaymentProvider
-	cache            cache.RedisCacheService
-	shippingFactory  *shipping.ShippingFactory
-	rabbitmq         rabbitmq.RabbitMQService
+	orderRepo           repository.OrderRepository
+	orderItemRepo       repository.OrderItemRepository
+	orderReturnRepo     repository.OrderReturnsRepository
+	productRepo         repository.ProductRepository
+	userRepo            repository.UserRepository
+	cartService         CartService
+	cartRepo            repository.CartRepository
+	couponRepo          repository.CouponRepository
+	trackingRepo        repository.TrackingRepository
+	webhookRepo         repository.WebhookEventRepository
+	paymentRepo         repository.PaymentRepository
+	paymentProviders    map[string]payment.PaymentProvider
+	notificationService NotificationService
+	cache               cache.RedisCacheService
+	shippingFactory     *shipping.ShippingFactory
+	rabbitmq            rabbitmq.RabbitMQService
 }
 
 func NewOrderService(orderRepo repository.OrderRepository,
@@ -96,25 +97,27 @@ func NewOrderService(orderRepo repository.OrderRepository,
 	webhookRepo repository.WebhookEventRepository,
 	paymentRepo repository.PaymentRepository,
 	paymentProviders map[string]payment.PaymentProvider,
+	notificationService NotificationService,
 	redisClient *redis.Client,
 	shippingFactory *shipping.ShippingFactory,
 	rabbitmq rabbitmq.RabbitMQService) OrderService {
 	return &orderService{
-		orderRepo:        orderRepo,
-		orderItemRepo:    orderItemRepo,
-		orderReturnRepo:  orderReturnRepo,
-		productRepo:      productRepo,
-		userRepo:         userRepo,
-		cartService:      cartService,
-		cartRepo:         cartRepo,
-		couponRepo:       couponRepo,
-		trackingRepo:     trackingRepo,
-		webhookRepo:      webhookRepo,
-		paymentRepo:      paymentRepo,
-		paymentProviders: paymentProviders,
-		cache:            cache.NewRedisCacheService(redisClient),
-		shippingFactory:  shippingFactory,
-		rabbitmq:         rabbitmq,
+		orderRepo:           orderRepo,
+		orderItemRepo:       orderItemRepo,
+		orderReturnRepo:     orderReturnRepo,
+		productRepo:         productRepo,
+		userRepo:            userRepo,
+		cartService:         cartService,
+		cartRepo:            cartRepo,
+		couponRepo:          couponRepo,
+		trackingRepo:        trackingRepo,
+		webhookRepo:         webhookRepo,
+		paymentRepo:         paymentRepo,
+		paymentProviders:    paymentProviders,
+		notificationService: notificationService,
+		cache:               cache.NewRedisCacheService(redisClient),
+		shippingFactory:     shippingFactory,
+		rabbitmq:            rabbitmq,
 	}
 }
 
@@ -426,6 +429,16 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 		logger.Log.Warn().Err(err).Msg("Failed to clear cart cache")
 	}
 
+	go func() {
+		_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
+			UserID: order.OrderUserID,
+			Type:   "order_created",
+			Title:  "Order Placed Successfully",
+			Body:   fmt.Sprintf("Your order #%s has been placed successfully.", order.OrderNumber),
+			Data:   map[string]any{"order_uuid": order.OrderUuid.String()},
+		})
+	}()
+
 	return order, orderItemsWithDetails, nil
 }
 
@@ -694,6 +707,18 @@ func (s *orderService) UpdateOrderStatus(ctx *gin.Context, input sqlc.UpdateOrde
 		logger.Log.Warn().Err(err).Msg("Failed to clear order cache")
 	}
 
+	if input.OrderStatus == OrderStatusConfirmed {
+		go func() {
+			_ = s.notificationService.Send(context, v1dto.SendNotificationInput{
+				UserID: updatedOrder.OrderUserID,
+				Type:   "order_confirmed",
+				Title:  "Order Confirmed",
+				Body:   fmt.Sprintf("Your order #%s has been confirmed and is being packed.", updatedOrder.OrderNumber),
+				Data:   map[string]any{"order_uuid": updatedOrder.OrderUuid.String()},
+			})
+		}()
+	}
+
 	return updatedOrder, orderItems, nil
 }
 
@@ -788,6 +813,16 @@ func (s *orderService) CancelOrder(ctx *gin.Context, orderUUID uuid.UUID) error 
 	if err := s.cache.Clear("orders:*"); err != nil {
 		logger.Log.Warn().Err(err).Msg("Failed to clear order cache")
 	}
+
+	go func() {
+		_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
+			UserID: orderRow.OrderUserID,
+			Type:   "order_cancelled",
+			Title:  "Order Cancelled",
+			Body:   fmt.Sprintf("Your order #%s has been cancelled.", orderRow.OrderNumber),
+			Data:   map[string]any{"order_uuid": orderRow.OrderUuid.String()},
+		})
+	}()
 
 	return nil
 }
@@ -1256,6 +1291,20 @@ func (s *orderService) ProcessShippingOrderMessage(headers amqp.Table, body []by
 	}
 	_ = s.cache.Clear(fmt.Sprintf("order:%s", orderUUID.String()))
 	logger.Log.Info().Str("order_uuid", msg.OrderUUID).Str("shipping_code", ghnResp.ShippingCode).Msg("Shipping order created successfully via RabbitMQ")
+
+	go func() {
+		_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
+			UserID: order.OrderUserID,
+			Type:   "order_shipped",
+			Title:  "Your Order Is On The Way",
+			Body:   fmt.Sprintf("Order #%s has been shipped with tracking code: %s.", order.OrderNumber, ghnResp.ShippingCode),
+			Data: map[string]any{
+				"order_uuid":    orderUUID.String(),
+				"shipping_code": ghnResp.ShippingCode,
+			},
+		})
+	}()
+
 	return nil
 
 }
@@ -1394,6 +1443,16 @@ func (s *orderService) HandleShippingWebhook(ctx *gin.Context, rawBody []byte, p
 		// Xóa cache đơn hàng
 		_ = s.cache.Clear(fmt.Sprintf("order:%s", updatedOrder.OrderUuid.String()))
 		logger.Log.Info().Str("order_number", order.OrderNumber).Str("code", payload.OrderCode).Msg("Order marked as DELIVERED via GHN Webhook")
+
+		go func() {
+			_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
+				UserID: updatedOrder.OrderUserID,
+				Type:   "order_delivered",
+				Title:  "Order Delivered",
+				Body:   fmt.Sprintf("Your order #%s has been delivered. Please confirm receipt.", order.OrderNumber),
+				Data:   map[string]any{"order_uuid": updatedOrder.OrderUuid.String()},
+			})
+		}()
 
 	case "delivering":
 		eventNote := "Order is currently being delivered by shipping provider."
@@ -1681,6 +1740,16 @@ func (s *orderService) ConfirmOrderDelivery(ctx *gin.Context, orderUUID uuid.UUI
 	_ = s.cache.Clear(fmt.Sprintf("order:%s", orderUUID.String()))
 	_ = s.cache.Clear("orders:*")
 
+	go func() {
+		_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
+			UserID: updatedOrder.OrderUserID,
+			Type:   "order_completed",
+			Title:  "Order Completed",
+			Body:   fmt.Sprintf("Thank you! Order #%s is completed. You can now write a review.", updatedOrder.OrderNumber),
+			Data:   map[string]any{"order_uuid": updatedOrder.OrderUuid.String()},
+		})
+	}()
+
 	var deliveredAt *time.Time
 	if updatedOrder.OrderDeliveredAt.Valid {
 		deliveredAt = &updatedOrder.OrderDeliveredAt.Time
@@ -1937,6 +2006,19 @@ func (s *orderService) RequestOrderReturn(ctx *gin.Context, orderUUID uuid.UUID,
 	}
 
 	_ = s.cache.Clear(fmt.Sprintf("order:%s", orderUUID.String()))
+
+	go func() {
+		_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
+			UserID: order.OrderUserID,
+			Type:   "return_requested",
+			Title:  "Return Request Received",
+			Body:   fmt.Sprintf("Your return request for order #%s is under review.", order.OrderNumber),
+			Data: map[string]any{
+				"order_uuid":  orderUUID.String(),
+				"return_uuid": createdReturn.ReturnUuid.String(),
+			},
+		})
+	}()
 
 	return v1dto.OrderReturnDTO{
 		ReturnUUID:      createdReturn.ReturnUuid.String(),
@@ -2231,6 +2313,33 @@ func (s *orderService) AdminUpdateReturnStatus(ctx *gin.Context, returnUUID uuid
 	}
 
 	_ = s.cache.Clear(fmt.Sprintf("order:%s", order.OrderUuid.String()))
+
+	go func() {
+		var notifType, notifTitle, notifBody string
+		switch updatedReturn.ReturnStatus {
+		case OrderReturnStatusApproved:
+			notifType = "return_approved"
+			notifTitle = "Return Request Approved"
+			notifBody = fmt.Sprintf("Your return request for order #%s has been approved. Please submit the return tracking code.", order.OrderNumber)
+		case OrderReturnStatusRejected:
+			notifType = "return_rejected"
+			notifTitle = "Return Request Rejected"
+			notifBody = fmt.Sprintf("Your return request for order #%s was rejected. Reason: %s", order.OrderNumber, noteStr)
+		default:
+			return
+		}
+
+		_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
+			UserID: order.OrderUserID,
+			Type:   notifType,
+			Title:  notifTitle,
+			Body:   notifBody,
+			Data: map[string]any{
+				"order_uuid":  order.OrderUuid.String(),
+				"return_uuid": updatedReturn.ReturnUuid.String(),
+			},
+		})
+	}()
 
 	return v1dto.AdminReturnSummaryDTO{
 		ReturnUUID: updatedReturn.ReturnUuid.String(),
@@ -2945,6 +3054,19 @@ func (s *orderService) AdminProcessReturnRefund(ctx *gin.Context, returnUUID uui
 
 	_ = s.cache.Clear(fmt.Sprintf("order:%s", order.OrderUuid.String()))
 	_ = s.cache.Clear("orders:*")
+
+	go func() {
+		_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
+			UserID: order.OrderUserID,
+			Type:   "return_refunded",
+			Title:  "Refund Completed",
+			Body:   fmt.Sprintf("Refund of %.0f VND for order #%s has been processed successfully.", refundAmount, order.OrderNumber),
+			Data: map[string]any{
+				"order_uuid":  order.OrderUuid.String(),
+				"return_uuid": returnRequest.ReturnUuid.String(),
+			},
+		})
+	}()
 
 	logger.Log.Info().
 		Str("return_uuid", returnRequest.ReturnUuid.String()).

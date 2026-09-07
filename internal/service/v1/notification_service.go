@@ -142,7 +142,9 @@ func (s *notificationService) GetMyNotifications(ctx *gin.Context, query v1dto.G
 		limit = 10
 	}
 
-	notifications, err := s.notificationRepo.GetByUserID(reqCtx, user.UserID, page, limit)
+	offset := (page - 1) * limit
+
+	notifications, err := s.notificationRepo.GetByUserID(reqCtx, user.UserID, limit, offset)
 	if err != nil {
 		logger.Log.Error().Err(err).Int32("user_id", user.UserID).Msg("Failed to get notifications")
 		return nil, 0, utils.NewError(utils.ErrCodeInternal, "Failed to retrieve notifications")

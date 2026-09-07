@@ -61,8 +61,12 @@ func NewOrderModule(ctx *ModuleContext, rabbitmqService rabbitmq.RabbitMQService
 		}
 	}
 
+	notificationRepo := repository.NewSqlNotificationRepository(ctx.DB)
+	notificationService := v1service.NewNotificationService(notificationRepo, userRepo)
+
 	orderService := v1service.NewOrderService(orderRepo, orderItemRepo, orderReturnRepo, productRepo, userRepo,
-		cartService, cartRepo, couponRepo, trackingRepo, webhookRepo, paymentRepo, paymentProviders, ctx.Redis, shippingFactory, rabbitmqService)
+		cartService, cartRepo, couponRepo, trackingRepo, webhookRepo,
+		paymentRepo, paymentProviders, notificationService, ctx.Redis, shippingFactory, rabbitmqService)
 
 	go func() {
 		err := rabbitmqService.Consume(context.Background(), v1service.QueueShippingCreate, orderService.ProcessShippingOrderMessage)

@@ -46,9 +46,12 @@ func NewPaymentModule(ctx *ModuleContext, cacheService cache.RedisCacheService, 
 	returnURL := utils.GetEnv("PAYMENT_RETURN_URL", "http://localhost:3001")
 	webhookBaseURL := utils.GetEnv("PAYMENT_WEBHOOK_BASE_URL", "http://localhost:8080")
 
+	notificationRepo := repository.NewSqlNotificationRepository(ctx.DB)
+	notificationService := v1service.NewNotificationService(notificationRepo, userRepo)
+
 	paymentService := v1service.NewPaymentService(
 		paymentRepo, orderRepo, userRepo, webhookRepo,
-		providers, cacheService, rabbitmqService, returnURL, webhookBaseURL,
+		providers, notificationService, cacheService, rabbitmqService, returnURL, webhookBaseURL,
 	)
 
 	go func() {
