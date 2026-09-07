@@ -13,6 +13,7 @@ import (
 	"goshop/pkg/logger"
 	"goshop/pkg/mail"
 	"goshop/pkg/rabbitmq"
+	"goshop/pkg/ws"
 	"net/http"
 	"os"
 	"os/signal"
@@ -76,6 +77,8 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		return nil, err
 	}
 
+	wsHub := ws.NewHub()
+
 	ctx := &ModuleContext{
 		DB:    db.DB,
 		Redis: redisClient,
@@ -84,13 +87,13 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	modules := []Module{
 		NewUserModule(ctx),
 		NewProductModule(ctx),
-		NewOrderModule(ctx, rabbitmqService),
+		NewOrderModule(ctx, wsHub, rabbitmqService),
 		NewCartModule(ctx),
 		NewCouponModule(ctx),
-		NewPaymentModule(ctx, cacheRedisService, rabbitmqService),
+		NewPaymentModule(ctx, cacheRedisService, rabbitmqService, wsHub),
 		NewAddressModule(ctx),
 		NewReviewModule(ctx),
-		NewNotificationModule(ctx),
+		NewNotificationModule(ctx, wsHub, tokenService, cacheRedisService),
 		NewAuthModule(ctx, tokenService, cacheRedisService, mailService, rabbitmqService, cfg.AppURL),
 	}
 

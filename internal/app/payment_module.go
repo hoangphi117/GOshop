@@ -12,6 +12,7 @@ import (
 	"goshop/pkg/logger"
 	"goshop/pkg/payment"
 	"goshop/pkg/rabbitmq"
+	"goshop/pkg/ws"
 	"time"
 )
 
@@ -20,7 +21,7 @@ type PaymentModule struct {
 	adminRoutes []routes.Route
 }
 
-func NewPaymentModule(ctx *ModuleContext, cacheService cache.RedisCacheService, rabbitmqService rabbitmq.RabbitMQService) *PaymentModule {
+func NewPaymentModule(ctx *ModuleContext, cacheService cache.RedisCacheService, rabbitmqService rabbitmq.RabbitMQService, wsHub ws.Hub) *PaymentModule {
 	paymentRepo := repository.NewSqlPaymentRepository(ctx.DB)
 	webhookRepo := repository.NewSqlWebhookEventRepository(ctx.DB)
 	orderRepo := repository.NewSqlOrderRepository(ctx.DB)
@@ -47,7 +48,7 @@ func NewPaymentModule(ctx *ModuleContext, cacheService cache.RedisCacheService, 
 	webhookBaseURL := utils.GetEnv("PAYMENT_WEBHOOK_BASE_URL", "http://localhost:8080")
 
 	notificationRepo := repository.NewSqlNotificationRepository(ctx.DB)
-	notificationService := v1service.NewNotificationService(notificationRepo, userRepo)
+	notificationService := v1service.NewNotificationService(notificationRepo, userRepo, wsHub)
 
 	paymentService := v1service.NewPaymentService(
 		paymentRepo, orderRepo, userRepo, webhookRepo,

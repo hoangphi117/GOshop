@@ -9,6 +9,7 @@ import (
 	"goshop/internal/repository"
 	"goshop/internal/utils"
 	"goshop/pkg/logger"
+	"goshop/pkg/ws"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -18,15 +19,18 @@ import (
 type notificationService struct {
 	notificationRepo repository.NotificationRepository
 	userRepo         repository.UserRepository
+	wsHub            ws.Hub
 }
 
 func NewNotificationService(
 	notificationRepo repository.NotificationRepository,
 	userRepo repository.UserRepository,
+	wsHub ws.Hub,
 ) NotificationService {
 	return &notificationService{
 		notificationRepo: notificationRepo,
 		userRepo:         userRepo,
+		wsHub:            wsHub,
 	}
 }
 
@@ -52,7 +56,8 @@ func (s *notificationService) Send(ctx context.Context, input v1dto.SendNotifica
 		NotificationData:   dataBytes,
 	}
 
-	_, err := s.notificationRepo.Create(ctx, params)
+	// Write the notification to the database
+	created, err := s.notificationRepo.Create(ctx, params)
 	if err != nil {
 		logger.Log.Error().Err(err).
 			Int32("user_id", input.UserID).
@@ -60,6 +65,15 @@ func (s *notificationService) Send(ctx context.Context, input v1dto.SendNotifica
 			Msg("Failed to persist in-app notification")
 		return err
 	}
+
+	// Broadcast the notification to the user's active WebSocket connections
+	if s.wsHub != nil {
+		go s.wsHub.BroadcastToUser(input.UserID, ws.WSMessage{
+			Type: ws.EventTypeNotification,
+			Data: v1dto.MapToNotificationDTO(created),
+		})
+	}
+
 	return nil
 }
 
@@ -95,6 +109,14 @@ func (s *notificationService) CreateNotification(ctx *gin.Context, input v1dto.C
 	if err != nil {
 		logger.Log.Error().Err(err).Msg("failed to create notification via admin endpoint")
 		return v1dto.NotificationDTO{}, utils.NewError(utils.ErrCodeInternal, "Failed to persist notification")
+	}
+
+	// Broadcast the notification to recipient's active WebSocket connections
+	if s.wsHub != nil {
+		go s.wsHub.BroadcastToUser(user.UserID, ws.WSMessage{
+			Type: ws.EventTypeNotification,
+			Data: v1dto.MapToNotificationDTO(created),
+		})
 	}
 
 	var responseData map[string]any

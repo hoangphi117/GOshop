@@ -658,9 +658,9 @@ func (s *orderService) GetAllOrders(ctx *gin.Context, input v1dto.GetOrdersParam
 }
 
 func (s *orderService) UpdateOrderStatus(ctx *gin.Context, input sqlc.UpdateOrderStatusParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
-	context := ctx.Request.Context()
+	reqCtx := ctx.Request.Context()
 
-	existingOrder, err := s.orderRepo.GetByUUID(context, input.OrderUuid)
+	existingOrder, err := s.orderRepo.GetByUUID(reqCtx, input.OrderUuid)
 	if err != nil {
 		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeInternal, "Order not found")
 	}
@@ -673,7 +673,7 @@ func (s *orderService) UpdateOrderStatus(ctx *gin.Context, input sqlc.UpdateOrde
 		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, errMsg)
 	}
 
-	updatedOrder, err := s.orderRepo.UpdateStatus(context, input)
+	updatedOrder, err := s.orderRepo.UpdateStatus(reqCtx, input)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeNotFound, "order not found")
@@ -690,7 +690,7 @@ func (s *orderService) UpdateOrderStatus(ctx *gin.Context, input sqlc.UpdateOrde
 	}
 
 	if statusNote != "" {
-		_, _ = s.trackingRepo.InsertEvent(context, nil, sqlc.InsertTrackingEventParams{
+		_, _ = s.trackingRepo.InsertEvent(reqCtx, nil, sqlc.InsertTrackingEventParams{
 			EventOrderID: updatedOrder.OrderID,
 			EventStatus:  v1dto.MapOrderStatusToString(input.OrderStatus),
 			EventNote:    &statusNote,
@@ -698,7 +698,7 @@ func (s *orderService) UpdateOrderStatus(ctx *gin.Context, input sqlc.UpdateOrde
 		})
 	}
 
-	orderItems, err := s.orderItemRepo.GetByOrderID(context, updatedOrder.OrderID)
+	orderItems, err := s.orderItemRepo.GetByOrderID(reqCtx, updatedOrder.OrderID)
 	if err != nil {
 		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "failed to get order items", err)
 	}
@@ -709,13 +709,23 @@ func (s *orderService) UpdateOrderStatus(ctx *gin.Context, input sqlc.UpdateOrde
 
 	if input.OrderStatus == OrderStatusConfirmed {
 		go func() {
-			_ = s.notificationService.Send(context, v1dto.SendNotificationInput{
+			logger.Log.Info().
+				Int32("target_customer_id", updatedOrder.OrderUserID).
+				Str("order_number", updatedOrder.OrderNumber).
+				Msg("Dispatching order_confirmed notification")
+
+			err := s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
 				UserID: updatedOrder.OrderUserID,
 				Type:   "order_confirmed",
 				Title:  "Order Confirmed",
 				Body:   fmt.Sprintf("Your order #%s has been confirmed and is being packed.", updatedOrder.OrderNumber),
 				Data:   map[string]any{"order_uuid": updatedOrder.OrderUuid.String()},
 			})
+			if err != nil {
+				logger.Log.Error().Err(err).
+					Int32("target_customer_id", updatedOrder.OrderUserID).
+					Msg("Failed to send order_confirmed notification")
+			}
 		}()
 	}
 
