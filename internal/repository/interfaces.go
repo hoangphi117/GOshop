@@ -184,3 +184,7 @@ type ReviewRepository interface {
 	UpdateStatus(ctx context.Context, tx pgx.Tx, reviewID int32, status int16) (sqlc.ProductReview, error)
 	Reply(ctx context.Context, tx pgx.Tx, reviewID int32, reply string) (sqlc.ProductReview, error)
 }
+
+type NotificationRepository interface {
+	Create(ctx context.Context, params sqlc.CreateNotificationParams) (sqlc.Notification, error)
+}

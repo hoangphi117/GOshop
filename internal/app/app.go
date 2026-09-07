@@ -90,6 +90,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		NewPaymentModule(ctx, cacheRedisService, rabbitmqService),
 		NewAddressModule(ctx),
 		NewReviewModule(ctx),
+		NewNotificationModule(ctx),
 		NewAuthModule(ctx, tokenService, cacheRedisService, mailService, rabbitmqService, cfg.AppURL),
 	}
 

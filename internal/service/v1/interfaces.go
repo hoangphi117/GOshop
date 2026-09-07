@@ -139,3 +139,8 @@ type ReviewService interface {
 	ReportReview(ctx *gin.Context, reviewUUID uuid.UUID, input v1dto.ReportReviewInput) error
 	AdminForceDeleteReview(ctx *gin.Context, reviewUUID uuid.UUID) error
 }
+
+type NotificationService interface {
+	Send(ctx context.Context, input v1dto.SendNotificationInput) error
+	CreateNotification(ctx *gin.Context, input v1dto.CreateNotificationInput) (v1dto.NotificationDTO, error)
+}
