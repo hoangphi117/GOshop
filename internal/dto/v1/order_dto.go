@@ -70,6 +70,19 @@ type OrderSummaryDTO struct {
 	CreatedAt      string  `json:"created_at"`
 }
 
+type SyncTrackingResponseDTO struct {
+	OrderUUID        string             `json:"order_uuid"`
+	OrderNumber      string             `json:"order_number"`
+	ShippingCode     string             `json:"shipping_code"`
+	ShippingProvider string             `json:"shipping_provider"`
+	CurrentStatus    string             `json:"current_status"`
+	StatusText       string             `json:"status_text"`
+	IsDelivered      bool               `json:"is_delivered"`
+	LastSyncAt       time.Time          `json:"last_sync_at"`
+	Timeline         []TrackingEventDTO `json:"timeline"`
+	Message          string             `json:"message"`
+}
+
 type GetOrdersParam struct {
 	Search  string `form:"search" binding:"omitempty,min=2,max=50"`
 	Page    int32  `form:"page" binding:"omitempty,gte=1"`

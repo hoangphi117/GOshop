@@ -85,6 +85,7 @@ type OrderService interface {
 	SubmitReturnShipping(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.SubmitReturnShippingInput) (v1dto.SubmitReturnShippingResponseDTO, error)
 	UpdateReturnBankAccount(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.UpdateReturnBankAccountInput) (v1dto.UpdateReturnBankAccountResponseDTO, error)
 	AdminProcessReturnRefund(ctx *gin.Context, returnUUID uuid.UUID, input v1dto.AdminReturnRefundInput) (v1dto.AdminReturnRefundResponseDTO, error)
+	SyncOrderTracking(ctx *gin.Context, orderUUID uuid.UUID) (v1dto.SyncTrackingResponseDTO, error)
 }
 
 type CartService interface {

@@ -762,3 +762,24 @@ func (oh *OrderHandler) ConfirmOrderDelivery(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Order delivery confirmed successfully", res)
 }
 
+func (oh *OrderHandler) SyncOrderTracking(ctx *gin.Context) {
+	var params v1dto.GetOrderByUUIDParam
+	if err := ctx.ShouldBindUri(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	orderUUID, err := uuid.Parse(params.UUID)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid order UUID"))
+		return
+	}
+
+	result, err := oh.service.SyncOrderTracking(ctx, orderUUID)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Sync tracking successfully", result)
+}

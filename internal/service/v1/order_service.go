@@ -3100,3 +3100,146 @@ func (s *orderService) AdminProcessReturnRefund(ctx *gin.Context, returnUUID uui
 		Message:          "Return refund processed successfully.",
 	}, nil
 }
+
+func (s *orderService) SyncOrderTracking(ctx *gin.Context, orderUUID uuid.UUID) (v1dto.SyncTrackingResponseDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	userUUIDStr, ok := ctx.Get("user_uuid")
+	if !ok || userUUIDStr == "" {
+		return v1dto.SyncTrackingResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	if err != nil {
+		return v1dto.SyncTrackingResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
+	}
+	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
+	if err != nil {
+		return v1dto.SyncTrackingResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
+
+	order, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return v1dto.SyncTrackingResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "Order not found")
+		}
+		return v1dto.SyncTrackingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
+	}
+
+	isAdminOrMod := user.UserLevel == RoleAdmin || user.UserLevel == RoleModerator
+	if order.OrderUserID != user.UserID && !isAdminOrMod {
+		return v1dto.SyncTrackingResponseDTO{}, utils.NewError(utils.ErrCodeForbidden, "Access denied")
+	}
+
+	if order.OrderShippingCode == nil || strings.TrimSpace(*order.OrderShippingCode) == "" {
+		return v1dto.SyncTrackingResponseDTO{}, utils.NewError(
+			utils.ErrCodeBadRequest,
+			"Order does not have a shipping tracking code to synchronize",
+		)
+	}
+	shippingCode := strings.TrimSpace(*order.OrderShippingCode)
+
+	providerName := "ghn"
+	if order.OrderShippingProvider != nil && strings.TrimSpace(*order.OrderShippingProvider) != "" {
+		providerName = strings.TrimSpace(*order.OrderShippingProvider)
+	}
+
+	provider, err := s.shippingFactory.GetProvider(providerName)
+	if err != nil {
+		return v1dto.SyncTrackingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Unsupported shipping provider", err)
+	}
+
+	// Call shipping provider API to get tracking info
+	trackingInfo, err := provider.GetTrackingInfo(reqCtx, shippingCode)
+	if err != nil {
+		logger.Log.Error().
+			Err(err).
+			Str("order_number", order.OrderNumber).
+			Str("shipping_code", shippingCode).
+			Msg("Failed to fetch tracking info from shipping provider")
+		return v1dto.SyncTrackingResponseDTO{}, utils.WrapError(
+			utils.ErrCodeBadGateway,
+			"Failed to query tracking information from GHN gateway",
+			err,
+		)
+	}
+
+	ghnStatus := strings.ToLower(strings.TrimSpace(trackingInfo.Status))
+
+	isDeliveredNow := false
+	if ghnStatus == "delivered" && order.OrderStatus != OrderStatusDelivered {
+		txCtx, cancel := context.WithTimeout(reqCtx, 10*time.Second)
+		defer cancel()
+
+		tx, err := db.BeginTx(txCtx)
+		if err == nil {
+			defer tx.Rollback(txCtx)
+
+			_, err = s.orderRepo.MarkDeliveredByShippingCode(txCtx, tx, shippingCode)
+			if err == nil {
+				eventNote := fmt.Sprintf("GHN Sync: %s", trackingInfo.StatusText)
+				_, _ = s.trackingRepo.InsertEvent(txCtx, tx, sqlc.InsertTrackingEventParams{
+					EventOrderID: order.OrderID,
+					EventStatus:  "delivered",
+					EventNote:    &eventNote,
+					EventSource:  "ghn_sync",
+				})
+
+				if err := tx.Commit(txCtx); err == nil {
+					isDeliveredNow = true
+					_ = s.cache.Clear(fmt.Sprintf("order:%s", orderUUID.String()))
+					_ = s.cache.Clear("orders:*")
+
+					// Realtime notify
+					go func() {
+						_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
+							UserID: order.OrderUserID,
+							Type:   "order_delivered",
+							Title:  "Order Delivered Successfully",
+							Body:   fmt.Sprintf("Your order #%s has been delivered by GHN.", order.OrderNumber),
+							Data: map[string]any{
+								"order_uuid":    orderUUID.String(),
+								"shipping_code": shippingCode,
+							},
+						})
+					}()
+				}
+			}
+		}
+	} else {
+		// Write log if this is has a new status
+		existingEvents, _ := s.trackingRepo.GetByOrderID(reqCtx, order.OrderID)
+		hasStatusAlready := false
+		for _, ev := range existingEvents {
+			if strings.EqualFold(ev.EventStatus, ghnStatus) {
+				hasStatusAlready = true
+				break
+			}
+		}
+
+		if !hasStatusAlready && ghnStatus != "" {
+			eventNote := fmt.Sprintf("GHN tracking update: %s", trackingInfo.StatusText)
+			_, _ = s.trackingRepo.InsertEvent(reqCtx, nil, sqlc.InsertTrackingEventParams{
+				EventOrderID: order.OrderID,
+				EventStatus:  ghnStatus,
+				EventNote:    &eventNote,
+				EventSource:  "ghn_sync",
+			})
+		}
+	}
+
+	// Get all latest timeline
+	updatedEvents, _ := s.trackingRepo.GetByOrderID(reqCtx, order.OrderID)
+
+	return v1dto.SyncTrackingResponseDTO{
+		OrderUUID:        order.OrderUuid.String(),
+		OrderNumber:      order.OrderNumber,
+		ShippingCode:     shippingCode,
+		ShippingProvider: strings.ToUpper(providerName),
+		CurrentStatus:    ghnStatus,
+		StatusText:       trackingInfo.StatusText,
+		IsDelivered:      order.OrderStatus == OrderStatusDelivered || isDeliveredNow,
+		LastSyncAt:       time.Now().UTC(),
+		Timeline:         v1dto.MapToEventDTOs(updatedEvents),
+		Message:          "Order tracking information synchronized successfully from GHN.",
+	}, nil
+}

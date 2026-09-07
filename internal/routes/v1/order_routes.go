@@ -37,5 +37,6 @@ func (or *OrderRoutes) Register(r *gin.RouterGroup) {
 		orders.POST("/:uuid/return/shipping-info", or.handler.SubmitReturnShipping)
 		orders.POST("/:uuid/return/shipping", or.handler.SubmitReturnShipping)
 		orders.PUT("/:uuid/return/bank-account", or.handler.UpdateReturnBankAccount)
+		orders.POST("/:uuid/sync-tracking", or.handler.SyncOrderTracking)
 	}
 }
