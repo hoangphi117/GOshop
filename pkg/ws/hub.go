@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"goshop/pkg/logger"
 	"sync"
+	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 type Hub interface {
@@ -11,6 +14,7 @@ type Hub interface {
 	Unregister(client *Client)
 	BroadcastToUser(userID int32, msg WSMessage)
 	IsUserOnline(userID int32) bool
+	Shutdown()
 }
 
 type hub struct {
@@ -48,7 +52,7 @@ func (h *hub) Unregister(client *Client) {
 	if userClients, exists := h.clients[client.UserID]; exists {
 		if _, ok := userClients[client]; ok {
 			delete(userClients, client)
-			close(client.Send)
+			client.Close()
 
 			if len(userClients) == 0 {
 				delete(h.clients, client.UserID)
@@ -59,6 +63,29 @@ func (h *hub) Unregister(client *Client) {
 	logger.Log.Info().
 		Int32("user_id", client.UserID).
 		Msg("WebSocket client unregistered")
+}
+
+func (h *hub) Shutdown() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	logger.Log.Info().Msg("Closing all active WebSocket connections for graceful shutdown...")
+
+	closeMsg := websocket.FormatCloseMessage(websocket.CloseGoingAway, "Server is shutting down")
+
+	for userID, userClients := range h.clients {
+		for client := range userClients {
+			_ = client.Conn.WriteControl(
+				websocket.CloseMessage,
+				closeMsg,
+				time.Now().Add(writeWait),
+			)
+			client.Close()
+		}
+		delete(h.clients, userID)
+	}
+
+	logger.Log.Info().Msg("WebSocket Hub shut down successfully")
 }
 
 // BroadcastToUser sends a message to all active connections belonging to a specific user

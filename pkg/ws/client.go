@@ -3,6 +3,7 @@ package ws
 import (
 	"bytes"
 	"goshop/pkg/logger"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -24,10 +25,11 @@ var (
 )
 
 type Client struct {
-	Hub    Hub
-	Conn   *websocket.Conn
-	Send   chan []byte
-	UserID int32
+	Hub       Hub
+	Conn      *websocket.Conn
+	Send      chan []byte
+	UserID    int32
+	closeOnce sync.Once
 }
 
 func NewClient(hub Hub, conn *websocket.Conn, userID int32) *Client {
@@ -39,12 +41,20 @@ func NewClient(hub Hub, conn *websocket.Conn, userID int32) *Client {
 	}
 }
 
+// Close gracefully and idempotently closes the Send channel and underlying websocket connection
+func (c *Client) Close() {
+	c.closeOnce.Do(func() {
+		close(c.Send)
+		_ = c.Conn.Close()
+	})
+}
+
 // ReadPump pumps messages from the websocket connection to the hub.
 // Runs in its own goroutine for each connection.
 func (c *Client) ReadPump() {
 	defer func() {
 		c.Hub.Unregister(c)
-		_ = c.Conn.Close()
+		c.Close()
 	}()
 
 	c.Conn.SetReadLimit(maxMessageSize)
@@ -75,7 +85,7 @@ func (c *Client) WritePump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
-		_ = c.Conn.Close()
+		c.Close()
 	}()
 
 	for {

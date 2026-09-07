@@ -36,6 +36,7 @@ type Application struct {
 	config  *config.Config
 	router  *gin.Engine
 	modules []Module
+	wsHub   ws.Hub
 }
 
 type ModuleContext struct {
@@ -92,7 +93,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		NewCouponModule(ctx),
 		NewPaymentModule(ctx, cacheRedisService, rabbitmqService, wsHub),
 		NewAddressModule(ctx),
-		NewReviewModule(ctx),
+		NewReviewModule(ctx, wsHub),
 		NewNotificationModule(ctx, wsHub, tokenService, cacheRedisService),
 		NewAuthModule(ctx, tokenService, cacheRedisService, mailService, rabbitmqService, cfg.AppURL),
 	}
@@ -103,6 +104,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		config:  cfg,
 		router:  r,
 		modules: modules,
+		wsHub:   wsHub,
 	}, nil
 }
 
@@ -125,6 +127,10 @@ func (a *Application) Run() error {
 
 	<-quit
 	logger.Log.Warn().Msg("Shutdown signal received...")
+
+	if a.wsHub != nil {
+		a.wsHub.Shutdown()
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
