@@ -1,6 +1,8 @@
 package v1dto
 
 import (
+	"encoding/json"
+	"goshop/internal/db/sqlc"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,6 +21,10 @@ type NotificationDTO struct {
 	CreatedAt time.Time              `json:"created_at"`
 }
 
+type UnreadCountDTO struct {
+	UnreadCount int64 `json:"unread_count"`
+}
+
 // ── Input ───────────────────────────────────────────────
 
 type CreateNotificationInput struct {
@@ -35,4 +41,32 @@ type SendNotificationInput struct {
 	Title  string
 	Body   string
 	Data   map[string]any
+}
+
+type GetNotificationsQuery struct {
+	Page  int32 `form:"page" binding:"omitempty,min=1"`
+	Limit int32 `form:"limit" binding:"omitempty,min=1,max=100"`
+}
+
+// ── Helper ───────────────────────────────────────────────
+
+func MapToNotificationDTO(n sqlc.Notification) NotificationDTO {
+	var responseData map[string]any
+	if len(n.NotificationData) > 0 {
+		_ = json.Unmarshal(n.NotificationData, &responseData)
+	}
+	var readAt *time.Time
+	if n.NotificationReadAt.Valid {
+		readAt = &n.NotificationReadAt.Time
+	}
+	return NotificationDTO{
+		UUID:      n.NotificationUuid,
+		Type:      n.NotificationType,
+		Title:     n.NotificationTitle,
+		Body:      n.NotificationBody,
+		Data:      responseData,
+		IsRead:    n.NotificationIsRead,
+		ReadAt:    readAt,
+		CreatedAt: n.NotificationCreatedAt,
+	}
 }

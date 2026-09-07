@@ -17,8 +17,9 @@ func NewNotificationRoutes(handler *v1handler.NotificationHandler) *Notification
 }
 
 func (nr *NotificationRoutes) Register(r *gin.RouterGroup) {
-	// notifications := r.Group("/notifications")
-	// {
-	// 	notifications.POST("/preview", nr.handler.PreviewNotification)
-	// }
+	notifications := r.Group("/notifications")
+	{
+		notifications.POST("/me", nr.handler.GetMyNotifications)
+		notifications.GET("/me/unread", nr.handler.GetUnreadCount)
+	}
 }

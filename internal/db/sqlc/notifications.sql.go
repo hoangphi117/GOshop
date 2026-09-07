@@ -9,6 +9,31 @@ import (
 	"context"
 )
 
+const countNotificationsByUserID = `-- name: CountNotificationsByUserID :one
+SELECT COUNT(*) FROM notifications
+WHERE notification_user_id = $1
+`
+
+func (q *Queries) CountNotificationsByUserID(ctx context.Context, notificationUserID int32) (int64, error) {
+	row := q.db.QueryRow(ctx, countNotificationsByUserID, notificationUserID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countUnreadNotificationsByUserID = `-- name: CountUnreadNotificationsByUserID :one
+SELECT COUNT(*) FROM notifications
+WHERE notification_user_id = $1
+  AND notification_is_read = FALSE
+`
+
+func (q *Queries) CountUnreadNotificationsByUserID(ctx context.Context, notificationUserID int32) (int64, error) {
+	row := q.db.QueryRow(ctx, countUnreadNotificationsByUserID, notificationUserID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createNotification = `-- name: CreateNotification :one
 INSERT INTO notifications (
     notification_user_id,
@@ -51,4 +76,48 @@ func (q *Queries) CreateNotification(ctx context.Context, arg CreateNotification
 		&i.NotificationCreatedAt,
 	)
 	return i, err
+}
+
+const getNotificationsByUserId = `-- name: GetNotificationsByUserId :many
+SELECT notification_id, notification_uuid, notification_user_id, notification_type, notification_title, notification_body, notification_data, notification_is_read, notification_read_at, notification_created_at FROM notifications
+WHERE notification_user_id = $1
+ORDER BY notification_created_at DESC
+LIMIT $2 OFFSET $3
+`
+
+type GetNotificationsByUserIdParams struct {
+	NotificationUserID int32 `json:"notification_user_id"`
+	Limit              int32 `json:"limit"`
+	Offset             int32 `json:"offset"`
+}
+
+func (q *Queries) GetNotificationsByUserId(ctx context.Context, arg GetNotificationsByUserIdParams) ([]Notification, error) {
+	rows, err := q.db.Query(ctx, getNotificationsByUserId, arg.NotificationUserID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Notification{}
+	for rows.Next() {
+		var i Notification
+		if err := rows.Scan(
+			&i.NotificationID,
+			&i.NotificationUuid,
+			&i.NotificationUserID,
+			&i.NotificationType,
+			&i.NotificationTitle,
+			&i.NotificationBody,
+			&i.NotificationData,
+			&i.NotificationIsRead,
+			&i.NotificationReadAt,
+			&i.NotificationCreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

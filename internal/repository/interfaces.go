@@ -187,4 +187,7 @@ type ReviewRepository interface {
 
 type NotificationRepository interface {
 	Create(ctx context.Context, params sqlc.CreateNotificationParams) (sqlc.Notification, error)
+	GetByUserID(ctx context.Context, userID int32, limit, offset int32) ([]sqlc.Notification, error)
+	CountByUserID(ctx context.Context, userID int32) (int64, error)
+	CountUnreadByUserID(ctx context.Context, userID int32) (int64, error)
 }

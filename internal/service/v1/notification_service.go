@@ -10,6 +10,7 @@ import (
 	"goshop/pkg/logger"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type notificationService struct {
@@ -109,4 +110,79 @@ func (s *notificationService) CreateNotification(ctx *gin.Context, input v1dto.C
 		ReadAt:    &created.NotificationReadAt.Time,
 		CreatedAt: created.NotificationCreatedAt,
 	}, nil
+}
+
+func (s *notificationService) GetMyNotifications(ctx *gin.Context, query v1dto.GetNotificationsQuery) ([]v1dto.NotificationDTO, int32, error) {
+	reqCtx := ctx.Request.Context()
+
+	userUUIDStr, ok := ctx.Get("user_uuid")
+	if !ok {
+		return nil, 0, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+
+	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	if err != nil {
+		return nil, 0, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID")
+	}
+
+	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
+	if err != nil {
+		return nil, 0, utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
+
+	page := query.Page
+	if page <= 0 {
+		page = 1
+	}
+
+	limit := query.Limit
+	if limit < 1 {
+		limit = 10
+	}
+
+	notifications, err := s.notificationRepo.GetByUserID(reqCtx, user.UserID, page, limit)
+	if err != nil {
+		logger.Log.Error().Err(err).Int32("user_id", user.UserID).Msg("Failed to get notifications")
+		return nil, 0, utils.NewError(utils.ErrCodeInternal, "Failed to retrieve notifications")
+	}
+
+	total, err := s.notificationRepo.CountByUserID(reqCtx, user.UserID)
+	if err != nil {
+		logger.Log.Error().Err(err).Int32("user_id", user.UserID).Msg("Failed to count notifications")
+		return nil, 0, utils.NewError(utils.ErrCodeInternal, "Failed to count notifications")
+	}
+
+	dtos := make([]v1dto.NotificationDTO, 0, len(notifications))
+	for _, n := range notifications {
+		dtos = append(dtos, v1dto.MapToNotificationDTO(n))
+	}
+
+	return dtos, int32(total), nil
+}
+
+func (s *notificationService) GetUnreadNotificationCount(ctx *gin.Context) (v1dto.UnreadCountDTO, error) {
+	reqCtx := ctx.Request.Context()
+
+	userUUIDStr, exists := ctx.Get("user_uuid")
+	if !exists {
+		return v1dto.UnreadCountDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "User unauthorized")
+	}
+
+	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	if err != nil {
+		return v1dto.UnreadCountDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Invalid user UUID")
+	}
+
+	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
+	if err != nil {
+		return v1dto.UnreadCountDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
+
+	count, err := s.notificationRepo.CountUnreadByUserID(reqCtx, user.UserID)
+	if err != nil {
+		logger.Log.Error().Err(err).Int32("user_id", user.UserID).Msg("Failed to count unread notifications")
+		return v1dto.UnreadCountDTO{}, utils.NewError(utils.ErrCodeInternal, "Failed to retrieve unread count")
+	}
+
+	return v1dto.UnreadCountDTO{UnreadCount: count}, nil
 }

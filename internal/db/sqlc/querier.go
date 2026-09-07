@@ -33,11 +33,13 @@ type Querier interface {
 	CountCartItems(ctx context.Context, cartID int32) (int64, error)
 	CountCategories(ctx context.Context, arg CountCategoriesParams) (int64, error)
 	CountCoupons(ctx context.Context, arg CountCouponsParams) (int64, error)
+	CountNotificationsByUserID(ctx context.Context, notificationUserID int32) (int64, error)
 	CountOrders(ctx context.Context, arg CountOrdersParams) (int64, error)
 	CountProducts(ctx context.Context, arg CountProductsParams) (int64, error)
 	CountReportsByReviewID(ctx context.Context, reviewID int32) (int64, error)
 	CountReturnsByUserID(ctx context.Context, arg CountReturnsByUserIDParams) (int64, error)
 	CountReviewsByUserID(ctx context.Context, reviewUserID int32) (int64, error)
+	CountUnreadNotificationsByUserID(ctx context.Context, notificationUserID int32) (int64, error)
 	CountUserAddresses(ctx context.Context, uaUserID int32) (int64, error)
 	CountUserCouponUsages(ctx context.Context, arg CountUserCouponUsagesParams) (int64, error)
 	CountUsers(ctx context.Context, arg CountUsersParams) (int64, error)
@@ -79,6 +81,7 @@ type Querier interface {
 	GetCouponByUUID(ctx context.Context, couponUuid uuid.UUID) (Coupon, error)
 	GetLatestOrderNumber(ctx context.Context, orderNumber string) (string, error)
 	GetLatestReturnByOrderID(ctx context.Context, returnOrderID int32) (OrderReturn, error)
+	GetNotificationsByUserId(ctx context.Context, arg GetNotificationsByUserIdParams) ([]Notification, error)
 	// Upsert "no-op": if cart already exists for user, return it; otherwise create a new cart and return it.
 	// Atomic, safe for concurrent requests, and avoids race conditions by using INSERT ... ON CONFLICT.
 	GetOrCreateCartByUserID(ctx context.Context, userID int32) (Cart, error)
