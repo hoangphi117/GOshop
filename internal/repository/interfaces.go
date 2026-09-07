@@ -184,3 +184,14 @@ type ReviewRepository interface {
 	UpdateStatus(ctx context.Context, tx pgx.Tx, reviewID int32, status int16) (sqlc.ProductReview, error)
 	Reply(ctx context.Context, tx pgx.Tx, reviewID int32, reply string) (sqlc.ProductReview, error)
 }
+
+type NotificationRepository interface {
+	Create(ctx context.Context, params sqlc.CreateNotificationParams) (sqlc.Notification, error)
+	CreateForAllUsers(ctx context.Context, nType, title, body string, data []byte) error
+	GetByUserID(ctx context.Context, userID int32, limit, offset int32) ([]sqlc.Notification, error)
+	CountByUserID(ctx context.Context, userID int32) (int64, error)
+	CountUnreadByUserID(ctx context.Context, userID int32) (int64, error)
+	MarkAsRead(ctx context.Context, notifUUID uuid.UUID, userID int32) (sqlc.Notification, error)
+	MarkAllAsRead(ctx context.Context, userID int32) error
+	Delete(ctx context.Context, notifUUID uuid.UUID, userID int32) error
+}

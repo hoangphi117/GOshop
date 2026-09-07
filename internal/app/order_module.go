@@ -12,6 +12,7 @@ import (
 	"goshop/pkg/payment"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/shipping"
+	"goshop/pkg/ws"
 	"strconv"
 )
 
@@ -20,7 +21,7 @@ type OrderModule struct {
 	adminRoutes []routes.Route
 }
 
-func NewOrderModule(ctx *ModuleContext, rabbitmqService rabbitmq.RabbitMQService) *OrderModule {
+func NewOrderModule(ctx *ModuleContext, wsHub ws.Hub, rabbitmqService rabbitmq.RabbitMQService) *OrderModule {
 
 	orderRepo := repository.NewSqlOrderRepository(ctx.DB)
 	orderItemRepo := repository.NewSqlOrderItemRepository(ctx.DB)
@@ -61,8 +62,12 @@ func NewOrderModule(ctx *ModuleContext, rabbitmqService rabbitmq.RabbitMQService
 		}
 	}
 
+	notificationRepo := repository.NewSqlNotificationRepository(ctx.DB)
+	notificationService := v1service.NewNotificationService(notificationRepo, userRepo, wsHub)
+
 	orderService := v1service.NewOrderService(orderRepo, orderItemRepo, orderReturnRepo, productRepo, userRepo,
-		cartService, cartRepo, couponRepo, trackingRepo, webhookRepo, paymentRepo, paymentProviders, ctx.Redis, shippingFactory, rabbitmqService)
+		cartService, cartRepo, couponRepo, trackingRepo, webhookRepo,
+		paymentRepo, paymentProviders, notificationService, ctx.Redis, shippingFactory, rabbitmqService)
 
 	go func() {
 		err := rabbitmqService.Consume(context.Background(), v1service.QueueShippingCreate, orderService.ProcessShippingOrderMessage)

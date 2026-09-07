@@ -13,6 +13,7 @@ import (
 	"goshop/pkg/logger"
 	"goshop/pkg/mail"
 	"goshop/pkg/rabbitmq"
+	"goshop/pkg/ws"
 	"net/http"
 	"os"
 	"os/signal"
@@ -35,6 +36,7 @@ type Application struct {
 	config  *config.Config
 	router  *gin.Engine
 	modules []Module
+	wsHub   ws.Hub
 }
 
 type ModuleContext struct {
@@ -76,6 +78,8 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		return nil, err
 	}
 
+	wsHub := ws.NewHub()
+
 	ctx := &ModuleContext{
 		DB:    db.DB,
 		Redis: redisClient,
@@ -84,12 +88,13 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	modules := []Module{
 		NewUserModule(ctx),
 		NewProductModule(ctx),
-		NewOrderModule(ctx, rabbitmqService),
+		NewOrderModule(ctx, wsHub, rabbitmqService),
 		NewCartModule(ctx),
 		NewCouponModule(ctx),
-		NewPaymentModule(ctx, cacheRedisService, rabbitmqService),
+		NewPaymentModule(ctx, cacheRedisService, rabbitmqService, wsHub),
 		NewAddressModule(ctx),
-		NewReviewModule(ctx),
+		NewReviewModule(ctx, wsHub),
+		NewNotificationModule(ctx, wsHub, tokenService, cacheRedisService),
 		NewAuthModule(ctx, tokenService, cacheRedisService, mailService, rabbitmqService, cfg.AppURL),
 	}
 
@@ -99,6 +104,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		config:  cfg,
 		router:  r,
 		modules: modules,
+		wsHub:   wsHub,
 	}, nil
 }
 
@@ -121,6 +127,10 @@ func (a *Application) Run() error {
 
 	<-quit
 	logger.Log.Warn().Msg("Shutdown signal received...")
+
+	if a.wsHub != nil {
+		a.wsHub.Shutdown()
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()

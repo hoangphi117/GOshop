@@ -33,16 +33,20 @@ type Querier interface {
 	CountCartItems(ctx context.Context, cartID int32) (int64, error)
 	CountCategories(ctx context.Context, arg CountCategoriesParams) (int64, error)
 	CountCoupons(ctx context.Context, arg CountCouponsParams) (int64, error)
+	CountNotificationsByUserID(ctx context.Context, notificationUserID int32) (int64, error)
 	CountOrders(ctx context.Context, arg CountOrdersParams) (int64, error)
 	CountProducts(ctx context.Context, arg CountProductsParams) (int64, error)
 	CountReportsByReviewID(ctx context.Context, reviewID int32) (int64, error)
 	CountReturnsByUserID(ctx context.Context, arg CountReturnsByUserIDParams) (int64, error)
 	CountReviewsByUserID(ctx context.Context, reviewUserID int32) (int64, error)
+	CountUnreadNotificationsByUserID(ctx context.Context, notificationUserID int32) (int64, error)
 	CountUserAddresses(ctx context.Context, uaUserID int32) (int64, error)
 	CountUserCouponUsages(ctx context.Context, arg CountUserCouponUsagesParams) (int64, error)
 	CountUsers(ctx context.Context, arg CountUsersParams) (int64, error)
 	CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error)
 	CreateCoupon(ctx context.Context, arg CreateCouponParams) (Coupon, error)
+	CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error)
+	CreateNotificationForAllUsers(ctx context.Context, arg CreateNotificationForAllUsersParams) error
 	CreateOrder(ctx context.Context, arg CreateOrderParams) (Order, error)
 	CreateOrderItem(ctx context.Context, arg CreateOrderItemParams) (OrderItem, error)
 	CreateOrderReturn(ctx context.Context, arg CreateOrderReturnParams) (OrderReturn, error)
@@ -59,6 +63,7 @@ type Querier interface {
 	// LỌC theo danh sách product_id có trong đơn vừa tạo, không xóa sạch toàn bộ giỏ.
 	DeleteCartItemsByProductIDs(ctx context.Context, arg DeleteCartItemsByProductIDsParams) error
 	DeleteHelpfulVote(ctx context.Context, arg DeleteHelpfulVoteParams) error
+	DeleteNotification(ctx context.Context, arg DeleteNotificationParams) error
 	DeleteReview(ctx context.Context, reviewID int32) error
 	DeleteUserAddress(ctx context.Context, arg DeleteUserAddressParams) (bool, error)
 	GetActiveReturnByOrderID(ctx context.Context, returnOrderID int32) (OrderReturn, error)
@@ -78,6 +83,7 @@ type Querier interface {
 	GetCouponByUUID(ctx context.Context, couponUuid uuid.UUID) (Coupon, error)
 	GetLatestOrderNumber(ctx context.Context, orderNumber string) (string, error)
 	GetLatestReturnByOrderID(ctx context.Context, returnOrderID int32) (OrderReturn, error)
+	GetNotificationsByUserId(ctx context.Context, arg GetNotificationsByUserIdParams) ([]Notification, error)
 	// Upsert "no-op": if cart already exists for user, return it; otherwise create a new cart and return it.
 	// Atomic, safe for concurrent requests, and avoids race conditions by using INSERT ... ON CONFLICT.
 	GetOrCreateCartByUserID(ctx context.Context, userID int32) (Cart, error)
@@ -118,6 +124,8 @@ type Querier interface {
 	ListUserUserCreatedAtDesc(ctx context.Context, arg ListUserUserCreatedAtDescParams) ([]User, error)
 	ListUserUserIdAsc(ctx context.Context, arg ListUserUserIdAscParams) ([]User, error)
 	ListUserUserIdDesc(ctx context.Context, arg ListUserUserIdDescParams) ([]User, error)
+	MarkAllNotificationsRead(ctx context.Context, notificationUserID int32) error
+	MarkNotificationRead(ctx context.Context, arg MarkNotificationReadParams) (Notification, error)
 	MarkOrderDeliveredByShippingCode(ctx context.Context, shippingCode *string) (Order, error)
 	MarkOrderDeliveredByUUID(ctx context.Context, orderUuid uuid.UUID) (Order, error)
 	MarkWebhookEventProcessed(ctx context.Context, weID int32) error

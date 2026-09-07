@@ -37,15 +37,16 @@ const (
 )
 
 type paymentService struct {
-	paymentRepo    repository.PaymentRepository
-	orderRepo      repository.OrderRepository
-	userRepo       repository.UserRepository
-	webhookRepo    repository.WebhookEventRepository
-	providers      map[string]payment.PaymentProvider
-	cache          cache.RedisCacheService
-	rabbitmq       rabbitmq.RabbitMQService
-	returnURL      string
-	webhookBaseURL string
+	paymentRepo         repository.PaymentRepository
+	orderRepo           repository.OrderRepository
+	userRepo            repository.UserRepository
+	webhookRepo         repository.WebhookEventRepository
+	providers           map[string]payment.PaymentProvider
+	notificationService NotificationService
+	cache               cache.RedisCacheService
+	rabbitmq            rabbitmq.RabbitMQService
+	returnURL           string
+	webhookBaseURL      string
 }
 
 func NewPaymentService(
@@ -54,21 +55,23 @@ func NewPaymentService(
 	userRepo repository.UserRepository,
 	webhookRepo repository.WebhookEventRepository,
 	providers map[string]payment.PaymentProvider,
+	notificationService NotificationService,
 	cache cache.RedisCacheService,
 	rabbitmq rabbitmq.RabbitMQService,
 	returnURL string,
 	webhookBaseURL string,
 ) PaymentService {
 	return &paymentService{
-		paymentRepo:    paymentRepo,
-		orderRepo:      orderRepo,
-		userRepo:       userRepo,
-		webhookRepo:    webhookRepo,
-		providers:      providers,
-		cache:          cache,
-		rabbitmq:       rabbitmq,
-		returnURL:      returnURL,
-		webhookBaseURL: webhookBaseURL,
+		paymentRepo:         paymentRepo,
+		orderRepo:           orderRepo,
+		userRepo:            userRepo,
+		webhookRepo:         webhookRepo,
+		providers:           providers,
+		notificationService: notificationService,
+		cache:               cache,
+		rabbitmq:            rabbitmq,
+		returnURL:           returnURL,
+		webhookBaseURL:      webhookBaseURL,
 	}
 }
 
@@ -431,12 +434,14 @@ func (s *paymentService) ProcessWebhookMessage(headers amqp.Table, body []byte) 
 	}
 
 	// 4. CẬP NHẬT TRẠNG THÁI ORDER SANG PAID (Dùng pt.PtOrderID hoặc msg.OrderUUID)
+	var paidOrder *sqlc.GetOrderByOrderNumberRow
 	if msg.Status == "success" {
 		// Tách mã đơn gốc (ví dụ: "260831-05-BZ7AMC")
 		realOrderNumber, _, _ := strings.Cut(msg.OrderNumber, "_")
 
 		order, err := s.orderRepo.GetByOrderNumber(ctx, realOrderNumber)
 		if err == nil {
+			paidOrder = &order
 			_, err = s.orderRepo.UpdateOrderPaymentStatus(ctx, tx, sqlc.UpdateOrderPaymentStatusParams{
 				OrderUuid:           order.OrderUuid,
 				PaymentStatus:       OrderPaymentStatusPaid,
@@ -466,6 +471,21 @@ func (s *paymentService) ProcessWebhookMessage(headers amqp.Table, body []byte) 
 	}
 
 	_ = s.cache.Clear("orders:*")
+
+	if msg.Status == "success" && paidOrder != nil {
+		go func() {
+			_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
+				UserID: paidOrder.OrderUserID,
+				Type:   "payment_success",
+				Title:  "Payment Received",
+				Body:   fmt.Sprintf("Payment for order #%s was successfully received.", paidOrder.OrderNumber),
+				Data: map[string]any{
+					"order_uuid":       paidOrder.OrderUuid.String(),
+					"provider_txn_id":  msg.ProviderTxnID,
+				},
+			})
+		}()
+	}
 
 	logger.Log.Info().
 		Str("module", "payment").
@@ -824,6 +844,19 @@ func (s *paymentService) RefundPayment(ctx *gin.Context, input v1dto.RefundPayme
 	}
 
 	_ = s.cache.Clear("orders:*")
+
+	go func() {
+		_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
+			UserID: order.OrderUserID,
+			Type:   "payment_refunded",
+			Title:  "Payment Refunded",
+			Body:   fmt.Sprintf("A refund of %.0f VND for order #%s has been successfully processed.", input.Amount, order.OrderNumber),
+			Data: map[string]any{
+				"order_uuid":      order.OrderUuid.String(),
+				"refund_txn_uuid": finalRefundTxn.PtUuid.String(),
+			},
+		})
+	}()
 
 	logger.Log.Info().
 		Str("trace_id", logger.GetTraceId(reqCtx)).

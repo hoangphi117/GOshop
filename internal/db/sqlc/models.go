@@ -71,6 +71,19 @@ type CouponUsage struct {
 	CouponUsageUsedAt   time.Time `json:"coupon_usage_used_at"`
 }
 
+type Notification struct {
+	NotificationID        int32              `json:"notification_id"`
+	NotificationUuid      uuid.UUID          `json:"notification_uuid"`
+	NotificationUserID    int32              `json:"notification_user_id"`
+	NotificationType      string             `json:"notification_type"`
+	NotificationTitle     string             `json:"notification_title"`
+	NotificationBody      string             `json:"notification_body"`
+	NotificationData      []byte             `json:"notification_data"`
+	NotificationIsRead    bool               `json:"notification_is_read"`
+	NotificationReadAt    pgtype.Timestamptz `json:"notification_read_at"`
+	NotificationCreatedAt time.Time          `json:"notification_created_at"`
+}
+
 type Order struct {
 	OrderID              int32          `json:"order_id"`
 	OrderUuid            uuid.UUID      `json:"order_uuid"`

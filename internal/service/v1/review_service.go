@@ -24,20 +24,29 @@ const (
 )
 
 type reviewService struct {
-	repo        repository.ReviewRepository
-	userRepo    repository.UserRepository
-	productRepo repository.ProductRepository
-	orderRepo   repository.OrderRepository
-	cache       cache.RedisCacheService
+	repo                repository.ReviewRepository
+	userRepo            repository.UserRepository
+	productRepo         repository.ProductRepository
+	orderRepo           repository.OrderRepository
+	notificationService NotificationService
+	cache               cache.RedisCacheService
 }
 
-func NewReviewService(repo repository.ReviewRepository, userRepo repository.UserRepository, productRepo repository.ProductRepository, orderRepo repository.OrderRepository, redisClient *redis.Client) ReviewService {
+func NewReviewService(
+	repo repository.ReviewRepository,
+	userRepo repository.UserRepository,
+	productRepo repository.ProductRepository,
+	orderRepo repository.OrderRepository,
+	notificationService NotificationService,
+	redisClient *redis.Client,
+) ReviewService {
 	return &reviewService{
-		repo:        repo,
-		userRepo:    userRepo,
-		productRepo: productRepo,
-		orderRepo:   orderRepo,
-		cache:       cache.NewRedisCacheService(redisClient),
+		repo:                repo,
+		userRepo:            userRepo,
+		productRepo:         productRepo,
+		orderRepo:           orderRepo,
+		notificationService: notificationService,
+		cache:               cache.NewRedisCacheService(redisClient),
 	}
 }
 
@@ -757,6 +766,32 @@ func (rs *reviewService) AdminReplyReview(ctx *gin.Context, reviewUUID uuid.UUID
 	go func(pUUID string) {
 		_ = rs.cache.Clear("reviews:product:" + pUUID + ":*")
 	}(review.ProductUuid.String())
+
+	// Send real-time notification to review author
+	if rs.notificationService != nil {
+		go func() {
+			logger.Log.Info().
+				Int32("recipient_user_id", review.ReviewUserID).
+				Str("review_uuid", review.ReviewUuid.String()).
+				Msg("Dispatching review_reply notification")
+
+			replySnippet := input.Reply
+			if len(replySnippet) > 100 {
+				replySnippet = replySnippet[:97] + "..."
+			}
+
+			_ = rs.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
+				UserID: review.ReviewUserID,
+				Type:   "review_reply",
+				Title:  "Shop replied to your review",
+				Body:   fmt.Sprintf("Shop has replied to your review: \"%s\"", replySnippet),
+				Data: map[string]any{
+					"review_uuid":  review.ReviewUuid.String(),
+					"product_uuid": review.ProductUuid.String(),
+				},
+			})
+		}()
+	}
 
 	images := updatedReview.ReviewImages
 	if images == nil {
