@@ -122,6 +122,8 @@ type Querier interface {
 	ListUserUserCreatedAtDesc(ctx context.Context, arg ListUserUserCreatedAtDescParams) ([]User, error)
 	ListUserUserIdAsc(ctx context.Context, arg ListUserUserIdAscParams) ([]User, error)
 	ListUserUserIdDesc(ctx context.Context, arg ListUserUserIdDescParams) ([]User, error)
+	MarkAllNotificationsRead(ctx context.Context, notificationUserID int32) error
+	MarkNotificationRead(ctx context.Context, arg MarkNotificationReadParams) (Notification, error)
 	MarkOrderDeliveredByShippingCode(ctx context.Context, shippingCode *string) (Order, error)
 	MarkOrderDeliveredByUUID(ctx context.Context, orderUuid uuid.UUID) (Order, error)
 	MarkWebhookEventProcessed(ctx context.Context, weID int32) error

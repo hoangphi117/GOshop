@@ -23,3 +23,19 @@ WHERE notification_user_id = $1;
 SELECT COUNT(*) FROM notifications
 WHERE notification_user_id = $1
   AND notification_is_read = FALSE;
+
+-- name: MarkNotificationRead :one
+UPDATE notifications SET
+    notification_is_read = TRUE,
+    notification_read_at  = now()
+WHERE notification_uuid    = sqlc.arg(notification_uuid)
+  AND notification_user_id = sqlc.arg(user_id)
+  AND notification_is_read = FALSE
+RETURNING *;
+
+-- name: MarkAllNotificationsRead :exec
+UPDATE notifications SET
+    notification_is_read = TRUE,
+    notification_read_at  = now()
+WHERE notification_user_id = $1
+  AND notification_is_read = FALSE;

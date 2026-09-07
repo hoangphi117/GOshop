@@ -145,4 +145,6 @@ type NotificationService interface {
 	CreateNotification(ctx *gin.Context, input v1dto.CreateNotificationInput) (v1dto.NotificationDTO, error)
 	GetMyNotifications(ctx *gin.Context, query v1dto.GetNotificationsQuery) ([]v1dto.NotificationDTO, int32, error)
 	GetUnreadNotificationCount(ctx *gin.Context) (v1dto.UnreadCountDTO, error)
+	MarkNotificationAsRead(ctx *gin.Context, notificationUUID uuid.UUID) (v1dto.NotificationDTO, error)
+	MarkAllNotificationsAsRead(ctx *gin.Context) error
 }

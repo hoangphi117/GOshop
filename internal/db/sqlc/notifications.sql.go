@@ -7,6 +7,8 @@ package sqlc
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 const countNotificationsByUserID = `-- name: CountNotificationsByUserID :one
@@ -120,4 +122,50 @@ func (q *Queries) GetNotificationsByUserId(ctx context.Context, arg GetNotificat
 		return nil, err
 	}
 	return items, nil
+}
+
+const markAllNotificationsRead = `-- name: MarkAllNotificationsRead :exec
+UPDATE notifications SET
+    notification_is_read = TRUE,
+    notification_read_at  = now()
+WHERE notification_user_id = $1
+  AND notification_is_read = FALSE
+`
+
+func (q *Queries) MarkAllNotificationsRead(ctx context.Context, notificationUserID int32) error {
+	_, err := q.db.Exec(ctx, markAllNotificationsRead, notificationUserID)
+	return err
+}
+
+const markNotificationRead = `-- name: MarkNotificationRead :one
+UPDATE notifications SET
+    notification_is_read = TRUE,
+    notification_read_at  = now()
+WHERE notification_uuid    = $1
+  AND notification_user_id = $2
+  AND notification_is_read = FALSE
+RETURNING notification_id, notification_uuid, notification_user_id, notification_type, notification_title, notification_body, notification_data, notification_is_read, notification_read_at, notification_created_at
+`
+
+type MarkNotificationReadParams struct {
+	NotificationUuid uuid.UUID `json:"notification_uuid"`
+	UserID           int32     `json:"user_id"`
+}
+
+func (q *Queries) MarkNotificationRead(ctx context.Context, arg MarkNotificationReadParams) (Notification, error) {
+	row := q.db.QueryRow(ctx, markNotificationRead, arg.NotificationUuid, arg.UserID)
+	var i Notification
+	err := row.Scan(
+		&i.NotificationID,
+		&i.NotificationUuid,
+		&i.NotificationUserID,
+		&i.NotificationType,
+		&i.NotificationTitle,
+		&i.NotificationBody,
+		&i.NotificationData,
+		&i.NotificationIsRead,
+		&i.NotificationReadAt,
+		&i.NotificationCreatedAt,
+	)
+	return i, err
 }

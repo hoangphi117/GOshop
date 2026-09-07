@@ -9,6 +9,7 @@ import (
 	"goshop/internal/validation"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type NotificationHandler struct {
@@ -67,4 +68,35 @@ func (h *NotificationHandler) GetUnreadCount(ctx *gin.Context) {
 	}
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Unread notification count retrieved successfully", res)
+}
+
+func (h *NotificationHandler) MarkNotificationAsRead(ctx *gin.Context) {
+	var params v1dto.NotificationUUID
+	if err := ctx.ShouldBindUri(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	notifUUID, err := uuid.Parse(params.UUID.String())
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid order UUID"))
+		return
+	}
+
+	res, err := h.notificationService.MarkNotificationAsRead(ctx, notifUUID)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Notification marked as read successfully", res)
+}
+
+func (h *NotificationHandler) MarkAllNotificationsAsRead(ctx *gin.Context) {
+	err := h.notificationService.MarkAllNotificationsAsRead(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+	utils.ResponseSuccess(ctx, http.StatusOK, "All notifications marked as read successfully", nil)
 }

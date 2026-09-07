@@ -3,6 +3,8 @@ package repository
 import (
 	"context"
 	"goshop/internal/db/sqlc"
+
+	"github.com/google/uuid"
 )
 
 type SqlNotificationRepository struct {
@@ -40,4 +42,15 @@ func (r *SqlNotificationRepository) CountUnreadByUserID(ctx context.Context, use
 		return 0, err
 	}
 	return count, nil
+}
+
+func (r *SqlNotificationRepository) MarkAsRead(ctx context.Context, notifUUID uuid.UUID, userID int32) (sqlc.Notification, error) {
+	return r.db.MarkNotificationRead(ctx, sqlc.MarkNotificationReadParams{
+		NotificationUuid: notifUUID,
+		UserID:           userID,
+	})
+}
+
+func (r *SqlNotificationRepository) MarkAllAsRead(ctx context.Context, userID int32) error {
+	return r.db.MarkAllNotificationsRead(ctx, userID)
 }

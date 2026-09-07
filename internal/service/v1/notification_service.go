@@ -3,6 +3,7 @@ package v1service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/repository"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 type notificationService struct {
@@ -185,4 +187,61 @@ func (s *notificationService) GetUnreadNotificationCount(ctx *gin.Context) (v1dt
 	}
 
 	return v1dto.UnreadCountDTO{UnreadCount: count}, nil
+}
+
+func (s *notificationService) MarkNotificationAsRead(ctx *gin.Context, notificationUUID uuid.UUID) (v1dto.NotificationDTO, error) {
+	reqCtx := ctx.Request.Context()
+	userUUIDStr, exists := ctx.Get("user_uuid")
+	if !exists {
+		return v1dto.NotificationDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "User unauthorized")
+	}
+	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	if err != nil {
+		return v1dto.NotificationDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Invalid user UUID")
+	}
+	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
+	if err != nil {
+		return v1dto.NotificationDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
+
+	updated, err := s.notificationRepo.MarkAsRead(reqCtx, notificationUUID, user.UserID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return v1dto.NotificationDTO{}, utils.NewError(utils.ErrCodeNotFound, "Notification not found")
+		}
+		logger.Log.Error().Err(err).
+			Str("notification_uuid", notificationUUID.String()).
+			Int32("user_id", user.UserID).
+			Msg("Failed to mark notification as read")
+		return v1dto.NotificationDTO{}, utils.NewError(utils.ErrCodeInternal, "Failed to mark notification as read")
+	}
+
+	return v1dto.MapToNotificationDTO(updated), nil
+}
+
+func (s *notificationService) MarkAllNotificationsAsRead(ctx *gin.Context) error {
+	reqCtx := ctx.Request.Context()
+
+	userUUIDStr, exists := ctx.Get("user_uuid")
+	if !exists {
+		return utils.NewError(utils.ErrCodeUnauthorized, "User unauthorized")
+	}
+
+	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	if err != nil {
+		return utils.NewError(utils.ErrCodeBadRequest, "Invalid user UUID")
+	}
+
+	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
+	if err != nil {
+		return utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
+
+	err = s.notificationRepo.MarkAllAsRead(reqCtx, user.UserID)
+	if err != nil {
+		logger.Log.Error().Err(err).Int32("user_id", user.UserID).Msg("Failed to mark all notifications as read")
+		return utils.NewError(utils.ErrCodeInternal, "Failed to mark all notifications as read")
+	}
+
+	return nil
 }

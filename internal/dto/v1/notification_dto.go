@@ -48,6 +48,10 @@ type GetNotificationsQuery struct {
 	Limit int32 `form:"limit" binding:"omitempty,min=1,max=100"`
 }
 
+type NotificationUUID struct {
+	UUID uuid.UUID `uri:"uuid" binding:"required,uuid"`
+}
+
 // ── Helper ───────────────────────────────────────────────
 
 func MapToNotificationDTO(n sqlc.Notification) NotificationDTO {

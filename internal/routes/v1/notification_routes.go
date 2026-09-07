@@ -21,5 +21,8 @@ func (nr *NotificationRoutes) Register(r *gin.RouterGroup) {
 	{
 		notifications.POST("/me", nr.handler.GetMyNotifications)
 		notifications.GET("/me/unread", nr.handler.GetUnreadCount)
+		notifications.PATCH("/read-all", nr.handler.MarkAllNotificationsAsRead)
+		notifications.PATCH("/:uuid/read", nr.handler.MarkNotificationAsRead)
+
 	}
 }
