@@ -80,6 +80,37 @@ func (q *Queries) CreateNotification(ctx context.Context, arg CreateNotification
 	return i, err
 }
 
+const createNotificationForAllUsers = `-- name: CreateNotificationForAllUsers :exec
+INSERT INTO notifications (
+    notification_user_id,
+    notification_type,
+    notification_title,
+    notification_body,
+    notification_data
+)
+SELECT
+    users.user_id, $1, $2, $3, $4
+FROM users
+WHERE user_deleted_at IS NULL
+`
+
+type CreateNotificationForAllUsersParams struct {
+	NotificationType  string `json:"notification_type"`
+	NotificationTitle string `json:"notification_title"`
+	NotificationBody  string `json:"notification_body"`
+	NotificationData  []byte `json:"notification_data"`
+}
+
+func (q *Queries) CreateNotificationForAllUsers(ctx context.Context, arg CreateNotificationForAllUsersParams) error {
+	_, err := q.db.Exec(ctx, createNotificationForAllUsers,
+		arg.NotificationType,
+		arg.NotificationTitle,
+		arg.NotificationBody,
+		arg.NotificationData,
+	)
+	return err
+}
+
 const deleteNotification = `-- name: DeleteNotification :exec
 DELETE FROM notifications
 WHERE notification_uuid    = $1

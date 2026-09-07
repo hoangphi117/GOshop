@@ -19,5 +19,6 @@ func (r *AdminNotificationRoutes) Register(rg *gin.RouterGroup) {
 	{
 		// POST /api/v1/admin/notifications
 		adminGroup.POST("", r.handler.CreateNotification)
+		adminGroup.POST("/broadcast", r.handler.BroadcastNotification)
 	}
 }

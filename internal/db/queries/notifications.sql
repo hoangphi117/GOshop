@@ -9,6 +9,20 @@ INSERT INTO notifications (
     $1, $2, $3, $4, $5
 ) RETURNING *;
 
+-- name: CreateNotificationForAllUsers :exec
+INSERT INTO notifications (
+    notification_user_id,
+    notification_type,
+    notification_title,
+    notification_body,
+    notification_data
+)
+SELECT
+    users.user_id, $1, $2, $3, $4
+FROM users
+WHERE user_deleted_at IS NULL;
+
+
 -- name: GetNotificationsByUserId :many
 SELECT * FROM notifications
 WHERE notification_user_id = $1

@@ -18,6 +18,14 @@ func NewSqlNotificationRepository(db sqlc.Querier) NotificationRepository {
 func (r *SqlNotificationRepository) Create(ctx context.Context, params sqlc.CreateNotificationParams) (sqlc.Notification, error) {
 	return r.db.CreateNotification(ctx, params)
 }
+func (r *SqlNotificationRepository) CreateForAllUsers(ctx context.Context, nType, title, body string, data []byte) error {
+	return r.db.CreateNotificationForAllUsers(ctx, sqlc.CreateNotificationForAllUsersParams{
+		NotificationType:  nType,
+		NotificationTitle: title,
+		NotificationBody:  body,
+		NotificationData:  data,
+	})
+}
 
 func (r *SqlNotificationRepository) GetByUserID(ctx context.Context, userID int32, limit, offset int32) ([]sqlc.Notification, error) {
 	return r.db.GetNotificationsByUserId(ctx, sqlc.GetNotificationsByUserIdParams{

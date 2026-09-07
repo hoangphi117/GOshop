@@ -10,6 +10,7 @@ import (
 	"goshop/internal/utils"
 	"goshop/pkg/logger"
 	"goshop/pkg/ws"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -134,6 +135,43 @@ func (s *notificationService) CreateNotification(ctx *gin.Context, input v1dto.C
 		ReadAt:    &created.NotificationReadAt.Time,
 		CreatedAt: created.NotificationCreatedAt,
 	}, nil
+}
+
+func (s *notificationService) BroadcastNotification(ctx *gin.Context, input v1dto.BroadcastNotificationInput) error {
+	reqCtx := ctx.Request.Context()
+
+	var dataBytes []byte
+	if input.Data != nil {
+		b, err := json.Marshal(input.Data)
+		if err != nil {
+			return utils.NewError(utils.ErrCodeInternal, "Failed to marshal notification data payload")
+		}
+		dataBytes = b
+	} else {
+		dataBytes = []byte("{}")
+	}
+
+	err := s.notificationRepo.CreateForAllUsers(reqCtx, input.Type, input.Title, input.Body, dataBytes)
+	if err != nil {
+		logger.Log.Error().Err(err).Msg("failed to persist broadcast notification")
+		return utils.NewError(utils.ErrCodeInternal, "Failed to create broadcast notification")
+	}
+
+	if s.wsHub != nil {
+		go s.wsHub.BroadcastToAll(ws.WSMessage{
+			Type: ws.EventTypeNotification,
+			Data: map[string]any{
+				"type":       input.Type,
+				"title":      input.Title,
+				"body":       input.Body,
+				"data":       input.Data,
+				"is_read":    false,
+				"created_at": time.Now().UTC(),
+			},
+		})
+	}
+
+	return nil
 }
 
 func (s *notificationService) GetMyNotifications(ctx *gin.Context, query v1dto.GetNotificationsQuery) ([]v1dto.NotificationDTO, int32, error) {

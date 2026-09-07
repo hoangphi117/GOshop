@@ -36,6 +36,21 @@ func (h *NotificationHandler) CreateNotification(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusCreated, "Notification created successfully", res)
 }
 
+func (h *NotificationHandler) BroadcastNotification(ctx *gin.Context) {
+	var input v1dto.BroadcastNotificationInput
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	if err := h.notificationService.BroadcastNotification(ctx, input); err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Broadcast notification sent successfully to all users", nil)
+}
+
 func (h *NotificationHandler) GetMyNotifications(ctx *gin.Context) {
 	var query v1dto.GetNotificationsQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {

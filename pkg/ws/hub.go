@@ -13,6 +13,7 @@ type Hub interface {
 	Register(client *Client)
 	Unregister(client *Client)
 	BroadcastToUser(userID int32, msg WSMessage)
+	BroadcastToAll(msg WSMessage)
 	IsUserOnline(userID int32) bool
 	Shutdown()
 }
@@ -140,4 +141,44 @@ func (h *hub) IsUserOnline(userID int32) bool {
 
 	clients, exists := h.clients[userID]
 	return exists && len(clients) > 0
+}
+
+func (h *hub) BroadcastToAll(msg WSMessage) {
+	h.mu.RLock()
+	if len(h.clients) == 0 {
+		h.mu.RUnlock()
+		logger.Log.Warn().Msg("WebSocket Broadcast: no active WebSocket connections")
+		return
+	}
+
+	payload, err := json.Marshal(msg)
+	if err != nil {
+		h.mu.RUnlock()
+		logger.Log.Error().
+			Err(err).
+			Msg("Failed to marshal WebSocket message for broadcast to all")
+		return
+	}
+
+	var targets []*Client
+	for _, userClients := range h.clients {
+		for client := range userClients {
+			targets = append(targets, client)
+		}
+	}
+	h.mu.RUnlock()
+
+	logger.Log.Info().
+		Int("target_connections", len(targets)).
+		Str("event_type", string(msg.Type)).
+		Msg("WebSocket broadcasting to ALL connections")
+
+	for _, client := range targets {
+		select {
+		case client.Send <- payload:
+		default:
+			// Buffer full, unregister problematic client
+			h.Unregister(client)
+		}
+	}
 }
