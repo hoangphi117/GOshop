@@ -80,13 +80,13 @@ services:
 
   api:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile.api.dev
     container_name: goshop-api
     restart: unless-stopped
 
     env_file:
-      - .env
+      - ./backend/.env
 
     environment:
       RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/
@@ -95,7 +95,7 @@ services:
     ports:
       - "${SERVER_PORT}:${SERVER_PORT}"
     volumes:
-      - ./:/app
+      - ./backend:/app
     depends_on:
       db:
         condition: service_healthy
@@ -108,20 +108,20 @@ services:
 
   worker:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile.worker.dev
     container_name: goshop-worker
     restart: unless-stopped
 
     env_file:
-      - .env
+      - ./backend/.env
 
     environment:
       RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/
       DB_HOST: db
 
     volumes:
-      - ./:/app
+      - ./backend:/app
     depends_on:
       db:
         condition: service_healthy
@@ -161,7 +161,7 @@ services:
     container_name: promtail
     restart: unless-stopped
     volumes:
-      - ./internal/logs:/var/log
+      - ./backend/internal/logs:/var/log
       - ./system/promtail/promtail-config.yml:/etc/promtail/config.yml
     command: -config.file=/etc/promtail/config.yml
     depends_on:

@@ -80,13 +80,13 @@ services:
 
   api:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile.api.prod
     container_name: goshop-api
     restart: unless-stopped
 
     env_file:
-      - .env
+      - ./backend/.env
 
     environment:
       RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/
@@ -94,7 +94,7 @@ services:
     ports:
       - "${SERVER_PORT}:${SERVER_PORT}"
     volumes:
-      - ./internal/logs:/app/internal/logs
+      - ./backend/internal/logs:/app/internal/logs
     depends_on:
       db:
         condition: service_healthy

@@ -1,5 +1,6 @@
 # Binaries
 bin/
+**/bin/
 *.exe
 *.exe~
 *.dll
@@ -13,15 +14,21 @@ go.work.sum
 
 # Air
 tmp/
+**/tmp/
 build.log
 
 # Secrets / env
 .env
 .env.local
+**/.env
+**/.env.local
+**/.env*.local
 
 # Runtime data
 internal/logs/*.log
 internal/logs/*.gz
+**/internal/logs/*.log
+**/internal/logs/*.gz
 
 # Database dumps
 backupdb.sql
@@ -40,3 +47,16 @@ coverage.out
 
 # User uploads
 uploads/
+**/uploads/
+
+# Frontend (Node / Next.js)
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+out/
+**/out/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*

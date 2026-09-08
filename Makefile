@@ -1,7 +1,7 @@
-include .env
+include ./backend/.env
 export
 
-MIGRATION_DIR=internal/db/migrations
+MIGRATION_DIR=backend/internal/db/migrations
 
 CONNECTION_STRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=${DB_SSL_MODE}
 
@@ -9,7 +9,7 @@ PROD_COMPOSE=docker-compose.prod.yml
 NOAPP_COMPOSE=docker-compose.noapp.yml
 DEV_COMPOSE=docker-compose.dev.yml
 
-ENV_FILE=.env
+ENV_FILE=./backend/.env
 
 importdb:
 	docker exec -i postgres-db psql -U postgres -d master-golang < ./backupdb.sql
@@ -18,16 +18,16 @@ exportdb:
 	docker exec -i postgres-db pg_dump -U postgres -d master-golang > ./backupdb.sql
 
 server:
-	go run ./cmd/api
+	cd backend && go run ./cmd/api
 
 build:
-	go build -o bin/goshop ./cmd/api
+	cd backend && go build -o bin/goshop ./cmd/api
 
 run-binary:
-	./bin/goshop
+	./backend/bin/goshop
 
 sqlc:
-	sqlc generate
+	cd backend && sqlc generate
 
 migrate-create:
 	migrate create -ext sql -dir ${MIGRATION_DIR} -seq ${NAME}
