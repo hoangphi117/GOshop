@@ -56,16 +56,13 @@ func ValidateAndSaveFile(fileHeader *multipart.FileHeader, uploadDir string) (st
 
 	var mediaType MediaType
 	var maxSize int64
-	var allowMimes map[string]bool
 
 	if allowImageExts[ext] {
 		mediaType = MediaTypeImage
 		maxSize = MaxImageSize
-		allowMimes = allowImageMimeTypes
 	} else if allowVideoExts[ext] {
 		mediaType = MediaTypeVideo
 		maxSize = MaxVideoSize
-		allowMimes = allowVideoMimeTypes
 	} else {
 		return "", "", errors.New("unsupported file type (allowed: jpg, jpeg, png, webp, mp4, webm, mov)")
 	}
@@ -81,17 +78,28 @@ func ValidateAndSaveFile(fileHeader *multipart.FileHeader, uploadDir string) (st
 	defer file.Close()
 
 	buffer := make([]byte, 512)
-	_, err = file.Read(buffer)
-	if err != nil {
+	n, err := file.Read(buffer)
+	if err != nil && err != io.EOF {
 		return "", "", errors.New("cannot read file")
 	}
 
-	mimeType := http.DetectContentType(buffer)
-	if !allowMimes[mimeType] && mimeType != "application/octet-stream" {
-		return "", "", fmt.Errorf("invalid MIME type: %s", mimeType)
+	mimeType := http.DetectContentType(buffer[:n])
+	if mediaType == MediaTypeImage {
+		if !allowImageMimeTypes[mimeType] {
+			return "", "", fmt.Errorf("invalid image MIME type: %s", mimeType)
+		}
+	} else if mediaType == MediaTypeVideo {
+		if !allowVideoMimeTypes[mimeType] && mimeType != "application/octet-stream" {
+			return "", "", fmt.Errorf("invalid video MIME type: %s", mimeType)
+		}
 	}
 
-	//Change file name
+	// Rewind file pointer back to start
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return "", "", errors.New("cannot rewind file")
+	}
+
+	// Change file name
 	fileName := fmt.Sprintf("%s%s", uuid.New().String(), ext)
 
 	if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
@@ -99,7 +107,13 @@ func ValidateAndSaveFile(fileHeader *multipart.FileHeader, uploadDir string) (st
 	}
 
 	savePath := filepath.Join(uploadDir, fileName)
-	if err := SaveFile(fileHeader, savePath); err != nil {
+	out, err := os.Create(savePath)
+	if err != nil {
+		return "", "", err
+	}
+	defer out.Close()
+
+	if _, err = io.Copy(out, file); err != nil {
 		return "", "", err
 	}
 

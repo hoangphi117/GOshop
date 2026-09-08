@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -49,6 +50,18 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	validation.InitValidator()
 
 	r := gin.Default()
+	r.MaxMultipartMemory = 8 << 20 // 8MB memory buffer for multipart forms (prevents OOM DoS)
+
+	// Bảo vệ thư mục tĩnh /uploads chống MIME sniffing và thực thi script trái phép
+	r.Use(func(c *gin.Context) {
+		if strings.HasPrefix(c.Request.URL.Path, "/uploads") {
+			c.Header("X-Content-Type-Options", "nosniff")
+			c.Header("Content-Security-Policy", "default-src 'none'; img-src 'self'; media-src 'self'")
+		}
+		c.Next()
+	})
+
+	r.Static("/uploads", "./uploads")
 
 	if err := db.InitDB(); err != nil {
 		logger.Log.Fatal().Err(err).Msg("Failed to initialize database")
@@ -96,6 +109,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		NewReviewModule(ctx, wsHub),
 		NewNotificationModule(ctx, wsHub, tokenService, cacheRedisService),
 		NewAuthModule(ctx, tokenService, cacheRedisService, mailService, rabbitmqService, cfg.AppURL),
+		NewUploadModule(ctx),
 	}
 
 	routes.RegisterRoutes(r, tokenService, cacheRedisService, getModuleRoutes(modules), getAdminModuleRoutes(modules))
