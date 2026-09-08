@@ -89,7 +89,7 @@ func RateLimiterMiddleware(rateLimiterLogger *zerolog.Logger) gin.HandlerFunc {
 			}
 			ctx.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
 				"error":   "too many requests",
-				"message": "Bạn gửi quá nhiều request. Hãy thử lại sau",
+				"message": "Too many requests. Please try again later.",
 			})
 
 			return

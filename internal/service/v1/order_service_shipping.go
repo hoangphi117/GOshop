@@ -57,7 +57,7 @@ func (s *orderService) CreateShipping(ctx *gin.Context, orderUUID uuid.UUID, inp
 	return v1dto.AsyncShippingResponseDTO{
 		OrderUUID: orderUUID.String(),
 		Status:    "processing",
-		Message:   "Yêu cầu tạo vận đơn đã được tiếp nhận và đang được hệ thống xử lý",
+		Message:   "Shipping order creation request received and is being processed by the system",
 	}, nil
 }
 
@@ -128,7 +128,7 @@ func (s *orderService) ProcessShippingOrderMessage(headers amqp.Table, body []by
 	ghnResp, err := provider.CreateShippingOrder(ctx, ghnReq)
 	if err != nil {
 		logger.Log.Error().Err(err).Str("order_uuid", msg.OrderUUID).Msg("GHN API creation failed")
-		failNote := fmt.Sprintf("Tạo vận đơn GHN thất bại: %s", err.Error())
+		failNote := fmt.Sprintf("GHN shipping creation failed: %s", err.Error())
 		_, _ = s.trackingRepo.InsertEvent(ctx, nil, sqlc.InsertTrackingEventParams{
 			EventOrderID: order.OrderID,
 			EventStatus:  "shipping_failed",
@@ -164,7 +164,7 @@ func (s *orderService) ProcessShippingOrderMessage(headers amqp.Table, body []by
 		return err
 	}
 	// Ghi nhận tracking timeline
-	eventNote := fmt.Sprintf("Tạo đơn vận chuyển qua %s thành công. Mã vận đơn: %s, Cước: %.0f đ",
+	eventNote := fmt.Sprintf("Created shipping order via %s successfully. Tracking code: %s, Fee: %.0f VND",
 		strings.ToUpper(msg.Input.Provider), ghnResp.ShippingCode, ghnResp.ShippingFee)
 	_, err = s.trackingRepo.InsertEvent(ctx, tx, sqlc.InsertTrackingEventParams{
 		EventOrderID: order.OrderID,
@@ -504,9 +504,9 @@ func (s *orderService) CancelShipping(ctx *gin.Context, orderUUID uuid.UUID, inp
 		return v1dto.CancelShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to update order status after shipping cancellation", err)
 	}
 
-	eventNote := fmt.Sprintf("Hủy vận đơn %s (%s) thành công.", strings.ToUpper(providerName), shippingCode)
+	eventNote := fmt.Sprintf("Cancelled waybill %s (%s) successfully.", strings.ToUpper(providerName), shippingCode)
 	if input.Reason != "" {
-		eventNote += fmt.Sprintf(" Lý do: %s", input.Reason)
+		eventNote += fmt.Sprintf(" Reason: %s", input.Reason)
 	}
 
 	_, err = s.trackingRepo.InsertEvent(reqCtx, tx, sqlc.InsertTrackingEventParams{
@@ -534,7 +534,7 @@ func (s *orderService) CancelShipping(ctx *gin.Context, orderUUID uuid.UUID, inp
 		OrderNumber:  updatedOrder.OrderNumber,
 		ShippingCode: shippingCode,
 		OrderStatus:  "Confirmed",
-		Message:      "Hủy vận đơn thành công. Đơn hàng đã quay về trạng thái Chờ giao hàng.",
+		Message:      "Shipping waybill cancelled successfully. Order status reverted to Confirmed.",
 	}, nil
 }
 

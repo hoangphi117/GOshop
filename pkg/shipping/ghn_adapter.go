@@ -445,25 +445,25 @@ func (a *GHNAdapter) doRequest(ctx context.Context, method, endpoint string, pay
 func mapGHNStatusText(status string) string {
 	switch status {
 	case "ready_to_pick":
-		return "Chờ lấy hàng"
+		return "Ready to pick"
 	case "picking":
-		return "Đang lấy hàng"
+		return "Picking up"
 	case "storing":
-		return "Hàng nhập kho"
+		return "Stored at warehouse"
 	case "delivering":
-		return "Đang giao hàng"
+		return "Delivering"
 	case "delivered":
-		return "Giao hàng thành công"
+		return "Delivered"
 	case "delivery_fail":
-		return "Giao hàng không thành công"
+		return "Delivery failed"
 	case "waiting_to_return":
-		return "Chờ xác nhận giao lại / chuyển hoàn"
+		return "Waiting for return confirmation"
 	case "return":
-		return "Đang chuyển hoàn"
+		return "Returning"
 	case "returned":
-		return "Đã chuyển hoàn"
+		return "Returned"
 	case "cancel":
-		return "Đã hủy"
+		return "Cancelled"
 	default:
 		return status
 	}

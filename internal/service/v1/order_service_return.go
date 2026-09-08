@@ -395,7 +395,7 @@ func (s *orderService) AdminUpdateReturnStatus(ctx *gin.Context, returnUUID uuid
 			}
 		}
 
-		eventNote := fmt.Sprintf("Kho đã nhận hàng hoàn về kho thành công và khôi phục tồn kho. Đang chờ kế toán thực hiện hoàn tiền. Ghi chú: %s", noteStr)
+		eventNote := fmt.Sprintf("Warehouse received returned goods successfully and restored inventory. Awaiting refund processing. Note: %s", noteStr)
 		_, _ = s.trackingRepo.InsertEvent(reqCtx, tx, sqlc.InsertTrackingEventParams{
 			EventOrderID: returnRequest.ReturnOrderID,
 			EventStatus:  "returned",

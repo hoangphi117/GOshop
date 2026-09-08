@@ -111,7 +111,7 @@ type SubmitReturnShippingInput struct {
 type TrackingEventDTO struct {
 	EventID    int32     `json:"event_id"`
 	Status     string    `json:"status"`      // "pending", "confirmed", "shipped", "delivered",...
-	StatusText string    `json:"status_text"` // Bản dịch tiếng Việt hiển thị UI: "Đang giao hàng",...
+	StatusText string    `json:"status_text"` // UI display status text: "Delivering",...
 	Note       *string   `json:"note,omitempty"`
 	Source     string    `json:"source"` // "system", "admin", "ghn", "user"
 	CreatedAt  time.Time `json:"created_at"`
@@ -245,7 +245,7 @@ type UserReturnSummaryDTO struct {
 	VideoURL         *string   `json:"video_url,omitempty"`
 	Status           int16     `json:"status"`
 	StatusName       string    `json:"status_name"` // "Pending", "Approved", "Rejected", "Completed", "Cancelled"
-	StatusText       string    `json:"status_text"` // "Chờ duyệt", "Đã chấp thuận (Chờ gửi hàng về)", ...
+	StatusText       string    `json:"status_text"` // "Pending Approval", "Approved (Awaiting return shipment)", ...
 	AdminNote        *string   `json:"admin_note,omitempty"`
 	ShippingProvider *string   `json:"shipping_provider,omitempty"`
 	ShippingCode     *string   `json:"shipping_code,omitempty"`
@@ -266,7 +266,7 @@ type OrderReturnDetailDTO struct {
 	VideoURL         *string            `json:"video_url,omitempty"`
 	Status           int16              `json:"status"`
 	StatusName       string             `json:"status_name"` // "Pending", "Approved", "Rejected", "Completed", "Cancelled"
-	StatusText       string             `json:"status_text"` // "Chờ duyệt", "Đã chấp thuận (Chờ gửi hàng về)", ...
+	StatusText       string             `json:"status_text"` // "Pending Approval", "Approved (Awaiting return shipment)", ...
 	AdminNote        *string            `json:"admin_note,omitempty"`
 	ShippingProvider *string            `json:"shipping_provider,omitempty"`
 	ShippingCode     *string            `json:"shipping_code,omitempty"`
@@ -307,7 +307,7 @@ type AdminReturnDetailDTO struct {
 	VideoURL         *string            `json:"video_url,omitempty"`
 	Status           int16              `json:"status"`
 	StatusName       string             `json:"status_name"` // "Pending", "Approved", "Rejected", "Completed", "Cancelled"
-	StatusText       string             `json:"status_text"` // "Chờ duyệt", "Đã chấp thuận (Chờ gửi hàng về)", ...
+	StatusText       string             `json:"status_text"` // "Pending Approval", "Approved (Awaiting return shipment)", ...
 	AdminNote        *string            `json:"admin_note,omitempty"`
 	ShippingProvider *string            `json:"shipping_provider,omitempty"`
 	ShippingCode     *string            `json:"shipping_code,omitempty"`
@@ -349,7 +349,7 @@ type CancelOrderReturnResponseDTO struct {
 	OrderNumber  string    `json:"order_number"`
 	Status       int16     `json:"status"`      // 5
 	StatusName   string    `json:"status_name"` // "Cancelled"
-	StatusText   string    `json:"status_text"` // "Đã hủy bởi người mua"
+	StatusText   string    `json:"status_text"` // "Cancelled by buyer"
 	CancelReason string    `json:"cancel_reason,omitempty"`
 	UpdatedAt    time.Time `json:"updated_at"`
 	Message      string    `json:"message"`
@@ -399,33 +399,33 @@ type SubmitReturnShippingResponseDTO struct {
 func MapTrackingStatusToText(status string) string {
 	switch status {
 	case "pending":
-		return "Đơn hàng đã được tạo"
+		return "Order created"
 	case "confirmed":
-		return "Đơn hàng đã được xác nhận"
+		return "Order confirmed"
 	case "ready_to_pick":
-		return "Chờ bàn giao cho bưu tá"
+		return "Ready for courier pickup"
 	case "picking":
-		return "Bưu tá đang lấy hàng"
+		return "Courier picking up goods"
 	case "storing":
-		return "Hàng đã nhập kho GHN"
+		return "Stored at courier warehouse"
 	case "shipped", "delivering":
-		return "Đang giao hàng"
+		return "Out for delivery"
 	case "delivered":
-		return "Giao hàng thành công"
+		return "Delivered successfully"
 	case "cancelled", "auto_cancelled":
-		return "Đơn hàng đã hủy"
+		return "Order cancelled"
 	case "shipping_cancelled":
-		return "Vận đơn giao hàng đã hủy"
+		return "Shipping waybill cancelled"
 	case "return_requested":
-		return "Yêu cầu trả hàng"
+		return "Return requested"
 	case "return_approved":
-		return "Yêu cầu trả hàng đã được chấp thuận"
+		return "Return request approved"
 	case "return_rejected":
-		return "Yêu cầu trả hàng đã bị từ chối"
+		return "Return request rejected"
 	case "return_cancelled":
-		return "Yêu cầu trả hàng đã hủy"
+		return "Return request cancelled"
 	case "returned":
-		return "Đã hoàn trả hàng thành công"
+		return "Returned goods processed successfully"
 	default:
 		return status
 	}
@@ -470,16 +470,16 @@ func MapReturnStatusToString(status int16) string {
 func MapReturnStatusToVietnamese(status int16) string {
 	switch status {
 	case 1:
-		return "Chờ duyệt"
+		return "Pending Approval"
 	case 2:
-		return "Đã chấp thuận (Chờ gửi hàng về)"
+		return "Approved (Awaiting return shipment)"
 	case 3:
-		return "Đã từ chối"
+		return "Rejected"
 	case 4:
-		return "Đã hoàn tất (Đã nhận hàng & hoàn tiền)"
+		return "Completed (Refunded)"
 	case 5:
-		return "Đã hủy bởi người mua"
+		return "Cancelled by buyer"
 	default:
-		return "Không xác định"
+		return "Unknown"
 	}
 }
