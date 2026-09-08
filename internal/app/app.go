@@ -110,6 +110,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		NewNotificationModule(ctx, wsHub, tokenService, cacheRedisService),
 		NewAuthModule(ctx, tokenService, cacheRedisService, mailService, rabbitmqService, cfg.AppURL),
 		NewUploadModule(ctx),
+		NewBannerModule(ctx, cacheRedisService),
 	}
 
 	routes.RegisterRoutes(r, tokenService, cacheRedisService, getModuleRoutes(modules), getAdminModuleRoutes(modules))

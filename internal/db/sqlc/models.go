@@ -11,6 +11,22 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Banner struct {
+	BannerID        int32              `json:"banner_id"`
+	BannerUuid      uuid.UUID          `json:"banner_uuid"`
+	BannerTitle     string             `json:"banner_title"`
+	BannerImageUrl  string             `json:"banner_image_url"`
+	BannerLinkUrl   *string            `json:"banner_link_url"`
+	BannerPosition  string             `json:"banner_position"`
+	BannerOrder     int32              `json:"banner_order"`
+	BannerIsActive  bool               `json:"banner_is_active"`
+	BannerStartAt   pgtype.Timestamptz `json:"banner_start_at"`
+	BannerEndAt     pgtype.Timestamptz `json:"banner_end_at"`
+	BannerDeletedAt pgtype.Timestamptz `json:"banner_deleted_at"`
+	BannerCreatedAt time.Time          `json:"banner_created_at"`
+	BannerUpdatedAt time.Time          `json:"banner_updated_at"`
+}
+
 type Cart struct {
 	CartID        int32     `json:"cart_id"`
 	CartUuid      uuid.UUID `json:"cart_uuid"`

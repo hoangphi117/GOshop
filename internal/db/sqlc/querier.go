@@ -16,10 +16,12 @@ type Querier interface {
 	// Stock check thực hiện ở tầng service TRƯỚC khi gọi query này — không block cứng ở đây vì Order mới là nơi enforce
 	// stock nghiêm ngặt.
 	AddOrUpdateCartItem(ctx context.Context, arg AddOrUpdateCartItemParams) (CartItem, error)
+	AdminCountBanners(ctx context.Context, arg AdminCountBannersParams) (int64, error)
 	AdminCountReturns(ctx context.Context, arg AdminCountReturnsParams) (int64, error)
 	AdminGetLatestReturnByOrderID(ctx context.Context, returnOrderID int32) (AdminGetLatestReturnByOrderIDRow, error)
 	AdminGetReturnByUUID(ctx context.Context, returnUuid uuid.UUID) (AdminGetReturnByUUIDRow, error)
 	AdminGetReturns(ctx context.Context, arg AdminGetReturnsParams) ([]AdminGetReturnsRow, error)
+	AdminListBanners(ctx context.Context, arg AdminListBannersParams) ([]Banner, error)
 	CancelOrder(ctx context.Context, orderUuid uuid.UUID) (Order, error)
 	CancelOrderShipping(ctx context.Context, orderUuid uuid.UUID) (Order, error)
 	CheckReviewExists(ctx context.Context, arg CheckReviewExistsParams) (bool, error)
@@ -43,6 +45,7 @@ type Querier interface {
 	CountUserAddresses(ctx context.Context, uaUserID int32) (int64, error)
 	CountUserCouponUsages(ctx context.Context, arg CountUserCouponUsagesParams) (int64, error)
 	CountUsers(ctx context.Context, arg CountUsersParams) (int64, error)
+	CreateBanner(ctx context.Context, arg CreateBannerParams) (Banner, error)
 	CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error)
 	CreateCoupon(ctx context.Context, arg CreateCouponParams) (Coupon, error)
 	CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error)
@@ -66,8 +69,10 @@ type Querier interface {
 	DeleteNotification(ctx context.Context, arg DeleteNotificationParams) error
 	DeleteReview(ctx context.Context, reviewID int32) error
 	DeleteUserAddress(ctx context.Context, arg DeleteUserAddressParams) (bool, error)
+	GetActiveBannersByPosition(ctx context.Context, bannerPosition string) ([]GetActiveBannersByPositionRow, error)
 	GetActiveReturnByOrderID(ctx context.Context, returnOrderID int32) (OrderReturn, error)
 	GetActiveShippedOrders(ctx context.Context, limit int32) ([]Order, error)
+	GetBannerByUUID(ctx context.Context, bannerUuid uuid.UUID) (Banner, error)
 	GetByUUIDsForUpdate(ctx context.Context, uuids []uuid.UUID) ([]GetByUUIDsForUpdateRow, error)
 	// Khác GetOrCreateCartByUserID: KHÔNG tự tạo cart nếu chưa có. Dùng cho
 	// CleanupCartAfterOrder — nếu user chưa từng có giỏ hàng (mua thẳng, không qua
@@ -133,6 +138,7 @@ type Querier interface {
 	RecalcProductRating(ctx context.Context, reviewProductID int32) error
 	RecordCouponUsage(ctx context.Context, arg RecordCouponUsageParams) (CouponUsage, error)
 	ReplyReview(ctx context.Context, arg ReplyReviewParams) (ProductReview, error)
+	RestoreBanner(ctx context.Context, bannerUuid uuid.UUID) (Banner, error)
 	RestoreCategory(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
 	RestoreCoupon(ctx context.Context, couponUuid uuid.UUID) (Coupon, error)
 	RestoreProduct(ctx context.Context, productUuid uuid.UUID) (Product, error)
@@ -142,14 +148,18 @@ type Querier interface {
 	SetCartItemQuantity(ctx context.Context, arg SetCartItemQuantityParams) (CartItem, error)
 	SetDefaultAddress(ctx context.Context, arg SetDefaultAddressParams) (UserAddress, error)
 	SetLatestAddressAsDefault(ctx context.Context, uaUserID int32) error
+	SoftDeleteBanner(ctx context.Context, bannerUuid uuid.UUID) (Banner, error)
 	SoftDeleteCategory(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
 	SoftDeleteCouponByUUID(ctx context.Context, couponUuid uuid.UUID) (Coupon, error)
 	SoftDeleteProduct(ctx context.Context, productUuid uuid.UUID) (Product, error)
 	SoftDeleteUser(ctx context.Context, userUuid uuid.UUID) (User, error)
+	TrashBanner(ctx context.Context, bannerUuid uuid.UUID) (Banner, error)
 	TrashCategory(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
 	TrashCoupon(ctx context.Context, couponUuid uuid.UUID) (Coupon, error)
 	TrashProduct(ctx context.Context, productUuid uuid.UUID) (Product, error)
 	TrashUser(ctx context.Context, userUuid uuid.UUID) (User, error)
+	UpdateBanner(ctx context.Context, arg UpdateBannerParams) (Banner, error)
+	UpdateBannerStatus(ctx context.Context, arg UpdateBannerStatusParams) (Banner, error)
 	UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (Category, error)
 	UpdateCoupon(ctx context.Context, arg UpdateCouponParams) (Coupon, error)
 	UpdateOrderPaymentStatus(ctx context.Context, arg UpdateOrderPaymentStatusParams) (Order, error)

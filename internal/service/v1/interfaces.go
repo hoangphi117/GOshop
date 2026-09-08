@@ -154,3 +154,15 @@ type NotificationService interface {
 	MarkAllNotificationsAsRead(ctx *gin.Context) error
 	DeleteNotification(ctx *gin.Context, notificationUUID uuid.UUID) error
 }
+
+type BannerService interface {
+	GetActiveBanners(ctx *gin.Context, position string) ([]v1dto.BannerDTO, error)
+	AdminGetBanners(ctx *gin.Context, query v1dto.AdminGetBannersQuery) ([]v1dto.AdminBannerDetailDTO, int64, error)
+	AdminGetBannerByUUID(ctx *gin.Context, bannerUUID uuid.UUID) (v1dto.AdminBannerDetailDTO, error)
+	AdminCreateBanner(ctx *gin.Context, input v1dto.CreateBannerRequest) (v1dto.AdminBannerDetailDTO, error)
+	AdminUpdateBanner(ctx *gin.Context, bannerUUID uuid.UUID, input v1dto.UpdateBannerRequest) (v1dto.AdminBannerDetailDTO, error)
+	AdminUpdateBannerStatus(ctx *gin.Context, bannerUUID uuid.UUID, input v1dto.UpdateBannerStatusRequest) (v1dto.AdminBannerDetailDTO, error)
+	AdminSoftDeleteBanner(ctx *gin.Context, bannerUUID uuid.UUID) error
+	AdminRestoreBanner(ctx *gin.Context, bannerUUID uuid.UUID) (v1dto.AdminBannerDetailDTO, error)
+	AdminTrashBanner(ctx *gin.Context, bannerUUID uuid.UUID) error
+}

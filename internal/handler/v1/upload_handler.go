@@ -38,14 +38,15 @@ func (uh *UploadHandler) UploadSingleFile(ctx *gin.Context) {
 	}
 	isAdminOrMod := role == middleware.RoleAdmin || role == middleware.RoleModerator
 
-	if (folder == "products" || folder == "categories") && !isAdminOrMod {
-		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeForbidden, "Only admin and moderator can upload to product/category folders"))
+	if (folder == "products" || folder == "categories" || folder == "banners") && !isAdminOrMod {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeForbidden, "Only admin and moderator can upload to product/category/banner folders"))
 		return
 	}
 
 	allowedFolders := map[string]bool{
 		"products":   true,
 		"categories": true,
+		"banners":    true,
 		"avatars":    true,
 		"common":     true,
 	}

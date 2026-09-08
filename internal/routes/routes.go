@@ -47,7 +47,7 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 		switch r := route.(type) {
 		case *v1routes.AuthRoutes, *v1routes.CategoryRoutes, *v1routes.ProductRoutes,
 			*v1routes.PaymentWebhookRoutes, *v1routes.ReviewPublicRoutes,
-			*v1routes.ShippingWebhookRoutes, *v1routes.WSRoutes:
+			*v1routes.ShippingWebhookRoutes, *v1routes.WSRoutes, *v1routes.BannerRoutes:
 			r.Register(public)
 		default:
 			r.Register(protected)
