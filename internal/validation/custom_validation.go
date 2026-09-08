@@ -132,6 +132,8 @@ func HandleValidationErrors(err error) gin.H {
 				errors[fieldPath] = fmt.Sprintf("%s must be greater than or equal to %s", fieldPath, e.Param())
 			case "ltefield":
 				errors[fieldPath] = fmt.Sprintf("%s must be less than or equal to %s", fieldPath, e.Param())
+			case "eqfield":
+				errors[fieldPath] = fmt.Sprintf("%s must be equal to %s", fieldPath, e.Param())
 			case "uuid":
 				errors[fieldPath] = fieldPath + " must be a valid uuid"
 			case "slug":

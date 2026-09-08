@@ -17,6 +17,7 @@ type UserService interface {
 	UpdateUser(ctx *gin.Context, input sqlc.UpdateUserParams) (sqlc.User, error)
 	GetProfile(ctx *gin.Context) (sqlc.User, error)
 	UpdateProfile(ctx *gin.Context, input sqlc.UpdateUserParams) (sqlc.User, error)
+	ChangePassword(ctx *gin.Context, input v1dto.ChangePasswordRequest) error
 	SoftDeleteUser(ctx *gin.Context, uuid uuid.UUID) (sqlc.User, error)
 	RestoreUser(ctx *gin.Context, uuid uuid.UUID) (sqlc.User, error)
 	TrashUser(ctx *gin.Context, uuid uuid.UUID) error

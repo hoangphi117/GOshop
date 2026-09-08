@@ -40,6 +40,12 @@ type UpdateProfileInput struct {
 	Password *string `json:"password" binding:"omitempty,min=6,password_strong"`
 }
 
+type ChangePasswordRequest struct {
+	OldPassword     string `json:"old_password" binding:"required,min=8,max=32"`
+	NewPassword     string `json:"new_password" binding:"required,min=8,max=32"`
+	ConfirmPassword string `json:"confirm_password" binding:"required,eqfield=NewPassword"`
+}
+
 type GetUserByUuidParam struct {
 	Uuid string `uri:"uuid" binding:"uuid"`
 }

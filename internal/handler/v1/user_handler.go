@@ -1,8 +1,8 @@
 package v1handler
 
 import (
-	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/db/sqlc"
+	v1dto "goshop/internal/dto/v1"
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/utils"
 	"goshop/internal/validation"
@@ -117,6 +117,22 @@ func (uh *UserHandler) UpdateUser(ctx *gin.Context) {
 	updatedUserDTO := v1dto.MapUserToDTO(updatedUser)
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "User updated successfully", updatedUserDTO)
+}
+
+func (uh *UserHandler) ChangePassword(ctx *gin.Context) {
+	var input v1dto.ChangePasswordRequest
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	err := uh.service.ChangePassword(ctx, input)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Password changed successfully", nil)
 }
 
 func (uh *UserHandler) GetProfile(ctx *gin.Context) {
