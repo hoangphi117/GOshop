@@ -162,40 +162,15 @@ func (us *userService) UpdateUser(ctx *gin.Context, input sqlc.UpdateUserParams)
 }
 
 func (us *userService) GetProfile(ctx *gin.Context) (sqlc.User, error) {
-	context := ctx.Request.Context()
-
-	userUUIDStr, ok := ctx.Get("user_uuid")
-	if !ok {
-		return sqlc.User{}, utils.NewError(utils.ErrCodeUnauthorized, "user uuid missing")
-	}
-
-	userUuid, err := uuid.Parse(userUUIDStr.(string))
-	if err != nil {
-		return sqlc.User{}, utils.NewError(utils.ErrCodeUnauthorized, "invalid user uuid")
-	}
-
-	user, err := us.repo.GetByUUID(context, userUuid)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return sqlc.User{}, utils.NewError(utils.ErrCodeNotFound, "user not found")
-		}
-		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to get profile", err)
-	}
-
-	return user, nil
+	return GetUserFromContext(ctx, us.repo)
 }
 
 func (us *userService) UpdateProfile(ctx *gin.Context, input sqlc.UpdateUserParams) (sqlc.User, error) {
 	context := ctx.Request.Context()
 
-	userUUIDStr, ok := ctx.Get("user_uuid")
-	if !ok {
-		return sqlc.User{}, utils.NewError(utils.ErrCodeUnauthorized, "user uuid missing")
-	}
-
-	userUuid, err := uuid.Parse(userUUIDStr.(string))
+	userUuid, err := GetUserUUIDFromContext(ctx)
 	if err != nil {
-		return sqlc.User{}, utils.NewError(utils.ErrCodeUnauthorized, "invalid user uuid")
+		return sqlc.User{}, err
 	}
 
 	input.UserUuid = userUuid
@@ -227,24 +202,9 @@ func (us *userService) UpdateProfile(ctx *gin.Context, input sqlc.UpdateUserPara
 }
 
 func (us *userService) ChangePassword(ctx *gin.Context, input v1dto.ChangePasswordRequest) error {
-	context := ctx.Request.Context()
-
-	userUUIDStr, ok := ctx.Get("user_uuid")
-	if !ok {
-		return utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized: user uuid missing")
-	}
-
-	userUuid, err := uuid.Parse(userUUIDStr.(string))
+	user, err := GetUserFromContext(ctx, us.repo)
 	if err != nil {
-		return utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized: invalid user uuid")
-	}
-
-	user, err := us.repo.GetByUUID(context, userUuid)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return utils.NewError(utils.ErrCodeNotFound, "user not found")
-		}
-		return utils.WrapError(utils.ErrCodeInternal, "failed to get user", err)
+		return err
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.UserPassword), []byte(input.OldPassword)); err != nil {
@@ -260,17 +220,18 @@ func (us *userService) ChangePassword(ctx *gin.Context, input v1dto.ChangePasswo
 		return utils.WrapError(utils.ErrCodeInternal, "failed to hash new password", err)
 	}
 
+	reqCtx := ctx.Request.Context()
 	updateParams := sqlc.UpdatePasswordParams{
-		UserUuid:    userUuid,
+		UserUuid:    user.UserUuid,
 		NewPassword: string(hashedPassword),
 	}
-	if _, err := us.repo.UpdatePassword(context, updateParams); err != nil {
+	if _, err := us.repo.UpdatePassword(reqCtx, updateParams); err != nil {
 		return utils.WrapError(utils.ErrCodeInternal, "failed to update password", err)
 	}
 
-	_ = us.cache.Clear(fmt.Sprintf("user:%s", userUuid.String()))
+	_ = us.cache.Clear(fmt.Sprintf("user:%s", user.UserUuid.String()))
 	_ = us.cache.Clear("users:*")
-	logger.Log.Info().Str("user_uuid", userUuid.String()).Msg("User password changed successfully")
+	logger.Log.Info().Str("user_uuid", user.UserUuid.String()).Msg("User password changed successfully")
 	return nil
 }
 

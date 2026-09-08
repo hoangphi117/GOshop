@@ -369,19 +369,9 @@ func (cs *couponService) RecordUserCouponUsage(ctx context.Context, tx pgx.Tx, c
 func (cs *couponService) PreviewCoupon(ctx *gin.Context, input v1dto.PreviewCouponInput) (v1dto.PreviewCouponDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	userUuidStr, ok := ctx.Get("user_uuid")
-	if !ok {
-		return v1dto.PreviewCouponDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-
-	userUuid, err := uuid.Parse(userUuidStr.(string))
+	user, err := GetUserFromContext(ctx, cs.userRepo)
 	if err != nil {
-		return v1dto.PreviewCouponDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Invalid user UUID")
-	}
-
-	user, err := cs.userRepo.GetByUUID(reqCtx, userUuid)
-	if err != nil {
-		return v1dto.PreviewCouponDTO{}, utils.WrapError(utils.ErrCodeInternal, "User not found", err)
+		return v1dto.PreviewCouponDTO{}, err
 	}
 
 	normalizedCode := strings.ToUpper(strings.TrimSpace(input.Code))

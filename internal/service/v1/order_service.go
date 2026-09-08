@@ -121,6 +121,14 @@ func NewOrderService(orderRepo repository.OrderRepository,
 	}
 }
 
+func (s *orderService) getUser(ctx *gin.Context) (sqlc.User, error) {
+	return GetUserFromContext(ctx, s.userRepo)
+}
+
+func (s *orderService) getUserUUID(ctx *gin.Context) (uuid.UUID, error) {
+	return GetUserUUIDFromContext(ctx)
+}
+
 type preparedItem struct {
 	productID   int32
 	productName string
@@ -162,21 +170,10 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 
 	reqCtx := ctx.Request.Context()
 
-	// Get user UUID from context
-	userUUIDStr, ok := ctx.Get("user_uuid")
-
-	if !ok || userUUIDStr == "" {
-		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	// Get user from context
+	user, err := s.getUser(ctx)
 	if err != nil {
-		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
-	}
-
-	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeNotFound, "User not found")
+		return sqlc.Order{}, nil, err
 	}
 
 	// Validate duplicate products in the order
@@ -425,7 +422,7 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 	if err := s.cache.Clear("coupons:*"); err != nil {
 		logger.Log.Warn().Err(err).Msg("Failed to clear coupon cache")
 	}
-	if err := s.cache.Clear(fmt.Sprintf("cart:user:%s", userUUID.String())); err != nil {
+	if err := s.cache.Clear(fmt.Sprintf("cart:user:%s", user.UserUuid.String())); err != nil {
 		logger.Log.Warn().Err(err).Msg("Failed to clear cart cache")
 	}
 
@@ -467,19 +464,9 @@ func CalculateDiscount(coupon sqlc.Coupon, orderAmount float64) float64 {
 func (s *orderService) GetMyOrders(ctx *gin.Context, input v1dto.GetOrdersParam) ([]v1dto.OrderSummaryDTO, int32, error) {
 	context := ctx.Request.Context()
 
-	userUuidStr, ok := ctx.Get("user_uuid")
-	if !ok || userUuidStr == "" {
-		return []v1dto.OrderSummaryDTO{}, 0, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-
-	userUUID, err := uuid.Parse(userUuidStr.(string))
+	user, err := s.getUser(ctx)
 	if err != nil {
-		return []v1dto.OrderSummaryDTO{}, 0, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
-	}
-
-	user, err := s.userRepo.GetByUUID(context, userUUID)
-	if err != nil {
-		return []v1dto.OrderSummaryDTO{}, 0, utils.NewError(utils.ErrCodeNotFound, "User not found")
+		return []v1dto.OrderSummaryDTO{}, 0, err
 	}
 
 	if input.Sort == "" {
@@ -499,7 +486,7 @@ func (s *orderService) GetMyOrders(ctx *gin.Context, input v1dto.GetOrdersParam)
 		input.Limit = int32(limitInt)
 	}
 
-	cacheKey := s.generateMyOrdersCacheKey(userUUID.String(), input)
+	cacheKey := s.generateMyOrdersCacheKey(user.UserUuid.String(), input)
 	var cacheData struct {
 		Orders []v1dto.OrderSummaryDTO `json:"orders"`
 		Total  int32                   `json:"total"`
@@ -547,19 +534,9 @@ func (s *orderService) GetMyOrders(ctx *gin.Context, input v1dto.GetOrdersParam)
 func (s *orderService) GetOrderByUUID(ctx *gin.Context, orderUUID uuid.UUID) (sqlc.GetOrderByUUIDRow, []sqlc.GetOrderItemsByOrderIDRow, error) {
 	context := ctx.Request.Context()
 
-	userUuidStr, ok := ctx.Get("user_uuid")
-	if !ok || userUuidStr == "" {
-		return sqlc.GetOrderByUUIDRow{}, nil, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-
-	userUUID, err := uuid.Parse(userUuidStr.(string))
+	user, err := s.getUser(ctx)
 	if err != nil {
-		return sqlc.GetOrderByUUIDRow{}, nil, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
-	}
-
-	user, err := s.userRepo.GetByUUID(context, userUUID)
-	if err != nil {
-		return sqlc.GetOrderByUUIDRow{}, nil, utils.NewError(utils.ErrCodeNotFound, "User not found")
+		return sqlc.GetOrderByUUIDRow{}, nil, err
 	}
 
 	order, err := s.orderRepo.GetByUUID(context, orderUUID)
@@ -750,19 +727,9 @@ func isValidStatusTransition(currentStatus, newStatus int32) bool {
 func (s *orderService) CancelOrder(ctx *gin.Context, orderUUID uuid.UUID) error {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, ok := ctx.Get("user_uuid")
-	if !ok || userUUIDStr == "" {
-		return utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := s.getUser(ctx)
 	if err != nil {
-		return utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
-	}
-
-	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return utils.NewError(utils.ErrCodeNotFound, "User not found")
+		return err
 	}
 
 	orderRow, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
@@ -840,19 +807,9 @@ func (s *orderService) CancelOrder(ctx *gin.Context, orderUUID uuid.UUID) error 
 func (s *orderService) UpdateOrderShippingInfo(ctx *gin.Context, input sqlc.UpdateOrderShippingInfoParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
 	reqCtx := ctx.Request.Context()
 
-	userUuidStr, ok := ctx.Get("user_uuid")
-	if !ok || userUuidStr == "" {
-		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-
-	userUUID, err := uuid.Parse(userUuidStr.(string))
+	user, err := s.getUser(ctx)
 	if err != nil {
-		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
-	}
-
-	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeNotFound, "User not found")
+		return sqlc.Order{}, nil, err
 	}
 
 	existingOrder, err := s.orderRepo.GetByUUID(reqCtx, input.OrderUuid)
@@ -915,13 +872,9 @@ func (s *orderService) UpdateOrderShippingInfo(ctx *gin.Context, input sqlc.Upda
 func (s *orderService) UpdateOrderPaymentStatus(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.UpdateOrderPaymentStatusInput) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, ok := ctx.Get("user_uuid")
-	if !ok || userUUIDStr == "" {
-		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	userUUID, err := s.getUserUUID(ctx)
 	if err != nil {
-		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Invalid user UUID")
+		return sqlc.Order{}, nil, err
 	}
 
 	existingOrder, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
@@ -1032,19 +985,9 @@ type cachedInvoicePDF struct {
 func (s *orderService) GetOrderInvoicePDF(ctx *gin.Context, orderUUID uuid.UUID) ([]byte, string, error) {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, ok := ctx.Get("user_uuid")
-	if !ok || userUUIDStr == "" {
-		return nil, "", utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := s.getUser(ctx)
 	if err != nil {
-		return nil, "", utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
-	}
-
-	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return nil, "", utils.NewError(utils.ErrCodeNotFound, "User not found")
+		return nil, "", err
 	}
 
 	order, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
@@ -1322,19 +1265,9 @@ func (s *orderService) ProcessShippingOrderMessage(headers amqp.Table, body []by
 func (s *orderService) GetOrderTimeline(ctx *gin.Context, orderUUID uuid.UUID) (v1dto.OrderTimelineResponseDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, ok := ctx.Get("user_uuid")
-	if !ok || userUUIDStr == "" {
-		return v1dto.OrderTimelineResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := s.getUser(ctx)
 	if err != nil {
-		return v1dto.OrderTimelineResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
-	}
-
-	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return v1dto.OrderTimelineResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+		return v1dto.OrderTimelineResponseDTO{}, err
 	}
 
 	order, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
@@ -1671,17 +1604,9 @@ func (s *orderService) CancelShipping(ctx *gin.Context, orderUUID uuid.UUID, inp
 func (s *orderService) ConfirmOrderDelivery(ctx *gin.Context, orderUUID uuid.UUID) (v1dto.ConfirmDeliveryResponseDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, ok := ctx.Get("user_uuid")
-	if !ok || userUUIDStr == "" {
-		return v1dto.ConfirmDeliveryResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := s.getUser(ctx)
 	if err != nil {
-		return v1dto.ConfirmDeliveryResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
-	}
-	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return v1dto.ConfirmDeliveryResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+		return v1dto.ConfirmDeliveryResponseDTO{}, err
 	}
 
 	order, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
@@ -1916,19 +1841,9 @@ func (s *orderService) GetWards(ctx *gin.Context, districtID int) ([]v1dto.WardD
 func (s *orderService) RequestOrderReturn(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.CreateOrderReturnInput, imageURLs []string, videoURL *string) (v1dto.OrderReturnDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, ok := ctx.Get("user_uuid")
-	if !ok || userUUIDStr == "" {
-		return v1dto.OrderReturnDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := s.getUser(ctx)
 	if err != nil {
-		return v1dto.OrderReturnDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
-	}
-
-	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return v1dto.OrderReturnDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+		return v1dto.OrderReturnDTO{}, err
 	}
 
 	order, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
@@ -2111,19 +2026,9 @@ func (s *orderService) AdminGetReturns(ctx *gin.Context, query v1dto.AdminGetRet
 func (s *orderService) AdminGetReturnDetail(ctx *gin.Context, returnUUID uuid.UUID) (v1dto.AdminReturnDetailDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, ok := ctx.Get("user_uuid")
-	if !ok || userUUIDStr == "" {
-		return v1dto.AdminReturnDetailDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := s.getUser(ctx)
 	if err != nil {
-		return v1dto.AdminReturnDetailDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
-	}
-
-	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return v1dto.AdminReturnDetailDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+		return v1dto.AdminReturnDetailDTO{}, err
 	}
 
 	if user.UserLevel != RoleAdmin && user.UserLevel != RoleModerator {
@@ -2428,19 +2333,9 @@ func isReturnAccessibleByUser(user sqlc.User, res *resolvedOrderReturn) bool {
 func (s *orderService) GetOrderReturnDetails(ctx *gin.Context, orderUUID uuid.UUID) (v1dto.OrderReturnDetailDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, ok := ctx.Get("user_uuid")
-	if !ok || userUUIDStr == "" {
-		return v1dto.OrderReturnDetailDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := s.getUser(ctx)
 	if err != nil {
-		return v1dto.OrderReturnDetailDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
-	}
-
-	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return v1dto.OrderReturnDetailDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+		return v1dto.OrderReturnDetailDTO{}, err
 	}
 
 	resolved, err := s.resolveOrderReturn(reqCtx, orderUUID)
@@ -2502,19 +2397,9 @@ func (s *orderService) GetOrderReturnDetails(ctx *gin.Context, orderUUID uuid.UU
 func (s *orderService) GetMyOrderReturns(ctx *gin.Context, query v1dto.GetMyOrderReturnsQuery) ([]v1dto.UserReturnSummaryDTO, int64, error) {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, ok := ctx.Get("user_uuid")
-	if !ok || userUUIDStr == "" {
-		return nil, 0, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := s.getUser(ctx)
 	if err != nil {
-		return nil, 0, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
-	}
-
-	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return nil, 0, utils.NewError(utils.ErrCodeNotFound, "User not found")
+		return nil, 0, err
 	}
 
 	page := query.Page
@@ -2588,17 +2473,9 @@ func (s *orderService) GetMyOrderReturns(ctx *gin.Context, query v1dto.GetMyOrde
 func (s *orderService) CancelOrderReturn(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.CancelOrderReturnInput) (v1dto.CancelOrderReturnResponseDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, ok := ctx.Get("user_uuid")
-	if !ok || userUUIDStr == "" {
-		return v1dto.CancelOrderReturnResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := s.getUser(ctx)
 	if err != nil {
-		return v1dto.CancelOrderReturnResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
-	}
-	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return v1dto.CancelOrderReturnResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+		return v1dto.CancelOrderReturnResponseDTO{}, err
 	}
 
 	resolved, err := s.resolveOrderReturn(reqCtx, orderUUID)
@@ -2674,17 +2551,9 @@ func (s *orderService) CancelOrderReturn(ctx *gin.Context, orderUUID uuid.UUID, 
 func (s *orderService) SubmitReturnShipping(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.SubmitReturnShippingInput) (v1dto.SubmitReturnShippingResponseDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, ok := ctx.Get("user_uuid")
-	if !ok || userUUIDStr == "" {
-		return v1dto.SubmitReturnShippingResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := s.getUser(ctx)
 	if err != nil {
-		return v1dto.SubmitReturnShippingResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
-	}
-	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return v1dto.SubmitReturnShippingResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+		return v1dto.SubmitReturnShippingResponseDTO{}, err
 	}
 
 	resolved, err := s.resolveOrderReturn(reqCtx, orderUUID)
@@ -2775,17 +2644,9 @@ func (s *orderService) SubmitReturnShipping(ctx *gin.Context, orderUUID uuid.UUI
 func (s *orderService) UpdateReturnBankAccount(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.UpdateReturnBankAccountInput) (v1dto.UpdateReturnBankAccountResponseDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, ok := ctx.Get("user_uuid")
-	if !ok || userUUIDStr == "" {
-		return v1dto.UpdateReturnBankAccountResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := s.getUser(ctx)
 	if err != nil {
-		return v1dto.UpdateReturnBankAccountResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
-	}
-	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return v1dto.UpdateReturnBankAccountResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+		return v1dto.UpdateReturnBankAccountResponseDTO{}, err
 	}
 
 	resolved, err := s.resolveOrderReturn(reqCtx, orderUUID)
@@ -2868,19 +2729,9 @@ func (s *orderService) UpdateReturnBankAccount(ctx *gin.Context, orderUUID uuid.
 func (s *orderService) AdminProcessReturnRefund(ctx *gin.Context, returnUUID uuid.UUID, input v1dto.AdminReturnRefundInput) (v1dto.AdminReturnRefundResponseDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, ok := ctx.Get("user_uuid")
-	if !ok || userUUIDStr == "" {
-		return v1dto.AdminReturnRefundResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := s.getUser(ctx)
 	if err != nil {
-		return v1dto.AdminReturnRefundResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
-	}
-
-	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return v1dto.AdminReturnRefundResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+		return v1dto.AdminReturnRefundResponseDTO{}, err
 	}
 
 	if user.UserLevel != RoleAdmin && user.UserLevel != RoleModerator {
@@ -3104,17 +2955,9 @@ func (s *orderService) AdminProcessReturnRefund(ctx *gin.Context, returnUUID uui
 func (s *orderService) SyncOrderTracking(ctx *gin.Context, orderUUID uuid.UUID) (v1dto.SyncTrackingResponseDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, ok := ctx.Get("user_uuid")
-	if !ok || userUUIDStr == "" {
-		return v1dto.SyncTrackingResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := s.getUser(ctx)
 	if err != nil {
-		return v1dto.SyncTrackingResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
-	}
-	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return v1dto.SyncTrackingResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+		return v1dto.SyncTrackingResponseDTO{}, err
 	}
 
 	order, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
@@ -3247,19 +3090,9 @@ func (s *orderService) SyncOrderTracking(ctx *gin.Context, orderUUID uuid.UUID) 
 func (s *orderService) AdminSyncActiveShippingOrders(ctx *gin.Context) (v1dto.SyncActiveShippingStatsDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, ok := ctx.Get("user_uuid")
-	if !ok || userUUIDStr == "" {
-		return v1dto.SyncActiveShippingStatsDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := s.getUser(ctx)
 	if err != nil {
-		return v1dto.SyncActiveShippingStatsDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
-	}
-
-	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return v1dto.SyncActiveShippingStatsDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+		return v1dto.SyncActiveShippingStatsDTO{}, err
 	}
 
 	if user.UserLevel != RoleAdmin && user.UserLevel != RoleModerator {

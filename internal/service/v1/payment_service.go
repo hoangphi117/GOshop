@@ -80,19 +80,9 @@ func (s *paymentService) CreatePaymentIntent(ctx *gin.Context, input v1dto.Creat
 	reqCtx := ctx.Request.Context()
 	startTime := time.Now()
 
-	userUuidStr, ok := ctx.Get("user_uuid")
-	if !ok || userUuidStr == "" {
-		return v1dto.PaymentIntentDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-
-	userUuid, err := uuid.Parse(userUuidStr.(string))
+	user, err := GetUserFromContext(ctx, s.userRepo)
 	if err != nil {
-		return v1dto.PaymentIntentDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
-	}
-
-	user, err := s.userRepo.GetByUUID(reqCtx, userUuid)
-	if err != nil {
-		return v1dto.PaymentIntentDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "User not found")
+		return v1dto.PaymentIntentDTO{}, err
 	}
 
 	order, err := s.orderRepo.GetByUUID(reqCtx, input.OrderUUID)
@@ -501,19 +491,9 @@ func (s *paymentService) ProcessWebhookMessage(headers amqp.Table, body []byte) 
 func (s *paymentService) GetPaymentHistory(ctx *gin.Context, orderUUID uuid.UUID) ([]v1dto.PaymentTransactionDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	userUuidStr, ok := ctx.Get("user_uuid")
-	if !ok || userUuidStr == "" {
-		return nil, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-
-	userUuid, err := uuid.Parse(userUuidStr.(string))
+	user, err := GetUserFromContext(ctx, s.userRepo)
 	if err != nil {
-		return nil, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID format")
-	}
-
-	user, err := s.userRepo.GetByUUID(reqCtx, userUuid)
-	if err != nil {
-		return nil, utils.NewError(utils.ErrCodeUnauthorized, "User not found")
+		return nil, err
 	}
 
 	order, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)

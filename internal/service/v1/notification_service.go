@@ -177,19 +177,9 @@ func (s *notificationService) BroadcastNotification(ctx *gin.Context, input v1dt
 func (s *notificationService) GetMyNotifications(ctx *gin.Context, query v1dto.GetNotificationsQuery) ([]v1dto.NotificationDTO, int32, error) {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, ok := ctx.Get("user_uuid")
-	if !ok {
-		return nil, 0, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := GetUserFromContext(ctx, s.userRepo)
 	if err != nil {
-		return nil, 0, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID")
-	}
-
-	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return nil, 0, utils.NewError(utils.ErrCodeNotFound, "User not found")
+		return nil, 0, err
 	}
 
 	page := query.Page
@@ -227,19 +217,9 @@ func (s *notificationService) GetMyNotifications(ctx *gin.Context, query v1dto.G
 func (s *notificationService) GetUnreadNotificationCount(ctx *gin.Context) (v1dto.UnreadCountDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, exists := ctx.Get("user_uuid")
-	if !exists {
-		return v1dto.UnreadCountDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "User unauthorized")
-	}
-
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := GetUserFromContext(ctx, s.userRepo)
 	if err != nil {
-		return v1dto.UnreadCountDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Invalid user UUID")
-	}
-
-	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return v1dto.UnreadCountDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+		return v1dto.UnreadCountDTO{}, err
 	}
 
 	count, err := s.notificationRepo.CountUnreadByUserID(reqCtx, user.UserID)
@@ -253,17 +233,9 @@ func (s *notificationService) GetUnreadNotificationCount(ctx *gin.Context) (v1dt
 
 func (s *notificationService) MarkNotificationAsRead(ctx *gin.Context, notificationUUID uuid.UUID) (v1dto.NotificationDTO, error) {
 	reqCtx := ctx.Request.Context()
-	userUUIDStr, exists := ctx.Get("user_uuid")
-	if !exists {
-		return v1dto.NotificationDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "User unauthorized")
-	}
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := GetUserFromContext(ctx, s.userRepo)
 	if err != nil {
-		return v1dto.NotificationDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Invalid user UUID")
-	}
-	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return v1dto.NotificationDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+		return v1dto.NotificationDTO{}, err
 	}
 
 	updated, err := s.notificationRepo.MarkAsRead(reqCtx, notificationUUID, user.UserID)
@@ -284,19 +256,9 @@ func (s *notificationService) MarkNotificationAsRead(ctx *gin.Context, notificat
 func (s *notificationService) MarkAllNotificationsAsRead(ctx *gin.Context) error {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, exists := ctx.Get("user_uuid")
-	if !exists {
-		return utils.NewError(utils.ErrCodeUnauthorized, "User unauthorized")
-	}
-
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := GetUserFromContext(ctx, s.userRepo)
 	if err != nil {
-		return utils.NewError(utils.ErrCodeBadRequest, "Invalid user UUID")
-	}
-
-	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return utils.NewError(utils.ErrCodeNotFound, "User not found")
+		return err
 	}
 
 	err = s.notificationRepo.MarkAllAsRead(reqCtx, user.UserID)
@@ -311,19 +273,9 @@ func (s *notificationService) MarkAllNotificationsAsRead(ctx *gin.Context) error
 func (s *notificationService) DeleteNotification(ctx *gin.Context, notificationUUID uuid.UUID) error {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, exists := ctx.Get("user_uuid")
-	if !exists {
-		return utils.NewError(utils.ErrCodeUnauthorized, "User unauthorized")
-	}
-
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := GetUserFromContext(ctx, s.userRepo)
 	if err != nil {
-		return utils.NewError(utils.ErrCodeBadRequest, "Invalid user UUID")
-	}
-
-	user, err := s.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return utils.NewError(utils.ErrCodeNotFound, "User not found")
+		return err
 	}
 
 	err = s.notificationRepo.Delete(reqCtx, notificationUUID, user.UserID)

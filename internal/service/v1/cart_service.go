@@ -34,28 +34,18 @@ func NewCartService(repo repository.CartRepository, userRepo repository.UserRepo
 }
 
 func (cs *cartService) GetMyCart(ctx *gin.Context) (v1dto.CartDTO, error) {
-
 	reqCtx := ctx.Request.Context()
-	userUUIDStr, exists := ctx.Get("user_uuid")
-	if !exists {
-		return v1dto.CartDTO{}, utils.NewError(utils.ErrCodeNotFound, "user not found")
+
+	user, err := GetUserFromContext(ctx, cs.userRepo)
+	if err != nil {
+		return v1dto.CartDTO{}, err
 	}
 
-	cacheKey := fmt.Sprintf("cart:user:%s", userUUIDStr)
+	cacheKey := fmt.Sprintf("cart:user:%s", user.UserUuid.String())
 
 	var cached v1dto.CartDTO
 	if err := cs.cache.Get(cacheKey, &cached); err == nil {
 		return cached, nil
-	}
-
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
-	if err != nil {
-		return v1dto.CartDTO{}, utils.NewError(utils.ErrCodeBadRequest, "invalid user UUID")
-	}
-
-	user, err := cs.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return v1dto.CartDTO{}, utils.NewError(utils.ErrCodeNotFound, "user not found")
 	}
 
 	cart, err := cs.repo.GetOrCreateCart(reqCtx, user.UserID)
@@ -80,19 +70,9 @@ func (cs *cartService) GetMyCart(ctx *gin.Context) (v1dto.CartDTO, error) {
 func (cs *cartService) AddItemToCart(ctx *gin.Context, input v1dto.AddCartItemInput) (v1dto.CartDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, exists := ctx.Get("user_uuid")
-	if !exists || userUUIDStr == "" {
-		return v1dto.CartDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "unauthorized")
-	}
-
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := GetUserFromContext(ctx, cs.userRepo)
 	if err != nil {
-		return v1dto.CartDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "invalid user UUID format")
-	}
-
-	user, err := cs.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return v1dto.CartDTO{}, utils.NewError(utils.ErrCodeNotFound, "user not found")
+		return v1dto.CartDTO{}, err
 	}
 
 	productUUID, err := uuid.Parse(input.ProductUUID)
@@ -131,7 +111,7 @@ func (cs *cartService) AddItemToCart(ctx *gin.Context, input v1dto.AddCartItemIn
 		return v1dto.CartDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to add item to cart", err)
 	}
 
-	cacheKey := fmt.Sprintf("cart:user:%s", userUUIDStr)
+	cacheKey := fmt.Sprintf("cart:user:%s", user.UserUuid.String())
 	if err := cs.cache.Clear(cacheKey); err != nil {
 		logger.Log.Warn().Err(err).Msg("Failed to clear cart cache")
 	}
@@ -142,19 +122,9 @@ func (cs *cartService) AddItemToCart(ctx *gin.Context, input v1dto.AddCartItemIn
 func (cs *cartService) UpdateCartItemQuantity(ctx *gin.Context, itemUUID uuid.UUID, input v1dto.UpdateCartItemQuantityInput) (v1dto.CartDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, exists := ctx.Get("user_uuid")
-	if !exists || userUUIDStr == "" {
-		return v1dto.CartDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "unauthorized")
-	}
-
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := GetUserFromContext(ctx, cs.userRepo)
 	if err != nil {
-		return v1dto.CartDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "invalid user UUID format")
-	}
-
-	user, err := cs.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return v1dto.CartDTO{}, utils.NewError(utils.ErrCodeNotFound, "user not found")
+		return v1dto.CartDTO{}, err
 	}
 
 	cart, err := cs.repo.GetOrCreateCart(reqCtx, user.UserID)
@@ -202,7 +172,7 @@ func (cs *cartService) UpdateCartItemQuantity(ctx *gin.Context, itemUUID uuid.UU
 		return v1dto.CartDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to update cart item quantity", err)
 	}
 
-	cacheKey := fmt.Sprintf("cart:user:%s", userUUIDStr)
+	cacheKey := fmt.Sprintf("cart:user:%s", user.UserUuid.String())
 	if err := cs.cache.Clear(cacheKey); err != nil {
 		logger.Log.Warn().Err(err).Msg("Failed to clear cart cache")
 	}
@@ -213,19 +183,9 @@ func (cs *cartService) UpdateCartItemQuantity(ctx *gin.Context, itemUUID uuid.UU
 func (cs *cartService) RemoveItemFromCart(ctx *gin.Context, itemUUID uuid.UUID) (v1dto.CartDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, exists := ctx.Get("user_uuid")
-	if !exists || userUUIDStr == "" {
-		return v1dto.CartDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "unauthorized")
-	}
-
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := GetUserFromContext(ctx, cs.userRepo)
 	if err != nil {
-		return v1dto.CartDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "invalid user UUID format")
-	}
-
-	user, err := cs.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return v1dto.CartDTO{}, utils.NewError(utils.ErrCodeNotFound, "user not found")
+		return v1dto.CartDTO{}, err
 	}
 
 	cart, err := cs.repo.GetOrCreateCart(reqCtx, user.UserID)
@@ -241,7 +201,7 @@ func (cs *cartService) RemoveItemFromCart(ctx *gin.Context, itemUUID uuid.UUID) 
 		return v1dto.CartDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to remove item from cart", err)
 	}
 
-	cacheKey := fmt.Sprintf("cart:user:%s", userUUIDStr)
+	cacheKey := fmt.Sprintf("cart:user:%s", user.UserUuid.String())
 	if err := cs.cache.Clear(cacheKey); err != nil {
 		logger.Log.Warn().Err(err).Msg("Failed to clear cart cache")
 	}
@@ -252,19 +212,9 @@ func (cs *cartService) RemoveItemFromCart(ctx *gin.Context, itemUUID uuid.UUID) 
 func (cs *cartService) ClearMyCart(ctx *gin.Context) error {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, exists := ctx.Get("user_uuid")
-	if !exists || userUUIDStr == "" {
-		return utils.NewError(utils.ErrCodeUnauthorized, "unauthorized")
-	}
-
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := GetUserFromContext(ctx, cs.userRepo)
 	if err != nil {
-		return utils.NewError(utils.ErrCodeUnauthorized, "invalid user UUID format")
-	}
-
-	user, err := cs.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return utils.NewError(utils.ErrCodeNotFound, "user not found")
+		return err
 	}
 
 	cart, err := cs.repo.GetOrCreateCart(reqCtx, user.UserID)
@@ -277,7 +227,7 @@ func (cs *cartService) ClearMyCart(ctx *gin.Context) error {
 		return utils.WrapError(utils.ErrCodeInternal, "failed to clear cart", err)
 	}
 
-	cacheKey := fmt.Sprintf("cart:user:%s", userUUIDStr)
+	cacheKey := fmt.Sprintf("cart:user:%s", user.UserUuid.String())
 	if err := cs.cache.Clear(cacheKey); err != nil {
 		logger.Log.Warn().Err(err).Msg("Failed to clear cart cache")
 	}

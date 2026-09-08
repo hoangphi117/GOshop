@@ -31,19 +31,9 @@ func NewAddressService(repo repository.AddressRepository, userRepo repository.Us
 func (as *addressService) CreateUserAddress(ctx *gin.Context, input v1dto.CreateAddressInput) (v1dto.AddressDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, ok := ctx.Get("user_uuid")
-	if !ok {
-		return v1dto.AddressDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := GetUserFromContext(ctx, as.userRepo)
 	if err != nil {
-		return v1dto.AddressDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Invalid user UUID")
-	}
-
-	user, err := as.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return v1dto.AddressDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+		return v1dto.AddressDTO{}, err
 	}
 
 	// Sanitize inputs
@@ -109,19 +99,9 @@ func (as *addressService) CreateUserAddress(ctx *gin.Context, input v1dto.Create
 func (as *addressService) GetMyAddresses(ctx *gin.Context) ([]v1dto.AddressDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, ok := ctx.Get("user_uuid")
-	if !ok {
-		return nil, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := GetUserFromContext(ctx, as.userRepo)
 	if err != nil {
-		return nil, utils.NewError(utils.ErrCodeBadRequest, "Invalid user UUID")
-	}
-
-	user, err := as.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return nil, utils.NewError(utils.ErrCodeNotFound, "User not found")
+		return nil, err
 	}
 
 	addresses, err := as.repo.GetByUserID(reqCtx, user.UserID)
@@ -139,19 +119,9 @@ func (as *addressService) GetMyAddresses(ctx *gin.Context) ([]v1dto.AddressDTO, 
 func (as *addressService) GetAddressByUUID(ctx *gin.Context, addressUUID uuid.UUID) (v1dto.AddressDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, ok := ctx.Get("user_uuid")
-	if !ok {
-		return v1dto.AddressDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := GetUserFromContext(ctx, as.userRepo)
 	if err != nil {
-		return v1dto.AddressDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Invalid user UUID")
-	}
-
-	user, err := as.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return v1dto.AddressDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+		return v1dto.AddressDTO{}, err
 	}
 
 	address, err := as.repo.GetByUUID(reqCtx, user.UserID, addressUUID)
@@ -172,19 +142,9 @@ func (as *addressService) GetAddressByUUID(ctx *gin.Context, addressUUID uuid.UU
 func (as *addressService) UpdateUserAddress(ctx *gin.Context, addressUUID uuid.UUID, input v1dto.UpdateAddressInput) (v1dto.AddressDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, ok := ctx.Get("user_uuid")
-	if !ok {
-		return v1dto.AddressDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := GetUserFromContext(ctx, as.userRepo)
 	if err != nil {
-		return v1dto.AddressDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Invalid user UUID")
-	}
-
-	user, err := as.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return v1dto.AddressDTO{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+		return v1dto.AddressDTO{}, err
 	}
 
 	// Sanitize and validate inputs if provided
@@ -245,19 +205,9 @@ func (as *addressService) UpdateUserAddress(ctx *gin.Context, addressUUID uuid.U
 func (as *addressService) SetDefaultUserAddress(ctx *gin.Context, addressUUID uuid.UUID) error {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, ok := ctx.Get("user_uuid")
-	if !ok {
-		return utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := GetUserFromContext(ctx, as.userRepo)
 	if err != nil {
-		return utils.NewError(utils.ErrCodeBadRequest, "Invalid user UUID")
-	}
-
-	user, err := as.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return utils.NewError(utils.ErrCodeNotFound, "User not found")
+		return err
 	}
 
 	txCtx, cancel := context.WithTimeout(reqCtx, 5*time.Second)
@@ -294,19 +244,9 @@ func (as *addressService) SetDefaultUserAddress(ctx *gin.Context, addressUUID uu
 func (as *addressService) DeleteUserAddress(ctx *gin.Context, addressUUID uuid.UUID) error {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, ok := ctx.Get("user_uuid")
-	if !ok {
-		return utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := GetUserFromContext(ctx, as.userRepo)
 	if err != nil {
-		return utils.NewError(utils.ErrCodeBadRequest, "Invalid user UUID")
-	}
-
-	user, err := as.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return utils.NewError(utils.ErrCodeNotFound, "User not found")
+		return err
 	}
 
 	txCtx, cancel := context.WithTimeout(reqCtx, 5*time.Second)

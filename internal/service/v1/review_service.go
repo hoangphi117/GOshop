@@ -55,19 +55,9 @@ func NewReviewService(
 func (rs *reviewService) CreateReview(ctx *gin.Context, input v1dto.CreateReviewInput, imageURLs []string, videoURL *string) (v1dto.ReviewDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, ok := ctx.Get("user_uuid")
-	if !ok {
-		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := GetUserFromContext(ctx, rs.userRepo)
 	if err != nil {
-		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID")
-	}
-
-	user, err := rs.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "User not found")
+		return v1dto.ReviewDTO{}, err
 	}
 
 	productUUID, err := uuid.Parse(input.ProductUUID)
@@ -292,17 +282,9 @@ func (rs *reviewService) GetProductRatingSummary(ctx *gin.Context, productUUID u
 
 func (rs *reviewService) GetMyReviews(ctx *gin.Context, query v1dto.GetMyReviewsQuery) ([]v1dto.MyReviewDTO, int32, error) {
 	reqCtx := ctx.Request.Context()
-	userUUIDStr, ok := ctx.Get("user_uuid")
-	if !ok {
-		return nil, 0, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := GetUserFromContext(ctx, rs.userRepo)
 	if err != nil {
-		return nil, 0, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID")
-	}
-	user, err := rs.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return nil, 0, utils.NewError(utils.ErrCodeNotFound, "User not found")
+		return nil, 0, err
 	}
 	page := query.Page
 	if page <= 0 {
@@ -334,19 +316,9 @@ func (rs *reviewService) GetMyReviews(ctx *gin.Context, query v1dto.GetMyReviews
 func (rs *reviewService) UpdateReview(ctx *gin.Context, reviewUUID uuid.UUID, input v1dto.UpdateReviewInput) (v1dto.ReviewDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, ok := ctx.Get("user_uuid")
-	if !ok {
-		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := GetUserFromContext(ctx, rs.userRepo)
 	if err != nil {
-		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID")
-	}
-
-	user, err := rs.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "User not found")
+		return v1dto.ReviewDTO{}, err
 	}
 
 	review, err := rs.repo.GetByUUID(reqCtx, reviewUUID)
@@ -430,19 +402,9 @@ func (rs *reviewService) UpdateReview(ctx *gin.Context, reviewUUID uuid.UUID, in
 func (rs *reviewService) DeleteReview(ctx *gin.Context, reviewUUID uuid.UUID) error {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, ok := ctx.Get("user_uuid")
-	if !ok {
-		return utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-
-	userUUID, err := uuid.Parse(userUUIDStr.(string))
+	user, err := GetUserFromContext(ctx, rs.userRepo)
 	if err != nil {
-		return utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID")
-	}
-
-	user, err := rs.userRepo.GetByUUID(reqCtx, userUUID)
-	if err != nil {
-		return utils.NewError(utils.ErrCodeUnauthorized, "User not found")
+		return err
 	}
 
 	review, err := rs.repo.GetByUUID(reqCtx, reviewUUID)
@@ -499,15 +461,9 @@ func (rs *reviewService) DeleteReview(ctx *gin.Context, reviewUUID uuid.UUID) er
 func (rs *reviewService) ToggleHelpfulVote(ctx *gin.Context, reviewUUID uuid.UUID) (v1dto.ToggleHelpfulResponseDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, ok := ctx.Get("user_uuid")
-	if !ok {
-		return v1dto.ToggleHelpfulResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-
-	userUUID, _ := uuid.Parse(userUUIDStr.(string))
-	user, err := rs.userRepo.GetByUUID(reqCtx, userUUID)
+	user, err := GetUserFromContext(ctx, rs.userRepo)
 	if err != nil {
-		return v1dto.ToggleHelpfulResponseDTO{}, utils.NewError(utils.ErrCodeUnauthorized, "User not found")
+		return v1dto.ToggleHelpfulResponseDTO{}, err
 	}
 
 	review, err := rs.repo.GetByUUID(reqCtx, reviewUUID)
@@ -571,15 +527,9 @@ func (rs *reviewService) ToggleHelpfulVote(ctx *gin.Context, reviewUUID uuid.UUI
 func (rs *reviewService) ReportReview(ctx *gin.Context, reviewUUID uuid.UUID, input v1dto.ReportReviewInput) error {
 	reqCtx := ctx.Request.Context()
 
-	userUUIDStr, ok := ctx.Get("user_uuid")
-	if !ok {
-		return utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
-	}
-
-	userUUID, _ := uuid.Parse(userUUIDStr.(string))
-	user, err := rs.userRepo.GetByUUID(reqCtx, userUUID)
+	user, err := GetUserFromContext(ctx, rs.userRepo)
 	if err != nil {
-		return utils.NewError(utils.ErrCodeUnauthorized, "User not found")
+		return err
 	}
 
 	review, err := rs.repo.GetByUUID(reqCtx, reviewUUID)
