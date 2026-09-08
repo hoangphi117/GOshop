@@ -29,6 +29,10 @@ run-binary:
 sqlc:
 	sqlc generate
 
+swagger:
+	swag init -g cmd/api/main.go -o docs --parseDependency --parseInternal
+	npx --yes swagger2openapi ./docs/swagger.json -o ./docs/openapi.json
+
 migrate-create:
 	migrate create -ext sql -dir ${MIGRATION_DIR} -seq ${NAME}
 
@@ -90,4 +94,4 @@ logs-prod:
 bash:
 	docker exec -it goshop-api /bin/sh
 
-.PHONY: importdb exportdb server migrate-create migrate-up migrate-down migrate-force migrate-drop migrate-goto migrate-down-n sqlc build run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev
+.PHONY: importdb exportdb server migrate-create migrate-up migrate-down migrate-force migrate-drop migrate-goto migrate-down-n sqlc build run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev swagger

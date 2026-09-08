@@ -21,6 +21,16 @@ func NewCartHandler(service v1service.CartService) *CartHandler {
 	}
 }
 
+// GetMyCart godoc
+// @Summary      Get current user cart
+// @Description  Get cart details and items for current authenticated user
+// @Tags         Cart
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Success      200 {object} utils.APIResponse{data=v1dto.CartDTO}
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /cart [get]
 func (ch *CartHandler) GetMyCart(ctx *gin.Context) {
 
 	cart, err := ch.service.GetMyCart(ctx)
@@ -32,6 +42,19 @@ func (ch *CartHandler) GetMyCart(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Cart retrieved successfully", cart)
 }
 
+// AddItemToCart godoc
+// @Summary      Add item to cart
+// @Description  Add product item with quantity to cart
+// @Tags         Cart
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        body body v1dto.AddCartItemInput true "Item payload"
+// @Success      200 {object} utils.APIResponse{data=v1dto.CartDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /cart/items [post]
 func (ch *CartHandler) AddItemToCart(ctx *gin.Context) {
 	var input v1dto.AddCartItemInput
 	if err := ctx.ShouldBindJSON(&input); err != nil {
@@ -48,6 +71,20 @@ func (ch *CartHandler) AddItemToCart(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Item added to cart successfully", cart)
 }
 
+// UpdateCartItemQuantity godoc
+// @Summary      Update cart item quantity
+// @Description  Update item quantity in cart
+// @Tags         Cart
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        item_uuid path string true "Cart item UUID"
+// @Param        body body v1dto.UpdateCartItemQuantityInput true "Quantity payload"
+// @Success      200 {object} utils.APIResponse{data=v1dto.CartDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /cart/items/{item_uuid} [put]
 func (ch *CartHandler) UpdateCartItemQuantity(ctx *gin.Context) {
 	var itemUUIDStr v1dto.UpdateCartItemUUID
 	if err := ctx.ShouldBindUri(&itemUUIDStr); err != nil {
@@ -72,6 +109,18 @@ func (ch *CartHandler) UpdateCartItemQuantity(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Cart item quantity updated successfully", cart)
 }
 
+// RemoveItemFromCart godoc
+// @Summary      Remove item from cart
+// @Description  Remove a specific item from cart
+// @Tags         Cart
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        item_uuid path string true "Cart item UUID"
+// @Success      200 {object} utils.APIResponse{data=v1dto.CartDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /cart/items/{item_uuid} [delete]
 func (ch *CartHandler) RemoveItemFromCart(ctx *gin.Context) {
 	var itemUUIDStr v1dto.UpdateCartItemUUID
 	if err := ctx.ShouldBindUri(&itemUUIDStr); err != nil {
@@ -94,6 +143,16 @@ func (ch *CartHandler) RemoveItemFromCart(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Item removed from cart successfully", cartDTO)
 }
 
+// ClearMyCart godoc
+// @Summary      Clear cart
+// @Description  Remove all items from current user cart
+// @Tags         Cart
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Success      200 {object} utils.APIResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /cart [delete]
 func (ch *CartHandler) ClearMyCart(ctx *gin.Context) {
 	err := ch.service.ClearMyCart(ctx)
 	if err != nil {

@@ -21,6 +21,18 @@ func NewCategoryHandler(service v1service.CategoryService) *CategoryHandler {
 	}
 }
 
+// CreateCategory godoc
+// @Summary      Create category
+// @Description  Create a new category (Admin/Moderator)
+// @Tags         Admin - Categories
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        body body v1dto.CreateCategoryInput true "Category creation payload"
+// @Success      201 {object} utils.APIResponse{data=v1dto.CategoryDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Router       /admin/categories [post]
 func (ch *CategoryHandler) CreateCategory(ctx *gin.Context) {
 	var input v1dto.CreateCategoryInput
 	if err := ctx.ShouldBindJSON(&input); err != nil {
@@ -42,6 +54,19 @@ func (ch *CategoryHandler) CreateCategory(ctx *gin.Context) {
 
 }
 
+// GetAllCategories godoc
+// @Summary      Get all categories
+// @Description  Get paginated list of categories
+// @Tags         Categories
+// @Produce      json
+// @Param        search query string false "Search keyword"
+// @Param        order_by query string false "Order by field"
+// @Param        sort query string false "Sort direction (asc/desc)"
+// @Param        page query int false "Page number" default(1)
+// @Param        limit query int false "Items per page" default(10)
+// @Success      200 {object} utils.APIResponse{data=[]v1dto.CategoryDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Router       /categories [get]
 func (ch *CategoryHandler) GetAllCategories(ctx *gin.Context) {
 	var params v1dto.GetCategoryParam
 	if err := ctx.ShouldBindQuery(&params); err != nil {
@@ -62,6 +87,16 @@ func (ch *CategoryHandler) GetAllCategories(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Categories retrieved successfully", paginationResponse)
 }
 
+// GetCategoryByUUID godoc
+// @Summary      Get category by UUID
+// @Description  Retrieve a single category by its UUID
+// @Tags         Categories
+// @Produce      json
+// @Param        uuid path string true "Category UUID"
+// @Success      200 {object} utils.APIResponse{data=v1dto.CategoryDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      404 {object} utils.ErrorResponse
+// @Router       /categories/{uuid} [get]
 func (ch *CategoryHandler) GetCategoryByUUID(ctx *gin.Context) {
 	var params v1dto.GetCategoryByUuidParam
 	if err := ctx.ShouldBindUri(&params); err != nil {
@@ -85,6 +120,20 @@ func (ch *CategoryHandler) GetCategoryByUUID(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Category retrieved successfully", categoryDTO)
 }
 
+// UpdateCategory godoc
+// @Summary      Update category
+// @Description  Update an existing category by UUID (Admin/Moderator)
+// @Tags         Admin - Categories
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Category UUID"
+// @Param        body body v1dto.UpdateCategoryInput true "Category update payload"
+// @Success      200 {object} utils.APIResponse{data=v1dto.CategoryDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      404 {object} utils.ErrorResponse
+// @Router       /admin/categories/{uuid} [put]
 func (ch *CategoryHandler) UpdateCategory(ctx *gin.Context) {
 	var params v1dto.GetCategoryByUuidParam
 	if err := ctx.ShouldBindUri(&params); err != nil {
@@ -116,6 +165,18 @@ func (ch *CategoryHandler) UpdateCategory(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Category updated successfully", updatedCategoryDTO)
 }
 
+// SoftDeleteCategory godoc
+// @Summary      Soft delete category
+// @Description  Soft delete a category by UUID (Admin/Moderator)
+// @Tags         Admin - Categories
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Category UUID"
+// @Success      200 {object} utils.APIResponse{data=v1dto.CategoryDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      404 {object} utils.ErrorResponse
+// @Router       /admin/categories/{uuid}/soft-delete [delete]
 func (ch *CategoryHandler) SoftDeleteCategory(ctx *gin.Context) {
 	var params v1dto.GetCategoryByUuidParam
 	if err := ctx.ShouldBindUri(&params); err != nil {
@@ -139,6 +200,18 @@ func (ch *CategoryHandler) SoftDeleteCategory(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Category soft deleted successfully", softDeletedCategoryDTO)
 }
 
+// RestoreCategory godoc
+// @Summary      Restore category
+// @Description  Restore a soft-deleted category by UUID (Admin/Moderator)
+// @Tags         Admin - Categories
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Category UUID"
+// @Success      200 {object} utils.APIResponse{data=v1dto.CategoryDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      404 {object} utils.ErrorResponse
+// @Router       /admin/categories/{uuid}/restore [put]
 func (ch *CategoryHandler) RestoreCategory(ctx *gin.Context) {
 	var params v1dto.GetCategoryByUuidParam
 	if err := ctx.ShouldBindUri(&params); err != nil {
@@ -162,6 +235,17 @@ func (ch *CategoryHandler) RestoreCategory(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Category restored successfully", restoredCategoryDTO)
 }
 
+// TrashCategory godoc
+// @Summary      Permanently delete category
+// @Description  Permanently delete (hard delete) a category by UUID (Admin only)
+// @Tags         Admin - Categories
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Category UUID"
+// @Success      204 "No Content"
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      404 {object} utils.ErrorResponse
+// @Router       /admin/categories/{uuid}/trash [delete]
 func (ch *CategoryHandler) TrashCategory(ctx *gin.Context) {
 	var params v1dto.GetCategoryByUuidParam
 	if err := ctx.ShouldBindUri(&params); err != nil {

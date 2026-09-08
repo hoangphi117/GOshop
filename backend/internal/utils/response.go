@@ -10,16 +10,22 @@ import (
 type ErrorCode string
 
 type AppError struct {
-	Code    ErrorCode
-	Message string
-	Err     error
+	Code    ErrorCode `json:"code"`
+	Message string    `json:"error"`
+	Err     error     `json:"detail,omitempty"`
+}
+
+type ErrorResponse struct {
+	Error  string    `json:"error" example:"Invalid input format"`
+	Code   ErrorCode `json:"code" example:"BAD_REQUEST"`
+	Detail string    `json:"detail,omitempty" example:"Detailed explanation"`
 }
 
 type APIResponse struct {
-	Status     string `json:"status"`
-	Message    string `json:"message,omitempty"`
-	Data       any    `json:"data,omitempty"`
-	Pagination any    `json:"pagination,omitempty"`
+	Status     string      `json:"status" example:"success"`
+	Message    string      `json:"message,omitempty" example:"Operation completed successfully"`
+	Data       any         `json:"data,omitempty"`
+	Pagination *Pagination `json:"pagination,omitempty"`
 }
 
 const (
@@ -68,7 +74,9 @@ func ResponseSuccess(ctx *gin.Context, status int, message string, data ...any) 
 	if len(data) > 0 && data[0] != nil {
 		if m, ok := data[0].(map[string]any); ok {
 			if p, exists := m["pagination"]; exists {
-				resp.Pagination = p
+				if pag, ok := p.(*Pagination); ok {
+					resp.Pagination = pag
+				}
 			}
 
 			if d, exists := m["data"]; exists {

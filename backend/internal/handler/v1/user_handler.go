@@ -22,6 +22,22 @@ func NewUserHandler(service v1service.UserService) *UserHandler {
 	}
 }
 
+// GetAllUsers godoc
+// @Summary      Get all users
+// @Description  Retrieve paginated list of users (Admin/Moderator)
+// @Tags         Admin - Users
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        search query string false "Search keyword"
+// @Param        page query int false "Page number" default(1)
+// @Param        limit query int false "Items per page" default(10)
+// @Param        order_by query string false "Order by field" Enums(user_id, user_created_at)
+// @Param        sort query string false "Sort direction (asc/desc)" Enums(asc, desc)
+// @Success      200 {object} utils.APIResponse{data=[]v1dto.UserDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/users [get]
 func (uh *UserHandler) GetAllUsers(ctx *gin.Context) {
 
 	var params v1dto.GetUserParam
@@ -43,6 +59,19 @@ func (uh *UserHandler) GetAllUsers(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Get users successfully", paginationResponse)
 }
 
+// CreateUsers godoc
+// @Summary      Create user
+// @Description  Create a new user account (Admin/Moderator)
+// @Tags         Admin - Users
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        body body v1dto.CreateUserInput true "User payload"
+// @Success      201 {object} utils.APIResponse{data=v1dto.UserDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/users [post]
 func (uh *UserHandler) CreateUsers(ctx *gin.Context) {
 	var input v1dto.CreateUserInput
 	if err := ctx.ShouldBindJSON(&input); err != nil {
@@ -63,6 +92,18 @@ func (uh *UserHandler) CreateUsers(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusCreated, "User created successfully", createdUserDTO)
 }
 
+// GetUserByUUID godoc
+// @Summary      Get user by UUID
+// @Description  Retrieve user detail by UUID (Admin/Moderator)
+// @Tags         Admin - Users
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "User UUID"
+// @Success      200 {object} utils.APIResponse{data=v1dto.UserDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/users/{uuid} [get]
 func (uh *UserHandler) GetUserByUUID(ctx *gin.Context) {
 	var params v1dto.GetUserByUuidParam
 	if err := ctx.ShouldBindUri(&params); err != nil {
@@ -87,6 +128,20 @@ func (uh *UserHandler) GetUserByUUID(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Get user successfully", userDTO)
 }
 
+// UpdateUser godoc
+// @Summary      Update user
+// @Description  Update user profile and status by UUID (Admin/Moderator)
+// @Tags         Admin - Users
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "User UUID"
+// @Param        body body v1dto.UpdateUserInput true "Update user payload"
+// @Success      200 {object} utils.APIResponse{data=v1dto.UserDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/users/{uuid} [put]
 func (uh *UserHandler) UpdateUser(ctx *gin.Context) {
 	var params v1dto.GetUserByUuidParam
 	if err := ctx.ShouldBindUri(&params); err != nil {
@@ -119,6 +174,19 @@ func (uh *UserHandler) UpdateUser(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "User updated successfully", updatedUserDTO)
 }
 
+// ChangePassword godoc
+// @Summary      Change password
+// @Description  Change authenticated user password
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        body body v1dto.ChangePasswordRequest true "Change password payload"
+// @Success      200 {object} utils.APIResponse
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /users/me/change-password [put]
 func (uh *UserHandler) ChangePassword(ctx *gin.Context) {
 	var input v1dto.ChangePasswordRequest
 	if err := ctx.ShouldBindJSON(&input); err != nil {
@@ -135,6 +203,16 @@ func (uh *UserHandler) ChangePassword(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Password changed successfully", nil)
 }
 
+// GetProfile godoc
+// @Summary      Get current profile
+// @Description  Get current authenticated user profile
+// @Tags         Users
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Success      200 {object} utils.APIResponse{data=v1dto.UserDTO}
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /users/me [get]
 func (uh *UserHandler) GetProfile(ctx *gin.Context) {
 	user, err := uh.service.GetProfile(ctx)
 	if err != nil {
@@ -147,6 +225,19 @@ func (uh *UserHandler) GetProfile(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Get profile successfully", userDTO)
 }
 
+// UpdateProfile godoc
+// @Summary      Update current profile
+// @Description  Update current authenticated user details
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        body body v1dto.UpdateProfileInput true "Profile payload"
+// @Success      200 {object} utils.APIResponse{data=v1dto.UserDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /users/me [put]
 func (uh *UserHandler) UpdateProfile(ctx *gin.Context) {
 	var input v1dto.UpdateProfileInput
 	if err := ctx.ShouldBindJSON(&input); err != nil {
@@ -171,6 +262,18 @@ func (uh *UserHandler) UpdateProfile(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Profile updated successfully", updatedUserDTO)
 }
 
+// SoftDeleteUser godoc
+// @Summary      Soft delete user
+// @Description  Soft delete user by UUID (Admin/Moderator)
+// @Tags         Admin - Users
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "User UUID"
+// @Success      200 {object} utils.APIResponse{data=v1dto.UserDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/users/{uuid}/soft-delete [delete]
 func (uh *UserHandler) SoftDeleteUser(ctx *gin.Context) {
 	var params v1dto.GetUserByUuidParam
 	if err := ctx.ShouldBindUri(&params); err != nil {
@@ -195,6 +298,18 @@ func (uh *UserHandler) SoftDeleteUser(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "User soft deleted successfully", softDeletedUserDTO)
 }
 
+// RestoreUser godoc
+// @Summary      Restore user
+// @Description  Restore a soft-deleted user by UUID (Admin/Moderator)
+// @Tags         Admin - Users
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "User UUID"
+// @Success      200 {object} utils.APIResponse{data=v1dto.UserDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/users/{uuid}/restore [put]
 func (uh *UserHandler) RestoreUser(ctx *gin.Context) {
 	var params v1dto.GetUserByUuidParam
 	if err := ctx.ShouldBindUri(&params); err != nil {
@@ -219,6 +334,18 @@ func (uh *UserHandler) RestoreUser(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "User restored successfully", restoredUserDTO)
 }
 
+// TrashUser godoc
+// @Summary      Permanently delete user
+// @Description  Permanently delete a user from database (Admin only)
+// @Tags         Admin - Users
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "User UUID"
+// @Success      204 "No Content"
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/users/{uuid}/trash [delete]
 func (uh *UserHandler) TrashUser(ctx *gin.Context) {
 	var params v1dto.GetUserByUuidParam
 	if err := ctx.ShouldBindUri(&params); err != nil {
@@ -241,6 +368,22 @@ func (uh *UserHandler) TrashUser(ctx *gin.Context) {
 	utils.ResponseStatusCode(ctx, http.StatusNoContent)
 }
 
+// GetSoftDeletedUsers godoc
+// @Summary      Get soft-deleted users
+// @Description  Retrieve paginated list of soft-deleted users (Admin/Moderator)
+// @Tags         Admin - Users
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        search query string false "Search keyword"
+// @Param        page query int false "Page number" default(1)
+// @Param        limit query int false "Items per page" default(10)
+// @Param        order_by query string false "Order by field" Enums(user_id, user_created_at)
+// @Param        sort query string false "Sort direction (asc/desc)" Enums(asc, desc)
+// @Success      200 {object} utils.APIResponse{data=[]v1dto.UserDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/users/soft-deleted [get]
 func (uh *UserHandler) GetSoftDeletedUsers(ctx *gin.Context) {
 	var params v1dto.GetUserParam
 	if err := ctx.ShouldBindQuery(&params); err != nil {

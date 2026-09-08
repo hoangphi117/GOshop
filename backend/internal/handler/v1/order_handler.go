@@ -25,6 +25,19 @@ func NewOrderHandler(service v1service.OrderService) *OrderHandler {
 	}
 }
 
+// CreateOrder godoc
+// @Summary      Create order
+// @Description  Place a new order for current user
+// @Tags         Orders
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        body body v1dto.CreateOrderInput true "Order creation payload"
+// @Success      201 {object} utils.APIResponse{data=v1dto.OrderDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /orders [post]
 func (oh *OrderHandler) CreateOrder(ctx *gin.Context) {
 	var input v1dto.CreateOrderInput
 	if err := ctx.ShouldBindJSON(&input); err != nil {
@@ -43,6 +56,23 @@ func (oh *OrderHandler) CreateOrder(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusCreated, "Order created successfully", orderDTO)
 }
 
+// GetMyOrders godoc
+// @Summary      Get my orders
+// @Description  Retrieve paginated orders for the authenticated user
+// @Tags         Orders
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        search query string false "Search keyword"
+// @Param        page query int false "Page number" default(1)
+// @Param        limit query int false "Items per page" default(10)
+// @Param        order_by query string false "Order by field" Enums(order_created_at, order_total_amount)
+// @Param        sort query string false "Sort order" Enums(asc, desc)
+// @Param        status query int false "Order status" Enums(1, 2, 3, 4, 5, 6)
+// @Success      200 {object} utils.APIResponse{data=[]v1dto.OrderDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /orders [get]
 func (oh *OrderHandler) GetMyOrders(ctx *gin.Context) {
 	var input v1dto.GetOrdersParam
 	if err := ctx.ShouldBindQuery(&input); err != nil {
@@ -61,6 +91,19 @@ func (oh *OrderHandler) GetMyOrders(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Get my orders successfully", paginationResponse)
 }
 
+// GetOrderByUUID godoc
+// @Summary      Get order by UUID
+// @Description  Retrieve detailed order information by UUID
+// @Tags         Orders
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Order UUID"
+// @Success      200 {object} utils.APIResponse{data=v1dto.OrderDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Failure      404 {object} utils.ErrorResponse
+// @Router       /orders/{uuid} [get]
 func (oh *OrderHandler) GetOrderByUUID(ctx *gin.Context) {
 	var params v1dto.GetOrderByUUIDParam
 	if err := ctx.ShouldBindUri(&params); err != nil {
@@ -84,6 +127,23 @@ func (oh *OrderHandler) GetOrderByUUID(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Get order by UUID successfully", orderDTO)
 }
 
+// GetAllOrders godoc
+// @Summary      Get all orders
+// @Description  Retrieve all orders with pagination and filtering (Admin/Moderator)
+// @Tags         Admin - Orders
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        search query string false "Search keyword"
+// @Param        page query int false "Page number" default(1)
+// @Param        limit query int false "Items per page" default(10)
+// @Param        order_by query string false "Order by field" Enums(order_created_at, order_total_amount)
+// @Param        sort query string false "Sort order" Enums(asc, desc)
+// @Param        status query int false "Order status" Enums(1, 2, 3, 4, 5, 6)
+// @Success      200 {object} utils.APIResponse{data=[]v1dto.OrderDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/orders [get]
 func (oh *OrderHandler) GetAllOrders(ctx *gin.Context) {
 	var input v1dto.GetOrdersParam
 	if err := ctx.ShouldBindQuery(&input); err != nil {
@@ -102,6 +162,20 @@ func (oh *OrderHandler) GetAllOrders(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Get all orders successfully", paginationResponse)
 }
 
+// UpdateOrderStatus godoc
+// @Summary      Update order status
+// @Description  Update order status by UUID (Admin/Moderator)
+// @Tags         Admin - Orders
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Order UUID"
+// @Param        body body v1dto.UpdateOrderStatusInput true "Status payload"
+// @Success      200 {object} utils.APIResponse{data=v1dto.OrderDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/orders/{uuid} [patch]
 func (oh *OrderHandler) UpdateOrderStatus(ctx *gin.Context) {
 	var params v1dto.GetOrderByUUIDParam
 	if err := ctx.ShouldBindUri(&params); err != nil {
@@ -133,6 +207,18 @@ func (oh *OrderHandler) UpdateOrderStatus(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Order status updated successfully", updatedOrderDTO)
 }
 
+// CancelOrder godoc
+// @Summary      Cancel order
+// @Description  Cancel an order before shipping
+// @Tags         Orders
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Order UUID"
+// @Success      200 {object} utils.APIResponse
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /orders/{uuid}/cancel [patch]
 func (oh *OrderHandler) CancelOrder(ctx *gin.Context) {
 	var params v1dto.GetOrderByUUIDParam
 	if err := ctx.ShouldBindUri(&params); err != nil {
@@ -155,6 +241,20 @@ func (oh *OrderHandler) CancelOrder(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Order canceled successfully", nil)
 }
 
+// UpdateOrderShippingInfo godoc
+// @Summary      Update order shipping info
+// @Description  Update recipient name, phone, address, and notes for an order
+// @Tags         Orders
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Order UUID"
+// @Param        body body v1dto.UpdateOrderShippingInfoInput true "Shipping info payload"
+// @Success      200 {object} utils.APIResponse{data=v1dto.OrderDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /orders/{uuid}/shipping-info [put]
 func (oh *OrderHandler) UpdateOrderShippingInfo(ctx *gin.Context) {
 	var params v1dto.GetOrderByUUIDParam
 	if err := ctx.ShouldBindUri(&params); err != nil {
@@ -187,6 +287,20 @@ func (oh *OrderHandler) UpdateOrderShippingInfo(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Shipping info updated successfully", updatedOrderDTO)
 }
 
+// UpdateOrderPaymentStatus godoc
+// @Summary      Update order payment status
+// @Description  Update payment status of an order (Admin/Moderator)
+// @Tags         Admin - Orders
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Order UUID"
+// @Param        body body v1dto.UpdateOrderPaymentStatusInput true "Payment status payload"
+// @Success      200 {object} utils.APIResponse{data=v1dto.OrderDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/orders/{uuid}/payment-status [patch]
 func (oh *OrderHandler) UpdateOrderPaymentStatus(ctx *gin.Context) {
 	var params v1dto.GetOrderByUUIDParam
 	if err := ctx.ShouldBindUri(&params); err != nil {
@@ -216,6 +330,19 @@ func (oh *OrderHandler) UpdateOrderPaymentStatus(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Payment status updated successfully", updatedOrderDTO)
 }
 
+// DownloadInvoice godoc
+// @Summary      Download order invoice PDF
+// @Description  Generate and download or view order invoice in PDF format
+// @Tags         Orders
+// @Produce      application/pdf
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Order UUID"
+// @Param        action query string false "Action (download or inline)" Enums(download, inline)
+// @Success      200 {file} binary
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /orders/{uuid}/invoice [get]
 func (oh *OrderHandler) DownloadInvoice(ctx *gin.Context) {
 	var params v1dto.GetOrderByUUIDParam
 	if err := ctx.ShouldBindUri(&params); err != nil {
@@ -249,6 +376,20 @@ func (oh *OrderHandler) DownloadInvoice(ctx *gin.Context) {
 
 // SHIPPING
 
+// CreateShipping godoc
+// @Summary      Create shipping order
+// @Description  Create third-party delivery order for shipping (Admin/Moderator)
+// @Tags         Admin - Orders
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Order UUID"
+// @Param        body body v1dto.CreateShippingInput true "Shipping order payload"
+// @Success      201 {object} utils.APIResponse{data=v1dto.ShippingResponseDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/orders/{uuid}/shipping [post]
 func (oh *OrderHandler) CreateShipping(ctx *gin.Context) {
 	var params v1dto.CreateShippingParams
 	if err := ctx.ShouldBindUri(&params); err != nil {
@@ -277,6 +418,18 @@ func (oh *OrderHandler) CreateShipping(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusCreated, "Shipping order created successfully", res)
 }
 
+// GetOrderTimeline godoc
+// @Summary      Get order tracking timeline
+// @Description  Get chronological event tracking timeline for an order
+// @Tags         Orders
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Order UUID"
+// @Success      200 {object} utils.APIResponse{data=v1dto.OrderTimelineResponseDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /orders/{uuid}/timeline [get]
 func (oh *OrderHandler) GetOrderTimeline(ctx *gin.Context) {
 	var params v1dto.GetOrderTimeLineParams
 	if err := ctx.ShouldBindUri(&params); err != nil {
@@ -299,6 +452,16 @@ func (oh *OrderHandler) GetOrderTimeline(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Order timeline retrieved successfully", timeline)
 }
 
+// HandleShippingWebhook godoc
+// @Summary      GHN shipping webhook
+// @Description  Receive and process tracking updates from GHN delivery webhook
+// @Tags         Shipping
+// @Accept       json
+// @Produce      json
+// @Param        body body v1dto.GHNWebhookPayload true "GHN webhook payload"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} utils.ErrorResponse
+// @Router       /shipping/webhook/ghn [post]
 func (oh *OrderHandler) HandleShippingWebhook(ctx *gin.Context) {
 	rawBody, err := ctx.GetRawData()
 	if err != nil {
@@ -328,6 +491,18 @@ func (oh *OrderHandler) HandleShippingWebhook(ctx *gin.Context) {
 	})
 }
 
+// CalculateShippingFee godoc
+// @Summary      Calculate shipping fee
+// @Description  Calculate estimated shipping fee from carrier
+// @Tags         Orders
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        body body v1dto.CalculateShippingFeeInput true "Calculate fee payload"
+// @Success      200 {object} utils.APIResponse{data=v1dto.ShippingFeeResponseDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Router       /orders/calculate-fee [post]
 func (oh *OrderHandler) CalculateShippingFee(ctx *gin.Context) {
 	var input v1dto.CalculateShippingFeeInput
 	if err := ctx.ShouldBindJSON(&input); err != nil {
@@ -344,6 +519,19 @@ func (oh *OrderHandler) CalculateShippingFee(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Shipping fee calculated successfully", res)
 }
 
+// CancelShipping godoc
+// @Summary      Cancel shipping order
+// @Description  Cancel active shipment with carrier (Admin/Moderator)
+// @Tags         Admin - Orders
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Order UUID"
+// @Param        body body v1dto.CancelShippingInput false "Cancel reason payload"
+// @Success      200 {object} utils.APIResponse{data=v1dto.CancelShippingResponseDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Router       /admin/orders/{uuid}/shipping/cancel [post]
 func (oh *OrderHandler) CancelShipping(ctx *gin.Context) {
 	var params v1dto.CancelShippingParams
 	if err := ctx.ShouldBindUri(&params); err != nil {
@@ -369,6 +557,17 @@ func (oh *OrderHandler) CancelShipping(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Shipping order cancelled successfully", res)
 }
 
+// GetPrintBill godoc
+// @Summary      Get shipping bill print URL
+// @Description  Generate URL to print carrier shipping label/bill (Admin/Moderator)
+// @Tags         Admin - Orders
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Order UUID"
+// @Success      200 {object} utils.APIResponse
+// @Failure      400 {object} utils.ErrorResponse
+// @Router       /admin/orders/{uuid}/shipping/print-bill [get]
 func (oh *OrderHandler) GetPrintBill(ctx *gin.Context) {
 	var params v1dto.GetPrintBillParams
 	if err := ctx.ShouldBindUri(&params); err != nil {
@@ -391,6 +590,14 @@ func (oh *OrderHandler) GetPrintBill(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Shipping bill print URLs generated successfully", res)
 }
 
+// GetProvinces godoc
+// @Summary      Get shipping provinces
+// @Description  Get list of provinces from shipping provider
+// @Tags         Shipping
+// @Produce      json
+// @Success      200 {object} utils.APIResponse{data=[]v1dto.ProvinceDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Router       /shipping/provinces [get]
 func (oh *OrderHandler) GetProvinces(ctx *gin.Context) {
 	provinces, err := oh.service.GetProvinces(ctx)
 	if err != nil {
@@ -400,6 +607,15 @@ func (oh *OrderHandler) GetProvinces(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Provinces retrieved successfully", provinces)
 }
 
+// GetDistricts godoc
+// @Summary      Get shipping districts
+// @Description  Get list of districts by province ID
+// @Tags         Shipping
+// @Produce      json
+// @Param        province_id query int true "Province ID"
+// @Success      200 {object} utils.APIResponse{data=[]v1dto.DistrictDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Router       /shipping/districts [get]
 func (oh *OrderHandler) GetDistricts(ctx *gin.Context) {
 	var query v1dto.GetDistrictsQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
@@ -415,6 +631,15 @@ func (oh *OrderHandler) GetDistricts(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Districts retrieved successfully", districts)
 }
 
+// GetWards godoc
+// @Summary      Get shipping wards
+// @Description  Get list of wards by district ID
+// @Tags         Shipping
+// @Produce      json
+// @Param        district_id query int true "District ID"
+// @Success      200 {object} utils.APIResponse{data=[]v1dto.WardDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Router       /shipping/wards [get]
 func (oh *OrderHandler) GetWards(ctx *gin.Context) {
 	var query v1dto.GetWardsQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
@@ -430,6 +655,24 @@ func (oh *OrderHandler) GetWards(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Wards retrieved successfully", wards)
 }
 
+// RequestOrderReturn godoc
+// @Summary      Request order return / refund
+// @Description  Submit a request to return an order with reason and proof files
+// @Tags         Orders
+// @Accept       multipart/form-data
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Order UUID"
+// @Param        reason formData string true "Return reason"
+// @Param        bank_name formData string false "Bank name for refund"
+// @Param        bank_account formData string false "Bank account number"
+// @Param        bank_account_name formData string false "Bank account holder name"
+// @Param        files formData file false "Proof images (max 5) or video (max 1)"
+// @Success      201 {object} utils.APIResponse{data=v1dto.OrderReturnDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /orders/{uuid}/return [post]
 func (oh *OrderHandler) RequestOrderReturn(ctx *gin.Context) {
 	var params v1dto.GetOrderByUUIDParam
 	if err := ctx.ShouldBindUri(&params); err != nil {
@@ -502,6 +745,18 @@ func (oh *OrderHandler) RequestOrderReturn(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusCreated, "Order return request created successfully", returnDTO)
 }
 
+// GetOrderReturnDetails godoc
+// @Summary      Get order return details
+// @Description  Retrieve return request details for an order
+// @Tags         Orders
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Order UUID"
+// @Success      200 {object} utils.APIResponse{data=v1dto.OrderReturnDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /orders/{uuid}/return [get]
 func (oh *OrderHandler) GetOrderReturnDetails(ctx *gin.Context) {
 	var params v1dto.GetOrderByUUIDParam
 	if err := ctx.ShouldBindUri(&params); err != nil {
@@ -524,6 +779,21 @@ func (oh *OrderHandler) GetOrderReturnDetails(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Order return details retrieved successfully", res)
 }
 
+// GetMyOrderReturns godoc
+// @Summary      Get user return requests
+// @Description  Get paginated list of return requests for current user
+// @Tags         Orders
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        status query int false "Return status (1: Pending, 2: Approved, 3: Rejected, 4: Completed, 5: Cancelled)" Enums(1, 2, 3, 4, 5)
+// @Param        search query string false "Search keyword"
+// @Param        page query int false "Page number" default(1)
+// @Param        limit query int false "Items per page" default(10)
+// @Success      200 {object} utils.APIResponse{data=[]v1dto.OrderReturnDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /orders/returns [get]
 func (oh *OrderHandler) GetMyOrderReturns(ctx *gin.Context) {
 	var query v1dto.GetMyOrderReturnsQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
@@ -557,6 +827,21 @@ func (oh *OrderHandler) cleanupFiles(fileNames []string, uploadDir string) {
 	}
 }
 
+// AdminGetReturns godoc
+// @Summary      Get all return requests
+// @Description  Retrieve all return requests with pagination and filtering (Admin/Moderator)
+// @Tags         Admin - Orders
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        status query int false "Return status (1: Pending, 2: Approved, 3: Rejected, 4: Completed, 5: Cancelled)" Enums(1, 2, 3, 4, 5)
+// @Param        search query string false "Search keyword"
+// @Param        page query int false "Page number" default(1)
+// @Param        limit query int false "Items per page" default(10)
+// @Success      200 {object} utils.APIResponse{data=[]v1dto.OrderReturnDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/returns [get]
 func (oh *OrderHandler) AdminGetReturns(ctx *gin.Context) {
 	var query v1dto.AdminGetReturnsQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
@@ -584,6 +869,18 @@ func (oh *OrderHandler) AdminGetReturns(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Return requests retrieved successfully", paginationResponse)
 }
 
+// AdminGetReturnDetail godoc
+// @Summary      Get return request detail
+// @Description  Get return request by return UUID (Admin/Moderator)
+// @Tags         Admin - Orders
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Return UUID"
+// @Success      200 {object} utils.APIResponse{data=v1dto.OrderReturnDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/returns/{uuid} [get]
 func (oh *OrderHandler) AdminGetReturnDetail(ctx *gin.Context) {
 	var param v1dto.ReturnUUIDParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
@@ -606,6 +903,20 @@ func (oh *OrderHandler) AdminGetReturnDetail(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Return request details retrieved successfully", res)
 }
 
+// AdminUpdateReturnStatus godoc
+// @Summary      Update return request status
+// @Description  Approve, reject, or update return status (Admin/Moderator)
+// @Tags         Admin - Orders
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Return UUID"
+// @Param        body body v1dto.AdminUpdateReturnInput true "Update return status payload"
+// @Success      200 {object} utils.APIResponse
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/returns/{uuid} [patch]
 func (oh *OrderHandler) AdminUpdateReturnStatus(ctx *gin.Context) {
 	var param v1dto.ReturnUUIDParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
@@ -634,6 +945,20 @@ func (oh *OrderHandler) AdminUpdateReturnStatus(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Return request status updated successfully", res)
 }
 
+// CancelOrderReturn godoc
+// @Summary      Cancel order return request
+// @Description  Cancel an existing return request
+// @Tags         Orders
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Order UUID"
+// @Param        body body v1dto.CancelOrderReturnInput false "Cancel reason"
+// @Success      200 {object} utils.APIResponse
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /orders/{uuid}/return/cancel [patch]
 func (oh *OrderHandler) CancelOrderReturn(ctx *gin.Context) {
 	var params v1dto.GetOrderByUUIDParam
 	if err := ctx.ShouldBindUri(&params); err != nil {
@@ -659,6 +984,20 @@ func (oh *OrderHandler) CancelOrderReturn(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Order return cancelled successfully", res)
 }
 
+// SubmitReturnShipping godoc
+// @Summary      Submit return shipment info
+// @Description  Submit courier and tracking code for returned package
+// @Tags         Orders
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Order UUID"
+// @Param        body body v1dto.SubmitReturnShippingInput true "Return shipment info"
+// @Success      200 {object} utils.APIResponse
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /orders/{uuid}/return/shipping-info [post]
 func (oh *OrderHandler) SubmitReturnShipping(ctx *gin.Context) {
 	var params v1dto.GetOrderByUUIDParam
 	if err := ctx.ShouldBindUri(&params); err != nil {
@@ -687,6 +1026,20 @@ func (oh *OrderHandler) SubmitReturnShipping(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Return shipping information submitted successfully", res)
 }
 
+// UpdateReturnBankAccount godoc
+// @Summary      Update return refund bank account
+// @Description  Update bank account information for return refund
+// @Tags         Orders
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Order UUID"
+// @Param        body body v1dto.UpdateReturnBankAccountInput true "Bank account payload"
+// @Success      200 {object} utils.APIResponse
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /orders/{uuid}/return/bank-account [put]
 func (oh *OrderHandler) UpdateReturnBankAccount(ctx *gin.Context) {
 	var params v1dto.GetOrderByUUIDParam
 	if err := ctx.ShouldBindUri(&params); err != nil {
@@ -715,6 +1068,20 @@ func (oh *OrderHandler) UpdateReturnBankAccount(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Return refund bank account updated successfully", res)
 }
 
+// AdminProcessReturnRefund godoc
+// @Summary      Process return refund
+// @Description  Process refund payment for approved return request (Admin/Moderator)
+// @Tags         Admin - Orders
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Return UUID"
+// @Param        body body v1dto.AdminReturnRefundInput false "Refund process payload"
+// @Success      200 {object} utils.APIResponse
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/returns/{uuid}/refund [post]
 func (oh *OrderHandler) AdminProcessReturnRefund(ctx *gin.Context) {
 	var param v1dto.ReturnUUIDParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
@@ -740,6 +1107,18 @@ func (oh *OrderHandler) AdminProcessReturnRefund(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Return refund processed successfully", res)
 }
 
+// ConfirmOrderDelivery godoc
+// @Summary      Confirm order delivery
+// @Description  Customer confirms receipt of order package
+// @Tags         Orders
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Order UUID"
+// @Success      200 {object} utils.APIResponse
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /orders/{uuid}/confirm-delivery [post]
 func (oh *OrderHandler) ConfirmOrderDelivery(ctx *gin.Context) {
 	var params v1dto.GetOrderByUUIDParam
 	if err := ctx.ShouldBindUri(&params); err != nil {
@@ -762,6 +1141,18 @@ func (oh *OrderHandler) ConfirmOrderDelivery(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Order delivery confirmed successfully", res)
 }
 
+// SyncOrderTracking godoc
+// @Summary      Sync order tracking
+// @Description  Manually trigger sync of tracking details from shipping carrier
+// @Tags         Orders
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Order UUID"
+// @Success      200 {object} utils.APIResponse{data=v1dto.SyncTrackingResponseDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /orders/{uuid}/sync-tracking [post]
 func (oh *OrderHandler) SyncOrderTracking(ctx *gin.Context) {
 	var params v1dto.GetOrderByUUIDParam
 	if err := ctx.ShouldBindUri(&params); err != nil {
@@ -784,6 +1175,17 @@ func (oh *OrderHandler) SyncOrderTracking(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Sync tracking successfully", result)
 }
 
+// AdminSyncActiveTracking godoc
+// @Summary      Batch sync active shipping tracking
+// @Description  Batch synchronize all currently active shipments with carrier (Admin/Moderator)
+// @Tags         Admin - Orders
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Success      200 {object} utils.APIResponse{data=v1dto.SyncActiveShippingStatsDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/orders/sync-active-tracking [post]
 func (oh *OrderHandler) AdminSyncActiveTracking(ctx *gin.Context) {
 	stats, err := oh.service.AdminSyncActiveShippingOrders(ctx)
 	if err != nil {

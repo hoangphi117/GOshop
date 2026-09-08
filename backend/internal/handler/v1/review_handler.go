@@ -23,6 +23,24 @@ func NewReviewHandler(service v1service.ReviewService) *ReviewHandler {
 	}
 }
 
+// CreateReview godoc
+// @Summary      Create review
+// @Description  Create a product review with rating, comments, images and video
+// @Tags         Reviews
+// @Accept       multipart/form-data
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        product_uuid formData string true "Product UUID"
+// @Param        order_uuid formData string true "Order UUID"
+// @Param        rating formData int true "Rating from 1 to 5" minimum(1) maximum(5)
+// @Param        title formData string false "Review title"
+// @Param        comment formData string false "Review comment"
+// @Param        files formData file false "Review media files (max 5 images, 1 video)"
+// @Success      201 {object} utils.APIResponse{data=v1dto.ReviewDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /reviews [post]
 func (rh *ReviewHandler) CreateReview(ctx *gin.Context) {
 	var input v1dto.CreateReviewInput
 	if err := ctx.ShouldBind(&input); err != nil {
@@ -90,6 +108,21 @@ func (h *ReviewHandler) cleanupFiles(fileNames []string, uploadDir string) {
 	}
 }
 
+// GetProductReviews godoc
+// @Summary      Get product reviews
+// @Description  Get paginated reviews for a specific product
+// @Tags         Reviews
+// @Produce      json
+// @Param        uuid path string true "Product UUID"
+// @Param        page query int false "Page number" default(1)
+// @Param        limit query int false "Items per page" default(10)
+// @Param        rating query int false "Filter rating" Enums(1, 2, 3, 4, 5)
+// @Param        has_media query bool false "Filter reviews with photos/videos"
+// @Param        order_by query string false "Order by field" Enums(created_at, rating, helpful)
+// @Param        sort query string false "Sort order" Enums(asc, desc)
+// @Success      200 {object} utils.APIResponse{data=[]v1dto.ReviewDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Router       /products/{uuid}/reviews [get]
 func (rh *ReviewHandler) GetProductReviews(ctx *gin.Context) {
 	var param v1dto.ProductReviewsParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
@@ -129,6 +162,15 @@ func (rh *ReviewHandler) GetProductReviews(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Product reviews retrieved successfully", paginationResponse)
 }
 
+// GetProductRatingSummary godoc
+// @Summary      Get product rating summary
+// @Description  Get star distribution and average rating for a product
+// @Tags         Reviews
+// @Produce      json
+// @Param        uuid path string true "Product UUID"
+// @Success      200 {object} utils.APIResponse
+// @Failure      400 {object} utils.ErrorResponse
+// @Router       /products/{uuid}/reviews/summary [get]
 func (rh *ReviewHandler) GetProductRatingSummary(ctx *gin.Context) {
 	var param v1dto.ProductReviewsParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
@@ -151,6 +193,19 @@ func (rh *ReviewHandler) GetProductRatingSummary(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Get rating summary successfully", summary)
 }
 
+// GetMyReviews godoc
+// @Summary      Get current user reviews
+// @Description  Retrieve paginated list of reviews authored by the authenticated user
+// @Tags         Reviews
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        page query int false "Page number" default(1)
+// @Param        limit query int false "Items per page" default(10)
+// @Success      200 {object} utils.APIResponse{data=[]v1dto.MyReviewDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /reviews/me [get]
 func (rh *ReviewHandler) GetMyReviews(ctx *gin.Context) {
 	var query v1dto.GetMyReviewsQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
@@ -177,6 +232,20 @@ func (rh *ReviewHandler) GetMyReviews(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Get my reviews successfully", paginationResponse)
 }
 
+// UpdateReview godoc
+// @Summary      Update review
+// @Description  Update rating, title, or comment of an existing review
+// @Tags         Reviews
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Review UUID"
+// @Param        body body v1dto.UpdateReviewInput true "Review update payload"
+// @Success      200 {object} utils.APIResponse{data=v1dto.ReviewDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /reviews/{uuid} [put]
 func (rh *ReviewHandler) UpdateReview(ctx *gin.Context) {
 	var param v1dto.ReviewUUIDParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
@@ -205,6 +274,18 @@ func (rh *ReviewHandler) UpdateReview(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Review updated successfully", updatedReview)
 }
 
+// DeleteReview godoc
+// @Summary      Delete review
+// @Description  Delete own review by review UUID
+// @Tags         Reviews
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Review UUID"
+// @Success      200 {object} utils.APIResponse
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /reviews/{uuid} [delete]
 func (rh *ReviewHandler) DeleteReview(ctx *gin.Context) {
 	var param v1dto.ReviewUUIDParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
@@ -226,6 +307,20 @@ func (rh *ReviewHandler) DeleteReview(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Review deleted successfully", nil)
 }
 
+// UpdateReviewStatus godoc
+// @Summary      Update review status
+// @Description  Change review visibility (1: Visible, 2: Hidden, 3: Reported) (Admin/Moderator)
+// @Tags         Admin - Reviews
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Review UUID"
+// @Param        body body v1dto.UpdateReviewStatusInput true "Status payload"
+// @Success      200 {object} utils.APIResponse{data=v1dto.ReviewDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/reviews/{uuid}/status [patch]
 func (rh *ReviewHandler) UpdateReviewStatus(ctx *gin.Context) {
 	var param v1dto.ReviewUUIDParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
@@ -254,6 +349,25 @@ func (rh *ReviewHandler) UpdateReviewStatus(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Review status updated successfully", updatedReview)
 }
 
+// AdminGetAllReviews godoc
+// @Summary      Get all reviews
+// @Description  Retrieve all reviews with filters for moderation (Admin/Moderator)
+// @Tags         Admin - Reviews
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        page query int false "Page number" default(1)
+// @Param        limit query int false "Items per page" default(10)
+// @Param        status query int false "Review status (1: Visible, 2: Hidden, 3: Reported)" Enums(1, 2, 3)
+// @Param        rating query int false "Filter rating" Enums(1, 2, 3, 4, 5)
+// @Param        product_uuid query string false "Product UUID"
+// @Param        search query string false "Search query"
+// @Param        order_by query string false "Order by" Enums(created_at, rating)
+// @Param        sort query string false "Sort order" Enums(asc, desc)
+// @Success      200 {object} utils.APIResponse{data=[]v1dto.ReviewDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/reviews [get]
 func (rh *ReviewHandler) AdminGetAllReviews(ctx *gin.Context) {
 	var query v1dto.AdminGetReviewsQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
@@ -281,6 +395,20 @@ func (rh *ReviewHandler) AdminGetAllReviews(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Admin reviews retrieved successfully", paginationResponse)
 }
 
+// AdminReplyReview godoc
+// @Summary      Reply to review
+// @Description  Add official store reply to customer review (Admin/Moderator)
+// @Tags         Admin - Reviews
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Review UUID"
+// @Param        body body v1dto.ReplyReviewInput true "Reply payload"
+// @Success      200 {object} utils.APIResponse{data=v1dto.ReviewDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/reviews/{uuid}/reply [patch]
 func (rh *ReviewHandler) AdminReplyReview(ctx *gin.Context) {
 	var param v1dto.ReviewUUIDParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
@@ -309,6 +437,18 @@ func (rh *ReviewHandler) AdminReplyReview(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Reply posted successfully", updatedReview)
 }
 
+// ToggleHelpfulVote godoc
+// @Summary      Toggle helpful vote
+// @Description  Vote or unvote that a review was helpful
+// @Tags         Reviews
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Review UUID"
+// @Success      200 {object} utils.APIResponse{data=v1dto.ToggleHelpfulResponseDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /reviews/{uuid}/helpful [post]
 func (rh *ReviewHandler) ToggleHelpfulVote(ctx *gin.Context) {
 	var param v1dto.ReviewUUIDParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
@@ -331,6 +471,20 @@ func (rh *ReviewHandler) ToggleHelpfulVote(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Helpful vote toggled successfully", response)
 }
 
+// ReportReview godoc
+// @Summary      Report review
+// @Description  Report a review for spam, inappropriate content, etc.
+// @Tags         Reviews
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Review UUID"
+// @Param        body body v1dto.ReportReviewInput true "Report payload"
+// @Success      200 {object} utils.APIResponse
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /reviews/{uuid}/report [post]
 func (rh *ReviewHandler) ReportReview(ctx *gin.Context) {
 	var param v1dto.ReviewUUIDParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
@@ -358,6 +512,18 @@ func (rh *ReviewHandler) ReportReview(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Review reported successfully", nil)
 }
 
+// AdminForceDeleteReview godoc
+// @Summary      Force delete review
+// @Description  Permanently delete review from database (Admin/Moderator)
+// @Tags         Admin - Reviews
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Review UUID"
+// @Success      200 {object} utils.APIResponse
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/reviews/{uuid} [delete]
 func (rh *ReviewHandler) AdminForceDeleteReview(ctx *gin.Context) {
 	var param v1dto.ReviewUUIDParam
 	if err := ctx.ShouldBindUri(&param); err != nil {

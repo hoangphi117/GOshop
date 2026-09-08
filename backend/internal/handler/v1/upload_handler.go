@@ -18,7 +18,21 @@ func NewUploadHandler() *UploadHandler {
 	return &UploadHandler{}
 }
 
-// Allow users to upload files to an optional directory
+// UploadSingleFile godoc
+// @Summary      Upload single file
+// @Description  Upload image or video file with optional destination folder
+// @Tags         Upload
+// @Accept       multipart/form-data
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        file formData file true "File to upload"
+// @Param        folder formData string false "Destination folder" Enums(products, categories, banners, avatars, common) default(common)
+// @Success      200 {object} utils.APIResponse{data=v1dto.UploadResponseDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Failure      403 {object} utils.ErrorResponse
+// @Router       /upload [post]
 func (uh *UploadHandler) UploadSingleFile(ctx *gin.Context) {
 	fileHeader, err := ctx.FormFile("file")
 	if err != nil {

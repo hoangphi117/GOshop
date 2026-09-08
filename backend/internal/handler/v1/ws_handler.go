@@ -34,6 +34,14 @@ func NewWSHandler(
 	}
 }
 
+// HandleWS godoc
+// @Summary      WebSocket connection
+// @Description  Establish persistent bidirectional WebSocket connection for real-time order and notification events
+// @Tags         WebSocket
+// @Param        token query string false "JWT Access Token"
+// @Success      101 "Switching Protocols"
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /ws [get]
 func (h *WSHandler) HandleWS(ctx *gin.Context) {
 	tokenString := ctx.Query("token")
 	if tokenString == "" {

@@ -1,6 +1,7 @@
 package routes
 
 import (
+	_ "goshop/docs"
 	"goshop/internal/middleware"
 	v1routes "goshop/internal/routes/v1"
 	"goshop/internal/utils"
@@ -9,6 +10,8 @@ import (
 
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 type Route interface {
@@ -31,6 +34,12 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 	)
 
 	middleware.InitAuthMiddleware(authService, cacheService)
+
+	// Swagger documentation route
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	r.GET("/swagger", func(ctx *gin.Context) {
+		ctx.Redirect(301, "/swagger/index.html")
+	})
 
 	v1api := r.Group("/api/v1")
 

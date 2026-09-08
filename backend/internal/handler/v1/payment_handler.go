@@ -21,6 +21,19 @@ func NewPaymentHandler(paymentService v1service.PaymentService) *PaymentHandler 
 	}
 }
 
+// CreatePaymentIntent godoc
+// @Summary      Create payment intent
+// @Description  Initiate online payment checkout url with payment gateway
+// @Tags         Payments
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        body body v1dto.CreatePaymentIntentInput true "Payment intent payload"
+// @Success      200 {object} utils.APIResponse{data=v1dto.PaymentIntentDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /payments/create-intent [post]
 func (h *PaymentHandler) CreatePaymentIntent(ctx *gin.Context) {
 	var input v1dto.CreatePaymentIntentInput
 	if err := ctx.ShouldBindJSON(&input); err != nil {
@@ -37,6 +50,14 @@ func (h *PaymentHandler) CreatePaymentIntent(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Payment intent created successfully", result)
 }
 
+// HandleWebhook godoc
+// @Summary      Payment gateway webhook
+// @Description  Receive IPN / Webhook callbacks from payment gateways (MoMo, VNPay)
+// @Tags         Payments
+// @Param        provider path string true "Payment provider (e.g. momo, vnpay)"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} utils.ErrorResponse
+// @Router       /webhooks/payment/{provider} [post]
 func (h *PaymentHandler) HandleWebhook(ctx *gin.Context) {
 	provider := ctx.Param("provider")
 
@@ -51,6 +72,18 @@ func (h *PaymentHandler) HandleWebhook(ctx *gin.Context) {
 	})
 }
 
+// GetPaymentHistory godoc
+// @Summary      Get payment history
+// @Description  Get transaction payment history by order UUID
+// @Tags         Payments
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        order_uuid path string true "Order UUID"
+// @Success      200 {object} utils.APIResponse{data=[]v1dto.PaymentTransactionDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /payments/order/{order_uuid} [get]
 func (h *PaymentHandler) GetPaymentHistory(ctx *gin.Context) {
 	var params v1dto.GetTransactionHistoryByOrderUUID
 	if err := ctx.ShouldBindUri(&params); err != nil {
@@ -73,6 +106,18 @@ func (h *PaymentHandler) GetPaymentHistory(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Payment history retrieved successfully", paymentHistory)
 }
 
+// ConfirmCODPayment godoc
+// @Summary      Confirm COD payment
+// @Description  Confirm that cash on delivery payment has been received (Admin/Moderator)
+// @Tags         Admin - Payments
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        order_uuid path string true "Order UUID"
+// @Success      200 {object} utils.APIResponse
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/payments/{order_uuid}/confirm-cod [post]
 func (h *PaymentHandler) ConfirmCODPayment(ctx *gin.Context) {
 	var params v1dto.ConfirmCODPaymentInput
 	if err := ctx.ShouldBindUri(&params); err != nil {
@@ -94,6 +139,19 @@ func (h *PaymentHandler) ConfirmCODPayment(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "COD payment confirmed successfully", nil)
 }
 
+// RefundPayment godoc
+// @Summary      Refund payment
+// @Description  Process payment refund transaction for an order (Admin/Moderator)
+// @Tags         Admin - Payments
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        body body v1dto.RefundPaymentInput true "Refund payload"
+// @Success      200 {object} utils.APIResponse{data=v1dto.PaymentTransactionDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/payments/refund [post]
 func (h *PaymentHandler) RefundPayment(ctx *gin.Context) {
 	var input v1dto.RefundPaymentInput
 	if err := ctx.ShouldBindJSON(&input); err != nil {

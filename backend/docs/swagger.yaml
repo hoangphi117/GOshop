@@ -1,0 +1,5994 @@
+basePath: /
+definitions:
+  goshop_internal_dto_v1.AddCartItemInput:
+    properties:
+      product_uuid:
+        type: string
+      quantity:
+        maximum: 99
+        minimum: 1
+        type: integer
+    required:
+    - product_uuid
+    - quantity
+    type: object
+  goshop_internal_dto_v1.AddressDTO:
+    properties:
+      address:
+        type: string
+      district_id:
+        type: integer
+      district_name:
+        type: string
+      full_address:
+        type: string
+      is_default:
+        type: boolean
+      label:
+        type: string
+      name:
+        type: string
+      phone:
+        type: string
+      province_id:
+        type: integer
+      province_name:
+        type: string
+      uuid:
+        type: string
+      ward_code:
+        type: string
+      ward_name:
+        type: string
+    type: object
+  goshop_internal_dto_v1.AdminBannerDetailDTO:
+    properties:
+      created_at:
+        type: string
+      deleted_at:
+        type: string
+      end_at:
+        type: string
+      image_url:
+        type: string
+      is_active:
+        type: boolean
+      link_url:
+        type: string
+      order:
+        type: integer
+      position:
+        type: string
+      start_at:
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+      uuid:
+        type: string
+    type: object
+  goshop_internal_dto_v1.AdminReturnRefundInput:
+    properties:
+      accounting_note:
+        maxLength: 500
+        type: string
+      amount:
+        type: number
+      bank_account:
+        maxLength: 50
+        type: string
+      bank_account_name:
+        maxLength: 100
+        type: string
+      bank_name:
+        maxLength: 100
+        type: string
+      bank_txn_ref:
+        maxLength: 100
+        type: string
+      reason:
+        maxLength: 500
+        type: string
+    type: object
+  goshop_internal_dto_v1.AdminUpdateReturnInput:
+    properties:
+      admin_note:
+        maxLength: 500
+        type: string
+      status:
+        description: '2: Approved, 3: Rejected, 4: Completed'
+        enum:
+        - 2
+        - 3
+        - 4
+        type: integer
+    required:
+    - status
+    type: object
+  goshop_internal_dto_v1.BannerDTO:
+    properties:
+      image_url:
+        type: string
+      link_url:
+        type: string
+      order:
+        type: integer
+      position:
+        type: string
+      title:
+        type: string
+      uuid:
+        type: string
+    type: object
+  goshop_internal_dto_v1.BroadcastNotificationInput:
+    properties:
+      body:
+        type: string
+      data:
+        additionalProperties: true
+        type: object
+      title:
+        maxLength: 255
+        type: string
+      type:
+        maxLength: 50
+        type: string
+    required:
+    - body
+    - title
+    - type
+    type: object
+  goshop_internal_dto_v1.CalculateShippingFeeInput:
+    properties:
+      district_id:
+        type: integer
+      height:
+        description: cm
+        minimum: 0
+        type: integer
+      insurance_value:
+        description: Giá trị khai giá bảo hiểm
+        minimum: 0
+        type: number
+      length:
+        description: cm
+        minimum: 0
+        type: integer
+      provider:
+        enum:
+        - ghn
+        - manual
+        type: string
+      ward_code:
+        type: string
+      weight:
+        description: gram (tổng khối lượng)
+        minimum: 1
+        type: integer
+      width:
+        description: cm
+        minimum: 0
+        type: integer
+    required:
+    - district_id
+    - provider
+    - ward_code
+    - weight
+    type: object
+  goshop_internal_dto_v1.CancelOrderReturnInput:
+    properties:
+      reason:
+        maxLength: 500
+        type: string
+    type: object
+  goshop_internal_dto_v1.CancelShippingInput:
+    properties:
+      reason:
+        description: Lý do hủy đơn vận chuyển
+        maxLength: 500
+        type: string
+    type: object
+  goshop_internal_dto_v1.CancelShippingResponseDTO:
+    properties:
+      message:
+        type: string
+      order_number:
+        type: string
+      order_status:
+        description: '"Confirmed"'
+        type: string
+      order_uuid:
+        type: string
+      shipping_code:
+        type: string
+    type: object
+  goshop_internal_dto_v1.CartDTO:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/goshop_internal_dto_v1.CartItemDTO'
+        type: array
+      total_amount:
+        type: number
+      total_items:
+        type: integer
+      uuid:
+        type: string
+    type: object
+  goshop_internal_dto_v1.CartItemDTO:
+    properties:
+      is_available:
+        description: false if product is deleted/inactive/out of stock
+        type: boolean
+      price:
+        type: number
+      product_image:
+        type: string
+      product_name:
+        type: string
+      product_slug:
+        type: string
+      product_uuid:
+        type: string
+      quantity:
+        type: integer
+      stock_available:
+        type: integer
+      subtotal:
+        type: number
+      uuid:
+        type: string
+    type: object
+  goshop_internal_dto_v1.CategoryDTO:
+    properties:
+      category_name:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      slug:
+        type: string
+      status:
+        type: string
+      uuid:
+        type: string
+    type: object
+  goshop_internal_dto_v1.ChangePasswordRequest:
+    properties:
+      confirm_password:
+        type: string
+      new_password:
+        maxLength: 32
+        minLength: 8
+        type: string
+      old_password:
+        maxLength: 32
+        minLength: 8
+        type: string
+    required:
+    - confirm_password
+    - new_password
+    - old_password
+    type: object
+  goshop_internal_dto_v1.CouponDTO:
+    properties:
+      code:
+        type: string
+      description:
+        type: string
+      discount_value:
+        type: number
+      end_date:
+        type: string
+      is_active:
+        type: boolean
+      is_expired:
+        type: boolean
+      max_discount_amount:
+        type: number
+      min_order_amount:
+        type: number
+      name:
+        type: string
+      start_date:
+        type: string
+      type:
+        type: integer
+      type_label:
+        type: string
+      usage_limit:
+        type: integer
+      used_count:
+        type: integer
+      user_usage_limit:
+        type: integer
+      uuid:
+        type: string
+    type: object
+  goshop_internal_dto_v1.CreateAddressInput:
+    properties:
+      address:
+        minLength: 5
+        type: string
+      district_id:
+        type: integer
+      district_name:
+        type: string
+      is_default:
+        type: boolean
+      label:
+        maxLength: 50
+        type: string
+      name:
+        maxLength: 100
+        minLength: 2
+        type: string
+      phone:
+        maxLength: 20
+        minLength: 9
+        type: string
+      province_id:
+        type: integer
+      province_name:
+        type: string
+      ward_code:
+        type: string
+      ward_name:
+        type: string
+    required:
+    - address
+    - district_id
+    - district_name
+    - label
+    - name
+    - phone
+    - province_id
+    - province_name
+    - ward_code
+    - ward_name
+    type: object
+  goshop_internal_dto_v1.CreateBannerRequest:
+    properties:
+      end_at:
+        type: string
+      image_url:
+        type: string
+      is_active:
+        type: boolean
+      link_url:
+        type: string
+      order:
+        minimum: 0
+        type: integer
+      position:
+        enum:
+        - home_main
+        - home_sub
+        - home_middle
+        - home_popup
+        - category_top
+        - sidebar
+        - common
+        type: string
+      start_at:
+        type: string
+      title:
+        maxLength: 255
+        minLength: 2
+        type: string
+    required:
+    - image_url
+    - position
+    - title
+    type: object
+  goshop_internal_dto_v1.CreateCategoryInput:
+    properties:
+      category_name:
+        maxLength: 100
+        minLength: 2
+        type: string
+      description:
+        maxLength: 500
+        type: string
+      status:
+        enum:
+        - 1
+        - 2
+        type: integer
+    required:
+    - category_name
+    type: object
+  goshop_internal_dto_v1.CreateCouponInput:
+    properties:
+      code:
+        maxLength: 50
+        minLength: 2
+        type: string
+      description:
+        maxLength: 500
+        type: string
+      discount_value:
+        type: number
+      end_date:
+        type: string
+      is_active:
+        type: boolean
+      max_discount_amount:
+        type: number
+      min_order_amount:
+        minimum: 0
+        type: number
+      name:
+        maxLength: 100
+        minLength: 2
+        type: string
+      start_date:
+        type: string
+      type:
+        enum:
+        - 1
+        - 2
+        type: integer
+      usage_limit:
+        minimum: 1
+        type: integer
+      user_usage_limit:
+        minimum: 1
+        type: integer
+    required:
+    - code
+    - discount_value
+    - end_date
+    - name
+    - start_date
+    - type
+    type: object
+  goshop_internal_dto_v1.CreateNotificationInput:
+    properties:
+      body:
+        type: string
+      data:
+        additionalProperties: true
+        type: object
+      title:
+        maxLength: 255
+        type: string
+      type:
+        maxLength: 50
+        type: string
+      user_uuid:
+        type: string
+    required:
+    - body
+    - title
+    - type
+    - user_uuid
+    type: object
+  goshop_internal_dto_v1.CreateOrderInput:
+    properties:
+      coupon_code:
+        maxLength: 50
+        minLength: 2
+        type: string
+      items:
+        items:
+          $ref: '#/definitions/goshop_internal_dto_v1.CreateOrderItemInput'
+        minItems: 1
+        type: array
+      note:
+        maxLength: 500
+        type: string
+      payment_method:
+        enum:
+        - 1
+        - 2
+        - 3
+        type: integer
+      shipping_address:
+        minLength: 5
+        type: string
+      shipping_fee:
+        minimum: 0
+        type: number
+      shipping_name:
+        maxLength: 100
+        minLength: 2
+        type: string
+      shipping_phone:
+        maxLength: 20
+        minLength: 9
+        type: string
+    required:
+    - items
+    - payment_method
+    - shipping_address
+    - shipping_fee
+    - shipping_name
+    - shipping_phone
+    type: object
+  goshop_internal_dto_v1.CreateOrderItemInput:
+    properties:
+      product_uuid:
+        type: string
+      quantity:
+        maximum: 99
+        minimum: 1
+        type: integer
+    required:
+    - product_uuid
+    - quantity
+    type: object
+  goshop_internal_dto_v1.CreatePaymentIntentInput:
+    properties:
+      order_uuid:
+        type: string
+      provider:
+        enum:
+        - momo
+        type: string
+    required:
+    - order_uuid
+    - provider
+    type: object
+  goshop_internal_dto_v1.CreateProductRequest:
+    properties:
+      category_uuid:
+        type: string
+      description:
+        maxLength: 2000
+        type: string
+      image_url:
+        type: string
+      name:
+        maxLength: 200
+        minLength: 2
+        type: string
+      price:
+        type: number
+      sku:
+        maxLength: 50
+        type: string
+      status:
+        enum:
+        - 1
+        - 2
+        - 3
+        type: integer
+      stock:
+        minimum: 0
+        type: integer
+    required:
+    - category_uuid
+    - name
+    - price
+    type: object
+  goshop_internal_dto_v1.CreateShippingInput:
+    properties:
+      district_id:
+        type: integer
+      height:
+        description: cm
+        minimum: 1
+        type: integer
+      length:
+        description: cm
+        minimum: 1
+        type: integer
+      note:
+        maxLength: 500
+        type: string
+      provider:
+        enum:
+        - ghn
+        - manual
+        type: string
+      required_note:
+        enum:
+        - KHONGCHOXEMHANG
+        - CHOTHUHANG
+        - CHOXEMHANGKHONGTHU
+        type: string
+      ward_code:
+        type: string
+      weight:
+        description: gram
+        minimum: 1
+        type: integer
+      width:
+        description: cm
+        minimum: 1
+        type: integer
+    required:
+    - district_id
+    - height
+    - length
+    - provider
+    - ward_code
+    - weight
+    - width
+    type: object
+  goshop_internal_dto_v1.CreateUserInput:
+    properties:
+      age:
+        type: integer
+      email:
+        type: string
+      level:
+        enum:
+        - 1
+        - 2
+        - 3
+        type: integer
+      name:
+        type: string
+      password:
+        minLength: 6
+        type: string
+      status:
+        enum:
+        - 1
+        - 2
+        - 3
+        type: integer
+    required:
+    - email
+    - level
+    - name
+    - password
+    - status
+    type: object
+  goshop_internal_dto_v1.DistrictDTO:
+    properties:
+      code:
+        type: string
+      district_id:
+        type: integer
+      district_name:
+        type: string
+      province_id:
+        type: integer
+    type: object
+  goshop_internal_dto_v1.GHNWebhookPayload:
+    properties:
+      CODAmount:
+        type: number
+      Description:
+        description: Lý do nếu giao thất bại hoặc trả hàng
+        type: string
+      OrderCode:
+        description: Mã vận đơn
+        type: string
+      Status:
+        description: delivered, delivering, return,...
+        type: string
+      Time:
+        type: string
+      TotalFee:
+        type: number
+      Warehouse:
+        type: string
+    required:
+    - OrderCode
+    - Status
+    type: object
+  goshop_internal_dto_v1.LoginInput:
+    properties:
+      email:
+        type: string
+      password:
+        minLength: 6
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  goshop_internal_dto_v1.LoginResponse:
+    properties:
+      access_token:
+        type: string
+      expires_in:
+        type: integer
+      refresh_token:
+        type: string
+    type: object
+  goshop_internal_dto_v1.MyReviewDTO:
+    properties:
+      can_edit:
+        type: boolean
+      comment:
+        type: string
+      created_at:
+        type: string
+      has_media:
+        type: boolean
+      images:
+        items:
+          type: string
+        type: array
+      product_image_url:
+        type: string
+      product_name:
+        type: string
+      product_slug:
+        type: string
+      product_uuid:
+        type: string
+      rating:
+        type: integer
+      title:
+        type: string
+      uuid:
+        type: string
+      video_url:
+        type: string
+    type: object
+  goshop_internal_dto_v1.NotificationDTO:
+    properties:
+      body:
+        type: string
+      created_at:
+        type: string
+      data:
+        additionalProperties: true
+        type: object
+      is_read:
+        type: boolean
+      read_at:
+        type: string
+      title:
+        type: string
+      type:
+        type: string
+      uuid:
+        type: string
+    type: object
+  goshop_internal_dto_v1.OrderDTO:
+    properties:
+      coupon_code:
+        type: string
+      created_at:
+        type: string
+      discount_amount:
+        type: number
+      items:
+        items:
+          $ref: '#/definitions/goshop_internal_dto_v1.OrderItemDTO'
+        type: array
+      note:
+        type: string
+      order_number:
+        type: string
+      payment_method:
+        type: string
+      payment_status:
+        type: string
+      refunded_amount:
+        type: number
+      shipping_address:
+        type: string
+      shipping_fee:
+        type: number
+      shipping_name:
+        type: string
+      shipping_phone:
+        type: string
+      status:
+        type: string
+      subtotal_amount:
+        type: number
+      total_amount:
+        type: number
+      user_name:
+        type: string
+      user_uuid:
+        type: string
+      uuid:
+        type: string
+    type: object
+  goshop_internal_dto_v1.OrderItemDTO:
+    properties:
+      image_url:
+        type: string
+      price:
+        type: number
+      product_name:
+        type: string
+      product_slug:
+        type: string
+      product_uuid:
+        type: string
+      quantity:
+        type: integer
+      subtotal:
+        type: number
+      uuid:
+        type: string
+    type: object
+  goshop_internal_dto_v1.OrderReturnDTO:
+    properties:
+      bank_account:
+        type: string
+      bank_account_name:
+        type: string
+      bank_name:
+        type: string
+      created_at:
+        type: string
+      images:
+        items:
+          type: string
+        type: array
+      order_number:
+        type: string
+      order_uuid:
+        type: string
+      reason:
+        type: string
+      return_uuid:
+        type: string
+      status:
+        description: '"Pending", "Approved", "Rejected", "Completed"'
+        type: string
+      video_url:
+        type: string
+    type: object
+  goshop_internal_dto_v1.OrderTimelineResponseDTO:
+    properties:
+      events:
+        items:
+          $ref: '#/definitions/goshop_internal_dto_v1.TrackingEventDTO'
+        type: array
+      order_number:
+        type: string
+      order_uuid:
+        type: string
+    type: object
+  goshop_internal_dto_v1.PaymentIntentDTO:
+    properties:
+      amount:
+        type: number
+      created_at:
+        type: string
+      currency:
+        type: string
+      order_uuid:
+        type: string
+      payment_url:
+        type: string
+      payment_uuid:
+        type: string
+      provider:
+        type: string
+      status:
+        type: string
+    type: object
+  goshop_internal_dto_v1.PaymentTransactionDTO:
+    properties:
+      amount:
+        type: number
+      created_at:
+        type: string
+      currency:
+        type: string
+      order_uuid:
+        type: string
+      paid_at:
+        type: string
+      provider:
+        type: string
+      provider_txn_id:
+        type: string
+      refund_amount:
+        type: number
+      refund_of:
+        type: string
+      status:
+        type: string
+      uuid:
+        type: string
+    type: object
+  goshop_internal_dto_v1.PreviewCouponDTO:
+    properties:
+      coupon_code:
+        type: string
+      coupon_name:
+        type: string
+      coupon_type:
+        description: '1: Percentage, 2: Fixed Amount'
+        type: integer
+      discount_amount:
+        type: number
+      discount_value:
+        type: number
+      final_total_amount:
+        type: number
+      min_order_amount:
+        type: number
+      subtotal_amount:
+        type: number
+    type: object
+  goshop_internal_dto_v1.PreviewCouponInput:
+    properties:
+      code:
+        maxLength: 50
+        minLength: 2
+        type: string
+      subtotal_amount:
+        type: number
+    required:
+    - code
+    - subtotal_amount
+    type: object
+  goshop_internal_dto_v1.ProductDTO:
+    properties:
+      category_name:
+        type: string
+      category_uuid:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      image_url:
+        type: string
+      name:
+        type: string
+      price:
+        type: number
+      sku:
+        type: string
+      slug:
+        type: string
+      status:
+        type: string
+      stock:
+        type: integer
+      uuid:
+        type: string
+    type: object
+  goshop_internal_dto_v1.ProvinceDTO:
+    properties:
+      code:
+        type: string
+      province_id:
+        type: integer
+      province_name:
+        type: string
+    type: object
+  goshop_internal_dto_v1.RefreshTokenInput:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  goshop_internal_dto_v1.RefundPaymentInput:
+    properties:
+      amount:
+        type: number
+      order_uuid:
+        type: string
+      reason:
+        maxLength: 500
+        type: string
+    required:
+    - amount
+    - order_uuid
+    - reason
+    type: object
+  goshop_internal_dto_v1.RegisterInput:
+    properties:
+      age:
+        type: integer
+      email:
+        type: string
+      name:
+        maxLength: 100
+        minLength: 2
+        type: string
+      password:
+        minLength: 6
+        type: string
+    required:
+    - email
+    - name
+    - password
+    type: object
+  goshop_internal_dto_v1.ReplyReviewInput:
+    properties:
+      reply:
+        maxLength: 2000
+        minLength: 1
+        type: string
+    required:
+    - reply
+    type: object
+  goshop_internal_dto_v1.ReportReviewInput:
+    properties:
+      details:
+        maxLength: 500
+        type: string
+      reason:
+        enum:
+        - spam
+        - inappropriate
+        - fake
+        - other
+        type: string
+    required:
+    - reason
+    type: object
+  goshop_internal_dto_v1.RequestForgotPasswordInput:
+    properties:
+      email:
+        type: string
+    required:
+    - email
+    type: object
+  goshop_internal_dto_v1.ResetPasswordInput:
+    properties:
+      new_password:
+        minLength: 6
+        type: string
+      token:
+        type: string
+    required:
+    - new_password
+    - token
+    type: object
+  goshop_internal_dto_v1.ReviewDTO:
+    properties:
+      can_edit:
+        type: boolean
+      comment:
+        type: string
+      created_at:
+        type: string
+      has_media:
+        type: boolean
+      helpful_count:
+        type: integer
+      images:
+        items:
+          type: string
+        type: array
+      order_uuid:
+        type: string
+      product_uuid:
+        type: string
+      rating:
+        type: integer
+      reply:
+        type: string
+      reply_at:
+        type: string
+      reviewer_name:
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+      uuid:
+        type: string
+      video_url:
+        type: string
+    type: object
+  goshop_internal_dto_v1.ShippingFeeResponseDTO:
+    properties:
+      provider:
+        type: string
+      shipping_fee:
+        type: number
+    type: object
+  goshop_internal_dto_v1.ShippingResponseDTO:
+    properties:
+      created_at:
+        type: string
+      expected_delivery_date:
+        type: string
+      order_number:
+        type: string
+      order_status:
+        description: '"Shipped"'
+        type: string
+      order_uuid:
+        type: string
+      shipping_code:
+        type: string
+      shipping_fee:
+        type: number
+      shipping_provider:
+        type: string
+    type: object
+  goshop_internal_dto_v1.SubmitReturnShippingInput:
+    properties:
+      note:
+        maxLength: 500
+        type: string
+      shipping_code:
+        maxLength: 100
+        minLength: 3
+        type: string
+      shipping_provider:
+        maxLength: 50
+        minLength: 2
+        type: string
+    required:
+    - shipping_code
+    - shipping_provider
+    type: object
+  goshop_internal_dto_v1.SyncActiveShippingStatsDTO:
+    properties:
+      delivered_count:
+        type: integer
+      failed_count:
+        type: integer
+      scanned_count:
+        type: integer
+      synced_at:
+        type: string
+      synced_count:
+        type: integer
+    type: object
+  goshop_internal_dto_v1.SyncTrackingResponseDTO:
+    properties:
+      current_status:
+        type: string
+      is_delivered:
+        type: boolean
+      last_sync_at:
+        type: string
+      message:
+        type: string
+      order_number:
+        type: string
+      order_uuid:
+        type: string
+      shipping_code:
+        type: string
+      shipping_provider:
+        type: string
+      status_text:
+        type: string
+      timeline:
+        items:
+          $ref: '#/definitions/goshop_internal_dto_v1.TrackingEventDTO'
+        type: array
+    type: object
+  goshop_internal_dto_v1.ToggleHelpfulResponseDTO:
+    properties:
+      helpful_count:
+        description: số lượng vote mới nhất
+        type: integer
+      voted:
+        description: 'true: đã vote, false: đã hủy vote'
+        type: boolean
+    type: object
+  goshop_internal_dto_v1.TrackingEventDTO:
+    properties:
+      created_at:
+        type: string
+      event_id:
+        type: integer
+      note:
+        type: string
+      source:
+        description: '"system", "admin", "ghn", "user"'
+        type: string
+      status:
+        description: '"pending", "confirmed", "shipped", "delivered",...'
+        type: string
+      status_text:
+        description: 'UI display status text: "Delivering",...'
+        type: string
+    type: object
+  goshop_internal_dto_v1.UnreadCountDTO:
+    properties:
+      unread_count:
+        type: integer
+    type: object
+  goshop_internal_dto_v1.UpdateAddressInput:
+    properties:
+      address:
+        minLength: 5
+        type: string
+      label:
+        maxLength: 50
+        type: string
+      name:
+        maxLength: 100
+        minLength: 2
+        type: string
+      phone:
+        maxLength: 20
+        minLength: 9
+        type: string
+    type: object
+  goshop_internal_dto_v1.UpdateBannerRequest:
+    properties:
+      end_at:
+        type: string
+      image_url:
+        type: string
+      is_active:
+        type: boolean
+      link_url:
+        type: string
+      order:
+        minimum: 0
+        type: integer
+      position:
+        enum:
+        - home_main
+        - home_sub
+        - home_middle
+        - home_popup
+        - category_top
+        - sidebar
+        - common
+        type: string
+      start_at:
+        type: string
+      title:
+        maxLength: 255
+        minLength: 2
+        type: string
+    type: object
+  goshop_internal_dto_v1.UpdateBannerStatusRequest:
+    properties:
+      is_active:
+        type: boolean
+    required:
+    - is_active
+    type: object
+  goshop_internal_dto_v1.UpdateCartItemQuantityInput:
+    properties:
+      quantity:
+        maximum: 99
+        minimum: 0
+        type: integer
+    required:
+    - quantity
+    type: object
+  goshop_internal_dto_v1.UpdateCategoryInput:
+    properties:
+      category_name:
+        maxLength: 100
+        minLength: 2
+        type: string
+      description:
+        maxLength: 500
+        type: string
+      status:
+        enum:
+        - 1
+        - 2
+        type: integer
+    type: object
+  goshop_internal_dto_v1.UpdateCouponInput:
+    properties:
+      clear_max_discount_amount:
+        type: boolean
+      clear_usage_limit:
+        type: boolean
+      description:
+        maxLength: 500
+        type: string
+      discount_value:
+        type: number
+      end_date:
+        type: string
+      is_active:
+        type: boolean
+      max_discount_amount:
+        type: number
+      min_order_amount:
+        minimum: 0
+        type: number
+      name:
+        maxLength: 100
+        minLength: 2
+        type: string
+      usage_limit:
+        minimum: 1
+        type: integer
+      user_usage_limit:
+        minimum: 1
+        type: integer
+    type: object
+  goshop_internal_dto_v1.UpdateOrderPaymentStatusInput:
+    properties:
+      note:
+        maxLength: 500
+        type: string
+      payment_status:
+        enum:
+        - 2
+        - 3
+        - 4
+        type: integer
+      refund_amount:
+        type: number
+      transaction_ref:
+        maxLength: 100
+        type: string
+    required:
+    - payment_status
+    type: object
+  goshop_internal_dto_v1.UpdateOrderShippingInfoInput:
+    properties:
+      note:
+        maxLength: 500
+        type: string
+      shipping_address:
+        minLength: 5
+        type: string
+      shipping_name:
+        maxLength: 100
+        minLength: 2
+        type: string
+      shipping_phone:
+        maxLength: 20
+        minLength: 9
+        type: string
+    type: object
+  goshop_internal_dto_v1.UpdateOrderStatusInput:
+    properties:
+      status:
+        enum:
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+        - 6
+        type: integer
+    required:
+    - status
+    type: object
+  goshop_internal_dto_v1.UpdateProductRequest:
+    properties:
+      category_uuid:
+        type: string
+      description:
+        maxLength: 2000
+        type: string
+      image_url:
+        type: string
+      name:
+        maxLength: 200
+        minLength: 2
+        type: string
+      price:
+        type: number
+      sku:
+        maxLength: 50
+        type: string
+      status:
+        enum:
+        - 1
+        - 2
+        - 3
+        type: integer
+      stock:
+        minimum: 0
+        type: integer
+    type: object
+  goshop_internal_dto_v1.UpdateProfileInput:
+    properties:
+      age:
+        type: integer
+      name:
+        maxLength: 100
+        minLength: 2
+        type: string
+      password:
+        minLength: 6
+        type: string
+    type: object
+  goshop_internal_dto_v1.UpdateReturnBankAccountInput:
+    properties:
+      bank_account:
+        maxLength: 50
+        minLength: 5
+        type: string
+      bank_account_name:
+        maxLength: 100
+        minLength: 2
+        type: string
+      bank_name:
+        maxLength: 100
+        minLength: 2
+        type: string
+    required:
+    - bank_account
+    - bank_account_name
+    - bank_name
+    type: object
+  goshop_internal_dto_v1.UpdateReviewInput:
+    properties:
+      comment:
+        maxLength: 2000
+        type: string
+      rating:
+        maximum: 5
+        minimum: 1
+        type: integer
+      title:
+        maxLength: 200
+        type: string
+    required:
+    - rating
+    type: object
+  goshop_internal_dto_v1.UpdateReviewStatusInput:
+    properties:
+      status:
+        description: '1: Visible, 2: Hidden, 3: Reported'
+        enum:
+        - 1
+        - 2
+        - 3
+        type: integer
+    required:
+    - status
+    type: object
+  goshop_internal_dto_v1.UpdateUserInput:
+    properties:
+      age:
+        type: integer
+      level:
+        enum:
+        - 1
+        - 2
+        type: integer
+      name:
+        type: string
+      password:
+        minLength: 6
+        type: string
+      status:
+        enum:
+        - 1
+        - 2
+        type: integer
+    type: object
+  goshop_internal_dto_v1.UploadResponseDTO:
+    properties:
+      file_name:
+        type: string
+      media_type:
+        type: string
+      size:
+        type: integer
+      url:
+        type: string
+    type: object
+  goshop_internal_dto_v1.UserDTO:
+    properties:
+      age:
+        type: integer
+      created_at:
+        type: string
+      email:
+        type: string
+      full_name:
+        type: string
+      level:
+        type: string
+      status:
+        type: string
+      uuid:
+        type: string
+    type: object
+  goshop_internal_dto_v1.WardDTO:
+    properties:
+      district_id:
+        type: integer
+      ward_code:
+        type: string
+      ward_name:
+        type: string
+    type: object
+  goshop_internal_utils.APIResponse:
+    properties:
+      data: {}
+      message:
+        example: Operation completed successfully
+        type: string
+      pagination:
+        $ref: '#/definitions/goshop_internal_utils.Pagination'
+      status:
+        example: success
+        type: string
+    type: object
+  goshop_internal_utils.ErrorCode:
+    enum:
+    - BAD_REQUEST
+    - NOT_FOUND
+    - CONFLICT
+    - INTERNAL_SERVER_ERROR
+    - UNAUTHORIZED
+    - TOO_MANY_REQUESTS
+    - FORBIDDEN
+    - BAD_GATEWAY
+    type: string
+    x-enum-varnames:
+    - ErrCodeBadRequest
+    - ErrCodeNotFound
+    - ErrCodeConflict
+    - ErrCodeInternal
+    - ErrCodeUnauthorized
+    - ErrCodeTooManyRequests
+    - ErrCodeForbidden
+    - ErrCodeBadGateway
+  goshop_internal_utils.ErrorResponse:
+    properties:
+      code:
+        allOf:
+        - $ref: '#/definitions/goshop_internal_utils.ErrorCode'
+        example: BAD_REQUEST
+      detail:
+        example: Detailed explanation
+        type: string
+      error:
+        example: Invalid input format
+        type: string
+    type: object
+  goshop_internal_utils.Pagination:
+    properties:
+      has_next:
+        type: boolean
+      has_prev:
+        type: boolean
+      limit:
+        type: integer
+      page:
+        type: integer
+      total_pages:
+        type: integer
+      total_records:
+        type: integer
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@goshop.vn
+    name: GOshop API Support
+    url: http://www.goshop.vn/support
+  description: High-performance E-Commerce platform API built with Go, Gin, PostgreSQL,
+    Redis, RabbitMQ, GHN, and VNPay.
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: GOshop E-Commerce API
+  version: "1.0"
+paths:
+  /addresses:
+    get:
+      description: Retrieve all shipping addresses of current user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/goshop_internal_dto_v1.AddressDTO'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get user addresses
+      tags:
+      - Addresses
+    post:
+      consumes:
+      - application/json
+      description: Add a new shipping address to user profile
+      parameters:
+      - description: Address payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.CreateAddressInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.AddressDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Create user address
+      tags:
+      - Addresses
+  /addresses/{uuid}:
+    delete:
+      description: Delete address by UUID
+      parameters:
+      - description: Address UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Delete user address
+      tags:
+      - Addresses
+    get:
+      description: Retrieve single user address by UUID
+      parameters:
+      - description: Address UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.AddressDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get address by UUID
+      tags:
+      - Addresses
+    put:
+      consumes:
+      - application/json
+      description: Update shipping address details by UUID
+      parameters:
+      - description: Address UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Update address payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.UpdateAddressInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.AddressDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Update user address
+      tags:
+      - Addresses
+  /addresses/{uuid}/default:
+    patch:
+      description: Set this address as primary default shipping address
+      parameters:
+      - description: Address UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Set default address
+      tags:
+      - Addresses
+  /admin/banners:
+    get:
+      description: Retrieve paginated banners with filters (Admin/Moderator)
+      parameters:
+      - description: Filter by position
+        in: query
+        name: position
+        type: string
+      - description: Filter active state
+        in: query
+        name: is_active
+        type: boolean
+      - description: Include soft-deleted banners
+        in: query
+        name: deleted
+        type: boolean
+      - description: Search title
+        in: query
+        name: search
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/goshop_internal_dto_v1.AdminBannerDetailDTO'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get all banners
+      tags:
+      - Admin - Banners
+    post:
+      consumes:
+      - application/json
+      description: Create a new banner (Admin/Moderator)
+      parameters:
+      - description: Banner payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.CreateBannerRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.AdminBannerDetailDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Create banner
+      tags:
+      - Admin - Banners
+  /admin/banners/{uuid}:
+    delete:
+      description: Move banner to trash (Admin/Moderator)
+      parameters:
+      - description: Banner UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Soft delete banner
+      tags:
+      - Admin - Banners
+    get:
+      description: Retrieve banner by UUID (Admin/Moderator)
+      parameters:
+      - description: Banner UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.AdminBannerDetailDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get banner detail
+      tags:
+      - Admin - Banners
+    put:
+      consumes:
+      - application/json
+      description: Update banner details by UUID (Admin/Moderator)
+      parameters:
+      - description: Banner UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Banner update payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.UpdateBannerRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.AdminBannerDetailDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Update banner
+      tags:
+      - Admin - Banners
+  /admin/banners/{uuid}/restore:
+    put:
+      description: Restore a soft-deleted banner (Admin/Moderator)
+      parameters:
+      - description: Banner UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.AdminBannerDetailDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Restore banner
+      tags:
+      - Admin - Banners
+  /admin/banners/{uuid}/status:
+    patch:
+      consumes:
+      - application/json
+      description: Enable or disable banner active status (Admin/Moderator)
+      parameters:
+      - description: Banner UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Status payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.UpdateBannerStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.AdminBannerDetailDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Update banner status
+      tags:
+      - Admin - Banners
+  /admin/banners/{uuid}/trash:
+    delete:
+      description: Permanently delete a banner from database (Admin/Moderator)
+      parameters:
+      - description: Banner UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Permanently delete banner
+      tags:
+      - Admin - Banners
+  /admin/categories:
+    post:
+      consumes:
+      - application/json
+      description: Create a new category (Admin/Moderator)
+      parameters:
+      - description: Category creation payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.CreateCategoryInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.CategoryDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Create category
+      tags:
+      - Admin - Categories
+  /admin/categories/{uuid}:
+    put:
+      consumes:
+      - application/json
+      description: Update an existing category by UUID (Admin/Moderator)
+      parameters:
+      - description: Category UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Category update payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.UpdateCategoryInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.CategoryDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Update category
+      tags:
+      - Admin - Categories
+  /admin/categories/{uuid}/restore:
+    put:
+      description: Restore a soft-deleted category by UUID (Admin/Moderator)
+      parameters:
+      - description: Category UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.CategoryDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Restore category
+      tags:
+      - Admin - Categories
+  /admin/categories/{uuid}/soft-delete:
+    delete:
+      description: Soft delete a category by UUID (Admin/Moderator)
+      parameters:
+      - description: Category UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.CategoryDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Soft delete category
+      tags:
+      - Admin - Categories
+  /admin/categories/{uuid}/trash:
+    delete:
+      description: Permanently delete (hard delete) a category by UUID (Admin only)
+      parameters:
+      - description: Category UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Permanently delete category
+      tags:
+      - Admin - Categories
+  /admin/coupons:
+    get:
+      description: Retrieve paginated coupons with filters (Admin/Moderator)
+      parameters:
+      - description: Search code/name
+        in: query
+        name: search
+        type: string
+      - description: Order by field
+        in: query
+        name: order_by
+        type: string
+      - description: Sort order (asc/desc)
+        in: query
+        name: sort
+        type: string
+      - description: 'Coupon type (1: Percentage, 2: Fixed amount)'
+        enum:
+        - 1
+        - 2
+        in: query
+        name: type
+        type: integer
+      - description: Filter active state
+        in: query
+        name: is_active
+        type: boolean
+      - description: Include deleted coupons
+        in: query
+        name: deleted
+        type: boolean
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/goshop_internal_dto_v1.CouponDTO'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get all coupons
+      tags:
+      - Admin - Coupons
+    post:
+      consumes:
+      - application/json
+      description: Create a new promotional discount coupon (Admin/Moderator)
+      parameters:
+      - description: Coupon payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.CreateCouponInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.CouponDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Create coupon
+      tags:
+      - Admin - Coupons
+  /admin/coupons/{uuid}:
+    delete:
+      description: Soft delete a coupon by UUID (Admin/Moderator)
+      parameters:
+      - description: Coupon UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.CouponDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Soft delete coupon
+      tags:
+      - Admin - Coupons
+    put:
+      consumes:
+      - application/json
+      description: Update coupon details by UUID (Admin/Moderator)
+      parameters:
+      - description: Coupon UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Coupon update payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.UpdateCouponInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.CouponDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Update coupon
+      tags:
+      - Admin - Coupons
+  /admin/coupons/{uuid}/restore:
+    put:
+      description: Restore a soft-deleted coupon by UUID (Admin/Moderator)
+      parameters:
+      - description: Coupon UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.CouponDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Restore coupon
+      tags:
+      - Admin - Coupons
+  /admin/coupons/{uuid}/trash:
+    delete:
+      description: Permanently delete a coupon by UUID (Admin only)
+      parameters:
+      - description: Coupon UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Permanently delete coupon
+      tags:
+      - Admin - Coupons
+  /admin/notifications:
+    post:
+      consumes:
+      - application/json
+      description: Create a notification targeted to a specific user (Admin/Moderator)
+      parameters:
+      - description: Notification payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.CreateNotificationInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.NotificationDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Create notification
+      tags:
+      - Admin - Notifications
+  /admin/notifications/broadcast:
+    post:
+      consumes:
+      - application/json
+      description: Broadcast system notification to all active users (Admin/Moderator)
+      parameters:
+      - description: Broadcast payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.BroadcastNotificationInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Broadcast notification
+      tags:
+      - Admin - Notifications
+  /admin/orders:
+    get:
+      description: Retrieve all orders with pagination and filtering (Admin/Moderator)
+      parameters:
+      - description: Search keyword
+        in: query
+        name: search
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      - description: Order by field
+        enum:
+        - order_created_at
+        - order_total_amount
+        in: query
+        name: order_by
+        type: string
+      - description: Sort order
+        enum:
+        - asc
+        - desc
+        in: query
+        name: sort
+        type: string
+      - description: Order status
+        enum:
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+        - 6
+        in: query
+        name: status
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/goshop_internal_dto_v1.OrderDTO'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get all orders
+      tags:
+      - Admin - Orders
+  /admin/orders/{uuid}:
+    patch:
+      consumes:
+      - application/json
+      description: Update order status by UUID (Admin/Moderator)
+      parameters:
+      - description: Order UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Status payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.UpdateOrderStatusInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.OrderDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Update order status
+      tags:
+      - Admin - Orders
+  /admin/orders/{uuid}/payment-status:
+    patch:
+      consumes:
+      - application/json
+      description: Update payment status of an order (Admin/Moderator)
+      parameters:
+      - description: Order UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Payment status payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.UpdateOrderPaymentStatusInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.OrderDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Update order payment status
+      tags:
+      - Admin - Orders
+  /admin/orders/{uuid}/shipping:
+    post:
+      consumes:
+      - application/json
+      description: Create third-party delivery order for shipping (Admin/Moderator)
+      parameters:
+      - description: Order UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Shipping order payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.CreateShippingInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.ShippingResponseDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Create shipping order
+      tags:
+      - Admin - Orders
+  /admin/orders/{uuid}/shipping/cancel:
+    post:
+      consumes:
+      - application/json
+      description: Cancel active shipment with carrier (Admin/Moderator)
+      parameters:
+      - description: Order UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Cancel reason payload
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.CancelShippingInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.CancelShippingResponseDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Cancel shipping order
+      tags:
+      - Admin - Orders
+  /admin/orders/{uuid}/shipping/print-bill:
+    get:
+      description: Generate URL to print carrier shipping label/bill (Admin/Moderator)
+      parameters:
+      - description: Order UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get shipping bill print URL
+      tags:
+      - Admin - Orders
+  /admin/orders/sync-active-tracking:
+    post:
+      description: Batch synchronize all currently active shipments with carrier (Admin/Moderator)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.SyncActiveShippingStatsDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Batch sync active shipping tracking
+      tags:
+      - Admin - Orders
+  /admin/payments/{order_uuid}/confirm-cod:
+    post:
+      description: Confirm that cash on delivery payment has been received (Admin/Moderator)
+      parameters:
+      - description: Order UUID
+        in: path
+        name: order_uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Confirm COD payment
+      tags:
+      - Admin - Payments
+  /admin/payments/refund:
+    post:
+      consumes:
+      - application/json
+      description: Process payment refund transaction for an order (Admin/Moderator)
+      parameters:
+      - description: Refund payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.RefundPaymentInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.PaymentTransactionDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Refund payment
+      tags:
+      - Admin - Payments
+  /admin/returns:
+    get:
+      description: Retrieve all return requests with pagination and filtering (Admin/Moderator)
+      parameters:
+      - description: 'Return status (1: Pending, 2: Approved, 3: Rejected, 4: Completed,
+          5: Cancelled)'
+        enum:
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+        in: query
+        name: status
+        type: integer
+      - description: Search keyword
+        in: query
+        name: search
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/goshop_internal_dto_v1.OrderReturnDTO'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get all return requests
+      tags:
+      - Admin - Orders
+  /admin/returns/{uuid}:
+    get:
+      description: Get return request by return UUID (Admin/Moderator)
+      parameters:
+      - description: Return UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.OrderReturnDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get return request detail
+      tags:
+      - Admin - Orders
+    patch:
+      consumes:
+      - application/json
+      description: Approve, reject, or update return status (Admin/Moderator)
+      parameters:
+      - description: Return UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Update return status payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.AdminUpdateReturnInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Update return request status
+      tags:
+      - Admin - Orders
+  /admin/returns/{uuid}/refund:
+    post:
+      consumes:
+      - application/json
+      description: Process refund payment for approved return request (Admin/Moderator)
+      parameters:
+      - description: Return UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Refund process payload
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.AdminReturnRefundInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Process return refund
+      tags:
+      - Admin - Orders
+  /admin/reviews:
+    get:
+      description: Retrieve all reviews with filters for moderation (Admin/Moderator)
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      - description: 'Review status (1: Visible, 2: Hidden, 3: Reported)'
+        enum:
+        - 1
+        - 2
+        - 3
+        in: query
+        name: status
+        type: integer
+      - description: Filter rating
+        enum:
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+        in: query
+        name: rating
+        type: integer
+      - description: Product UUID
+        in: query
+        name: product_uuid
+        type: string
+      - description: Search query
+        in: query
+        name: search
+        type: string
+      - description: Order by
+        enum:
+        - created_at
+        - rating
+        in: query
+        name: order_by
+        type: string
+      - description: Sort order
+        enum:
+        - asc
+        - desc
+        in: query
+        name: sort
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/goshop_internal_dto_v1.ReviewDTO'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get all reviews
+      tags:
+      - Admin - Reviews
+  /admin/reviews/{uuid}:
+    delete:
+      description: Permanently delete review from database (Admin/Moderator)
+      parameters:
+      - description: Review UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Force delete review
+      tags:
+      - Admin - Reviews
+  /admin/reviews/{uuid}/reply:
+    patch:
+      consumes:
+      - application/json
+      description: Add official store reply to customer review (Admin/Moderator)
+      parameters:
+      - description: Review UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Reply payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.ReplyReviewInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.ReviewDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Reply to review
+      tags:
+      - Admin - Reviews
+  /admin/reviews/{uuid}/status:
+    patch:
+      consumes:
+      - application/json
+      description: 'Change review visibility (1: Visible, 2: Hidden, 3: Reported)
+        (Admin/Moderator)'
+      parameters:
+      - description: Review UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Status payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.UpdateReviewStatusInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.ReviewDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Update review status
+      tags:
+      - Admin - Reviews
+  /admin/users:
+    get:
+      description: Retrieve paginated list of users (Admin/Moderator)
+      parameters:
+      - description: Search keyword
+        in: query
+        name: search
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      - description: Order by field
+        enum:
+        - user_id
+        - user_created_at
+        in: query
+        name: order_by
+        type: string
+      - description: Sort direction (asc/desc)
+        enum:
+        - asc
+        - desc
+        in: query
+        name: sort
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/goshop_internal_dto_v1.UserDTO'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get all users
+      tags:
+      - Admin - Users
+    post:
+      consumes:
+      - application/json
+      description: Create a new user account (Admin/Moderator)
+      parameters:
+      - description: User payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.CreateUserInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.UserDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Create user
+      tags:
+      - Admin - Users
+  /admin/users/{uuid}:
+    get:
+      description: Retrieve user detail by UUID (Admin/Moderator)
+      parameters:
+      - description: User UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.UserDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get user by UUID
+      tags:
+      - Admin - Users
+    put:
+      consumes:
+      - application/json
+      description: Update user profile and status by UUID (Admin/Moderator)
+      parameters:
+      - description: User UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Update user payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.UpdateUserInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.UserDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Update user
+      tags:
+      - Admin - Users
+  /admin/users/{uuid}/restore:
+    put:
+      description: Restore a soft-deleted user by UUID (Admin/Moderator)
+      parameters:
+      - description: User UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.UserDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Restore user
+      tags:
+      - Admin - Users
+  /admin/users/{uuid}/soft-delete:
+    delete:
+      description: Soft delete user by UUID (Admin/Moderator)
+      parameters:
+      - description: User UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.UserDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Soft delete user
+      tags:
+      - Admin - Users
+  /admin/users/{uuid}/trash:
+    delete:
+      description: Permanently delete a user from database (Admin only)
+      parameters:
+      - description: User UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Permanently delete user
+      tags:
+      - Admin - Users
+  /admin/users/soft-deleted:
+    get:
+      description: Retrieve paginated list of soft-deleted users (Admin/Moderator)
+      parameters:
+      - description: Search keyword
+        in: query
+        name: search
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      - description: Order by field
+        enum:
+        - user_id
+        - user_created_at
+        in: query
+        name: order_by
+        type: string
+      - description: Sort direction (asc/desc)
+        enum:
+        - asc
+        - desc
+        in: query
+        name: sort
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/goshop_internal_dto_v1.UserDTO'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get soft-deleted users
+      tags:
+      - Admin - Users
+  /api/v1/admin/products:
+    post:
+      consumes:
+      - application/json
+      description: Admin endpoint to create a new product catalog item
+      parameters:
+      - description: Product creation payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.CreateProductRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created product successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.ProductDTO'
+              type: object
+        "400":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Create a new product
+      tags:
+      - Admin - Products
+  /api/v1/admin/products/{uuid}:
+    delete:
+      consumes:
+      - application/json
+      description: Admin endpoint to mark a product as deleted
+      parameters:
+      - description: Product UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Product soft deleted successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.ProductDTO'
+              type: object
+        "400":
+          description: Invalid UUID
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "404":
+          description: Product not found
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Soft delete product
+      tags:
+      - Admin - Products
+    put:
+      consumes:
+      - application/json
+      description: Admin endpoint to update an existing product
+      parameters:
+      - description: Product UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Product update payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.UpdateProductRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Product updated successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.ProductDTO'
+              type: object
+        "400":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "404":
+          description: Product not found
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Update product
+      tags:
+      - Admin - Products
+  /api/v1/admin/products/{uuid}/restore:
+    put:
+      consumes:
+      - application/json
+      description: Admin endpoint to restore a previously deleted product
+      parameters:
+      - description: Product UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Product restored successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.ProductDTO'
+              type: object
+        "400":
+          description: Invalid UUID
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "404":
+          description: Product not found
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Restore soft deleted product
+      tags:
+      - Admin - Products
+  /api/v1/admin/products/{uuid}/trash:
+    delete:
+      consumes:
+      - application/json
+      description: Admin endpoint to permanently delete a product from database
+      parameters:
+      - description: Product UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: Product permanently deleted
+        "400":
+          description: Invalid UUID
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "404":
+          description: Product not found
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Permanently delete product
+      tags:
+      - Admin - Products
+  /api/v1/auth/forgot-password:
+    post:
+      consumes:
+      - application/json
+      description: Send password reset link to user's registered email
+      parameters:
+      - description: User email
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.RequestForgotPasswordInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Password reset link sent successfully
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "400":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "404":
+          description: User with this email not found
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      summary: Request password reset
+      tags:
+      - Auth
+  /api/v1/auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate user with email and password, returns access token
+        and refresh token
+      parameters:
+      - description: Login credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.LoginInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Login successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.LoginResponse'
+              type: object
+        "400":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Invalid email or password
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      summary: User login
+      tags:
+      - Auth
+  /api/v1/auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Revoke user's refresh token session
+      parameters:
+      - description: Refresh token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.RefreshTokenInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Logout successfully
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "400":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      summary: User logout
+      tags:
+      - Auth
+  /api/v1/auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Generate a new access token using a valid refresh token
+      parameters:
+      - description: Refresh token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.RefreshTokenInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Token refreshed successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.LoginResponse'
+              type: object
+        "400":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Invalid or expired refresh token
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      summary: Refresh access token
+      tags:
+      - Auth
+  /api/v1/auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Create a new user account with email, password, name and phone
+      parameters:
+      - description: Registration credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.RegisterInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Register successfully
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "400":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "409":
+          description: Email already registered
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      summary: Register a new account
+      tags:
+      - Auth
+  /api/v1/auth/reset-password:
+    post:
+      consumes:
+      - application/json
+      description: Reset password using the reset token received via email
+      parameters:
+      - description: Token and new password
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.ResetPasswordInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Password reset successfully
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "400":
+          description: Validation error or invalid token
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      summary: Reset password
+      tags:
+      - Auth
+  /api/v1/products:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve paginated products with filtering by category, price,
+        search, and sorting
+      parameters:
+      - description: Search keyword
+        in: query
+        name: search
+        type: string
+      - description: Category UUID
+        in: query
+        name: category_uuid
+        type: string
+      - description: Minimum price
+        in: query
+        name: min_price
+        type: number
+      - description: Maximum price
+        in: query
+        name: max_price
+        type: number
+      - description: 'Product status (1: Active, 2: Inactive)'
+        in: query
+        name: status
+        type: integer
+      - description: Order by field (price, name, created_at)
+        in: query
+        name: order_by
+        type: string
+      - description: Sort direction (asc, desc)
+        in: query
+        name: sort
+        type: string
+      - description: Page number (default 1)
+        in: query
+        name: page
+        type: integer
+      - description: Page size limit (default 10)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Products retrieved successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/goshop_internal_dto_v1.ProductDTO'
+                  type: array
+              type: object
+        "400":
+          description: Invalid query parameters
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      summary: Get list of products
+      tags:
+      - Products
+  /api/v1/products/{uuid}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve product details by UUID
+      parameters:
+      - description: Product UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Product retrieved successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.ProductDTO'
+              type: object
+        "400":
+          description: Invalid UUID format
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "404":
+          description: Product not found
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      summary: Get product by UUID
+      tags:
+      - Products
+  /banners:
+    get:
+      description: Get active banners for public display (e.g., home page)
+      parameters:
+      - description: Banner position
+        enum:
+        - home_main
+        - home_sub
+        - home_middle
+        - home_popup
+        - category_top
+        - sidebar
+        - common
+        in: query
+        name: position
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/goshop_internal_dto_v1.BannerDTO'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      summary: Get active banners
+      tags:
+      - Banners
+  /cart:
+    delete:
+      description: Remove all items from current user cart
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Clear cart
+      tags:
+      - Cart
+    get:
+      description: Get cart details and items for current authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.CartDTO'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get current user cart
+      tags:
+      - Cart
+  /cart/items:
+    post:
+      consumes:
+      - application/json
+      description: Add product item with quantity to cart
+      parameters:
+      - description: Item payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.AddCartItemInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.CartDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Add item to cart
+      tags:
+      - Cart
+  /cart/items/{item_uuid}:
+    delete:
+      description: Remove a specific item from cart
+      parameters:
+      - description: Cart item UUID
+        in: path
+        name: item_uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.CartDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Remove item from cart
+      tags:
+      - Cart
+    put:
+      consumes:
+      - application/json
+      description: Update item quantity in cart
+      parameters:
+      - description: Cart item UUID
+        in: path
+        name: item_uuid
+        required: true
+        type: string
+      - description: Quantity payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.UpdateCartItemQuantityInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.CartDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Update cart item quantity
+      tags:
+      - Cart
+  /categories:
+    get:
+      description: Get paginated list of categories
+      parameters:
+      - description: Search keyword
+        in: query
+        name: search
+        type: string
+      - description: Order by field
+        in: query
+        name: order_by
+        type: string
+      - description: Sort direction (asc/desc)
+        in: query
+        name: sort
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/goshop_internal_dto_v1.CategoryDTO'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      summary: Get all categories
+      tags:
+      - Categories
+  /categories/{uuid}:
+    get:
+      description: Retrieve a single category by its UUID
+      parameters:
+      - description: Category UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.CategoryDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      summary: Get category by UUID
+      tags:
+      - Categories
+  /coupons/preview:
+    post:
+      consumes:
+      - application/json
+      description: Preview coupon discount calculation for a given cart subtotal
+      parameters:
+      - description: Preview payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.PreviewCouponInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.PreviewCouponDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      summary: Preview coupon discount
+      tags:
+      - Coupons
+  /notifications/{uuid}:
+    delete:
+      description: Delete a notification by UUID
+      parameters:
+      - description: Notification UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Delete notification
+      tags:
+      - Notifications
+  /notifications/{uuid}/read:
+    patch:
+      description: Mark a specific notification as read by UUID
+      parameters:
+      - description: Notification UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.NotificationDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Mark notification as read
+      tags:
+      - Notifications
+  /notifications/me:
+    get:
+      description: Retrieve paginated notifications for current authenticated user
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/goshop_internal_dto_v1.NotificationDTO'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get current user notifications
+      tags:
+      - Notifications
+  /notifications/me/unread:
+    get:
+      description: Get number of unread notifications for current user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.UnreadCountDTO'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get unread notification count
+      tags:
+      - Notifications
+  /notifications/read-all:
+    patch:
+      description: Mark all unread notifications of current user as read
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Mark all notifications as read
+      tags:
+      - Notifications
+  /orders:
+    get:
+      description: Retrieve paginated orders for the authenticated user
+      parameters:
+      - description: Search keyword
+        in: query
+        name: search
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      - description: Order by field
+        enum:
+        - order_created_at
+        - order_total_amount
+        in: query
+        name: order_by
+        type: string
+      - description: Sort order
+        enum:
+        - asc
+        - desc
+        in: query
+        name: sort
+        type: string
+      - description: Order status
+        enum:
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+        - 6
+        in: query
+        name: status
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/goshop_internal_dto_v1.OrderDTO'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get my orders
+      tags:
+      - Orders
+    post:
+      consumes:
+      - application/json
+      description: Place a new order for current user
+      parameters:
+      - description: Order creation payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.CreateOrderInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.OrderDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Create order
+      tags:
+      - Orders
+  /orders/{uuid}:
+    get:
+      description: Retrieve detailed order information by UUID
+      parameters:
+      - description: Order UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.OrderDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get order by UUID
+      tags:
+      - Orders
+  /orders/{uuid}/cancel:
+    patch:
+      description: Cancel an order before shipping
+      parameters:
+      - description: Order UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Cancel order
+      tags:
+      - Orders
+  /orders/{uuid}/confirm-delivery:
+    post:
+      description: Customer confirms receipt of order package
+      parameters:
+      - description: Order UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Confirm order delivery
+      tags:
+      - Orders
+  /orders/{uuid}/invoice:
+    get:
+      description: Generate and download or view order invoice in PDF format
+      parameters:
+      - description: Order UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Action (download or inline)
+        enum:
+        - download
+        - inline
+        in: query
+        name: action
+        type: string
+      produces:
+      - application/pdf
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Download order invoice PDF
+      tags:
+      - Orders
+  /orders/{uuid}/return:
+    get:
+      description: Retrieve return request details for an order
+      parameters:
+      - description: Order UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.OrderReturnDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get order return details
+      tags:
+      - Orders
+    post:
+      consumes:
+      - multipart/form-data
+      description: Submit a request to return an order with reason and proof files
+      parameters:
+      - description: Order UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Return reason
+        in: formData
+        name: reason
+        required: true
+        type: string
+      - description: Bank name for refund
+        in: formData
+        name: bank_name
+        type: string
+      - description: Bank account number
+        in: formData
+        name: bank_account
+        type: string
+      - description: Bank account holder name
+        in: formData
+        name: bank_account_name
+        type: string
+      - description: Proof images (max 5) or video (max 1)
+        in: formData
+        name: files
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.OrderReturnDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Request order return / refund
+      tags:
+      - Orders
+  /orders/{uuid}/return/bank-account:
+    put:
+      consumes:
+      - application/json
+      description: Update bank account information for return refund
+      parameters:
+      - description: Order UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Bank account payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.UpdateReturnBankAccountInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Update return refund bank account
+      tags:
+      - Orders
+  /orders/{uuid}/return/cancel:
+    patch:
+      consumes:
+      - application/json
+      description: Cancel an existing return request
+      parameters:
+      - description: Order UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Cancel reason
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.CancelOrderReturnInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Cancel order return request
+      tags:
+      - Orders
+  /orders/{uuid}/return/shipping-info:
+    post:
+      consumes:
+      - application/json
+      description: Submit courier and tracking code for returned package
+      parameters:
+      - description: Order UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Return shipment info
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.SubmitReturnShippingInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Submit return shipment info
+      tags:
+      - Orders
+  /orders/{uuid}/shipping-info:
+    put:
+      consumes:
+      - application/json
+      description: Update recipient name, phone, address, and notes for an order
+      parameters:
+      - description: Order UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Shipping info payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.UpdateOrderShippingInfoInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.OrderDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Update order shipping info
+      tags:
+      - Orders
+  /orders/{uuid}/sync-tracking:
+    post:
+      description: Manually trigger sync of tracking details from shipping carrier
+      parameters:
+      - description: Order UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.SyncTrackingResponseDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Sync order tracking
+      tags:
+      - Orders
+  /orders/{uuid}/timeline:
+    get:
+      description: Get chronological event tracking timeline for an order
+      parameters:
+      - description: Order UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.OrderTimelineResponseDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get order tracking timeline
+      tags:
+      - Orders
+  /orders/calculate-fee:
+    post:
+      consumes:
+      - application/json
+      description: Calculate estimated shipping fee from carrier
+      parameters:
+      - description: Calculate fee payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.CalculateShippingFeeInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.ShippingFeeResponseDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Calculate shipping fee
+      tags:
+      - Orders
+  /orders/returns:
+    get:
+      description: Get paginated list of return requests for current user
+      parameters:
+      - description: 'Return status (1: Pending, 2: Approved, 3: Rejected, 4: Completed,
+          5: Cancelled)'
+        enum:
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+        in: query
+        name: status
+        type: integer
+      - description: Search keyword
+        in: query
+        name: search
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/goshop_internal_dto_v1.OrderReturnDTO'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get user return requests
+      tags:
+      - Orders
+  /payments/create-intent:
+    post:
+      consumes:
+      - application/json
+      description: Initiate online payment checkout url with payment gateway
+      parameters:
+      - description: Payment intent payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.CreatePaymentIntentInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.PaymentIntentDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Create payment intent
+      tags:
+      - Payments
+  /payments/order/{order_uuid}:
+    get:
+      description: Get transaction payment history by order UUID
+      parameters:
+      - description: Order UUID
+        in: path
+        name: order_uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/goshop_internal_dto_v1.PaymentTransactionDTO'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get payment history
+      tags:
+      - Payments
+  /products/{uuid}/reviews:
+    get:
+      description: Get paginated reviews for a specific product
+      parameters:
+      - description: Product UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      - description: Filter rating
+        enum:
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+        in: query
+        name: rating
+        type: integer
+      - description: Filter reviews with photos/videos
+        in: query
+        name: has_media
+        type: boolean
+      - description: Order by field
+        enum:
+        - created_at
+        - rating
+        - helpful
+        in: query
+        name: order_by
+        type: string
+      - description: Sort order
+        enum:
+        - asc
+        - desc
+        in: query
+        name: sort
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/goshop_internal_dto_v1.ReviewDTO'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      summary: Get product reviews
+      tags:
+      - Reviews
+  /products/{uuid}/reviews/summary:
+    get:
+      description: Get star distribution and average rating for a product
+      parameters:
+      - description: Product UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      summary: Get product rating summary
+      tags:
+      - Reviews
+  /reviews:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Create a product review with rating, comments, images and video
+      parameters:
+      - description: Product UUID
+        in: formData
+        name: product_uuid
+        required: true
+        type: string
+      - description: Order UUID
+        in: formData
+        name: order_uuid
+        required: true
+        type: string
+      - description: Rating from 1 to 5
+        in: formData
+        maximum: 5
+        minimum: 1
+        name: rating
+        required: true
+        type: integer
+      - description: Review title
+        in: formData
+        name: title
+        type: string
+      - description: Review comment
+        in: formData
+        name: comment
+        type: string
+      - description: Review media files (max 5 images, 1 video)
+        in: formData
+        name: files
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.ReviewDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Create review
+      tags:
+      - Reviews
+  /reviews/{uuid}:
+    delete:
+      description: Delete own review by review UUID
+      parameters:
+      - description: Review UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Delete review
+      tags:
+      - Reviews
+    put:
+      consumes:
+      - application/json
+      description: Update rating, title, or comment of an existing review
+      parameters:
+      - description: Review UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Review update payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.UpdateReviewInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.ReviewDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Update review
+      tags:
+      - Reviews
+  /reviews/{uuid}/helpful:
+    post:
+      description: Vote or unvote that a review was helpful
+      parameters:
+      - description: Review UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.ToggleHelpfulResponseDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Toggle helpful vote
+      tags:
+      - Reviews
+  /reviews/{uuid}/report:
+    post:
+      consumes:
+      - application/json
+      description: Report a review for spam, inappropriate content, etc.
+      parameters:
+      - description: Review UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Report payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.ReportReviewInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Report review
+      tags:
+      - Reviews
+  /reviews/me:
+    get:
+      description: Retrieve paginated list of reviews authored by the authenticated
+        user
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/goshop_internal_dto_v1.MyReviewDTO'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get current user reviews
+      tags:
+      - Reviews
+  /shipping/districts:
+    get:
+      description: Get list of districts by province ID
+      parameters:
+      - description: Province ID
+        in: query
+        name: province_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/goshop_internal_dto_v1.DistrictDTO'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      summary: Get shipping districts
+      tags:
+      - Shipping
+  /shipping/provinces:
+    get:
+      description: Get list of provinces from shipping provider
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/goshop_internal_dto_v1.ProvinceDTO'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      summary: Get shipping provinces
+      tags:
+      - Shipping
+  /shipping/wards:
+    get:
+      description: Get list of wards by district ID
+      parameters:
+      - description: District ID
+        in: query
+        name: district_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/goshop_internal_dto_v1.WardDTO'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      summary: Get shipping wards
+      tags:
+      - Shipping
+  /shipping/webhook/ghn:
+    post:
+      consumes:
+      - application/json
+      description: Receive and process tracking updates from GHN delivery webhook
+      parameters:
+      - description: GHN webhook payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.GHNWebhookPayload'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      summary: GHN shipping webhook
+      tags:
+      - Shipping
+  /upload:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Upload image or video file with optional destination folder
+      parameters:
+      - description: File to upload
+        in: formData
+        name: file
+        required: true
+        type: file
+      - default: common
+        description: Destination folder
+        enum:
+        - products
+        - categories
+        - banners
+        - avatars
+        - common
+        in: formData
+        name: folder
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.UploadResponseDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Upload single file
+      tags:
+      - Upload
+  /users/me:
+    get:
+      description: Get current authenticated user profile
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.UserDTO'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get current profile
+      tags:
+      - Users
+    put:
+      consumes:
+      - application/json
+      description: Update current authenticated user details
+      parameters:
+      - description: Profile payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.UpdateProfileInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.UserDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Update current profile
+      tags:
+      - Users
+  /users/me/change-password:
+    put:
+      consumes:
+      - application/json
+      description: Change authenticated user password
+      parameters:
+      - description: Change password payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.ChangePasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Change password
+      tags:
+      - Users
+  /webhooks/payment/{provider}:
+    post:
+      description: Receive IPN / Webhook callbacks from payment gateways (MoMo, VNPay)
+      parameters:
+      - description: Payment provider (e.g. momo, vnpay)
+        in: path
+        name: provider
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      summary: Payment gateway webhook
+      tags:
+      - Payments
+  /ws:
+    get:
+      description: Establish persistent bidirectional WebSocket connection for real-time
+        order and notification events
+      parameters:
+      - description: JWT Access Token
+        in: query
+        name: token
+        type: string
+      responses:
+        "101":
+          description: Switching Protocols
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      summary: WebSocket connection
+      tags:
+      - WebSocket
+securityDefinitions:
+  ApiKeyAuth:
+    description: Client API Key for application authorization.
+    in: header
+    name: X-API-KEY
+    type: apiKey
+  BearerAuth:
+    description: Type "Bearer" followed by a space and JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
