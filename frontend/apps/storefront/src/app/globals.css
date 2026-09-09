@@ -29,6 +29,17 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Global button cursor behavior */
+button:not(:disabled),
+[role="button"]:not(:disabled) {
+  cursor: pointer;
+}
+
+button:disabled,
+[role="button"][aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
 /* Glassmorphism Navigation Bar */
 .glass-nav {
   background-color: rgba(255, 255, 255, 0.85);
