@@ -6,6 +6,7 @@ import { ThemeProvider } from '@/providers/theme-provider'
 import { Navbar } from '@/components/layout/navbar'
 import { Footer } from '@/components/layout/footer'
 import { CartDrawer } from '@/components/cart/cart-drawer'
+import { ScrollToTop } from '@/components/layout/scroll-to-top'
 import { Toaster } from 'sonner'
 
 const inter = Inter({
@@ -34,6 +35,7 @@ export default function RootLayout({
             <CartDrawer />
             <main className="flex-1 -mt-14 pt-14 flex flex-col">{children}</main>
             <Footer />
+            <ScrollToTop />
             <Toaster richColors position="top-right" />
           </QueryProvider>
         </ThemeProvider>
