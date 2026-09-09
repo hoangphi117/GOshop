@@ -7,6 +7,7 @@ import (
 	"goshop/internal/utils"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
+	"strings"
 
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
@@ -68,6 +69,12 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 	}
 
 	r.NoRoute(func(ctx *gin.Context) {
+		p := ctx.Request.URL.Path
+		if !strings.HasPrefix(p, "/api/v1") && !strings.HasPrefix(p, "/swagger") {
+			ctx.Request.URL.Path = "/api/v1" + p
+			r.HandleContext(ctx)
+			return
+		}
 		ctx.JSON(404, gin.H{
 			"error": "Not found",
 			"path":  ctx.Request.URL.Path,

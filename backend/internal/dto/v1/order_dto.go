@@ -54,20 +54,22 @@ type CreateOrderInput struct {
 }
 
 type OrderSummaryDTO struct {
-	UUID           string  `json:"uuid"`
-	OrderNumber    string  `json:"order_number"`
-	ShippingName   string  `json:"shipping_name"`
-	ShippingPhone  string  `json:"shipping_phone"`
-	CouponCode     *string `json:"coupon_code,omitempty"`
-	SubtotalAmount float64 `json:"subtotal_amount,omitempty"`
-	DiscountAmount float64 `json:"discount_amount,omitempty"`
-	ShippingFee    float64 `json:"shipping_fee,omitempty"`
-	TotalAmount    float64 `json:"total_amount"`
-	RefundedAmount float64 `json:"refunded_amount"`
-	PaymentMethod  string  `json:"payment_method"`
-	PaymentStatus  string  `json:"payment_status"`
-	Status         string  `json:"status"`
-	CreatedAt      string  `json:"created_at"`
+	UUID            string  `json:"uuid"`
+	OrderNumber     string  `json:"order_number"`
+	ShippingName    string  `json:"shipping_name"`
+	ShippingPhone   string  `json:"shipping_phone"`
+	ShippingAddress string  `json:"shipping_address"`
+	Note            *string `json:"note,omitempty"`
+	CouponCode      *string `json:"coupon_code,omitempty"`
+	SubtotalAmount  float64 `json:"subtotal_amount,omitempty"`
+	DiscountAmount  float64 `json:"discount_amount,omitempty"`
+	ShippingFee     float64 `json:"shipping_fee,omitempty"`
+	TotalAmount     float64 `json:"total_amount"`
+	RefundedAmount  float64 `json:"refunded_amount"`
+	PaymentMethod   string  `json:"payment_method"`
+	PaymentStatus   string  `json:"payment_status"`
+	Status          string  `json:"status"`
+	CreatedAt       string  `json:"created_at"`
 }
 
 type SyncTrackingResponseDTO struct {
@@ -209,20 +211,22 @@ func MapToOrderDTO(order sqlc.Order, items []sqlc.GetOrderItemsByOrderIDRow) Ord
 
 func MapToOrderSummaryDTO(order sqlc.Order) OrderSummaryDTO {
 	return OrderSummaryDTO{
-		UUID:           order.OrderUuid.String(),
-		OrderNumber:    order.OrderNumber,
-		ShippingName:   order.OrderShippingName,
-		ShippingPhone:  order.OrderShippingPhone,
-		CouponCode:     order.OrderCouponCode,
-		SubtotalAmount: utils.NumericToFloat(order.OrderSubtotalAmount),
-		DiscountAmount: utils.NumericToFloat(order.OrderDiscountAmount),
-		ShippingFee:    utils.NumericToFloat(order.OrderShippingFee),
-		TotalAmount:    utils.NumericToFloat(order.OrderTotalAmount),
-		RefundedAmount: utils.NumericToFloat(order.OrderRefundedAmount),
-		PaymentMethod:  MapPaymentMethodToString(order.OrderPaymentMethod),
-		PaymentStatus:  MapPaymentStatusToString(order.OrderPaymentStatus),
-		Status:         MapOrderStatusToString(order.OrderStatus),
-		CreatedAt:      order.OrderCreatedAt.Format("2006-01-02 15:04:05"),
+		UUID:            order.OrderUuid.String(),
+		OrderNumber:     order.OrderNumber,
+		ShippingName:    order.OrderShippingName,
+		ShippingPhone:   order.OrderShippingPhone,
+		ShippingAddress: order.OrderShippingAddress,
+		Note:            order.OrderNote,
+		CouponCode:      order.OrderCouponCode,
+		SubtotalAmount:  utils.NumericToFloat(order.OrderSubtotalAmount),
+		DiscountAmount:  utils.NumericToFloat(order.OrderDiscountAmount),
+		ShippingFee:     utils.NumericToFloat(order.OrderShippingFee),
+		TotalAmount:     utils.NumericToFloat(order.OrderTotalAmount),
+		RefundedAmount:  utils.NumericToFloat(order.OrderRefundedAmount),
+		PaymentMethod:   MapPaymentMethodToString(order.OrderPaymentMethod),
+		PaymentStatus:   MapPaymentStatusToString(order.OrderPaymentStatus),
+		Status:          MapOrderStatusToString(order.OrderStatus),
+		CreatedAt:       order.OrderCreatedAt.Format("2006-01-02 15:04:05"),
 	}
 }
 

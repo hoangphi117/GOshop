@@ -111,9 +111,9 @@ func MapListUsersToDTO(users []sqlc.User) []UserDTO {
 func mapStatusText(status int) string {
 	switch status {
 	case 1:
-		return "Show"
+		return "Active"
 	case 2:
-		return "Hide"
+		return "Inactive"
 	case 3:
 		return "Banned"
 	default:
