@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { Product } from '@/lib/api-server'
 import { formatCurrency } from '@/lib/format'
+import { getImageUrl } from '@/lib/utils'
 import { useCartStore } from '@/stores/cart-store'
 import {
   ShoppingCart,
@@ -30,12 +31,13 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
   const { addItem } = useCartStore()
 
   // Collect all available images
-  const allImages =
+  const allImages = (
     product.images && product.images.length > 0
-      ? product.images.map((img) => img.image_url)
+      ? product.images.map((img) => getImageUrl(img.image_url))
       : product.image_url
-      ? [product.image_url]
+      ? [getImageUrl(product.image_url)]
       : []
+  ).filter(Boolean)
 
   const [activeImageIndex, setActiveImageIndex] = useState(0)
   const [selectedVariantUuid, setSelectedVariantUuid] = useState<string | undefined>(

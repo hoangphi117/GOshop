@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import type { Banner } from '@/lib/api-server'
+import { getImageUrl } from '@/lib/utils'
 import {
   ArrowRight,
   Sparkles,
@@ -99,7 +100,7 @@ export function HeroBanner({ banners }: HeroBannerProps) {
               {hasCustomBanners && activeBanner ? (
                 <div className="relative aspect-4/3 rounded-2xl overflow-hidden bg-slate-900">
                   <img
-                    src={activeBanner.image_url}
+                    src={getImageUrl(activeBanner.image_url)}
                     alt={activeBanner.title || 'GOshop Promotion'}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                   />

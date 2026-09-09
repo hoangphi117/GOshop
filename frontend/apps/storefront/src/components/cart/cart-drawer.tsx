@@ -4,6 +4,7 @@ import React from 'react'
 import Link from 'next/link'
 import { useCartStore } from '@/stores/cart-store'
 import { formatCurrency } from '@/lib/format'
+import { getImageUrl } from '@/lib/utils'
 import { X, Plus, Minus, Trash2, ShoppingCart, ArrowRight } from 'lucide-react'
 
 import { useMounted } from '@/hooks/use-mounted'
@@ -85,7 +86,7 @@ export function CartDrawer() {
                   <div className="w-20 h-20 rounded-xl bg-slate-100 overflow-hidden shrink-0 border border-slate-200/60 flex items-center justify-center">
                     {item.image ? (
                       <img
-                        src={item.image}
+                        src={getImageUrl(item.image)}
                         alt={item.name}
                         className="w-full h-full object-cover"
                       />

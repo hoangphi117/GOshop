@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useCartStore } from '@/stores/cart-store'
 import { useAuthStore } from '@/stores/auth-store'
 import { formatCurrency } from '@/lib/format'
+import { getImageUrl } from '@/lib/utils'
 import {
   ShieldCheck,
   CreditCard,
@@ -428,7 +429,7 @@ export default function CheckoutPage() {
                       <div className="w-12 h-12 rounded-lg bg-slate-100 overflow-hidden shrink-0 border border-slate-200/60 flex items-center justify-center">
                         {item.image ? (
                           <img
-                            src={item.image}
+                            src={getImageUrl(item.image)}
                             alt={item.name}
                             className="w-full h-full object-cover"
                           />

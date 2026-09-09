@@ -7,6 +7,7 @@ import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { Button } from '@/components/ui/button'
+import { getImageUrl } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import {
@@ -149,7 +150,7 @@ export function Banners() {
                     <TableCell>
                       {b.image_url ? (
                         <img
-                          src={b.image_url}
+                          src={getImageUrl(b.image_url)}
                           alt={b.title}
                           className='h-12 w-28 rounded object-cover border'
                           onError={(e) => {

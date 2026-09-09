@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useOrderMutations, useOrderDetails } from '../hooks/use-orders'
+import { getImageUrl } from '@/lib/utils'
 import type { Order } from '../types'
 
 interface OrderDetailsDialogProps {
@@ -334,7 +335,7 @@ export function OrderDetailsDialog({
                     <div className='flex items-center gap-3 min-w-0'>
                       {item.image_url ? (
                         <img
-                          src={item.image_url}
+                          src={getImageUrl(item.image_url)}
                           alt={item.product_name || 'Product'}
                           className='size-12 rounded object-cover border bg-muted shrink-0'
                         />

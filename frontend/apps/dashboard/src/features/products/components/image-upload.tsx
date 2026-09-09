@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { UploadCloud, X, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { getImageUrl } from '@/lib/utils'
 import { useUploadImage } from '../hooks/use-products'
 
 interface ImageUploadProps {
@@ -49,7 +50,7 @@ export function ImageUpload({ value, onChange, folder = 'products' }: ImageUploa
       {value ? (
         <div className='relative inline-block border rounded-lg overflow-hidden bg-muted/20 group'>
           <img
-            src={value.startsWith('http') ? value : `http://localhost:8080${value}`}
+            src={getImageUrl(value)}
             alt='Product'
             className='size-36 object-cover'
             onError={(e) => {

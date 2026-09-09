@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import Link from 'next/link'
 import { useCartStore } from '@/stores/cart-store'
 import { formatCurrency } from '@/lib/format'
+import { getImageUrl } from '@/lib/utils'
 import {
   ShoppingCart,
   Trash2,
@@ -127,7 +128,7 @@ export default function CartPage() {
                     <div className="w-20 h-20 rounded-xl bg-slate-100 overflow-hidden shrink-0 border border-slate-200/60 flex items-center justify-center">
                       {item.image ? (
                         <img
-                          src={item.image}
+                          src={getImageUrl(item.image)}
                           alt={item.name}
                           className="w-full h-full object-cover"
                         />

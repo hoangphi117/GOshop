@@ -8,6 +8,7 @@ import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { getImageUrl } from '@/lib/utils'
 import {
   Table,
   TableBody,
@@ -204,7 +205,7 @@ export function Products() {
                     <TableCell>
                       {p.image_url ? (
                         <img
-                          src={p.image_url}
+                          src={getImageUrl(p.image_url)}
                           alt={p.name}
                           className='size-12 rounded object-cover border'
                           onError={(e) => {

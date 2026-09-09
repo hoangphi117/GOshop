@@ -4,6 +4,7 @@ import React from 'react'
 import Link from 'next/link'
 import type { Product } from '@/lib/api-server'
 import { formatCurrency } from '@/lib/format'
+import { getImageUrl } from '@/lib/utils'
 import { useCartStore } from '@/stores/cart-store'
 import { ShoppingCart, Eye, Package, Star } from 'lucide-react'
 import { toast } from 'sonner'
@@ -16,11 +17,12 @@ export function ProductCard({ product }: ProductCardProps) {
   const { addItem } = useCartStore()
 
   // Get primary image or fallback
-  const primaryImg =
+  const rawImg =
     product.images?.find((img) => img.is_primary)?.image_url ||
     product.images?.[0]?.image_url ||
     product.image_url ||
     ''
+  const primaryImg = getImageUrl(rawImg)
 
   const isInStock = (product.stock ?? 0) > 0
   const hasDiscount =
