@@ -22,6 +22,8 @@ export interface Product {
     stock_quantity: number
   }[]
   created_at?: string
+  rating?: number
+  reviews_count?: number
 }
 
 export interface Category {
