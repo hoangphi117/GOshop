@@ -6,7 +6,13 @@ export function useBanners() {
   return useQuery({
     queryKey: ['adminBanners'],
     queryFn: async () => {
-      const { data, error } = await api.GET('/admin/banners')
+      const { data, error } = await api.GET('/admin/banners', {
+        params: {
+          query: {
+            deleted: false,
+          },
+        },
+      })
       if (error) {
         throw new Error((error as { error?: string })?.error || 'Failed to fetch banners')
       }

@@ -80,18 +80,24 @@ func (s *bannerService) AdminGetBanners(ctx *gin.Context, query v1dto.AdminGetBa
 		position = &p
 	}
 
+	deleted := query.Deleted
+	if deleted == nil {
+		f := false
+		deleted = &f
+	}
+
 	params := sqlc.AdminListBannersParams{
 		Limit:    limit,
 		Offset:   offset,
 		Position: position,
 		IsActive: query.IsActive,
-		Deleted:  query.Deleted,
+		Deleted:  deleted,
 	}
 
 	countParams := sqlc.AdminCountBannersParams{
 		Position: position,
 		IsActive: query.IsActive,
-		Deleted:  query.Deleted,
+		Deleted:  deleted,
 	}
 
 	rows, err := s.bannerRepo.AdminList(reqCtx, params)
