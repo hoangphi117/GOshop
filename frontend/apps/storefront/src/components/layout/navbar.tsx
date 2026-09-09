@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useCartStore } from '@/stores/cart-store'
 import { useAuthStore } from '@/stores/auth-store'
 import {
-  ShoppingBag,
+  ShoppingCart,
   Search,
   User,
   Menu,
@@ -123,7 +123,7 @@ export function Navbar() {
             className="relative w-9 h-9 rounded-full flex items-center justify-center text-slate-700 hover:bg-[#E3F2FD] hover:text-[#0D47A1] transition-colors"
             aria-label="Shopping Cart"
           >
-            <ShoppingBag className="w-4 h-4" />
+            <ShoppingCart className="w-4 h-4" />
             {totalCartItems > 0 && (
               <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-[#2196F3] text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-xs">
                 {totalCartItems}

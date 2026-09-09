@@ -5,7 +5,7 @@ import Link from 'next/link'
 import type { Product } from '@/lib/api-server'
 import { formatCurrency } from '@/lib/format'
 import { useCartStore } from '@/stores/cart-store'
-import { ShoppingBag, Eye } from 'lucide-react'
+import { ShoppingCart, Eye, Package } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface ProductCardProps {
@@ -71,7 +71,7 @@ export function ProductCard({ product }: ProductCardProps) {
             />
           ) : (
             <div className="flex flex-col items-center justify-center text-slate-400 p-4">
-              <ShoppingBag className="w-10 h-10 stroke-[1.5] text-slate-300 mb-1" />
+              <Package className="w-10 h-10 stroke-[1.5] text-slate-300 mb-1" />
               <span className="text-[11px] font-medium text-slate-400">No Image</span>
             </div>
           )}
@@ -132,7 +132,7 @@ export function ProductCard({ product }: ProductCardProps) {
           }`}
           title={isInStock ? 'Add to cart' : 'Out of stock'}
         >
-          <ShoppingBag className="w-3.5 h-3.5" />
+          <ShoppingCart className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">
             {isInStock ? 'Add' : 'Sold Out'}
           </span>

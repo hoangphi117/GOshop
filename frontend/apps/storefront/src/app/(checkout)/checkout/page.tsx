@@ -12,7 +12,7 @@ import {
   ArrowLeft,
   CheckCircle2,
   Lock,
-  ShoppingBag,
+  ShoppingCart,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useMounted } from '@/hooks/use-mounted'
@@ -177,7 +177,7 @@ export default function CheckoutPage() {
       <div className="min-h-[70vh] bg-[#FAFBFC] py-16 flex items-center justify-center">
         <div className="max-w-md w-full mx-auto px-4 text-center space-y-4">
           <div className="w-16 h-16 rounded-full bg-[#E3F2FD] text-[#2196F3] flex items-center justify-center mx-auto">
-            <ShoppingBag className="w-8 h-8" />
+            <ShoppingCart className="w-8 h-8" />
           </div>
           <h2 className="text-xl font-bold text-[#0D1B2A]">No items to checkout</h2>
           <p className="text-xs text-slate-500">
@@ -433,7 +433,7 @@ export default function CheckoutPage() {
                             className="w-full h-full object-cover"
                           />
                         ) : (
-                          <ShoppingBag className="w-4 h-4 text-slate-400" />
+                          <ShoppingCart className="w-4 h-4 text-slate-400" />
                         )}
                       </div>
                       <div className="flex-1 min-w-0">

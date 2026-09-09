@@ -94,7 +94,7 @@ export const useCartStore = create<CartState>()(
       toggleDrawer: () => set((state) => ({ isDrawerOpen: !state.isDrawerOpen })),
 
       getTotalItems: () => {
-        return get().items.reduce((total, item) => total + item.quantity, 0)
+        return get().items.length
       },
 
       getSubtotal: () => {

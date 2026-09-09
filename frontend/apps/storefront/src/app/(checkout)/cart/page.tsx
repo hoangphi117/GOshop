@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useCartStore } from '@/stores/cart-store'
 import { formatCurrency } from '@/lib/format'
 import {
-  ShoppingBag,
+  ShoppingCart,
   Trash2,
   Plus,
   Minus,
@@ -70,7 +70,7 @@ export default function CartPage() {
       <div className="min-h-[70vh] bg-[#FAFBFC] py-16 flex items-center justify-center">
         <div className="max-w-md w-full mx-auto px-4 text-center space-y-4">
           <div className="w-20 h-20 rounded-3xl bg-[#E3F2FD] text-[#2196F3] flex items-center justify-center mx-auto shadow-xs">
-            <ShoppingBag className="w-10 h-10" />
+            <ShoppingCart className="w-10 h-10" />
           </div>
           <h1 className="text-2xl font-extrabold text-[#0D1B2A] tracking-tight">
             Your Cart is Empty
@@ -98,7 +98,7 @@ export default function CartPage() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between pb-6 border-b border-slate-200/80 mb-8">
           <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0D1B2A] tracking-tight">
-            Shopping Cart ({items.reduce((acc, item) => acc + item.quantity, 0)} items)
+            Shopping Cart ({items.length} {items.length === 1 ? 'item' : 'items'})
           </h1>
           <button
             onClick={() => {
@@ -132,7 +132,7 @@ export default function CartPage() {
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <ShoppingBag className="w-6 h-6 text-slate-400" />
+                        <ShoppingCart className="w-6 h-6 text-slate-400" />
                       )}
                     </div>
 

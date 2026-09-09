@@ -4,7 +4,7 @@ import React from 'react'
 import Link from 'next/link'
 import { useCartStore } from '@/stores/cart-store'
 import { formatCurrency } from '@/lib/format'
-import { X, Plus, Minus, Trash2, ShoppingBag, ArrowRight } from 'lucide-react'
+import { X, Plus, Minus, Trash2, ShoppingCart, ArrowRight } from 'lucide-react'
 
 import { useMounted } from '@/hooks/use-mounted'
 
@@ -44,10 +44,10 @@ export function CartDrawer() {
         {/* Drawer Header */}
         <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div className="flex items-center gap-2">
-            <ShoppingBag className="w-5 h-5 text-[#2196F3]" />
+            <ShoppingCart className="w-5 h-5 text-[#2196F3]" />
             <h2 className="text-lg font-bold text-[#0D1B2A]">Your Shopping Cart</h2>
             <span className="bg-[#E3F2FD] text-[#0D47A1] text-xs font-semibold px-2 py-0.5 rounded-full">
-              {items.reduce((acc, item) => acc + item.quantity, 0)}
+              {items.length}
             </span>
           </div>
           <button
@@ -64,7 +64,7 @@ export function CartDrawer() {
           {items.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-3">
               <div className="w-16 h-16 rounded-full bg-[#E3F2FD] flex items-center justify-center text-[#2196F3]">
-                <ShoppingBag className="w-8 h-8" />
+                <ShoppingCart className="w-8 h-8" />
               </div>
               <h3 className="text-base font-semibold text-[#0D1B2A]">Your cart is empty</h3>
               <p className="text-sm text-slate-500 max-w-xs">
@@ -90,7 +90,7 @@ export function CartDrawer() {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <ShoppingBag className="w-6 h-6 text-slate-400" />
+                      <ShoppingCart className="w-6 h-6 text-slate-400" />
                     )}
                   </div>
 

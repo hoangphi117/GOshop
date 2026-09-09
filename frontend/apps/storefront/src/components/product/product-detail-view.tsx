@@ -6,7 +6,8 @@ import type { Product } from '@/lib/api-server'
 import { formatCurrency } from '@/lib/format'
 import { useCartStore } from '@/stores/cart-store'
 import {
-  ShoppingBag,
+  ShoppingCart,
+  Package,
   Zap,
   ShieldCheck,
   Truck,
@@ -128,7 +129,7 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
               />
             ) : (
               <div className="flex flex-col items-center justify-center text-slate-400 p-8">
-                <ShoppingBag className="w-16 h-16 stroke-[1.2] text-slate-300 mb-2" />
+                <Package className="w-16 h-16 stroke-[1.2] text-slate-300 mb-2" />
                 <span className="text-sm font-medium">No Image Available</span>
               </div>
             )}
@@ -327,7 +328,7 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
                     : 'bg-slate-200 text-slate-400 cursor-not-allowed'
                 }`}
               >
-                <ShoppingBag className="w-4 h-4" />
+                <ShoppingCart className="w-4 h-4" />
                 <span>Add to Cart</span>
               </button>
 
