@@ -6,7 +6,6 @@ import {
   ChevronRight,
   Filter,
   Search,
-  ArrowUpDown,
   ChevronLeft,
   ShoppingBag,
 } from 'lucide-react'

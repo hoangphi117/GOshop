@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import Link from 'next/link'
 import { useCartStore } from '@/stores/cart-store'
 import { formatCurrency } from '@/lib/format'
@@ -13,9 +13,9 @@ import {
   ArrowLeft,
   ShieldCheck,
   Tag,
-  Truck,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useMounted } from '@/hooks/use-mounted'
 
 export default function CartPage() {
   const {
@@ -26,14 +26,10 @@ export default function CartPage() {
     getSubtotal,
   } = useCartStore()
 
-  const [mounted, setMounted] = useState(false)
+  const mounted = useMounted()
   const [couponCode, setCouponCode] = useState('')
   const [discountAmount, setDiscountAmount] = useState(0)
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
 
   if (!mounted) {
     return (

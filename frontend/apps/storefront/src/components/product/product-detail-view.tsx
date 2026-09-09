@@ -13,7 +13,6 @@ import {
   RotateCcw,
   Plus,
   Minus,
-  Check,
 } from 'lucide-react'
 import { toast } from 'sonner'
 

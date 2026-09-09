@@ -1,14 +1,12 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { useCartStore } from '@/stores/cart-store'
 import { useAuthStore } from '@/stores/auth-store'
 import { formatCurrency } from '@/lib/format'
 import {
   ShieldCheck,
-  Truck,
   CreditCard,
   Banknote,
   ArrowLeft,
@@ -17,13 +15,13 @@ import {
   ShoppingBag,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useMounted } from '@/hooks/use-mounted'
 
 export default function CheckoutPage() {
-  const router = useRouter()
   const { items, getSubtotal, clearCart } = useCartStore()
   const { user } = useAuthStore()
 
-  const [mounted, setMounted] = useState(false)
+  const mounted = useMounted()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [orderPlaced, setOrderPlaced] = useState<{
     orderId: string
@@ -40,10 +38,6 @@ export default function CheckoutPage() {
   const [ward, setWard] = useState('Ben Nghe Ward')
   const [note, setNote] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<'COD' | 'VNPAY'>('COD')
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
 
   if (!mounted) {
     return (
@@ -114,7 +108,7 @@ export default function CheckoutPage() {
         paymentMethod,
       })
       toast.success('Order placed successfully!')
-    } catch (err) {
+    } catch {
       toast.error('Failed to create order. Please try again.')
     } finally {
       setIsSubmitting(false)

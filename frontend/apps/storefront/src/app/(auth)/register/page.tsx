@@ -40,8 +40,9 @@ export default function RegisterPage() {
 
       toast.success('Account created successfully! Please sign in.')
       router.push('/login')
-    } catch (err: any) {
-      toast.error(err.message || 'An error occurred during registration.')
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'An error occurred during registration.'
+      toast.error(message)
     } finally {
       setLoading(false)
     }

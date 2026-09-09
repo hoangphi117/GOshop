@@ -49,8 +49,9 @@ export default function LoginPage() {
 
       toast.success('Successfully logged in!')
       router.push('/')
-    } catch (err: any) {
-      toast.error(err.message || 'An error occurred during sign in.')
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'An error occurred during sign in.'
+      toast.error(message)
     } finally {
       setLoading(false)
     }

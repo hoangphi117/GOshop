@@ -5,7 +5,7 @@ import Link from 'next/link'
 import type { Product } from '@/lib/api-server'
 import { formatCurrency } from '@/lib/format'
 import { useCartStore } from '@/stores/cart-store'
-import { ShoppingBag, Eye, Check } from 'lucide-react'
+import { ShoppingBag, Eye } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface ProductCardProps {

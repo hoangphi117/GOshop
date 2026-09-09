@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useCartStore } from '@/stores/cart-store'
@@ -12,9 +12,8 @@ import {
   Menu,
   X,
   Store,
-  Layers,
-  Sparkles,
 } from 'lucide-react'
+import { useMounted } from '@/hooks/use-mounted'
 
 export function Navbar() {
   const pathname = usePathname()
@@ -22,14 +21,10 @@ export function Navbar() {
   const { getTotalItems, openDrawer } = useCartStore()
   const { user } = useAuthStore()
 
-  const [mounted, setMounted] = useState(false)
+  const mounted = useMounted()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [showSearch, setShowSearch] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
 
   const navLinks = [
     { name: 'Home', href: '/' },

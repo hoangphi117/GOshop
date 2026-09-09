@@ -1,10 +1,12 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React from 'react'
 import Link from 'next/link'
 import { useCartStore } from '@/stores/cart-store'
 import { formatCurrency } from '@/lib/format'
 import { X, Plus, Minus, Trash2, ShoppingBag, ArrowRight } from 'lucide-react'
+
+import { useMounted } from '@/hooks/use-mounted'
 
 export function CartDrawer() {
   const {
@@ -16,11 +18,7 @@ export function CartDrawer() {
     getSubtotal,
   } = useCartStore()
 
-  // Prevent hydration mismatch for client-persisted storage
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => {
-    setMounted(true)
-  }, [])
+  const mounted = useMounted()
 
   if (!mounted) return null
 
