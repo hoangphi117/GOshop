@@ -111,19 +111,86 @@ export async function getCategories(): Promise<Category[]> {
   return res?.data || []
 }
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
 export async function getProducts(params?: {
   page?: number
   limit?: number
   category?: string
+  category_uuid?: string
   search?: string
   sort?: string
+  order_by?: string
 }): Promise<{ products: Product[]; pagination?: Pagination }> {
   const query = new URLSearchParams()
   if (params?.page) query.set('page', params.page.toString())
   if (params?.limit) query.set('limit', params.limit.toString())
-  if (params?.category) query.set('category', params.category)
-  if (params?.search) query.set('search', params.search)
-  if (params?.sort) query.set('sort', params.sort)
+
+  // Resolve category UUID: backend requires 'category_uuid' with valid UUID
+  let resolvedCategoryUuid = params?.category_uuid
+
+  if (!resolvedCategoryUuid && params?.category) {
+    const rawCategory = params.category.trim()
+    if (UUID_REGEX.test(rawCategory)) {
+      resolvedCategoryUuid = rawCategory
+    } else {
+      const categories = await getCategories()
+      const matched = categories.find(
+        (c) =>
+          c.slug.toLowerCase() === rawCategory.toLowerCase() ||
+          c.category_name.toLowerCase() === rawCategory.toLowerCase() ||
+          c.uuid === rawCategory
+      )
+      if (matched) {
+        resolvedCategoryUuid = matched.uuid
+      } else {
+        // Provided category does not exist, return empty
+        return {
+          products: [],
+          pagination: undefined,
+        }
+      }
+    }
+  }
+
+  if (resolvedCategoryUuid) {
+    query.set('category_uuid', resolvedCategoryUuid)
+  }
+
+  // Backend requires search keyword to be at least 3 characters
+  if (params?.search && params.search.trim().length >= 3) {
+    query.set('search', params.search.trim())
+  }
+
+  // Handle sorting
+  if (params?.order_by) {
+    query.set('order_by', params.order_by)
+  }
+  if (params?.sort) {
+    const sortVal = params.sort.toLowerCase()
+    if (sortVal === 'price_asc') {
+      query.set('order_by', 'product_price')
+      query.set('sort', 'asc')
+    } else if (sortVal === 'price_desc') {
+      query.set('order_by', 'product_price')
+      query.set('sort', 'desc')
+    } else if (sortVal === 'name_asc') {
+      query.set('order_by', 'product_name')
+      query.set('sort', 'asc')
+    } else if (sortVal === 'name_desc') {
+      query.set('order_by', 'product_name')
+      query.set('sort', 'desc')
+    } else if (sortVal === 'newest') {
+      query.set('order_by', 'product_created_at')
+      query.set('sort', 'desc')
+    } else if (sortVal === 'oldest') {
+      query.set('order_by', 'product_created_at')
+      query.set('sort', 'asc')
+    } else if (sortVal === 'asc' || sortVal === 'desc') {
+      query.set('sort', sortVal)
+    }
+  }
 
   const queryString = query.toString()
   const path = `/products${queryString ? `?${queryString}` : ''}`
@@ -151,9 +218,6 @@ export interface ReviewSummary {
   total_reviews: number
   rating_breakdown?: Record<string, number>
 }
-
-const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 export async function getProductByUuidOrSlug(
   identifier: string

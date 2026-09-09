@@ -7,7 +7,7 @@ import {
   Filter,
   Search,
   ChevronLeft,
-  ShoppingBag,
+  HelpCircle,
 } from 'lucide-react'
 
 interface ProductsPageProps {
@@ -54,7 +54,9 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   }
 
   const selectedCategoryObj = categories.find(
-    (c) => c.slug === currentCategory || c.uuid === currentCategory
+    (c) =>
+      c.slug.toLowerCase() === currentCategory.toLowerCase() ||
+      c.uuid.toLowerCase() === currentCategory.toLowerCase()
   )
 
   return (
@@ -102,8 +104,8 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             </p>
           </div>
 
-          {/* Quick Search Form inside catalog */}
-          <form method="GET" action="/products" className="flex items-center gap-2">
+          {/* Quick Search & Sort Form inside catalog */}
+          <form method="GET" action="/products" className="flex flex-wrap items-center gap-2">
             {currentCategory && (
               <input type="hidden" name="category" value={currentCategory} />
             )}
@@ -112,16 +114,29 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                 type="text"
                 name="search"
                 defaultValue={currentSearch}
-                placeholder="Filter by keyword..."
-                className="pl-9 pr-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-[#0D1B2A] placeholder-slate-400 focus:outline-none focus:border-[#2196F3] w-56 sm:w-64 shadow-xs"
+                placeholder="Search products..."
+                className="pl-9 pr-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-[#0D1B2A] placeholder-slate-400 focus:outline-none focus:border-[#2196F3] w-48 sm:w-56 shadow-xs"
               />
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             </div>
+
+            <select
+              name="sort"
+              defaultValue={currentSort}
+              className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-[#0D1B2A] focus:outline-none focus:border-[#2196F3] shadow-xs cursor-pointer"
+            >
+              <option value="">Default Sorting</option>
+              <option value="newest">Newest</option>
+              <option value="price_asc">Price: Low to High</option>
+              <option value="price_desc">Price: High to Low</option>
+              <option value="name_asc">Name: A to Z</option>
+            </select>
+
             <button
               type="submit"
-              className="px-4 py-2 rounded-xl bg-[#2196F3] text-white text-xs font-semibold hover:bg-[#0D47A1] transition-colors"
+              className="px-4 py-2 rounded-xl bg-[#2196F3] text-white text-xs font-semibold hover:bg-[#0D47A1] transition-colors cursor-pointer"
             >
-              Search
+              Filter
             </button>
           </form>
         </div>
@@ -149,10 +164,12 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                 </Link>
                 {categories.map((cat) => {
                   const isActive =
-                    currentCategory === cat.slug || currentCategory === cat.uuid
+                    currentCategory.toLowerCase() === cat.slug.toLowerCase() ||
+                    currentCategory.toLowerCase() === cat.uuid.toLowerCase()
                   const queryParams = new URLSearchParams()
                   queryParams.set('category', cat.slug || cat.uuid)
                   if (currentSearch) queryParams.set('search', currentSearch)
+                  if (currentSort) queryParams.set('sort', currentSort)
 
                   return (
                     <Link
@@ -174,7 +191,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             {/* Help Callout */}
             <div className="p-5 rounded-2xl bg-[#E3F2FD]/60 border border-[#90CAF9]/40 space-y-2">
               <div className="flex items-center gap-2 text-xs font-bold text-[#0D47A1]">
-                <ShoppingBag className="w-4 h-4 text-[#2196F3]" />
+                <HelpCircle className="w-4 h-4 text-[#2196F3]" />
                 <span>Need assistance?</span>
               </div>
               <p className="text-[11px] text-slate-600 leading-relaxed">
