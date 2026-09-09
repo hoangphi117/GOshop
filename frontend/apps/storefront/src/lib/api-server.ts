@@ -138,11 +138,70 @@ export async function getProducts(params?: {
   }
 }
 
+export interface Review {
+  uuid: string
+  user_name?: string
+  rating: number
+  comment?: string
+  created_at: string
+}
+
+export interface ReviewSummary {
+  average_rating: number
+  total_reviews: number
+  rating_breakdown?: Record<string, number>
+}
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
 export async function getProductByUuidOrSlug(
   identifier: string
 ): Promise<Product | null> {
-  const res = await fetchServer<ApiResponse<Product>>(`/products/${identifier}`, {
-    revalidate: 60,
-  })
+  let targetUuid = identifier
+
+  // If identifier is a slug, resolve it to UUID
+  if (!UUID_REGEX.test(identifier)) {
+    const listRes = await getProducts({ limit: 100 })
+    const matched = listRes.products.find(
+      (p) =>
+        p.slug?.toLowerCase() === identifier.toLowerCase() ||
+        p.uuid === identifier
+    )
+    if (matched) {
+      targetUuid = matched.uuid
+    } else {
+      return null
+    }
+  }
+
+  const res = await fetchServer<ApiResponse<Product>>(
+    `/products/${targetUuid}`,
+    {
+      revalidate: 60,
+    }
+  )
+  return res?.data || null
+}
+
+export async function getProductReviews(productUuid: string): Promise<Review[]> {
+  const res = await fetchServer<ApiResponse<Review[]>>(
+    `/products/${productUuid}/reviews`,
+    {
+      revalidate: 60,
+    }
+  )
+  return res?.data || []
+}
+
+export async function getProductReviewSummary(
+  productUuid: string
+): Promise<ReviewSummary | null> {
+  const res = await fetchServer<ApiResponse<ReviewSummary>>(
+    `/products/${productUuid}/reviews/summary`,
+    {
+      revalidate: 60,
+    }
+  )
   return res?.data || null
 }
