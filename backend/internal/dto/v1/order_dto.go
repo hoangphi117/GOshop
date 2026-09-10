@@ -68,8 +68,9 @@ type OrderSummaryDTO struct {
 	RefundedAmount  float64 `json:"refunded_amount"`
 	PaymentMethod   string  `json:"payment_method"`
 	PaymentStatus   string  `json:"payment_status"`
-	Status          string  `json:"status"`
-	CreatedAt       string  `json:"created_at"`
+	Status          string         `json:"status"`
+	Items           []OrderItemDTO `json:"items,omitempty"`
+	CreatedAt       string         `json:"created_at"`
 }
 
 type SyncTrackingResponseDTO struct {

@@ -89,4 +89,9 @@ WHERE (
     OR unaccent(order_number) ILIKE '%' || unaccent(sqlc.narg(search)::TEXT) || '%'
     OR unaccent(order_shipping_name) ILIKE '%' || unaccent(sqlc.narg(search)::TEXT) || '%'
     OR order_shipping_phone ILIKE '%' || sqlc.narg(search)::TEXT || '%'
+    OR EXISTS (
+        SELECT 1 FROM order_items oi
+        WHERE oi.order_item_order_id = orders.order_id
+        AND unaccent(oi.order_item_product_name) ILIKE '%' || unaccent(sqlc.narg(search)::TEXT) || '%'
+    )
 );

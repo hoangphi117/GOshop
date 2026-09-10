@@ -190,7 +190,12 @@ func (r *SqlOrderRepository) GetAll(
 			unaccent(o.order_number) ILIKE '%%' || unaccent($%d) || '%%'
 			OR unaccent(o.order_shipping_name) ILIKE '%%' || unaccent($%d) || '%%'
 			OR o.order_shipping_phone ILIKE '%%' || $%d || '%%'
-		)`, paramIdx, paramIdx, paramIdx)
+			OR EXISTS (
+				SELECT 1 FROM order_items oi
+				WHERE oi.order_item_order_id = o.order_id
+				AND unaccent(oi.order_item_product_name) ILIKE '%%' || unaccent($%d) || '%%'
+			)
+		)`, paramIdx, paramIdx, paramIdx, paramIdx)
 		args = append(args, searchTerm)
 		paramIdx++
 	}

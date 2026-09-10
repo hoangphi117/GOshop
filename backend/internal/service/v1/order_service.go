@@ -517,6 +517,13 @@ func (s *orderService) GetMyOrders(ctx *gin.Context, input v1dto.GetOrdersParam)
 	ordersDTO := make([]v1dto.OrderSummaryDTO, len(orders))
 	for i, o := range orders {
 		ordersDTO[i] = v1dto.MapToOrderSummaryDTO(o)
+		if items, err := s.orderItemRepo.GetByOrderID(context, o.OrderID); err == nil {
+			itemsDTO := make([]v1dto.OrderItemDTO, len(items))
+			for j, item := range items {
+				itemsDTO[j] = v1dto.MapToOrderItemRowDTO(item)
+			}
+			ordersDTO[i].Items = itemsDTO
+		}
 	}
 
 	cacheData.Orders = ordersDTO
@@ -620,6 +627,13 @@ func (s *orderService) GetAllOrders(ctx *gin.Context, input v1dto.GetOrdersParam
 	orderDTOs := make([]v1dto.OrderSummaryDTO, len(orders))
 	for i, o := range orders {
 		orderDTOs[i] = v1dto.MapToOrderSummaryDTO(o)
+		if items, err := s.orderItemRepo.GetByOrderID(reqCtx, o.OrderID); err == nil {
+			itemsDTO := make([]v1dto.OrderItemDTO, len(items))
+			for j, item := range items {
+				itemsDTO[j] = v1dto.MapToOrderItemRowDTO(item)
+			}
+			orderDTOs[i].Items = itemsDTO
+		}
 	}
 
 	cacheData.Orders = orderDTOs
