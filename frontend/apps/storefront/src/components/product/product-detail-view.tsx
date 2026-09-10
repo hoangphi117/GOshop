@@ -6,6 +6,7 @@ import type { Product } from '@/lib/api-server'
 import { formatCurrency } from '@/lib/format'
 import { getImageUrl } from '@/lib/utils'
 import { useCartStore } from '@/stores/cart-store'
+import { useAuthStore } from '@/stores/auth-store'
 import {
   ShoppingCart,
   Package,
@@ -29,6 +30,7 @@ interface ProductDetailViewProps {
 export function ProductDetailView({ product }: ProductDetailViewProps) {
   const router = useRouter()
   const { addItem } = useCartStore()
+  const { accessToken } = useAuthStore()
 
   // Collect all available images
   const allImages = (
@@ -73,6 +75,16 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
   const activeImage = allImages[activeImageIndex] || ''
 
   const handleAddToCart = (redirectAfter = false) => {
+    if (!accessToken) {
+      toast.error('Please sign in to add items to your cart.')
+      const currentUrl =
+        typeof window !== 'undefined'
+          ? window.location.pathname
+          : `/products/${product.slug || product.uuid}`
+      router.push(`/login?redirect=${encodeURIComponent(currentUrl)}`)
+      return
+    }
+
     if (!isInStock) {
       toast.error('This product or variant is currently out of stock')
       return

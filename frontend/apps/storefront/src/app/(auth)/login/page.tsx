@@ -48,7 +48,11 @@ export default function LoginPage() {
       })
 
       toast.success('Successfully logged in!')
-      router.push('/')
+      const redirectUrl =
+        typeof window !== 'undefined'
+          ? new URLSearchParams(window.location.search).get('redirect') || '/'
+          : '/'
+      router.push(redirectUrl)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'An error occurred during sign in.'
       toast.error(message)

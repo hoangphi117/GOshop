@@ -1,7 +1,7 @@
 import { createApiClient } from '@goshop/api-client'
 import { useAuthStore } from '@/stores/auth-store'
 
-const API_BASE_URL =
+export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
 
 export const api = createApiClient({
@@ -18,3 +18,86 @@ export const api = createApiClient({
 })
 
 export type ApiInstance = typeof api
+
+let refreshPromise: Promise<string | null> | null = null
+
+async function refreshAccessToken(): Promise<string | null> {
+  const refreshToken = useAuthStore.getState().refreshToken
+  if (!refreshToken) {
+    useAuthStore.getState().reset()
+    return null
+  }
+
+  try {
+    const apiKey = process.env.NEXT_PUBLIC_API_KEY || 'abcd-1234-1111'
+    const res = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-KEY': apiKey,
+      },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    })
+
+    if (!res.ok) {
+      useAuthStore.getState().reset()
+      return null
+    }
+
+    const json = await res.json()
+    const tokenData = json?.data
+    if (!tokenData?.access_token) {
+      useAuthStore.getState().reset()
+      return null
+    }
+
+    useAuthStore.getState().setTokens(tokenData.access_token, tokenData.refresh_token)
+    return tokenData.access_token
+  } catch {
+    useAuthStore.getState().reset()
+    return null
+  }
+}
+
+export async function authFetch(
+  input: string | URL | Request,
+  init?: RequestInit
+): Promise<Response> {
+  const apiKey = process.env.NEXT_PUBLIC_API_KEY || 'abcd-1234-1111'
+  const token = useAuthStore.getState().accessToken
+
+  const buildHeaders = (authToken?: string) => {
+    const headers = new Headers(init?.headers)
+    if (authToken) {
+      headers.set('Authorization', `Bearer ${authToken}`)
+    }
+    if (!headers.has('X-API-KEY') && !headers.has('x-api-key')) {
+      headers.set('X-API-KEY', apiKey)
+    }
+    return headers
+  }
+
+  let res = await fetch(input, {
+    ...init,
+    headers: buildHeaders(token),
+  })
+
+  if (res.status === 401) {
+    if (!refreshPromise) {
+      refreshPromise = refreshAccessToken().finally(() => {
+        refreshPromise = null
+      })
+    }
+
+    const newToken = await refreshPromise
+    if (newToken) {
+      res = await fetch(input, {
+        ...init,
+        headers: buildHeaders(newToken),
+      })
+    }
+  }
+
+  return res
+}
+

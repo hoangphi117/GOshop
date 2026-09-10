@@ -3,6 +3,7 @@
 import React, { useState } from 'react'
 import Link from 'next/link'
 import { useCartStore } from '@/stores/cart-store'
+import { useAuthStore } from '@/stores/auth-store'
 import { formatCurrency } from '@/lib/format'
 import { getImageUrl } from '@/lib/utils'
 import {
@@ -14,6 +15,7 @@ import {
   ArrowLeft,
   ShieldCheck,
   Tag,
+  Lock,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useMounted } from '@/hooks/use-mounted'
@@ -27,17 +29,51 @@ export default function CartPage() {
     toggleSelectItem,
     selectAllItems,
     removeSelectedItems,
+    appliedCoupon,
+    setAppliedCoupon,
   } = useCartStore()
+  const { user, accessToken } = useAuthStore()
 
   const mounted = useMounted()
   const [couponCode, setCouponCode] = useState('')
-  const [discountAmount, setDiscountAmount] = useState(0)
-  const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null)
+  const [isApplyingCoupon, setIsApplyingCoupon] = useState(false)
 
   if (!mounted) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="w-8 h-8 rounded-full border-2 border-[#2196F3] border-t-transparent animate-spin" />
+      </div>
+    )
+  }
+
+  if (!user || !accessToken) {
+    return (
+      <div className="min-h-[70vh] bg-[#FAFBFC] py-16 flex items-center justify-center">
+        <div className="max-w-md w-full mx-auto px-4 text-center space-y-4">
+          <div className="w-20 h-20 rounded-3xl bg-[#E3F2FD] text-[#2196F3] flex items-center justify-center mx-auto shadow-xs">
+            <Lock className="w-10 h-10" />
+          </div>
+          <h1 className="text-2xl font-extrabold text-[#0D1B2A] tracking-tight">
+            Sign In Required
+          </h1>
+          <p className="text-sm text-slate-500 leading-relaxed">
+            Please sign in to your GOshop account to view and manage your shopping cart.
+          </p>
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <Link
+              href="/login?redirect=/cart"
+              className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-[#2196F3] text-white text-sm font-semibold hover:bg-[#0D47A1] transition-all shadow-md text-center"
+            >
+              Sign In Now
+            </Link>
+            <Link
+              href="/products"
+              className="w-full sm:w-auto px-6 py-3 rounded-2xl border border-slate-200 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-all text-center"
+            >
+              Continue Shopping
+            </Link>
+          </div>
+        </div>
       </div>
     )
   }
@@ -50,26 +86,63 @@ export default function CartPage() {
     (total, item) => total + item.price * item.quantity,
     0
   )
-  const shippingFee = subtotal > 500000 || selectedCount === 0 ? 0 : 30000
-  const grandTotal = Math.max(0, subtotal - discountAmount + shippingFee)
+  const discountAmount = appliedCoupon ? appliedCoupon.discountAmount : 0
+  const grandTotal = Math.max(0, subtotal - discountAmount)
 
-  const handleApplyCoupon = (e: React.FormEvent) => {
+  const handleApplyCoupon = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!couponCode.trim()) return
 
     const code = couponCode.trim().toUpperCase()
-    if (code === 'WELCOME10') {
-      const disc = Math.round(subtotal * 0.1)
-      setDiscountAmount(disc)
-      setAppliedCoupon(code)
-      toast.success('Coupon WELCOME10 applied! You saved 10% on your order.')
-    } else {
-      toast.error('Invalid or expired coupon code. Try WELCOME10.')
+
+    if (!accessToken) {
+      toast.error('Please sign in to apply coupon codes.')
+      return
+    }
+
+    if (subtotal <= 0) {
+      toast.error('Please select items before applying a coupon.')
+      return
+    }
+
+    setIsApplyingCoupon(true)
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
+      const res = await fetch(`${baseUrl}/api/v1/coupons/preview`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-KEY': process.env.NEXT_PUBLIC_API_KEY || 'abcd-1234-1111',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          code,
+          subtotal_amount: subtotal,
+        }),
+      })
+
+      const data = await res.json().catch(() => null)
+
+      if (res.ok && data?.data) {
+        setAppliedCoupon({
+          code: data.data.coupon_code,
+          name: data.data.coupon_name,
+          discountAmount: data.data.discount_amount,
+        })
+        toast.success(`Coupon ${data.data.coupon_code} applied! Saved ${formatCurrency(data.data.discount_amount)}.`)
+        setCouponCode('')
+      } else {
+        const errMsg = data?.detail || data?.error || data?.message || 'Invalid or expired coupon code.'
+        toast.error(errMsg)
+      }
+    } catch {
+      toast.error('Network error while verifying coupon.')
+    } finally {
+      setIsApplyingCoupon(false)
     }
   }
 
   const handleRemoveCoupon = () => {
-    setDiscountAmount(0)
     setAppliedCoupon(null)
     setCouponCode('')
     toast.info('Coupon removed.')
@@ -269,25 +342,33 @@ export default function CartPage() {
                       type="text"
                       value={couponCode}
                       onChange={(e) => setCouponCode(e.target.value)}
-                      placeholder="Promo Code (e.g. WELCOME10)"
-                      className="w-full pl-8 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs uppercase text-[#0D1B2A] focus:outline-none focus:border-[#2196F3]"
+                      placeholder="Promo Code (e.g. SOLOLEVELING)"
+                      disabled={isApplyingCoupon}
+                      className="w-full pl-8 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs uppercase text-[#0D1B2A] focus:outline-none focus:border-[#2196F3] disabled:opacity-60"
                     />
                     <Tag className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                   </div>
                   <button
                     type="submit"
-                    className="px-3 py-2 rounded-xl bg-[#0D47A1] text-white text-xs font-semibold hover:bg-[#2196F3] transition-colors cursor-pointer"
+                    disabled={isApplyingCoupon || !couponCode.trim()}
+                    className="px-3 py-2 rounded-xl bg-[#0D47A1] text-white text-xs font-semibold hover:bg-[#2196F3] transition-colors cursor-pointer disabled:opacity-60"
                   >
-                    Apply
+                    {isApplyingCoupon ? 'Verifying...' : 'Apply'}
                   </button>
                 </form>
 
                 {appliedCoupon && (
-                  <div className="flex items-center justify-between text-xs px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <span>Applied: {appliedCoupon}</span>
+                  <div className="flex items-center justify-between text-xs px-3 py-2 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <div className="flex flex-col">
+                      <span className="font-bold">Code: {appliedCoupon.code}</span>
+                      {appliedCoupon.name && (
+                        <span className="text-[11px] text-emerald-600 font-normal">{appliedCoupon.name}</span>
+                      )}
+                    </div>
                     <button
+                      type="button"
                       onClick={handleRemoveCoupon}
-                      className="font-bold hover:underline cursor-pointer"
+                      className="text-xs font-bold text-rose-600 hover:text-rose-800 hover:underline cursor-pointer"
                     >
                       Remove
                     </button>
@@ -306,21 +387,18 @@ export default function CartPage() {
 
                 {discountAmount > 0 && (
                   <div className="flex justify-between text-emerald-600 font-semibold">
-                    <span>Discount</span>
+                    <span>Discount ({appliedCoupon?.code})</span>
                     <span>-{formatCurrency(discountAmount)}</span>
                   </div>
                 )}
 
-                <div className="flex justify-between">
-                  <span>Estimated Shipping</span>
-                  <span className="font-semibold text-[#0D1B2A]">
-                    {selectedCount === 0 ? (
-                      '—'
-                    ) : shippingFee === 0 ? (
-                      <span className="text-emerald-600 font-bold">FREE</span>
-                    ) : (
-                      formatCurrency(shippingFee)
-                    )}
+                <div className="flex justify-between items-baseline">
+                  <div>
+                    <span>Shipping</span>
+                    <p className="text-[10px] text-slate-400">GHN Express live rate</p>
+                  </div>
+                  <span className="font-semibold text-slate-500 text-xs">
+                    {selectedCount === 0 ? '—' : 'Calculated at checkout'}
                   </span>
                 </div>
 

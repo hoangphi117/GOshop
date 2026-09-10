@@ -13,7 +13,7 @@ export function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
   const { getTotalItems, openDrawer } = useCartStore();
-  const { user } = useAuthStore();
+  const { user, accessToken } = useAuthStore();
 
   const mounted = useMounted();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -61,7 +61,16 @@ export function Navbar() {
     }
   };
 
-  const totalCartItems = mounted ? getTotalItems() : 0;
+  const isAuthenticated = Boolean(user && accessToken);
+  const totalCartItems = mounted && isAuthenticated ? getTotalItems() : 0;
+
+  const handleCartClick = () => {
+    if (!isAuthenticated) {
+      router.push("/login?redirect=/cart");
+      return;
+    }
+    openDrawer();
+  };
 
   return (
     <header className="fixed top-4 left-0 right-0 z-40 px-4 sm:px-6 w-full pointer-events-none">
@@ -154,8 +163,8 @@ export function Navbar() {
 
           {/* Cart Trigger */}
           <button
-            onClick={openDrawer}
-            className={`relative w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
+            onClick={handleCartClick}
+            className={`relative w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
               isTransparent
                 ? "text-white hover:bg-white/15"
                 : "text-slate-700 hover:bg-[#E3F2FD] hover:text-[#0D47A1]"

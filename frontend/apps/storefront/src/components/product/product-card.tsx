@@ -2,10 +2,12 @@
 
 import React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { Product } from "@/lib/api-server";
 import { formatCurrency } from "@/lib/format";
 import { getImageUrl } from "@/lib/utils";
 import { useCartStore } from "@/stores/cart-store";
+import { useAuthStore } from "@/stores/auth-store";
 import { ShoppingCart, Eye, Package, Star } from "lucide-react";
 import { toast } from "sonner";
 
@@ -14,7 +16,9 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product }: ProductCardProps) {
+  const router = useRouter();
   const { addItem } = useCartStore();
+  const { accessToken } = useAuthStore();
 
   // Get primary image or fallback
   const rawImg =
@@ -42,6 +46,12 @@ export function ProductCard({ product }: ProductCardProps) {
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+
+    if (!accessToken) {
+      toast.error("Please sign in to add items to your cart.");
+      router.push(`/login?redirect=${encodeURIComponent(productUrl)}`);
+      return;
+    }
 
     if (!isInStock) {
       toast.error("This product is currently out of stock");
