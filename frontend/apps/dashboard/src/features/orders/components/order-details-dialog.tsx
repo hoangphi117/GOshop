@@ -193,6 +193,29 @@ export function OrderDetailsDialog({
     return <Badge variant='secondary'>{status || 'Unknown'}</Badge>
   }
 
+  const formatDateTimeVN = (dateStr?: string) => {
+    if (!dateStr) return '—'
+    try {
+      if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(dateStr)) {
+        return dateStr
+      }
+      const d = new Date(dateStr)
+      if (isNaN(d.getTime())) return dateStr
+      return new Intl.DateTimeFormat('vi-VN', {
+        timeZone: 'Asia/Ho_Chi_Minh',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      }).format(d)
+    } catch {
+      return dateStr
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='max-h-[90vh] overflow-y-auto sm:max-w-2xl'>
@@ -207,7 +230,7 @@ export function OrderDetailsDialog({
             </div>
           </div>
           <DialogDescription className='flex items-center gap-1.5 text-xs text-muted-foreground pt-1'>
-            <Clock className='size-3.5' /> Created on {currentOrder.created_at || '—'}
+            <Clock className='size-3.5' /> Created on {formatDateTimeVN(currentOrder.created_at)}
           </DialogDescription>
         </DialogHeader>
 

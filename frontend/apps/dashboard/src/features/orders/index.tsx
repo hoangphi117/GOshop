@@ -86,6 +86,29 @@ export function Orders() {
     }).format(val ?? 0)
   }
 
+  const formatDateTimeVN = (dateStr?: string) => {
+    if (!dateStr) return '—'
+    try {
+      if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(dateStr)) {
+        return dateStr
+      }
+      const d = new Date(dateStr)
+      if (isNaN(d.getTime())) return dateStr
+      return new Intl.DateTimeFormat('vi-VN', {
+        timeZone: 'Asia/Ho_Chi_Minh',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      }).format(d)
+    } catch {
+      return dateStr
+    }
+  }
+
   const renderOrderStatusBadge = (status?: string) => {
     const s = status?.toLowerCase()
     if (s === 'delivered') {
@@ -270,7 +293,11 @@ export function Orders() {
                 </TableRow>
               ) : (
                 orders.map((order) => (
-                  <TableRow key={order.uuid}>
+                  <TableRow
+                    key={order.uuid}
+                    className='cursor-pointer hover:bg-muted/50 transition-colors'
+                    onClick={() => handleOpenDetails(order)}
+                  >
                     <TableCell className='font-mono font-medium text-xs'>
                       #{order.order_number}
                     </TableCell>
@@ -303,14 +330,17 @@ export function Orders() {
                     </TableCell>
                     <TableCell>{renderOrderStatusBadge(order.status)}</TableCell>
                     <TableCell className='text-muted-foreground text-xs'>
-                      {order.created_at || '—'}
+                      {formatDateTimeVN(order.created_at)}
                     </TableCell>
                     <TableCell className='text-right'>
                       <Button
                         variant='ghost'
                         size='icon'
                         className='size-8'
-                        onClick={() => handleOpenDetails(order)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleOpenDetails(order)
+                        }}
                         title='View details'
                       >
                         <Eye className='size-4' />

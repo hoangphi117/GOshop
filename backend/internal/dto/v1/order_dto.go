@@ -147,6 +147,15 @@ func MapToOrderItemRowDTO(item sqlc.GetOrderItemsByOrderIDRow) OrderItemDTO {
 	}
 }
 
+var vnLocation = time.FixedZone("Asia/Ho_Chi_Minh", 7*3600)
+
+func formatVNTime(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.In(vnLocation).Format("2006-01-02 15:04:05")
+}
+
 func MapGetOrderByUUIDRowToOrderDTO(order sqlc.GetOrderByUUIDRow, items []sqlc.GetOrderItemsByOrderIDRow) OrderDTO {
 	itemsDTO := make([]OrderItemDTO, len(items))
 	for i, item := range items {
@@ -175,7 +184,7 @@ func MapGetOrderByUUIDRowToOrderDTO(order sqlc.GetOrderByUUIDRow, items []sqlc.G
 		Note:            note,
 		Status:          MapOrderStatusToString(order.OrderStatus),
 		Items:           itemsDTO,
-		CreatedAt:       order.OrderCreatedAt.Format("2006-01-02 15:04:05"),
+		CreatedAt:       formatVNTime(order.OrderCreatedAt),
 	}
 }
 
@@ -205,7 +214,7 @@ func MapToOrderDTO(order sqlc.Order, items []sqlc.GetOrderItemsByOrderIDRow) Ord
 		Note:            note,
 		Status:          MapOrderStatusToString(order.OrderStatus),
 		Items:           itemsDTO,
-		CreatedAt:       order.OrderCreatedAt.Format("2006-01-02 15:04:05"),
+		CreatedAt:       formatVNTime(order.OrderCreatedAt),
 	}
 }
 
@@ -226,7 +235,7 @@ func MapToOrderSummaryDTO(order sqlc.Order) OrderSummaryDTO {
 		PaymentMethod:   MapPaymentMethodToString(order.OrderPaymentMethod),
 		PaymentStatus:   MapPaymentStatusToString(order.OrderPaymentStatus),
 		Status:          MapOrderStatusToString(order.OrderStatus),
-		CreatedAt:       order.OrderCreatedAt.Format("2006-01-02 15:04:05"),
+		CreatedAt:       formatVNTime(order.OrderCreatedAt),
 	}
 }
 
