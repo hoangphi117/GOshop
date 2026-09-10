@@ -33,6 +33,7 @@ import {
   ShieldCheck,
   PackageCheck,
   Star,
+  Search,
 } from 'lucide-react'
 
 interface OrderItem {
@@ -79,6 +80,7 @@ export default function MyOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('ALL')
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Selected Order for in-place Detail View
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
@@ -257,15 +259,45 @@ export default function MyOrdersPage() {
   }
 
   const filteredOrders = orders.filter((o) => {
-    if (filter === 'ALL') return true
-    const s = (o.status || '').toUpperCase()
-    if (filter === 'PENDING') return s.includes('PENDING')
-    if (filter === 'CONFIRMED') return s.includes('CONFIRM')
-    if (filter === 'SHIPPED') return s.includes('SHIP')
-    if (filter === 'DELIVERED') return s.includes('DELIVER') || s.includes('COMPLETE')
-    if (filter === 'CANCELLED') return s.includes('CANCEL')
-    if (filter === 'RETURNED') return s.includes('RETURN')
-    return s === filter
+    // 1. Status Filter
+    if (filter !== 'ALL') {
+      const s = (o.status || '').toUpperCase()
+      if (filter === 'PENDING' && !s.includes('PENDING')) return false
+      if (filter === 'CONFIRMED' && !s.includes('CONFIRM')) return false
+      if (filter === 'SHIPPED' && !s.includes('SHIP')) return false
+      if (filter === 'DELIVERED' && !s.includes('DELIVER') && !s.includes('COMPLETE')) return false
+      if (filter === 'CANCELLED' && !s.includes('CANCEL')) return false
+      if (filter === 'RETURNED' && !s.includes('RETURN')) return false
+      if (!['PENDING', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'RETURNED'].includes(filter) && s !== filter) {
+        return false
+      }
+    }
+
+    // 2. Search Query Filter (Order Number, ID, Recipient info, Product name)
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase()
+      const matchOrderNumber = (o.order_number || '').toLowerCase().includes(q)
+      const matchUuid = (o.uuid || '').toLowerCase().includes(q)
+      const matchRecipient = (o.shipping_name || '').toLowerCase().includes(q)
+      const matchPhone = (o.shipping_phone || '').toLowerCase().includes(q)
+      const matchAddress = (o.shipping_address || '').toLowerCase().includes(q)
+      const matchItems = o.items?.some((item) =>
+        (item.product_name || '').toLowerCase().includes(q)
+      )
+
+      if (
+        !matchOrderNumber &&
+        !matchUuid &&
+        !matchRecipient &&
+        !matchPhone &&
+        !matchAddress &&
+        !matchItems
+      ) {
+        return false
+      }
+    }
+
+    return true
   })
 
   // Order Fulfillment Status Badge
@@ -1044,7 +1076,7 @@ export default function MyOrdersPage() {
   // ==========================================
   return (
     <div className="p-5 sm:p-6 rounded-3xl bg-white border border-slate-200/80 shadow-xs space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-2 border-b border-slate-100">
         <div>
           <h1 className="text-xl font-extrabold text-[#0D1B2A] tracking-tight">
             Order History
@@ -1054,8 +1086,33 @@ export default function MyOrdersPage() {
           </p>
         </div>
 
-        {/* Status Filter Dropdown */}
-        <div className="flex items-center gap-2">
+        {/* Search & Status Filter Controls */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+          {/* Search Input Bar */}
+          <div className="relative flex-1 sm:w-64 md:w-72">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+              <Search className="w-3.5 h-3.5" />
+            </div>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by order #, product, or recipient..."
+              className="w-full pl-8.5 pr-8 py-2 rounded-xl bg-white border border-slate-200 text-xs font-medium text-[#0D1B2A] placeholder:text-slate-400 focus:outline-none focus:border-[#2196F3] shadow-2xs transition-all"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600"
+                title="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Status Filter Dropdown */}
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
               <Filter className="w-3.5 h-3.5 text-[#2196F3]" />
@@ -1063,7 +1120,7 @@ export default function MyOrdersPage() {
             <select
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              className="pl-8.5 pr-9 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-[#0D1B2A] focus:outline-none focus:border-[#2196F3] shadow-2xs appearance-none cursor-pointer hover:border-slate-300 transition-all"
+              className="w-full sm:w-auto pl-8.5 pr-9 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-[#0D1B2A] focus:outline-none focus:border-[#2196F3] shadow-2xs appearance-none cursor-pointer hover:border-slate-300 transition-all"
             >
               <option value="ALL">All Orders ({orders.length})</option>
               <option value="PENDING">Pending</option>
@@ -1078,11 +1135,14 @@ export default function MyOrdersPage() {
             </div>
           </div>
 
-          {filter !== 'ALL' && (
+          {(filter !== 'ALL' || searchQuery.trim() !== '') && (
             <button
               type="button"
-              onClick={() => setFilter('ALL')}
-              className="px-2.5 py-2 rounded-xl text-xs font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
+              onClick={() => {
+                setFilter('ALL')
+                setSearchQuery('')
+              }}
+              className="px-2.5 py-2 rounded-xl text-xs font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer text-center"
             >
               Reset
             </button>
@@ -1098,16 +1158,33 @@ export default function MyOrdersPage() {
           </div>
           <h3 className="text-sm font-bold text-[#0D1B2A]">No orders found</h3>
           <p className="text-xs text-slate-500 max-w-sm mx-auto">
-            You haven&apos;t placed any orders matching this filter yet.
+            {orders.length === 0
+              ? "You haven't placed any orders yet."
+              : searchQuery.trim()
+              ? `No orders matching "${searchQuery.trim()}".`
+              : "You haven't placed any orders matching this filter yet."}
           </p>
-          <div className="pt-2">
-            <Link
-              href="/products"
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#2196F3] text-white text-xs font-bold hover:bg-[#0D47A1] transition-colors"
-            >
-              <span>Explore Catalog</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
+          <div className="pt-2 flex items-center justify-center gap-2">
+            {orders.length > 0 && (filter !== 'ALL' || searchQuery.trim()) ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setFilter('ALL')
+                  setSearchQuery('')
+                }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 transition-colors cursor-pointer"
+              >
+                <span>Clear Filters</span>
+              </button>
+            ) : (
+              <Link
+                href="/products"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#2196F3] text-white text-xs font-bold hover:bg-[#0D47A1] transition-colors"
+              >
+                <span>Explore Catalog</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            )}
           </div>
         </div>
       ) : (
