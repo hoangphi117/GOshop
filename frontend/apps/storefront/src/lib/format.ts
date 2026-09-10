@@ -23,3 +23,22 @@ export function formatDate(dateString: string | null | undefined): string {
     return dateString
   }
 }
+
+export function formatDateTime(dateString: string | null | undefined): string {
+  if (!dateString) return ''
+  try {
+    const d = new Date(dateString)
+    return new Intl.DateTimeFormat('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).format(d)
+  } catch {
+    return dateString
+  }
+}
+
