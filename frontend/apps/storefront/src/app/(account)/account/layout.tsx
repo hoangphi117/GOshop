@@ -102,9 +102,9 @@ export default function AccountLayout({
 
   return (
     <div className="bg-[#FAFBFC] min-h-screen py-10">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Breadcrumbs */}
-        <nav className="flex items-center gap-2 text-xs text-slate-500 mb-8">
+        <nav className="flex items-center gap-2 text-xs text-slate-500 mb-6">
           <Link href="/" className="hover:text-[#2196F3] transition-colors">
             Home
           </Link>
@@ -112,19 +112,19 @@ export default function AccountLayout({
           <span className="font-semibold text-[#0D1B2A]">My Account</span>
         </nav>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Sidebar (4 cols) */}
-          <aside className="lg:col-span-4 space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
+          {/* Sidebar (3 cols) */}
+          <aside className="lg:col-span-3 space-y-6">
             {/* User Profile Summary Card */}
-            <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#0D47A1] to-[#2196F3] text-white flex items-center justify-center text-xl font-black shadow-md shrink-0">
+            <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-xs flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#0D47A1] to-[#2196F3] text-white flex items-center justify-center text-lg font-black shadow-md shrink-0">
                 {displayName[0].toUpperCase()}
               </div>
               <div className="min-w-0 flex-1">
-                <h2 className="text-base font-bold text-[#0D1B2A] truncate">
+                <h2 className="text-sm font-bold text-[#0D1B2A] truncate">
                   {displayName}
                 </h2>
-                <p className="text-xs text-slate-500 truncate">{user?.email}</p>
+                <p className="text-[11px] text-slate-500 truncate">{user?.email}</p>
                 <div className="mt-1 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[#E3F2FD] text-[#0D47A1] text-[10px] font-bold">
                   <span>Verified Member</span>
                 </div>
@@ -178,8 +178,8 @@ export default function AccountLayout({
             </div>
           </aside>
 
-          {/* Content Area (8 cols) */}
-          <main className="lg:col-span-8">{children}</main>
+          {/* Content Area (9 cols) */}
+          <main className="lg:col-span-9">{children}</main>
         </div>
       </div>
     </div>
