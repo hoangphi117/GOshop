@@ -14,6 +14,8 @@ func CORSMiddleware() gin.HandlerFunc {
 		"http://127.0.0.1:5173": true,
 		"http://localhost:3000": true,
 		"http://127.0.0.1:3000": true,
+		"http://localhost:3001": true,
+		"http://127.0.0.1:3001": true,
 		"http://localhost:5500": true,
 		"http://127.0.0.1:5500": true,
 	}
@@ -42,7 +44,7 @@ func CORSMiddleware() gin.HandlerFunc {
 		}
 
 		ctx.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		ctx.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, x-api-key, X-API-KEY")
+		ctx.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, x-api-key, X-API-KEY, X-Idempotency-Key, x-idempotency-key, Idempotency-Key, X-Trace-Id")
 		ctx.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 		ctx.Writer.Header().Set("Access-Control-Max-Age", "86400")
 

@@ -1,0 +1,238 @@
+"use client";
+
+import React, { Suspense, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
+import {
+  CheckCircle2,
+  XCircle,
+  ShoppingBag,
+  Home,
+  Receipt,
+  ArrowRight,
+  ShieldCheck,
+  AlertTriangle,
+} from "lucide-react";
+import { formatCurrency } from "@/lib/format";
+import { useCartStore } from "@/stores/cart-store";
+
+function PaymentResultContent() {
+  const searchParams = useSearchParams();
+  const removeSelectedItems = useCartStore(
+    (state) => state.removeSelectedItems,
+  );
+
+  // MoMo return URL parameters
+  const resultCode = searchParams.get("resultCode");
+  const orderId = searchParams.get("orderId") || "";
+  const transId = searchParams.get("transId") || "";
+  const amountStr = searchParams.get("amount") || "0";
+  const message = searchParams.get("message") || "";
+  const orderInfo = searchParams.get("orderInfo") || "";
+  const payType = searchParams.get("payType") || "";
+  const responseTime = searchParams.get("responseTime") || "";
+
+  const isSuccess = resultCode === "0";
+  const amount = parseInt(amountStr, 10) || 0;
+
+  // If orderId is in format "ORDERNUMBER_TIMESTAMP", extract clean order number
+  const displayOrderNumber = orderId.includes("_")
+    ? orderId.split("_")[0]
+    : orderId;
+
+  // Clean formatted date from responseTime if available
+  let formattedDate = "";
+  if (responseTime) {
+    const timestamp = parseInt(responseTime, 10);
+    if (!isNaN(timestamp)) {
+      formattedDate = new Date(timestamp).toLocaleString("en-US", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+    }
+  }
+
+  useEffect(() => {
+    if (isSuccess) {
+      removeSelectedItems();
+    }
+  }, [isSuccess, removeSelectedItems]);
+
+  return (
+    <div className="min-h-[75vh] py-8 px-4 flex items-center justify-center">
+      <div className="max-w-lg w-full mx-auto space-y-6">
+        {/* Status Header */}
+        <div className="text-center space-y-3">
+          <div
+            className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto transition-transform ${
+              isSuccess
+                ? "bg-emerald-50 text-emerald-500 ring-8 ring-emerald-50/50"
+                : "bg-rose-50 text-rose-500 ring-8 ring-rose-50/50"
+            }`}
+          >
+            {isSuccess ? (
+              <CheckCircle2 className="w-12 h-12" />
+            ) : (
+              <XCircle className="w-12 h-12" />
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <span
+              className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+                isSuccess
+                  ? "bg-emerald-100/80 text-emerald-800"
+                  : "bg-rose-100/80 text-rose-800"
+              }`}
+            >
+              {isSuccess ? (
+                <>
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  Payment Successful
+                </>
+              ) : (
+                <>
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  Payment Incomplete
+                </>
+              )}
+            </span>
+            <h1 className="text-2xl sm:text-3xl font-black text-[#0D1B2A] tracking-tight">
+              {isSuccess
+                ? "Thank You For Your Payment!"
+                : "Transaction Unsuccessful"}
+            </h1>
+            <p className="text-sm text-slate-600 max-w-sm mx-auto">
+              {isSuccess
+                ? "Your transaction has been processed securely via MoMo E-Wallet."
+                : message ||
+                  "The transaction was cancelled or could not be completed. No funds have been deducted."}
+            </p>
+          </div>
+        </div>
+
+        {/* Transaction Summary Card */}
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+          <div className="px-5 py-4 bg-slate-50/60 border-b border-slate-200/70 flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+              <Receipt className="w-4 h-4 text-slate-400" />
+              Receipt Details
+            </span>
+            <span className="text-xs font-semibold text-slate-500">
+              Provider: <span className="font-bold text-[#A50064]">MoMo</span>
+            </span>
+          </div>
+
+          <div className="p-5 space-y-3 text-xs">
+            {displayOrderNumber && (
+              <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                <span className="text-slate-500">Order Reference</span>
+                <span className="font-bold text-[#0D47A1]">
+                  #{displayOrderNumber}
+                </span>
+              </div>
+            )}
+
+            {transId && (
+              <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                <span className="text-slate-500">MoMo Transaction ID</span>
+                <span className="font-mono font-medium text-slate-700">
+                  {transId}
+                </span>
+              </div>
+            )}
+
+            {amount > 0 && (
+              <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                <span className="text-slate-500">Amount Paid</span>
+                <span className="text-sm font-black text-emerald-600">
+                  {formatCurrency(amount)}
+                </span>
+              </div>
+            )}
+
+            {orderInfo && (
+              <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                <span className="text-slate-500">Order Note</span>
+                <span className="text-slate-700 font-medium truncate max-w-[240px]">
+                  {orderInfo}
+                </span>
+              </div>
+            )}
+
+            {payType && (
+              <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                <span className="text-slate-500">Payment Channel</span>
+                <span className="font-medium text-slate-700 uppercase">
+                  {payType}
+                </span>
+              </div>
+            )}
+
+            {formattedDate && (
+              <div className="flex justify-between items-center py-1">
+                <span className="text-slate-500">Transaction Time</span>
+                <span className="text-slate-700 font-medium">
+                  {formattedDate}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+          {isSuccess ? (
+            <>
+              <Link
+                href="/account/orders"
+                className="px-6 py-3 rounded-xl bg-[#2196F3] text-white text-xs font-bold hover:bg-[#0D47A1] transition-all shadow-md flex items-center justify-center gap-2"
+              >
+                View My Orders
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+              <Link
+                href="/products"
+                className="px-6 py-3 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+              >
+                <ShoppingBag className="w-4 h-4" />
+                Continue Shopping
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/checkout"
+                className="px-6 py-3 rounded-xl bg-[#2196F3] text-white text-xs font-bold hover:bg-[#0D47A1] transition-all shadow-md flex items-center justify-center gap-2"
+              >
+                Return to Checkout
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+              <Link
+                href="/"
+                className="px-6 py-3 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+              >
+                <Home className="w-4 h-4" />
+                Back to Home
+              </Link>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function PaymentResultPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-[75vh] flex items-center justify-center">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#2196F3]" />
+        </div>
+      }
+    >
+      <PaymentResultContent />
+    </Suspense>
+  );
+}
