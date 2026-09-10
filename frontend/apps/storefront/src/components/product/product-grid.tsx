@@ -7,11 +7,13 @@ import Link from 'next/link'
 interface ProductGridProps {
   products: Product[]
   emptyMessage?: string
+  columnsClassName?: string
 }
 
 export function ProductGrid({
   products,
   emptyMessage = 'No products found.',
+  columnsClassName = 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4',
 }: ProductGridProps) {
   if (products.length === 0) {
     return (
@@ -34,7 +36,7 @@ export function ProductGrid({
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+    <div className={`grid ${columnsClassName} gap-6`}>
       {products.map((product) => (
         <ProductCard key={product.uuid} product={product} />
       ))}

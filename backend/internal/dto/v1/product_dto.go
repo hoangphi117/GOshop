@@ -1,6 +1,7 @@
 package v1dto
 
 import (
+	"strings"
 	"time"
 
 	"goshop/internal/db/sqlc"
@@ -27,6 +28,8 @@ type ProductDTO struct {
 	ImageURL     string  `json:"image_url,omitempty"`
 	Status       string  `json:"status"`
 	CreatedAt    string  `json:"created_at"`
+	Rating       float64 `json:"rating"`
+	ReviewsCount int32   `json:"reviews_count"`
 }
 
 // ============================================================================
@@ -40,7 +43,7 @@ type CreateProductRequest struct {
 	Stock        int32   `json:"stock" binding:"omitempty,gte=0"`
 	SKU          *string `json:"sku" binding:"omitempty,max=50"`
 	CategoryUUID string  `json:"category_uuid" binding:"required,uuid"`
-	ImageURL     *string `json:"image_url" binding:"omitempty,url"`
+	ImageURL     *string `json:"image_url" binding:"omitempty"`
 	Status       int32   `json:"status" binding:"omitempty,oneof=1 2 3"`
 }
 
@@ -56,7 +59,7 @@ type UpdateProductRequest struct {
 	Stock        *int32   `json:"stock" binding:"omitempty,gte=0"`
 	SKU          *string  `json:"sku" binding:"omitempty,max=50"`
 	CategoryUUID *string  `json:"category_uuid" binding:"omitempty,uuid"`
-	ImageURL     *string  `json:"image_url" binding:"omitempty,url"`
+	ImageURL     *string  `json:"image_url" binding:"omitempty"`
 	Status       *int32   `json:"status" binding:"omitempty,oneof=1 2 3"`
 }
 
@@ -86,14 +89,32 @@ type GetProductByUuidParam struct {
 // ==================================
 
 func (input *CreateProductRequest) MapCreateToServiceInput() CreateProductInput {
+	var imgURL *string
+	if input.ImageURL != nil && strings.TrimSpace(*input.ImageURL) != "" {
+		img := strings.TrimSpace(*input.ImageURL)
+		imgURL = &img
+	}
+
+	var sku *string
+	if input.SKU != nil && strings.TrimSpace(*input.SKU) != "" {
+		s := strings.TrimSpace(*input.SKU)
+		sku = &s
+	}
+
+	var desc *string
+	if strings.TrimSpace(input.Description) != "" {
+		d := strings.TrimSpace(input.Description)
+		desc = &d
+	}
+
 	return CreateProductInput{
 		Params: sqlc.CreateProductParams{
-			ProductName:        input.Name,
-			ProductDescription: &input.Description,
+			ProductName:        strings.TrimSpace(input.Name),
+			ProductDescription: desc,
 			ProductPrice:       utils.FloatToNumeric(input.Price),
 			ProductStock:       &input.Stock,
-			ProductSku:         input.SKU,
-			ProductImageUrl:    input.ImageURL,
+			ProductSku:         sku,
+			ProductImageUrl:    imgURL,
 			ProductStatus:      input.Status,
 		},
 		CategoryUUID: input.CategoryUUID,
@@ -101,13 +122,21 @@ func (input *CreateProductRequest) MapCreateToServiceInput() CreateProductInput 
 }
 
 func (input *UpdateProductRequest) MapUpdateToServiceInput(productUuid uuid.UUID) UpdateProductInput {
+	var imgURL *string
+	if input.ImageURL != nil {
+		if strings.TrimSpace(*input.ImageURL) != "" {
+			img := strings.TrimSpace(*input.ImageURL)
+			imgURL = &img
+		}
+	}
+
 	params := sqlc.UpdateProductParams{
 		ProductUuid:        productUuid,
 		ProductName:        input.Name,
 		ProductDescription: input.Description,
 		ProductStock:       input.Stock,
 		ProductSku:         input.SKU,
-		ProductImageUrl:    input.ImageURL,
+		ProductImageUrl:    imgURL,
 		ProductStatus:      input.Status,
 	}
 
@@ -131,6 +160,7 @@ func MapGetProductByUUIDRowToDTO(p sqlc.GetProductByUUIDRow) *ProductDTO {
 		p.ProductUuid, p.ProductName, p.ProductSlug, p.ProductDescription,
 		p.ProductPrice, p.ProductStock, p.ProductSku, p.CategoryUuid,
 		p.CategoryName, p.ProductImageUrl, p.ProductStatus, p.ProductCreatedAt,
+		p.ProductAvgRating, p.ProductReviewCount,
 	)
 	return &dto
 }
@@ -141,6 +171,7 @@ func MapCreateProductRowToDTO(p sqlc.CreateProductRow) *ProductDTO {
 		p.ProductUuid, p.ProductName, p.ProductSlug, p.ProductDescription,
 		p.ProductPrice, p.ProductStock, p.ProductSku, p.CategoryUuid,
 		p.CategoryName, p.ProductImageUrl, p.ProductStatus, p.ProductCreatedAt,
+		p.ProductAvgRating, p.ProductReviewCount,
 	)
 	return &dto
 }
@@ -151,6 +182,7 @@ func MapUpdateProductRowToDTO(p sqlc.UpdateProductRow) *ProductDTO {
 		p.ProductUuid, p.ProductName, p.ProductSlug, p.ProductDescription,
 		p.ProductPrice, p.ProductStock, p.ProductSku, p.CategoryUuid,
 		p.CategoryName, p.ProductImageUrl, p.ProductStatus, p.ProductCreatedAt,
+		p.ProductAvgRating, p.ProductReviewCount,
 	)
 	return &dto
 }
@@ -161,6 +193,7 @@ func MapProductToDTO(p sqlc.Product) *ProductDTO {
 		p.ProductUuid, p.ProductName, p.ProductSlug, p.ProductDescription,
 		p.ProductPrice, p.ProductStock, p.ProductSku, uuid.Nil,
 		"", p.ProductImageUrl, p.ProductStatus, p.ProductCreatedAt,
+		p.ProductAvgRating, p.ProductReviewCount,
 	)
 	return &dto
 }
@@ -176,6 +209,7 @@ func MapListProductsToDTO(products []sqlc.GetProductByUUIDRow) []ProductDTO {
 			p.ProductUuid, p.ProductName, p.ProductSlug, p.ProductDescription,
 			p.ProductPrice, p.ProductStock, p.ProductSku, p.CategoryUuid,
 			p.CategoryName, p.ProductImageUrl, p.ProductStatus, p.ProductCreatedAt,
+			p.ProductAvgRating, p.ProductReviewCount,
 		)
 	}
 	return dtos
@@ -187,6 +221,7 @@ func mapFieldsToDTO(
 	price pgtype.Numeric, stock *int32, sku *string,
 	catUUID uuid.UUID, catName string, imgURL *string,
 	status int32, createdAt time.Time,
+	avgRating pgtype.Numeric, reviewCount int32,
 ) ProductDTO {
 	catUUIDStr := ""
 	if catUUID != uuid.Nil {
@@ -202,6 +237,8 @@ func mapFieldsToDTO(
 		CategoryName: catName,
 		Status:       mapProductStatusText(int(status)),
 		CreatedAt:    createdAt.Format("2006-01-02 15:04:05"),
+		Rating:       utils.NumericToFloat(avgRating),
+		ReviewsCount: reviewCount,
 	}
 
 	if desc != nil {

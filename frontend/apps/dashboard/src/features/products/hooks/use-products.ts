@@ -59,6 +59,24 @@ export function useProduct(uuid?: string) {
   })
 }
 
+function formatApiError(error: unknown, fallback: string): string {
+  if (!error) return fallback
+  if (typeof error === 'string') return error
+  if (typeof error === 'object') {
+    const errObj = error as Record<string, unknown>
+    if (typeof errObj.error === 'string') return errObj.error
+    if (typeof errObj.message === 'string') return errObj.message
+    if (typeof errObj.detail === 'string') return errObj.detail
+    if (typeof errObj.error === 'object' && errObj.error !== null) {
+      const messages = Object.values(errObj.error as Record<string, unknown>)
+        .map((v) => (typeof v === 'string' ? v : JSON.stringify(v)))
+        .filter(Boolean)
+      if (messages.length > 0) return messages.join(', ')
+    }
+  }
+  return fallback
+}
+
 export function useProductMutations() {
   const queryClient = useQueryClient()
 
@@ -81,7 +99,7 @@ export function useProductMutations() {
         },
       })
       if (error) {
-        throw new Error((error as { error?: string })?.error || 'Failed to create product')
+        throw new Error(formatApiError(error, 'Failed to create product'))
       }
       return data
     },
@@ -104,7 +122,7 @@ export function useProductMutations() {
         },
       })
       if (error) {
-        throw new Error((error as { error?: string })?.error || 'Failed to update product')
+        throw new Error(formatApiError(error, 'Failed to update product'))
       }
       return data
     },
@@ -117,7 +135,7 @@ export function useProductMutations() {
         params: { path: { uuid } },
       })
       if (error) {
-        throw new Error((error as { error?: string })?.error || 'Failed to delete product')
+        throw new Error(formatApiError(error, 'Failed to delete product'))
       }
       return data
     },
@@ -130,7 +148,7 @@ export function useProductMutations() {
         params: { path: { uuid } },
       })
       if (error) {
-        throw new Error((error as { error?: string })?.error || 'Failed to restore product')
+        throw new Error(formatApiError(error, 'Failed to restore product'))
       }
       return data
     },

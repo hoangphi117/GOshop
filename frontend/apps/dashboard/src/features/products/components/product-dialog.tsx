@@ -37,7 +37,7 @@ import type { Product, ProductFormData } from '../types'
 const productSchema = z.object({
   name: z.string().min(2, 'Product name must be at least 2 characters').max(200),
   category_uuid: z.string().min(1, 'Please select a category'),
-  price: z.number().min(0, 'Price must be non-negative'),
+  price: z.number().min(0.01, 'Price must be at least 0.01'),
   stock: z.number().int().min(0, 'Stock must be non-negative'),
   sku: z.string().max(50).optional(),
   image_url: z.string().optional(),
@@ -107,13 +107,13 @@ export function ProductDialog({ open, onOpenChange, product }: ProductDialogProp
   const onSubmit = async (values: ProductFormValues) => {
     try {
       const payload: ProductFormData = {
-        name: values.name,
+        name: values.name.trim(),
         category_uuid: values.category_uuid,
         price: Number(values.price),
         stock: Number(values.stock),
-        sku: values.sku || '',
-        image_url: values.image_url || '',
-        description: values.description || '',
+        sku: values.sku?.trim() || undefined,
+        image_url: values.image_url?.trim() || undefined,
+        description: values.description?.trim() || undefined,
         status: values.status,
       }
 

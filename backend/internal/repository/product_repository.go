@@ -99,6 +99,8 @@ func (r *SqlProductRepository) GetAll(
 			p.product_deleted_at,
 			p.product_created_at,
 			p.product_updated_at,
+			p.product_avg_rating,
+			p.product_review_count,
 			c.category_uuid AS category_uuid,
 			c.category_name AS category_name
 		FROM products p
@@ -187,6 +189,8 @@ func (r *SqlProductRepository) GetAll(
 			&i.ProductDeletedAt,
 			&i.ProductCreatedAt,
 			&i.ProductUpdatedAt,
+			&i.ProductAvgRating,
+			&i.ProductReviewCount,
 			&i.CategoryUuid,
 			&i.CategoryName,
 		); err != nil {

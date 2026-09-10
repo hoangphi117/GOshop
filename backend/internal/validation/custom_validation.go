@@ -164,6 +164,8 @@ func HandleValidationErrors(err error) gin.H {
 				errors[fieldPath] = fmt.Sprintf("%s is in the list of blocked emails", fieldPath)
 			case "password_strong":
 				errors[fieldPath] = fmt.Sprintf("%s must contain at least 8 characters including lowercase, uppercase, numbers, and special characters", fieldPath)
+			case "url":
+				errors[fieldPath] = fmt.Sprintf("%s must be a valid URL", fieldPath)
 			}
 		}
 
