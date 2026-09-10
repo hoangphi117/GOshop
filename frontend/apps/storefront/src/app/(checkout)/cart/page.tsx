@@ -24,7 +24,9 @@ export default function CartPage() {
     updateQuantity,
     removeItem,
     clearCart,
-    getSubtotal,
+    toggleSelectItem,
+    selectAllItems,
+    removeSelectedItems,
   } = useCartStore()
 
   const mounted = useMounted()
@@ -40,8 +42,15 @@ export default function CartPage() {
     )
   }
 
-  const subtotal = getSubtotal()
-  const shippingFee = subtotal > 500000 || items.length === 0 ? 0 : 30000
+  const selectedItems = items.filter((item) => item.selected !== false)
+  const selectedCount = selectedItems.length
+  const allSelected = items.length > 0 && selectedCount === items.length
+
+  const subtotal = selectedItems.reduce(
+    (total, item) => total + item.price * item.quantity,
+    0
+  )
+  const shippingFee = subtotal > 500000 || selectedCount === 0 ? 0 : 30000
   const grandTotal = Math.max(0, subtotal - discountAmount + shippingFee)
 
   const handleApplyCoupon = (e: React.FormEvent) => {
@@ -108,7 +117,7 @@ export default function CartPage() {
                 toast.info('Cart cleared.')
               }
             }}
-            className="text-xs font-semibold text-rose-500 hover:text-rose-700 transition-colors"
+            className="text-xs font-semibold text-rose-500 hover:text-rose-700 transition-colors cursor-pointer"
           >
             Clear Cart
           </button>
@@ -118,81 +127,122 @@ export default function CartPage() {
           {/* Items List (8 cols) */}
           <div className="lg:col-span-8 space-y-4">
             <div className="rounded-2xl bg-white border border-slate-200/80 shadow-xs overflow-hidden divide-y divide-slate-100">
-              {items.map((item) => (
-                <div
-                  key={item.id}
-                  className="p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:bg-slate-50/50 transition-colors"
-                >
-                  {/* Thumbnail & Info */}
-                  <div className="flex items-center gap-4 min-w-0">
-                    <div className="w-20 h-20 rounded-xl bg-slate-100 overflow-hidden shrink-0 border border-slate-200/60 flex items-center justify-center">
-                      {item.image ? (
-                        <img
-                          src={getImageUrl(item.image)}
-                          alt={item.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <ShoppingCart className="w-6 h-6 text-slate-400" />
-                      )}
-                    </div>
+              {/* Select All Action Bar */}
+              <div className="px-5 py-3.5 bg-slate-50/90 flex items-center justify-between">
+                <label className="flex items-center gap-3 cursor-pointer select-none text-xs font-bold text-[#0D1B2A]">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={(e) => selectAllItems(e.target.checked)}
+                    className="w-4 h-4 rounded text-[#2196F3] focus:ring-[#2196F3] border-slate-300 accent-[#2196F3] cursor-pointer"
+                  />
+                  <span>Select All ({selectedCount}/{items.length} items)</span>
+                </label>
 
-                    <div className="min-w-0">
-                      <Link
-                        href={`/products/${item.productUuid}`}
-                        className="text-sm font-bold text-[#0D1B2A] hover:text-[#2196F3] transition-colors truncate block"
-                      >
-                        {item.name}
-                      </Link>
-                      {(item.selectedSize || item.selectedColor) && (
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          {item.selectedSize && `Size: ${item.selectedSize}`}
-                          {item.selectedSize && item.selectedColor && ' • '}
-                          {item.selectedColor && `Color: ${item.selectedColor}`}
+                {selectedCount > 0 && (
+                  <button
+                    onClick={() => {
+                      if (window.confirm(`Remove ${selectedCount} selected items from your cart?`)) {
+                        removeSelectedItems()
+                        toast.info('Selected items removed.')
+                      }
+                    }}
+                    className="text-xs font-semibold text-rose-500 hover:text-rose-700 transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete Selected ({selectedCount})</span>
+                  </button>
+                )}
+              </div>
+
+              {items.map((item) => {
+                const isSelected = item.selected !== false
+                return (
+                  <div
+                    key={item.id}
+                    className={`p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-colors ${
+                      !isSelected ? 'bg-slate-50/40 opacity-70' : 'hover:bg-slate-50/50'
+                    }`}
+                  >
+                    {/* Checkbox, Thumbnail & Info */}
+                    <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelectItem(item.id)}
+                        aria-label={`Select ${item.name}`}
+                        className="w-4 h-4 rounded text-[#2196F3] focus:ring-[#2196F3] border-slate-300 accent-[#2196F3] cursor-pointer shrink-0"
+                      />
+
+                      <div className="w-20 h-20 rounded-xl bg-slate-100 overflow-hidden shrink-0 border border-slate-200/60 flex items-center justify-center">
+                        {item.image ? (
+                          <img
+                            src={getImageUrl(item.image)}
+                            alt={item.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <ShoppingCart className="w-6 h-6 text-slate-400" />
+                        )}
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <Link
+                          href={`/products/${item.productUuid}`}
+                          className="text-sm font-bold text-[#0D1B2A] hover:text-[#2196F3] transition-colors truncate block"
+                        >
+                          {item.name}
+                        </Link>
+                        {(item.selectedSize || item.selectedColor) && (
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            {item.selectedSize && `Size: ${item.selectedSize}`}
+                            {item.selectedSize && item.selectedColor && ' • '}
+                            {item.selectedColor && `Color: ${item.selectedColor}`}
+                          </p>
+                        )}
+                        <p className="text-xs text-[#0D47A1] font-bold mt-1">
+                          {formatCurrency(item.price)}
                         </p>
-                      )}
-                      <p className="text-xs text-[#0D47A1] font-bold mt-1">
-                        {formatCurrency(item.price)}
-                      </p>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Quantity & Actions */}
-                  <div className="flex items-center justify-between w-full sm:w-auto gap-4 self-end sm:self-center">
-                    <div className="flex items-center border border-slate-200 rounded-xl bg-slate-50 overflow-hidden">
-                      <button
-                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                        className="p-1.5 hover:bg-slate-200 transition-colors text-slate-600"
-                        aria-label="Decrease quantity"
-                      >
-                        <Minus className="w-3.5 h-3.5" />
-                      </button>
-                      <span className="px-3 text-xs font-bold text-slate-700 min-w-[28px] text-center">
-                        {item.quantity}
+                    {/* Quantity & Actions */}
+                    <div className="flex items-center justify-between w-full sm:w-auto gap-4 self-end sm:self-center">
+                      <div className="flex items-center border border-slate-200 rounded-xl bg-slate-50 overflow-hidden">
+                        <button
+                          onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                          className="p-1.5 hover:bg-slate-200 transition-colors text-slate-600 cursor-pointer"
+                          aria-label="Decrease quantity"
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="px-3 text-xs font-bold text-slate-700 min-w-[28px] text-center">
+                          {item.quantity}
+                        </span>
+                        <button
+                          onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                          className="p-1.5 hover:bg-slate-200 transition-colors text-slate-600 cursor-pointer"
+                          aria-label="Increase quantity"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      <span className="text-sm font-black text-[#0D1B2A] min-w-[90px] text-right">
+                        {formatCurrency(item.price * item.quantity)}
                       </span>
+
                       <button
-                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                        className="p-1.5 hover:bg-slate-200 transition-colors text-slate-600"
-                        aria-label="Increase quantity"
+                        onClick={() => removeItem(item.id)}
+                        className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg transition-colors cursor-pointer"
+                        title="Remove item"
                       >
-                        <Plus className="w-3.5 h-3.5" />
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
-
-                    <span className="text-sm font-black text-[#0D1B2A] min-w-[90px] text-right">
-                      {formatCurrency(item.price * item.quantity)}
-                    </span>
-
-                    <button
-                      onClick={() => removeItem(item.id)}
-                      className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg transition-colors"
-                      title="Remove item"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
 
             <div className="pt-2">
@@ -226,7 +276,7 @@ export default function CartPage() {
                   </div>
                   <button
                     type="submit"
-                    className="px-3 py-2 rounded-xl bg-[#0D47A1] text-white text-xs font-semibold hover:bg-[#2196F3] transition-colors"
+                    className="px-3 py-2 rounded-xl bg-[#0D47A1] text-white text-xs font-semibold hover:bg-[#2196F3] transition-colors cursor-pointer"
                   >
                     Apply
                   </button>
@@ -237,7 +287,7 @@ export default function CartPage() {
                     <span>Applied: {appliedCoupon}</span>
                     <button
                       onClick={handleRemoveCoupon}
-                      className="font-bold hover:underline"
+                      className="font-bold hover:underline cursor-pointer"
                     >
                       Remove
                     </button>
@@ -248,7 +298,7 @@ export default function CartPage() {
               {/* Breakdown */}
               <div className="space-y-2.5 text-xs text-slate-600 pt-2 border-t border-slate-100">
                 <div className="flex justify-between">
-                  <span>Subtotal</span>
+                  <span>Subtotal ({selectedCount} {selectedCount === 1 ? 'item' : 'items'})</span>
                   <span className="font-semibold text-[#0D1B2A]">
                     {formatCurrency(subtotal)}
                   </span>
@@ -264,7 +314,9 @@ export default function CartPage() {
                 <div className="flex justify-between">
                   <span>Estimated Shipping</span>
                   <span className="font-semibold text-[#0D1B2A]">
-                    {shippingFee === 0 ? (
+                    {selectedCount === 0 ? (
+                      '—'
+                    ) : shippingFee === 0 ? (
                       <span className="text-emerald-600 font-bold">FREE</span>
                     ) : (
                       formatCurrency(shippingFee)
@@ -281,18 +333,28 @@ export default function CartPage() {
               </div>
 
               {/* Checkout Button */}
-              <Link
-                href="/checkout"
-                className="w-full py-3.5 px-6 rounded-2xl bg-[#2196F3] text-white text-sm font-bold flex items-center justify-center gap-2 hover:bg-[#0D47A1] transition-all shadow-md active:scale-98"
-              >
-                <span>Proceed to Checkout</span>
-                <ArrowRight className="w-4 h-4" />
-              </Link>
+              {selectedCount > 0 ? (
+                <Link
+                  href="/checkout"
+                  className="w-full py-3.5 px-6 rounded-2xl bg-[#2196F3] text-white text-sm font-bold flex items-center justify-center gap-2 hover:bg-[#0D47A1] transition-all shadow-md active:scale-98 text-center"
+                >
+                  <span>Proceed to Checkout ({selectedCount})</span>
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="w-full py-3.5 px-6 rounded-2xl bg-slate-200 text-slate-400 text-sm font-bold flex items-center justify-center gap-2 cursor-not-allowed"
+                >
+                  <span>Select items to checkout</span>
+                </button>
+              )}
 
               {/* Trust Badge */}
               <div className="flex items-center gap-2 text-xs text-slate-500 pt-2">
                 <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>SSL Encrypted Checkout with VNPay & COD</span>
+                <span>SSL Encrypted Checkout with MoMo & COD</span>
               </div>
             </div>
           </div>

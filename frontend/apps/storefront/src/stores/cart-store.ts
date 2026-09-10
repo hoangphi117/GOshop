@@ -14,6 +14,7 @@ export interface CartItem {
   selectedColor?: string
   sku?: string
   stockQuantity: number
+  selected?: boolean
 }
 
 interface CartState {
@@ -22,12 +23,18 @@ interface CartState {
   addItem: (item: Omit<CartItem, 'id'>) => void
   removeItem: (id: string) => void
   updateQuantity: (id: string, quantity: number) => void
+  toggleSelectItem: (id: string) => void
+  selectAllItems: (selected: boolean) => void
+  removeSelectedItems: () => void
   clearCart: () => void
   openDrawer: () => void
   closeDrawer: () => void
   toggleDrawer: () => void
   getTotalItems: () => number
   getSubtotal: () => number
+  getSelectedItems: () => CartItem[]
+  getSelectedSubtotal: () => number
+  getSelectedTotalItems: () => number
 }
 
 export const useCartStore = create<CartState>()(
@@ -53,11 +60,12 @@ export const useCartStore = create<CartState>()(
             updatedItems[existingIndex] = {
               ...existingItem,
               quantity: newQty,
+              selected: true,
             }
             return { items: updatedItems, isDrawerOpen: true }
           } else {
             return {
-              items: [...state.items, { ...newItem, id }],
+              items: [...state.items, { ...newItem, id, selected: true }],
               isDrawerOpen: true,
             }
           }
@@ -87,6 +95,28 @@ export const useCartStore = create<CartState>()(
         }))
       },
 
+      toggleSelectItem: (id) => {
+        set((state) => ({
+          items: state.items.map((item) =>
+            item.id === id
+              ? { ...item, selected: item.selected === false ? true : false }
+              : item
+          ),
+        }))
+      },
+
+      selectAllItems: (selected) => {
+        set((state) => ({
+          items: state.items.map((item) => ({ ...item, selected })),
+        }))
+      },
+
+      removeSelectedItems: () => {
+        set((state) => ({
+          items: state.items.filter((item) => item.selected === false),
+        }))
+      },
+
       clearCart: () => set({ items: [] }),
 
       openDrawer: () => set({ isDrawerOpen: true }),
@@ -102,6 +132,20 @@ export const useCartStore = create<CartState>()(
           (total, item) => total + item.price * item.quantity,
           0
         )
+      },
+
+      getSelectedItems: () => {
+        return get().items.filter((item) => item.selected !== false)
+      },
+
+      getSelectedSubtotal: () => {
+        return get()
+          .items.filter((item) => item.selected !== false)
+          .reduce((total, item) => total + item.price * item.quantity, 0)
+      },
+
+      getSelectedTotalItems: () => {
+        return get().items.filter((item) => item.selected !== false).length
       },
     }),
     {
