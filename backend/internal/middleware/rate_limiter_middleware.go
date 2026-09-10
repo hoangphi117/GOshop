@@ -1,8 +1,10 @@
 package middleware
 
 import (
+	"crypto/subtle"
 	"goshop/internal/utils"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -19,31 +21,35 @@ type Client struct {
 var (
 	mu      sync.Mutex
 	clients = make(map[string]*Client)
+
+	rateLimitLogCache = sync.Map{}
+
+	// cleanupOnce đảm bảo các goroutine dọn dẹp nền (clients map + log cache)
+	// chỉ được khởi động đúng 1 lần, bất kể RateLimiterMiddleware() được gọi
+	// bao nhiêu lần — không còn phụ thuộc vào việc main.go/app.go có nhớ gọi
+	// CleanupClients() thủ công hay không.
+	cleanupOnce sync.Once
 )
+
+const rateLimitLogTTL = 10 * time.Second
 
 func getClientIP(ctx *gin.Context) string {
 	ip := ctx.ClientIP()
 	if ip == "" {
 		ip = ctx.Request.RemoteAddr
 	}
-
 	return ip
 }
 
-func getRateLimiter(ip string) *rate.Limiter {
+func getRateLimiter(key string, reqSec, burst int) *rate.Limiter {
 	mu.Lock()
 	defer mu.Unlock()
 
-	client, exists := clients[ip]
+	client, exists := clients[key]
 	if !exists {
-
-		requestSec := utils.GetIntEnv("RATE_LIMITER_REQUESTS_SEC", 5)
-		burst := utils.GetIntEnv("RATE_LIMITER_REQUESTS_BURST", 10)
-
-		limiter := rate.NewLimiter(rate.Limit(requestSec), burst)
+		limiter := rate.NewLimiter(rate.Limit(reqSec), burst)
 		newClient := &Client{limiter, time.Now()}
-		clients[ip] = newClient
-
+		clients[key] = newClient
 		return limiter
 	}
 
@@ -51,65 +57,110 @@ func getRateLimiter(ip string) *rate.Limiter {
 	return client.limiter
 }
 
-func CleanupClients() {
-	for {
-		time.Sleep(time.Minute)
-		mu.Lock()
-		for ip, client := range clients {
-			if time.Since(client.lastSeen) > 3*time.Minute {
-				delete(clients, ip)
+// startCleanupGoroutines starts the background cleanup goroutines. This function is NOT
+// exported and NOT called directly from outside — only called via
+// cleanupOnce.Do() inside RateLimiterMiddleware(), ensuring it runs automatically
+// exactly once so nobody has to remember to wire it up in main.go/app.go.
+func startCleanupGoroutines() {
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			mu.Lock()
+			for key, client := range clients {
+				if time.Since(client.lastSeen) > 3*time.Minute {
+					delete(clients, key)
+				}
 			}
+			mu.Unlock()
 		}
-		mu.Unlock()
-	}
+	}()
+
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			now := time.Now()
+			rateLimitLogCache.Range(func(key, value any) bool {
+				if t, ok := value.(time.Time); ok && now.Sub(t) > rateLimitLogTTL {
+					rateLimitLogCache.Delete(key)
+				}
+				return true
+			})
+		}
+	}()
 }
 
 func RateLimiterMiddleware(rateLimiterLogger *zerolog.Logger) gin.HandlerFunc {
+	// Ensure the cleanup goroutine starts only once, at the exact moment
+	// middleware is registered — no need for anyone to remember to call CleanupClients()
+	// separately elsewhere.
+	cleanupOnce.Do(startCleanupGoroutines)
+
+	expectedApiKey := os.Getenv("API_KEY")
+
+	publicSec := utils.GetIntEnv("RATE_LIMITER_PUBLIC_SEC", utils.GetIntEnv("RATE_LIMITER_REQUESTS_SEC", 20))
+	publicBurst := utils.GetIntEnv("RATE_LIMITER_PUBLIC_BURST", utils.GetIntEnv("RATE_LIMITER_REQUESTS_BURST", 50))
+
+	internalSec := utils.GetIntEnv("RATE_LIMITER_INTERNAL_SEC", 200)
+	internalBurst := utils.GetIntEnv("RATE_LIMITER_INTERNAL_BURST", 500)
+
 	return func(ctx *gin.Context) {
 		ip := getClientIP(ctx)
 
-		limiter := getRateLimiter(ip)
+		isInternalService := false
+		if expectedApiKey != "" {
+			apiKey := ctx.GetHeader("X-API-KEY")
+			if apiKey == "" {
+				apiKey = ctx.GetHeader("x-api-key")
+			}
+			if apiKey != "" && subtle.ConstantTimeCompare([]byte(apiKey), []byte(expectedApiKey)) == 1 {
+				isInternalService = true
+			}
+		}
+
+		var limiter *rate.Limiter
+		var limiterKey string
+
+		if isInternalService {
+			limiterKey = "internal:" + ip
+			limiter = getRateLimiter(limiterKey, internalSec, internalBurst)
+		} else {
+			limiterKey = "public:" + ip
+			limiter = getRateLimiter(limiterKey, publicSec, publicBurst)
+		}
 
 		if !limiter.Allow() {
-			if shouldLogRateLimit(ip) {
-
+			if shouldLogRateLimit(limiterKey) {
 				rateLimiterLogger.Warn().
 					Str("path", ctx.Request.URL.Path).
 					Str("method", ctx.Request.Method).
 					Str("query", ctx.Request.URL.RawQuery).
-					Str("client_ip", ctx.ClientIP()).
+					Str("client_ip", ip).
+					Bool("is_internal", isInternalService).
 					Str("user_agent", ctx.Request.UserAgent()).
-					Str("referer", ctx.Request.Referer()).
-					Str("protocol", ctx.Request.Proto).
-					Str("host", ctx.Request.Host).
-					Str("remote_addr", ctx.Request.RemoteAddr).
-					Str("request_uri", ctx.Request.RequestURI).
-					Interface("headers", ctx.Request.Header).
 					Msg("rate limit exceeded")
 			}
+
 			ctx.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
 				"error":   "too many requests",
 				"message": "Too many requests. Please try again later.",
 			})
-
 			return
 		}
+
 		ctx.Next()
 	}
 }
 
-var rateLimitLogCache = sync.Map{}
-
-const rateLimitLogTTL = 10 * time.Second
-
-func shouldLogRateLimit(ip string) bool {
+func shouldLogRateLimit(key string) bool {
 	now := time.Now()
 
-	if val, ok := rateLimitLogCache.Load(ip); ok {
+	if val, ok := rateLimitLogCache.Load(key); ok {
 		if t, ok := val.(time.Time); ok && now.Sub(t) < rateLimitLogTTL {
 			return false
 		}
 	}
-	rateLimitLogCache.Store(ip, now)
+	rateLimitLogCache.Store(key, now)
 	return true
 }
