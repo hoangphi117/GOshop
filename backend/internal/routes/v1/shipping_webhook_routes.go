@@ -22,5 +22,6 @@ func (r *ShippingWebhookRoutes) Register(rg *gin.RouterGroup) {
 		shipping.GET("/provinces", r.handler.GetProvinces)
 		shipping.GET("/districts", r.handler.GetDistricts)
 		shipping.GET("/wards", r.handler.GetWards)
+		shipping.POST("/calculate-fee", r.handler.CalculateShippingFee)
 	}
 }

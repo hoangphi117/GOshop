@@ -73,13 +73,43 @@ func (as *addressService) CreateUserAddress(ctx *gin.Context, input v1dto.Create
 		input.IsDefault = true
 	}
 
+	var provID, distID *int32
+	if input.ProvinceID > 0 {
+		p := int32(input.ProvinceID)
+		provID = &p
+	}
+	if input.DistrictID > 0 {
+		d := int32(input.DistrictID)
+		distID = &d
+	}
+
+	var provName, distName, wardCode, wardName *string
+	if s := strings.TrimSpace(input.ProvinceName); s != "" {
+		provName = &s
+	}
+	if s := strings.TrimSpace(input.DistrictName); s != "" {
+		distName = &s
+	}
+	if s := strings.TrimSpace(input.WardCode); s != "" {
+		wardCode = &s
+	}
+	if s := strings.TrimSpace(input.WardName); s != "" {
+		wardName = &s
+	}
+
 	createAddressParams := sqlc.CreateUserAddressParams{
-		UaUserID:    user.UserID,
-		UaLabel:     label,
-		UaName:      name,
-		UaPhone:     phone,
-		UaAddress:   addressText,
-		UaIsDefault: input.IsDefault,
+		UaUserID:       user.UserID,
+		UaLabel:        label,
+		UaName:         name,
+		UaPhone:        phone,
+		UaAddress:      addressText,
+		UaProvinceID:   provID,
+		UaProvinceName: provName,
+		UaDistrictID:   distID,
+		UaDistrictName: distName,
+		UaWardCode:     wardCode,
+		UaWardName:     wardName,
+		UaIsDefault:    input.IsDefault,
 	}
 
 	address, err := as.repo.Create(txCtx, tx, createAddressParams)
@@ -182,13 +212,29 @@ func (as *addressService) UpdateUserAddress(ctx *gin.Context, addressUUID uuid.U
 		addressText = &trimmed
 	}
 
+	var provID, distID *int32
+	if input.ProvinceID != nil {
+		p := int32(*input.ProvinceID)
+		provID = &p
+	}
+	if input.DistrictID != nil {
+		d := int32(*input.DistrictID)
+		distID = &d
+	}
+
 	updateParams := sqlc.UpdateUserAddressParams{
-		UaUuid:   addressUUID,
-		UaUserID: user.UserID,
-		Label:    label,
-		Name:     name,
-		Phone:    phone,
-		Address:  addressText,
+		UaUuid:       addressUUID,
+		UaUserID:     user.UserID,
+		Label:        label,
+		Name:         name,
+		Phone:        phone,
+		Address:      addressText,
+		ProvinceID:   provID,
+		ProvinceName: input.ProvinceName,
+		DistrictID:   distID,
+		DistrictName: input.DistrictName,
+		WardCode:     input.WardCode,
+		WardName:     input.WardName,
 	}
 
 	updatedAddress, err := as.repo.Update(reqCtx, updateParams)

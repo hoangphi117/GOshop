@@ -41,10 +41,16 @@ type AddressDTO struct {
 }
 
 type UpdateAddressInput struct {
-	Label   *string `json:"label"    binding:"omitempty,max=50"`
-	Name    *string `json:"name"     binding:"omitempty,min=2,max=100"`
-	Phone   *string `json:"phone"    binding:"omitempty,min=9,max=20"`
-	Address *string `json:"address"  binding:"omitempty,min=5"`
+	Label        *string `json:"label"         binding:"omitempty,max=50"`
+	Name         *string `json:"name"          binding:"omitempty,min=2,max=100"`
+	Phone        *string `json:"phone"         binding:"omitempty,min=9,max=20"`
+	Address      *string `json:"address"       binding:"omitempty,min=5"`
+	ProvinceID   *int    `json:"province_id"   binding:"omitempty,gt=0"`
+	ProvinceName *string `json:"province_name" binding:"omitempty"`
+	DistrictID   *int    `json:"district_id"   binding:"omitempty,gt=0"`
+	DistrictName *string `json:"district_name" binding:"omitempty"`
+	WardCode     *string `json:"ward_code"     binding:"omitempty"`
+	WardName     *string `json:"ward_name"     binding:"omitempty"`
 }
 
 func MapToAddressDTO(a sqlc.UserAddress) AddressDTO {

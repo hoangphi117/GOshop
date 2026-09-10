@@ -349,7 +349,13 @@ func (a *GHNAdapter) GetProvinces(ctx context.Context) ([]v1dto.ProvinceDTO, err
 
 func (a *GHNAdapter) GetDistricts(ctx context.Context, provinceID int) ([]v1dto.DistrictDTO, error) {
 	endpoint := fmt.Sprintf("%s/shiip/public-api/master-data/district", a.baseURL)
-	body, err := a.doRequest(ctx, http.MethodGet, endpoint, nil)
+	var body json.RawMessage
+	var err error
+	if provinceID > 0 {
+		body, err = a.doRequest(ctx, http.MethodPost, endpoint, map[string]int{"province_id": provinceID})
+	} else {
+		body, err = a.doRequest(ctx, http.MethodGet, endpoint, nil)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("ghn get districts failed: %w", err)
 	}
@@ -373,7 +379,7 @@ func (a *GHNAdapter) GetDistricts(ctx context.Context, provinceID int) ([]v1dto.
 }
 
 func (a *GHNAdapter) GetWards(ctx context.Context, districtID int) ([]v1dto.WardDTO, error) {
-	endpoint := fmt.Sprintf("%s/shiip/public-api/master-data/ward", a.baseURL)
+	endpoint := fmt.Sprintf("%s/shiip/public-api/master-data/ward?district_id=%d", a.baseURL, districtID)
 	body, err := a.doRequest(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("ghn get wards failed: %w", err)
