@@ -7,6 +7,7 @@ import { Navbar } from '@/components/layout/navbar'
 import { Footer } from '@/components/layout/footer'
 import { CartDrawer } from '@/components/cart/cart-drawer'
 import { ScrollToTop } from '@/components/layout/scroll-to-top'
+import { MainContainer } from '@/components/layout/main-container'
 import { Toaster } from 'sonner'
 
 const inter = Inter({
@@ -16,9 +17,9 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: 'GOshop — Modern Online Shopping & Tech Marketplace',
+  title: 'GOshop — Gaming Merch, Plushies, Tees & Collectibles',
   description:
-    'Discover premium electronics, gaming gear, fashion, and lifestyle essentials with fast shipping and secure payments.',
+    'Discover authentic game boss plushies, graphic printed gamer tees, and collectible toys with fast shipping and secure payments.',
 }
 
 export default function RootLayout({
@@ -33,7 +34,7 @@ export default function RootLayout({
           <QueryProvider>
             <Navbar />
             <CartDrawer />
-            <main className="flex-1 -mt-14 pt-14 flex flex-col">{children}</main>
+            <MainContainer>{children}</MainContainer>
             <Footer />
             <ScrollToTop />
             <Toaster richColors position="top-right" />

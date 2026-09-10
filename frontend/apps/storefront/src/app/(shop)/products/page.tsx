@@ -24,21 +24,21 @@ export const dynamic = 'force-dynamic'
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
   const params = await searchParams
   const currentPage = parseInt(params.page || '1', 10)
-  const currentCategory = params.category || ''
   const currentSearch = params.search || ''
   const currentSort = params.sort || ''
 
-  // Fetch categories and filtered products concurrently
-  const [categories, productsData] = await Promise.all([
-    getCategories(),
-    getProducts({
-      page: currentPage,
-      limit: 12,
-      category: currentCategory,
-      search: currentSearch,
-      sort: currentSort,
-    }),
-  ])
+  // Fetch categories first to determine first category fallback if none provided
+  const categories = await getCategories()
+  const firstCategory = categories[0]?.slug || categories[0]?.uuid || ''
+  const currentCategory = params.category || (currentSearch ? '' : firstCategory)
+
+  const productsData = await getProducts({
+    page: currentPage,
+    limit: 12,
+    category: currentCategory,
+    search: currentSearch,
+    sort: currentSort,
+  })
 
   const products = productsData.products || []
   const pagination = productsData.pagination
@@ -152,16 +152,6 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
               </div>
 
               <div className="space-y-1">
-                <Link
-                  href="/products"
-                  className={`block px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
-                    !currentCategory
-                      ? 'bg-[#E3F2FD] text-[#0D47A1]'
-                      : 'text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  All Categories
-                </Link>
                 {categories.map((cat) => {
                   const isActive =
                     currentCategory.toLowerCase() === cat.slug.toLowerCase() ||
@@ -204,6 +194,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
           <div className="lg:col-span-3 space-y-8">
             <ProductGrid
               products={products}
+              columnsClassName="grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
               emptyMessage={
                 currentSearch
                   ? `No products found matching "${currentSearch}".`

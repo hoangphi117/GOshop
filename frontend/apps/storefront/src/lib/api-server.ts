@@ -72,7 +72,8 @@ export async function fetchServer<T>(
   init?: RequestInit & { revalidate?: number }
 ): Promise<T | null> {
   const url = `${SERVER_API_BASE}${path.startsWith('/') ? path : `/${path}`}`
-  const { revalidate = 60, ...customInit } = init || {}
+  const isDev = process.env.NODE_ENV === 'development'
+  const { revalidate = isDev ? 0 : 60, ...customInit } = init || {}
 
   try {
     const res = await fetch(url, {
@@ -83,7 +84,7 @@ export async function fetchServer<T>(
         ...(customInit.headers || {}),
       },
       next: {
-        revalidate,
+        revalidate: isDev ? 0 : revalidate,
       },
     })
 
@@ -99,9 +100,10 @@ export async function fetchServer<T>(
   }
 }
 
-export async function getBanners(): Promise<Banner[]> {
-  const res = await fetchServer<ApiResponse<Banner[]>>('/banners', {
-    revalidate: 60,
+export async function getBanners(position?: string): Promise<Banner[]> {
+  const query = position ? `?position=${encodeURIComponent(position)}` : ''
+  const res = await fetchServer<ApiResponse<Banner[]>>(`/banners${query}`, {
+    revalidate: 0,
   })
   return res?.data || []
 }

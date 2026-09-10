@@ -1,82 +1,113 @@
-'use client'
+"use client";
 
-import React, { useState } from 'react'
-import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
-import { useCartStore } from '@/stores/cart-store'
-import { useAuthStore } from '@/stores/auth-store'
-import {
-  ShoppingCart,
-  Search,
-  User,
-  Menu,
-  X,
-  Store,
-} from 'lucide-react'
-import { useMounted } from '@/hooks/use-mounted'
+import React, { useState, useEffect } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useCartStore } from "@/stores/cart-store";
+import { useAuthStore } from "@/stores/auth-store";
+import { ShoppingCart, Search, User, Menu, X, Store } from "lucide-react";
+import { useMounted } from "@/hooks/use-mounted";
 
 export function Navbar() {
-  const pathname = usePathname()
-  const router = useRouter()
-  const { getTotalItems, openDrawer } = useCartStore()
-  const { user } = useAuthStore()
+  const pathname = usePathname();
+  const router = useRouter();
+  const { getTotalItems, openDrawer } = useCartStore();
+  const { user } = useAuthStore();
 
-  const mounted = useMounted()
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [showSearch, setShowSearch] = useState(false)
+  const mounted = useMounted();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showSearch, setShowSearch] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  const isHome = pathname === "/";
+  const isTransparent = isHome && !isScrolled;
+
+  useEffect(() => {
+    if (!isHome) {
+      setIsScrolled(true);
+      return;
+    }
+
+    const checkScroll = () => {
+      const heroEl = document.getElementById("hero-banner");
+      if (heroEl) {
+        const rect = heroEl.getBoundingClientRect();
+        // Scrolled past hero banner when the bottom of hero reaches the header area
+        setIsScrolled(rect.bottom <= 80);
+      } else {
+        setIsScrolled(window.scrollY > 450);
+      }
+    };
+
+    checkScroll();
+    window.addEventListener("scroll", checkScroll, { passive: true });
+    return () => window.removeEventListener("scroll", checkScroll);
+  }, [isHome]);
 
   const navLinks = [
-    { name: 'Home', href: '/' },
-    { name: 'Catalog', href: '/products' },
-    { name: 'Categories', href: '/#categories' },
-    { name: 'Flash Deals', href: '/#deals' },
-  ]
+    { name: "Home", href: "/" },
+    { name: "Catalog", href: "/products" },
+    { name: "Flash Deals", href: "/#deals" },
+  ];
 
   const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     if (searchQuery.trim()) {
-      router.push(`/products?search=${encodeURIComponent(searchQuery.trim())}`)
-      setShowSearch(false)
-      setMobileMenuOpen(false)
+      router.push(`/products?search=${encodeURIComponent(searchQuery.trim())}`);
+      setShowSearch(false);
+      setMobileMenuOpen(false);
     }
-  }
+  };
 
-  const totalCartItems = mounted ? getTotalItems() : 0
+  const totalCartItems = mounted ? getTotalItems() : 0;
 
   return (
-    <header className="sticky top-4 z-40 px-4 sm:px-6 w-full pointer-events-none">
-      <div className="max-w-6xl mx-auto rounded-full glass-nav border border-slate-200/70 shadow-[0_8px_30px_rgb(0,0,0,0.06)] px-5 py-2.5 flex items-center justify-between pointer-events-auto transition-all duration-200">
+    <header className="fixed top-4 left-0 right-0 z-40 px-4 sm:px-6 w-full pointer-events-none">
+      <div
+        className={`max-w-6xl mx-auto rounded-full px-5 py-1 flex items-center justify-between pointer-events-auto transition-all duration-300 ${
+          isTransparent
+            ? "bg-white/15 backdrop-blur-md border border-white/20 shadow-[0_8px_30px_rgba(0,0,0,0.15)]"
+            : "bg-white/95 backdrop-blur-md border border-slate-200/70 shadow-[0_8px_30px_rgb(0,0,0,0.06)]"
+        }`}
+      >
         {/* Brand Logo */}
-        <Link href="/" className="flex items-center gap-2 group">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#0D47A1] to-[#2196F3] flex items-center justify-center text-white shadow-sm transition-transform group-hover:scale-105">
-            <Store className="w-5 h-5" />
-          </div>
-          <span className="text-xl font-extrabold tracking-tight text-[#0D1B2A]">
-            GO<span className="text-[#2196F3]">shop</span>
-          </span>
+        <Link href="/" className="flex items-center ">
+          <Image
+            src="/Logo.png"
+            alt="GOshop"
+            width={200}
+            height={50}
+            priority
+            className="h-10 sm:h-12 w-auto object-contain"
+          />
         </Link>
 
         {/* Desktop Navigation Links */}
         <nav className="hidden md:flex items-center gap-1 text-sm font-medium">
           {navLinks.map((link) => {
             const isActive =
-              link.href === '/'
-                ? pathname === '/'
-                : pathname.startsWith(link.href)
+              link.href === "/"
+                ? pathname === "/"
+                : pathname.startsWith(link.href);
             return (
               <Link
                 key={link.name}
                 href={link.href}
-                className={`px-3.5 py-1.5 rounded-full transition-all duration-150 ${
-                  isActive
-                    ? 'bg-[#E3F2FD] text-[#0D47A1] font-semibold'
-                    : 'text-slate-600 hover:text-[#0D1B2A] hover:bg-slate-100/80'
+                className={`px-3.5 py-1.5 rounded-full transition-all duration-200 ${
+                  isTransparent
+                    ? isActive
+                      ? "bg-white/20 text-white font-semibold backdrop-blur-xs border border-white/25"
+                      : "text-white/80 hover:text-white hover:bg-white/10"
+                    : isActive
+                      ? "bg-[#E3F2FD] text-[#0D47A1] font-semibold"
+                      : "text-slate-600 hover:text-[#0D1B2A] hover:bg-slate-100/80"
                 }`}
               >
                 {link.name}
               </Link>
-            )
+            );
           })}
         </nav>
 
@@ -109,7 +140,11 @@ export function Navbar() {
             ) : (
               <button
                 onClick={() => setShowSearch(true)}
-                className="w-9 h-9 rounded-full flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-colors"
+                className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
+                  isTransparent
+                    ? "text-white/90 hover:text-white hover:bg-white/15"
+                    : "text-slate-600 hover:text-[#0D1B2A] hover:bg-slate-100"
+                }`}
                 aria-label="Search"
               >
                 <Search className="w-4 h-4" />
@@ -120,7 +155,11 @@ export function Navbar() {
           {/* Cart Trigger */}
           <button
             onClick={openDrawer}
-            className="relative w-9 h-9 rounded-full flex items-center justify-center text-slate-700 hover:bg-[#E3F2FD] hover:text-[#0D47A1] transition-colors"
+            className={`relative w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
+              isTransparent
+                ? "text-white hover:bg-white/15"
+                : "text-slate-700 hover:bg-[#E3F2FD] hover:text-[#0D47A1]"
+            }`}
             aria-label="Shopping Cart"
           >
             <ShoppingCart className="w-4 h-4" />
@@ -135,19 +174,33 @@ export function Navbar() {
           {user ? (
             <Link
               href="/account"
-              className="flex items-center gap-1.5 pl-2 pr-3 py-1 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors text-xs font-semibold text-slate-700"
+              className={`flex items-center gap-1.5 pl-2 pr-3 py-1 rounded-full transition-colors text-xs font-semibold ${
+                isTransparent
+                  ? "bg-white/20 hover:bg-white/30 text-white border border-white/25 backdrop-blur-xs"
+                  : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+              }`}
             >
-              <div className="w-6 h-6 rounded-full bg-[#0D47A1] text-white flex items-center justify-center text-[10px]">
-                {user.fullName ? user.fullName[0].toUpperCase() : 'U'}
+              <div
+                className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] ${
+                  isTransparent
+                    ? "bg-white text-[#0D47A1] font-bold"
+                    : "bg-[#0D47A1] text-white"
+                }`}
+              >
+                {user.fullName ? user.fullName[0].toUpperCase() : "U"}
               </div>
               <span className="hidden sm:inline max-w-[80px] truncate">
-                {user.fullName || user.email.split('@')[0]}
+                {user.fullName || user.email.split("@")[0]}
               </span>
             </Link>
           ) : (
             <Link
               href="/login"
-              className="hidden sm:inline-flex items-center gap-1 px-3.5 py-1.5 rounded-full bg-[#0D47A1] text-white text-xs font-semibold hover:bg-[#2196F3] transition-colors shadow-xs"
+              className={`hidden sm:inline-flex items-center gap-1 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors shadow-xs ${
+                isTransparent
+                  ? "bg-white/20 hover:bg-white/30 text-white border border-white/25 backdrop-blur-xs"
+                  : "bg-[#0D47A1] text-white hover:bg-[#2196F3]"
+              }`}
             >
               <User className="w-3.5 h-3.5" />
               <span>Sign In</span>
@@ -157,7 +210,11 @@ export function Navbar() {
           {/* Mobile Menu Hamburger */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden w-9 h-9 rounded-full flex items-center justify-center text-slate-700 hover:bg-slate-100 transition-colors"
+            className={`md:hidden w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
+              isTransparent
+                ? "text-white hover:bg-white/15"
+                : "text-slate-700 hover:bg-slate-100"
+            }`}
             aria-label="Toggle navigation menu"
           >
             {mobileMenuOpen ? (
@@ -210,5 +267,5 @@ export function Navbar() {
         </div>
       )}
     </header>
-  )
+  );
 }

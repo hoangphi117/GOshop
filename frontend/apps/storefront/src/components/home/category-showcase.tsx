@@ -1,6 +1,6 @@
-import React from 'react'
-import Link from 'next/link'
-import type { Category } from '@/lib/api-server'
+import React from "react";
+import Link from "next/link";
+import type { Category } from "@/lib/api-server";
 import {
   Gamepad2,
   Tv,
@@ -10,42 +10,70 @@ import {
   Laptop,
   ShoppingBag,
   ArrowRight,
-} from 'lucide-react'
+  Shirt,
+  Sparkles,
+  Package,
+  Ghost,
+} from "lucide-react";
 
 interface CategoryShowcaseProps {
-  categories: Category[]
+  categories: Category[];
 }
 
 export function CategoryShowcase({ categories }: CategoryShowcaseProps) {
   // Helper to pick a fitting icon based on category name or slug
   const getCategoryIcon = (name: string) => {
-    const lower = name.toLowerCase()
-    if (lower.includes('game')) return Gamepad2
-    if (lower.includes('electronic') || lower.includes('tv')) return Tv
-    if (lower.includes('phone') || lower.includes('mobile')) return Smartphone
-    if (lower.includes('watch')) return Watch
-    if (lower.includes('audio') || lower.includes('headphone')) return Headphones
-    if (lower.includes('computer') || lower.includes('laptop')) return Laptop
-    return ShoppingBag
-  }
+    const lower = name.toLowerCase();
+    if (
+      lower.includes("plush") ||
+      lower.includes("thú") ||
+      lower.includes("monster") ||
+      lower.includes("boss")
+    )
+      return Ghost;
+    if (
+      lower.includes("shirt") ||
+      lower.includes("tee") ||
+      lower.includes("áo") ||
+      lower.includes("apparel") ||
+      lower.includes("fashion")
+    )
+      return Shirt;
+    if (
+      lower.includes("toy") ||
+      lower.includes("đồ chơi") ||
+      lower.includes("figure") ||
+      lower.includes("collect") ||
+      lower.includes("model")
+    )
+      return Package;
+    if (lower.includes("game")) return Gamepad2;
+    if (lower.includes("electronic") || lower.includes("tv")) return Tv;
+    if (lower.includes("phone") || lower.includes("mobile")) return Smartphone;
+    if (lower.includes("watch")) return Watch;
+    if (lower.includes("audio") || lower.includes("headphone"))
+      return Headphones;
+    if (lower.includes("computer") || lower.includes("laptop")) return Laptop;
+    return Sparkles;
+  };
 
   return (
-    <section id="categories" className="py-16 bg-[#FAFBFC]">
+    <section id="categories" className="py-8 bg-[#FAFBFC]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-8 gap-4">
           <div>
             <div className="inline-flex items-center gap-1 text-xs font-bold text-[#2196F3] uppercase tracking-wider mb-2">
-              Browse Categories
+              Gamer Collections
             </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-[#0D1B2A] tracking-tight">
-              Shop by Department
+              Shop by Merchandise
             </h2>
           </div>
           <Link
             href="/products"
             className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#0D47A1] hover:text-[#2196F3] transition-colors group"
           >
-            <span>View All Categories</span>
+            <span>Explore All Collections</span>
             <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
           </Link>
         </div>
@@ -57,7 +85,7 @@ export function CategoryShowcase({ categories }: CategoryShowcaseProps) {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
             {categories.map((cat) => {
-              const Icon = getCategoryIcon(cat.category_name)
+              const Icon = getCategoryIcon(cat.category_name);
               return (
                 <Link
                   key={cat.uuid}
@@ -76,11 +104,11 @@ export function CategoryShowcase({ categories }: CategoryShowcaseProps) {
                     </p>
                   )}
                 </Link>
-              )
+              );
             })}
           </div>
         )}
       </div>
     </section>
-  )
+  );
 }

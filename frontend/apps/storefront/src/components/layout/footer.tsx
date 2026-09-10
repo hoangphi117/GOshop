@@ -43,7 +43,7 @@ export function Footer() {
             </div>
             <div>
               <h4 className="text-sm font-semibold text-white">Secure Payments</h4>
-              <p className="text-xs text-[#90CAF9] mt-0.5">VNPay & Cash on delivery</p>
+              <p className="text-xs text-[#90CAF9] mt-0.5">MoMo & Cash on delivery</p>
             </div>
           </div>
 
@@ -157,7 +157,7 @@ export function Footer() {
             </h5>
             <div className="flex flex-wrap gap-2 text-xs">
               <span className="px-2.5 py-1 rounded-md bg-white/10 text-white font-medium">
-                VNPay QR
+                MoMo E-Wallet
               </span>
               <span className="px-2.5 py-1 rounded-md bg-white/10 text-white font-medium">
                 COD
