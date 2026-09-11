@@ -56,7 +56,7 @@ type GetNotificationsQuery struct {
 }
 
 type NotificationUUID struct {
-	UUID uuid.UUID `uri:"uuid" binding:"required,uuid"`
+	UUID string `uri:"uuid" binding:"required,uuid"`
 }
 
 // ── Helper ───────────────────────────────────────────────

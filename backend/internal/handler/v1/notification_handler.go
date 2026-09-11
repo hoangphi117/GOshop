@@ -153,7 +153,7 @@ func (h *NotificationHandler) MarkNotificationAsRead(ctx *gin.Context) {
 		return
 	}
 
-	notifUUID, err := uuid.Parse(params.UUID.String())
+	notifUUID, err := uuid.Parse(params.UUID)
 	if err != nil {
 		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid notification UUID"))
 		return
@@ -206,7 +206,7 @@ func (h *NotificationHandler) DeleteNotification(ctx *gin.Context) {
 		return
 	}
 
-	notifUUID, err := uuid.Parse(params.UUID.String())
+	notifUUID, err := uuid.Parse(params.UUID)
 	if err != nil {
 		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid notification UUID"))
 		return
