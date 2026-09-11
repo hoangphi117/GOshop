@@ -1,8 +1,9 @@
 "use client";
 
-import React, { Suspense, useEffect } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { toast } from "sonner";
 import {
   CheckCircle2,
   XCircle,
@@ -12,8 +13,12 @@ import {
   ArrowRight,
   ShieldCheck,
   AlertTriangle,
+  RotateCcw,
+  RefreshCw,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/format";
+import { authFetch } from "@/lib/api";
+import { extractErrorMessage } from "@/lib/utils";
 import { useCartStore } from "@/stores/cart-store";
 
 function PaymentResultContent() {
@@ -52,11 +57,115 @@ function PaymentResultContent() {
     }
   }
 
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [resolvedOrderUuid, setResolvedOrderUuid] = useState<string | null>(null);
+
   useEffect(() => {
     if (isSuccess) {
       removeSelectedItems();
+    } else if (displayOrderNumber) {
+      // Resolve Order UUID in background to prepare for instant retry
+      const fetchOrderUuid = async () => {
+        try {
+          const baseUrl =
+            process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+          const res = await authFetch(`${baseUrl}/api/v1/orders`);
+          if (res.ok) {
+            const json = await res.json();
+            const orderList = Array.isArray(json?.data)
+              ? json.data
+              : Array.isArray(json?.data?.items)
+              ? json.data.items
+              : [];
+            const matched = orderList.find(
+              (o: { order_number?: string; uuid?: string }) =>
+                o.order_number === displayOrderNumber ||
+                o.uuid === displayOrderNumber
+            );
+            if (matched?.uuid) {
+              setResolvedOrderUuid(matched.uuid);
+            }
+          }
+        } catch {
+          // Ignore background fetch error
+        }
+      };
+      fetchOrderUuid();
     }
-  }, [isSuccess, removeSelectedItems]);
+  }, [isSuccess, displayOrderNumber, removeSelectedItems]);
+
+  const handleRetryPayment = async () => {
+    setIsRetrying(true);
+    try {
+      const baseUrl =
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+      let targetUuid = resolvedOrderUuid;
+
+      // If not yet resolved, query the user's orders
+      if (!targetUuid && displayOrderNumber) {
+        const res = await authFetch(`${baseUrl}/api/v1/orders`);
+        if (res.ok) {
+          const json = await res.json();
+          const orderList = Array.isArray(json?.data)
+            ? json.data
+            : Array.isArray(json?.data?.items)
+            ? json.data.items
+            : [];
+          const matched = orderList.find(
+            (o: { order_number?: string; uuid?: string }) =>
+              o.order_number === displayOrderNumber ||
+              o.uuid === displayOrderNumber
+          );
+          if (matched?.uuid) {
+            targetUuid = matched.uuid;
+            setResolvedOrderUuid(matched.uuid);
+          }
+        }
+      }
+
+      if (!targetUuid) {
+        toast.error("Could not find order. Redirecting to My Orders...");
+        window.location.href = "/account/orders";
+        return;
+      }
+
+      const paymentRes = await authFetch(
+        `${baseUrl}/api/v1/payments/create-intent`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Idempotency-Key": `idem-retry-${targetUuid}-${Date.now()}`,
+          },
+          body: JSON.stringify({
+            order_uuid: targetUuid,
+            provider: "momo",
+          }),
+        }
+      );
+
+      if (paymentRes.ok) {
+        const paymentData = await paymentRes.json();
+        const paymentUrl = paymentData?.data?.payment_url;
+        if (paymentUrl) {
+          toast.success("Redirecting to MoMo payment gateway...");
+          window.location.href = paymentUrl;
+          return;
+        }
+      }
+
+      const errJson = await paymentRes.json().catch(() => null);
+      const errMsg = extractErrorMessage(
+        errJson,
+        "Unable to create MoMo payment link."
+      );
+      toast.error(errMsg);
+    } catch {
+      toast.error("Network error while attempting to retry payment.");
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   return (
     <div className="min-h-[75vh] py-8 px-4 flex items-center justify-center">
@@ -201,13 +310,31 @@ function PaymentResultContent() {
             </>
           ) : (
             <>
+              {/* Retry Payment Button */}
+              <button
+                type="button"
+                onClick={handleRetryPayment}
+                disabled={isRetrying}
+                className="px-6 py-3 rounded-xl bg-[#A50064] text-white text-xs font-bold hover:bg-[#850050] transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+              >
+                {isRetrying ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RotateCcw className="w-4 h-4" />
+                )}
+                <span>{isRetrying ? "Connecting MoMo..." : "Retry Payment"}</span>
+              </button>
+
+              {/* View My Orders Button */}
               <Link
-                href="/checkout"
+                href="/account/orders"
                 className="px-6 py-3 rounded-xl bg-[#2196F3] text-white text-xs font-bold hover:bg-[#0D47A1] transition-all shadow-md flex items-center justify-center gap-2"
               >
-                Return to Checkout
-                <ArrowRight className="w-4 h-4" />
+                <ShoppingBag className="w-4 h-4" />
+                <span>View My Orders</span>
               </Link>
+
+              {/* Back to Home Button */}
               <Link
                 href="/"
                 className="px-6 py-3 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
