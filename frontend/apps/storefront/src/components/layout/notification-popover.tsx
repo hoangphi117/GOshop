@@ -182,12 +182,22 @@ export function NotificationPopover({
       item.data?.order_uuid ||
       item.data?.order_number
     ) {
-      router.push("/account/orders");
+      const orderRef = item.data?.order_number || item.data?.order_uuid;
+      if (orderRef) {
+        router.push(`/account/orders?orderId=${encodeURIComponent(String(orderRef))}`);
+      } else {
+        router.push("/account/orders");
+      }
       return;
     }
 
     if (item.type.includes("review")) {
-      router.push("/account/orders");
+      const orderRef = item.data?.order_number || item.data?.order_uuid;
+      if (orderRef) {
+        router.push(`/account/orders?orderId=${encodeURIComponent(String(orderRef))}`);
+      } else {
+        router.push("/account/orders");
+      }
       return;
     }
   };

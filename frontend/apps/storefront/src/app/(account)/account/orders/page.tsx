@@ -1,7 +1,8 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { authFetch } from '@/lib/api'
@@ -75,7 +76,7 @@ interface Order {
   items?: OrderItem[]
 }
 
-export default function MyOrdersPage() {
+function MyOrdersPageContent() {
   const { accessToken } = useAuthStore()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
@@ -141,11 +142,23 @@ export default function MyOrdersPage() {
     fetchOrders()
   }, [fetchOrders])
 
-  // In-place switch to order detail
-  const handleOpenOrderDetails = async (order: Order) => {
+  // URL Parameter Handling for Direct Link / Reload persistence
+  const searchParams = useSearchParams()
+  const initialOrderId = searchParams.get('orderId') || searchParams.get('order')
+  const hasAutoLoadedFromUrl = useRef(false)
+
+  // In-place switch to order detail with URL synchronization (without reload)
+  const handleOpenOrderDetails = useCallback(async (order: Order, updateUrl = true) => {
     setSelectedOrder(order)
     setTimelineEvents([])
     setIsLoadingDetail(true)
+
+    if (updateUrl && typeof window !== 'undefined') {
+      const url = new URL(window.location.href)
+      const ref = order.order_number || order.uuid
+      url.searchParams.set('orderId', ref)
+      window.history.pushState({ orderId: ref }, '', url.toString())
+    }
 
     try {
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
@@ -176,7 +189,95 @@ export default function MyOrdersPage() {
     } finally {
       setIsLoadingDetail(false)
     }
+  }, [])
+
+  const handleBackToOrdersList = () => {
+    setSelectedOrder(null)
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href)
+      url.searchParams.delete('orderId')
+      url.searchParams.delete('order')
+      window.history.pushState({}, '', url.toString())
+    }
   }
+
+  // Handle browser Back / Forward buttons (popstate)
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search)
+      const targetOrderId = params.get('orderId') || params.get('order')
+      if (!targetOrderId) {
+        setSelectedOrder(null)
+      } else if (orders.length > 0) {
+        const matched = orders.find(
+          (o) => o.order_number === targetOrderId || o.uuid === targetOrderId
+        )
+        if (matched) {
+          handleOpenOrderDetails(matched, false)
+        }
+      }
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [orders, handleOpenOrderDetails])
+
+  // Automatically load & open order detail if URL contains orderId on initial load/reload
+  useEffect(() => {
+    if (!initialOrderId || hasAutoLoadedFromUrl.current || !accessToken) return
+
+    // 1. Check in already loaded orders
+    if (orders.length > 0) {
+      const matched = orders.find(
+        (o) => o.order_number === initialOrderId || o.uuid === initialOrderId
+      )
+      if (matched) {
+        hasAutoLoadedFromUrl.current = true
+        handleOpenOrderDetails(matched, false)
+        return
+      }
+    }
+
+    // 2. If not found in loaded orders, query API directly
+    const fetchDirectOrder = async () => {
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(initialOrderId)
+        if (isUuid) {
+          const res = await authFetch(`${baseUrl}/api/v1/orders/${initialOrderId}`)
+          if (res.ok) {
+            const json = await res.json()
+            if (json?.data) {
+              hasAutoLoadedFromUrl.current = true
+              handleOpenOrderDetails(json.data, false)
+              return
+            }
+          }
+        } else {
+          const res = await authFetch(`${baseUrl}/api/v1/orders?search=${encodeURIComponent(initialOrderId)}`)
+          if (res.ok) {
+            const json = await res.json()
+            const orderList: Order[] = Array.isArray(json?.data)
+              ? json.data
+              : Array.isArray(json?.data?.items)
+              ? json.data.items
+              : []
+            const matched = orderList.find(
+              (o) => o.order_number === initialOrderId || o.uuid === initialOrderId
+            )
+            if (matched) {
+              hasAutoLoadedFromUrl.current = true
+              handleOpenOrderDetails(matched, false)
+            }
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    fetchDirectOrder()
+  }, [initialOrderId, orders, accessToken, handleOpenOrderDetails])
 
   // --- CANCEL ORDER ACTIONS ---
   const handleOpenCancelConfirmation = (order: Order) => {
@@ -597,7 +698,7 @@ export default function MyOrdersPage() {
         <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <button
             type="button"
-            onClick={() => setSelectedOrder(null)}
+            onClick={handleBackToOrdersList}
             className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-emerald-600 transition-colors cursor-pointer group w-fit"
           >
             <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
@@ -1520,4 +1621,19 @@ export default function MyOrdersPage() {
       </>
     )
   }
+}
+
+export default function MyOrdersPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-12 text-center text-slate-400 space-y-2">
+          <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#2196F3]" />
+          <p className="text-xs font-medium">Loading orders...</p>
+        </div>
+      }
+    >
+      <MyOrdersPageContent />
+    </Suspense>
+  )
 }
