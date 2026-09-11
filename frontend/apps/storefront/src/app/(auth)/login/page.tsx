@@ -47,7 +47,6 @@ export default function LoginPage() {
         role: data.data.user?.roles || [],
       })
 
-      toast.success('Successfully logged in!')
       const redirectUrl =
         typeof window !== 'undefined'
           ? new URLSearchParams(window.location.search).get('redirect') || '/'

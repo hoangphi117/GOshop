@@ -71,7 +71,6 @@ export default function AccountLayout({
 
   const handleLogout = () => {
     reset()
-    toast.info('Signed out of your account.')
     router.push('/')
   }
 
