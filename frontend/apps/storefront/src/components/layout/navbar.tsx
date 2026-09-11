@@ -6,8 +6,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCartStore } from "@/stores/cart-store";
 import { useAuthStore } from "@/stores/auth-store";
-import { ShoppingCart, Search, User, Menu, X, Store } from "lucide-react";
+import { ShoppingCart, Search, User, Menu, X, Store, Bell } from "lucide-react";
 import { useMounted } from "@/hooks/use-mounted";
+import { NotificationPopover } from "@/components/layout/notification-popover";
 
 export function Navbar() {
   const pathname = usePathname();
@@ -160,6 +161,9 @@ export function Navbar() {
               </button>
             )}
           </div>
+
+          {/* Notifications Trigger */}
+          <NotificationPopover isTransparent={isTransparent} />
 
           {/* Cart Trigger */}
           <button
