@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { authFetch } from '@/lib/api'
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/format'
 import { getImageUrl, extractErrorMessage } from '@/lib/utils'
+import { WriteReviewModal } from '@/components/review/write-review-modal'
 import {
   ShoppingBag,
   Clock,
@@ -35,13 +36,19 @@ import {
   PackageCheck,
   Star,
   Search,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Download,
 } from 'lucide-react'
 
 interface OrderItem {
   uuid?: string
+  order_item_id?: number
+  product_id?: number
   product_uuid?: string
   product_name: string
-  product_slug?: string
   image_url?: string
   price: number
   quantity: number
@@ -85,6 +92,18 @@ function MyOrdersPageContent() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [isSearching, setIsSearching] = useState(false)
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total_records: 0,
+    total_pages: 1,
+    has_next: false,
+    has_prev: false,
+  })
+
   // 300ms Debounce on search input
   useEffect(() => {
     if (searchInput !== debouncedSearch) {
@@ -96,6 +115,11 @@ function MyOrdersPageContent() {
     }, 300)
     return () => clearTimeout(timer)
   }, [searchInput, debouncedSearch])
+
+  // Reset to page 1 on filter, search keyword, or page size change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [filter, debouncedSearch, pageSize])
 
   // Selected Order for in-place Detail View
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
@@ -114,20 +138,74 @@ function MyOrdersPageContent() {
   const [bankAccount, setBankAccount] = useState('')
   const [bankAccountName, setBankAccountName] = useState('')
 
+  // Confirm Delivery Modal State
+  const [orderToConfirmDelivery, setOrderToConfirmDelivery] = useState<Order | null>(null)
+  const [isConfirmingDelivery, setIsConfirmingDelivery] = useState(false)
+
+  // Invoice Download State
+  const [downloadingInvoiceUuid, setDownloadingInvoiceUuid] = useState<string | null>(null)
+
+  // Write Review Modal State
+  const [reviewingItem, setReviewingItem] = useState<{
+    orderUuid: string
+    productUuid: string
+    productName: string
+    productImageUrl?: string
+  } | null>(null)
+
+  // Sync Tracking State
+  const [isSyncingTracking, setIsSyncingTracking] = useState(false)
+
   const fetchOrders = useCallback(async () => {
     if (!accessToken) return
     setLoading(true)
     try {
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
-      const res = await authFetch(`${baseUrl}/api/v1/orders`)
+      const params = new URLSearchParams()
+      params.set('page', String(currentPage))
+      params.set('limit', String(pageSize))
+
+      if (debouncedSearch.trim()) {
+        params.set('search', debouncedSearch.trim())
+      }
+
+      const statusMap: Record<string, number> = {
+        PENDING: 1,
+        CONFIRMED: 2,
+        SHIPPED: 3,
+        DELIVERED: 4,
+        CANCELLED: 5,
+        RETURNED: 6,
+      }
+      if (filter !== 'ALL' && statusMap[filter]) {
+        params.set('status', String(statusMap[filter]))
+      }
+
+      const res = await authFetch(`${baseUrl}/api/v1/orders?${params.toString()}`)
       if (res.ok) {
         const json = await res.json()
         const orderList: Order[] = Array.isArray(json?.data)
           ? json.data
+          : Array.isArray(json?.data?.data)
+          ? json.data.data
           : Array.isArray(json?.data?.items)
           ? json.data.items
           : []
         setOrders(orderList)
+
+        const paginationData = json?.pagination || json?.data?.pagination
+        if (paginationData) {
+          setPagination(paginationData)
+        } else {
+          setPagination({
+            page: currentPage,
+            limit: pageSize,
+            total_records: orderList.length,
+            total_pages: Math.max(1, Math.ceil(orderList.length / pageSize)),
+            has_next: false,
+            has_prev: false,
+          })
+        }
       } else {
         setOrders([])
       }
@@ -136,16 +214,17 @@ function MyOrdersPageContent() {
     } finally {
       setLoading(false)
     }
-  }, [accessToken])
+  }, [accessToken, currentPage, pageSize, debouncedSearch, filter])
 
   useEffect(() => {
     fetchOrders()
   }, [fetchOrders])
 
-  // URL Parameter Handling for Direct Link / Reload persistence
+  const router = useRouter()
+  // URL Parameter Handling for Direct Link / Reload persistence and dynamic navigation
   const searchParams = useSearchParams()
-  const initialOrderId = searchParams.get('orderId') || searchParams.get('order')
-  const hasAutoLoadedFromUrl = useRef(false)
+  const urlOrderId = searchParams.get('orderId') || searchParams.get('order')
+  const activeOrderRef = useRef<string | null>(null)
 
   // In-place switch to order detail with URL synchronization (without reload)
   const handleOpenOrderDetails = useCallback(async (order: Order, updateUrl = true) => {
@@ -153,11 +232,11 @@ function MyOrdersPageContent() {
     setTimelineEvents([])
     setIsLoadingDetail(true)
 
-    if (updateUrl && typeof window !== 'undefined') {
-      const url = new URL(window.location.href)
-      const ref = order.order_number || order.uuid
-      url.searchParams.set('orderId', ref)
-      window.history.pushState({ orderId: ref }, '', url.toString())
+    const ref = order.order_number || order.uuid
+    activeOrderRef.current = ref
+
+    if (updateUrl) {
+      router.push(`/account/orders?orderId=${encodeURIComponent(ref)}`, { scroll: false })
     }
 
     try {
@@ -189,72 +268,62 @@ function MyOrdersPageContent() {
     } finally {
       setIsLoadingDetail(false)
     }
-  }, [])
+  }, [router])
 
   const handleBackToOrdersList = () => {
     setSelectedOrder(null)
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href)
-      url.searchParams.delete('orderId')
-      url.searchParams.delete('order')
-      window.history.pushState({}, '', url.toString())
-    }
+    activeOrderRef.current = null
+    router.push('/account/orders', { scroll: false })
   }
 
-  // Handle browser Back / Forward buttons (popstate)
+
+  // Automatically sync & open order detail whenever URL searchParams orderId changes (reload, direct link, or notification click)
   useEffect(() => {
-    const handlePopState = () => {
-      const params = new URLSearchParams(window.location.search)
-      const targetOrderId = params.get('orderId') || params.get('order')
-      if (!targetOrderId) {
+    if (!accessToken) return
+
+    if (!urlOrderId) {
+      if (activeOrderRef.current !== null || selectedOrder !== null) {
+        activeOrderRef.current = null
         setSelectedOrder(null)
-      } else if (orders.length > 0) {
-        const matched = orders.find(
-          (o) => o.order_number === targetOrderId || o.uuid === targetOrderId
-        )
-        if (matched) {
-          handleOpenOrderDetails(matched, false)
-        }
       }
+      return
     }
 
-    window.addEventListener('popstate', handlePopState)
-    return () => window.removeEventListener('popstate', handlePopState)
-  }, [orders, handleOpenOrderDetails])
-
-  // Automatically load & open order detail if URL contains orderId on initial load/reload
-  useEffect(() => {
-    if (!initialOrderId || hasAutoLoadedFromUrl.current || !accessToken) return
+    // If currently displaying this exact order, skip re-fetching
+    if (
+      activeOrderRef.current === urlOrderId ||
+      (selectedOrder && (selectedOrder.order_number === urlOrderId || selectedOrder.uuid === urlOrderId))
+    ) {
+      return
+    }
 
     // 1. Check in already loaded orders
-    if (orders.length > 0) {
-      const matched = orders.find(
-        (o) => o.order_number === initialOrderId || o.uuid === initialOrderId
-      )
-      if (matched) {
-        hasAutoLoadedFromUrl.current = true
-        handleOpenOrderDetails(matched, false)
-        return
-      }
+    const matched = orders.find(
+      (o) => o.order_number === urlOrderId || o.uuid === urlOrderId
+    )
+    if (matched) {
+      handleOpenOrderDetails(matched, false)
+      return
     }
 
     // 2. If not found in loaded orders, query API directly
+    let isCancelled = false
     const fetchDirectOrder = async () => {
+      setIsLoadingDetail(true)
       try {
         const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(initialOrderId)
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(urlOrderId)
         if (isUuid) {
-          const res = await authFetch(`${baseUrl}/api/v1/orders/${initialOrderId}`)
+          const res = await authFetch(`${baseUrl}/api/v1/orders/${urlOrderId}`)
           if (res.ok) {
             const json = await res.json()
-            if (json?.data) {
-              hasAutoLoadedFromUrl.current = true
+            if (json?.data && !isCancelled) {
               handleOpenOrderDetails(json.data, false)
               return
             }
           }
         } else {
-          const res = await authFetch(`${baseUrl}/api/v1/orders?search=${encodeURIComponent(initialOrderId)}`)
+          const res = await authFetch(`${baseUrl}/api/v1/orders?search=${encodeURIComponent(urlOrderId)}`)
           if (res.ok) {
             const json = await res.json()
             const orderList: Order[] = Array.isArray(json?.data)
@@ -262,22 +331,30 @@ function MyOrdersPageContent() {
               : Array.isArray(json?.data?.items)
               ? json.data.items
               : []
-            const matched = orderList.find(
-              (o) => o.order_number === initialOrderId || o.uuid === initialOrderId
+            const found = orderList.find(
+              (o) => o.order_number === urlOrderId || o.uuid === urlOrderId
             )
-            if (matched) {
-              hasAutoLoadedFromUrl.current = true
-              handleOpenOrderDetails(matched, false)
+            if (found && !isCancelled) {
+              handleOpenOrderDetails(found, false)
+              return
             }
           }
         }
       } catch {
         // ignore
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingDetail(false)
+        }
       }
     }
 
     fetchDirectOrder()
-  }, [initialOrderId, orders, accessToken, handleOpenOrderDetails])
+
+    return () => {
+      isCancelled = true
+    }
+  }, [urlOrderId, orders, accessToken, handleOpenOrderDetails, selectedOrder])
 
   // --- CANCEL ORDER ACTIONS ---
   const handleOpenCancelConfirmation = (order: Order) => {
@@ -373,54 +450,152 @@ function MyOrdersPageContent() {
     }
   }
 
-  // Normalize string for case- and diacritics-insensitive searching (Vietnamese & English)
-  const normalizeText = (str?: string) =>
-    (str || '')
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase()
+  // --- CONFIRM DELIVERY ACTIONS ---
+  const handleOpenConfirmDelivery = (order: Order) => {
+    setOrderToConfirmDelivery(order)
+  }
 
-  const filteredOrders = orders.filter((o) => {
-    // 1. Status Filter
-    if (filter !== 'ALL') {
-      const s = (o.status || '').toUpperCase()
-      if (filter === 'PENDING' && !s.includes('PENDING')) return false
-      if (filter === 'CONFIRMED' && !s.includes('CONFIRM')) return false
-      if (filter === 'SHIPPED' && !s.includes('SHIP')) return false
-      if (filter === 'DELIVERED' && !s.includes('DELIVER') && !s.includes('COMPLETE')) return false
-      if (filter === 'CANCELLED' && !s.includes('CANCEL')) return false
-      if (filter === 'RETURNED' && !s.includes('RETURN')) return false
-      if (!['PENDING', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'RETURNED'].includes(filter) && s !== filter) {
-        return false
-      }
-    }
+  const handleConfirmDelivery = async () => {
+    if (!orderToConfirmDelivery) return
+    setIsConfirmingDelivery(true)
 
-    // 2. Search Query Filter (Debounced: Order Number, ID, Recipient info, and Product Name in items)
-    if (debouncedSearch.trim()) {
-      const q = normalizeText(debouncedSearch.trim())
-      const matchOrderNumber = normalizeText(o.order_number).includes(q)
-      const matchUuid = normalizeText(o.uuid).includes(q)
-      const matchRecipient = normalizeText(o.shipping_name).includes(q)
-      const matchPhone = normalizeText(o.shipping_phone).includes(q)
-      const matchAddress = normalizeText(o.shipping_address).includes(q)
-      const matchItems = o.items?.some((item) =>
-        normalizeText(item.product_name).includes(q)
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
+      const res = await authFetch(
+        `${baseUrl}/api/v1/orders/${orderToConfirmDelivery.uuid}/confirm-delivery`,
+        {
+          method: 'POST',
+        }
       )
 
-      if (
-        !matchOrderNumber &&
-        !matchUuid &&
-        !matchRecipient &&
-        !matchPhone &&
-        !matchAddress &&
-        !matchItems
-      ) {
-        return false
+      if (res.ok) {
+        toast.success(
+          `Order #${orderToConfirmDelivery.order_number || orderToConfirmDelivery.uuid.slice(0, 8).toUpperCase()} delivery confirmed! Thank you for shopping with GOshop.`
+        )
+        setOrderToConfirmDelivery(null)
+        if (selectedOrder && selectedOrder.uuid === orderToConfirmDelivery.uuid) {
+          setSelectedOrder({ ...selectedOrder, status: 'Delivered' })
+        }
+        await fetchOrders()
+      } else {
+        const errJson = await res.json().catch(() => null)
+        const msg = extractErrorMessage(errJson, 'Failed to confirm order delivery.')
+        toast.error(msg)
       }
+    } catch {
+      toast.error('Network error occurred while confirming delivery.')
+    } finally {
+      setIsConfirmingDelivery(false)
     }
+  }
 
-    return true
-  })
+  // --- DOWNLOAD INVOICE ACTIONS ---
+  const handleDownloadInvoice = async (order: Order) => {
+    if (downloadingInvoiceUuid) return
+    setDownloadingInvoiceUuid(order.uuid)
+
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
+      const res = await authFetch(`${baseUrl}/api/v1/orders/${order.uuid}/invoice`)
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => null)
+        const msg = extractErrorMessage(errJson, 'Invoice is not available yet.')
+        toast.error(msg)
+        return
+      }
+
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Invoice_${order.order_number || order.uuid.slice(0, 8).toUpperCase()}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+
+      toast.success('Invoice downloaded successfully!')
+    } catch {
+      toast.error('Failed to download invoice PDF.')
+    } finally {
+      setDownloadingInvoiceUuid(null)
+    }
+  }
+
+  // --- WRITE REVIEW ACTIONS ---
+  const handleOpenReviewItem = (order: Order, item: OrderItem) => {
+    const pUuid = item.product_uuid || item.uuid
+    if (!pUuid) {
+      toast.error('Product details are not available for this item.')
+      return
+    }
+    setReviewingItem({
+      orderUuid: order.uuid,
+      productUuid: pUuid,
+      productName: item.product_name,
+      productImageUrl: item.image_url ? getImageUrl(item.image_url) : undefined,
+    })
+  }
+
+  // --- SYNC TRACKING ACTIONS ---
+  const handleSyncTracking = async (order: Order) => {
+    if (isSyncingTracking) return
+    setIsSyncingTracking(true)
+
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
+      const res = await authFetch(`${baseUrl}/api/v1/orders/${order.uuid}/sync-tracking`, {
+        method: 'POST',
+      })
+
+      if (res.ok) {
+        toast.success('Live tracking data synchronized with shipping carrier!')
+        // Refresh timeline events & order details
+        const [orderRes, timelineRes] = await Promise.all([
+          authFetch(`${baseUrl}/api/v1/orders/${order.uuid}`),
+          authFetch(`${baseUrl}/api/v1/orders/${order.uuid}/timeline`),
+        ])
+        if (orderRes.ok) {
+          const ordJson = await orderRes.json()
+          if (ordJson?.data) setSelectedOrder(ordJson.data)
+        }
+        if (timelineRes.ok) {
+          const tlJson = await timelineRes.json()
+          const events: TrackingEvent[] = Array.isArray(tlJson?.data)
+            ? tlJson.data
+            : Array.isArray(tlJson?.data?.data)
+            ? tlJson.data.data
+            : []
+          setTimelineEvents(events)
+        }
+        await fetchOrders()
+      } else {
+        const errJson = await res.json().catch(() => null)
+        const msg = extractErrorMessage(errJson, 'Failed to sync carrier tracking.')
+        toast.error(msg)
+      }
+    } catch {
+      toast.error('Network error while synchronizing tracking details.')
+    } finally {
+      setIsSyncingTracking(false)
+    }
+  }
+
+  const generatePaginationPages = (current: number, total: number) => {
+    if (total <= 7) {
+      return Array.from({ length: total }, (_, i) => i + 1)
+    }
+    if (current <= 4) {
+      return [1, 2, 3, 4, 5, '...', total]
+    }
+    if (current >= total - 3) {
+      return [1, '...', total - 4, total - 3, total - 2, total - 1, total]
+    }
+    return [1, '...', current - 1, current, current + 1, '...', total]
+  }
+
+  const filteredOrders = orders
 
   // Order Fulfillment Status Badge
   const getOrderStatusBadge = (status: string) => {
@@ -670,7 +845,12 @@ function MyOrdersPageContent() {
   // ==========================================
   if (selectedOrder) {
     const isPending = selectedOrder.status?.toUpperCase() === 'PENDING'
+    const isShipped =
+      selectedOrder.status?.toUpperCase() === 'SHIPPED' ||
+      selectedOrder.status?.toUpperCase() === 'IN_TRANSIT' ||
+      selectedOrder.status?.toUpperCase() === 'INTRANSIT'
     const isDelivered = selectedOrder.status?.toUpperCase() === 'DELIVERED'
+    const isPaid = selectedOrder.payment_status?.toUpperCase() === 'PAID'
     const activeStepIndex = getActiveStepIndex(selectedOrder, timelineEvents)
     const isCancelled = activeStepIndex === -1
     const isReturned = activeStepIndex === -2
@@ -835,14 +1015,45 @@ function MyOrdersPageContent() {
               <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
               <span>
                 {isDelivered
-                  ? 'Parcel delivered successfully. You can request return/refund if needed.'
+                  ? 'Parcel delivered successfully. You can request return/refund or review items below.'
+                  : isShipped
+                  ? 'Your parcel is in transit with GHN Express. Click "Confirm Delivery" once you receive your package.'
                   : activeStepIndex >= 2
                   ? 'Your parcel is handled by GHN Express and moving towards your destination.'
                   : 'Your order has been received and is being prepared for dispatch.'}
               </span>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {(isPaid || isDelivered) && (
+                <button
+                  type="button"
+                  disabled={downloadingInvoiceUuid === selectedOrder.uuid}
+                  onClick={() => handleDownloadInvoice(selectedOrder)}
+                  className="px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  title="Download official PDF sales invoice"
+                >
+                  {downloadingInvoiceUuid === selectedOrder.uuid ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#2196F3]" />
+                  ) : (
+                    <Download className="w-3.5 h-3.5 text-slate-600" />
+                  )}
+                  <span>Download Invoice</span>
+                </button>
+              )}
+
+              {isShipped && (
+                <button
+                  type="button"
+                  onClick={() => handleOpenConfirmDelivery(selectedOrder)}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  title="Confirm that you have received this parcel in good condition"
+                >
+                  <PackageCheck className="w-3.5 h-3.5" />
+                  <span>Confirm Delivery</span>
+                </button>
+              )}
+
               {isPending && (
                 <button
                   type="button"
@@ -872,7 +1083,7 @@ function MyOrdersPageContent() {
         {/* 1. ORDER TIMELINE & TRACKING HISTORY (ABOVE DELIVERY ADDR) */}
         {/* ========================================================= */}
         <div className="p-5 sm:p-6 rounded-2xl bg-white border border-slate-200/80 shadow-2xs space-y-5">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
                 <Clock className="w-4 h-4" />
@@ -881,9 +1092,23 @@ function MyOrdersPageContent() {
                 Order Timeline & Tracking History
               </h3>
             </div>
-            <span className="text-xs text-slate-500">
-              Carrier: <strong className="text-slate-800 font-semibold">GHN Logistics</strong>
-            </span>
+
+            <div className="flex items-center gap-3 text-xs">
+              <span className="text-slate-500">
+                Carrier: <strong className="text-slate-800 font-semibold">GHN Logistics</strong>
+              </span>
+
+              <button
+                type="button"
+                disabled={isSyncingTracking}
+                onClick={() => handleSyncTracking(selectedOrder)}
+                className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#0D47A1] border border-blue-200 font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                title="Synchronize live tracking updates from shipping carrier"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncingTracking ? 'animate-spin' : ''}`} />
+                <span>Sync Tracking</span>
+              </button>
+            </div>
           </div>
 
           {isLoadingDetail ? (
@@ -1083,11 +1308,25 @@ function MyOrdersPageContent() {
                     </div>
                   </div>
 
-                  <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-1 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
-                    <span className="text-slate-400 text-[11px] sm:hidden">Item Subtotal:</span>
-                    <span className="text-sm font-extrabold text-[#0D47A1]">
-                      {formatCurrency(item.subtotal || item.price * item.quantity)}
-                    </span>
+                  <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-400 text-[11px] sm:hidden">Item Subtotal:</span>
+                      <span className="text-sm font-extrabold text-[#0D47A1]">
+                        {formatCurrency(item.subtotal || item.price * item.quantity)}
+                      </span>
+                    </div>
+
+                    {isDelivered && (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenReviewItem(selectedOrder, item)}
+                        className="px-3 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                        title="Write a review for this product"
+                      >
+                        <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                        <span>Review Product</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1155,6 +1394,33 @@ function MyOrdersPageContent() {
           </button>
 
           <div className="flex items-center gap-2.5 flex-wrap justify-end">
+            {(isPaid || isDelivered) && (
+              <button
+                type="button"
+                disabled={downloadingInvoiceUuid === selectedOrder.uuid}
+                onClick={() => handleDownloadInvoice(selectedOrder)}
+                className="px-4 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {downloadingInvoiceUuid === selectedOrder.uuid ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#2196F3]" />
+                ) : (
+                  <Download className="w-3.5 h-3.5" />
+                )}
+                <span>Download Invoice</span>
+              </button>
+            )}
+
+            {isShipped && (
+              <button
+                type="button"
+                onClick={() => handleOpenConfirmDelivery(selectedOrder)}
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+              >
+                <PackageCheck className="w-4 h-4" />
+                <span>Confirm Delivery</span>
+              </button>
+            )}
+
             {isPending && (
               <button
                 type="button"
@@ -1248,7 +1514,9 @@ function MyOrdersPageContent() {
               onChange={(e) => setFilter(e.target.value)}
               className="w-full sm:w-auto pl-8.5 pr-9 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-[#0D1B2A] focus:outline-none focus:border-[#2196F3] shadow-2xs appearance-none cursor-pointer hover:border-slate-300 transition-all"
             >
-              <option value="ALL">All Orders ({orders.length})</option>
+              <option value="ALL">
+                All Orders {pagination.total_records > 0 ? `(${pagination.total_records})` : `(${orders.length})`}
+              </option>
               <option value="PENDING">Pending</option>
               <option value="CONFIRMED">Confirmed</option>
               <option value="SHIPPED">Shipped</option>
@@ -1317,7 +1585,12 @@ function MyOrdersPageContent() {
         <div className="space-y-4">
           {filteredOrders.map((order) => {
             const isPending = order.status?.toUpperCase() === 'PENDING'
+            const isShipped =
+              order.status?.toUpperCase() === 'SHIPPED' ||
+              order.status?.toUpperCase() === 'IN_TRANSIT' ||
+              order.status?.toUpperCase() === 'INTRANSIT'
             const isDelivered = order.status?.toUpperCase() === 'DELIVERED'
+            const isPaid = order.payment_status?.toUpperCase() === 'PAID'
 
             return (
               <div
@@ -1386,6 +1659,43 @@ function MyOrdersPageContent() {
 
                     {/* Action Buttons */}
                     <div className="flex items-center gap-2 flex-wrap sm:justify-end">
+                      {/* Download Invoice (if Paid or Delivered) */}
+                      {(isPaid || isDelivered) && (
+                        <button
+                          type="button"
+                          disabled={downloadingInvoiceUuid === order.uuid}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDownloadInvoice(order)
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                          title="Download PDF invoice"
+                        >
+                          {downloadingInvoiceUuid === order.uuid ? (
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#2196F3]" />
+                          ) : (
+                            <Download className="w-3.5 h-3.5 text-slate-500" />
+                          )}
+                          <span>Invoice</span>
+                        </button>
+                      )}
+
+                      {/* Confirm Delivery Button (if Shipped) */}
+                      {isShipped && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleOpenConfirmDelivery(order)
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-all flex items-center gap-1 shadow-xs cursor-pointer"
+                          title="I have received this order"
+                        >
+                          <PackageCheck className="w-3.5 h-3.5" />
+                          <span>Confirm Delivery</span>
+                        </button>
+                      )}
+
                       {/* Cancel Button (if Pending) */}
                       {isPending && (
                         <button
@@ -1432,6 +1742,133 @@ function MyOrdersPageContent() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Pagination Controls << < 1 2 3 4 5 > >> */}
+      {orders.length > 0 && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs flex flex-col md:flex-row items-center justify-between gap-4 mt-2">
+          {/* Summary & Page Size selector */}
+          <div className="flex items-center gap-3 text-xs text-slate-500 font-medium flex-wrap justify-center sm:justify-start">
+            <span>
+              Showing{' '}
+              <strong className="text-slate-800">
+                {Math.min(
+                  (pagination.page - 1) * pagination.limit + 1,
+                  pagination.total_records || orders.length
+                )}
+              </strong>{' '}
+              to{' '}
+              <strong className="text-slate-800">
+                {Math.min(
+                  pagination.page * pagination.limit,
+                  pagination.total_records || orders.length
+                )}
+              </strong>{' '}
+              of{' '}
+              <strong className="text-slate-800">
+                {pagination.total_records || orders.length}
+              </strong>{' '}
+              orders
+            </span>
+
+            <div className="flex items-center gap-1.5 pl-2 border-l border-slate-200">
+              <span className="text-slate-400">Show:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value))
+                  setCurrentPage(1)
+                }}
+                className="px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs font-semibold text-[#0D1B2A] focus:outline-none focus:border-[#2196F3] cursor-pointer hover:bg-white transition-all"
+              >
+                <option value={10}>10 / page</option>
+                <option value={20}>20 / page</option>
+                <option value={50}>50 / page</option>
+                <option value={100}>100 / page</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Navigation Buttons: << < 1 2 3 4 5 > >> */}
+          <div className="flex items-center gap-1.5 flex-wrap justify-center">
+            {/* << First Page */}
+            <button
+              type="button"
+              disabled={currentPage <= 1 || loading}
+              onClick={() => setCurrentPage(1)}
+              className="h-8 w-8 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-35 disabled:cursor-not-allowed flex items-center justify-center transition-all cursor-pointer shadow-2xs"
+              title="First Page"
+            >
+              <ChevronsLeft className="w-4 h-4" />
+            </button>
+
+            {/* < Prev Page */}
+            <button
+              type="button"
+              disabled={currentPage <= 1 || loading}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              className="h-8 w-8 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-35 disabled:cursor-not-allowed flex items-center justify-center transition-all cursor-pointer shadow-2xs"
+              title="Previous Page"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+
+            {/* Page Numbers */}
+            {generatePaginationPages(currentPage, pagination.total_pages).map((p, idx) => {
+              if (p === '...') {
+                return (
+                  <span
+                    key={`ellipsis-${idx}`}
+                    className="w-8 h-8 flex items-center justify-center text-slate-400 text-xs font-semibold select-none"
+                  >
+                    ...
+                  </span>
+                )
+              }
+
+              const pageNum = Number(p)
+              const isActive = pageNum === currentPage
+
+              return (
+                <button
+                  key={`page-${pageNum}`}
+                  type="button"
+                  disabled={loading}
+                  onClick={() => setCurrentPage(pageNum)}
+                  className={`h-8 min-w-8 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center cursor-pointer shadow-2xs ${
+                    isActive
+                      ? 'bg-[#2196F3] text-white shadow-xs'
+                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300'
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              )
+            })}
+
+            {/* > Next Page */}
+            <button
+              type="button"
+              disabled={currentPage >= pagination.total_pages || loading}
+              onClick={() => setCurrentPage((p) => Math.min(pagination.total_pages, p + 1))}
+              className="h-8 w-8 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-35 disabled:cursor-not-allowed flex items-center justify-center transition-all cursor-pointer shadow-2xs"
+              title="Next Page"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+
+            {/* >> Last Page */}
+            <button
+              type="button"
+              disabled={currentPage >= pagination.total_pages || loading}
+              onClick={() => setCurrentPage(pagination.total_pages)}
+              className="h-8 w-8 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-35 disabled:cursor-not-allowed flex items-center justify-center transition-all cursor-pointer shadow-2xs"
+              title="Last Page"
+            >
+              <ChevronsRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       )}
 
@@ -1617,6 +2054,82 @@ function MyOrdersPageContent() {
               </form>
             </div>
           </div>
+        )}
+
+        {/* Confirm Delivery Confirmation Dialog */}
+        {orderToConfirmDelivery && (
+          <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto animate-in fade-in">
+            <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl space-y-4 border border-slate-100">
+              <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+                <PackageCheck className="w-6 h-6" />
+              </div>
+
+              <div className="text-center space-y-1">
+                <h3 className="text-base font-extrabold text-[#0D1B2A]">
+                  Confirm Order Delivery
+                </h3>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Have you received all items for order{' '}
+                  <strong className="text-slate-800">
+                    #{orderToConfirmDelivery.order_number || orderToConfirmDelivery.uuid.slice(0, 8).toUpperCase()}
+                  </strong>{' '}
+                  in good condition?
+                </p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-[11px] text-slate-500 flex items-start gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span>
+                  Confirming delivery completes this order and unlocks product reviews and official sales invoices.
+                </span>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  disabled={isConfirmingDelivery}
+                  onClick={() => setOrderToConfirmDelivery(null)}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
+                >
+                  Not Yet
+                </button>
+                <button
+                  type="button"
+                  disabled={isConfirmingDelivery}
+                  onClick={handleConfirmDelivery}
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {isConfirmingDelivery ? (
+                    <>
+                      <div className="w-3.5 h-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                      <span>Confirming...</span>
+                    </>
+                  ) : (
+                    <>
+                      <PackageCheck className="w-3.5 h-3.5" />
+                      <span>Yes, I Received It</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Write Review Modal for Order Items */}
+        {reviewingItem && (
+          <WriteReviewModal
+            isOpen={!!reviewingItem}
+            onClose={() => setReviewingItem(null)}
+            orderUuid={reviewingItem.orderUuid}
+            productUuid={reviewingItem.productUuid}
+            productName={reviewingItem.productName}
+            productImageUrl={reviewingItem.productImageUrl}
+            onSuccess={() => {
+              setReviewingItem(null)
+              fetchOrders()
+            }}
+          />
         )}
       </>
     )
