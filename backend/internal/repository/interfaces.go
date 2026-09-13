@@ -51,7 +51,7 @@ type ProductRepository interface {
 }
 
 type OrderRepository interface {
-	Create(ctx context.Context, tx pgx.Tx, input sqlc.CreateOrderParams) (sqlc.Order, error)
+	Create(ctx context.Context, params sqlc.CreateOrderParams) (sqlc.Order, error)
 	GetLastOrderNumber(ctx context.Context, orderNumber string) (string, error)
 	GetByUUID(ctx context.Context, uuid uuid.UUID) (sqlc.GetOrderByUUIDRow, error)
 	GetByID(ctx context.Context, orderID int32) (sqlc.GetOrderByIDRow, error)

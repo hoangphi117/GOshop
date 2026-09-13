@@ -66,7 +66,7 @@ func NewOrderModule(ctx *ModuleContext, wsHub ws.Hub, rabbitmqService rabbitmq.R
 	notificationRepo := repository.NewSqlNotificationRepository(ctx.DB)
 	notificationService := v1service.NewNotificationService(notificationRepo, userRepo, wsHub)
 
-	orderService := v1service.NewOrderService(orderRepo, orderItemRepo, orderReturnRepo, productRepo, userRepo,
+	orderService := v1service.NewOrderService(ctx.TxManager, orderRepo, orderItemRepo, orderReturnRepo, productRepo, userRepo,
 		cartService, cartRepo, couponRepo, trackingRepo, webhookRepo,
 		paymentRepo, paymentProviders, notificationService, ctx.Redis, shippingFactory, rabbitmqService)
 

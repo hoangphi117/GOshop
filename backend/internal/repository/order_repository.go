@@ -21,16 +21,10 @@ func NewSqlOrderRepository(db sqlc.Querier) OrderRepository {
 	}
 }
 
-func (r *SqlOrderRepository) Create(ctx context.Context, tx pgx.Tx, params sqlc.CreateOrderParams) (sqlc.Order, error) {
+func (r *SqlOrderRepository) Create(ctx context.Context, params sqlc.CreateOrderParams) (sqlc.Order, error) {
 
-	q := sqlc.New(tx)
-
-	order, err := q.CreateOrder(ctx, params)
-	if err != nil {
-		return sqlc.Order{}, err
-	}
-
-	return order, nil
+	q := db.GetQuerier(ctx, r.db)
+	return q.CreateOrder(ctx, params)
 }
 
 func (r *SqlOrderRepository) GetByUUID(ctx context.Context, uuid uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {

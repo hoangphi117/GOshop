@@ -64,6 +64,7 @@ const (
 )
 
 type orderService struct {
+	txManager           db.TxManager
 	orderRepo           repository.OrderRepository
 	orderItemRepo       repository.OrderItemRepository
 	orderReturnRepo     repository.OrderReturnsRepository
@@ -82,7 +83,8 @@ type orderService struct {
 	rabbitmq            rabbitmq.RabbitMQService
 }
 
-func NewOrderService(orderRepo repository.OrderRepository,
+func NewOrderService(txManager db.TxManager,
+	orderRepo repository.OrderRepository,
 	orderItemRepo repository.OrderItemRepository,
 	orderReturnRepo repository.OrderReturnsRepository,
 	productRepo repository.ProductRepository,
@@ -99,6 +101,7 @@ func NewOrderService(orderRepo repository.OrderRepository,
 	shippingFactory *shipping.ShippingFactory,
 	rabbitmq rabbitmq.RabbitMQService) OrderService {
 	return &orderService{
+		txManager:           txManager,
 		orderRepo:           orderRepo,
 		orderItemRepo:       orderItemRepo,
 		orderReturnRepo:     orderReturnRepo,
@@ -197,212 +200,215 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 	}
 
 	/* ======================TRANSACTION START ====================== */
-	txCtx, cancel := context.WithTimeout(reqCtx, 10*time.Second)
-	defer cancel()
+	var order sqlc.Order
 
-	tx, err := db.BeginTx(txCtx)
-	if err != nil {
-		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "Failed to start transaction", err)
-	}
-	defer tx.Rollback(txCtx)
+	err = s.txManager.WithTx(reqCtx, func(txCtx context.Context) error {
+		tx, _ := db.GetTx(txCtx)
 
-	// Fetch and lock products for update ordered by UUID to prevent deadlocks
-	products, err := s.productRepo.GetByUUIDs(txCtx, tx, uuids)
-	if err != nil {
-		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "Failed to fetch & lock products", err)
-	}
-
-	if len(products) != len(input.Items) {
-		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeNotFound, "One or more products not found")
-	}
-
-	// Move locked products into a map for quick access
-	productMap := make(map[string]sqlc.GetByUUIDsForUpdateRow)
-	for _, p := range products {
-		productMap[p.ProductUuid.String()] = p
-	}
-
-	var subtotalAmount float64
-	preparedItems := make([]preparedItem, 0, len(input.Items))
-
-	// Loop through the input items to validate (status, quantity) and prepare order items
-	for _, item := range input.Items {
-
-		if item.Quantity <= 0 {
-			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Quantity must be greater than 0 for product: "+item.ProductUUID)
-		}
-
-		product, ok := productMap[item.ProductUUID]
-		if !ok {
-			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeNotFound, "Product not found: "+item.ProductUUID)
-		}
-
-		// Read 100% fresh product status and stock from the locked row
-		if product.ProductStatus != ProductStatusActive {
-			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Product is unavailable: "+product.ProductName)
-		}
-
-		if utils.Int32Value(product.ProductStock) < item.Quantity {
-			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Insufficient stock for product: "+product.ProductName)
-		}
-
-		err = s.productRepo.DeductStock(txCtx, tx, product.ProductID, item.Quantity)
+		// Fetch and lock products for update ordered by UUID to prevent deadlocks
+		products, err := s.productRepo.GetByUUIDs(txCtx, tx, uuids)
 		if err != nil {
-			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Insufficient stock for product: "+product.ProductName)
+			return utils.WrapError(utils.ErrCodeInternal, "Failed to fetch & lock products", err)
 		}
 
-		subtotal := utils.RoundFloat(float64(item.Quantity)*utils.NumericToFloat(product.ProductPrice), 2)
-		subtotalAmount = utils.RoundFloat(subtotalAmount+subtotal, 2)
+		if len(products) != len(input.Items) {
+			return utils.NewError(utils.ErrCodeNotFound, "One or more products not found")
+		}
 
-		preparedItems = append(preparedItems, preparedItem{
-			productID:   product.ProductID,
-			productName: product.ProductName,
-			price:       utils.NumericToFloat(product.ProductPrice),
-			quantity:    item.Quantity,
-			subtotal:    subtotal,
-		})
-	}
+		// Move locked products into a map for quick access
+		productMap := make(map[string]sqlc.GetByUUIDsForUpdateRow)
+		for _, p := range products {
+			productMap[p.ProductUuid.String()] = p
+		}
 
-	var discountAmount float64
-	var appliedCouponID *int32
-	var appliedCouponCode *string
+		var subtotalAmount float64
+		preparedItems := make([]preparedItem, 0, len(input.Items))
 
-	// If a coupon code is provided, validate it and apply the discount
-	if input.CouponCode != nil && strings.TrimSpace(*input.CouponCode) != "" {
-		normalizedCode := strings.ToUpper(strings.TrimSpace(*input.CouponCode))
+		// Loop through the input items to validate (status, quantity) and prepare order items
+		for _, item := range input.Items {
 
-		coupon, err := s.couponRepo.GetByCode(txCtx, normalizedCode)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeNotFound, "Coupon not found")
+			if item.Quantity <= 0 {
+				return utils.NewError(utils.ErrCodeBadRequest, "Quantity must be greater than 0 for product: "+item.ProductUUID)
 			}
-			return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "failed to get coupon", err)
-		}
-		if !coupon.CouponIsActive {
-			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Coupon is not active")
-		}
 
-		now := time.Now()
-		if now.Before(coupon.CouponStartDate) {
-			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Coupon is not yet active")
-		}
-		if now.After(coupon.CouponEndDate) {
-			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Coupon has expired")
-		}
-
-		minOrderAmount := utils.NumericToFloat(coupon.CouponMinOrderAmount)
-		if subtotalAmount < minOrderAmount {
-			return sqlc.Order{}, nil, utils.NewError(
-				utils.ErrCodeBadRequest,
-				fmt.Sprintf("Order subtotal must be at least $%.2f to apply coupon %s", minOrderAmount, coupon.CouponCode),
-			)
-		}
-
-		userUsageCount, err := s.couponRepo.CountUserUsages(txCtx, user.UserID, coupon.CouponID)
-		if err != nil {
-			return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "failed to count user coupon usages", err)
-		}
-		if userUsageCount >= int64(coupon.CouponUserUsageLimit) {
-			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Coupon has been used the maximum number of times")
-		}
-
-		discountAmount = CalculateDiscount(coupon, subtotalAmount)
-
-		err = s.couponRepo.IncrementUsedCount(txCtx, tx, coupon.CouponID)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
-				return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeConflict, "Coupon usage limit reached, please try another coupon")
+			product, ok := productMap[item.ProductUUID]
+			if !ok {
+				return utils.NewError(utils.ErrCodeNotFound, "Product not found: "+item.ProductUUID)
 			}
-			return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "failed to increment coupon used count", err)
+
+			// Read 100% fresh product status and stock from the locked row
+			if product.ProductStatus != ProductStatusActive {
+				return utils.NewError(utils.ErrCodeBadRequest, "Product is unavailable: "+product.ProductName)
+			}
+
+			if utils.Int32Value(product.ProductStock) < item.Quantity {
+				return utils.NewError(utils.ErrCodeBadRequest, "Insufficient stock for product: "+product.ProductName)
+			}
+
+			err = s.productRepo.DeductStock(txCtx, tx, product.ProductID, item.Quantity)
+			if err != nil {
+				return utils.NewError(utils.ErrCodeBadRequest, "Insufficient stock for product: "+product.ProductName)
+			}
+
+			subtotal := utils.RoundFloat(float64(item.Quantity)*utils.NumericToFloat(product.ProductPrice), 2)
+			subtotalAmount = utils.RoundFloat(subtotalAmount+subtotal, 2)
+
+			preparedItems = append(preparedItems, preparedItem{
+				productID:   product.ProductID,
+				productName: product.ProductName,
+				price:       utils.NumericToFloat(product.ProductPrice),
+				quantity:    item.Quantity,
+				subtotal:    subtotal,
+			})
 		}
 
-		appliedCouponID = &coupon.CouponID
-		appliedCouponCode = &coupon.CouponCode
-	}
+		var discountAmount float64
+		var appliedCouponID *int32
+		var appliedCouponCode *string
 
-	shippingFee := utils.RoundFloat(input.ShippingFee, 2)
+		// If a coupon code is provided, validate it and apply the discount
+		if input.CouponCode != nil && strings.TrimSpace(*input.CouponCode) != "" {
+			normalizedCode := strings.ToUpper(strings.TrimSpace(*input.CouponCode))
 
-	finalTotalAmount := utils.RoundFloat(subtotalAmount-discountAmount+shippingFee, 2)
-	if finalTotalAmount < 0 {
-		finalTotalAmount = 0
-	}
+			coupon, err := s.couponRepo.GetByCode(txCtx, normalizedCode)
+			if err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					return utils.NewError(utils.ErrCodeNotFound, "Coupon not found")
+				}
+				return utils.WrapError(utils.ErrCodeInternal, "failed to get coupon", err)
+			}
+			if !coupon.CouponIsActive {
+				return utils.NewError(utils.ErrCodeBadRequest, "Coupon is not active")
+			}
 
-	orderNumber := GenerateOrderNumber(user.UserID)
+			now := time.Now()
+			if now.Before(coupon.CouponStartDate) {
+				return utils.NewError(utils.ErrCodeBadRequest, "Coupon is not yet active")
+			}
+			if now.After(coupon.CouponEndDate) {
+				return utils.NewError(utils.ErrCodeBadRequest, "Coupon has expired")
+			}
 
-	createOrderParams := sqlc.CreateOrderParams{
-		OrderNumber:          orderNumber,
-		OrderUserID:          user.UserID,
-		OrderShippingName:    input.ShippingName,
-		OrderShippingPhone:   input.ShippingPhone,
-		OrderShippingAddress: input.ShippingAddress,
-		OrderShippingFee:     utils.FloatToNumeric(shippingFee),
-		OrderCouponID:        appliedCouponID,
-		OrderCouponCode:      appliedCouponCode,
-		OrderSubtotalAmount:  utils.FloatToNumeric(subtotalAmount),
-		OrderDiscountAmount:  utils.FloatToNumeric(discountAmount),
-		OrderTotalAmount:     utils.FloatToNumeric(finalTotalAmount),
-		OrderPaymentMethod:   input.PaymentMethod,
-		OrderPaymentStatus:   OrderPaymentStatusUnpaid,
-		OrderNote:            &input.Note,
-		OrderStatus:          OrderStatusPending,
-	}
+			minOrderAmount := utils.NumericToFloat(coupon.CouponMinOrderAmount)
+			if subtotalAmount < minOrderAmount {
+				return utils.NewError(
+					utils.ErrCodeBadRequest,
+					fmt.Sprintf("Order subtotal must be at least $%.2f to apply coupon %s", minOrderAmount, coupon.CouponCode),
+				)
+			}
 
-	order, err := s.orderRepo.Create(txCtx, tx, createOrderParams)
-	if err != nil {
-		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "failed to create order", err)
-	}
+			userUsageCount, err := s.couponRepo.CountUserUsages(txCtx, user.UserID, coupon.CouponID)
+			if err != nil {
+				return utils.WrapError(utils.ErrCodeInternal, "failed to count user coupon usages", err)
+			}
+			if userUsageCount >= int64(coupon.CouponUserUsageLimit) {
+				return utils.NewError(utils.ErrCodeBadRequest, "Coupon has been used the maximum number of times")
+			}
 
-	if appliedCouponID != nil {
-		_, err = s.couponRepo.RecordUserUsage(txCtx, tx, sqlc.RecordCouponUsageParams{
-			CouponUsageCouponID: *appliedCouponID,
-			CouponUsageUserID:   user.UserID,
-			CouponUsageOrderID:  &order.OrderID,
+			discountAmount = CalculateDiscount(coupon, subtotalAmount)
+
+			err = s.couponRepo.IncrementUsedCount(txCtx, tx, coupon.CouponID)
+			if err != nil {
+				if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+					return utils.NewError(utils.ErrCodeConflict, "Coupon usage limit reached, please try another coupon")
+				}
+				return utils.WrapError(utils.ErrCodeInternal, "failed to increment coupon used count", err)
+			}
+
+			appliedCouponID = &coupon.CouponID
+			appliedCouponCode = &coupon.CouponCode
+		}
+
+		shippingFee := utils.RoundFloat(input.ShippingFee, 2)
+
+		finalTotalAmount := utils.RoundFloat(subtotalAmount-discountAmount+shippingFee, 2)
+		if finalTotalAmount < 0 {
+			finalTotalAmount = 0
+		}
+
+		orderNumber := GenerateOrderNumber(user.UserID)
+
+		createOrderParams := sqlc.CreateOrderParams{
+			OrderNumber:          orderNumber,
+			OrderUserID:          user.UserID,
+			OrderShippingName:    input.ShippingName,
+			OrderShippingPhone:   input.ShippingPhone,
+			OrderShippingAddress: input.ShippingAddress,
+			OrderShippingFee:     utils.FloatToNumeric(shippingFee),
+			OrderCouponID:        appliedCouponID,
+			OrderCouponCode:      appliedCouponCode,
+			OrderSubtotalAmount:  utils.FloatToNumeric(subtotalAmount),
+			OrderDiscountAmount:  utils.FloatToNumeric(discountAmount),
+			OrderTotalAmount:     utils.FloatToNumeric(finalTotalAmount),
+			OrderPaymentMethod:   input.PaymentMethod,
+			OrderPaymentStatus:   OrderPaymentStatusUnpaid,
+			OrderNote:            &input.Note,
+			OrderStatus:          OrderStatusPending,
+		}
+
+		createdOrder, err := s.orderRepo.Create(txCtx, createOrderParams)
+		if err != nil {
+			return utils.WrapError(utils.ErrCodeInternal, "failed to create order", err)
+		}
+		order = createdOrder
+
+		if appliedCouponID != nil {
+			_, err = s.couponRepo.RecordUserUsage(txCtx, tx, sqlc.RecordCouponUsageParams{
+				CouponUsageCouponID: *appliedCouponID,
+				CouponUsageUserID:   user.UserID,
+				CouponUsageOrderID:  &order.OrderID,
+			})
+			if err != nil {
+				return utils.WrapError(utils.ErrCodeInternal, "failed to record coupon usage", err)
+			}
+		}
+
+		purchasedProductIDs := make([]int32, len(preparedItems))
+
+		for i, item := range preparedItems {
+			purchasedProductIDs[i] = item.productID
+			createdItemParams := sqlc.CreateOrderItemParams{
+				OrderItemOrderID:     order.OrderID,
+				OrderItemProductID:   item.productID,
+				OrderItemProductName: item.productName,
+				OrderItemPrice:       utils.FloatToNumeric(item.price),
+				OrderItemQuantity:    item.quantity,
+				OrderItemSubtotal:    utils.FloatToNumeric(item.subtotal),
+			}
+
+			_, err := s.orderItemRepo.Create(txCtx, tx, createdItemParams)
+			if err != nil {
+				return utils.WrapError(utils.ErrCodeInternal, "failed to create order item", err)
+			}
+		}
+
+		// Remove purchased items from the user's cart if it exists
+		cart, cartErr := s.cartRepo.GetCartByUserID(txCtx, user.UserID)
+		if cartErr == nil {
+			if delErr := s.cartRepo.DeleteCartItemsByProductIDs(txCtx, tx, cart.CartID, purchasedProductIDs); delErr != nil {
+				logger.Log.Warn().Err(delErr).Msg("Failed to cleanup cart items after order creation")
+			}
+		}
+
+		// Record the initial order tracking event
+		createNote := "Order created and pending confirmation"
+		_, err = s.trackingRepo.InsertEvent(txCtx, tx, sqlc.InsertTrackingEventParams{
+			EventOrderID: order.OrderID,
+			EventStatus:  "pending",
+			EventNote:    &createNote,
+			EventSource:  "user",
 		})
 		if err != nil {
-			return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "failed to record coupon usage", err)
-		}
-	}
-
-	purchasedProductIDs := make([]int32, len(preparedItems))
-
-	for i, item := range preparedItems {
-		purchasedProductIDs[i] = item.productID
-		createdItemParams := sqlc.CreateOrderItemParams{
-			OrderItemOrderID:     order.OrderID,
-			OrderItemProductID:   item.productID,
-			OrderItemProductName: item.productName,
-			OrderItemPrice:       utils.FloatToNumeric(item.price),
-			OrderItemQuantity:    item.quantity,
-			OrderItemSubtotal:    utils.FloatToNumeric(item.subtotal),
+			return utils.WrapError(utils.ErrCodeInternal, "failed to insert tracking event", err)
 		}
 
-		_, err := s.orderItemRepo.Create(txCtx, tx, createdItemParams)
-		if err != nil {
-			return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "failed to create order item", err)
-		}
-	}
-
-	// Remove purchased items from the user's cart if it exists
-	cart, cartErr := s.cartRepo.GetCartByUserID(txCtx, user.UserID)
-	if cartErr == nil {
-		if delErr := s.cartRepo.DeleteCartItemsByProductIDs(txCtx, tx, cart.CartID, purchasedProductIDs); delErr != nil {
-			logger.Log.Warn().Err(delErr).Msg("Failed to cleanup cart items after order creation")
-		}
-	}
-
-	// Record the initial order tracking event
-	createNote := "Order created and pending confirmation"
-	_, err = s.trackingRepo.InsertEvent(txCtx, tx, sqlc.InsertTrackingEventParams{
-		EventOrderID: order.OrderID,
-		EventStatus:  "pending",
-		EventNote:    &createNote,
-		EventSource:  "user",
+		return nil
 	})
 
-	/* ====================== TRANSACTION END ====================== */
-	if err := tx.Commit(txCtx); err != nil {
-		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeInternal, "failed to commit transaction")
+	if err != nil {
+		return sqlc.Order{}, nil, err
 	}
+	/* ====================== TRANSACTION END ====================== */
 
 	// Get order items with details after the transaction is committed
 	orderItemsWithDetails, err := s.orderItemRepo.GetByOrderID(reqCtx, order.OrderID)
