@@ -211,16 +211,41 @@ export async function getProducts(params?: {
 
 export interface Review {
   uuid: string
-  user_name?: string
+  product_uuid?: string
+  order_uuid?: string
+  reviewer_name: string
   rating: number
+  title?: string
   comment?: string
+  images?: string[]
+  video_url?: string
+  has_media?: boolean
+  can_edit?: boolean
+  reply?: string
+  reply_at?: string
+  helpful_count?: number
   created_at: string
+  updated_at?: string
 }
 
 export interface ReviewSummary {
-  average_rating: number
   total_reviews: number
-  rating_breakdown?: Record<string, number>
+  avg_rating: number
+  with_media_count: number
+  five_star: number
+  four_star: number
+  three_star: number
+  two_star: number
+  one_star: number
+}
+
+export interface GetProductReviewsParams {
+  page?: number
+  limit?: number
+  rating?: number
+  has_media?: boolean
+  order_by?: 'created_at' | 'rating' | 'helpful'
+  sort?: 'asc' | 'desc'
 }
 
 export async function getProductByUuidOrSlug(
@@ -252,14 +277,29 @@ export async function getProductByUuidOrSlug(
   return res?.data || null
 }
 
-export async function getProductReviews(productUuid: string): Promise<Review[]> {
-  const res = await fetchServer<ApiResponse<Review[]>>(
-    `/products/${productUuid}/reviews`,
-    {
-      revalidate: 60,
-    }
-  )
-  return res?.data || []
+export async function getProductReviews(
+  productUuid: string,
+  params?: GetProductReviewsParams
+): Promise<{ reviews: Review[]; pagination?: { page: number; limit: number; total_records: number; total_pages: number } }> {
+  const query = new URLSearchParams()
+  if (params?.page) query.set('page', String(params.page))
+  if (params?.limit) query.set('limit', String(params.limit))
+  if (params?.rating) query.set('rating', String(params.rating))
+  if (params?.has_media !== undefined) query.set('has_media', String(params.has_media))
+  if (params?.order_by) query.set('order_by', params.order_by)
+  if (params?.sort) query.set('sort', params.sort)
+
+  const queryString = query.toString()
+  const path = `/products/${productUuid}/reviews${queryString ? `?${queryString}` : ''}`
+
+  const res = await fetchServer<ApiResponse<Review[]>>(path, {
+    revalidate: 15,
+  })
+
+  return {
+    reviews: res?.data || [],
+    pagination: res?.pagination,
+  }
 }
 
 export async function getProductReviewSummary(
@@ -268,8 +308,9 @@ export async function getProductReviewSummary(
   const res = await fetchServer<ApiResponse<ReviewSummary>>(
     `/products/${productUuid}/reviews/summary`,
     {
-      revalidate: 60,
+      revalidate: 15,
     }
   )
   return res?.data || null
 }
+

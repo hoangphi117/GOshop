@@ -1,7 +1,12 @@
 import React from 'react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { getProductByUuidOrSlug, getProducts } from '@/lib/api-server'
+import {
+  getProductByUuidOrSlug,
+  getProducts,
+  getProductReviewSummary,
+  getProductReviews,
+} from '@/lib/api-server'
 import { ProductDetailView } from '@/components/product/product-detail-view'
 import { ProductGrid } from '@/components/product/product-grid'
 import { ChevronRight, ArrowLeft } from 'lucide-react'
@@ -41,11 +46,15 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
     notFound()
   }
 
-  // Fetch related products from same category or general catalog
-  const relatedData = await getProducts({
-    category: product.category_uuid || product.category_name,
-    limit: 4,
-  })
+  // Fetch related products, review summary, and initial reviews in parallel
+  const [relatedData, reviewSummary, reviewsData] = await Promise.all([
+    getProducts({
+      category: product.category_uuid || product.category_name,
+      limit: 4,
+    }),
+    getProductReviewSummary(product.uuid),
+    getProductReviews(product.uuid, { limit: 10, order_by: 'created_at', sort: 'desc' }),
+  ])
 
   const relatedProducts = (relatedData.products || []).filter(
     (p) => p.uuid !== product.uuid
@@ -92,7 +101,11 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
         </div>
 
         {/* Interactive Product Details */}
-        <ProductDetailView product={product} />
+        <ProductDetailView
+          product={product}
+          initialSummary={reviewSummary}
+          initialReviews={reviewsData?.reviews || []}
+        />
 
         {/* Related Products Section */}
         {relatedProducts.length > 0 && (

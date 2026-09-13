@@ -2,11 +2,12 @@
 
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import type { Product } from '@/lib/api-server'
+import type { Product, Review, ReviewSummary } from '@/lib/api-server'
 import { formatCurrency } from '@/lib/format'
 import { getImageUrl } from '@/lib/utils'
 import { useCartStore } from '@/stores/cart-store'
 import { useAuthStore } from '@/stores/auth-store'
+import { ProductReviewsSection } from '@/components/review/product-reviews-section'
 import {
   ShoppingCart,
   Package,
@@ -25,11 +26,17 @@ import { toast } from 'sonner'
 
 interface ProductDetailViewProps {
   product: Product
+  initialSummary?: ReviewSummary | null
+  initialReviews?: Review[]
 }
 
-export function ProductDetailView({ product }: ProductDetailViewProps) {
+export function ProductDetailView({
+  product,
+  initialSummary,
+  initialReviews,
+}: ProductDetailViewProps) {
   const router = useRouter()
-  const { addItem } = useCartStore()
+  const { addItem, setBuyNowItem } = useCartStore()
   const { accessToken } = useAuthStore()
 
   // Collect all available images
@@ -65,7 +72,7 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
     currentCompareAtPrice && currentCompareAtPrice > currentPrice
   const discountPercent = hasDiscount
     ? Math.round(
-        ((currentCompareAtPrice! - currentPrice) / currentCompareAtPrice!) * 100
+        ((currentCompareAtPrice - currentPrice) / currentCompareAtPrice) * 100
       )
     : 0
   const savedAmount = hasDiscount
@@ -74,7 +81,7 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
 
   const activeImage = allImages[activeImageIndex] || ''
 
-  const handleAddToCart = (redirectAfter = false) => {
+  const handleAddToCart = () => {
     if (!accessToken) {
       toast.error('Please sign in to add items to your cart.')
       const currentUrl =
@@ -105,10 +112,45 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
     })
 
     toast.success(`Added ${quantity} "${product.name}" to cart!`)
+  }
 
-    if (redirectAfter) {
-      router.push('/checkout')
+  const handleBuyNow = () => {
+    if (!accessToken) {
+      toast.error('Please sign in to proceed to checkout.')
+      const currentUrl =
+        typeof window !== 'undefined'
+          ? window.location.pathname
+          : `/products/${product.slug || product.uuid}`
+      router.push(`/login?redirect=${encodeURIComponent(currentUrl)}`)
+      return
     }
+
+    if (!isInStock) {
+      toast.error('This product or variant is currently out of stock')
+      return
+    }
+
+    const buyNowId = activeVariant?.uuid
+      ? `${product.uuid}-${activeVariant.uuid}`
+      : `${product.uuid}-${activeVariant?.size || 'default'}-${activeVariant?.color || 'default'}`
+
+    setBuyNowItem({
+      id: buyNowId,
+      productUuid: product.uuid,
+      variantUuid: activeVariant?.uuid,
+      name: product.name,
+      price: currentPrice,
+      compareAtPrice: currentCompareAtPrice,
+      image: activeImage,
+      quantity,
+      selectedSize: activeVariant?.size,
+      selectedColor: activeVariant?.color,
+      sku: activeVariant?.sku || product.sku,
+      stockQuantity: currentStock,
+      selected: true,
+    })
+
+    router.push('/checkout?buyNow=1')
   }
 
   const handleShare = () => {
@@ -233,15 +275,32 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
 
           {/* Rating & SKU Bar */}
           <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 pb-2 border-b border-slate-100">
-            <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setActiveTab('reviews')}
+              className="flex items-center gap-1.5 hover:opacity-80 transition-opacity cursor-pointer text-left"
+            >
               <div className="flex text-amber-400">
                 {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
+                  <Star
+                    key={i}
+                    className={`w-4 h-4 ${
+                      i < Math.round(initialSummary?.avg_rating || 5)
+                        ? 'fill-amber-400 text-amber-400'
+                        : 'text-slate-200'
+                    }`}
+                  />
                 ))}
               </div>
-              <span className="font-bold text-[#0D1B2A]">5.0</span>
-              <span className="text-slate-400">(24 verified reviews)</span>
-            </div>
+              <span className="font-bold text-[#0D1B2A]">
+                {initialSummary && initialSummary.avg_rating > 0
+                  ? initialSummary.avg_rating.toFixed(1)
+                  : '5.0'}
+              </span>
+              <span className="text-slate-400">
+                ({initialSummary?.total_reviews || 0} verified reviews)
+              </span>
+            </button>
 
             <span>•</span>
 
@@ -334,11 +393,12 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
               <button
-                onClick={() => handleAddToCart(false)}
+                type="button"
+                onClick={handleAddToCart}
                 disabled={!isInStock}
                 className={`w-full py-4 px-6 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-md ${
                   isInStock
-                    ? 'bg-[#2196F3] text-white hover:bg-[#0D47A1] hover:scale-[1.01] active:scale-[0.99]'
+                    ? 'bg-[#2196F3] text-white hover:bg-[#0D47A1] hover:scale-[1.01] active:scale-[0.99] cursor-pointer'
                     : 'bg-slate-200 text-slate-400 cursor-not-allowed'
                 }`}
               >
@@ -347,11 +407,12 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
               </button>
 
               <button
-                onClick={() => handleAddToCart(true)}
+                type="button"
+                onClick={handleBuyNow}
                 disabled={!isInStock}
                 className={`w-full py-4 px-6 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-md ${
                   isInStock
-                    ? 'bg-[#0D47A1] text-white hover:bg-[#1565C0] hover:scale-[1.01] active:scale-[0.99]'
+                    ? 'bg-[#0D47A1] text-white hover:bg-[#1565C0] hover:scale-[1.01] active:scale-[0.99] cursor-pointer'
                     : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                 }`}
               >
@@ -390,7 +451,10 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
             { id: 'desc', label: 'Product Overview' },
             { id: 'specs', label: 'Technical Specifications' },
             { id: 'shipping', label: 'Shipping & Warranty' },
-            { id: 'reviews', label: 'Customer Reviews (24)' },
+            {
+              id: 'reviews',
+              label: `Customer Reviews (${initialSummary?.total_reviews ?? 0})`,
+            },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -511,79 +575,14 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
           )}
 
           {activeTab === 'reviews' && (
-            <div className="space-y-8 max-w-3xl">
-              {/* Rating Summary Breakdown */}
-              <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200/80 grid grid-cols-1 sm:grid-cols-12 gap-6 items-center">
-                <div className="sm:col-span-4 text-center space-y-1">
-                  <div className="text-4xl font-black text-[#0D47A1]">5.0</div>
-                  <div className="flex justify-center text-amber-400">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
-                    ))}
-                  </div>
-                  <p className="text-xs text-slate-500">Based on 24 customer reviews</p>
-                </div>
-
-                <div className="sm:col-span-8 space-y-1.5 text-xs text-slate-600">
-                  <div className="flex items-center gap-3">
-                    <span className="w-12">5 stars</span>
-                    <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
-                      <div className="h-full bg-amber-400 rounded-full w-[95%]" />
-                    </div>
-                    <span className="w-8 text-right font-medium">95%</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="w-12">4 stars</span>
-                    <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
-                      <div className="h-full bg-amber-400 rounded-full w-[5%]" />
-                    </div>
-                    <span className="w-8 text-right font-medium">5%</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Sample Verified Reviews */}
-              <div className="space-y-4 divide-y divide-slate-100">
-                <div className="pt-4 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-[#0D1B2A]">Alex Nguyen</span>
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold">
-                        Verified Buyer
-                      </span>
-                    </div>
-                    <span className="text-[11px] text-slate-400">2 days ago</span>
-                  </div>
-                  <div className="flex text-amber-400">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                    ))}
-                  </div>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    Super high quality! Delivered very fast in 1 day with solid packaging. Exactly as described.
-                  </p>
-                </div>
-
-                <div className="pt-4 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-[#0D1B2A]">David Tran</span>
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold">
-                        Verified Buyer
-                      </span>
-                    </div>
-                    <span className="text-[11px] text-slate-400">1 week ago</span>
-                  </div>
-                  <div className="flex text-amber-400">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                    ))}
-                  </div>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    10/10 purchase. The design looks sleek and authentic. Would buy from GOshop again!
-                  </p>
-                </div>
-              </div>
+            <div className="max-w-4xl">
+              <ProductReviewsSection
+                productUuid={product.uuid}
+                productName={product.name}
+                productImageUrl={activeImage}
+                initialSummary={initialSummary}
+                initialReviews={initialReviews}
+              />
             </div>
           )}
         </div>

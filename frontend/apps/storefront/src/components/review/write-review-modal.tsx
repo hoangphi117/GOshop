@@ -1,0 +1,432 @@
+'use client'
+
+import React, { useState, useRef } from 'react'
+import { authFetch } from '@/lib/api'
+import { extractErrorMessage } from '@/lib/utils'
+import {
+  X,
+  Star,
+  Upload,
+  Image as ImageIcon,
+  Film,
+  Trash2,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+} from 'lucide-react'
+import { toast } from 'sonner'
+
+interface WriteReviewModalProps {
+  isOpen: boolean
+  onClose: () => void
+  productUuid: string
+  productName: string
+  productImageUrl?: string
+  orderUuid?: string
+  eligibleOrders?: Array<{
+    order_uuid: string
+    order_number: string
+    created_at?: string
+  }>
+  onSuccess?: () => void
+}
+
+const RATING_LABELS: Record<number, { text: string; color: string }> = {
+  1: { text: 'Poor - Very Dissatisfied', color: 'text-rose-500' },
+  2: { text: 'Fair - Needs Improvement', color: 'text-amber-500' },
+  3: { text: 'Average - Met Expectations', color: 'text-yellow-600' },
+  4: { text: 'Good - Highly Satisfied', color: 'text-emerald-500' },
+  5: { text: 'Excellent - Loved It!', color: 'text-emerald-600' },
+}
+
+export function WriteReviewModal({
+  isOpen,
+  onClose,
+  productUuid,
+  productName,
+  productImageUrl,
+  orderUuid: initialOrderUuid,
+  eligibleOrders,
+  onSuccess,
+}: WriteReviewModalProps) {
+  const [rating, setRating] = useState<number>(5)
+  const [hoverRating, setHoverRating] = useState<number | null>(null)
+  const [title, setTitle] = useState('')
+  const [comment, setComment] = useState('')
+  const [selectedOrderUuid, setSelectedOrderUuid] = useState<string>(
+    initialOrderUuid || eligibleOrders?.[0]?.order_uuid || ''
+  )
+  const [files, setFiles] = useState<File[]>([])
+  const [previews, setPreviews] = useState<Array<{ url: string; isVideo: boolean; file: File }>>([])
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  if (!isOpen) return null
+
+  const handleRatingClick = (star: number) => {
+    setRating(star)
+  }
+
+  const handleFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return
+    const selectedFiles = Array.from(e.target.files)
+    setErrorMsg(null)
+
+    // Validate media counts
+    const currentImages = previews.filter((p) => !p.isVideo).length
+    const currentVideos = previews.filter((p) => p.isVideo).length
+
+    const newPreviews: Array<{ url: string; isVideo: boolean; file: File }> = []
+    const newFiles: File[] = []
+
+    let addedImages = 0
+    let addedVideos = 0
+
+    for (const file of selectedFiles) {
+      const isImage = file.type.startsWith('image/')
+      const isVideo = file.type.startsWith('video/')
+
+      if (!isImage && !isVideo) {
+        toast.error(`"${file.name}" is not a supported image or video file.`)
+        continue
+      }
+
+      if (isImage) {
+        if (currentImages + addedImages >= 5) {
+          toast.error('You can upload a maximum of 5 images.')
+          continue
+        }
+        addedImages++
+      } else if (isVideo) {
+        if (currentVideos + addedVideos >= 1) {
+          toast.error('You can upload a maximum of 1 video.')
+          continue
+        }
+        addedVideos++
+      }
+
+      if (file.size > 20 * 1024 * 1024) {
+        toast.error(`"${file.name}" exceeds 20MB file size limit.`)
+        continue
+      }
+
+      const url = URL.createObjectURL(file)
+      newPreviews.push({ url, isVideo, file })
+      newFiles.push(file)
+    }
+
+    setPreviews((prev) => [...prev, ...newPreviews])
+    setFiles((prev) => [...prev, ...newFiles])
+
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const handleRemoveFile = (index: number) => {
+    const previewToRemove = previews[index]
+    if (previewToRemove) {
+      URL.revokeObjectURL(previewToRemove.url)
+    }
+    setPreviews((prev) => prev.filter((_, i) => i !== index))
+    setFiles((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setErrorMsg(null)
+
+    const finalOrderUuid = initialOrderUuid || selectedOrderUuid
+    if (!finalOrderUuid) {
+      setErrorMsg('Please select a verified purchase order to attach your review.')
+      return
+    }
+
+    if (rating < 1 || rating > 5) {
+      setErrorMsg('Please select a rating score between 1 and 5 stars.')
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      const formData = new FormData()
+      formData.append('product_uuid', productUuid)
+      formData.append('order_uuid', finalOrderUuid)
+      formData.append('rating', String(rating))
+      if (title.trim()) formData.append('title', title.trim())
+      if (comment.trim()) formData.append('comment', comment.trim())
+
+      files.forEach((file) => {
+        formData.append('files', file)
+      })
+
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
+      const res = await authFetch(`${baseUrl}/api/v1/reviews`, {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (res.ok) {
+        toast.success('Thank you! Your product review has been submitted.')
+        onSuccess?.()
+        onClose()
+      } else {
+        const errJson = await res.json().catch(() => null)
+        const msg = extractErrorMessage(errJson, 'Failed to submit review.')
+        setErrorMsg(msg)
+        toast.error(msg)
+      }
+    } catch {
+      const msg = 'Network error occurred while submitting your review.'
+      setErrorMsg(msg)
+      toast.error(msg)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const currentDisplayRating = hoverRating || rating
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+      <div
+        className="w-full max-w-xl max-h-[90vh] bg-white rounded-3xl shadow-2xl border border-slate-200/80 flex flex-col overflow-hidden animate-scale-up"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+          <div className="flex items-center gap-3 min-w-0">
+            {productImageUrl && (
+              <img
+                src={productImageUrl}
+                alt={productName}
+                className="w-10 h-10 rounded-xl object-cover border border-slate-200/80 shrink-0"
+              />
+            )}
+            <div className="min-w-0">
+              <h2 className="text-base font-bold text-[#0D1B2A] truncate">
+                Rate & Review Product
+              </h2>
+              <p className="text-xs text-slate-500 truncate">{productName}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Content Form */}
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5">
+          {errorMsg && (
+            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{errorMsg}</span>
+            </div>
+          )}
+
+          {/* Order Selection if not fixed */}
+          {!initialOrderUuid && eligibleOrders && eligibleOrders.length > 0 && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-[#0D1B2A]">
+                Associated Purchase Order <span className="text-rose-500">*</span>
+              </label>
+              <select
+                value={selectedOrderUuid}
+                onChange={(e) => setSelectedOrderUuid(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-[#0D1B2A] focus:outline-none focus:border-[#2196F3] transition-all"
+                required
+              >
+                {eligibleOrders.map((ord) => (
+                  <option key={ord.order_uuid} value={ord.order_uuid}>
+                    Order #{ord.order_number} {ord.created_at ? `(${ord.created_at})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Star Rating Selector */}
+          <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/60 flex flex-col items-center justify-center gap-2 text-center">
+            <span className="text-xs font-bold text-slate-700">Overall Rating</span>
+            <div className="flex items-center gap-2">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => handleRatingClick(star)}
+                  onMouseEnter={() => setHoverRating(star)}
+                  onMouseLeave={() => setHoverRating(null)}
+                  className="p-1 text-amber-400 hover:scale-125 transition-transform cursor-pointer focus:outline-none"
+                >
+                  <Star
+                    className={`w-8 h-8 ${
+                      star <= currentDisplayRating
+                        ? 'fill-amber-400 text-amber-400'
+                        : 'text-slate-300'
+                    }`}
+                  />
+                </button>
+              ))}
+            </div>
+            <span
+              className={`text-xs font-bold ${
+                RATING_LABELS[currentDisplayRating]?.color || 'text-slate-600'
+              }`}
+            >
+              {RATING_LABELS[currentDisplayRating]?.text}
+            </span>
+          </div>
+
+          {/* Title */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-[#0D1B2A]">
+              Review Title <span className="text-slate-400 font-normal">(Optional)</span>
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              maxLength={200}
+              placeholder="e.g. Great quality and lightning fast delivery!"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-medium text-[#0D1B2A] placeholder:text-slate-400 focus:outline-none focus:border-[#2196F3] shadow-2xs transition-all"
+            />
+          </div>
+
+          {/* Comment */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-[#0D1B2A]">
+                Review Experience <span className="text-slate-400 font-normal">(Optional)</span>
+              </label>
+              <span className="text-[10px] text-slate-400">{comment.length}/2000</span>
+            </div>
+            <textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              maxLength={2000}
+              rows={4}
+              placeholder="What did you like or dislike? How was the fit, material, packaging or customer support?"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-medium text-[#0D1B2A] placeholder:text-slate-400 focus:outline-none focus:border-[#2196F3] shadow-2xs transition-all resize-none"
+            />
+          </div>
+
+          {/* Media Uploads */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-[#0D1B2A]">Photos & Video</span>
+              <span className="text-slate-400 text-[11px]">Max 5 images, 1 video (20MB max)</span>
+            </div>
+
+            {/* Media Preview Grid */}
+            <div className="grid grid-cols-4 gap-2.5">
+              {previews.map((preview, index) => (
+                <div
+                  key={index}
+                  className="relative group aspect-square rounded-xl overflow-hidden border border-slate-200 bg-slate-100"
+                >
+                  {preview.isVideo ? (
+                    <video
+                      src={preview.url}
+                      className="w-full h-full object-cover"
+                      muted
+                      playsInline
+                    />
+                  ) : (
+                    <img
+                      src={preview.url}
+                      alt="Upload preview"
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+
+                  <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-white text-[9px] font-bold flex items-center gap-1">
+                    {preview.isVideo ? (
+                      <>
+                        <Film className="w-2.5 h-2.5" />
+                        <span>Video</span>
+                      </>
+                    ) : (
+                      <>
+                        <ImageIcon className="w-2.5 h-2.5" />
+                        <span>Photo</span>
+                      </>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveFile(index)}
+                    className="absolute top-1 right-1 w-6 h-6 rounded-full bg-rose-600 text-white flex items-center justify-center opacity-90 hover:opacity-100 transition-opacity shadow-xs cursor-pointer"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+
+              {previews.length < 6 && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="aspect-square rounded-xl border-2 border-dashed border-slate-300 hover:border-[#2196F3] bg-slate-50 hover:bg-blue-50/40 text-slate-500 hover:text-[#2196F3] flex flex-col items-center justify-center gap-1 transition-all cursor-pointer"
+                >
+                  <Upload className="w-5 h-5" />
+                  <span className="text-[10px] font-bold">Add Media</span>
+                </button>
+              )}
+            </div>
+
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFilesSelected}
+              multiple
+              accept="image/*,video/*"
+              className="hidden"
+            />
+          </div>
+
+          {/* Submission Info */}
+          <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-2 text-[11px] text-slate-500">
+            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+            <span>
+              Your review helps other shoppers make informed choices. Verified buyers will receive a badge.
+            </span>
+          </div>
+
+          {/* Actions */}
+          <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSubmitting}
+              className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-[#2196F3] hover:bg-[#0D47A1] text-white text-xs font-bold transition-all shadow-xs disabled:opacity-50 cursor-pointer"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Submitting...</span>
+                </>
+              ) : (
+                <span>Submit Review</span>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
