@@ -19,7 +19,6 @@ import (
 	"goshop/pkg/shipping"
 	"math/big"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 
@@ -66,6 +65,7 @@ const (
 type orderService struct {
 	txManager           db.TxManager
 	pricingService      OrderPricingService
+	inventoryService    InventoryService
 	orderRepo           repository.OrderRepository
 	orderItemRepo       repository.OrderItemRepository
 	orderReturnRepo     repository.OrderReturnsRepository
@@ -86,6 +86,7 @@ type orderService struct {
 
 func NewOrderService(txManager db.TxManager,
 	pricingService OrderPricingService,
+	inventoryService InventoryService,
 	orderRepo repository.OrderRepository,
 	orderItemRepo repository.OrderItemRepository,
 	orderReturnRepo repository.OrderReturnsRepository,
@@ -105,6 +106,7 @@ func NewOrderService(txManager db.TxManager,
 	return &orderService{
 		txManager:           txManager,
 		pricingService:      pricingService,
+		inventoryService:    inventoryService,
 		orderRepo:           orderRepo,
 		orderItemRepo:       orderItemRepo,
 		orderReturnRepo:     orderReturnRepo,
@@ -180,18 +182,12 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 		productMapInput[item.ProductUUID] = item.Quantity
 	}
 
-	// Deterministic Lock Ordering to prevent deadlock
-	sort.Slice(input.Items, func(i, j int) bool {
-		return input.Items[i].ProductUUID < input.Items[j].ProductUUID
-	})
-
-	uuids := make([]uuid.UUID, len(input.Items))
+	deductItems := make([]DeductItem, len(input.Items))
 	for i, item := range input.Items {
-		parsed, err := uuid.Parse(item.ProductUUID)
-		if err != nil {
-			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Invalid product UUID format: "+item.ProductUUID)
+		deductItems[i] = DeductItem{
+			ProductUUID: item.ProductUUID,
+			Quantity:    item.Quantity,
 		}
-		uuids[i] = parsed
 	}
 
 	/* ======================TRANSACTION START ====================== */
@@ -200,20 +196,10 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 	err = s.txManager.WithTx(reqCtx, func(txCtx context.Context) error {
 		tx, _ := db.GetTx(txCtx)
 
-		// Fetch and lock products for update ordered by UUID to prevent deadlocks
-		products, err := s.productRepo.GetByUUIDs(txCtx, tx, uuids)
+		// 1. Lock products and deduct stock via InventoryService
+		productMap, err := s.inventoryService.LockAndDeductStock(txCtx, deductItems)
 		if err != nil {
-			return utils.WrapError(utils.ErrCodeInternal, "Failed to fetch & lock products", err)
-		}
-
-		if len(products) != len(input.Items) {
-			return utils.NewError(utils.ErrCodeNotFound, "One or more products not found")
-		}
-
-		// Move locked products into a map for quick access
-		productMap := make(map[string]sqlc.GetByUUIDsForUpdateRow)
-		for _, p := range products {
-			productMap[p.ProductUuid.String()] = p
+			return err
 		}
 
 		priceInputs := make([]ItemPriceInput, len(input.Items))
@@ -244,28 +230,6 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 		if pricingResult.AppliedCouponID != nil {
 			if err := s.couponRepo.IncrementUsedCount(txCtx, tx, *pricingResult.AppliedCouponID); err != nil {
 				return utils.WrapError(utils.ErrCodeInternal, "Failed to increment coupon usage count", err)
-			}
-		}
-
-		// Deduct stock for each item
-		for _, item := range input.Items {
-			product, ok := productMap[item.ProductUUID]
-			if !ok {
-				return utils.NewError(utils.ErrCodeNotFound, "Product not found: "+item.ProductUUID)
-			}
-
-			// Read 100% fresh product status and stock from the locked row
-			if product.ProductStatus != ProductStatusActive {
-				return utils.NewError(utils.ErrCodeBadRequest, "Product is unavailable: "+product.ProductName)
-			}
-
-			if utils.Int32Value(product.ProductStock) < item.Quantity {
-				return utils.NewError(utils.ErrCodeBadRequest, "Insufficient stock for product: "+product.ProductName)
-			}
-
-			err = s.productRepo.DeductStock(txCtx, tx, product.ProductID, item.Quantity)
-			if err != nil {
-				return utils.NewError(utils.ErrCodeBadRequest, "Insufficient stock for product: "+product.ProductName)
 			}
 		}
 
@@ -721,15 +685,16 @@ func (s *orderService) CancelOrder(ctx *gin.Context, orderUUID uuid.UUID) error 
 		return utils.WrapError(utils.ErrCodeBadRequest, "failed to cancel order", err)
 	}
 
-	sort.Slice(orderItems, func(i, j int) bool {
-		return orderItems[i].OrderItemProductID < orderItems[j].OrderItemProductID
-	})
-
-	for _, item := range orderItems {
-		err = s.productRepo.RestoreStock(txCtx, tx, item.OrderItemProductID, item.OrderItemQuantity)
-		if err != nil {
-			return utils.WrapError(utils.ErrCodeInternal, "failed to restore stock", err)
+	restoreItems := make([]RestoreItem, len(orderItems))
+	for i, item := range orderItems {
+		restoreItems[i] = RestoreItem{
+			ProductID: item.OrderItemProductID,
+			Quantity:  item.OrderItemQuantity,
 		}
+	}
+
+	if err := s.inventoryService.RestoreStock(txCtx, restoreItems); err != nil {
+		return err
 	}
 
 	cancelNote := "Order cancelled."

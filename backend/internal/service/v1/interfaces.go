@@ -98,6 +98,14 @@ type OrderPricingService interface {
 	CalculateOrderTotals(items []ItemPriceInput, coupon *sqlc.Coupon, shippingFee float64, now time.Time) (*OrderPricingResult, error)
 }
 
+type InventoryService interface {
+
+	// LockAndDeductStock locks pessimistic products by UUID order (to avoid deadlock),
+	// Checks active status and inventory quantity, then subtracts from stock.
+	LockAndDeductStock(ctx context.Context, items []DeductItem) (map[string]sqlc.GetByUUIDsForUpdateRow, error)
+	RestoreStock(ctx context.Context, items []RestoreItem) error
+}
+
 type CartService interface {
 	GetMyCart(ctx *gin.Context) (v1dto.CartDTO, error)
 	AddItemToCart(ctx *gin.Context, input v1dto.AddCartItemInput) (v1dto.CartDTO, error)
