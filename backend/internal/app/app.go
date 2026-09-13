@@ -41,8 +41,9 @@ type Application struct {
 }
 
 type ModuleContext struct {
-	DB    sqlc.Querier
-	Redis *redis.Client
+	DB        sqlc.Querier
+	Redis     *redis.Client
+	TxManager db.TxManager
 }
 
 func NewApplication(cfg *config.Config) (*Application, error) {
@@ -55,7 +56,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	// Bảo vệ thư mục tĩnh /uploads chống MIME sniffing và thực thi script trái phép
 	r.Use(func(c *gin.Context) {
 		if strings.HasPrefix(c.Request.URL.Path, "/uploads") {
-			c.Header("X-Content-Type-Options", "nosniff")
+			c.Header("X-Content-Options", "nosniff")
 			c.Header("Content-Security-Policy", "default-src 'none'; img-src 'self'; media-src 'self'")
 		}
 		c.Next()
@@ -92,10 +93,12 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	}
 
 	wsHub := ws.NewHub()
+	txManager := db.NewTxManager(db.DBPool)
 
 	ctx := &ModuleContext{
-		DB:    db.DB,
-		Redis: redisClient,
+		DB:        db.DB,
+		Redis:     redisClient,
+		TxManager: txManager,
 	}
 
 	modules := []Module{
