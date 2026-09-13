@@ -16,13 +16,13 @@ type AuthModule struct {
 	routes []routes.Route
 }
 
-func NewAuthModule(ctx *ModuleContext, tokenService auth.TokenService, cacheService cache.RedisCacheService, mailService mail.EmailProviderService, rabbitmqService rabbitmq.RabbitMQService, appURL string) *AuthModule {
+func NewAuthModule(ctx *ModuleContext, tokenService auth.TokenService, cacheService cache.RedisCacheService, mailService mail.EmailProviderService, rabbitmqService rabbitmq.RabbitMQService, storefrontURL string) *AuthModule {
 
 	// Initialize repository
 	userRepo := repository.NewSqlUserRepository(ctx.DB)
 
 	// Initialize service
-	authService := v1service.NewAuthService(userRepo, tokenService, cacheService, mailService, rabbitmqService, appURL)
+	authService := v1service.NewAuthService(userRepo, tokenService, cacheService, mailService, rabbitmqService, storefrontURL)
 
 	// Initialize handler
 	authHandler := v1handler.NewAuthHandler(authService)

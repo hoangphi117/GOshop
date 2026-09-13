@@ -18,6 +18,7 @@ type Config struct {
 	ServerAddress      string
 	DB                 DatabaseConfig
 	AppURL             string
+	StorefrontURL      string
 	MailProviderType   string
 	MailProviderConfig map[string]any
 }
@@ -54,6 +55,7 @@ func NewConfig() *Config {
 			SSLMode:  utils.GetEnv("DB_SSL_MODE", "disable"),
 		},
 		AppURL:             utils.GetEnv("APP_URL", "http://localhost:8080"),
+		StorefrontURL:      utils.GetEnv("STOREFRONT_URL", "http://localhost:3001"),
 		MailProviderType:   mailProviderType,
 		MailProviderConfig: mailProviderConfig,
 	}

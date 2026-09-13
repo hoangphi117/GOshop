@@ -24,12 +24,12 @@ import (
 )
 
 type authService struct {
-	userRepo     repository.UserRepository
-	tokenService auth.TokenService
-	cacheService cache.RedisCacheService
-	mailService  mail.EmailProviderService
-	rabbitmq     rabbitmq.RabbitMQService
-	appURL       string
+	userRepo      repository.UserRepository
+	tokenService  auth.TokenService
+	cacheService  cache.RedisCacheService
+	mailService   mail.EmailProviderService
+	rabbitmq      rabbitmq.RabbitMQService
+	storefrontURL string
 }
 
 type LoginAttempt struct {
@@ -48,14 +48,14 @@ var (
 
 func NewAuthService(userRepo repository.UserRepository, tokenService auth.TokenService,
 	cacheService cache.RedisCacheService, mailService mail.EmailProviderService,
-	rabbitmqService rabbitmq.RabbitMQService, appURL string) *authService {
+	rabbitmqService rabbitmq.RabbitMQService, storefrontURL string) *authService {
 	return &authService{
-		userRepo:     userRepo,
-		tokenService: tokenService,
-		cacheService: cacheService,
-		mailService:  mailService,
-		rabbitmq:     rabbitmqService,
-		appURL:       appURL,
+		userRepo:      userRepo,
+		tokenService:  tokenService,
+		cacheService:  cacheService,
+		mailService:   mailService,
+		rabbitmq:      rabbitmqService,
+		storefrontURL: strings.TrimRight(storefrontURL, "/"),
 	}
 }
 
@@ -241,7 +241,7 @@ func (as *authService) RequestForgotPassword(ctx *gin.Context, email string) err
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to store rate limit reset password", err)
 	}
 
-	resetLink := fmt.Sprintf("%s/view-to-reset-password?token=%s", as.appURL, token)
+	resetLink := fmt.Sprintf("%s/reset-password?token=%s", as.storefrontURL, token)
 
 	htmlBody, textBody, err := mail.ResetPasswordTemplate(
 		user.UserFullname,
