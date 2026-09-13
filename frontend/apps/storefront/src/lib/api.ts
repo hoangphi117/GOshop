@@ -66,6 +66,11 @@ export async function authFetch(
   const apiKey = process.env.NEXT_PUBLIC_API_KEY || 'abcd-1234-1111'
   const token = useAuthStore.getState().accessToken
 
+  let targetUrl = input
+  if (typeof input === 'string' && input.startsWith('/')) {
+    targetUrl = `${API_BASE_URL}${input}`
+  }
+
   const buildHeaders = (authToken?: string) => {
     const headers = new Headers(init?.headers)
     if (authToken) {
@@ -77,7 +82,7 @@ export async function authFetch(
     return headers
   }
 
-  let res = await fetch(input, {
+  let res = await fetch(targetUrl, {
     ...init,
     headers: buildHeaders(token),
   })
@@ -91,7 +96,7 @@ export async function authFetch(
 
     const newToken = await refreshPromise
     if (newToken) {
-      res = await fetch(input, {
+      res = await fetch(targetUrl, {
         ...init,
         headers: buildHeaders(newToken),
       })
