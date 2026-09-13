@@ -6,14 +6,26 @@ import { useCartStore } from '@/stores/cart-store'
 import { useAuthStore } from '@/stores/auth-store'
 import { formatCurrency } from '@/lib/format'
 import { getImageUrl } from '@/lib/utils'
-import { X, Plus, Minus, Trash2, ShoppingCart, ArrowRight, Lock } from 'lucide-react'
+import {
+  X,
+  Plus,
+  Minus,
+  Trash2,
+  ShoppingCart,
+  ArrowRight,
+  Lock,
+  RefreshCw,
+  AlertTriangle,
+} from 'lucide-react'
 import { useMounted } from '@/hooks/use-mounted'
 
 export function CartDrawer() {
   const {
     items,
     isDrawerOpen,
+    isSyncing,
     closeDrawer,
+    fetchServerCart,
     updateQuantity,
     removeItem,
     toggleSelectItem,
@@ -26,11 +38,13 @@ export function CartDrawer() {
   if (!mounted) return null
 
   const isAuthenticated = Boolean(user && accessToken)
-  const selectedItems = isAuthenticated
-    ? items.filter((item) => item.selected !== false)
+  const availableItems = isAuthenticated
+    ? items.filter((item) => item.isAvailable !== false && item.stockQuantity > 0)
     : []
+  const selectedItems = availableItems.filter((item) => item.selected !== false)
   const selectedCount = selectedItems.length
-  const allSelected = items.length > 0 && selectedCount === items.length
+  const allSelected =
+    availableItems.length > 0 && selectedCount === availableItems.length
   const subtotal = selectedItems.reduce(
     (acc, item) => acc + item.price * item.quantity,
     0
@@ -64,17 +78,29 @@ export function CartDrawer() {
               </span>
             )}
           </div>
-          <button
-            onClick={closeDrawer}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-            aria-label="Close cart"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            {isAuthenticated && (
+              <button
+                onClick={() => fetchServerCart()}
+                disabled={isSyncing}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                title="Sync cart items"
+              >
+                <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin text-[#2196F3]' : ''}`} />
+              </button>
+            )}
+            <button
+              onClick={closeDrawer}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              aria-label="Close cart"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Subheader: Select All */}
-        {isAuthenticated && items.length > 0 && (
+        {isAuthenticated && availableItems.length > 0 && (
           <div className="px-5 py-2.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-xs">
             <label className="flex items-center gap-2 cursor-pointer select-none font-semibold text-slate-700">
               <input
@@ -84,7 +110,7 @@ export function CartDrawer() {
                 className="w-3.5 h-3.5 rounded text-[#2196F3] accent-[#2196F3] cursor-pointer"
               />
               <span>
-                Select All ({selectedCount}/{items.length})
+                Select All ({selectedCount}/{availableItems.length} available)
               </span>
             </label>
           </div>
@@ -130,25 +156,35 @@ export function CartDrawer() {
           ) : (
             <ul className="divide-y divide-slate-100">
               {items.map((item) => {
-                const isSelected = item.selected !== false
+                const isOutOfStock =
+                  item.isAvailable === false || item.stockQuantity <= 0
+                const isLowStock =
+                  !isOutOfStock && item.stockQuantity > 0 && item.stockQuantity <= 5
+                const isSelected = item.selected !== false && !isOutOfStock
+
                 return (
                   <li
                     key={item.id}
                     className={`py-4 flex items-center gap-3 first:pt-0 last:pb-0 transition-opacity ${
-                      !isSelected ? 'opacity-55' : ''
+                      isOutOfStock
+                        ? 'opacity-50'
+                        : !isSelected
+                          ? 'opacity-65'
+                          : ''
                     }`}
                   >
                     {/* Checkbox */}
                     <input
                       type="checkbox"
                       checked={isSelected}
+                      disabled={isOutOfStock}
                       onChange={() => toggleSelectItem(item.id)}
                       aria-label={`Select ${item.name}`}
-                      className="w-4 h-4 rounded text-[#2196F3] focus:ring-[#2196F3] border-slate-300 accent-[#2196F3] cursor-pointer shrink-0"
+                      className="w-4 h-4 rounded text-[#2196F3] focus:ring-[#2196F3] border-slate-300 accent-[#2196F3] cursor-pointer shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
                     />
 
                     {/* Thumbnail */}
-                    <div className="w-18 h-18 rounded-xl bg-slate-100 overflow-hidden shrink-0 border border-slate-200/60 flex items-center justify-center">
+                    <div className="relative w-18 h-18 rounded-xl bg-slate-100 overflow-hidden shrink-0 border border-slate-200/60 flex items-center justify-center">
                       {item.image ? (
                         <img
                           src={getImageUrl(item.image)}
@@ -157,6 +193,13 @@ export function CartDrawer() {
                         />
                       ) : (
                         <ShoppingCart className="w-6 h-6 text-slate-400" />
+                      )}
+                      {isOutOfStock && (
+                        <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center p-0.5 text-center">
+                          <span className="text-[9px] font-black uppercase text-white">
+                            Sold Out
+                          </span>
+                        </div>
                       )}
                     </div>
 
@@ -176,13 +219,24 @@ export function CartDrawer() {
                           </button>
                         </div>
 
-                        {(item.selectedSize || item.selectedColor) && (
-                          <p className="text-xs text-slate-500 mt-0.5">
-                            {item.selectedSize && `Size: ${item.selectedSize}`}
-                            {item.selectedSize && item.selectedColor && ' | '}
-                            {item.selectedColor && `Color: ${item.selectedColor}`}
-                          </p>
-                        )}
+                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                          {(item.selectedSize || item.selectedColor) && (
+                            <p className="text-xs text-slate-500">
+                              {item.selectedSize && `Size: ${item.selectedSize}`}
+                              {item.selectedSize && item.selectedColor && ' | '}
+                              {item.selectedColor && `Color: ${item.selectedColor}`}
+                            </p>
+                          )}
+                          {isOutOfStock ? (
+                            <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded">
+                              Out of stock
+                            </span>
+                          ) : isLowStock ? (
+                            <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
+                              Only {item.stockQuantity} left
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
 
                       <div className="flex items-center justify-between mt-2">
@@ -194,7 +248,8 @@ export function CartDrawer() {
                         <div className="flex items-center border border-slate-200 rounded-lg bg-slate-50 overflow-hidden">
                           <button
                             onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                            className="p-1 hover:bg-slate-200 transition-colors text-slate-600 cursor-pointer"
+                            disabled={isOutOfStock || item.quantity <= 1}
+                            className="p-1 hover:bg-slate-200 transition-colors text-slate-600 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                             aria-label="Decrease quantity"
                           >
                             <Minus className="w-3.5 h-3.5" />
@@ -204,7 +259,12 @@ export function CartDrawer() {
                           </span>
                           <button
                             onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                            className="p-1 hover:bg-slate-200 transition-colors text-slate-600 cursor-pointer"
+                            disabled={
+                              isOutOfStock ||
+                              (item.stockQuantity > 0 &&
+                                item.quantity >= item.stockQuantity)
+                            }
+                            className="p-1 hover:bg-slate-200 transition-colors text-slate-600 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                             aria-label="Increase quantity"
                           >
                             <Plus className="w-3.5 h-3.5" />

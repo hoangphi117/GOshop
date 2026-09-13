@@ -16,6 +16,10 @@ import {
   ShieldCheck,
   Tag,
   Lock,
+  RefreshCw,
+  AlertTriangle,
+  CheckCircle2,
+  Sparkles,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useMounted } from '@/hooks/use-mounted'
@@ -23,12 +27,15 @@ import { useMounted } from '@/hooks/use-mounted'
 export default function CartPage() {
   const {
     items,
+    isSyncing,
+    fetchServerCart,
     updateQuantity,
     removeItem,
     clearCart,
     toggleSelectItem,
     selectAllItems,
     removeSelectedItems,
+    removeUnavailableItems,
     appliedCoupon,
     setAppliedCoupon,
   } = useCartStore()
@@ -37,6 +44,7 @@ export default function CartPage() {
   const mounted = useMounted()
   const [couponCode, setCouponCode] = useState('')
   const [isApplyingCoupon, setIsApplyingCoupon] = useState(false)
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
 
   if (!mounted) {
     return (
@@ -78,9 +86,17 @@ export default function CartPage() {
     )
   }
 
-  const selectedItems = items.filter((item) => item.selected !== false)
+  const availableItems = items.filter(
+    (item) => item.isAvailable !== false && item.stockQuantity > 0
+  )
+  const unavailableItems = items.filter(
+    (item) => item.isAvailable === false || item.stockQuantity <= 0
+  )
+
+  const selectedItems = availableItems.filter((item) => item.selected !== false)
   const selectedCount = selectedItems.length
-  const allSelected = items.length > 0 && selectedCount === items.length
+  const allSelected =
+    availableItems.length > 0 && selectedCount === availableItems.length
 
   const subtotal = selectedItems.reduce(
     (total, item) => total + item.price * item.quantity,
@@ -101,7 +117,7 @@ export default function CartPage() {
     }
 
     if (subtotal <= 0) {
-      toast.error('Please select items before applying a coupon.')
+      toast.error('Please select valid in-stock items before applying a coupon.')
       return
     }
 
@@ -113,7 +129,7 @@ export default function CartPage() {
         headers: {
           'Content-Type': 'application/json',
           'X-API-KEY': process.env.NEXT_PUBLIC_API_KEY || 'abcd-1234-1111',
-          'Authorization': `Bearer ${accessToken}`,
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
           code,
@@ -129,10 +145,13 @@ export default function CartPage() {
           name: data.data.coupon_name,
           discountAmount: data.data.discount_amount,
         })
-        toast.success(`Coupon ${data.data.coupon_code} applied! Saved ${formatCurrency(data.data.discount_amount)}.`)
+        toast.success(
+          `Coupon ${data.data.coupon_code} applied! Saved ${formatCurrency(data.data.discount_amount)}.`
+        )
         setCouponCode('')
       } else {
-        const errMsg = data?.detail || data?.error || data?.message || 'Invalid or expired coupon code.'
+        const errMsg =
+          data?.detail || data?.error || data?.message || 'Invalid or expired coupon code.'
         toast.error(errMsg)
       }
     } catch {
@@ -146,6 +165,12 @@ export default function CartPage() {
     setAppliedCoupon(null)
     setCouponCode('')
     toast.info('Coupon removed.')
+  }
+
+  const handleClearCart = async () => {
+    await clearCart()
+    setShowClearConfirm(false)
+    toast.info('Your cart has been cleared.')
   }
 
   if (items.length === 0) {
@@ -162,7 +187,7 @@ export default function CartPage() {
             You don&apos;t have any products in your cart yet. Explore our latest arrivals
             and best selling items now!
           </p>
-          <div className="pt-2">
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link
               href="/products"
               className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-[#2196F3] text-white text-sm font-semibold hover:bg-[#0D47A1] transition-all shadow-md"
@@ -170,6 +195,14 @@ export default function CartPage() {
               <ArrowLeft className="w-4 h-4" />
               <span>Continue Shopping</span>
             </Link>
+            <button
+              onClick={() => fetchServerCart()}
+              disabled={isSyncing}
+              className="inline-flex items-center gap-1.5 px-4 py-3 rounded-2xl border border-slate-200 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-all cursor-pointer"
+            >
+              <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin text-[#2196F3]' : ''}`} />
+              <span>Sync Cart</span>
+            </button>
           </div>
         </div>
       </div>
@@ -179,22 +212,82 @@ export default function CartPage() {
   return (
     <div className="bg-[#FAFBFC] min-h-screen py-10">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="flex items-center justify-between pb-6 border-b border-slate-200/80 mb-8">
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0D1B2A] tracking-tight">
-            Shopping Cart ({items.length} {items.length === 1 ? 'item' : 'items'})
-          </h1>
-          <button
-            onClick={() => {
-              if (window.confirm('Are you sure you want to clear your cart?')) {
-                clearCart()
-                toast.info('Cart cleared.')
-              }
-            }}
-            className="text-xs font-semibold text-rose-500 hover:text-rose-700 transition-colors cursor-pointer"
-          >
-            Clear Cart
-          </button>
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200/80 mb-6">
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0D1B2A] tracking-tight">
+                Shopping Cart
+              </h1>
+              <span className="bg-[#E3F2FD] text-[#0D47A1] text-xs font-bold px-2.5 py-1 rounded-full">
+                {items.length} {items.length === 1 ? 'item' : 'items'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              Review your items, apply vouchers, and proceed to checkout securely.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => fetchServerCart()}
+              disabled={isSyncing}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-xs cursor-pointer disabled:opacity-60"
+              title="Sync cart items with latest server stock"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-[#2196F3]' : ''}`} />
+              <span>{isSyncing ? 'Syncing...' : 'Sync Stock'}</span>
+            </button>
+
+            {showClearConfirm ? (
+              <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 p-1 rounded-xl">
+                <span className="text-[11px] font-semibold text-rose-700 px-2">Clear all?</span>
+                <button
+                  onClick={handleClearCart}
+                  className="px-2.5 py-1 rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition-colors cursor-pointer"
+                >
+                  Yes
+                </button>
+                <button
+                  onClick={() => setShowClearConfirm(false)}
+                  className="px-2.5 py-1 rounded-lg bg-white text-slate-600 text-xs font-semibold hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowClearConfirm(true)}
+                className="text-xs font-semibold text-rose-500 hover:text-rose-700 transition-colors cursor-pointer px-2 py-1"
+              >
+                Clear Cart
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Unavailable items alert banner */}
+        {unavailableItems.length > 0 && (
+          <div className="mb-6 p-4 rounded-2xl bg-amber-50/90 border border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+              <div>
+                <p className="text-xs font-bold text-amber-900">
+                  {unavailableItems.length} {unavailableItems.length === 1 ? 'item is' : 'items are'} currently unavailable or out of stock
+                </p>
+                <p className="text-[11px] text-amber-700">
+                  Unavailable items are excluded from checkout. You can remove them or keep them for later.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => removeUnavailableItems()}
+              className="px-3.5 py-1.5 rounded-xl bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 transition-colors shadow-xs shrink-0 cursor-pointer"
+            >
+              Remove Unavailable ({unavailableItems.length})
+            </button>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Items List (8 cols) */}
@@ -207,15 +300,22 @@ export default function CartPage() {
                     type="checkbox"
                     checked={allSelected}
                     onChange={(e) => selectAllItems(e.target.checked)}
-                    className="w-4 h-4 rounded text-[#2196F3] focus:ring-[#2196F3] border-slate-300 accent-[#2196F3] cursor-pointer"
+                    disabled={availableItems.length === 0}
+                    className="w-4 h-4 rounded text-[#2196F3] focus:ring-[#2196F3] border-slate-300 accent-[#2196F3] cursor-pointer disabled:opacity-40"
                   />
-                  <span>Select All ({selectedCount}/{items.length} items)</span>
+                  <span>
+                    Select All ({selectedCount}/{availableItems.length} available items)
+                  </span>
                 </label>
 
                 {selectedCount > 0 && (
                   <button
                     onClick={() => {
-                      if (window.confirm(`Remove ${selectedCount} selected items from your cart?`)) {
+                      if (
+                        window.confirm(
+                          `Remove ${selectedCount} selected items from your cart?`
+                        )
+                      ) {
                         removeSelectedItems()
                         toast.info('Selected items removed.')
                       }
@@ -229,12 +329,21 @@ export default function CartPage() {
               </div>
 
               {items.map((item) => {
-                const isSelected = item.selected !== false
+                const isOutOfStock =
+                  item.isAvailable === false || item.stockQuantity <= 0
+                const isLowStock =
+                  !isOutOfStock && item.stockQuantity > 0 && item.stockQuantity <= 5
+                const isSelected = item.selected !== false && !isOutOfStock
+
                 return (
                   <div
                     key={item.id}
                     className={`p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-colors ${
-                      !isSelected ? 'bg-slate-50/40 opacity-70' : 'hover:bg-slate-50/50'
+                      isOutOfStock
+                        ? 'bg-slate-50/70 opacity-60'
+                        : !isSelected
+                          ? 'bg-slate-50/40 opacity-75'
+                          : 'hover:bg-slate-50/50'
                     }`}
                   >
                     {/* Checkbox, Thumbnail & Info */}
@@ -242,12 +351,13 @@ export default function CartPage() {
                       <input
                         type="checkbox"
                         checked={isSelected}
+                        disabled={isOutOfStock}
                         onChange={() => toggleSelectItem(item.id)}
                         aria-label={`Select ${item.name}`}
-                        className="w-4 h-4 rounded text-[#2196F3] focus:ring-[#2196F3] border-slate-300 accent-[#2196F3] cursor-pointer shrink-0"
+                        className="w-4 h-4 rounded text-[#2196F3] focus:ring-[#2196F3] border-slate-300 accent-[#2196F3] cursor-pointer shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
                       />
 
-                      <div className="w-20 h-20 rounded-xl bg-slate-100 overflow-hidden shrink-0 border border-slate-200/60 flex items-center justify-center">
+                      <div className="relative w-20 h-20 rounded-xl bg-slate-100 overflow-hidden shrink-0 border border-slate-200/60 flex items-center justify-center">
                         {item.image ? (
                           <img
                             src={getImageUrl(item.image)}
@@ -257,15 +367,34 @@ export default function CartPage() {
                         ) : (
                           <ShoppingCart className="w-6 h-6 text-slate-400" />
                         )}
+                        {isOutOfStock && (
+                          <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center p-1 text-center">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-white">
+                              Sold Out
+                            </span>
+                          </div>
+                        )}
                       </div>
 
                       <div className="min-w-0 flex-1">
-                        <Link
-                          href={`/products/${item.productUuid}`}
-                          className="text-sm font-bold text-[#0D1B2A] hover:text-[#2196F3] transition-colors truncate block"
-                        >
-                          {item.name}
-                        </Link>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Link
+                            href={`/products/${item.productUuid}`}
+                            className="text-sm font-bold text-[#0D1B2A] hover:text-[#2196F3] transition-colors truncate block"
+                          >
+                            {item.name}
+                          </Link>
+                          {isOutOfStock ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700">
+                              Out of stock
+                            </span>
+                          ) : isLowStock ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                              Only {item.stockQuantity} left
+                            </span>
+                          ) : null}
+                        </div>
+
                         {(item.selectedSize || item.selectedColor) && (
                           <p className="text-xs text-slate-500 mt-0.5">
                             {item.selectedSize && `Size: ${item.selectedSize}`}
@@ -284,7 +413,8 @@ export default function CartPage() {
                       <div className="flex items-center border border-slate-200 rounded-xl bg-slate-50 overflow-hidden">
                         <button
                           onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                          className="p-1.5 hover:bg-slate-200 transition-colors text-slate-600 cursor-pointer"
+                          disabled={isOutOfStock || item.quantity <= 1}
+                          className="p-1.5 hover:bg-slate-200 transition-colors text-slate-600 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                           aria-label="Decrease quantity"
                         >
                           <Minus className="w-3.5 h-3.5" />
@@ -294,7 +424,12 @@ export default function CartPage() {
                         </span>
                         <button
                           onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                          className="p-1.5 hover:bg-slate-200 transition-colors text-slate-600 cursor-pointer"
+                          disabled={
+                            isOutOfStock ||
+                            (item.stockQuantity > 0 &&
+                              item.quantity >= item.stockQuantity)
+                          }
+                          className="p-1.5 hover:bg-slate-200 transition-colors text-slate-600 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                           aria-label="Increase quantity"
                         >
                           <Plus className="w-3.5 h-3.5" />
@@ -351,7 +486,7 @@ export default function CartPage() {
                   <button
                     type="submit"
                     disabled={isApplyingCoupon || !couponCode.trim()}
-                    className="px-3 py-2 rounded-xl bg-[#0D47A1] text-white text-xs font-semibold hover:bg-[#2196F3] transition-colors cursor-pointer disabled:opacity-60"
+                    className="px-3.5 py-2 rounded-xl bg-[#0D47A1] text-white text-xs font-semibold hover:bg-[#2196F3] transition-colors cursor-pointer disabled:opacity-60"
                   >
                     {isApplyingCoupon ? 'Verifying...' : 'Apply'}
                   </button>
@@ -362,7 +497,9 @@ export default function CartPage() {
                     <div className="flex flex-col">
                       <span className="font-bold">Code: {appliedCoupon.code}</span>
                       {appliedCoupon.name && (
-                        <span className="text-[11px] text-emerald-600 font-normal">{appliedCoupon.name}</span>
+                        <span className="text-[11px] text-emerald-600 font-normal">
+                          {appliedCoupon.name}
+                        </span>
                       )}
                     </div>
                     <button
@@ -379,7 +516,9 @@ export default function CartPage() {
               {/* Breakdown */}
               <div className="space-y-2.5 text-xs text-slate-600 pt-2 border-t border-slate-100">
                 <div className="flex justify-between">
-                  <span>Subtotal ({selectedCount} {selectedCount === 1 ? 'item' : 'items'})</span>
+                  <span>
+                    Subtotal ({selectedCount} {selectedCount === 1 ? 'item' : 'items'})
+                  </span>
                   <span className="font-semibold text-[#0D1B2A]">
                     {formatCurrency(subtotal)}
                   </span>
