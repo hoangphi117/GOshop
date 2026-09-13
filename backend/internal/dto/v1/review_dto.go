@@ -148,14 +148,14 @@ type MyReviewDTO struct {
 }
 
 type RatingSummaryRow struct {
-	TotalReviews   int64
-	AvgRating      float64
-	WithMediaCount int64
-	FiveStar       int64
-	FourStar       int64
-	ThreeStar      int64
-	TwoStar        int64
-	OneStar        int64
+	TotalReviews   int64   `json:"total_reviews"`
+	AvgRating      float64 `json:"avg_rating"`
+	WithMediaCount int64   `json:"with_media_count"`
+	FiveStar       int64   `json:"five_star"`
+	FourStar       int64   `json:"four_star"`
+	ThreeStar      int64   `json:"three_star"`
+	TwoStar        int64   `json:"two_star"`
+	OneStar        int64   `json:"one_star"`
 }
 
 // ── Mapping Functions ─────────────────────────────────────────────

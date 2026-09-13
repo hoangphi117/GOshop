@@ -202,6 +202,11 @@ func (rs *reviewService) GetProductReviews(ctx *gin.Context, productUUID uuid.UU
 		if images == nil {
 			images = []string{}
 		}
+		var replyAt *string
+		if r.ReviewReplyAt != nil {
+			formatted := r.ReviewReplyAt.Format("2006-01-02 15:04:05")
+			replyAt = &formatted
+		}
 		reviewDTOs[i] = v1dto.ReviewDTO{
 			UUID:         r.ReviewUUID.String(),
 			ReviewerName: utils.MaskName(r.ReviewerName),
@@ -212,7 +217,7 @@ func (rs *reviewService) GetProductReviews(ctx *gin.Context, productUUID uuid.UU
 			VideoURL:     r.ReviewVideoURL,
 			HasMedia:     r.ReviewHasMedia,
 			Reply:        r.ReviewReply,
-			ReplyAt:      utils.StringToPointer(r.ReviewReplyAt.Format("2006-01-02 15:04:05")),
+			ReplyAt:      replyAt,
 			HelpfulCount: r.ReviewHelpfulCount,
 			CreatedAt:    r.ReviewCreatedAt.Format("2006-01-02 15:04:05"),
 			UpdatedAt:    r.ReviewUpdatedAt.Format("2006-01-02 15:04:05"),
