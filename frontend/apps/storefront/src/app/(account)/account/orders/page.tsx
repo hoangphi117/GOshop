@@ -9,6 +9,9 @@ import { authFetch } from '@/lib/api'
 import { formatCurrency, formatDate, formatDateTime } from '@/lib/format'
 import { getImageUrl, extractErrorMessage } from '@/lib/utils'
 import { WriteReviewModal } from '@/components/review/write-review-modal'
+import { RequestReturnModal } from '@/components/order/request-return-modal'
+import { ReturnDetailModal } from '@/components/order/return-detail-modal'
+import { OrderTrackingModal } from '@/components/order/order-tracking-modal'
 import {
   ShoppingBag,
   Clock,
@@ -132,11 +135,10 @@ function MyOrdersPageContent() {
 
   // Return / Refund Modal State
   const [orderToReturn, setOrderToReturn] = useState<Order | null>(null)
-  const [isSubmittingReturn, setIsSubmittingReturn] = useState(false)
-  const [returnReason, setReturnReason] = useState('')
-  const [bankName, setBankName] = useState('')
-  const [bankAccount, setBankAccount] = useState('')
-  const [bankAccountName, setBankAccountName] = useState('')
+  const [orderToViewReturn, setOrderToViewReturn] = useState<Order | null>(null)
+
+  // Live Tracking Modal State
+  const [orderToTrack, setOrderToTrack] = useState<Order | null>(null)
 
   // Confirm Delivery Modal State
   const [orderToConfirmDelivery, setOrderToConfirmDelivery] = useState<Order | null>(null)
@@ -395,59 +397,14 @@ function MyOrdersPageContent() {
   // --- RETURN / REFUND ACTIONS ---
   const handleOpenReturnModal = (order: Order) => {
     setOrderToReturn(order)
-    setReturnReason('')
-    setBankName('')
-    setBankAccount('')
-    setBankAccountName('')
   }
 
-  const handleSubmitReturn = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!orderToReturn) return
+  const handleOpenReturnDetails = (order: Order) => {
+    setOrderToViewReturn(order)
+  }
 
-    if (returnReason.trim().length < 10) {
-      toast.error('Please provide a detailed return reason (at least 10 characters).')
-      return
-    }
-
-    setIsSubmittingReturn(true)
-
-    try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
-      const payload: Record<string, string> = {
-        reason: returnReason.trim(),
-      }
-      if (bankName.trim()) payload.bank_name = bankName.trim()
-      if (bankAccount.trim()) payload.bank_account = bankAccount.trim()
-      if (bankAccountName.trim()) payload.bank_account_name = bankAccountName.trim()
-
-      const res = await authFetch(`${baseUrl}/api/v1/orders/${orderToReturn.uuid}/return`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      })
-
-      if (res.ok) {
-        toast.success(
-          'Return & refund request submitted successfully! Our team will review it shortly.'
-        )
-        setOrderToReturn(null)
-        if (selectedOrder && selectedOrder.uuid === orderToReturn.uuid) {
-          setSelectedOrder({ ...selectedOrder, status: 'Returned' })
-        }
-        await fetchOrders()
-      } else {
-        const errJson = await res.json().catch(() => null)
-        const msg = extractErrorMessage(errJson, 'Failed to submit return request.')
-        toast.error(msg)
-      }
-    } catch {
-      toast.error('Network error occurred while submitting return request.')
-    } finally {
-      setIsSubmittingReturn(false)
-    }
+  const handleOpenTrackingModal = (order: Order) => {
+    setOrderToTrack(order)
   }
 
   // --- CONFIRM DELIVERY ACTIONS ---
@@ -845,6 +802,7 @@ function MyOrdersPageContent() {
   // ==========================================
   if (selectedOrder) {
     const isPending = selectedOrder.status?.toUpperCase() === 'PENDING'
+    const isConfirmed = selectedOrder.status?.toUpperCase() === 'CONFIRMED'
     const isShipped =
       selectedOrder.status?.toUpperCase() === 'SHIPPED' ||
       selectedOrder.status?.toUpperCase() === 'IN_TRANSIT' ||
@@ -1025,7 +983,7 @@ function MyOrdersPageContent() {
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
-              {(isPaid || isDelivered) && (
+              {(isPaid || isDelivered || isConfirmed || isShipped) && (
                 <button
                   type="button"
                   disabled={downloadingInvoiceUuid === selectedOrder.uuid}
@@ -1073,6 +1031,17 @@ function MyOrdersPageContent() {
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   <span>Return / Refund</span>
+                </button>
+              )}
+
+              {isReturned && (
+                <button
+                  type="button"
+                  onClick={() => handleOpenReturnDetails(selectedOrder)}
+                  className="px-3 py-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>View Return Request</span>
                 </button>
               )}
             </div>
@@ -1585,11 +1554,13 @@ function MyOrdersPageContent() {
         <div className="space-y-4">
           {filteredOrders.map((order) => {
             const isPending = order.status?.toUpperCase() === 'PENDING'
+            const isConfirmed = order.status?.toUpperCase() === 'CONFIRMED'
             const isShipped =
               order.status?.toUpperCase() === 'SHIPPED' ||
               order.status?.toUpperCase() === 'IN_TRANSIT' ||
               order.status?.toUpperCase() === 'INTRANSIT'
             const isDelivered = order.status?.toUpperCase() === 'DELIVERED'
+            const isReturned = order.status?.toUpperCase() === 'RETURNED'
             const isPaid = order.payment_status?.toUpperCase() === 'PAID'
 
             return (
@@ -1659,26 +1630,6 @@ function MyOrdersPageContent() {
 
                     {/* Action Buttons */}
                     <div className="flex items-center gap-2 flex-wrap sm:justify-end">
-                      {/* Download Invoice (if Paid or Delivered) */}
-                      {(isPaid || isDelivered) && (
-                        <button
-                          type="button"
-                          disabled={downloadingInvoiceUuid === order.uuid}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleDownloadInvoice(order)
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                          title="Download PDF invoice"
-                        >
-                          {downloadingInvoiceUuid === order.uuid ? (
-                            <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#2196F3]" />
-                          ) : (
-                            <Download className="w-3.5 h-3.5 text-slate-500" />
-                          )}
-                          <span>Invoice</span>
-                        </button>
-                      )}
 
                       {/* Confirm Delivery Button (if Shipped) */}
                       {isShipped && (
@@ -1696,6 +1647,43 @@ function MyOrdersPageContent() {
                         </button>
                       )}
 
+                      {/* Tracking Button */}
+                      {(isConfirmed || isShipped || isDelivered) && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleOpenTrackingModal(order)
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#0D47A1] border border-blue-200 text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer"
+                          title="Track shipment"
+                        >
+                          <Truck className="w-3.5 h-3.5 text-[#2196F3]" />
+                          <span>Track</span>
+                        </button>
+                      )}
+
+                      {/* Invoice Download */}
+                      {(isPaid || isDelivered || isConfirmed || isShipped) && (
+                        <button
+                          type="button"
+                          disabled={downloadingInvoiceUuid === order.uuid}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDownloadInvoice(order)
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                          title="Download Invoice PDF"
+                        >
+                          {downloadingInvoiceUuid === order.uuid ? (
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#2196F3]" />
+                          ) : (
+                            <Download className="w-3.5 h-3.5 text-slate-600" />
+                          )}
+                          <span>Invoice</span>
+                        </button>
+                      )}
+
                       {/* Cancel Button (if Pending) */}
                       {isPending && (
                         <button
@@ -1708,7 +1696,7 @@ function MyOrdersPageContent() {
                           title="Cancel this order"
                         >
                           <Ban className="w-3.5 h-3.5" />
-                          <span>Cancel Order</span>
+                          <span>Cancel</span>
                         </button>
                       )}
 
@@ -1724,7 +1712,23 @@ function MyOrdersPageContent() {
                           title="Request return or refund"
                         >
                           <RotateCcw className="w-3.5 h-3.5" />
-                          <span>Return / Refund</span>
+                          <span>Return</span>
+                        </button>
+                      )}
+
+                      {/* View Return Button (if Returned) */}
+                      {isReturned && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleOpenReturnDetails(order)
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer"
+                          title="View return request progress"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>Return Details</span>
                         </button>
                       )}
 
@@ -1937,123 +1941,53 @@ function MyOrdersPageContent() {
 
         {/* Return / Refund Request Modal */}
         {orderToReturn && (
-          <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto animate-in fade-in">
-            <div className="w-full max-w-lg bg-white rounded-3xl p-6 sm:p-7 shadow-2xl space-y-5 border border-slate-100 my-8">
-              <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-3">
-                <div>
-                  <h3 className="text-base font-extrabold text-[#0D1B2A] flex items-center gap-1.5">
-                    <RotateCcw className="w-4 h-4 text-[#2196F3]" />
-                    Request Return & Refund
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Order #{orderToReturn.order_number || orderToReturn.uuid.slice(0, 8).toUpperCase()}
-                  </p>
-                </div>
+          <RequestReturnModal
+            isOpen={!!orderToReturn}
+            onClose={() => setOrderToReturn(null)}
+            orderUuid={orderToReturn.uuid}
+            orderNumber={orderToReturn.order_number}
+            paymentMethod={orderToReturn.payment_method}
+            totalAmount={orderToReturn.total_amount}
+            onSuccess={() => {
+              setOrderToReturn(null)
+              fetchOrders()
+              if (selectedOrder && selectedOrder.uuid === orderToReturn.uuid) {
+                handleOpenOrderDetails(orderToReturn, false)
+              }
+            }}
+          />
+        )}
 
-                <button
-                  onClick={() => setOrderToReturn(null)}
-                  className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
+        {/* Return Details Modal */}
+        {orderToViewReturn && (
+          <ReturnDetailModal
+            isOpen={!!orderToViewReturn}
+            onClose={() => setOrderToViewReturn(null)}
+            orderUuid={orderToViewReturn.uuid}
+            onUpdated={() => {
+              fetchOrders()
+              if (selectedOrder && selectedOrder.uuid === orderToViewReturn.uuid) {
+                handleOpenOrderDetails(orderToViewReturn, false)
+              }
+            }}
+          />
+        )}
 
-              <form onSubmit={handleSubmitReturn} className="space-y-4 text-xs">
-                {/* Reason Field */}
-                <div className="space-y-1.5">
-                  <label className="font-bold text-slate-700 block">
-                    Reason for Return <span className="text-rose-500">*</span>
-                  </label>
-                  <textarea
-                    required
-                    rows={3}
-                    value={returnReason}
-                    onChange={(e) => setReturnReason(e.target.value)}
-                    placeholder="Please describe in detail why you want to return this order (minimum 10 characters)..."
-                    className="w-full p-3 rounded-xl border border-slate-200 focus:outline-none focus:border-[#2196F3] text-xs text-[#0D1B2A] resize-none"
-                  />
-                  <span className="text-[11px] text-slate-400">
-                    {returnReason.trim().length} / 10 characters minimum
-                  </span>
-                </div>
-
-                {/* Bank Details for Refund (Optional for COD) */}
-                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/70 space-y-2.5">
-                  <span className="font-bold text-slate-700 flex items-center gap-1.5 text-[11px] uppercase tracking-wider">
-                    <Building2 className="w-3.5 h-3.5 text-slate-500" />
-                    Bank Account for Refund (Optional)
-                  </span>
-                  <p className="text-[11px] text-slate-500">
-                    Provide your bank information if you paid with Cash on Delivery (COD) to receive your refund.
-                  </p>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-medium text-slate-600">Bank Name</label>
-                      <input
-                        type="text"
-                        value={bankName}
-                        onChange={(e) => setBankName(e.target.value)}
-                        placeholder="e.g. Vietcombank, MBBank"
-                        className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs text-[#0D1B2A] focus:outline-none focus:border-[#2196F3]"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-medium text-slate-600">Account Number</label>
-                      <input
-                        type="text"
-                        value={bankAccount}
-                        onChange={(e) => setBankAccount(e.target.value)}
-                        placeholder="e.g. 1029384756"
-                        className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs text-[#0D1B2A] focus:outline-none focus:border-[#2196F3]"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-medium text-slate-600">Account Holder Name</label>
-                    <input
-                      type="text"
-                      value={bankAccountName}
-                      onChange={(e) => setBankAccountName(e.target.value)}
-                      placeholder="e.g. NGUYEN VAN A"
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs text-[#0D1B2A] focus:outline-none focus:border-[#2196F3] uppercase"
-                    />
-                  </div>
-                </div>
-
-                {/* Form Action Buttons */}
-                <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-                  <button
-                    type="button"
-                    disabled={isSubmittingReturn}
-                    onClick={() => setOrderToReturn(null)}
-                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmittingReturn || returnReason.trim().length < 10}
-                    className="px-5 py-2 rounded-xl bg-[#2196F3] hover:bg-[#0D47A1] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isSubmittingReturn ? (
-                      <>
-                        <div className="w-3.5 h-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                        <span>Submitting...</span>
-                      </>
-                    ) : (
-                      <>
-                        <RotateCcw className="w-3.5 h-3.5" />
-                        <span>Submit Return Request</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
+        {/* Order Tracking Modal */}
+        {orderToTrack && (
+          <OrderTrackingModal
+            isOpen={!!orderToTrack}
+            onClose={() => setOrderToTrack(null)}
+            orderUuid={orderToTrack.uuid}
+            orderNumber={orderToTrack.order_number}
+            orderStatus={orderToTrack.status}
+            onStatusUpdated={() => {
+              fetchOrders()
+              if (selectedOrder && selectedOrder.uuid === orderToTrack.uuid) {
+                handleOpenOrderDetails(orderToTrack, false)
+              }
+            }}
+          />
         )}
 
         {/* Confirm Delivery Confirmation Dialog */}

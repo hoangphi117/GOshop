@@ -8,6 +8,7 @@ import { useMounted } from '@/hooks/use-mounted'
 import {
   User,
   ShoppingBag,
+  RotateCcw,
   Star,
   MapPin,
   Shield,
@@ -85,6 +86,11 @@ export default function AccountLayout({
       name: 'My Orders',
       href: '/account/orders',
       icon: ShoppingBag,
+    },
+    {
+      name: 'Returns & Refunds',
+      href: '/account/returns',
+      icon: RotateCcw,
     },
     {
       name: 'My Reviews',
