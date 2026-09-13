@@ -4,6 +4,7 @@ import (
 	"context"
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -89,6 +90,12 @@ type OrderService interface {
 	SyncOrderTracking(ctx *gin.Context, orderUUID uuid.UUID) (v1dto.SyncTrackingResponseDTO, error)
 	SyncActiveShippingOrders(ctx context.Context) (v1dto.SyncActiveShippingStatsDTO, error)
 	AdminSyncActiveShippingOrders(ctx *gin.Context) (v1dto.SyncActiveShippingStatsDTO, error)
+}
+
+type OrderPricingService interface {
+	CalculateItems(items []ItemPriceInput) ([]ItemPriceResult, float64, error)
+	ValidateAndCalculateDiscount(coupon *sqlc.Coupon, subtotal float64, now time.Time) (float64, error)
+	CalculateOrderTotals(items []ItemPriceInput, coupon *sqlc.Coupon, shippingFee float64, now time.Time) (*OrderPricingResult, error)
 }
 
 type CartService interface {

@@ -65,6 +65,7 @@ const (
 
 type orderService struct {
 	txManager           db.TxManager
+	pricingService      OrderPricingService
 	orderRepo           repository.OrderRepository
 	orderItemRepo       repository.OrderItemRepository
 	orderReturnRepo     repository.OrderReturnsRepository
@@ -84,6 +85,7 @@ type orderService struct {
 }
 
 func NewOrderService(txManager db.TxManager,
+	pricingService OrderPricingService,
 	orderRepo repository.OrderRepository,
 	orderItemRepo repository.OrderItemRepository,
 	orderReturnRepo repository.OrderReturnsRepository,
@@ -102,6 +104,7 @@ func NewOrderService(txManager db.TxManager,
 	rabbitmq rabbitmq.RabbitMQService) OrderService {
 	return &orderService{
 		txManager:           txManager,
+		pricingService:      pricingService,
 		orderRepo:           orderRepo,
 		orderItemRepo:       orderItemRepo,
 		orderReturnRepo:     orderReturnRepo,
@@ -127,14 +130,6 @@ func (s *orderService) getUser(ctx *gin.Context) (sqlc.User, error) {
 
 func (s *orderService) getUserUUID(ctx *gin.Context) (uuid.UUID, error) {
 	return GetUserUUIDFromContext(ctx)
-}
-
-type preparedItem struct {
-	productID   int32
-	productName string
-	price       float64
-	quantity    int32
-	subtotal    float64
 }
 
 const base32Alphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
@@ -221,16 +216,39 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 			productMap[p.ProductUuid.String()] = p
 		}
 
-		var subtotalAmount float64
-		preparedItems := make([]preparedItem, 0, len(input.Items))
-
-		// Loop through the input items to validate (status, quantity) and prepare order items
-		for _, item := range input.Items {
-
-			if item.Quantity <= 0 {
-				return utils.NewError(utils.ErrCodeBadRequest, "Quantity must be greater than 0 for product: "+item.ProductUUID)
+		priceInputs := make([]ItemPriceInput, len(input.Items))
+		for i, item := range input.Items {
+			p := productMap[item.ProductUUID]
+			priceInputs[i] = ItemPriceInput{
+				ProductID:   p.ProductID,
+				ProductName: p.ProductName,
+				Price:       utils.NumericToFloat(p.ProductPrice),
+				Quantity:    item.Quantity,
 			}
+		}
 
+		var coupon *sqlc.Coupon
+		if input.CouponCode != nil && strings.TrimSpace(*input.CouponCode) != "" {
+			c, err := s.couponRepo.GetByCode(txCtx, strings.ToUpper(strings.TrimSpace(*input.CouponCode)))
+			if err != nil {
+				return utils.NewError(utils.ErrCodeNotFound, "Coupon not found")
+			}
+			coupon = &c
+		}
+
+		pricingResult, err := s.pricingService.CalculateOrderTotals(priceInputs, coupon, input.ShippingFee, time.Now())
+		if err != nil {
+			return err
+		}
+
+		if pricingResult.AppliedCouponID != nil {
+			if err := s.couponRepo.IncrementUsedCount(txCtx, tx, *pricingResult.AppliedCouponID); err != nil {
+				return utils.WrapError(utils.ErrCodeInternal, "Failed to increment coupon usage count", err)
+			}
+		}
+
+		// Deduct stock for each item
+		for _, item := range input.Items {
 			product, ok := productMap[item.ProductUUID]
 			if !ok {
 				return utils.NewError(utils.ErrCodeNotFound, "Product not found: "+item.ProductUUID)
@@ -249,81 +267,6 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 			if err != nil {
 				return utils.NewError(utils.ErrCodeBadRequest, "Insufficient stock for product: "+product.ProductName)
 			}
-
-			subtotal := utils.RoundFloat(float64(item.Quantity)*utils.NumericToFloat(product.ProductPrice), 2)
-			subtotalAmount = utils.RoundFloat(subtotalAmount+subtotal, 2)
-
-			preparedItems = append(preparedItems, preparedItem{
-				productID:   product.ProductID,
-				productName: product.ProductName,
-				price:       utils.NumericToFloat(product.ProductPrice),
-				quantity:    item.Quantity,
-				subtotal:    subtotal,
-			})
-		}
-
-		var discountAmount float64
-		var appliedCouponID *int32
-		var appliedCouponCode *string
-
-		// If a coupon code is provided, validate it and apply the discount
-		if input.CouponCode != nil && strings.TrimSpace(*input.CouponCode) != "" {
-			normalizedCode := strings.ToUpper(strings.TrimSpace(*input.CouponCode))
-
-			coupon, err := s.couponRepo.GetByCode(txCtx, normalizedCode)
-			if err != nil {
-				if errors.Is(err, sql.ErrNoRows) {
-					return utils.NewError(utils.ErrCodeNotFound, "Coupon not found")
-				}
-				return utils.WrapError(utils.ErrCodeInternal, "failed to get coupon", err)
-			}
-			if !coupon.CouponIsActive {
-				return utils.NewError(utils.ErrCodeBadRequest, "Coupon is not active")
-			}
-
-			now := time.Now()
-			if now.Before(coupon.CouponStartDate) {
-				return utils.NewError(utils.ErrCodeBadRequest, "Coupon is not yet active")
-			}
-			if now.After(coupon.CouponEndDate) {
-				return utils.NewError(utils.ErrCodeBadRequest, "Coupon has expired")
-			}
-
-			minOrderAmount := utils.NumericToFloat(coupon.CouponMinOrderAmount)
-			if subtotalAmount < minOrderAmount {
-				return utils.NewError(
-					utils.ErrCodeBadRequest,
-					fmt.Sprintf("Order subtotal must be at least $%.2f to apply coupon %s", minOrderAmount, coupon.CouponCode),
-				)
-			}
-
-			userUsageCount, err := s.couponRepo.CountUserUsages(txCtx, user.UserID, coupon.CouponID)
-			if err != nil {
-				return utils.WrapError(utils.ErrCodeInternal, "failed to count user coupon usages", err)
-			}
-			if userUsageCount >= int64(coupon.CouponUserUsageLimit) {
-				return utils.NewError(utils.ErrCodeBadRequest, "Coupon has been used the maximum number of times")
-			}
-
-			discountAmount = CalculateDiscount(coupon, subtotalAmount)
-
-			err = s.couponRepo.IncrementUsedCount(txCtx, tx, coupon.CouponID)
-			if err != nil {
-				if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
-					return utils.NewError(utils.ErrCodeConflict, "Coupon usage limit reached, please try another coupon")
-				}
-				return utils.WrapError(utils.ErrCodeInternal, "failed to increment coupon used count", err)
-			}
-
-			appliedCouponID = &coupon.CouponID
-			appliedCouponCode = &coupon.CouponCode
-		}
-
-		shippingFee := utils.RoundFloat(input.ShippingFee, 2)
-
-		finalTotalAmount := utils.RoundFloat(subtotalAmount-discountAmount+shippingFee, 2)
-		if finalTotalAmount < 0 {
-			finalTotalAmount = 0
 		}
 
 		orderNumber := GenerateOrderNumber(user.UserID)
@@ -334,12 +277,12 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 			OrderShippingName:    input.ShippingName,
 			OrderShippingPhone:   input.ShippingPhone,
 			OrderShippingAddress: input.ShippingAddress,
-			OrderShippingFee:     utils.FloatToNumeric(shippingFee),
-			OrderCouponID:        appliedCouponID,
-			OrderCouponCode:      appliedCouponCode,
-			OrderSubtotalAmount:  utils.FloatToNumeric(subtotalAmount),
-			OrderDiscountAmount:  utils.FloatToNumeric(discountAmount),
-			OrderTotalAmount:     utils.FloatToNumeric(finalTotalAmount),
+			OrderShippingFee:     utils.FloatToNumeric(pricingResult.ShippingFee),
+			OrderCouponID:        pricingResult.AppliedCouponID,
+			OrderCouponCode:      pricingResult.AppliedCouponCode,
+			OrderSubtotalAmount:  utils.FloatToNumeric(pricingResult.SubtotalAmount),
+			OrderDiscountAmount:  utils.FloatToNumeric(pricingResult.DiscountAmount),
+			OrderTotalAmount:     utils.FloatToNumeric(pricingResult.FinalTotalAmount),
 			OrderPaymentMethod:   input.PaymentMethod,
 			OrderPaymentStatus:   OrderPaymentStatusUnpaid,
 			OrderNote:            &input.Note,
@@ -352,9 +295,9 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 		}
 		order = createdOrder
 
-		if appliedCouponID != nil {
+		if pricingResult.AppliedCouponID != nil {
 			_, err = s.couponRepo.RecordUserUsage(txCtx, tx, sqlc.RecordCouponUsageParams{
-				CouponUsageCouponID: *appliedCouponID,
+				CouponUsageCouponID: *pricingResult.AppliedCouponID,
 				CouponUsageUserID:   user.UserID,
 				CouponUsageOrderID:  &order.OrderID,
 			})
@@ -363,17 +306,17 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 			}
 		}
 
-		purchasedProductIDs := make([]int32, len(preparedItems))
+		purchasedProductIDs := make([]int32, len(pricingResult.Items))
 
-		for i, item := range preparedItems {
-			purchasedProductIDs[i] = item.productID
+		for i, item := range pricingResult.Items {
+			purchasedProductIDs[i] = item.ProductID
 			createdItemParams := sqlc.CreateOrderItemParams{
 				OrderItemOrderID:     order.OrderID,
-				OrderItemProductID:   item.productID,
-				OrderItemProductName: item.productName,
-				OrderItemPrice:       utils.FloatToNumeric(item.price),
-				OrderItemQuantity:    item.quantity,
-				OrderItemSubtotal:    utils.FloatToNumeric(item.subtotal),
+				OrderItemProductID:   item.ProductID,
+				OrderItemProductName: item.ProductName,
+				OrderItemPrice:       utils.FloatToNumeric(item.Price),
+				OrderItemQuantity:    item.Quantity,
+				OrderItemSubtotal:    utils.FloatToNumeric(item.Subtotal),
 			}
 
 			_, err := s.orderItemRepo.Create(txCtx, tx, createdItemParams)
