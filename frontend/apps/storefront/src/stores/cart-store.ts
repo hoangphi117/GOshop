@@ -26,12 +26,15 @@ export interface AppliedCoupon {
 
 interface CartState {
   items: CartItem[]
+  buyNowItem: CartItem | null
   isDrawerOpen: boolean
   appliedCoupon: AppliedCoupon | null
   currentUserKey: string | null
   setAppliedCoupon: (coupon: AppliedCoupon | null) => void
   initUserCart: (userKey: string | null) => void
   addItem: (item: Omit<CartItem, 'id'>) => boolean
+  setBuyNowItem: (item: CartItem | null) => void
+  clearBuyNowItem: () => void
   removeItem: (id: string) => void
   updateQuantity: (id: string, quantity: number) => void
   toggleSelectItem: (id: string) => void
@@ -49,6 +52,19 @@ interface CartState {
 }
 
 const getCartStorageKey = (userKey: string) => `goshop_cart_${userKey}`
+
+const loadPersistedBuyNowItem = (): CartItem | null => {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = sessionStorage.getItem('goshop_buy_now_item')
+    if (raw) {
+      return JSON.parse(raw)
+    }
+  } catch {
+    // ignore
+  }
+  return null
+}
 
 const persistUserCart = (
   userKey: string | null,
@@ -91,10 +107,12 @@ const getInitialCartState = (): {
   currentUserKey: string | null
   items: CartItem[]
   appliedCoupon: AppliedCoupon | null
+  buyNowItem: CartItem | null
 } => {
   if (typeof window === 'undefined') {
-    return { currentUserKey: null, items: [], appliedCoupon: null }
+    return { currentUserKey: null, items: [], appliedCoupon: null, buyNowItem: null }
   }
+  const buyNow = loadPersistedBuyNowItem()
   try {
     const authRaw = localStorage.getItem('goshop_storefront_auth')
     if (authRaw) {
@@ -109,6 +127,7 @@ const getInitialCartState = (): {
             currentUserKey: userKey,
             items: loaded.items,
             appliedCoupon: loaded.appliedCoupon,
+            buyNowItem: buyNow,
           }
         }
       }
@@ -116,16 +135,43 @@ const getInitialCartState = (): {
   } catch {
     // ignore
   }
-  return { currentUserKey: null, items: [], appliedCoupon: null }
+  return { currentUserKey: null, items: [], appliedCoupon: null, buyNowItem: buyNow }
 }
 
 const initialState = getInitialCartState()
 
 export const useCartStore = create<CartState>((set, get) => ({
   items: initialState.items,
+  buyNowItem: initialState.buyNowItem,
   isDrawerOpen: false,
   appliedCoupon: initialState.appliedCoupon,
   currentUserKey: initialState.currentUserKey,
+
+  setBuyNowItem: (item) => {
+    set({ buyNowItem: item })
+    if (typeof window !== 'undefined') {
+      try {
+        if (item) {
+          sessionStorage.setItem('goshop_buy_now_item', JSON.stringify(item))
+        } else {
+          sessionStorage.removeItem('goshop_buy_now_item')
+        }
+      } catch {
+        // ignore
+      }
+    }
+  },
+
+  clearBuyNowItem: () => {
+    set({ buyNowItem: null })
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.removeItem('goshop_buy_now_item')
+      } catch {
+        // ignore
+      }
+    }
+  },
 
   setAppliedCoupon: (coupon) => {
     set({ appliedCoupon: coupon })

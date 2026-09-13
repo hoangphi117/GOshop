@@ -1,7 +1,14 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  Suspense,
+} from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useCartStore } from "@/stores/cart-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { authFetch } from "@/lib/api";
@@ -22,6 +29,7 @@ import {
   Trash2,
   X,
   Lock,
+  Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useMounted } from "@/hooks/use-mounted";
@@ -61,16 +69,29 @@ interface UserAddress {
   is_default: boolean;
 }
 
-export default function CheckoutPage() {
-  const { items, removeSelectedItems, appliedCoupon, setAppliedCoupon } =
-    useCartStore();
+function CheckoutContent() {
+  const searchParams = useSearchParams();
+  const isBuyNowParam = searchParams.get("buyNow") === "1";
+
+  const {
+    items,
+    buyNowItem,
+    clearBuyNowItem,
+    removeSelectedItems,
+    appliedCoupon,
+    setAppliedCoupon,
+  } = useCartStore();
   const { user, accessToken } = useAuthStore();
+
+  const isBuyNow = Boolean(isBuyNowParam && buyNowItem);
 
   const mounted = useMounted();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState<{
     orderId: string;
     paymentMethod: string;
+    shippingFee: number;
+    shippingAddress?: string;
   } | null>(null);
 
   // Form State
@@ -85,8 +106,12 @@ export default function CheckoutPage() {
   const [districts, setDistricts] = useState<District[]>([]);
   const [wards, setWards] = useState<Ward[]>([]);
 
-  const [selectedProvinceId, setSelectedProvinceId] = useState<number | null>(null);
-  const [selectedDistrictId, setSelectedDistrictId] = useState<number | null>(null);
+  const [selectedProvinceId, setSelectedProvinceId] = useState<number | null>(
+    null,
+  );
+  const [selectedDistrictId, setSelectedDistrictId] = useState<number | null>(
+    null,
+  );
   const [selectedWardCode, setSelectedWardCode] = useState<string>("");
 
   const [selectedProvinceName, setSelectedProvinceName] = useState<string>("");
@@ -99,11 +124,14 @@ export default function CheckoutPage() {
 
   // Saved Addresses State
   const [savedAddresses, setSavedAddresses] = useState<UserAddress[]>([]);
-  const [selectedSavedAddressUuid, setSelectedSavedAddressUuid] = useState<string>("");
+  const [selectedSavedAddressUuid, setSelectedSavedAddressUuid] =
+    useState<string>("");
 
   // Modal State for Add / Edit Address
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
-  const [editingAddressUuid, setEditingAddressUuid] = useState<string | null>(null);
+  const [editingAddressUuid, setEditingAddressUuid] = useState<string | null>(
+    null,
+  );
   const [modalName, setModalName] = useState("");
   const [modalPhone, setModalPhone] = useState("");
   const [modalLabel, setModalLabel] = useState("Home");
@@ -120,7 +148,9 @@ export default function CheckoutPage() {
   const [isLoadingModalDistricts, setIsLoadingModalDistricts] = useState(false);
   const [isLoadingModalWards, setIsLoadingModalWards] = useState(false);
   const [isSavingAddress, setIsSavingAddress] = useState(false);
-  const [isDeletingAddressUuid, setIsDeletingAddressUuid] = useState<string | null>(null);
+  const [isDeletingAddressUuid, setIsDeletingAddressUuid] = useState<
+    string | null
+  >(null);
 
   // Shipping Fee State
   const [shippingFee, setShippingFee] = useState<number | null>(null);
@@ -128,37 +158,42 @@ export default function CheckoutPage() {
   const [shippingError, setShippingError] = useState<string | null>(null);
 
   const selectedItems = useMemo(
-    () => items.filter((item) => item.selected !== false),
-    [items]
+    () =>
+      isBuyNow && buyNowItem
+        ? [buyNowItem]
+        : items.filter((item) => item.selected !== false),
+    [isBuyNow, buyNowItem, items],
   );
 
   const subtotal = useMemo(
     () =>
-      selectedItems.reduce(
-        (acc, item) => acc + item.price * item.quantity,
-        0
-      ),
-    [selectedItems]
+      selectedItems.reduce((acc, item) => acc + item.price * item.quantity, 0),
+    [selectedItems],
   );
 
   const totalWeight = useMemo(
     () =>
       Math.max(
         200,
-        selectedItems.reduce((acc, item) => acc + item.quantity * 250, 0)
+        selectedItems.reduce((acc, item) => acc + item.quantity * 250, 0),
       ),
-    [selectedItems]
+    [selectedItems],
   );
 
   const discountAmount = appliedCoupon ? appliedCoupon.discountAmount : 0;
   const effectiveShippingFee = shippingFee !== null ? shippingFee : 0;
-  const grandTotal = Math.max(0, subtotal - discountAmount + effectiveShippingFee);
+  const grandTotal = Math.max(
+    0,
+    subtotal - discountAmount + effectiveShippingFee,
+  );
 
   // Coupon State & Handlers
   const [couponInput, setCouponInput] = useState("");
   const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
 
-  const handleApplyCoupon = async (e?: React.FormEvent | React.MouseEvent | React.KeyboardEvent) => {
+  const handleApplyCoupon = async (
+    e?: React.FormEvent | React.MouseEvent | React.KeyboardEvent,
+  ) => {
     if (e) e.preventDefault();
     const code = couponInput.trim().toUpperCase();
     if (!code) {
@@ -201,8 +236,8 @@ export default function CheckoutPage() {
         });
         toast.success(
           `Coupon ${data.data.coupon_code} applied! Saved ${formatCurrency(
-            data.data.discount_amount
-          )}.`
+            data.data.discount_amount,
+          )}.`,
         );
         setCouponInput("");
       } else {
@@ -228,7 +263,11 @@ export default function CheckoutPage() {
 
   // 1. Load Wards when District changes
   const loadWards = useCallback(
-    async (districtId: number, targetWardCode?: string, targetWardName?: string) => {
+    async (
+      districtId: number,
+      targetWardCode?: string,
+      targetWardName?: string,
+    ) => {
       setIsLoadingWards(true);
       setWards([]);
       if (!targetWardCode) {
@@ -244,13 +283,13 @@ export default function CheckoutPage() {
 
         const res = await fetch(
           `${baseUrl}/api/v1/shipping/wards?district_id=${districtId}`,
-          { headers: { "x-api-key": apiKey } }
+          { headers: { "x-api-key": apiKey } },
         );
         if (res.ok) {
           const json = await res.json();
           if (json?.data && Array.isArray(json.data)) {
             const sorted = [...json.data].sort((a: Ward, b: Ward) =>
-              a.ward_name.localeCompare(b.ward_name)
+              a.ward_name.localeCompare(b.ward_name),
             );
             setWards(sorted);
 
@@ -266,7 +305,7 @@ export default function CheckoutPage() {
         setIsLoadingWards(false);
       }
     },
-    []
+    [],
   );
 
   // 2. Load Districts when Province changes
@@ -275,7 +314,7 @@ export default function CheckoutPage() {
       provinceId: number,
       targetDistrictId?: number,
       targetWardCode?: string,
-      targetWardName?: string
+      targetWardName?: string,
     ) => {
       setIsLoadingDistricts(true);
       setDistricts([]);
@@ -295,13 +334,13 @@ export default function CheckoutPage() {
 
         const res = await fetch(
           `${baseUrl}/api/v1/shipping/districts?province_id=${provinceId}`,
-          { headers: { "x-api-key": apiKey } }
+          { headers: { "x-api-key": apiKey } },
         );
         if (res.ok) {
           const json = await res.json();
           if (json?.data && Array.isArray(json.data)) {
             const sorted = [...json.data].sort((a: District, b: District) =>
-              a.district_name.localeCompare(b.district_name)
+              a.district_name.localeCompare(b.district_name),
             );
             setDistricts(sorted);
 
@@ -317,7 +356,7 @@ export default function CheckoutPage() {
         setIsLoadingDistricts(false);
       }
     },
-    [loadWards]
+    [loadWards],
   );
 
   // Helper to populate form from a saved address
@@ -331,7 +370,12 @@ export default function CheckoutPage() {
       if (addr.province_id) {
         setSelectedProvinceId(addr.province_id);
         setSelectedProvinceName(addr.province_name || "");
-        loadDistricts(addr.province_id, addr.district_id, addr.ward_code, addr.ward_name);
+        loadDistricts(
+          addr.province_id,
+          addr.district_id,
+          addr.ward_code,
+          addr.ward_name,
+        );
       } else {
         setSelectedProvinceId(null);
         setSelectedProvinceName("");
@@ -345,7 +389,7 @@ export default function CheckoutPage() {
       }
       if (addr.district_name) setSelectedDistrictName(addr.district_name);
     },
-    [loadDistricts]
+    [loadDistricts],
   );
 
   // 3. Fetch Provinces & Saved Addresses on Mount
@@ -365,7 +409,7 @@ export default function CheckoutPage() {
         if (data?.data && Array.isArray(data.data)) {
           // Sort alphabetically by province_name
           const sorted = [...data.data].sort((a: Province, b: Province) =>
-            a.province_name.localeCompare(b.province_name)
+            a.province_name.localeCompare(b.province_name),
           );
           setProvinces(sorted);
         }
@@ -397,7 +441,11 @@ export default function CheckoutPage() {
 
   // Load Wards for Modal
   const loadModalWards = useCallback(
-    async (districtId: number, targetWardCode?: string, targetWardName?: string) => {
+    async (
+      districtId: number,
+      targetWardCode?: string,
+      targetWardName?: string,
+    ) => {
       setIsLoadingModalWards(true);
       setModalWards([]);
       try {
@@ -407,13 +455,13 @@ export default function CheckoutPage() {
 
         const res = await fetch(
           `${baseUrl}/api/v1/shipping/wards?district_id=${districtId}`,
-          { headers: { "x-api-key": apiKey } }
+          { headers: { "x-api-key": apiKey } },
         );
         if (res.ok) {
           const json = await res.json();
           if (json?.data && Array.isArray(json.data)) {
             const sorted = [...json.data].sort((a: Ward, b: Ward) =>
-              a.ward_name.localeCompare(b.ward_name)
+              a.ward_name.localeCompare(b.ward_name),
             );
             setModalWards(sorted);
 
@@ -429,7 +477,7 @@ export default function CheckoutPage() {
         setIsLoadingModalWards(false);
       }
     },
-    []
+    [],
   );
 
   // Load Districts for Modal
@@ -438,7 +486,7 @@ export default function CheckoutPage() {
       provinceId: number,
       targetDistrictId?: number,
       targetWardCode?: string,
-      targetWardName?: string
+      targetWardName?: string,
     ) => {
       setIsLoadingModalDistricts(true);
       setModalDistricts([]);
@@ -450,13 +498,13 @@ export default function CheckoutPage() {
 
         const res = await fetch(
           `${baseUrl}/api/v1/shipping/districts?province_id=${provinceId}`,
-          { headers: { "x-api-key": apiKey } }
+          { headers: { "x-api-key": apiKey } },
         );
         if (res.ok) {
           const json = await res.json();
           if (json?.data && Array.isArray(json.data)) {
             const sorted = [...json.data].sort((a: District, b: District) =>
-              a.district_name.localeCompare(b.district_name)
+              a.district_name.localeCompare(b.district_name),
             );
             setModalDistricts(sorted);
 
@@ -472,7 +520,7 @@ export default function CheckoutPage() {
         setIsLoadingModalDistricts(false);
       }
     },
-    [loadModalWards]
+    [loadModalWards],
   );
 
   const openCreateAddressModal = () => {
@@ -515,14 +563,14 @@ export default function CheckoutPage() {
         addr.province_id,
         addr.district_id,
         addr.ward_code,
-        addr.ward_name
+        addr.ward_name,
       );
     }
     setIsAddressModalOpen(true);
   };
 
   const handleModalProvinceChange = (
-    e: React.ChangeEvent<HTMLSelectElement>
+    e: React.ChangeEvent<HTMLSelectElement>,
   ) => {
     const provId = Number(e.target.value);
     if (!provId) {
@@ -548,7 +596,7 @@ export default function CheckoutPage() {
   };
 
   const handleModalDistrictChange = (
-    e: React.ChangeEvent<HTMLSelectElement>
+    e: React.ChangeEvent<HTMLSelectElement>,
   ) => {
     const distId = Number(e.target.value);
     if (!distId) {
@@ -600,7 +648,9 @@ export default function CheckoutPage() {
 
     const trimmedAddress = modalAddress.trim();
     if (trimmedAddress.length < 5) {
-      toast.error("Street address must be at least 5 characters (e.g. house number, street name).");
+      toast.error(
+        "Street address must be at least 5 characters (e.g. house number, street name).",
+      );
       return;
     }
 
@@ -615,7 +665,8 @@ export default function CheckoutPage() {
 
     const finalDistName =
       modalDistrictName ||
-      modalDistricts.find((d) => d.district_id === modalDistrictId)?.district_name ||
+      modalDistricts.find((d) => d.district_id === modalDistrictId)
+        ?.district_name ||
       "";
     if (!modalDistrictId || !finalDistName) {
       toast.error("Please select a District.");
@@ -624,7 +675,8 @@ export default function CheckoutPage() {
 
     const finalWardName =
       modalWardName ||
-      modalWards.find((w) => String(w.ward_code) === String(modalWardCode))?.ward_name ||
+      modalWards.find((w) => String(w.ward_code) === String(modalWardCode))
+        ?.ward_name ||
       "";
     if (!modalWardCode || !finalWardName) {
       toast.error("Please select a Ward.");
@@ -667,7 +719,9 @@ export default function CheckoutPage() {
           throw new Error("Your session has expired. Please sign in again.");
         }
         const errJson = await res.json().catch(() => null);
-        throw new Error(extractErrorMessage(errJson, "Failed to save address."));
+        throw new Error(
+          extractErrorMessage(errJson, "Failed to save address."),
+        );
       }
 
       const json = await res.json();
@@ -675,9 +729,12 @@ export default function CheckoutPage() {
 
       // If updating and marked default, trigger default patch
       if (editingAddressUuid && modalIsDefault) {
-        await authFetch(`${baseUrl}/api/v1/addresses/${editingAddressUuid}/default`, {
-          method: "PATCH",
-        }).catch(() => {});
+        await authFetch(
+          `${baseUrl}/api/v1/addresses/${editingAddressUuid}/default`,
+          {
+            method: "PATCH",
+          },
+        ).catch(() => {});
       }
 
       // Refresh address list from server
@@ -688,16 +745,16 @@ export default function CheckoutPage() {
         if (listJson?.data && Array.isArray(listJson.data)) {
           setSavedAddresses(listJson.data);
           const found =
-            listJson.data.find((a: UserAddress) => a.uuid === (savedAddr?.uuid || editingAddressUuid)) ||
-            savedAddr;
+            listJson.data.find(
+              (a: UserAddress) =>
+                a.uuid === (savedAddr?.uuid || editingAddressUuid),
+            ) || savedAddr;
           applySavedAddress(found);
         }
       } else {
         setSavedAddresses((prev) => {
           if (editingAddressUuid) {
-            return prev.map((a) =>
-              a.uuid === savedAddr.uuid ? savedAddr : a
-            );
+            return prev.map((a) => (a.uuid === savedAddr.uuid ? savedAddr : a));
           }
           return [savedAddr, ...prev];
         });
@@ -708,7 +765,7 @@ export default function CheckoutPage() {
       toast.success(
         editingAddressUuid
           ? "Address updated successfully!"
-          : "Address added successfully!"
+          : "Address added successfully!",
       );
     } catch (err: unknown) {
       const msg =
@@ -740,7 +797,9 @@ export default function CheckoutPage() {
           throw new Error("Your session has expired. Please sign in again.");
         }
         const errJson = await res.json().catch(() => null);
-        throw new Error(extractErrorMessage(errJson, "Failed to delete address."));
+        throw new Error(
+          extractErrorMessage(errJson, "Failed to delete address."),
+        );
       }
 
       setSavedAddresses((prev) => {
@@ -779,7 +838,11 @@ export default function CheckoutPage() {
 
   // 4. Calculate Real Shipping Fee when district & ward are selected
   useEffect(() => {
-    if (!selectedDistrictId || !selectedWardCode || selectedItems.length === 0) {
+    if (
+      !selectedDistrictId ||
+      !selectedWardCode ||
+      selectedItems.length === 0
+    ) {
       setShippingFee(null);
       setShippingError(null);
       return;
@@ -820,7 +883,9 @@ export default function CheckoutPage() {
         } else {
           // Fallback if carrier fails
           setShippingFee(30000);
-          setShippingError("GHN rate unavailable. Applied standard delivery rate.");
+          setShippingError(
+            "GHN rate unavailable. Applied standard delivery rate.",
+          );
         }
       } catch {
         if (isMounted) {
@@ -839,7 +904,13 @@ export default function CheckoutPage() {
       isMounted = false;
       clearTimeout(timer);
     };
-  }, [selectedDistrictId, selectedWardCode, totalWeight, subtotal, selectedItems.length]);
+  }, [
+    selectedDistrictId,
+    selectedWardCode,
+    totalWeight,
+    subtotal,
+    selectedItems.length,
+  ]);
 
   // 5. Submit Order
   const handleSubmitOrder = async (e: React.FormEvent) => {
@@ -873,7 +944,9 @@ export default function CheckoutPage() {
       !selectedDistrictName ||
       !selectedWardName
     ) {
-      toast.error("Please select a complete shipping address (Province, District, Ward).");
+      toast.error(
+        "Please select a complete shipping address (Province, District, Ward).",
+      );
       return;
     }
 
@@ -914,6 +987,7 @@ export default function CheckoutPage() {
 
       let generatedId = `GS-${Math.floor(100000 + Math.random() * 900000)}`;
       let createdOrderUuid = "";
+      let finalShippingFee = effectiveShippingFee;
 
       if (res && res.ok) {
         const data = await res.json();
@@ -921,6 +995,9 @@ export default function CheckoutPage() {
           createdOrderUuid = data.data.uuid;
           generatedId =
             data.data.order_number || data.data.uuid.slice(0, 8).toUpperCase();
+          if (typeof data.data.shipping_fee === "number") {
+            finalShippingFee = data.data.shipping_fee;
+          }
         }
       } else if (res && !res.ok) {
         const errJson = await res.json().catch(() => null);
@@ -945,14 +1022,18 @@ export default function CheckoutPage() {
                 order_uuid: createdOrderUuid,
                 provider: "momo",
               }),
-            }
+            },
           ).catch(() => null);
 
           if (paymentRes && paymentRes.ok) {
             const paymentData = await paymentRes.json();
             const paymentUrl = paymentData?.data?.payment_url;
             if (paymentUrl) {
-              removeSelectedItems();
+              if (isBuyNow) {
+                clearBuyNowItem();
+              } else {
+                removeSelectedItems();
+              }
               setAppliedCoupon(null);
               toast.success("Redirecting to MoMo payment gateway...");
               window.location.href = paymentUrl;
@@ -964,7 +1045,7 @@ export default function CheckoutPage() {
               : null;
             const payMsg = extractErrorMessage(
               payErr,
-              "Could not initiate MoMo payment URL."
+              "Could not initiate MoMo payment URL.",
             );
             toast.error(payMsg);
           }
@@ -973,11 +1054,18 @@ export default function CheckoutPage() {
         }
       }
 
-      removeSelectedItems();
+
+      if (isBuyNow) {
+        clearBuyNowItem();
+      } else {
+        removeSelectedItems();
+      }
       setAppliedCoupon(null);
       setOrderPlaced({
         orderId: generatedId,
         paymentMethod,
+        shippingFee: finalShippingFee,
+        shippingAddress: fullShippingAddress,
       });
       toast.success("Order placed successfully!");
     } catch {
@@ -1027,7 +1115,7 @@ export default function CheckoutPage() {
     );
   }
 
-  if (items.length === 0 || (!orderPlaced && selectedItems.length === 0)) {
+  if (!orderPlaced && selectedItems.length === 0) {
     return (
       <div className="min-h-[70vh] bg-[#FAFBFC] py-16 flex items-center justify-center">
         <div className="max-w-md w-full mx-auto px-4 text-center space-y-4">
@@ -1038,7 +1126,8 @@ export default function CheckoutPage() {
             No Items Selected for Checkout
           </h1>
           <p className="text-sm text-slate-500 leading-relaxed">
-            Please choose the products you wish to purchase from your shopping cart.
+            Please choose the products you wish to purchase from your shopping
+            cart.
           </p>
           <div className="pt-2">
             <Link
@@ -1068,8 +1157,7 @@ export default function CheckoutPage() {
           <p className="text-sm text-slate-600 leading-relaxed">
             Your order{" "}
             <strong className="text-[#0D47A1]">#{orderPlaced.orderId}</strong>{" "}
-            has been placed successfully. A confirmation notice has been sent to{" "}
-            <strong className="text-slate-800">{user?.email || "your email"}</strong>.
+            has been placed successfully.
           </p>
 
           <div className="p-4 rounded-2xl bg-white border border-slate-200/80 text-left space-y-2 text-xs">
@@ -1083,15 +1171,17 @@ export default function CheckoutPage() {
             </div>
             <div className="flex justify-between">
               <span className="text-slate-500">Delivery Address:</span>
-              <span className="font-medium text-slate-700 truncate max-w-xs">
-                {address}, {selectedWardName}, {selectedDistrictName},{" "}
-                {selectedProvinceName}
+              <span
+                className="font-medium text-slate-700 truncate max-w-xs"
+                title={orderPlaced.shippingAddress}
+              >
+                {orderPlaced.shippingAddress || `${address}, ${selectedWardName}, ${selectedDistrictName}, ${selectedProvinceName}`}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-500">Shipping Partner:</span>
               <span className="font-semibold text-emerald-600">
-                GHN Express ({formatCurrency(effectiveShippingFee)})
+                GHN Express ({formatCurrency(orderPlaced.shippingFee)})
               </span>
             </div>
           </div>
@@ -1122,15 +1212,27 @@ export default function CheckoutPage() {
         <div className="flex items-center justify-between pb-6 border-b border-slate-200/80 mb-8">
           <div>
             <Link
-              href="/cart"
+              href={
+                isBuyNow && buyNowItem
+                  ? `/products/${buyNowItem.productUuid}`
+                  : "/cart"
+              }
               className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-[#2196F3] mb-2"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Back to cart</span>
+              <span>{isBuyNow ? "Back to product" : "Back to cart"}</span>
             </Link>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0D1B2A] tracking-tight">
-              Checkout
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0D1B2A] tracking-tight">
+                Checkout
+              </h1>
+              {isBuyNow && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#E3F2FD] text-[#0D47A1] text-xs font-bold border border-[#90CAF9]/50 shadow-2xs">
+                  <Zap className="w-3.5 h-3.5 text-[#2196F3]" />
+                  Direct Buy Now
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -1140,7 +1242,8 @@ export default function CheckoutPage() {
             <div className="flex items-center gap-2.5 text-xs text-amber-800 font-medium">
               <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
               <span>
-                Please sign in to access your saved addresses, apply discount coupons, and complete order placement.
+                Please sign in to access your saved addresses, apply discount
+                coupons, and complete order placement.
               </span>
             </div>
             <Link
@@ -1192,7 +1295,7 @@ export default function CheckoutPage() {
                       const isSelected = selectedSavedAddressUuid === addr.uuid;
                       const isDeleting = isDeletingAddressUuid === addr.uuid;
                       const hasGhnData = Boolean(
-                        addr.province_id && addr.district_id && addr.ward_code
+                        addr.province_id && addr.district_id && addr.ward_code,
                       );
 
                       return (
@@ -1291,7 +1394,8 @@ export default function CheckoutPage() {
                         No Shipping Address Found
                       </h3>
                       <p className="text-xs text-slate-500 max-w-sm">
-                        You don&apos;t have any saved delivery address yet. Please add an address to proceed with checkout.
+                        You don&apos;t have any saved delivery address yet.
+                        Please add an address to proceed with checkout.
                       </p>
                     </div>
                     <button
@@ -1351,7 +1455,8 @@ export default function CheckoutPage() {
                         </span>
                       </div>
                       <p className="text-[11px] text-slate-500 mt-1">
-                        Pay in cash upon receiving your package from the courier.
+                        Pay in cash upon receiving your package from the
+                        courier.
                       </p>
                     </div>
                   </label>
@@ -1385,7 +1490,8 @@ export default function CheckoutPage() {
                         </span>
                       </div>
                       <p className="text-[11px] text-slate-500 mt-1">
-                        Scan QR code with MoMo App or pay directly with MoMo E-Wallet.
+                        Scan QR code with MoMo App or pay directly with MoMo
+                        E-Wallet.
                       </p>
                     </div>
                   </label>
@@ -1424,7 +1530,8 @@ export default function CheckoutPage() {
                           <p className="text-[10px] text-slate-400 mt-0.5">
                             {item.selectedSize && `Size: ${item.selectedSize}`}
                             {item.selectedSize && item.selectedColor && " | "}
-                            {item.selectedColor && `Color: ${item.selectedColor}`}
+                            {item.selectedColor &&
+                              `Color: ${item.selectedColor}`}
                           </p>
                         )}
                         <p className="text-[11px] text-slate-500">
@@ -1490,7 +1597,9 @@ export default function CheckoutPage() {
                         <input
                           type="text"
                           value={couponInput}
-                          onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                          onChange={(e) =>
+                            setCouponInput(e.target.value.toUpperCase())
+                          }
                           onKeyDown={(e) => {
                             if (e.key === "Enter") {
                               e.preventDefault();
@@ -1742,8 +1851,8 @@ export default function CheckoutPage() {
                           {isLoadingModalDistricts
                             ? "Loading..."
                             : !modalProvinceId
-                            ? "Select province"
-                            : "-- Select --"}
+                              ? "Select province"
+                              : "-- Select --"}
                         </option>
                         {modalDistricts.map((d) => (
                           <option key={d.district_id} value={d.district_id}>
@@ -1769,8 +1878,8 @@ export default function CheckoutPage() {
                           {isLoadingModalWards
                             ? "Loading..."
                             : !modalDistrictId
-                            ? "Select district"
-                            : "-- Select --"}
+                              ? "Select district"
+                              : "-- Select --"}
                         </option>
                         {modalWards.map((w) => (
                           <option key={w.ward_code} value={w.ward_code}>
@@ -1840,5 +1949,19 @@ export default function CheckoutPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function CheckoutPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-[70vh] flex items-center justify-center">
+          <div className="w-8 h-8 rounded-full border-2 border-[#2196F3] border-t-transparent animate-spin" />
+        </div>
+      }
+    >
+      <CheckoutContent />
+    </Suspense>
   );
 }
