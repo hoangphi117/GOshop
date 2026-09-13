@@ -109,13 +109,13 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/#deals" className="hover:text-white transition-colors">
-                  Flash Deals
+                <Link href="/about" className="hover:text-white transition-colors">
+                  About Us
                 </Link>
               </li>
               <li>
-                <Link href="/#categories" className="hover:text-white transition-colors">
-                  Featured Categories
+                <Link href="/contact" className="hover:text-white transition-colors">
+                  Contact Us
                 </Link>
               </li>
             </ul>
@@ -138,14 +138,24 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <span className="hover:text-white cursor-pointer transition-colors">
-                  Shipping & Returns
-                </span>
+                <Link href="/faq" className="hover:text-white transition-colors">
+                  Help Center & FAQ
+                </Link>
               </li>
               <li>
-                <span className="hover:text-white cursor-pointer transition-colors">
+                <Link href="/shipping-policy" className="hover:text-white transition-colors">
+                  Shipping Policy
+                </Link>
+              </li>
+              <li>
+                <Link href="/return-policy" className="hover:text-white transition-colors">
+                  Return & Refund Policy
+                </Link>
+              </li>
+              <li>
+                <Link href="/privacy" className="hover:text-white transition-colors">
                   Privacy Policy
-                </span>
+                </Link>
               </li>
             </ul>
           </div>
@@ -176,11 +186,21 @@ export function Footer() {
         <div className="mt-12 pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between text-xs text-[#90CAF9] gap-4">
           <p>© {new Date().getFullYear()} GOshop. All rights reserved.</p>
           <div className="flex items-center gap-4">
-            <span className="hover:text-white cursor-pointer transition-colors">Terms of Service</span>
+            <Link href="/terms" className="hover:text-white transition-colors">
+              Terms of Service
+            </Link>
             <span>•</span>
-            <span className="hover:text-white cursor-pointer transition-colors">Privacy Policy</span>
+            <Link href="/privacy" className="hover:text-white transition-colors">
+              Privacy Policy
+            </Link>
             <span>•</span>
-            <span className="hover:text-white cursor-pointer transition-colors">Cookie Preferences</span>
+            <Link href="/shipping-policy" className="hover:text-white transition-colors">
+              Shipping & Delivery
+            </Link>
+            <span>•</span>
+            <Link href="/faq" className="hover:text-white transition-colors">
+              FAQ
+            </Link>
           </div>
         </div>
       </div>
