@@ -6,7 +6,7 @@ type LoginInput struct {
 }
 
 type RefreshTokenInput struct {
-	RefreshToken string `json:"refresh_token" binding:"required"`
+	RefreshToken string `json:"refresh_token" binding:"omitempty"`
 }
 
 type RequestForgotPasswordInput struct {

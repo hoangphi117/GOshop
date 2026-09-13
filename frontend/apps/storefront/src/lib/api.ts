@@ -23,10 +23,6 @@ let refreshPromise: Promise<string | null> | null = null
 
 async function refreshAccessToken(): Promise<string | null> {
   const refreshToken = useAuthStore.getState().refreshToken
-  if (!refreshToken) {
-    useAuthStore.getState().reset()
-    return null
-  }
 
   try {
     const apiKey = process.env.NEXT_PUBLIC_API_KEY || 'abcd-1234-1111'
@@ -36,7 +32,8 @@ async function refreshAccessToken(): Promise<string | null> {
         'Content-Type': 'application/json',
         'X-API-KEY': apiKey,
       },
-      body: JSON.stringify({ refresh_token: refreshToken }),
+      credentials: 'include',
+      body: JSON.stringify(refreshToken ? { refresh_token: refreshToken } : {}),
     })
 
     if (!res.ok) {
@@ -84,6 +81,7 @@ export async function authFetch(
 
   let res = await fetch(targetUrl, {
     ...init,
+    credentials: 'include',
     headers: buildHeaders(token),
   })
 
@@ -98,6 +96,7 @@ export async function authFetch(
     if (newToken) {
       res = await fetch(targetUrl, {
         ...init,
+        credentials: 'include',
         headers: buildHeaders(newToken),
       })
     }

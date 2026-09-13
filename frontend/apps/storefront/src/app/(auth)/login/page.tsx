@@ -20,12 +20,14 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const res = await fetch('http://localhost:8080/api/v1/auth/login', {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
+      const res = await fetch(`${baseUrl}/api/v1/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-API-KEY': 'abcd-1234-1111',
+          'X-API-KEY': process.env.NEXT_PUBLIC_API_KEY || 'abcd-1234-1111',
         },
+        credentials: 'include',
         body: JSON.stringify({ email, password }),
       })
 

@@ -41,7 +41,6 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}): Middl
 
   const executeRefresh = async (): Promise<AuthTokens | null> => {
     const refreshToken = options.getRefreshToken?.()
-    if (!refreshToken) return null
 
     try {
       const fetchFn = options.fetch || globalThis.fetch
@@ -59,7 +58,8 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}): Middl
       const refreshRequest = new Request(url, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ refresh_token: refreshToken }),
+        credentials: 'include',
+        body: JSON.stringify(refreshToken ? { refresh_token: refreshToken } : {}),
       })
 
       const res = await fetchFn(refreshRequest)
@@ -98,9 +98,9 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}): Middl
         request.headers.set('X-API-KEY', apiKey)
       }
 
-      // Clone request if refresh is enabled and this is not an auth endpoint,
+      // Clone request if this is not an auth endpoint,
       // so we can retry with unconsumed body if 401 occurs
-      if (options.getRefreshToken && !isAuthEndpoint(request.url, schemaPath)) {
+      if (!isAuthEndpoint(request.url, schemaPath)) {
         try {
           requestClones.set(id, request.clone())
         } catch {
@@ -118,17 +118,6 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}): Middl
       if (response.status === 401) {
         // If 401 is from an auth endpoint, do not attempt refresh
         if (isAuthEndpoint(request.url, schemaPath)) {
-          if (options.onUnauthorized) {
-            options.onUnauthorized()
-          } else if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('goshop:unauthorized'))
-          }
-          return response
-        }
-
-        // Check if refresh token is available
-        const refreshToken = options.getRefreshToken?.()
-        if (!refreshToken) {
           if (options.onUnauthorized) {
             options.onUnauthorized()
           } else if (typeof window !== 'undefined') {
@@ -155,6 +144,7 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}): Middl
 
             const retryRequest = new Request(baseReq, {
               headers: retryHeaders,
+              credentials: 'include',
             })
 
             const fetchFn = options.fetch || globalThis.fetch

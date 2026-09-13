@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth-store'
 import { useMounted } from '@/hooks/use-mounted'
+import { authFetch } from '@/lib/api'
 import {
   User,
   ShoppingBag,
@@ -36,32 +37,29 @@ export default function AccountLayout({
     )
   }
 
-  // If user is not authenticated
-  if (!accessToken) {
+  if (!user || !accessToken) {
     return (
       <div className="min-h-[70vh] bg-[#FAFBFC] py-16 flex items-center justify-center">
         <div className="max-w-md w-full mx-auto px-4 text-center space-y-4">
-          <div className="w-16 h-16 rounded-2xl bg-[#E3F2FD] text-[#2196F3] flex items-center justify-center mx-auto shadow-xs">
-            <User className="w-8 h-8" />
+          <div className="w-16 h-16 rounded-full bg-[#E3F2FD] text-[#2196F3] flex items-center justify-center mx-auto">
+            <LogIn className="w-8 h-8" />
           </div>
-          <h1 className="text-2xl font-extrabold text-[#0D1B2A] tracking-tight">
-            Account Access Required
-          </h1>
-          <p className="text-sm text-slate-500 leading-relaxed">
-            Please sign in to your GOshop account to access your profile, track orders,
-            and manage saved addresses.
+          <h2 className="text-xl font-bold text-[#0D1B2A]">
+            Sign in to access your account
+          </h2>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto">
+            View orders, saved addresses, manage reviews, and customize your profile.
           </p>
-          <div className="pt-2 flex justify-center gap-3">
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link
               href="/login"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-[#2196F3] text-white text-xs font-bold hover:bg-[#0D47A1] transition-all shadow-md"
+              className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[#2196F3] text-white text-xs font-semibold hover:bg-[#0D47A1] transition-all shadow-xs"
             >
-              <LogIn className="w-4 h-4" />
-              <span>Sign In Now</span>
+              <span>Sign In</span>
             </Link>
             <Link
               href="/register"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-white border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-all"
+              className="w-full sm:w-auto px-6 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-all"
             >
               <span>Create Account</span>
             </Link>
@@ -71,8 +69,14 @@ export default function AccountLayout({
     )
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await authFetch('/api/v1/auth/logout', { method: 'POST' })
+    } catch {
+      // Ignore
+    }
     reset()
+    toast.success('Logged out successfully.')
     router.push('/')
   }
 

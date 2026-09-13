@@ -6,6 +6,7 @@ import (
 	"goshop/internal/utils"
 	"goshop/internal/validation"
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 )
@@ -72,6 +73,10 @@ func (ah *AuthHandler) Login(ctx *gin.Context) {
 		return
 	}
 
+	cookieSecure := os.Getenv("APP_ENV") == "production"
+	ctx.SetSameSite(http.SameSiteLaxMode)
+	ctx.SetCookie("refresh_token", refreshToken, 86400, "/api/v1/auth", "", cookieSecure, true)
+
 	response := v1dto.LoginResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
@@ -88,21 +93,31 @@ func (ah *AuthHandler) Login(ctx *gin.Context) {
 // @Tags         Auth
 // @Accept       json
 // @Produce      json
-// @Param        request body v1dto.RefreshTokenInput true "Refresh token"
+// @Param        request body v1dto.RefreshTokenInput false "Refresh token"
 // @Success      200 {object} utils.APIResponse "Logout successfully"
 // @Failure      400 {object} utils.ErrorResponse "Validation error"
 // @Failure      500 {object} utils.ErrorResponse "Internal server error"
 // @Router       /api/v1/auth/logout [post]
 func (ah *AuthHandler) Logout(ctx *gin.Context) {
 	var input v1dto.RefreshTokenInput
-	if err := ctx.ShouldBindJSON(&input); err != nil {
-		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
-		return
+	_ = ctx.ShouldBindJSON(&input)
+
+	refreshToken := input.RefreshToken
+	if refreshToken == "" {
+		if cookieVal, err := ctx.Cookie("refresh_token"); err == nil && cookieVal != "" {
+			refreshToken = cookieVal
+		}
 	}
 
-	if err := ah.service.Logout(ctx, input.RefreshToken); err != nil {
-		utils.ResponseError(ctx, err)
-		return
+	cookieSecure := os.Getenv("APP_ENV") == "production"
+	ctx.SetSameSite(http.SameSiteLaxMode)
+	ctx.SetCookie("refresh_token", "", -1, "/api/v1/auth", "", cookieSecure, true)
+
+	if refreshToken != "" {
+		if err := ah.service.Logout(ctx, refreshToken); err != nil {
+			utils.ResponseError(ctx, err)
+			return
+		}
 	}
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Logout successfully")
@@ -115,7 +130,7 @@ func (ah *AuthHandler) Logout(ctx *gin.Context) {
 // @Tags         Auth
 // @Accept       json
 // @Produce      json
-// @Param        request body v1dto.RefreshTokenInput true "Refresh token"
+// @Param        request body v1dto.RefreshTokenInput false "Refresh token"
 // @Success      200 {object} utils.APIResponse{data=v1dto.LoginResponse} "Token refreshed successfully"
 // @Failure      400 {object} utils.ErrorResponse "Validation error"
 // @Failure      401 {object} utils.ErrorResponse "Invalid or expired refresh token"
@@ -123,20 +138,33 @@ func (ah *AuthHandler) Logout(ctx *gin.Context) {
 // @Router       /api/v1/auth/refresh [post]
 func (ah *AuthHandler) RefreshToken(ctx *gin.Context) {
 	var input v1dto.RefreshTokenInput
-	if err := ctx.ShouldBindJSON(&input); err != nil {
-		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+	_ = ctx.ShouldBindJSON(&input)
+
+	refreshToken := input.RefreshToken
+	if refreshToken == "" {
+		if cookieVal, err := ctx.Cookie("refresh_token"); err == nil && cookieVal != "" {
+			refreshToken = cookieVal
+		}
+	}
+
+	if refreshToken == "" {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Refresh token is required"))
 		return
 	}
 
-	accessToken, refreshToken, expiresIn, err := ah.service.RefreshToken(ctx, input.RefreshToken)
+	accessToken, newRefreshToken, expiresIn, err := ah.service.RefreshToken(ctx, refreshToken)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
 
+	cookieSecure := os.Getenv("APP_ENV") == "production"
+	ctx.SetSameSite(http.SameSiteLaxMode)
+	ctx.SetCookie("refresh_token", newRefreshToken, 86400, "/api/v1/auth", "", cookieSecure, true)
+
 	response := v1dto.LoginResponse{
 		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
+		RefreshToken: newRefreshToken,
 		ExpiresIn:    expiresIn,
 	}
 
