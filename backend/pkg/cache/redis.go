@@ -21,6 +21,9 @@ func NewRedisCacheService(rdb *redis.Client) RedisCacheService {
 }
 
 func (cs *redisCacheService) Set(key string, value any, ttl time.Duration) error {
+	if cs.rdb == nil {
+		return nil
+	}
 
 	data, err := json.Marshal(value)
 	if err != nil {
@@ -31,6 +34,10 @@ func (cs *redisCacheService) Set(key string, value any, ttl time.Duration) error
 }
 
 func (cs *redisCacheService) SetNX(key string, value any, ttl time.Duration) (bool, error) {
+	if cs.rdb == nil {
+		return true, nil
+	}
+
 	data, err := json.Marshal(value)
 	if err != nil {
 		return false, err
@@ -40,6 +47,10 @@ func (cs *redisCacheService) SetNX(key string, value any, ttl time.Duration) (bo
 }
 
 func (cs *redisCacheService) Get(key string, dest any) error {
+	if cs.rdb == nil {
+		return redis.Nil
+	}
+
 	result, err := cs.rdb.Get(cs.ctx, key).Result()
 
 	if err == redis.Nil {
@@ -54,6 +65,10 @@ func (cs *redisCacheService) Get(key string, dest any) error {
 }
 
 func (cs *redisCacheService) Clear(pattern string) error {
+	if cs.rdb == nil {
+		return nil
+	}
+
 	cursor := uint64(0)
 	for {
 		keys, nextCursor, err := cs.rdb.Scan(cs.ctx, cursor, pattern, 100).Result()
@@ -76,6 +91,10 @@ func (cs *redisCacheService) Clear(pattern string) error {
 }
 
 func (cs *redisCacheService) Exists(key string) (bool, error) {
+	if cs.rdb == nil {
+		return false, nil
+	}
+
 	count, err := cs.rdb.Exists(cs.ctx, key).Result()
 	if err != nil {
 		return false, err
@@ -84,5 +103,9 @@ func (cs *redisCacheService) Exists(key string) (bool, error) {
 }
 
 func (cs *redisCacheService) Del(key string) error {
+	if cs.rdb == nil {
+		return nil
+	}
+
 	return cs.rdb.Del(cs.ctx, key).Err()
 }

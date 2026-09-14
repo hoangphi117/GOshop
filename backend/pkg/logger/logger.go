@@ -14,6 +14,11 @@ import (
 
 var Log *zerolog.Logger
 
+func init() {
+	nop := zerolog.Nop()
+	Log = &nop
+}
+
 type LoggerConfig struct {
 	Level      string
 	Filename   string
