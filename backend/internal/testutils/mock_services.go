@@ -7,11 +7,15 @@ import (
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
 	v1service "goshop/internal/service/v1"
+	"goshop/pkg/auth"
+	"goshop/pkg/cache"
+	"goshop/pkg/mail"
 	"goshop/pkg/payment"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/shipping"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -25,6 +29,9 @@ var (
 	_ rabbitmq.RabbitMQService      = (*MockRabbitMQService)(nil)
 	_ shipping.ShippingProvider     = (*MockShippingProvider)(nil)
 	_ payment.PaymentProvider       = (*MockPaymentProvider)(nil)
+	_ auth.TokenService             = (*MockTokenService)(nil)
+	_ mail.EmailProviderService     = (*MockEmailProviderService)(nil)
+	_ cache.RedisCacheService       = (*MockRedisCacheService)(nil)
 )
 
 type MockOrderPricingService struct {
@@ -320,5 +327,131 @@ func (m *MockPaymentProvider) Refund(ctx context.Context, req payment.RefundRequ
 	}
 	return payment.RefundResponse{}, nil
 }
+
+// MockTokenService
+type MockTokenService struct {
+	GenerateAccessTokenFunc       func(user sqlc.User) (string, error)
+	GenerateRefreshTokenFunc      func(user sqlc.User) (auth.RefreshToken, error)
+	ParseTokenFunc                func(tokenString string) (*jwt.Token, jwt.MapClaims, error)
+	DecryptAccessTokenPayloadFunc func(tokenString string) (*auth.EncryptedPayload, error)
+	StoreRefreshTokenFunc         func(token auth.RefreshToken) error
+	ValidateRefreshTokenFunc      func(token string) (auth.RefreshToken, error)
+	RevokeRefreshTokenFunc        func(token string) error
+}
+
+func (m *MockTokenService) GenerateAccessToken(user sqlc.User) (string, error) {
+	if m.GenerateAccessTokenFunc != nil {
+		return m.GenerateAccessTokenFunc(user)
+	}
+	return "mock-access-token", nil
+}
+
+func (m *MockTokenService) GenerateRefreshToken(user sqlc.User) (auth.RefreshToken, error) {
+	if m.GenerateRefreshTokenFunc != nil {
+		return m.GenerateRefreshTokenFunc(user)
+	}
+	return auth.RefreshToken{Token: "mock-refresh-token", UserUUID: user.UserUuid.String()}, nil
+}
+
+func (m *MockTokenService) ParseToken(tokenString string) (*jwt.Token, jwt.MapClaims, error) {
+	if m.ParseTokenFunc != nil {
+		return m.ParseTokenFunc(tokenString)
+	}
+	return &jwt.Token{Valid: true}, jwt.MapClaims{"jti": "mock-jti", "exp": float64(time.Now().Add(time.Hour).Unix())}, nil
+}
+
+func (m *MockTokenService) DecryptAccessTokenPayload(tokenString string) (*auth.EncryptedPayload, error) {
+	if m.DecryptAccessTokenPayloadFunc != nil {
+		return m.DecryptAccessTokenPayloadFunc(tokenString)
+	}
+	return nil, nil
+}
+
+func (m *MockTokenService) StoreRefreshToken(token auth.RefreshToken) error {
+	if m.StoreRefreshTokenFunc != nil {
+		return m.StoreRefreshTokenFunc(token)
+	}
+	return nil
+}
+
+func (m *MockTokenService) ValidateRefreshToken(token string) (auth.RefreshToken, error) {
+	if m.ValidateRefreshTokenFunc != nil {
+		return m.ValidateRefreshTokenFunc(token)
+	}
+	return auth.RefreshToken{Token: token, UserUUID: uuid.New().String()}, nil
+}
+
+func (m *MockTokenService) RevokeRefreshToken(token string) error {
+	if m.RevokeRefreshTokenFunc != nil {
+		return m.RevokeRefreshTokenFunc(token)
+	}
+	return nil
+}
+
+// MockEmailProviderService
+type MockEmailProviderService struct {
+	SendEmailFunc func(ctx context.Context, email *mail.Email) error
+}
+
+func (m *MockEmailProviderService) SendEmail(ctx context.Context, email *mail.Email) error {
+	if m.SendEmailFunc != nil {
+		return m.SendEmailFunc(ctx, email)
+	}
+	return nil
+}
+
+// MockRedisCacheService
+type MockRedisCacheService struct {
+	SetFunc    func(key string, value any, ttl time.Duration) error
+	SetNXFunc  func(key string, value any, ttl time.Duration) (bool, error)
+	GetFunc    func(key string, dest any) error
+	ClearFunc  func(pattern string) error
+	ExistsFunc func(key string) (bool, error)
+	DelFunc    func(key string) error
+}
+
+func (m *MockRedisCacheService) Set(key string, value any, ttl time.Duration) error {
+	if m.SetFunc != nil {
+		return m.SetFunc(key, value, ttl)
+	}
+	return nil
+}
+
+func (m *MockRedisCacheService) SetNX(key string, value any, ttl time.Duration) (bool, error) {
+	if m.SetNXFunc != nil {
+		return m.SetNXFunc(key, value, ttl)
+	}
+	return true, nil
+}
+
+func (m *MockRedisCacheService) Get(key string, dest any) error {
+	if m.GetFunc != nil {
+		return m.GetFunc(key, dest)
+	}
+	return nil
+}
+
+func (m *MockRedisCacheService) Clear(pattern string) error {
+	if m.ClearFunc != nil {
+		return m.ClearFunc(pattern)
+	}
+	return nil
+}
+
+func (m *MockRedisCacheService) Exists(key string) (bool, error) {
+	if m.ExistsFunc != nil {
+		return m.ExistsFunc(key)
+	}
+	return false, nil
+}
+
+func (m *MockRedisCacheService) Del(key string) error {
+	if m.DelFunc != nil {
+		return m.DelFunc(key)
+	}
+	return nil
+}
+
+
 
 

@@ -1,12 +1,12 @@
 package v1service
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
-	"goshop/internal/middleware"
 	"goshop/internal/repository"
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
@@ -27,16 +27,17 @@ type userService struct {
 }
 
 func NewUserService(repo repository.UserRepository, redisClient *redis.Client) UserService {
+	var cacheService cache.RedisCacheService
+	if redisClient != nil {
+		cacheService = cache.NewRedisCacheService(redisClient)
+	}
 	return &userService{
 		repo:  repo,
-		cache: cache.NewRedisCacheService(redisClient),
+		cache: cacheService,
 	}
 }
 
-func (us *userService) GetAllUsers(ctx *gin.Context, search, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.User, int32, error) {
-
-	context := ctx.Request.Context()
-
+func (us *userService) GetAllUsers(ctx context.Context, search, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.User, int32, error) {
 	if sort == "" {
 		sort = "desc"
 	}
@@ -56,44 +57,43 @@ func (us *userService) GetAllUsers(ctx *gin.Context, search, orderBy, sort strin
 
 	offset := (page - 1) * limit
 
-	/** Cache Redis **/
 	cacheKey := us.generateCacheKey(search, orderBy, sort, page, limit, deleted)
 	var cacheData struct {
 		Users []sqlc.User `json:"users"`
 		Total int32       `json:"total"`
 	}
 
-	if err := us.cache.Get(cacheKey, &cacheData); err == nil && cacheData.Users != nil {
-		return cacheData.Users, cacheData.Total, nil
+	if us.cache != nil {
+		if err := us.cache.Get(cacheKey, &cacheData); err == nil && cacheData.Users != nil {
+			return cacheData.Users, cacheData.Total, nil
+		}
 	}
 
-	listUsers, err := us.repo.GetAllV2(context, search, orderBy, sort, limit, offset, deleted)
+	listUsers, err := us.repo.GetAllV2(ctx, search, orderBy, sort, limit, offset, deleted)
 	if err != nil {
 		return []sqlc.User{}, 0, utils.WrapError(utils.ErrCodeInternal, "failed to fetch user list", err)
 	}
 
-	total, err := us.repo.CountUsers(context, search, deleted)
+	total, err := us.repo.CountUsers(ctx, search, deleted)
 	if err != nil {
 		return []sqlc.User{}, 0, utils.WrapError(utils.ErrCodeInternal, "failed to count users", err)
 	}
 
-	// Create cache data
-	cacheData = struct {
-		Users []sqlc.User `json:"users"`
-		Total int32       `json:"total"`
-	}{
-		Users: listUsers,
-		Total: int32(total),
+	if us.cache != nil {
+		cacheData = struct {
+			Users []sqlc.User `json:"users"`
+			Total int32       `json:"total"`
+		}{
+			Users: listUsers,
+			Total: int32(total),
+		}
+		us.cache.Set(cacheKey, cacheData, 5*time.Minute)
 	}
-	us.cache.Set(cacheKey, cacheData, 5*time.Minute)
 
 	return listUsers, int32(total), nil
 }
 
-func (us *userService) CreateUsers(ctx *gin.Context, input sqlc.CreateUserParams) (sqlc.User, error) {
-
-	context := ctx.Request.Context()
-
+func (us *userService) CreateUsers(ctx context.Context, input sqlc.CreateUserParams) (sqlc.User, error) {
 	input.UserEmail = utils.NormalizeString(input.UserEmail)
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.UserPassword), bcrypt.DefaultCost)
@@ -102,7 +102,7 @@ func (us *userService) CreateUsers(ctx *gin.Context, input sqlc.CreateUserParams
 	}
 	input.UserPassword = string(hashedPassword)
 
-	user, err := us.repo.Create(context, input)
+	user, err := us.repo.Create(ctx, input)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -111,21 +111,19 @@ func (us *userService) CreateUsers(ctx *gin.Context, input sqlc.CreateUserParams
 		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to create user", err)
 	}
 
-	// Clear cache redis
-	if err := us.cache.Clear("users:*"); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear cache")
+	if us.cache != nil {
+		if err := us.cache.Clear("users:*"); err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to clear cache")
+		}
 	}
 
 	return user, nil
 }
 
-func (us *userService) GetUserByUUID(ctx *gin.Context, uuid uuid.UUID) (sqlc.User, error) {
-
-	context := ctx.Request.Context()
-
-	user, err := us.repo.GetByUUID(context, uuid)
+func (us *userService) GetUserByUUID(ctx context.Context, userUUID uuid.UUID) (sqlc.User, error) {
+	user, err := us.repo.GetByUUID(ctx, userUUID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
 			return sqlc.User{}, utils.NewError(utils.ErrCodeNotFound, "user not found")
 		}
 		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to get user", err)
@@ -134,9 +132,7 @@ func (us *userService) GetUserByUUID(ctx *gin.Context, uuid uuid.UUID) (sqlc.Use
 	return user, nil
 }
 
-func (us *userService) UpdateUser(ctx *gin.Context, input sqlc.UpdateUserParams) (sqlc.User, error) {
-	context := ctx.Request.Context()
-
+func (us *userService) UpdateUser(ctx context.Context, input sqlc.UpdateUserParams) (sqlc.User, error) {
 	if input.UserPassword != nil && *input.UserPassword != "" {
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(*input.UserPassword), bcrypt.DefaultCost)
 		if err != nil {
@@ -146,35 +142,40 @@ func (us *userService) UpdateUser(ctx *gin.Context, input sqlc.UpdateUserParams)
 		input.UserPassword = &hashed
 	}
 
-	updatedUser, err := us.repo.Update(context, input)
+	updatedUser, err := us.repo.Update(ctx, input)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
 			return sqlc.User{}, utils.NewError(utils.ErrCodeNotFound, "user not found")
+		}
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return sqlc.User{}, utils.NewError(utils.ErrCodeConflict, "email already exists")
 		}
 		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to update user", err)
 	}
 
-	// Clear cache redis
-	if err := us.cache.Clear("users:*"); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear cache")
+	if us.cache != nil {
+		if err := us.cache.Clear("users:*"); err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to clear cache")
+		}
 	}
 
 	return updatedUser, nil
 }
 
-func (us *userService) GetProfile(ctx *gin.Context) (sqlc.User, error) {
-	return middleware.GetUserFromContext(ctx, us.repo)
+func (us *userService) GetProfile(ctx context.Context, userUUID uuid.UUID) (sqlc.User, error) {
+	user, err := us.repo.GetByUUID(ctx, userUUID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+			return sqlc.User{}, utils.NewError(utils.ErrCodeNotFound, "user not found")
+		}
+		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to get user profile", err)
+	}
+	return user, nil
 }
 
-func (us *userService) UpdateProfile(ctx *gin.Context, input sqlc.UpdateUserParams) (sqlc.User, error) {
-	context := ctx.Request.Context()
-
-	userUuid, err := middleware.GetUserUUID(ctx)
-	if err != nil {
-		return sqlc.User{}, err
-	}
-
-	input.UserUuid = userUuid
+func (us *userService) UpdateProfile(ctx context.Context, userUUID uuid.UUID, input sqlc.UpdateUserParams) (sqlc.User, error) {
+	input.UserUuid = userUUID
 	input.UserStatus = nil
 	input.UserLevel = nil
 
@@ -187,25 +188,34 @@ func (us *userService) UpdateProfile(ctx *gin.Context, input sqlc.UpdateUserPara
 		input.UserPassword = &hashed
 	}
 
-	user, err := us.repo.Update(context, input)
+	user, err := us.repo.Update(ctx, input)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
 			return sqlc.User{}, utils.NewError(utils.ErrCodeNotFound, "user not found")
+		}
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return sqlc.User{}, utils.NewError(utils.ErrCodeConflict, "email already exists")
 		}
 		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to update profile", err)
 	}
 
-	if err := us.cache.Clear("users:*"); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear cache")
+	if us.cache != nil {
+		if err := us.cache.Clear("users:*"); err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to clear cache")
+		}
 	}
 
 	return user, nil
 }
 
-func (us *userService) ChangePassword(ctx *gin.Context, input v1dto.ChangePasswordRequest) error {
-	user, err := middleware.GetUserFromContext(ctx, us.repo)
+func (us *userService) ChangePassword(ctx context.Context, userUUID uuid.UUID, input v1dto.ChangePasswordRequest) error {
+	user, err := us.repo.GetByUUID(ctx, userUUID)
 	if err != nil {
-		return err
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+			return utils.NewError(utils.ErrCodeNotFound, "user not found")
+		}
+		return utils.WrapError(utils.ErrCodeInternal, "failed to get user", err)
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.UserPassword), []byte(input.OldPassword)); err != nil {
@@ -221,73 +231,71 @@ func (us *userService) ChangePassword(ctx *gin.Context, input v1dto.ChangePasswo
 		return utils.WrapError(utils.ErrCodeInternal, "failed to hash new password", err)
 	}
 
-	reqCtx := ctx.Request.Context()
 	updateParams := sqlc.UpdatePasswordParams{
 		UserUuid:    user.UserUuid,
 		NewPassword: string(hashedPassword),
 	}
-	if _, err := us.repo.UpdatePassword(reqCtx, updateParams); err != nil {
+	if _, err := us.repo.UpdatePassword(ctx, updateParams); err != nil {
 		return utils.WrapError(utils.ErrCodeInternal, "failed to update password", err)
 	}
 
-	_ = us.cache.Clear(fmt.Sprintf("user:%s", user.UserUuid.String()))
-	_ = us.cache.Clear("users:*")
+	if us.cache != nil {
+		_ = us.cache.Clear(fmt.Sprintf("user:%s", user.UserUuid.String()))
+		_ = us.cache.Clear("users:*")
+	}
 	logger.Log.Info().Str("user_uuid", user.UserUuid.String()).Msg("User password changed successfully")
 	return nil
 }
 
-func (us *userService) SoftDeleteUser(ctx *gin.Context, uuid uuid.UUID) (sqlc.User, error) {
-	context := ctx.Request.Context()
-
-	user, err := us.repo.SoftDelete(context, uuid)
+func (us *userService) SoftDeleteUser(ctx context.Context, userUUID uuid.UUID) (sqlc.User, error) {
+	user, err := us.repo.SoftDelete(ctx, userUUID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
 			return sqlc.User{}, utils.NewError(utils.ErrCodeNotFound, "user not found")
 		}
 		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to soft delete user", err)
 	}
 
-	// Clear cache redis
-	if err := us.cache.Clear("users:*"); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear cache")
+	if us.cache != nil {
+		if err := us.cache.Clear("users:*"); err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to clear cache")
+		}
 	}
 
 	return user, nil
 }
 
-func (us *userService) RestoreUser(ctx *gin.Context, uuid uuid.UUID) (sqlc.User, error) {
-	context := ctx.Request.Context()
-
-	user, err := us.repo.Restore(context, uuid)
+func (us *userService) RestoreUser(ctx context.Context, userUUID uuid.UUID) (sqlc.User, error) {
+	user, err := us.repo.Restore(ctx, userUUID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
 			return sqlc.User{}, utils.NewError(utils.ErrCodeNotFound, "user not found or not soft deleted for restoration")
 		}
 		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to restore user", err)
 	}
 
-	// Clear cache redis
-	if err := us.cache.Clear("users:*"); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear cache")
+	if us.cache != nil {
+		if err := us.cache.Clear("users:*"); err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to clear cache")
+		}
 	}
 
 	return user, nil
 }
 
-func (us *userService) TrashUser(ctx *gin.Context, uuid uuid.UUID) error {
-	context := ctx.Request.Context()
-
-	_, err := us.repo.Trash(context, uuid)
+func (us *userService) TrashUser(ctx context.Context, userUUID uuid.UUID) error {
+	_, err := us.repo.Trash(ctx, userUUID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
 			return utils.NewError(utils.ErrCodeNotFound, "user not found or not soft deleted for permanent deletion")
 		}
 		return utils.WrapError(utils.ErrCodeInternal, "failed to trash user", err)
 	}
 
-	// Clear cache redis
-	if err := us.cache.Clear("users:*"); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear cache")
+	if us.cache != nil {
+		if err := us.cache.Clear("users:*"); err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to clear cache")
+		}
 	}
 
 	return nil

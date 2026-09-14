@@ -7,6 +7,7 @@ import (
 	"goshop/internal/validation"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -40,7 +41,7 @@ func (ah *AuthHandler) Register(ctx *gin.Context) {
 		return
 	}
 
-	if err := ah.service.Register(ctx, input); err != nil {
+	if err := ah.service.Register(ctx.Request.Context(), input); err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
@@ -67,7 +68,12 @@ func (ah *AuthHandler) Login(ctx *gin.Context) {
 		return
 	}
 
-	accessToken, refreshToken, expiresIn, err := ah.service.Login(ctx, input.Email, input.Password)
+	ip := ctx.ClientIP()
+	if ip == "" {
+		ip = ctx.Request.RemoteAddr
+	}
+
+	accessToken, refreshToken, expiresIn, err := ah.service.Login(ctx.Request.Context(), ip, input.Email, input.Password)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -84,7 +90,6 @@ func (ah *AuthHandler) Login(ctx *gin.Context) {
 	}
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Login successfully", response)
-
 }
 
 // Logout godoc
@@ -113,15 +118,17 @@ func (ah *AuthHandler) Logout(ctx *gin.Context) {
 	ctx.SetSameSite(http.SameSiteLaxMode)
 	ctx.SetCookie("refresh_token", "", -1, "/api/v1/auth", "", cookieSecure, true)
 
-	if refreshToken != "" {
-		if err := ah.service.Logout(ctx, refreshToken); err != nil {
+	authHeader := ctx.GetHeader("Authorization")
+	accessToken := strings.TrimPrefix(authHeader, "Bearer ")
+
+	if refreshToken != "" || accessToken != "" {
+		if err := ah.service.Logout(ctx.Request.Context(), accessToken, refreshToken); err != nil {
 			utils.ResponseError(ctx, err)
 			return
 		}
 	}
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Logout successfully")
-
 }
 
 // RefreshToken godoc
@@ -152,7 +159,7 @@ func (ah *AuthHandler) RefreshToken(ctx *gin.Context) {
 		return
 	}
 
-	accessToken, newRefreshToken, expiresIn, err := ah.service.RefreshToken(ctx, refreshToken)
+	accessToken, newRefreshToken, expiresIn, err := ah.service.RefreshToken(ctx.Request.Context(), refreshToken)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -190,7 +197,7 @@ func (ah *AuthHandler) RequestForgotPassword(ctx *gin.Context) {
 		return
 	}
 
-	if err := ah.service.RequestForgotPassword(ctx, input.Email); err != nil {
+	if err := ah.service.RequestForgotPassword(ctx.Request.Context(), input.Email); err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
@@ -216,7 +223,7 @@ func (ah *AuthHandler) ResetPassword(ctx *gin.Context) {
 		return
 	}
 
-	err := ah.service.ResetPassword(ctx, input.Token, input.NewPassword)
+	err := ah.service.ResetPassword(ctx.Request.Context(), input.Token, input.NewPassword)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return

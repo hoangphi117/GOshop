@@ -3,6 +3,7 @@ package v1handler
 import (
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
+	"goshop/internal/middleware"
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/utils"
 	"goshop/internal/validation"
@@ -39,14 +40,13 @@ func NewUserHandler(service v1service.UserService) *UserHandler {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /admin/users [get]
 func (uh *UserHandler) GetAllUsers(ctx *gin.Context) {
-
 	var params v1dto.GetUserParam
 	if err := ctx.ShouldBindQuery(&params); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
 	}
 
-	listUser, total, err := uh.service.GetAllUsers(ctx, params.Search, params.OrderBy, params.Sort, params.Page, params.Limit, false)
+	listUser, total, err := uh.service.GetAllUsers(ctx.Request.Context(), params.Search, params.OrderBy, params.Sort, params.Page, params.Limit, false)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -81,7 +81,7 @@ func (uh *UserHandler) CreateUsers(ctx *gin.Context) {
 
 	user := input.MapCreateInputToModel()
 
-	createdUser, err := uh.service.CreateUsers(ctx, user)
+	createdUser, err := uh.service.CreateUsers(ctx.Request.Context(), user)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -117,7 +117,7 @@ func (uh *UserHandler) GetUserByUUID(ctx *gin.Context) {
 		return
 	}
 
-	user, err := uh.service.GetUserByUUID(ctx, userUuid)
+	user, err := uh.service.GetUserByUUID(ctx.Request.Context(), userUuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -163,7 +163,7 @@ func (uh *UserHandler) UpdateUser(ctx *gin.Context) {
 
 	user := input.MapUpdateInputToModel(userUuid)
 
-	updatedUser, err := uh.service.UpdateUser(ctx, user)
+	updatedUser, err := uh.service.UpdateUser(ctx.Request.Context(), user)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -194,7 +194,13 @@ func (uh *UserHandler) ChangePassword(ctx *gin.Context) {
 		return
 	}
 
-	err := uh.service.ChangePassword(ctx, input)
+	userUuid, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	err = uh.service.ChangePassword(ctx.Request.Context(), userUuid, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -214,7 +220,13 @@ func (uh *UserHandler) ChangePassword(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /users/me [get]
 func (uh *UserHandler) GetProfile(ctx *gin.Context) {
-	user, err := uh.service.GetProfile(ctx)
+	userUuid, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	user, err := uh.service.GetProfile(ctx.Request.Context(), userUuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -245,13 +257,19 @@ func (uh *UserHandler) UpdateProfile(ctx *gin.Context) {
 		return
 	}
 
+	userUuid, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
 	params := sqlc.UpdateUserParams{
 		UserFullname: input.Name,
 		UserAge:      input.Age,
 		UserPassword: input.Password,
 	}
 
-	updatedUser, err := uh.service.UpdateProfile(ctx, params)
+	updatedUser, err := uh.service.UpdateProfile(ctx.Request.Context(), userUuid, params)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -287,7 +305,7 @@ func (uh *UserHandler) SoftDeleteUser(ctx *gin.Context) {
 		return
 	}
 
-	softDeletedUser, err := uh.service.SoftDeleteUser(ctx, userUuid)
+	softDeletedUser, err := uh.service.SoftDeleteUser(ctx.Request.Context(), userUuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -323,7 +341,7 @@ func (uh *UserHandler) RestoreUser(ctx *gin.Context) {
 		return
 	}
 
-	restoredUser, err := uh.service.RestoreUser(ctx, userUuid)
+	restoredUser, err := uh.service.RestoreUser(ctx.Request.Context(), userUuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -359,7 +377,7 @@ func (uh *UserHandler) TrashUser(ctx *gin.Context) {
 		return
 	}
 
-	err = uh.service.TrashUser(ctx, userUuid)
+	err = uh.service.TrashUser(ctx.Request.Context(), userUuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -391,7 +409,7 @@ func (uh *UserHandler) GetSoftDeletedUsers(ctx *gin.Context) {
 		return
 	}
 
-	listUser, total, err := uh.service.GetAllUsers(ctx, params.Search, params.OrderBy, params.Sort, params.Page, params.Limit, true)
+	listUser, total, err := uh.service.GetAllUsers(ctx.Request.Context(), params.Search, params.OrderBy, params.Sort, params.Page, params.Limit, true)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return

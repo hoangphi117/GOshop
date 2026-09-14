@@ -12,25 +12,25 @@ import (
 )
 
 type UserService interface {
-	GetAllUsers(ctx *gin.Context, search, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.User, int32, error)
-	CreateUsers(ctx *gin.Context, input sqlc.CreateUserParams) (sqlc.User, error)
-	GetUserByUUID(ctx *gin.Context, uuid uuid.UUID) (sqlc.User, error)
-	UpdateUser(ctx *gin.Context, input sqlc.UpdateUserParams) (sqlc.User, error)
-	GetProfile(ctx *gin.Context) (sqlc.User, error)
-	UpdateProfile(ctx *gin.Context, input sqlc.UpdateUserParams) (sqlc.User, error)
-	ChangePassword(ctx *gin.Context, input v1dto.ChangePasswordRequest) error
-	SoftDeleteUser(ctx *gin.Context, uuid uuid.UUID) (sqlc.User, error)
-	RestoreUser(ctx *gin.Context, uuid uuid.UUID) (sqlc.User, error)
-	TrashUser(ctx *gin.Context, uuid uuid.UUID) error
+	GetAllUsers(ctx context.Context, search, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.User, int32, error)
+	CreateUsers(ctx context.Context, input sqlc.CreateUserParams) (sqlc.User, error)
+	GetUserByUUID(ctx context.Context, userUUID uuid.UUID) (sqlc.User, error)
+	UpdateUser(ctx context.Context, input sqlc.UpdateUserParams) (sqlc.User, error)
+	GetProfile(ctx context.Context, userUUID uuid.UUID) (sqlc.User, error)
+	UpdateProfile(ctx context.Context, userUUID uuid.UUID, input sqlc.UpdateUserParams) (sqlc.User, error)
+	ChangePassword(ctx context.Context, userUUID uuid.UUID, input v1dto.ChangePasswordRequest) error
+	SoftDeleteUser(ctx context.Context, userUUID uuid.UUID) (sqlc.User, error)
+	RestoreUser(ctx context.Context, userUUID uuid.UUID) (sqlc.User, error)
+	TrashUser(ctx context.Context, userUUID uuid.UUID) error
 }
 
 type AuthService interface {
-	Register(ctx *gin.Context, input v1dto.RegisterInput) error
-	Login(ctx *gin.Context, email, password string) (string, string, int, error)
-	Logout(ctx *gin.Context, refreshToken string) error
-	RefreshToken(ctx *gin.Context, refreshToken string) (string, string, int, error)
-	RequestForgotPassword(ctx *gin.Context, email string) error
-	ResetPassword(ctx *gin.Context, token, newPassword string) error
+	Register(ctx context.Context, input v1dto.RegisterInput) error
+	Login(ctx context.Context, ip string, email, password string) (string, string, int, error)
+	Logout(ctx context.Context, accessToken string, refreshToken string) error
+	RefreshToken(ctx context.Context, refreshToken string) (string, string, int, error)
+	RequestForgotPassword(ctx context.Context, email string) error
+	ResetPassword(ctx context.Context, token, newPassword string) error
 }
 
 type CategoryService interface {
