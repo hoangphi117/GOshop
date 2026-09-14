@@ -214,16 +214,7 @@ func (s *orderService) CreateOrder(ctx context.Context, userUUID uuid.UUID, inpu
 			}
 		}
 
-		var coupon *sqlc.Coupon
-		if input.CouponCode != nil && strings.TrimSpace(*input.CouponCode) != "" {
-			c, err := s.couponRepo.GetByCode(txCtx, strings.ToUpper(strings.TrimSpace(*input.CouponCode)))
-			if err != nil {
-				return utils.NewError(utils.ErrCodeNotFound, "Coupon not found")
-			}
-			coupon = &c
-		}
-
-		pricingResult, err := s.pricingService.CalculateOrderTotals(priceInputs, coupon, input.ShippingFee, time.Now())
+		pricingResult, err := s.pricingService.CalculateOrderTotals(txCtx, priceInputs, input.CouponCode, user.UserID, input.ShippingFee, time.Now())
 		if err != nil {
 			return err
 		}
@@ -324,18 +315,8 @@ func (s *orderService) CreateOrder(ctx context.Context, userUUID uuid.UUID, inpu
 		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "failed to get order items", err)
 	}
 
-	if err := s.cache.Clear("products:*"); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear product cache")
-	}
-	if err := s.cache.Clear("orders:*"); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear order cache")
-	}
-	if err := s.cache.Clear("coupons:*"); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear coupon cache")
-	}
-	if err := s.cache.Clear(fmt.Sprintf("cart:user:%s", user.UserUuid.String())); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear cart cache")
-	}
+	// Clear related caches
+	s.invalidateOrderCreationCaches(user.UserUuid)
 
 	// Send order creation notification asynchronously
 	notifyErr := s.notificationService.Send(ctx, v1dto.SendNotificationInput{
@@ -357,26 +338,19 @@ func (s *orderService) CreateOrder(ctx context.Context, userUUID uuid.UUID, inpu
 	return order, orderItemsWithDetails, nil
 }
 
-func CalculateDiscount(coupon sqlc.Coupon, orderAmount float64) float64 {
-	var discount float64
-
-	switch coupon.CouponType {
-	case CouponTypePercentage:
-		discount = utils.RoundFloat(orderAmount*utils.NumericToFloat(coupon.CouponDiscountValue)/100, 2)
-		if coupon.CouponMaxDiscountAmount.Valid {
-			maxDiscount := utils.NumericToFloat(coupon.CouponMaxDiscountAmount)
-			if discount > maxDiscount {
-				discount = maxDiscount
-			}
-		}
-	case CouponTypeFixedAmount:
-		discount = utils.NumericToFloat(coupon.CouponDiscountValue)
-		if discount > orderAmount {
-			discount = orderAmount
-		}
+func (s *orderService) invalidateOrderCreationCaches(userUUID uuid.UUID) {
+	if err := s.cache.Clear("products:*"); err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to clear product cache")
 	}
-
-	return discount
+	if err := s.cache.Clear("orders:*"); err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to clear order cache")
+	}
+	if err := s.cache.Clear("coupons:*"); err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to clear coupon cache")
+	}
+	if err := s.cache.Clear(fmt.Sprintf("cart:user:%s", userUUID.String())); err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to clear cart cache")
+	}
 }
 
 func (s *orderService) GetMyOrders(ctx *gin.Context, input v1dto.GetOrdersParam) ([]v1dto.OrderSummaryDTO, int32, error) {

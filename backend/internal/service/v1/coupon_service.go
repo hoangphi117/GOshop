@@ -415,7 +415,7 @@ func (cs *couponService) PreviewCoupon(ctx *gin.Context, input v1dto.PreviewCoup
 		return v1dto.PreviewCouponDTO{}, utils.NewError(utils.ErrCodeBadRequest, "You have reached your usage limit for this coupon")
 	}
 
-	discountAmount := CalculateDiscount(coupon, input.SubtotalAmount)
+	discountAmount := calculateDiscount(coupon, input.SubtotalAmount)
 	finalTotalAmount := input.SubtotalAmount - discountAmount
 
 	return v1dto.PreviewCouponDTO{
@@ -429,3 +429,26 @@ func (cs *couponService) PreviewCoupon(ctx *gin.Context, input v1dto.PreviewCoup
 		MinOrderAmount:   minOrderAmount,
 	}, nil
 }
+
+func calculateDiscount(coupon sqlc.Coupon, orderAmount float64) float64 {
+	var discount float64
+
+	switch coupon.CouponType {
+	case CouponTypePercentage:
+		discount = utils.RoundFloat(orderAmount*utils.NumericToFloat(coupon.CouponDiscountValue)/100, 2)
+		if coupon.CouponMaxDiscountAmount.Valid {
+			maxDiscount := utils.NumericToFloat(coupon.CouponMaxDiscountAmount)
+			if discount > maxDiscount {
+				discount = maxDiscount
+			}
+		}
+	case CouponTypeFixedAmount:
+		discount = utils.NumericToFloat(coupon.CouponDiscountValue)
+		if discount > orderAmount {
+			discount = orderAmount
+		}
+	}
+
+	return discount
+}
+
