@@ -1114,3 +1114,563 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		assert.Len(t, items, 1)
 	})
 }
+
+func TestOrderService_CancelOrder(t *testing.T) {
+	ctx := context.Background()
+	userUUID := uuid.New()
+	adminUUID := uuid.New()
+	orderUUID := uuid.New()
+
+	baseUser := sqlc.User{
+		UserID:    1,
+		UserUuid:  userUUID,
+		UserEmail: "customer@example.com",
+		UserLevel: v1service.RoleMember,
+	}
+
+	adminUser := sqlc.User{
+		UserID:    99,
+		UserUuid:  adminUUID,
+		UserEmail: "admin@example.com",
+		UserLevel: v1service.RoleAdmin,
+	}
+
+	baseOrderRow := sqlc.GetOrderByUUIDRow{
+		OrderID:          500,
+		OrderUuid:        orderUUID,
+		OrderNumber:      "260914-01-AB12CD",
+		OrderUserID:      baseUser.UserID,
+		OrderStatus:      v1service.OrderStatusPending,
+		OrderTotalAmount: utils.FloatToNumeric(500000),
+	}
+
+	baseOrderItems := []sqlc.GetOrderItemsByOrderIDRow{
+		{
+			OrderItemID:        1,
+			OrderItemProductID: 101,
+			OrderItemQuantity:  2,
+		},
+		{
+			OrderItemID:        2,
+			OrderItemProductID: 102,
+			OrderItemQuantity:  1,
+		},
+	}
+
+	t.Run("Case 1: User Not Found - Returns 404 NotFound", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return sqlc.User{}, pgx.ErrNoRows
+			},
+		}
+
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(),
+			nil, nil, nil, nil, nil, nil,
+			mockUserRepo,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		_, err := svc.CancelOrder(ctx, userUUID, orderUUID, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "User not found")
+	})
+
+	t.Run("Case 2: Order Not Found - Returns 404 NotFound", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return baseUser, nil
+			},
+		}
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return sqlc.GetOrderByUUIDRow{}, pgx.ErrNoRows
+			},
+		}
+
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(),
+			nil, nil,
+			mockOrderRepo,
+			nil, nil, nil,
+			mockUserRepo,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		_, err := svc.CancelOrder(ctx, userUUID, orderUUID, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Order not found")
+	})
+
+	t.Run("Case 3: Forbidden - Other Member Cannot Cancel Someone Else's Order", func(t *testing.T) {
+		otherUserUUID := uuid.New()
+		otherUser := sqlc.User{
+			UserID:    2,
+			UserUuid:  otherUserUUID,
+			UserLevel: v1service.RoleMember,
+		}
+
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return otherUser, nil
+			},
+		}
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return baseOrderRow, nil // Owned by userID 1
+			},
+		}
+
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(),
+			nil, nil,
+			mockOrderRepo,
+			nil, nil, nil,
+			mockUserRepo,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		_, err := svc.CancelOrder(ctx, otherUserUUID, orderUUID, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "You are not authorized to cancel this order")
+	})
+
+	t.Run("Case 4: Invalid Status - Shipped Order Cannot Be Cancelled", func(t *testing.T) {
+		shippedOrder := baseOrderRow
+		shippedOrder.OrderStatus = v1service.OrderStatusShipped
+
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return baseUser, nil
+			},
+		}
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return shippedOrder, nil
+			},
+		}
+
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(),
+			nil, nil,
+			mockOrderRepo,
+			nil, nil, nil,
+			mockUserRepo,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		_, err := svc.CancelOrder(ctx, userUUID, orderUUID, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Only pending or confirmed orders can be cancelled")
+	})
+
+	t.Run("Case 5: Invalid Status - Delivered Order Cannot Be Cancelled", func(t *testing.T) {
+		deliveredOrder := baseOrderRow
+		deliveredOrder.OrderStatus = v1service.OrderStatusDelivered
+
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return baseUser, nil
+			},
+		}
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return deliveredOrder, nil
+			},
+		}
+
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(),
+			nil, nil,
+			mockOrderRepo,
+			nil, nil, nil,
+			mockUserRepo,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		_, err := svc.CancelOrder(ctx, userUUID, orderUUID, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Only pending or confirmed orders can be cancelled")
+	})
+
+	t.Run("Case 6: OrderItemRepo GetByOrderID Failure - Returns Error", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return baseUser, nil
+			},
+		}
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return baseOrderRow, nil
+			},
+		}
+		mockOrderItemRepo := &testutils.MockOrderItemRepository{
+			GetByOrderIDFunc: func(ctx context.Context, orderID int32) ([]sqlc.GetOrderItemsByOrderIDRow, error) {
+				return nil, errors.New("db query timeout")
+			},
+		}
+
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(),
+			nil, nil,
+			mockOrderRepo,
+			mockOrderItemRepo,
+			nil, nil,
+			mockUserRepo,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		_, err := svc.CancelOrder(ctx, userUUID, orderUUID, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to get order items")
+	})
+
+	t.Run("Case 7: OrderRepo CancelOrder Failure - Transaction Aborts", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return baseUser, nil
+			},
+		}
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return baseOrderRow, nil
+			},
+			CancelOrderFunc: func(ctx context.Context, tx pgx.Tx, u uuid.UUID) (sqlc.Order, error) {
+				return sqlc.Order{}, errors.New("update deadlock")
+			},
+		}
+		mockOrderItemRepo := &testutils.MockOrderItemRepository{
+			GetByOrderIDFunc: func(ctx context.Context, orderID int32) ([]sqlc.GetOrderItemsByOrderIDRow, error) {
+				return baseOrderItems, nil
+			},
+		}
+
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(),
+			nil, nil,
+			mockOrderRepo,
+			mockOrderItemRepo,
+			nil, nil,
+			mockUserRepo,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		_, err := svc.CancelOrder(ctx, userUUID, orderUUID, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to cancel order")
+	})
+
+	t.Run("Case 8: InventoryService RestoreStock Failure - Transaction Aborts", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return baseUser, nil
+			},
+		}
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return baseOrderRow, nil
+			},
+			CancelOrderFunc: func(ctx context.Context, tx pgx.Tx, u uuid.UUID) (sqlc.Order, error) {
+				return sqlc.Order{OrderID: baseOrderRow.OrderID, OrderStatus: v1service.OrderStatusCancelled}, nil
+			},
+		}
+		mockOrderItemRepo := &testutils.MockOrderItemRepository{
+			GetByOrderIDFunc: func(ctx context.Context, orderID int32) ([]sqlc.GetOrderItemsByOrderIDRow, error) {
+				return baseOrderItems, nil
+			},
+		}
+		mockInventory := &testutils.MockInventoryService{
+			RestoreStockFunc: func(ctx context.Context, items []v1service.RestoreItem) error {
+				return errors.New("cannot restore stock for deleted product")
+			},
+		}
+
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(),
+			nil,
+			mockInventory,
+			mockOrderRepo,
+			mockOrderItemRepo,
+			nil, nil,
+			mockUserRepo,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		_, err := svc.CancelOrder(ctx, userUUID, orderUUID, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to restore product stock")
+	})
+
+	t.Run("Case 9: TrackingRepo InsertEvent Failure - Transaction Aborts", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return baseUser, nil
+			},
+		}
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return baseOrderRow, nil
+			},
+			CancelOrderFunc: func(ctx context.Context, tx pgx.Tx, u uuid.UUID) (sqlc.Order, error) {
+				return sqlc.Order{OrderID: baseOrderRow.OrderID, OrderStatus: v1service.OrderStatusCancelled}, nil
+			},
+		}
+		mockOrderItemRepo := &testutils.MockOrderItemRepository{
+			GetByOrderIDFunc: func(ctx context.Context, orderID int32) ([]sqlc.GetOrderItemsByOrderIDRow, error) {
+				return baseOrderItems, nil
+			},
+		}
+		mockInventory := &testutils.MockInventoryService{
+			RestoreStockFunc: func(ctx context.Context, items []v1service.RestoreItem) error {
+				return nil
+			},
+		}
+		mockTracking := &testutils.MockTrackingRepository{
+			InsertEventFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.InsertTrackingEventParams) (sqlc.OrderTrackingEvent, error) {
+				return sqlc.OrderTrackingEvent{}, errors.New("tracking insert failed")
+			},
+		}
+
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(),
+			nil,
+			mockInventory,
+			mockOrderRepo,
+			mockOrderItemRepo,
+			nil, nil,
+			mockUserRepo,
+			nil, nil, nil,
+			mockTracking,
+			nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		_, err := svc.CancelOrder(ctx, userUUID, orderUUID, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to insert tracking event")
+	})
+
+	t.Run("Case 10: Happy Path - Owner Cancels Pending Order With Reason", func(t *testing.T) {
+		reason := "Bought by mistake"
+		var restoredItems []v1service.RestoreItem
+		var trackingEvent sqlc.InsertTrackingEventParams
+		var notifiedInput v1dto.SendNotificationInput
+
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return baseUser, nil
+			},
+		}
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return baseOrderRow, nil
+			},
+			CancelOrderFunc: func(ctx context.Context, tx pgx.Tx, u uuid.UUID) (sqlc.Order, error) {
+				return sqlc.Order{
+					OrderID:          baseOrderRow.OrderID,
+					OrderUuid:        baseOrderRow.OrderUuid,
+					OrderNumber:      baseOrderRow.OrderNumber,
+					OrderUserID:      baseOrderRow.OrderUserID,
+					OrderStatus:      v1service.OrderStatusCancelled,
+					OrderTotalAmount: baseOrderRow.OrderTotalAmount,
+				}, nil
+			},
+		}
+		mockOrderItemRepo := &testutils.MockOrderItemRepository{
+			GetByOrderIDFunc: func(ctx context.Context, orderID int32) ([]sqlc.GetOrderItemsByOrderIDRow, error) {
+				return baseOrderItems, nil
+			},
+		}
+		mockInventory := &testutils.MockInventoryService{
+			RestoreStockFunc: func(ctx context.Context, items []v1service.RestoreItem) error {
+				restoredItems = items
+				return nil
+			},
+		}
+		mockTracking := &testutils.MockTrackingRepository{
+			InsertEventFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.InsertTrackingEventParams) (sqlc.OrderTrackingEvent, error) {
+				trackingEvent = params
+				return sqlc.OrderTrackingEvent{EventID: 1}, nil
+			},
+		}
+		mockNotification := &testutils.MockNotificationService{
+			SendFunc: func(ctx context.Context, input v1dto.SendNotificationInput) error {
+				notifiedInput = input
+				return nil
+			},
+		}
+
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(),
+			nil,
+			mockInventory,
+			mockOrderRepo,
+			mockOrderItemRepo,
+			nil, nil,
+			mockUserRepo,
+			nil, nil, nil,
+			mockTracking,
+			nil, nil, nil,
+			mockNotification,
+			nil, nil, nil,
+		)
+
+		cancelledOrder, err := svc.CancelOrder(ctx, userUUID, orderUUID, &reason)
+		require.NoError(t, err)
+
+		// Assert Order
+		assert.Equal(t, int32(500), cancelledOrder.OrderID)
+		assert.Equal(t, v1service.OrderStatusCancelled, cancelledOrder.OrderStatus)
+
+		// Assert Restored Stock
+		require.Len(t, restoredItems, 2)
+		assert.Equal(t, int32(101), restoredItems[0].ProductID)
+		assert.Equal(t, int32(2), restoredItems[0].Quantity)
+		assert.Equal(t, int32(102), restoredItems[1].ProductID)
+		assert.Equal(t, int32(1), restoredItems[1].Quantity)
+
+		// Assert Tracking Event
+		assert.Equal(t, int32(500), trackingEvent.EventOrderID)
+		assert.Equal(t, "cancelled", trackingEvent.EventStatus)
+		assert.Equal(t, "user", trackingEvent.EventSource)
+		require.NotNil(t, trackingEvent.EventNote)
+		assert.Equal(t, "Order cancelled. Reason: Bought by mistake", *trackingEvent.EventNote)
+
+		// Assert Notification
+		assert.Equal(t, baseUser.UserID, notifiedInput.UserID)
+		assert.Equal(t, "order_cancelled", notifiedInput.Type)
+		assert.Equal(t, "Order Cancelled", notifiedInput.Title)
+		assert.Equal(t, orderUUID.String(), notifiedInput.Data["order_uuid"])
+	})
+
+	t.Run("Case 11: Happy Path - Admin Cancels Confirmed Order Without Reason", func(t *testing.T) {
+		confirmedOrder := baseOrderRow
+		confirmedOrder.OrderStatus = v1service.OrderStatusConfirmed
+
+		var trackingEvent sqlc.InsertTrackingEventParams
+		var notifiedInput v1dto.SendNotificationInput
+
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return adminUser, nil // Admin with UserID 99
+			},
+		}
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return confirmedOrder, nil // Owned by UserID 1
+			},
+			CancelOrderFunc: func(ctx context.Context, tx pgx.Tx, u uuid.UUID) (sqlc.Order, error) {
+				return sqlc.Order{
+					OrderID:     confirmedOrder.OrderID,
+					OrderNumber: confirmedOrder.OrderNumber,
+					OrderUserID: confirmedOrder.OrderUserID,
+					OrderStatus: v1service.OrderStatusCancelled,
+				}, nil
+			},
+		}
+		mockOrderItemRepo := &testutils.MockOrderItemRepository{
+			GetByOrderIDFunc: func(ctx context.Context, orderID int32) ([]sqlc.GetOrderItemsByOrderIDRow, error) {
+				return baseOrderItems, nil
+			},
+		}
+		mockInventory := &testutils.MockInventoryService{
+			RestoreStockFunc: func(ctx context.Context, items []v1service.RestoreItem) error {
+				return nil
+			},
+		}
+		mockTracking := &testutils.MockTrackingRepository{
+			InsertEventFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.InsertTrackingEventParams) (sqlc.OrderTrackingEvent, error) {
+				trackingEvent = params
+				return sqlc.OrderTrackingEvent{EventID: 1}, nil
+			},
+		}
+		mockNotification := &testutils.MockNotificationService{
+			SendFunc: func(ctx context.Context, input v1dto.SendNotificationInput) error {
+				notifiedInput = input
+				return nil
+			},
+		}
+
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(),
+			nil,
+			mockInventory,
+			mockOrderRepo,
+			mockOrderItemRepo,
+			nil, nil,
+			mockUserRepo,
+			nil, nil, nil,
+			mockTracking,
+			nil, nil, nil,
+			mockNotification,
+			nil, nil, nil,
+		)
+
+		cancelledOrder, err := svc.CancelOrder(ctx, adminUUID, orderUUID, nil)
+		require.NoError(t, err)
+		assert.Equal(t, v1service.OrderStatusCancelled, cancelledOrder.OrderStatus)
+
+		// Assert Admin source in tracking event
+		assert.Equal(t, "admin", trackingEvent.EventSource)
+		require.NotNil(t, trackingEvent.EventNote)
+		assert.Equal(t, "Order cancelled.", *trackingEvent.EventNote)
+
+		// Notification is sent to customer (UserID 1), NOT the admin (UserID 99)
+		assert.Equal(t, baseUser.UserID, notifiedInput.UserID)
+	})
+
+	t.Run("Case 12: Notification Failure Does NOT Fail Cancellation", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return baseUser, nil
+			},
+		}
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return baseOrderRow, nil
+			},
+			CancelOrderFunc: func(ctx context.Context, tx pgx.Tx, u uuid.UUID) (sqlc.Order, error) {
+				return sqlc.Order{OrderID: baseOrderRow.OrderID, OrderStatus: v1service.OrderStatusCancelled}, nil
+			},
+		}
+		mockOrderItemRepo := &testutils.MockOrderItemRepository{
+			GetByOrderIDFunc: func(ctx context.Context, orderID int32) ([]sqlc.GetOrderItemsByOrderIDRow, error) {
+				return baseOrderItems, nil
+			},
+		}
+		mockInventory := &testutils.MockInventoryService{
+			RestoreStockFunc: func(ctx context.Context, items []v1service.RestoreItem) error {
+				return nil
+			},
+		}
+		mockTracking := &testutils.MockTrackingRepository{
+			InsertEventFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.InsertTrackingEventParams) (sqlc.OrderTrackingEvent, error) {
+				return sqlc.OrderTrackingEvent{EventID: 1}, nil
+			},
+		}
+		mockNotification := &testutils.MockNotificationService{
+			SendFunc: func(ctx context.Context, input v1dto.SendNotificationInput) error {
+				return errors.New("notification provider timeout")
+			},
+		}
+
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(),
+			nil,
+			mockInventory,
+			mockOrderRepo,
+			mockOrderItemRepo,
+			nil, nil,
+			mockUserRepo,
+			nil, nil, nil,
+			mockTracking,
+			nil, nil, nil,
+			mockNotification,
+			nil, nil, nil,
+		)
+
+		cancelledOrder, err := svc.CancelOrder(ctx, userUUID, orderUUID, nil)
+		require.NoError(t, err)
+		assert.Equal(t, v1service.OrderStatusCancelled, cancelledOrder.OrderStatus)
+	})
+}
+

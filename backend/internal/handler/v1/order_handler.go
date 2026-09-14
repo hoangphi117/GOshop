@@ -240,13 +240,24 @@ func (oh *OrderHandler) CancelOrder(ctx *gin.Context) {
 		return
 	}
 
-	err = oh.service.CancelOrder(ctx, orderUUID)
+	userUUID, err := middleware.GetUserUUID(ctx)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
 
-	utils.ResponseSuccess(ctx, http.StatusOK, "Order canceled successfully", nil)
+	var body struct {
+		Reason *string `json:"reason"`
+	}
+	_ = ctx.ShouldBindJSON(&body)
+
+	cancelledOrder, err := oh.service.CancelOrder(ctx.Request.Context(), userUUID, orderUUID, body.Reason)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Order canceled successfully", v1dto.MapToOrderSummaryDTO(cancelledOrder))
 }
 
 // UpdateOrderShippingInfo godoc

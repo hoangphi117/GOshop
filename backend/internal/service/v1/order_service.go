@@ -54,6 +54,7 @@ const (
 
 	RoleAdmin     int32 = 1
 	RoleModerator int32 = 2
+	RoleMember    int32 = 3
 
 	CouponTypePercentage  int32 = 1
 	CouponTypeFixedAmount int32 = 2
@@ -316,7 +317,7 @@ func (s *orderService) CreateOrder(ctx context.Context, userUUID uuid.UUID, inpu
 	}
 
 	// Clear related caches
-	s.invalidateOrderCreationCaches(user.UserUuid)
+	s.InvalidateOrderCaches(user.UserUuid)
 
 	// Send order creation notification asynchronously
 	notifyErr := s.notificationService.Send(ctx, v1dto.SendNotificationInput{
@@ -336,21 +337,6 @@ func (s *orderService) CreateOrder(ctx context.Context, userUUID uuid.UUID, inpu
 	}
 
 	return order, orderItemsWithDetails, nil
-}
-
-func (s *orderService) invalidateOrderCreationCaches(userUUID uuid.UUID) {
-	if err := s.cache.Clear("products:*"); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear product cache")
-	}
-	if err := s.cache.Clear("orders:*"); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear order cache")
-	}
-	if err := s.cache.Clear("coupons:*"); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear coupon cache")
-	}
-	if err := s.cache.Clear(fmt.Sprintf("cart:user:%s", userUUID.String())); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear cart cache")
-	}
 }
 
 func (s *orderService) GetMyOrders(ctx *gin.Context, input v1dto.GetOrdersParam) ([]v1dto.OrderSummaryDTO, int32, error) {
@@ -630,85 +616,128 @@ func isValidStatusTransition(currentStatus, newStatus int32) bool {
 	}
 }
 
-func (s *orderService) CancelOrder(ctx *gin.Context, orderUUID uuid.UUID) error {
-	reqCtx := ctx.Request.Context()
-
-	user, err := middleware.GetUserFromContext(ctx, s.userRepo)
+func (s *orderService) CancelOrder(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, reason *string) (sqlc.Order, error) {
+	// 1. Lấy thông tin User & Order
+	user, err := s.userRepo.GetByUUID(ctx, userUUID)
 	if err != nil {
-		return err
+		return sqlc.Order{}, s.handleUserNotFoundError(err)
 	}
 
-	orderRow, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
+	orderRow, err := s.orderRepo.GetByUUID(ctx, orderUUID)
 	if err != nil {
-		return utils.NewError(utils.ErrCodeNotFound, "Order not found")
+		return sqlc.Order{}, s.handleOrderNotFoundError(err)
 	}
 
-	if orderRow.OrderUserID != user.UserID {
+	// 2. Validate điều kiện hủy đơn (Domain Rule)
+	if err := s.validateOrderCancellation(user, orderRow); err != nil {
+		return sqlc.Order{}, err
+	}
+
+	// 3. Lấy danh sách sản phẩm để chuẩn bị hoàn kho
+	orderItems, err := s.orderItemRepo.GetByOrderID(ctx, orderRow.OrderID)
+	if err != nil {
+		return sqlc.Order{}, utils.WrapError(utils.ErrCodeInternal, "failed to get order items", err)
+	}
+
+	var cancelledOrder sqlc.Order
+
+	// 4. Thực thi Transaction điều phối các Sub-services (Orchestration)
+	err = s.txManager.WithTx(ctx, func(txCtx context.Context) error {
+		tx, _ := db.GetTx(txCtx)
+
+		// 4.1. Hủy trạng thái đơn
+		updatedOrder, err := s.orderRepo.CancelOrder(txCtx, tx, orderUUID)
+		if err != nil {
+			return utils.WrapError(utils.ErrCodeInternal, "failed to cancel order", err)
+		}
+		cancelledOrder = updatedOrder
+
+		// 4.2. Hoàn tồn kho qua InventoryService
+		if err := s.inventoryService.RestoreStock(txCtx, toRestoreItems(orderItems)); err != nil {
+			return utils.WrapError(utils.ErrCodeInternal, "failed to restore product stock", err)
+		}
+
+		// 4.3. Ghi nhận Tracking Event
+		if err := s.recordCancellationTracking(txCtx, tx, user, orderRow, reason); err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return sqlc.Order{}, err
+	}
+
+	// 5. Side-effects hậu commit (Cache & Notification)
+	s.InvalidateOrderCaches(user.UserUuid)
+	s.sendCancellationNotification(ctx, orderRow)
+
+	return cancelledOrder, nil
+}
+
+func (s *orderService) validateOrderCancellation(user sqlc.User, order sqlc.GetOrderByUUIDRow) error {
+	isAdminOrMod := user.UserLevel == RoleAdmin || user.UserLevel == RoleModerator
+	if order.OrderUserID != user.UserID && !isAdminOrMod {
 		return utils.NewError(utils.ErrCodeForbidden, "You are not authorized to cancel this order")
 	}
 
-	if orderRow.OrderStatus != OrderStatusPending && orderRow.OrderStatus != OrderStatusConfirmed {
+	if order.OrderStatus != OrderStatusPending && order.OrderStatus != OrderStatusConfirmed {
 		return utils.NewError(utils.ErrCodeBadRequest, "Only pending or confirmed orders can be cancelled")
 	}
 
-	orderItems, err := s.orderItemRepo.GetByOrderID(reqCtx, orderRow.OrderID)
-	if err != nil {
-		return utils.WrapError(utils.ErrCodeInternal, "failed to get order items", err)
-	}
+	return nil
+}
 
-	txCtx, cancel := context.WithTimeout(reqCtx, 10*time.Second)
-	defer cancel()
-
-	tx, err := db.BeginTx(txCtx)
-	defer tx.Rollback(txCtx)
-
-	_, err = s.orderRepo.CancelOrder(txCtx, tx, orderUUID)
-	if err != nil {
-		return utils.WrapError(utils.ErrCodeBadRequest, "failed to cancel order", err)
-	}
-
-	restoreItems := make([]RestoreItem, len(orderItems))
+func toRestoreItems(orderItems []sqlc.GetOrderItemsByOrderIDRow) []RestoreItem {
+	items := make([]RestoreItem, len(orderItems))
 	for i, item := range orderItems {
-		restoreItems[i] = RestoreItem{
+		items[i] = RestoreItem{
 			ProductID: item.OrderItemProductID,
 			Quantity:  item.OrderItemQuantity,
 		}
 	}
+	return items
+}
 
-	if err := s.inventoryService.RestoreStock(txCtx, restoreItems); err != nil {
-		return err
+func (s *orderService) recordCancellationTracking(ctx context.Context, tx pgx.Tx, user sqlc.User, order sqlc.GetOrderByUUIDRow, reason *string) error {
+	note := "Order cancelled."
+	if reason != nil && strings.TrimSpace(*reason) != "" {
+		note = fmt.Sprintf("Order cancelled. Reason: %s", strings.TrimSpace(*reason))
 	}
 
-	cancelNote := "Order cancelled."
-	_, _ = s.trackingRepo.InsertEvent(txCtx, tx, sqlc.InsertTrackingEventParams{
-		EventOrderID: orderRow.OrderID,
+	eventSource := "user"
+	if (user.UserLevel == RoleAdmin || user.UserLevel == RoleModerator) && order.OrderUserID != user.UserID {
+		eventSource = "admin"
+	}
+
+	_, err := s.trackingRepo.InsertEvent(ctx, tx, sqlc.InsertTrackingEventParams{
+		EventOrderID: order.OrderID,
 		EventStatus:  "cancelled",
-		EventNote:    &cancelNote,
-		EventSource:  "user",
+		EventNote:    &note,
+		EventSource:  eventSource,
 	})
-
-	if err := tx.Commit(txCtx); err != nil {
-		return utils.NewError(utils.ErrCodeInternal, "failed to commit transaction")
+	if err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "failed to insert tracking event", err)
 	}
-
-	if err := s.cache.Clear("products:*"); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear product cache")
-	}
-	if err := s.cache.Clear("orders:*"); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear order cache")
-	}
-
-	go func() {
-		_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
-			UserID: orderRow.OrderUserID,
-			Type:   "order_cancelled",
-			Title:  "Order Cancelled",
-			Body:   fmt.Sprintf("Your order #%s has been cancelled.", orderRow.OrderNumber),
-			Data:   map[string]any{"order_uuid": orderRow.OrderUuid.String()},
-		})
-	}()
-
 	return nil
+}
+
+func (s *orderService) sendCancellationNotification(ctx context.Context, order sqlc.GetOrderByUUIDRow) {
+	err := s.notificationService.Send(ctx, v1dto.SendNotificationInput{
+		UserID: order.OrderUserID,
+		Type:   "order_cancelled",
+		Title:  "Order Cancelled",
+		Body:   fmt.Sprintf("Your order #%s has been cancelled.", order.OrderNumber),
+		Data:   map[string]any{"order_uuid": order.OrderUuid.String()},
+	})
+	if err != nil {
+		logger.Log.Warn().
+			Err(err).
+			Int32("user_id", order.OrderUserID).
+			Str("order_number", order.OrderNumber).
+			Msg("Failed to send order cancellation notification")
+	}
 }
 
 func (s *orderService) UpdateOrderShippingInfo(ctx *gin.Context, input sqlc.UpdateOrderShippingInfoParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
