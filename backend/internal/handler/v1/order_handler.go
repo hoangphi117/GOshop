@@ -729,6 +729,12 @@ func (oh *OrderHandler) GetWards(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /orders/{uuid}/return [post]
 func (oh *OrderHandler) RequestOrderReturn(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
 	var params v1dto.GetOrderByUUIDParam
 	if err := ctx.ShouldBindUri(&params); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
@@ -790,7 +796,7 @@ func (oh *OrderHandler) RequestOrderReturn(ctx *gin.Context) {
 		}
 	}
 
-	returnDTO, err := oh.service.RequestOrderReturn(ctx, orderUUID, input, images, videoURL)
+	returnDTO, err := oh.service.RequestOrderReturn(ctx.Request.Context(), userUUID, orderUUID, input, images, videoURL)
 	if err != nil {
 		oh.cleanupFiles(savedFiles, uploadDir)
 		utils.ResponseError(ctx, err)
@@ -813,6 +819,12 @@ func (oh *OrderHandler) RequestOrderReturn(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /orders/{uuid}/return [get]
 func (oh *OrderHandler) GetOrderReturnDetails(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
 	var params v1dto.GetOrderByUUIDParam
 	if err := ctx.ShouldBindUri(&params); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
@@ -825,7 +837,7 @@ func (oh *OrderHandler) GetOrderReturnDetails(ctx *gin.Context) {
 		return
 	}
 
-	res, err := oh.service.GetOrderReturnDetails(ctx, orderUUID)
+	res, err := oh.service.GetOrderReturnDetails(ctx.Request.Context(), userUUID, orderUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -850,13 +862,19 @@ func (oh *OrderHandler) GetOrderReturnDetails(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /orders/returns [get]
 func (oh *OrderHandler) GetMyOrderReturns(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
 	var query v1dto.GetMyOrderReturnsQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
 	}
 
-	returns, total, err := oh.service.GetMyOrderReturns(ctx, query)
+	returns, total, err := oh.service.GetMyOrderReturns(ctx.Request.Context(), userUUID, query)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -898,13 +916,19 @@ func (oh *OrderHandler) cleanupFiles(fileNames []string, uploadDir string) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /admin/returns [get]
 func (oh *OrderHandler) AdminGetReturns(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
 	var query v1dto.AdminGetReturnsQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
 	}
 
-	returns, total, err := oh.service.AdminGetReturns(ctx, query)
+	returns, total, err := oh.service.AdminGetReturns(ctx.Request.Context(), userUUID, query)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -937,6 +961,12 @@ func (oh *OrderHandler) AdminGetReturns(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /admin/returns/{uuid} [get]
 func (oh *OrderHandler) AdminGetReturnDetail(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
 	var param v1dto.ReturnUUIDParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
@@ -949,7 +979,7 @@ func (oh *OrderHandler) AdminGetReturnDetail(ctx *gin.Context) {
 		return
 	}
 
-	res, err := oh.service.AdminGetReturnDetail(ctx, returnUUID)
+	res, err := oh.service.AdminGetReturnDetail(ctx.Request.Context(), userUUID, returnUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -973,6 +1003,12 @@ func (oh *OrderHandler) AdminGetReturnDetail(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /admin/returns/{uuid} [patch]
 func (oh *OrderHandler) AdminUpdateReturnStatus(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
 	var param v1dto.ReturnUUIDParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
@@ -991,7 +1027,7 @@ func (oh *OrderHandler) AdminUpdateReturnStatus(ctx *gin.Context) {
 		return
 	}
 
-	res, err := oh.service.AdminUpdateReturnStatus(ctx, returnUUID, input)
+	res, err := oh.service.AdminUpdateReturnStatus(ctx.Request.Context(), userUUID, returnUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -1015,6 +1051,12 @@ func (oh *OrderHandler) AdminUpdateReturnStatus(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /orders/{uuid}/return/cancel [patch]
 func (oh *OrderHandler) CancelOrderReturn(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
 	var params v1dto.GetOrderByUUIDParam
 	if err := ctx.ShouldBindUri(&params); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
@@ -1030,7 +1072,7 @@ func (oh *OrderHandler) CancelOrderReturn(ctx *gin.Context) {
 	var input v1dto.CancelOrderReturnInput
 	_ = ctx.ShouldBindJSON(&input)
 
-	res, err := oh.service.CancelOrderReturn(ctx, orderUUID, input)
+	res, err := oh.service.CancelOrderReturn(ctx.Request.Context(), userUUID, orderUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -1054,6 +1096,12 @@ func (oh *OrderHandler) CancelOrderReturn(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /orders/{uuid}/return/shipping-info [post]
 func (oh *OrderHandler) SubmitReturnShipping(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
 	var params v1dto.GetOrderByUUIDParam
 	if err := ctx.ShouldBindUri(&params); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
@@ -1072,7 +1120,7 @@ func (oh *OrderHandler) SubmitReturnShipping(ctx *gin.Context) {
 		return
 	}
 
-	res, err := oh.service.SubmitReturnShipping(ctx, orderUUID, input)
+	res, err := oh.service.SubmitReturnShipping(ctx.Request.Context(), userUUID, orderUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -1096,6 +1144,12 @@ func (oh *OrderHandler) SubmitReturnShipping(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /orders/{uuid}/return/bank-account [put]
 func (oh *OrderHandler) UpdateReturnBankAccount(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
 	var params v1dto.GetOrderByUUIDParam
 	if err := ctx.ShouldBindUri(&params); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
@@ -1114,7 +1168,7 @@ func (oh *OrderHandler) UpdateReturnBankAccount(ctx *gin.Context) {
 		return
 	}
 
-	res, err := oh.service.UpdateReturnBankAccount(ctx, orderUUID, input)
+	res, err := oh.service.UpdateReturnBankAccount(ctx.Request.Context(), userUUID, orderUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -1138,6 +1192,12 @@ func (oh *OrderHandler) UpdateReturnBankAccount(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /admin/returns/{uuid}/refund [post]
 func (oh *OrderHandler) AdminProcessReturnRefund(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
 	var param v1dto.ReturnUUIDParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
@@ -1153,7 +1213,7 @@ func (oh *OrderHandler) AdminProcessReturnRefund(ctx *gin.Context) {
 	var input v1dto.AdminReturnRefundInput
 	_ = ctx.ShouldBindJSON(&input)
 
-	res, err := oh.service.AdminProcessReturnRefund(ctx, returnUUID, input)
+	res, err := oh.service.AdminProcessReturnRefund(ctx.Request.Context(), userUUID, returnUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return

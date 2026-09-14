@@ -19,6 +19,8 @@ var (
 	_ repository.TrackingRepository     = (*MockTrackingRepository)(nil)
 	_ repository.UserRepository         = (*MockUserRepository)(nil)
 	_ repository.WebhookEventRepository = (*MockWebhookEventRepository)(nil)
+	_ repository.OrderReturnsRepository = (*MockOrderReturnsRepository)(nil)
+	_ repository.PaymentRepository      = (*MockPaymentRepository)(nil)
 )
 
 // =========================================================================
@@ -612,4 +614,185 @@ func (m *MockWebhookEventRepository) MarkProcessed(ctx context.Context, tx pgx.T
 	}
 	return nil
 }
+
+// =========================================================================
+// 9. MockOrderReturnsRepository
+// =========================================================================
+type MockOrderReturnsRepository struct {
+	CreateFunc                        func(ctx context.Context, tx pgx.Tx, params sqlc.CreateOrderReturnParams) (sqlc.OrderReturn, error)
+	GetActiveByOrderIDFunc            func(ctx context.Context, orderID int32) (sqlc.OrderReturn, error)
+	GetLatestByOrderIDFunc            func(ctx context.Context, orderID int32) (sqlc.OrderReturn, error)
+	GetReturnsFunc                    func(ctx context.Context, params sqlc.AdminGetReturnsParams) ([]sqlc.AdminGetReturnsRow, error)
+	GetByUUIDFunc                     func(ctx context.Context, returnUUID uuid.UUID) (sqlc.OrderReturn, error)
+	CountReturnsFunc                  func(ctx context.Context, params sqlc.AdminCountReturnsParams) (int64, error)
+	GetReturnsByUserIDFunc            func(ctx context.Context, params sqlc.GetReturnsByUserIDParams) ([]sqlc.GetReturnsByUserIDRow, error)
+	CountReturnsByUserIDFunc          func(ctx context.Context, params sqlc.CountReturnsByUserIDParams) (int64, error)
+	AdminGetReturnByUUIDFunc          func(ctx context.Context, returnUUID uuid.UUID) (sqlc.AdminGetReturnByUUIDRow, error)
+	AdminGetLatestReturnByOrderIDFunc func(ctx context.Context, orderID int32) (sqlc.AdminGetLatestReturnByOrderIDRow, error)
+	UpdateStatusFunc                  func(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReturnStatusParams) (sqlc.OrderReturn, error)
+	UpdateReturnShippingInfoFunc      func(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReturnShippingInfoParams) (sqlc.OrderReturn, error)
+	UpdateReturnBankAccountFunc       func(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReturnBankAccountParams) (sqlc.OrderReturn, error)
+}
+
+func (m *MockOrderReturnsRepository) Create(ctx context.Context, tx pgx.Tx, params sqlc.CreateOrderReturnParams) (sqlc.OrderReturn, error) {
+	if m.CreateFunc != nil {
+		return m.CreateFunc(ctx, tx, params)
+	}
+	return sqlc.OrderReturn{}, nil
+}
+
+func (m *MockOrderReturnsRepository) GetActiveByOrderID(ctx context.Context, orderID int32) (sqlc.OrderReturn, error) {
+	if m.GetActiveByOrderIDFunc != nil {
+		return m.GetActiveByOrderIDFunc(ctx, orderID)
+	}
+	return sqlc.OrderReturn{}, nil
+}
+
+func (m *MockOrderReturnsRepository) GetLatestByOrderID(ctx context.Context, orderID int32) (sqlc.OrderReturn, error) {
+	if m.GetLatestByOrderIDFunc != nil {
+		return m.GetLatestByOrderIDFunc(ctx, orderID)
+	}
+	return sqlc.OrderReturn{}, nil
+}
+
+func (m *MockOrderReturnsRepository) GetReturns(ctx context.Context, params sqlc.AdminGetReturnsParams) ([]sqlc.AdminGetReturnsRow, error) {
+	if m.GetReturnsFunc != nil {
+		return m.GetReturnsFunc(ctx, params)
+	}
+	return nil, nil
+}
+
+func (m *MockOrderReturnsRepository) GetByUUID(ctx context.Context, returnUUID uuid.UUID) (sqlc.OrderReturn, error) {
+	if m.GetByUUIDFunc != nil {
+		return m.GetByUUIDFunc(ctx, returnUUID)
+	}
+	return sqlc.OrderReturn{}, nil
+}
+
+func (m *MockOrderReturnsRepository) CountReturns(ctx context.Context, params sqlc.AdminCountReturnsParams) (int64, error) {
+	if m.CountReturnsFunc != nil {
+		return m.CountReturnsFunc(ctx, params)
+	}
+	return 0, nil
+}
+
+func (m *MockOrderReturnsRepository) GetReturnsByUserID(ctx context.Context, params sqlc.GetReturnsByUserIDParams) ([]sqlc.GetReturnsByUserIDRow, error) {
+	if m.GetReturnsByUserIDFunc != nil {
+		return m.GetReturnsByUserIDFunc(ctx, params)
+	}
+	return nil, nil
+}
+
+func (m *MockOrderReturnsRepository) CountReturnsByUserID(ctx context.Context, params sqlc.CountReturnsByUserIDParams) (int64, error) {
+	if m.CountReturnsByUserIDFunc != nil {
+		return m.CountReturnsByUserIDFunc(ctx, params)
+	}
+	return 0, nil
+}
+
+func (m *MockOrderReturnsRepository) AdminGetReturnByUUID(ctx context.Context, returnUUID uuid.UUID) (sqlc.AdminGetReturnByUUIDRow, error) {
+	if m.AdminGetReturnByUUIDFunc != nil {
+		return m.AdminGetReturnByUUIDFunc(ctx, returnUUID)
+	}
+	return sqlc.AdminGetReturnByUUIDRow{}, nil
+}
+
+func (m *MockOrderReturnsRepository) AdminGetLatestReturnByOrderID(ctx context.Context, orderID int32) (sqlc.AdminGetLatestReturnByOrderIDRow, error) {
+	if m.AdminGetLatestReturnByOrderIDFunc != nil {
+		return m.AdminGetLatestReturnByOrderIDFunc(ctx, orderID)
+	}
+	return sqlc.AdminGetLatestReturnByOrderIDRow{}, nil
+}
+
+func (m *MockOrderReturnsRepository) UpdateStatus(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReturnStatusParams) (sqlc.OrderReturn, error) {
+	if m.UpdateStatusFunc != nil {
+		return m.UpdateStatusFunc(ctx, tx, params)
+	}
+	return sqlc.OrderReturn{}, nil
+}
+
+func (m *MockOrderReturnsRepository) UpdateReturnShippingInfo(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReturnShippingInfoParams) (sqlc.OrderReturn, error) {
+	if m.UpdateReturnShippingInfoFunc != nil {
+		return m.UpdateReturnShippingInfoFunc(ctx, tx, params)
+	}
+	return sqlc.OrderReturn{}, nil
+}
+
+func (m *MockOrderReturnsRepository) UpdateReturnBankAccount(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReturnBankAccountParams) (sqlc.OrderReturn, error) {
+	if m.UpdateReturnBankAccountFunc != nil {
+		return m.UpdateReturnBankAccountFunc(ctx, tx, params)
+	}
+	return sqlc.OrderReturn{}, nil
+}
+
+// =========================================================================
+// 10. MockPaymentRepository
+// =========================================================================
+type MockPaymentRepository struct {
+	CreateFunc                          func(ctx context.Context, tx pgx.Tx, params sqlc.CreatePaymentTransactionParams) (sqlc.PaymentTransaction, error)
+	GetByIdempotencyKeyFunc             func(ctx context.Context, tx pgx.Tx, idempotencyKey string) (sqlc.PaymentTransaction, error)
+	GetByTxnRefFunc                     func(ctx context.Context, tx pgx.Tx, provider, txnRef string) (sqlc.PaymentTransaction, error)
+	GetByProviderTxnIDFunc              func(ctx context.Context, tx pgx.Tx, provider, providerTxnID string) (sqlc.PaymentTransaction, error)
+	GetByOrderIDFunc                    func(ctx context.Context, tx pgx.Tx, orderID int32) ([]sqlc.PaymentTransaction, error)
+	UpdateStatusAtomicallyFunc          func(ctx context.Context, tx pgx.Tx, params sqlc.UpdatePaymentStatusAtomicallyParams) (sqlc.PaymentTransaction, error)
+	CreateRefundFunc                    func(ctx context.Context, tx pgx.Tx, params sqlc.CreateRefundTransactionParams) (sqlc.PaymentTransaction, error)
+	GetPendingTransactionsOlderThanFunc func(ctx context.Context, tx pgx.Tx, params sqlc.GetPendingTransactionsOlderThanParams) ([]sqlc.GetPendingTransactionsOlderThanRow, error)
+}
+
+func (m *MockPaymentRepository) Create(ctx context.Context, tx pgx.Tx, params sqlc.CreatePaymentTransactionParams) (sqlc.PaymentTransaction, error) {
+	if m.CreateFunc != nil {
+		return m.CreateFunc(ctx, tx, params)
+	}
+	return sqlc.PaymentTransaction{}, nil
+}
+
+func (m *MockPaymentRepository) GetByIdempotencyKey(ctx context.Context, tx pgx.Tx, idempotencyKey string) (sqlc.PaymentTransaction, error) {
+	if m.GetByIdempotencyKeyFunc != nil {
+		return m.GetByIdempotencyKeyFunc(ctx, tx, idempotencyKey)
+	}
+	return sqlc.PaymentTransaction{}, nil
+}
+
+func (m *MockPaymentRepository) GetByTxnRef(ctx context.Context, tx pgx.Tx, provider, txnRef string) (sqlc.PaymentTransaction, error) {
+	if m.GetByTxnRefFunc != nil {
+		return m.GetByTxnRefFunc(ctx, tx, provider, txnRef)
+	}
+	return sqlc.PaymentTransaction{}, nil
+}
+
+func (m *MockPaymentRepository) GetByProviderTxnID(ctx context.Context, tx pgx.Tx, provider, providerTxnID string) (sqlc.PaymentTransaction, error) {
+	if m.GetByProviderTxnIDFunc != nil {
+		return m.GetByProviderTxnIDFunc(ctx, tx, provider, providerTxnID)
+	}
+	return sqlc.PaymentTransaction{}, nil
+}
+
+func (m *MockPaymentRepository) GetByOrderID(ctx context.Context, tx pgx.Tx, orderID int32) ([]sqlc.PaymentTransaction, error) {
+	if m.GetByOrderIDFunc != nil {
+		return m.GetByOrderIDFunc(ctx, tx, orderID)
+	}
+	return nil, nil
+}
+
+func (m *MockPaymentRepository) UpdateStatusAtomically(ctx context.Context, tx pgx.Tx, params sqlc.UpdatePaymentStatusAtomicallyParams) (sqlc.PaymentTransaction, error) {
+	if m.UpdateStatusAtomicallyFunc != nil {
+		return m.UpdateStatusAtomicallyFunc(ctx, tx, params)
+	}
+	return sqlc.PaymentTransaction{}, nil
+}
+
+func (m *MockPaymentRepository) CreateRefund(ctx context.Context, tx pgx.Tx, params sqlc.CreateRefundTransactionParams) (sqlc.PaymentTransaction, error) {
+	if m.CreateRefundFunc != nil {
+		return m.CreateRefundFunc(ctx, tx, params)
+	}
+	return sqlc.PaymentTransaction{}, nil
+}
+
+func (m *MockPaymentRepository) GetPendingTransactionsOlderThan(ctx context.Context, tx pgx.Tx, params sqlc.GetPendingTransactionsOlderThanParams) ([]sqlc.GetPendingTransactionsOlderThanRow, error) {
+	if m.GetPendingTransactionsOlderThanFunc != nil {
+		return m.GetPendingTransactionsOlderThanFunc(ctx, tx, params)
+	}
+	return nil, nil
+}
+
 

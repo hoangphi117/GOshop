@@ -7,6 +7,7 @@ import (
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
 	v1service "goshop/internal/service/v1"
+	"goshop/pkg/payment"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/shipping"
 
@@ -23,6 +24,7 @@ var (
 	_ v1service.CartService         = (*MockCartService)(nil)
 	_ rabbitmq.RabbitMQService      = (*MockRabbitMQService)(nil)
 	_ shipping.ShippingProvider     = (*MockShippingProvider)(nil)
+	_ payment.PaymentProvider       = (*MockPaymentProvider)(nil)
 )
 
 type MockOrderPricingService struct {
@@ -272,4 +274,51 @@ func (m *MockShippingProvider) GetPrintBillURL(ctx context.Context, shippingCode
 	}
 	return &shipping.PrintBillResponse{}, nil
 }
+
+// =========================================================================
+// MockPaymentProvider
+// =========================================================================
+type MockPaymentProvider struct {
+	CreatePaymentURLFunc       func(ctx context.Context, req payment.CreatePaymentRequest) (payment.CreatePaymentResponse, error)
+	VerifyWebhookFunc          func(payload []byte, headers map[string]string) error
+	ParseWebhookPayloadFunc    func(payload []byte) (payment.WebhookResult, error)
+	QueryTransactionStatusFunc func(ctx context.Context, providerTxnID string) (payment.TransactionStatus, error)
+	RefundFunc                 func(ctx context.Context, req payment.RefundRequest) (payment.RefundResponse, error)
+}
+
+func (m *MockPaymentProvider) CreatePaymentURL(ctx context.Context, req payment.CreatePaymentRequest) (payment.CreatePaymentResponse, error) {
+	if m.CreatePaymentURLFunc != nil {
+		return m.CreatePaymentURLFunc(ctx, req)
+	}
+	return payment.CreatePaymentResponse{}, nil
+}
+
+func (m *MockPaymentProvider) VerifyWebhook(payload []byte, headers map[string]string) error {
+	if m.VerifyWebhookFunc != nil {
+		return m.VerifyWebhookFunc(payload, headers)
+	}
+	return nil
+}
+
+func (m *MockPaymentProvider) ParseWebhookPayload(payload []byte) (payment.WebhookResult, error) {
+	if m.ParseWebhookPayloadFunc != nil {
+		return m.ParseWebhookPayloadFunc(payload)
+	}
+	return payment.WebhookResult{}, nil
+}
+
+func (m *MockPaymentProvider) QueryTransactionStatus(ctx context.Context, providerTxnID string) (payment.TransactionStatus, error) {
+	if m.QueryTransactionStatusFunc != nil {
+		return m.QueryTransactionStatusFunc(ctx, providerTxnID)
+	}
+	return payment.TxnStatusSuccess, nil
+}
+
+func (m *MockPaymentProvider) Refund(ctx context.Context, req payment.RefundRequest) (payment.RefundResponse, error) {
+	if m.RefundFunc != nil {
+		return m.RefundFunc(ctx, req)
+	}
+	return payment.RefundResponse{}, nil
+}
+
 
