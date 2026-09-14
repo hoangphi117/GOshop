@@ -9,7 +9,6 @@ import (
 	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
-	"goshop/internal/middleware"
 	"goshop/internal/repository"
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
@@ -23,7 +22,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/redis/go-redis/v9"
@@ -126,14 +124,6 @@ func NewOrderService(txManager db.TxManager,
 		shippingFactory:     shippingFactory,
 		rabbitmq:            rabbitmq,
 	}
-}
-
-func (s *orderService) getUser(ctx *gin.Context) (sqlc.User, error) {
-	return middleware.GetUserFromContext(ctx, s.userRepo)
-}
-
-func (s *orderService) getUserUUID(ctx *gin.Context) (uuid.UUID, error) {
-	return middleware.GetUserUUID(ctx)
 }
 
 const base32Alphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
