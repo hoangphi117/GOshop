@@ -36,7 +36,7 @@ func (h *BannerHandler) GetActiveBanners(ctx *gin.Context) {
 		return
 	}
 
-	banners, err := h.service.GetActiveBanners(ctx, query.Position)
+	banners, err := h.service.GetActiveBanners(ctx.Request.Context(), query.Position)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -69,7 +69,7 @@ func (h *BannerHandler) AdminGetBanners(ctx *gin.Context) {
 		return
 	}
 
-	banners, total, err := h.service.AdminGetBanners(ctx, query)
+	banners, total, err := h.service.AdminGetBanners(ctx.Request.Context(), query)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -107,7 +107,7 @@ func (h *BannerHandler) AdminGetBannerByUUID(ctx *gin.Context) {
 		return
 	}
 
-	banner, err := h.service.AdminGetBannerByUUID(ctx, bannerUUID)
+	banner, err := h.service.AdminGetBannerByUUID(ctx.Request.Context(), bannerUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -136,7 +136,7 @@ func (h *BannerHandler) AdminCreateBanner(ctx *gin.Context) {
 		return
 	}
 
-	banner, err := h.service.AdminCreateBanner(ctx, input)
+	banner, err := h.service.AdminCreateBanner(ctx.Request.Context(), input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -172,7 +172,7 @@ func (h *BannerHandler) AdminUpdateBanner(ctx *gin.Context) {
 		return
 	}
 
-	banner, err := h.service.AdminUpdateBanner(ctx, bannerUUID, input)
+	banner, err := h.service.AdminUpdateBanner(ctx.Request.Context(), bannerUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -208,7 +208,7 @@ func (h *BannerHandler) AdminUpdateBannerStatus(ctx *gin.Context) {
 		return
 	}
 
-	banner, err := h.service.AdminUpdateBannerStatus(ctx, bannerUUID, input)
+	banner, err := h.service.AdminUpdateBannerStatus(ctx.Request.Context(), bannerUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -236,7 +236,7 @@ func (h *BannerHandler) AdminSoftDeleteBanner(ctx *gin.Context) {
 		return
 	}
 
-	if err := h.service.AdminSoftDeleteBanner(ctx, bannerUUID); err != nil {
+	if err := h.service.AdminSoftDeleteBanner(ctx.Request.Context(), bannerUUID); err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
@@ -263,7 +263,7 @@ func (h *BannerHandler) AdminRestoreBanner(ctx *gin.Context) {
 		return
 	}
 
-	banner, err := h.service.AdminRestoreBanner(ctx, bannerUUID)
+	banner, err := h.service.AdminRestoreBanner(ctx.Request.Context(), bannerUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -291,7 +291,7 @@ func (h *BannerHandler) AdminTrashBanner(ctx *gin.Context) {
 		return
 	}
 
-	if err := h.service.AdminTrashBanner(ctx, bannerUUID); err != nil {
+	if err := h.service.AdminTrashBanner(ctx.Request.Context(), bannerUUID); err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}

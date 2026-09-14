@@ -1058,5 +1058,89 @@ func (m *MockReviewRepository) Reply(ctx context.Context, tx pgx.Tx, reviewID in
 	return sqlc.ProductReview{}, nil
 }
 
+// =========================================================================
+// 12. MockBannerRepository
+// =========================================================================
 
+type MockBannerRepository struct {
+	GetActiveByPositionFunc func(ctx context.Context, position string) ([]sqlc.GetActiveBannersByPositionRow, error)
+	CreateFunc              func(ctx context.Context, params sqlc.CreateBannerParams) (sqlc.Banner, error)
+	GetByUUIDFunc           func(ctx context.Context, bannerUUID uuid.UUID) (sqlc.Banner, error)
+	AdminListFunc           func(ctx context.Context, params sqlc.AdminListBannersParams) ([]sqlc.Banner, error)
+	AdminCountFunc          func(ctx context.Context, params sqlc.AdminCountBannersParams) (int64, error)
+	UpdateFunc              func(ctx context.Context, params sqlc.UpdateBannerParams) (sqlc.Banner, error)
+	UpdateStatusFunc        func(ctx context.Context, bannerUUID uuid.UUID, isActive bool) (sqlc.Banner, error)
+	SoftDeleteFunc          func(ctx context.Context, bannerUUID uuid.UUID) (sqlc.Banner, error)
+	RestoreFunc             func(ctx context.Context, bannerUUID uuid.UUID) (sqlc.Banner, error)
+	TrashFunc               func(ctx context.Context, bannerUUID uuid.UUID) error
+}
 
+func (m *MockBannerRepository) GetActiveByPosition(ctx context.Context, position string) ([]sqlc.GetActiveBannersByPositionRow, error) {
+	if m.GetActiveByPositionFunc != nil {
+		return m.GetActiveByPositionFunc(ctx, position)
+	}
+	return nil, nil
+}
+
+func (m *MockBannerRepository) Create(ctx context.Context, params sqlc.CreateBannerParams) (sqlc.Banner, error) {
+	if m.CreateFunc != nil {
+		return m.CreateFunc(ctx, params)
+	}
+	return sqlc.Banner{}, nil
+}
+
+func (m *MockBannerRepository) GetByUUID(ctx context.Context, bannerUUID uuid.UUID) (sqlc.Banner, error) {
+	if m.GetByUUIDFunc != nil {
+		return m.GetByUUIDFunc(ctx, bannerUUID)
+	}
+	return sqlc.Banner{}, nil
+}
+
+func (m *MockBannerRepository) AdminList(ctx context.Context, params sqlc.AdminListBannersParams) ([]sqlc.Banner, error) {
+	if m.AdminListFunc != nil {
+		return m.AdminListFunc(ctx, params)
+	}
+	return nil, nil
+}
+
+func (m *MockBannerRepository) AdminCount(ctx context.Context, params sqlc.AdminCountBannersParams) (int64, error) {
+	if m.AdminCountFunc != nil {
+		return m.AdminCountFunc(ctx, params)
+	}
+	return 0, nil
+}
+
+func (m *MockBannerRepository) Update(ctx context.Context, params sqlc.UpdateBannerParams) (sqlc.Banner, error) {
+	if m.UpdateFunc != nil {
+		return m.UpdateFunc(ctx, params)
+	}
+	return sqlc.Banner{}, nil
+}
+
+func (m *MockBannerRepository) UpdateStatus(ctx context.Context, bannerUUID uuid.UUID, isActive bool) (sqlc.Banner, error) {
+	if m.UpdateStatusFunc != nil {
+		return m.UpdateStatusFunc(ctx, bannerUUID, isActive)
+	}
+	return sqlc.Banner{}, nil
+}
+
+func (m *MockBannerRepository) SoftDelete(ctx context.Context, bannerUUID uuid.UUID) (sqlc.Banner, error) {
+	if m.SoftDeleteFunc != nil {
+		return m.SoftDeleteFunc(ctx, bannerUUID)
+	}
+	return sqlc.Banner{}, nil
+}
+
+func (m *MockBannerRepository) Restore(ctx context.Context, bannerUUID uuid.UUID) (sqlc.Banner, error) {
+	if m.RestoreFunc != nil {
+		return m.RestoreFunc(ctx, bannerUUID)
+	}
+	return sqlc.Banner{}, nil
+}
+
+func (m *MockBannerRepository) Trash(ctx context.Context, bannerUUID uuid.UUID) error {
+	if m.TrashFunc != nil {
+		return m.TrashFunc(ctx, bannerUUID)
+	}
+	return nil
+}

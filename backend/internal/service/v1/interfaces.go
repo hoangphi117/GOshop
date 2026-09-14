@@ -173,13 +173,13 @@ type NotificationService interface {
 }
 
 type BannerService interface {
-	GetActiveBanners(ctx *gin.Context, position string) ([]v1dto.BannerDTO, error)
-	AdminGetBanners(ctx *gin.Context, query v1dto.AdminGetBannersQuery) ([]v1dto.AdminBannerDetailDTO, int64, error)
-	AdminGetBannerByUUID(ctx *gin.Context, bannerUUID uuid.UUID) (v1dto.AdminBannerDetailDTO, error)
-	AdminCreateBanner(ctx *gin.Context, input v1dto.CreateBannerRequest) (v1dto.AdminBannerDetailDTO, error)
-	AdminUpdateBanner(ctx *gin.Context, bannerUUID uuid.UUID, input v1dto.UpdateBannerRequest) (v1dto.AdminBannerDetailDTO, error)
-	AdminUpdateBannerStatus(ctx *gin.Context, bannerUUID uuid.UUID, input v1dto.UpdateBannerStatusRequest) (v1dto.AdminBannerDetailDTO, error)
-	AdminSoftDeleteBanner(ctx *gin.Context, bannerUUID uuid.UUID) error
-	AdminRestoreBanner(ctx *gin.Context, bannerUUID uuid.UUID) (v1dto.AdminBannerDetailDTO, error)
-	AdminTrashBanner(ctx *gin.Context, bannerUUID uuid.UUID) error
+	GetActiveBanners(ctx context.Context, position string) ([]v1dto.BannerDTO, error)
+	AdminGetBanners(ctx context.Context, query v1dto.AdminGetBannersQuery) ([]v1dto.AdminBannerDetailDTO, int64, error)
+	AdminGetBannerByUUID(ctx context.Context, bannerUUID uuid.UUID) (v1dto.AdminBannerDetailDTO, error)
+	AdminCreateBanner(ctx context.Context, input v1dto.CreateBannerRequest) (v1dto.AdminBannerDetailDTO, error)
+	AdminUpdateBanner(ctx context.Context, bannerUUID uuid.UUID, input v1dto.UpdateBannerRequest) (v1dto.AdminBannerDetailDTO, error)
+	AdminUpdateBannerStatus(ctx context.Context, bannerUUID uuid.UUID, input v1dto.UpdateBannerStatusRequest) (v1dto.AdminBannerDetailDTO, error)
+	AdminSoftDeleteBanner(ctx context.Context, bannerUUID uuid.UUID) error
+	AdminRestoreBanner(ctx context.Context, bannerUUID uuid.UUID) (v1dto.AdminBannerDetailDTO, error)
+	AdminTrashBanner(ctx context.Context, bannerUUID uuid.UUID) error
 }

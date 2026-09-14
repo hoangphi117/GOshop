@@ -1,6 +1,7 @@
 package v1service
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -14,10 +15,16 @@ import (
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 
-	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+)
+
+const (
+	defaultBannerPosition = "home_main"
+	bannerCacheKeyPrefix  = "banners:active:"
+	bannerCachePattern    = "banners:active:*"
+	bannerCacheTTL        = 10 * time.Minute
 )
 
 type bannerService struct {
@@ -25,6 +32,7 @@ type bannerService struct {
 	cache      cache.RedisCacheService
 }
 
+// NewBannerService creates a new instance of BannerService.
 func NewBannerService(bannerRepo repository.BannerRepository, cache cache.RedisCacheService) BannerService {
 	return &bannerService{
 		bannerRepo: bannerRepo,
@@ -32,21 +40,20 @@ func NewBannerService(bannerRepo repository.BannerRepository, cache cache.RedisC
 	}
 }
 
-func (s *bannerService) GetActiveBanners(ctx *gin.Context, position string) ([]v1dto.BannerDTO, error) {
-	reqCtx := ctx.Request.Context()
+// ── Public Endpoints ──────────────────────────────────────────────
 
-	position = strings.ToLower(strings.TrimSpace(position))
-	if position == "" {
-		position = "home_main"
+func (s *bannerService) GetActiveBanners(ctx context.Context, position string) ([]v1dto.BannerDTO, error) {
+	normPos := s.normalizePosition(position)
+	cacheKey := fmt.Sprintf("%s%s", bannerCacheKeyPrefix, normPos)
+
+	if s.cache != nil {
+		var cachedBanners []v1dto.BannerDTO
+		if err := s.cache.Get(cacheKey, &cachedBanners); err == nil && len(cachedBanners) > 0 {
+			return cachedBanners, nil
+		}
 	}
 
-	cacheKey := fmt.Sprintf("banners:active:%s", position)
-	var cachedBanners []v1dto.BannerDTO
-	if err := s.cache.Get(cacheKey, &cachedBanners); err == nil && len(cachedBanners) > 0 {
-		return cachedBanners, nil
-	}
-
-	rows, err := s.bannerRepo.GetActiveByPosition(reqCtx, position)
+	rows, err := s.bannerRepo.GetActiveByPosition(ctx, normPos)
 	if err != nil {
 		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to query active banners", err)
 	}
@@ -56,14 +63,16 @@ func (s *bannerService) GetActiveBanners(ctx *gin.Context, position string) ([]v
 		banners[i] = v1dto.MapBannerToDTO(r)
 	}
 
-	_ = s.cache.Set(cacheKey, banners, 10*time.Minute)
+	if s.cache != nil {
+		_ = s.cache.Set(cacheKey, banners, bannerCacheTTL)
+	}
 
 	return banners, nil
 }
 
-func (s *bannerService) AdminGetBanners(ctx *gin.Context, query v1dto.AdminGetBannersQuery) ([]v1dto.AdminBannerDetailDTO, int64, error) {
-	reqCtx := ctx.Request.Context()
+// ── Admin Endpoints ───────────────────────────────────────────────
 
+func (s *bannerService) AdminGetBanners(ctx context.Context, query v1dto.AdminGetBannersQuery) ([]v1dto.AdminBannerDetailDTO, int64, error) {
 	page := query.Page
 	if page <= 0 {
 		page = 1
@@ -100,12 +109,12 @@ func (s *bannerService) AdminGetBanners(ctx *gin.Context, query v1dto.AdminGetBa
 		Deleted:  deleted,
 	}
 
-	rows, err := s.bannerRepo.AdminList(reqCtx, params)
+	rows, err := s.bannerRepo.AdminList(ctx, params)
 	if err != nil {
 		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "failed to list banners", err)
 	}
 
-	total, err := s.bannerRepo.AdminCount(reqCtx, countParams)
+	total, err := s.bannerRepo.AdminCount(ctx, countParams)
 	if err != nil {
 		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "failed to count banners", err)
 	}
@@ -118,25 +127,18 @@ func (s *bannerService) AdminGetBanners(ctx *gin.Context, query v1dto.AdminGetBa
 	return res, total, nil
 }
 
-func (s *bannerService) AdminGetBannerByUUID(ctx *gin.Context, bannerUUID uuid.UUID) (v1dto.AdminBannerDetailDTO, error) {
-	reqCtx := ctx.Request.Context()
-
-	banner, err := s.bannerRepo.GetByUUID(reqCtx, bannerUUID)
+func (s *bannerService) AdminGetBannerByUUID(ctx context.Context, bannerUUID uuid.UUID) (v1dto.AdminBannerDetailDTO, error) {
+	banner, err := s.getBanner(ctx, bannerUUID)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) || errors.Is(err, sql.ErrNoRows) {
-			return v1dto.AdminBannerDetailDTO{}, utils.NewError(utils.ErrCodeNotFound, "Banner not found")
-		}
-		return v1dto.AdminBannerDetailDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to get banner", err)
+		return v1dto.AdminBannerDetailDTO{}, err
 	}
 
 	return v1dto.MapAdminBannerDetailDTO(banner), nil
 }
 
-func (s *bannerService) AdminCreateBanner(ctx *gin.Context, input v1dto.CreateBannerRequest) (v1dto.AdminBannerDetailDTO, error) {
-	reqCtx := ctx.Request.Context()
-
-	if input.StartAt != nil && input.EndAt != nil && input.EndAt.Before(*input.StartAt) {
-		return v1dto.AdminBannerDetailDTO{}, utils.NewError(utils.ErrCodeBadRequest, "End date must be after start date")
+func (s *bannerService) AdminCreateBanner(ctx context.Context, input v1dto.CreateBannerRequest) (v1dto.AdminBannerDetailDTO, error) {
+	if err := s.validateDateRange(input.StartAt, input.EndAt); err != nil {
+		return v1dto.AdminBannerDetailDTO{}, err
 	}
 
 	isActive := true
@@ -144,26 +146,18 @@ func (s *bannerService) AdminCreateBanner(ctx *gin.Context, input v1dto.CreateBa
 		isActive = *input.IsActive
 	}
 
-	var startAt, endAt pgtype.Timestamptz
-	if input.StartAt != nil {
-		startAt = pgtype.Timestamptz{Time: *input.StartAt, Valid: true}
-	}
-	if input.EndAt != nil {
-		endAt = pgtype.Timestamptz{Time: *input.EndAt, Valid: true}
-	}
-
 	params := sqlc.CreateBannerParams{
-		BannerTitle:     strings.TrimSpace(input.Title),
-		BannerImageUrl:  strings.TrimSpace(input.ImageURL),
-		BannerLinkUrl:   input.LinkURL,
-		BannerPosition:  strings.ToLower(strings.TrimSpace(input.Position)),
-		BannerOrder:     input.Order,
-		BannerIsActive:  isActive,
-		BannerStartAt:   startAt,
-		BannerEndAt:     endAt,
+		BannerTitle:    strings.TrimSpace(input.Title),
+		BannerImageUrl: strings.TrimSpace(input.ImageURL),
+		BannerLinkUrl:  input.LinkURL,
+		BannerPosition: s.normalizePosition(input.Position),
+		BannerOrder:    input.Order,
+		BannerIsActive: isActive,
+		BannerStartAt:  s.toPgTimestamptz(input.StartAt),
+		BannerEndAt:    s.toPgTimestamptz(input.EndAt),
 	}
 
-	banner, err := s.bannerRepo.Create(reqCtx, params)
+	banner, err := s.bannerRepo.Create(ctx, params)
 	if err != nil {
 		return v1dto.AdminBannerDetailDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to create banner", err)
 	}
@@ -173,19 +167,9 @@ func (s *bannerService) AdminCreateBanner(ctx *gin.Context, input v1dto.CreateBa
 	return v1dto.MapAdminBannerDetailDTO(banner), nil
 }
 
-func (s *bannerService) AdminUpdateBanner(ctx *gin.Context, bannerUUID uuid.UUID, input v1dto.UpdateBannerRequest) (v1dto.AdminBannerDetailDTO, error) {
-	reqCtx := ctx.Request.Context()
-
-	if input.StartAt != nil && input.EndAt != nil && input.EndAt.Before(*input.StartAt) {
-		return v1dto.AdminBannerDetailDTO{}, utils.NewError(utils.ErrCodeBadRequest, "End date must be after start date")
-	}
-
-	var startAt, endAt pgtype.Timestamptz
-	if input.StartAt != nil {
-		startAt = pgtype.Timestamptz{Time: *input.StartAt, Valid: true}
-	}
-	if input.EndAt != nil {
-		endAt = pgtype.Timestamptz{Time: *input.EndAt, Valid: true}
+func (s *bannerService) AdminUpdateBanner(ctx context.Context, bannerUUID uuid.UUID, input v1dto.UpdateBannerRequest) (v1dto.AdminBannerDetailDTO, error) {
+	if err := s.validateDateRange(input.StartAt, input.EndAt); err != nil {
+		return v1dto.AdminBannerDetailDTO{}, err
 	}
 
 	var pos *string
@@ -202,11 +186,11 @@ func (s *bannerService) AdminUpdateBanner(ctx *gin.Context, bannerUUID uuid.UUID
 		BannerPosition: pos,
 		BannerOrder:    input.Order,
 		BannerIsActive: input.IsActive,
-		BannerStartAt:  startAt,
-		BannerEndAt:    endAt,
+		BannerStartAt:  s.toPgTimestamptz(input.StartAt),
+		BannerEndAt:    s.toPgTimestamptz(input.EndAt),
 	}
 
-	banner, err := s.bannerRepo.Update(reqCtx, params)
+	banner, err := s.bannerRepo.Update(ctx, params)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) || errors.Is(err, sql.ErrNoRows) {
 			return v1dto.AdminBannerDetailDTO{}, utils.NewError(utils.ErrCodeNotFound, "Banner not found or has been deleted")
@@ -219,10 +203,8 @@ func (s *bannerService) AdminUpdateBanner(ctx *gin.Context, bannerUUID uuid.UUID
 	return v1dto.MapAdminBannerDetailDTO(banner), nil
 }
 
-func (s *bannerService) AdminUpdateBannerStatus(ctx *gin.Context, bannerUUID uuid.UUID, input v1dto.UpdateBannerStatusRequest) (v1dto.AdminBannerDetailDTO, error) {
-	reqCtx := ctx.Request.Context()
-
-	banner, err := s.bannerRepo.UpdateStatus(reqCtx, bannerUUID, *input.IsActive)
+func (s *bannerService) AdminUpdateBannerStatus(ctx context.Context, bannerUUID uuid.UUID, input v1dto.UpdateBannerStatusRequest) (v1dto.AdminBannerDetailDTO, error) {
+	banner, err := s.bannerRepo.UpdateStatus(ctx, bannerUUID, *input.IsActive)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) || errors.Is(err, sql.ErrNoRows) {
 			return v1dto.AdminBannerDetailDTO{}, utils.NewError(utils.ErrCodeNotFound, "Banner not found or has been deleted")
@@ -235,10 +217,8 @@ func (s *bannerService) AdminUpdateBannerStatus(ctx *gin.Context, bannerUUID uui
 	return v1dto.MapAdminBannerDetailDTO(banner), nil
 }
 
-func (s *bannerService) AdminSoftDeleteBanner(ctx *gin.Context, bannerUUID uuid.UUID) error {
-	reqCtx := ctx.Request.Context()
-
-	_, err := s.bannerRepo.SoftDelete(reqCtx, bannerUUID)
+func (s *bannerService) AdminSoftDeleteBanner(ctx context.Context, bannerUUID uuid.UUID) error {
+	_, err := s.bannerRepo.SoftDelete(ctx, bannerUUID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) || errors.Is(err, sql.ErrNoRows) {
 			return utils.NewError(utils.ErrCodeNotFound, "Banner not found or already deleted")
@@ -251,10 +231,8 @@ func (s *bannerService) AdminSoftDeleteBanner(ctx *gin.Context, bannerUUID uuid.
 	return nil
 }
 
-func (s *bannerService) AdminRestoreBanner(ctx *gin.Context, bannerUUID uuid.UUID) (v1dto.AdminBannerDetailDTO, error) {
-	reqCtx := ctx.Request.Context()
-
-	banner, err := s.bannerRepo.Restore(reqCtx, bannerUUID)
+func (s *bannerService) AdminRestoreBanner(ctx context.Context, bannerUUID uuid.UUID) (v1dto.AdminBannerDetailDTO, error) {
+	banner, err := s.bannerRepo.Restore(ctx, bannerUUID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) || errors.Is(err, sql.ErrNoRows) {
 			return v1dto.AdminBannerDetailDTO{}, utils.NewError(utils.ErrCodeNotFound, "Banner not found or not in trash")
@@ -267,10 +245,8 @@ func (s *bannerService) AdminRestoreBanner(ctx *gin.Context, bannerUUID uuid.UUI
 	return v1dto.MapAdminBannerDetailDTO(banner), nil
 }
 
-func (s *bannerService) AdminTrashBanner(ctx *gin.Context, bannerUUID uuid.UUID) error {
-	reqCtx := ctx.Request.Context()
-
-	err := s.bannerRepo.Trash(reqCtx, bannerUUID)
+func (s *bannerService) AdminTrashBanner(ctx context.Context, bannerUUID uuid.UUID) error {
+	err := s.bannerRepo.Trash(ctx, bannerUUID)
 	if err != nil {
 		return utils.WrapError(utils.ErrCodeInternal, "failed to permanently delete banner", err)
 	}
@@ -280,8 +256,46 @@ func (s *bannerService) AdminTrashBanner(ctx *gin.Context, bannerUUID uuid.UUID)
 	return nil
 }
 
+// ── Private SRP Helper Methods ────────────────────────────────────
+
+func (s *bannerService) getBanner(ctx context.Context, bannerUUID uuid.UUID) (sqlc.Banner, error) {
+	banner, err := s.bannerRepo.GetByUUID(ctx, bannerUUID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) || errors.Is(err, sql.ErrNoRows) {
+			return sqlc.Banner{}, utils.NewError(utils.ErrCodeNotFound, "Banner not found")
+		}
+		return sqlc.Banner{}, utils.WrapError(utils.ErrCodeInternal, "failed to get banner", err)
+	}
+	return banner, nil
+}
+
+func (s *bannerService) normalizePosition(position string) string {
+	pos := strings.ToLower(strings.TrimSpace(position))
+	if pos == "" {
+		return defaultBannerPosition
+	}
+	return pos
+}
+
+func (s *bannerService) validateDateRange(startAt, endAt *time.Time) error {
+	if startAt != nil && endAt != nil && endAt.Before(*startAt) {
+		return utils.NewError(utils.ErrCodeBadRequest, "End date must be after start date")
+	}
+	return nil
+}
+
+func (s *bannerService) toPgTimestamptz(t *time.Time) pgtype.Timestamptz {
+	if t == nil {
+		return pgtype.Timestamptz{}
+	}
+	return pgtype.Timestamptz{Time: *t, Valid: true}
+}
+
 func (s *bannerService) invalidateCache() {
-	if err := s.cache.Clear("banners:active:*"); err != nil {
+	if s.cache == nil {
+		return
+	}
+	if err := s.cache.Clear(bannerCachePattern); err != nil {
 		logger.Log.Warn().Err(err).Msg("Failed to clear banners cache")
 	}
 }
