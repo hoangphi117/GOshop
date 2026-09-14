@@ -95,7 +95,8 @@ type OrderService interface {
 type OrderPricingService interface {
 	CalculateItems(items []ItemPriceInput) ([]ItemPriceResult, float64, error)
 	ValidateAndCalculateDiscount(coupon *sqlc.Coupon, subtotal float64, now time.Time) (float64, error)
-	CalculateOrderTotals(items []ItemPriceInput, coupon *sqlc.Coupon, shippingFee float64, now time.Time) (*OrderPricingResult, error)
+	CalculateOrderTotals(ctx context.Context, items []ItemPriceInput, couponCode *string, userID int32,
+		shippingFee float64, now time.Time) (*OrderPricingResult, error)
 }
 
 type InventoryService interface {

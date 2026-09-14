@@ -1,10 +1,17 @@
 package v1service
 
 import (
+	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"goshop/internal/db/sqlc"
+	"goshop/internal/repository"
 	"goshop/internal/utils"
+	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 type ItemPriceInput struct {
@@ -32,10 +39,14 @@ type OrderPricingResult struct {
 	Items             []ItemPriceResult
 }
 
-type orderPricingService struct{}
+type orderPricingService struct {
+	couponRepo repository.CouponRepository
+}
 
-func NewOrderPricingService() OrderPricingService {
-	return &orderPricingService{}
+func NewOrderPricingService(couponRepo repository.CouponRepository) OrderPricingService {
+	return &orderPricingService{
+		couponRepo: couponRepo,
+	}
 }
 
 // CalculateItems calculates the subtotal for each item and the total amount for the order.
@@ -115,8 +126,10 @@ func (s *orderPricingService) ValidateAndCalculateDiscount(coupon *sqlc.Coupon, 
 }
 
 func (s *orderPricingService) CalculateOrderTotals(
+	ctx context.Context,
 	items []ItemPriceInput,
-	coupon *sqlc.Coupon,
+	couponCode *string,
+	userID int32,
 	shippingFee float64,
 	now time.Time,
 ) (*OrderPricingResult, error) {
@@ -126,9 +139,33 @@ func (s *orderPricingService) CalculateOrderTotals(
 		return nil, err
 	}
 
-	discount, err := s.ValidateAndCalculateDiscount(coupon, subtotal, now)
-	if err != nil {
-		return nil, err
+	var appliedCouponID *int32
+	var appliedCouponCode *string
+	var discount float64
+
+	if couponCode != nil && strings.TrimSpace(*couponCode) != "" {
+		if s.couponRepo == nil {
+			return nil, utils.NewError(utils.ErrCodeInternal, "Coupon repository is not configured")
+		}
+		cleanCode := strings.ToUpper(strings.TrimSpace(*couponCode))
+		coupon, err := s.couponRepo.GetByCode(ctx, cleanCode)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+				return nil, utils.NewError(utils.ErrCodeNotFound, "Coupon not found")
+			}
+			return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to retrieve coupon", err)
+		}
+
+		calculatedDiscount, err := s.ValidateAndCalculateDiscount(&coupon, subtotal, now)
+		if err != nil {
+			return nil, err
+		}
+
+		if calculatedDiscount > 0 {
+			discount = calculatedDiscount
+			appliedCouponID = &coupon.CouponID
+			appliedCouponCode = &coupon.CouponCode
+		}
 	}
 
 	roundedShippingFee := utils.RoundFloat(shippingFee, 2)
@@ -139,13 +176,6 @@ func (s *orderPricingService) CalculateOrderTotals(
 	finalTotal := utils.RoundFloat(subtotal-discount+roundedShippingFee, 2)
 	if finalTotal < 0 {
 		finalTotal = 0
-	}
-
-	var appliedCouponID *int32
-	var appliedCouponCode *string
-	if coupon != nil && discount > 0 {
-		appliedCouponID = &coupon.CouponID
-		appliedCouponCode = &coupon.CouponCode
 	}
 
 	return &OrderPricingResult{

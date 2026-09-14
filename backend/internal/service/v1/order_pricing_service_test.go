@@ -1,20 +1,24 @@
 package v1service_test
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"goshop/internal/db/sqlc"
 	v1service "goshop/internal/service/v1"
+	"goshop/internal/testutils"
 	"goshop/internal/utils"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestOrderPricingService_CalculateItems(t *testing.T) {
-	pricingSvc := v1service.NewOrderPricingService()
+	pricingSvc := v1service.NewOrderPricingService(nil)
 
 	t.Run("Success - Multiple items with rounding precision", func(t *testing.T) {
 		items := []v1service.ItemPriceInput{
@@ -57,7 +61,7 @@ func TestOrderPricingService_CalculateItems(t *testing.T) {
 }
 
 func TestOrderPricingService_ValidateAndCalculateDiscount(t *testing.T) {
-	pricingSvc := v1service.NewOrderPricingService()
+	pricingSvc := v1service.NewOrderPricingService(nil)
 	now := time.Date(2026, 9, 13, 12, 0, 0, 0, time.UTC)
 
 	t.Run("Nil Coupon - Zero discount", func(t *testing.T) {
@@ -68,12 +72,12 @@ func TestOrderPricingService_ValidateAndCalculateDiscount(t *testing.T) {
 
 	t.Run("Success - Percentage coupon without cap", func(t *testing.T) {
 		coupon := &sqlc.Coupon{
-			CouponCode:          "SAVE10",
-			CouponType:          v1service.CouponTypePercentage,
-			CouponDiscountValue: utils.FloatToNumeric(10.0), // 10%
-			CouponIsActive:      true,
-			CouponStartDate:     now.Add(-1 * time.Hour),
-			CouponEndDate:       now.Add(1 * time.Hour),
+			CouponCode:           "SAVE10",
+			CouponType:           v1service.CouponTypePercentage,
+			CouponDiscountValue:  utils.FloatToNumeric(10.0), // 10%
+			CouponIsActive:       true,
+			CouponStartDate:      now.Add(-1 * time.Hour),
+			CouponEndDate:        now.Add(1 * time.Hour),
 			CouponMinOrderAmount: utils.FloatToNumeric(50.0),
 		}
 
@@ -84,14 +88,14 @@ func TestOrderPricingService_ValidateAndCalculateDiscount(t *testing.T) {
 
 	t.Run("Success - Percentage coupon with max cap reached", func(t *testing.T) {
 		coupon := &sqlc.Coupon{
-			CouponCode:             "SAVE50",
-			CouponType:             v1service.CouponTypePercentage,
-			CouponDiscountValue:    utils.FloatToNumeric(50.0), // 50%
+			CouponCode:              "SAVE50",
+			CouponType:              v1service.CouponTypePercentage,
+			CouponDiscountValue:     utils.FloatToNumeric(50.0), // 50%
 			CouponMaxDiscountAmount: pgtype.Numeric{Int: utils.FloatToNumeric(25.0).Int, Exp: utils.FloatToNumeric(25.0).Exp, Valid: true},
-			CouponIsActive:         true,
-			CouponStartDate:        now.Add(-1 * time.Hour),
-			CouponEndDate:          now.Add(1 * time.Hour),
-			CouponMinOrderAmount:   utils.FloatToNumeric(0),
+			CouponIsActive:          true,
+			CouponStartDate:         now.Add(-1 * time.Hour),
+			CouponEndDate:           now.Add(1 * time.Hour),
+			CouponMinOrderAmount:    utils.FloatToNumeric(0),
 		}
 
 		discount, err := pricingSvc.ValidateAndCalculateDiscount(coupon, 100.0, now)
@@ -101,14 +105,14 @@ func TestOrderPricingService_ValidateAndCalculateDiscount(t *testing.T) {
 
 	t.Run("Success - Percentage coupon with max cap NOT reached", func(t *testing.T) {
 		coupon := &sqlc.Coupon{
-			CouponCode:             "SAVE10",
-			CouponType:             v1service.CouponTypePercentage,
-			CouponDiscountValue:    utils.FloatToNumeric(10.0), // 10%
+			CouponCode:              "SAVE10",
+			CouponType:              v1service.CouponTypePercentage,
+			CouponDiscountValue:     utils.FloatToNumeric(10.0), // 10%
 			CouponMaxDiscountAmount: pgtype.Numeric{Int: utils.FloatToNumeric(50.0).Int, Exp: utils.FloatToNumeric(50.0).Exp, Valid: true},
-			CouponIsActive:         true,
-			CouponStartDate:        now.Add(-1 * time.Hour),
-			CouponEndDate:          now.Add(1 * time.Hour),
-			CouponMinOrderAmount:   utils.FloatToNumeric(0),
+			CouponIsActive:          true,
+			CouponStartDate:         now.Add(-1 * time.Hour),
+			CouponEndDate:           now.Add(1 * time.Hour),
+			CouponMinOrderAmount:    utils.FloatToNumeric(0),
 		}
 
 		discount, err := pricingSvc.ValidateAndCalculateDiscount(coupon, 100.0, now)
@@ -118,34 +122,34 @@ func TestOrderPricingService_ValidateAndCalculateDiscount(t *testing.T) {
 
 	t.Run("Success - Fixed amount coupon", func(t *testing.T) {
 		coupon := &sqlc.Coupon{
-			CouponCode:          "FIXED15",
-			CouponType:          v1service.CouponTypeFixedAmount,
-			CouponDiscountValue: utils.FloatToNumeric(15.0),
-			CouponIsActive:      true,
-			CouponStartDate:     now.Add(-1 * time.Hour),
-			CouponEndDate:       now.Add(1 * time.Hour),
-			CouponMinOrderAmount: utils.FloatToNumeric(30.0),
+			CouponCode:           "FIXED15",
+			CouponType:           v1service.CouponTypeFixedAmount,
+			CouponDiscountValue:  utils.FloatToNumeric(15.0),
+			CouponIsActive:       true,
+			CouponStartDate:      now.Add(-1 * time.Hour),
+			CouponEndDate:        now.Add(1 * time.Hour),
+			CouponMinOrderAmount: utils.FloatToNumeric(20.0),
 		}
 
-		discount, err := pricingSvc.ValidateAndCalculateDiscount(coupon, 50.0, now)
+		discount, err := pricingSvc.ValidateAndCalculateDiscount(coupon, 100.0, now)
 		require.NoError(t, err)
 		assert.Equal(t, 15.0, discount)
 	})
 
-	t.Run("Success - Fixed amount coupon capped to subtotal if greater", func(t *testing.T) {
+	t.Run("Success - Fixed amount capped at subtotal (cannot be negative total)", func(t *testing.T) {
 		coupon := &sqlc.Coupon{
-			CouponCode:          "BIG50",
-			CouponType:          v1service.CouponTypeFixedAmount,
-			CouponDiscountValue: utils.FloatToNumeric(50.0),
-			CouponIsActive:      true,
-			CouponStartDate:     now.Add(-1 * time.Hour),
-			CouponEndDate:       now.Add(1 * time.Hour),
+			CouponCode:           "BIG100",
+			CouponType:           v1service.CouponTypeFixedAmount,
+			CouponDiscountValue:  utils.FloatToNumeric(100.0),
+			CouponIsActive:       true,
+			CouponStartDate:      now.Add(-1 * time.Hour),
+			CouponEndDate:        now.Add(1 * time.Hour),
 			CouponMinOrderAmount: utils.FloatToNumeric(0),
 		}
 
-		discount, err := pricingSvc.ValidateAndCalculateDiscount(coupon, 30.0, now)
+		discount, err := pricingSvc.ValidateAndCalculateDiscount(coupon, 40.0, now)
 		require.NoError(t, err)
-		assert.Equal(t, 30.0, discount) // Cannot exceed subtotal
+		assert.Equal(t, 40.0, discount)
 	})
 
 	t.Run("Error - Inactive coupon", func(t *testing.T) {
@@ -179,10 +183,10 @@ func TestOrderPricingService_ValidateAndCalculateDiscount(t *testing.T) {
 
 	t.Run("Error - Subtotal below minimum order amount", func(t *testing.T) {
 		coupon := &sqlc.Coupon{
-			CouponCode:          "MIN100",
-			CouponIsActive:      true,
-			CouponStartDate:     now.Add(-1 * time.Hour),
-			CouponEndDate:       now.Add(1 * time.Hour),
+			CouponCode:           "MIN100",
+			CouponIsActive:       true,
+			CouponStartDate:      now.Add(-1 * time.Hour),
+			CouponEndDate:        now.Add(1 * time.Hour),
 			CouponMinOrderAmount: utils.FloatToNumeric(100.0),
 		}
 		_, err := pricingSvc.ValidateAndCalculateDiscount(coupon, 50.0, now)
@@ -192,11 +196,11 @@ func TestOrderPricingService_ValidateAndCalculateDiscount(t *testing.T) {
 
 	t.Run("Error - Invalid coupon type", func(t *testing.T) {
 		coupon := &sqlc.Coupon{
-			CouponCode:          "UNKNOWN",
-			CouponType:          999, // Unknown type
-			CouponIsActive:      true,
-			CouponStartDate:     now.Add(-1 * time.Hour),
-			CouponEndDate:       now.Add(1 * time.Hour),
+			CouponCode:           "UNKNOWN",
+			CouponType:           999, // Unknown type
+			CouponIsActive:       true,
+			CouponStartDate:      now.Add(-1 * time.Hour),
+			CouponEndDate:        now.Add(1 * time.Hour),
 			CouponMinOrderAmount: utils.FloatToNumeric(0),
 		}
 		_, err := pricingSvc.ValidateAndCalculateDiscount(coupon, 50.0, now)
@@ -206,27 +210,39 @@ func TestOrderPricingService_ValidateAndCalculateDiscount(t *testing.T) {
 }
 
 func TestOrderPricingService_CalculateOrderTotals(t *testing.T) {
-	pricingSvc := v1service.NewOrderPricingService()
 	now := time.Date(2026, 9, 13, 12, 0, 0, 0, time.UTC)
+	ctx := context.Background()
 
 	items := []v1service.ItemPriceInput{
-		{ProductID: 1, ProductName: "Product 1", Price: 50.0, Quantity: 2}, // 100.0
+		{ProductID: 1, ProductName: "Product 1", Price: 50.0, Quantity: 2}, // Subtotal = 100.0
 	}
 
-	coupon := &sqlc.Coupon{
-		CouponID:            10,
-		CouponCode:          "DISCOUNT20",
-		CouponType:          v1service.CouponTypeFixedAmount,
-		CouponDiscountValue: utils.FloatToNumeric(20.0),
-		CouponIsActive:      true,
-		CouponStartDate:     now.Add(-1 * time.Hour),
-		CouponEndDate:       now.Add(1 * time.Hour),
+	couponCode := "DISCOUNT20"
+	mockCoupon := sqlc.Coupon{
+		CouponID:             10,
+		CouponCode:           couponCode,
+		CouponType:           v1service.CouponTypeFixedAmount,
+		CouponDiscountValue:  utils.FloatToNumeric(20.0),
+		CouponIsActive:       true,
+		CouponStartDate:      now.Add(-1 * time.Hour),
+		CouponEndDate:        now.Add(1 * time.Hour),
 		CouponMinOrderAmount: utils.FloatToNumeric(50.0),
 	}
 
-	t.Run("Success - Full calculation with shipping and coupon", func(t *testing.T) {
+	mockCouponRepo := &testutils.MockCouponRepository{
+		GetByCodeFunc: func(ctx context.Context, code string) (sqlc.Coupon, error) {
+			if code == "DISCOUNT20" {
+				return mockCoupon, nil
+			}
+			return sqlc.Coupon{}, pgx.ErrNoRows
+		},
+	}
+
+	pricingSvc := v1service.NewOrderPricingService(mockCouponRepo)
+
+	t.Run("Success - Full calculation with shipping and valid coupon code", func(t *testing.T) {
 		shippingFee := 5.0
-		res, err := pricingSvc.CalculateOrderTotals(items, coupon, shippingFee, now)
+		res, err := pricingSvc.CalculateOrderTotals(ctx, items, &couponCode, 1, shippingFee, now)
 
 		require.NoError(t, err)
 		assert.Equal(t, 100.0, res.SubtotalAmount)
@@ -239,7 +255,7 @@ func TestOrderPricingService_CalculateOrderTotals(t *testing.T) {
 	})
 
 	t.Run("Success - No coupon and negative shipping fee clamped to 0", func(t *testing.T) {
-		res, err := pricingSvc.CalculateOrderTotals(items, nil, -10.0, now)
+		res, err := pricingSvc.CalculateOrderTotals(ctx, items, nil, 1, -10.0, now)
 
 		require.NoError(t, err)
 		assert.Equal(t, 100.0, res.SubtotalAmount)
@@ -251,17 +267,32 @@ func TestOrderPricingService_CalculateOrderTotals(t *testing.T) {
 	})
 
 	t.Run("Error - CalculateItems failure (empty items)", func(t *testing.T) {
-		_, err := pricingSvc.CalculateOrderTotals([]v1service.ItemPriceInput{}, coupon, 5.0, now)
+		_, err := pricingSvc.CalculateOrderTotals(ctx, []v1service.ItemPriceInput{}, &couponCode, 1, 5.0, now)
 		require.Error(t, err)
 	})
 
+	t.Run("Error - Coupon not found", func(t *testing.T) {
+		unknownCode := "NOT_FOUND"
+		_, err := pricingSvc.CalculateOrderTotals(ctx, items, &unknownCode, 1, 5.0, now)
+		require.Error(t, err)
+		var appErr *utils.AppError
+		require.True(t, errors.As(err, &appErr))
+		assert.Equal(t, utils.ErrCodeNotFound, appErr.Code)
+	})
+
 	t.Run("Error - ValidateAndCalculateDiscount failure (expired coupon)", func(t *testing.T) {
-		expiredCoupon := &sqlc.Coupon{
-			CouponIsActive:  true,
-			CouponStartDate: now.Add(-24 * time.Hour),
-			CouponEndDate:   now.Add(-1 * time.Hour),
+		expiredCode := "EXPIRED"
+		expiredMockRepo := &testutils.MockCouponRepository{
+			GetByCodeFunc: func(ctx context.Context, code string) (sqlc.Coupon, error) {
+				return sqlc.Coupon{
+					CouponIsActive:  true,
+					CouponStartDate: now.Add(-24 * time.Hour),
+					CouponEndDate:   now.Add(-1 * time.Hour),
+				}, nil
+			},
 		}
-		_, err := pricingSvc.CalculateOrderTotals(items, expiredCoupon, 5.0, now)
+		svc := v1service.NewOrderPricingService(expiredMockRepo)
+		_, err := svc.CalculateOrderTotals(ctx, items, &expiredCode, 1, 5.0, now)
 		require.Error(t, err)
 	})
 }
