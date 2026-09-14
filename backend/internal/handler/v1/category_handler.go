@@ -42,7 +42,7 @@ func (ch *CategoryHandler) CreateCategory(ctx *gin.Context) {
 
 	category := input.MapCreateInputToModel()
 
-	createdCategory, err := ch.service.CreateCategory(ctx, category)
+	createdCategory, err := ch.service.CreateCategory(ctx.Request.Context(), category)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -74,7 +74,7 @@ func (ch *CategoryHandler) GetAllCategories(ctx *gin.Context) {
 		return
 	}
 
-	listCategories, total, err := ch.service.GetAllCategories(ctx, params.Search, params.OrderBy, params.Sort, params.Page, params.Limit, false)
+	listCategories, total, err := ch.service.GetAllCategories(ctx.Request.Context(), params.Search, params.OrderBy, params.Sort, params.Page, params.Limit, false)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -110,7 +110,7 @@ func (ch *CategoryHandler) GetCategoryByUUID(ctx *gin.Context) {
 		return
 	}
 
-	category, err := ch.service.GetCategoryByUUID(ctx, categoryUuid)
+	category, err := ch.service.GetCategoryByUUID(ctx.Request.Context(), categoryUuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -155,7 +155,7 @@ func (ch *CategoryHandler) UpdateCategory(ctx *gin.Context) {
 
 	category := input.MapUpdateInputToModel(categoryUuid)
 
-	updatedCategory, err := ch.service.UpdateCategory(ctx, category)
+	updatedCategory, err := ch.service.UpdateCategory(ctx.Request.Context(), category)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -190,7 +190,7 @@ func (ch *CategoryHandler) SoftDeleteCategory(ctx *gin.Context) {
 		return
 	}
 
-	softDeletedCategory, err := ch.service.SoftDeleteCategory(ctx, categoryUuid)
+	softDeletedCategory, err := ch.service.SoftDeleteCategory(ctx.Request.Context(), categoryUuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -225,7 +225,7 @@ func (ch *CategoryHandler) RestoreCategory(ctx *gin.Context) {
 		return
 	}
 
-	restoredCategory, err := ch.service.RestoreCategory(ctx, categoryUuid)
+	restoredCategory, err := ch.service.RestoreCategory(ctx.Request.Context(), categoryUuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -259,7 +259,7 @@ func (ch *CategoryHandler) TrashCategory(ctx *gin.Context) {
 		return
 	}
 
-	err = ch.service.TrashCategory(ctx, categoryUuid)
+	err = ch.service.TrashCategory(ctx.Request.Context(), categoryUuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return

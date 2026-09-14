@@ -34,13 +34,13 @@ type AuthService interface {
 }
 
 type CategoryService interface {
-	CreateCategory(ctx *gin.Context, input sqlc.CreateCategoryParams) (sqlc.Category, error)
-	GetAllCategories(ctx *gin.Context, search, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.Category, int32, error)
-	GetCategoryByUUID(ctx *gin.Context, uuid uuid.UUID) (sqlc.Category, error)
-	UpdateCategory(ctx *gin.Context, input sqlc.UpdateCategoryParams) (sqlc.Category, error)
-	SoftDeleteCategory(ctx *gin.Context, uuid uuid.UUID) (sqlc.Category, error)
-	RestoreCategory(ctx *gin.Context, uuid uuid.UUID) (sqlc.Category, error)
-	TrashCategory(ctx *gin.Context, uuid uuid.UUID) error
+	CreateCategory(ctx context.Context, input sqlc.CreateCategoryParams) (sqlc.Category, error)
+	GetAllCategories(ctx context.Context, search, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.Category, int32, error)
+	GetCategoryByUUID(ctx context.Context, categoryUUID uuid.UUID) (sqlc.Category, error)
+	UpdateCategory(ctx context.Context, input sqlc.UpdateCategoryParams) (sqlc.Category, error)
+	SoftDeleteCategory(ctx context.Context, categoryUUID uuid.UUID) (sqlc.Category, error)
+	RestoreCategory(ctx context.Context, categoryUUID uuid.UUID) (sqlc.Category, error)
+	TrashCategory(ctx context.Context, categoryUUID uuid.UUID) error
 }
 
 type ProductService interface {

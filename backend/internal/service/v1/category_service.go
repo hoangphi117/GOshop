@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/redis/go-redis/v9"
 )
@@ -30,9 +30,13 @@ type categoryService struct {
 }
 
 func NewCategoryService(repo repository.CategoryRepository, redisClient *redis.Client) CategoryService {
+	var cacheSvc cache.RedisCacheService
+	if redisClient != nil {
+		cacheSvc = cache.NewRedisCacheService(redisClient)
+	}
 	return &categoryService{
 		repo:  repo,
-		cache: cache.NewRedisCacheService(redisClient),
+		cache: cacheSvc,
 	}
 }
 
@@ -47,7 +51,7 @@ func generateUniqueSlug(ctx context.Context, name string, getBySlug func(ctx con
 	for i := 0; i < maxSlugAttempts; i++ {
 		err := getBySlug(ctx, slug)
 
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, pgx.ErrNoRows) || errors.Is(err, sql.ErrNoRows) {
 			// Slug is available, return it.
 			return slug, nil
 		}
@@ -63,23 +67,25 @@ func generateUniqueSlug(ctx context.Context, name string, getBySlug func(ctx con
 	return "", utils.NewError(utils.ErrCodeInternal, fmt.Sprintf("Failed to generate unique slug after %d attempts", maxSlugAttempts))
 }
 
-func (cs *categoryService) CreateCategory(ctx *gin.Context, input sqlc.CreateCategoryParams) (sqlc.Category, error) {
-	reqCtx := ctx.Request.Context()
-
+func (cs *categoryService) CreateCategory(ctx context.Context, input sqlc.CreateCategoryParams) (sqlc.Category, error) {
 	if input.CategoryStatus == 0 {
 		input.CategoryStatus = CategoryStatusActive
 	}
 
-	slug, err := generateUniqueSlug(reqCtx, input.CategoryName, func(slugCtx context.Context, slug string) error {
+	slug, err := generateUniqueSlug(ctx, input.CategoryName, func(slugCtx context.Context, slug string) error {
 		_, err := cs.repo.GetBySlug(slugCtx, slug)
 		return err
 	})
 	if err != nil {
+		var appErr *utils.AppError
+		if errors.As(err, &appErr) {
+			return sqlc.Category{}, err
+		}
 		return sqlc.Category{}, utils.WrapError(utils.ErrCodeInternal, "failed to generate unique slug", err)
 	}
 	input.CategorySlug = slug
 
-	category, err := cs.repo.Create(reqCtx, input)
+	category, err := cs.repo.Create(ctx, input)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -88,16 +94,16 @@ func (cs *categoryService) CreateCategory(ctx *gin.Context, input sqlc.CreateCat
 		return sqlc.Category{}, utils.WrapError(utils.ErrCodeInternal, "failed to create category", err)
 	}
 
-	if err := cs.cache.Clear("categories:*"); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear category cache")
+	if cs.cache != nil {
+		if err := cs.cache.Clear("categories:*"); err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to clear category cache")
+		}
 	}
 
 	return category, nil
 }
 
-func (cs *categoryService) GetAllCategories(ctx *gin.Context, search, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.Category, int32, error) {
-	context := ctx.Request.Context()
-
+func (cs *categoryService) GetAllCategories(ctx context.Context, search, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.Category, int32, error) {
 	if sort == "" {
 		sort = "desc"
 	}
@@ -123,16 +129,18 @@ func (cs *categoryService) GetAllCategories(ctx *gin.Context, search, orderBy, s
 		Total      int32           `json:"total"`
 	}
 
-	if err := cs.cache.Get(cacheKey, &cacheData); err == nil && cacheData.Categories != nil {
-		return cacheData.Categories, cacheData.Total, nil
+	if cs.cache != nil {
+		if err := cs.cache.Get(cacheKey, &cacheData); err == nil && cacheData.Categories != nil {
+			return cacheData.Categories, cacheData.Total, nil
+		}
 	}
 
-	listCategories, err := cs.repo.GetAll(context, search, orderBy, sort, limit, offset, deleted)
+	listCategories, err := cs.repo.GetAll(ctx, search, orderBy, sort, limit, offset, deleted)
 	if err != nil {
 		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "failed to get all categories", err)
 	}
 
-	total, err := cs.repo.CountCategories(context, search, deleted)
+	total, err := cs.repo.CountCategories(ctx, search, deleted)
 	if err != nil {
 		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "failed to count categories", err)
 	}
@@ -144,17 +152,17 @@ func (cs *categoryService) GetAllCategories(ctx *gin.Context, search, orderBy, s
 		Categories: listCategories,
 		Total:      int32(total),
 	}
-	cs.cache.Set(cacheKey, cacheData, 5*time.Minute)
+	if cs.cache != nil {
+		cs.cache.Set(cacheKey, cacheData, 5*time.Minute)
+	}
 
 	return listCategories, cacheData.Total, nil
 }
 
-func (cs *categoryService) GetCategoryByUUID(ctx *gin.Context, uuid uuid.UUID) (sqlc.Category, error) {
-	context := ctx.Request.Context()
-
-	category, err := cs.repo.GetByUUID(context, uuid)
+func (cs *categoryService) GetCategoryByUUID(ctx context.Context, categoryUUID uuid.UUID) (sqlc.Category, error) {
+	category, err := cs.repo.GetByUUID(ctx, categoryUUID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, pgx.ErrNoRows) || errors.Is(err, sql.ErrNoRows) {
 			return sqlc.Category{}, utils.NewError(utils.ErrCodeNotFound, "category not found")
 		}
 		return sqlc.Category{}, utils.WrapError(utils.ErrCodeInternal, "failed to get category by UUID", err)
@@ -163,72 +171,75 @@ func (cs *categoryService) GetCategoryByUUID(ctx *gin.Context, uuid uuid.UUID) (
 	return category, nil
 }
 
-func (cs *categoryService) UpdateCategory(ctx *gin.Context, input sqlc.UpdateCategoryParams) (sqlc.Category, error) {
-
-	context := ctx.Request.Context()
-
-	category, err := cs.repo.Update(context, input)
+func (cs *categoryService) UpdateCategory(ctx context.Context, input sqlc.UpdateCategoryParams) (sqlc.Category, error) {
+	category, err := cs.repo.Update(ctx, input)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, pgx.ErrNoRows) || errors.Is(err, sql.ErrNoRows) {
 			return sqlc.Category{}, utils.NewError(utils.ErrCodeNotFound, "category not found")
 		}
 		return sqlc.Category{}, utils.WrapError(utils.ErrCodeInternal, "failed to update category", err)
 	}
 
-	if err := cs.cache.Clear("categories:*"); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear category cache")
+	if cs.cache != nil {
+		if err := cs.cache.Clear("categories:*"); err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to clear category cache")
+		}
 	}
 
 	return category, nil
 }
 
-func (cs *categoryService) SoftDeleteCategory(ctx *gin.Context, uuid uuid.UUID) (sqlc.Category, error) {
-	context := ctx.Request.Context()
-
-	category, err := cs.repo.SoftDelete(context, uuid)
+func (cs *categoryService) SoftDeleteCategory(ctx context.Context, categoryUUID uuid.UUID) (sqlc.Category, error) {
+	category, err := cs.repo.SoftDelete(ctx, categoryUUID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, pgx.ErrNoRows) || errors.Is(err, sql.ErrNoRows) {
 			return sqlc.Category{}, utils.NewError(utils.ErrCodeNotFound, "category not found")
 		}
 		return sqlc.Category{}, utils.WrapError(utils.ErrCodeInternal, "failed to soft delete category", err)
 	}
 
-	if err := cs.cache.Clear("categories:*"); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear category cache")
+	if cs.cache != nil {
+		if err := cs.cache.Clear("categories:*"); err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to clear category cache")
+		}
 	}
 
 	return category, nil
 }
 
-func (cs *categoryService) RestoreCategory(ctx *gin.Context, uuid uuid.UUID) (sqlc.Category, error) {
-	context := ctx.Request.Context()
-
-	category, err := cs.repo.Restore(context, uuid)
+func (cs *categoryService) RestoreCategory(ctx context.Context, categoryUUID uuid.UUID) (sqlc.Category, error) {
+	category, err := cs.repo.Restore(ctx, categoryUUID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, pgx.ErrNoRows) || errors.Is(err, sql.ErrNoRows) {
 			return sqlc.Category{}, utils.NewError(utils.ErrCodeNotFound, "category not found")
 		}
 		return sqlc.Category{}, utils.WrapError(utils.ErrCodeInternal, "failed to restore category", err)
 	}
-	if err := cs.cache.Clear("categories:*"); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear category cache")
+
+	if cs.cache != nil {
+		if err := cs.cache.Clear("categories:*"); err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to clear category cache")
+		}
 	}
+
 	return category, nil
 }
 
-func (cs *categoryService) TrashCategory(ctx *gin.Context, uuid uuid.UUID) error {
-	context := ctx.Request.Context()
-
-	_, err := cs.repo.Trash(context, uuid)
+func (cs *categoryService) TrashCategory(ctx context.Context, categoryUUID uuid.UUID) error {
+	_, err := cs.repo.Trash(ctx, categoryUUID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, pgx.ErrNoRows) || errors.Is(err, sql.ErrNoRows) {
 			return utils.NewError(utils.ErrCodeNotFound, "category not found")
 		}
 		return utils.WrapError(utils.ErrCodeInternal, "failed to trash category", err)
 	}
-	if err := cs.cache.Clear("categories:*"); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear category cache")
+
+	if cs.cache != nil {
+		if err := cs.cache.Clear("categories:*"); err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to clear category cache")
+		}
 	}
+
 	return nil
 }
 

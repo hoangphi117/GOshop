@@ -21,6 +21,7 @@ var (
 	_ repository.WebhookEventRepository = (*MockWebhookEventRepository)(nil)
 	_ repository.OrderReturnsRepository = (*MockOrderReturnsRepository)(nil)
 	_ repository.PaymentRepository      = (*MockPaymentRepository)(nil)
+	_ repository.CategoryRepository     = (*MockCategoryRepository)(nil)
 )
 
 // =========================================================================
@@ -794,5 +795,84 @@ func (m *MockPaymentRepository) GetPendingTransactionsOlderThan(ctx context.Cont
 	}
 	return nil, nil
 }
+
+// =========================================================================
+// 11. MockCategoryRepository
+// =========================================================================
+type MockCategoryRepository struct {
+	CreateFunc          func(ctx context.Context, categoryParams sqlc.CreateCategoryParams) (sqlc.Category, error)
+	CountCategoriesFunc func(ctx context.Context, search string, deleted bool) (int64, error)
+	GetAllFunc          func(ctx context.Context, search, orderBy, sort string, limit, offset int32, deleted bool) ([]sqlc.Category, error)
+	GetBySlugFunc       func(ctx context.Context, slug string) (sqlc.Category, error)
+	GetByUUIDFunc       func(ctx context.Context, uuid uuid.UUID) (sqlc.Category, error)
+	UpdateFunc          func(ctx context.Context, input sqlc.UpdateCategoryParams) (sqlc.Category, error)
+	SoftDeleteFunc      func(ctx context.Context, uuid uuid.UUID) (sqlc.Category, error)
+	RestoreFunc         func(ctx context.Context, uuid uuid.UUID) (sqlc.Category, error)
+	TrashFunc           func(ctx context.Context, uuid uuid.UUID) (sqlc.Category, error)
+}
+
+func (m *MockCategoryRepository) Create(ctx context.Context, categoryParams sqlc.CreateCategoryParams) (sqlc.Category, error) {
+	if m.CreateFunc != nil {
+		return m.CreateFunc(ctx, categoryParams)
+	}
+	return sqlc.Category{}, nil
+}
+
+func (m *MockCategoryRepository) CountCategories(ctx context.Context, search string, deleted bool) (int64, error) {
+	if m.CountCategoriesFunc != nil {
+		return m.CountCategoriesFunc(ctx, search, deleted)
+	}
+	return 0, nil
+}
+
+func (m *MockCategoryRepository) GetAll(ctx context.Context, search, orderBy, sort string, limit, offset int32, deleted bool) ([]sqlc.Category, error) {
+	if m.GetAllFunc != nil {
+		return m.GetAllFunc(ctx, search, orderBy, sort, limit, offset, deleted)
+	}
+	return nil, nil
+}
+
+func (m *MockCategoryRepository) GetBySlug(ctx context.Context, slug string) (sqlc.Category, error) {
+	if m.GetBySlugFunc != nil {
+		return m.GetBySlugFunc(ctx, slug)
+	}
+	return sqlc.Category{}, nil
+}
+
+func (m *MockCategoryRepository) GetByUUID(ctx context.Context, uuid uuid.UUID) (sqlc.Category, error) {
+	if m.GetByUUIDFunc != nil {
+		return m.GetByUUIDFunc(ctx, uuid)
+	}
+	return sqlc.Category{}, nil
+}
+
+func (m *MockCategoryRepository) Update(ctx context.Context, input sqlc.UpdateCategoryParams) (sqlc.Category, error) {
+	if m.UpdateFunc != nil {
+		return m.UpdateFunc(ctx, input)
+	}
+	return sqlc.Category{}, nil
+}
+
+func (m *MockCategoryRepository) SoftDelete(ctx context.Context, uuid uuid.UUID) (sqlc.Category, error) {
+	if m.SoftDeleteFunc != nil {
+		return m.SoftDeleteFunc(ctx, uuid)
+	}
+	return sqlc.Category{}, nil
+}
+
+func (m *MockCategoryRepository) Restore(ctx context.Context, uuid uuid.UUID) (sqlc.Category, error) {
+	if m.RestoreFunc != nil {
+		return m.RestoreFunc(ctx, uuid)
+	}
+	return sqlc.Category{}, nil
+}
+
+func (m *MockCategoryRepository) Trash(ctx context.Context, uuid uuid.UUID) (sqlc.Category, error) {
+	if m.TrashFunc != nil {
+		return m.TrashFunc(ctx, uuid)
+	}
+	return sqlc.Category{}, nil
+}
+
 
 
