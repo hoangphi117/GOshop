@@ -337,15 +337,22 @@ func (s *orderService) CreateOrder(ctx context.Context, userUUID uuid.UUID, inpu
 		logger.Log.Warn().Err(err).Msg("Failed to clear cart cache")
 	}
 
-	go func() {
-		_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
-			UserID: order.OrderUserID,
-			Type:   "order_created",
-			Title:  "Order Placed Successfully",
-			Body:   fmt.Sprintf("Your order #%s has been placed successfully.", order.OrderNumber),
-			Data:   map[string]any{"order_uuid": order.OrderUuid.String()},
-		})
-	}()
+	// Send order creation notification asynchronously
+	notifyErr := s.notificationService.Send(ctx, v1dto.SendNotificationInput{
+		UserID: order.OrderUserID,
+		Type:   "order_created",
+		Title:  "Order Placed Successfully",
+		Body:   fmt.Sprintf("Your order #%s has been placed successfully.", order.OrderNumber),
+		Data:   map[string]any{"order_uuid": order.OrderUuid.String()},
+	})
+	if notifyErr != nil {
+		// Log the error but do not fail the order creation process
+		logger.Log.Warn().
+			Err(notifyErr).
+			Int32("user_id", order.OrderUserID).
+			Str("order_number", order.OrderNumber).
+			Msg("Failed to send order creation notification")
+	}
 
 	return order, orderItemsWithDetails, nil
 }
