@@ -45,7 +45,7 @@ func (ph *ProductHandler) CreateProduct(ctx *gin.Context) {
 
 	mappedInput := input.MapCreateToServiceInput()
 
-	product, err := ph.service.CreateProduct(ctx, mappedInput)
+	product, err := ph.service.CreateProduct(ctx.Request.Context(), mappedInput)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -82,7 +82,7 @@ func (ph *ProductHandler) GetAllProducts(ctx *gin.Context) {
 		return
 	}
 
-	listProducts, total, err := ph.service.GetAllProducts(ctx, params.Search, params.CategoryUUID, params.MinPrice, params.MaxPrice, params.Status, params.OrderBy, params.Sort, params.Page, params.Limit, false)
+	listProducts, total, err := ph.service.GetAllProducts(ctx.Request.Context(), params.Search, params.CategoryUUID, params.MinPrice, params.MaxPrice, params.Status, params.OrderBy, params.Sort, params.Page, params.Limit, false)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -120,7 +120,7 @@ func (ph *ProductHandler) GetProductByUUID(ctx *gin.Context) {
 		return
 	}
 
-	product, err := ph.service.GetProductByUUID(ctx, productUuid)
+	product, err := ph.service.GetProductByUUID(ctx.Request.Context(), productUuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -168,7 +168,7 @@ func (ph *ProductHandler) UpdateProduct(ctx *gin.Context) {
 
 	mappedInput := input.MapUpdateToServiceInput(productUuid)
 
-	updatedProduct, err := ph.service.UpdateProduct(ctx, mappedInput)
+	updatedProduct, err := ph.service.UpdateProduct(ctx.Request.Context(), mappedInput)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -206,7 +206,7 @@ func (ph *ProductHandler) SoftDeleteProduct(ctx *gin.Context) {
 		return
 	}
 
-	softDeletedProduct, err := ph.service.SoftDeleteProduct(ctx, productUuid)
+	softDeletedProduct, err := ph.service.SoftDeleteProduct(ctx.Request.Context(), productUuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -244,7 +244,7 @@ func (ph *ProductHandler) RestoreProduct(ctx *gin.Context) {
 		return
 	}
 
-	restoredProduct, err := ph.service.RestoreProduct(ctx, productUuid)
+	restoredProduct, err := ph.service.RestoreProduct(ctx.Request.Context(), productUuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -282,7 +282,7 @@ func (ph *ProductHandler) TrashProduct(ctx *gin.Context) {
 		return
 	}
 
-	err = ph.service.TrashProduct(ctx, productUuid)
+	err = ph.service.TrashProduct(ctx.Request.Context(), productUuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return

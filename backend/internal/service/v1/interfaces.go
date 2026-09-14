@@ -44,13 +44,13 @@ type CategoryService interface {
 }
 
 type ProductService interface {
-	CreateProduct(ctx *gin.Context, input v1dto.CreateProductInput) (sqlc.CreateProductRow, error)
-	GetAllProducts(ctx *gin.Context, search, categoryUUID string, minPrice, maxPrice float64, status int32, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.GetProductByUUIDRow, int32, error)
-	GetProductByUUID(ctx *gin.Context, productUuid uuid.UUID) (sqlc.GetProductByUUIDRow, error)
-	UpdateProduct(ctx *gin.Context, input v1dto.UpdateProductInput) (sqlc.UpdateProductRow, error)
-	SoftDeleteProduct(ctx *gin.Context, uuid uuid.UUID) (sqlc.Product, error)
-	RestoreProduct(ctx *gin.Context, uuid uuid.UUID) (sqlc.Product, error)
-	TrashProduct(ctx *gin.Context, uuid uuid.UUID) error
+	CreateProduct(ctx context.Context, input v1dto.CreateProductInput) (sqlc.CreateProductRow, error)
+	GetAllProducts(ctx context.Context, search, categoryUUID string, minPrice, maxPrice float64, status int32, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.GetProductByUUIDRow, int32, error)
+	GetProductByUUID(ctx context.Context, productUUID uuid.UUID) (sqlc.GetProductByUUIDRow, error)
+	UpdateProduct(ctx context.Context, input v1dto.UpdateProductInput) (sqlc.UpdateProductRow, error)
+	SoftDeleteProduct(ctx context.Context, productUUID uuid.UUID) (sqlc.Product, error)
+	RestoreProduct(ctx context.Context, productUUID uuid.UUID) (sqlc.Product, error)
+	TrashProduct(ctx context.Context, productUUID uuid.UUID) error
 }
 
 type OrderService interface {

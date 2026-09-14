@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/redis/go-redis/v9"
 )
@@ -31,24 +31,26 @@ type productService struct {
 }
 
 func NewProductService(repo repository.ProductRepository, categoryRepo repository.CategoryRepository, redisClient *redis.Client) ProductService {
+	var cacheService cache.RedisCacheService
+	if redisClient != nil {
+		cacheService = cache.NewRedisCacheService(redisClient)
+	}
 	return &productService{
 		repo:         repo,
 		categoryRepo: categoryRepo,
-		cache:        cache.NewRedisCacheService(redisClient),
+		cache:        cacheService,
 	}
 }
 
-func (ps *productService) CreateProduct(ctx *gin.Context, input v1dto.CreateProductInput) (sqlc.CreateProductRow, error) {
-	reqCtx := ctx.Request.Context()
-
+func (ps *productService) CreateProduct(ctx context.Context, input v1dto.CreateProductInput) (sqlc.CreateProductRow, error) {
 	categoryUuid, err := uuid.Parse(input.CategoryUUID)
 	if err != nil {
 		return sqlc.CreateProductRow{}, utils.NewError(utils.ErrCodeBadRequest, "invalid category uuid")
 	}
 
-	category, err := ps.categoryRepo.GetByUUID(reqCtx, categoryUuid)
+	category, err := ps.categoryRepo.GetByUUID(ctx, categoryUuid)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
 			return sqlc.CreateProductRow{}, utils.NewError(utils.ErrCodeNotFound, "category not found")
 		}
 		return sqlc.CreateProductRow{}, utils.WrapError(utils.ErrCodeInternal, "failed to get category", err)
@@ -59,11 +61,15 @@ func (ps *productService) CreateProduct(ctx *gin.Context, input v1dto.CreateProd
 		input.Params.ProductStatus = ProductStatusActive
 	}
 
-	slug, err := generateUniqueSlug(reqCtx, input.Params.ProductName, func(slugCtx context.Context, slug string) error {
+	slug, err := generateUniqueSlug(ctx, input.Params.ProductName, func(slugCtx context.Context, slug string) error {
 		_, err := ps.repo.GetBySlug(slugCtx, slug)
 		return err
 	})
 	if err != nil {
+		var appErr *utils.AppError
+		if errors.As(err, &appErr) {
+			return sqlc.CreateProductRow{}, err
+		}
 		return sqlc.CreateProductRow{}, utils.WrapError(utils.ErrCodeInternal, "failed to generate slug", err)
 	}
 	input.Params.ProductSlug = slug
@@ -77,7 +83,7 @@ func (ps *productService) CreateProduct(ctx *gin.Context, input v1dto.CreateProd
 		}
 	}
 
-	product, err := ps.repo.Create(reqCtx, input.Params)
+	product, err := ps.repo.Create(ctx, input.Params)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -86,16 +92,16 @@ func (ps *productService) CreateProduct(ctx *gin.Context, input v1dto.CreateProd
 		return sqlc.CreateProductRow{}, utils.WrapError(utils.ErrCodeInternal, "failed to create product", err)
 	}
 
-	if err := ps.cache.Clear("products:*"); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear product cache")
+	if ps.cache != nil {
+		if err := ps.cache.Clear("products:*"); err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to clear product cache")
+		}
 	}
 
 	return product, nil
 }
 
-func (ps *productService) GetAllProducts(ctx *gin.Context, search, categoryUUID string, minPrice, maxPrice float64, status int32, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.GetProductByUUIDRow, int32, error) {
-	context := ctx.Request.Context()
-
+func (ps *productService) GetAllProducts(ctx context.Context, search, categoryUUID string, minPrice, maxPrice float64, status int32, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.GetProductByUUIDRow, int32, error) {
 	if sort == "" {
 		sort = "desc"
 	}
@@ -121,38 +127,40 @@ func (ps *productService) GetAllProducts(ctx *gin.Context, search, categoryUUID 
 		Total    int32                      `json:"total"`
 	}
 
-	if err := ps.cache.Get(cacheKey, &cacheData); err == nil && cacheData.Products != nil {
-		return cacheData.Products, cacheData.Total, nil
+	if ps.cache != nil {
+		if err := ps.cache.Get(cacheKey, &cacheData); err == nil && cacheData.Products != nil {
+			return cacheData.Products, cacheData.Total, nil
+		}
 	}
 
-	listProducts, err := ps.repo.GetAll(context, search, categoryUUID, minPrice, maxPrice, status, orderBy, sort, limit, offset, deleted)
+	listProducts, err := ps.repo.GetAll(ctx, search, categoryUUID, minPrice, maxPrice, status, orderBy, sort, limit, offset, deleted)
 	if err != nil {
 		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "failed to get all products", err)
 	}
 
-	total, err := ps.repo.CountProducts(context, search, categoryUUID, minPrice, maxPrice, status, deleted)
+	total, err := ps.repo.CountProducts(ctx, search, categoryUUID, minPrice, maxPrice, status, deleted)
 	if err != nil {
 		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "failed to count products", err)
 	}
 
-	cacheData = struct {
-		Products []sqlc.GetProductByUUIDRow `json:"products"`
-		Total    int32                      `json:"total"`
-	}{
-		Products: listProducts,
-		Total:    int32(total),
+	if ps.cache != nil {
+		cacheData = struct {
+			Products []sqlc.GetProductByUUIDRow `json:"products"`
+			Total    int32                      `json:"total"`
+		}{
+			Products: listProducts,
+			Total:    int32(total),
+		}
+		ps.cache.Set(cacheKey, cacheData, 5*time.Minute)
 	}
-	ps.cache.Set(cacheKey, cacheData, 5*time.Minute)
 
 	return listProducts, int32(total), nil
 }
 
-func (ps *productService) GetProductByUUID(ctx *gin.Context, productUuid uuid.UUID) (sqlc.GetProductByUUIDRow, error) {
-	reqCtx := ctx.Request.Context()
-
-	product, err := ps.repo.GetByUUID(reqCtx, productUuid)
+func (ps *productService) GetProductByUUID(ctx context.Context, productUUID uuid.UUID) (sqlc.GetProductByUUIDRow, error) {
+	product, err := ps.repo.GetByUUID(ctx, productUUID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
 			return sqlc.GetProductByUUIDRow{}, utils.NewError(utils.ErrCodeNotFound, "product not found")
 		}
 		return sqlc.GetProductByUUIDRow{}, utils.WrapError(utils.ErrCodeInternal, "failed to get product", err)
@@ -161,19 +169,16 @@ func (ps *productService) GetProductByUUID(ctx *gin.Context, productUuid uuid.UU
 	return product, nil
 }
 
-func (ps *productService) UpdateProduct(ctx *gin.Context, input v1dto.UpdateProductInput) (sqlc.UpdateProductRow, error) {
-	reqCtx := ctx.Request.Context()
-
+func (ps *productService) UpdateProduct(ctx context.Context, input v1dto.UpdateProductInput) (sqlc.UpdateProductRow, error) {
 	if input.CategoryUUID != nil {
 		categoryUuid, err := uuid.Parse(*input.CategoryUUID)
-
 		if err != nil {
 			return sqlc.UpdateProductRow{}, utils.NewError(utils.ErrCodeBadRequest, "invalid category uuid")
 		}
 
-		category, err := ps.categoryRepo.GetByUUID(reqCtx, categoryUuid)
+		category, err := ps.categoryRepo.GetByUUID(ctx, categoryUuid)
 		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
+			if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
 				return sqlc.UpdateProductRow{}, utils.NewError(utils.ErrCodeNotFound, "category not found")
 			}
 			return sqlc.UpdateProductRow{}, utils.WrapError(utils.ErrCodeInternal, "failed to get category", err)
@@ -182,11 +187,15 @@ func (ps *productService) UpdateProduct(ctx *gin.Context, input v1dto.UpdateProd
 	}
 
 	if input.Params.ProductName != nil {
-		slug, err := generateUniqueSlug(reqCtx, *input.Params.ProductName, func(slugCtx context.Context, slug string) error {
+		slug, err := generateUniqueSlug(ctx, *input.Params.ProductName, func(slugCtx context.Context, slug string) error {
 			_, err := ps.repo.GetBySlug(slugCtx, slug)
 			return err
 		})
 		if err != nil {
+			var appErr *utils.AppError
+			if errors.As(err, &appErr) {
+				return sqlc.UpdateProductRow{}, err
+			}
 			return sqlc.UpdateProductRow{}, utils.WrapError(utils.ErrCodeInternal, "failed to generate slug", err)
 		}
 
@@ -202,71 +211,78 @@ func (ps *productService) UpdateProduct(ctx *gin.Context, input v1dto.UpdateProd
 		}
 	}
 
-	product, err := ps.repo.Update(reqCtx, input.Params)
+	product, err := ps.repo.Update(ctx, input.Params)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
 			return sqlc.UpdateProductRow{}, utils.NewError(utils.ErrCodeNotFound, "product not found")
 		}
-		if pgErr, ok := err.(*pgconn.PgError); ok && pgErr.Code == "23505" {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return sqlc.UpdateProductRow{}, utils.NewError(utils.ErrCodeConflict, "product already exists")
 		}
 		return sqlc.UpdateProductRow{}, utils.WrapError(utils.ErrCodeInternal, "failed to update product", err)
 	}
 
-	if err := ps.cache.Clear("products:*"); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear product cache")
+	if ps.cache != nil {
+		if err := ps.cache.Clear("products:*"); err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to clear product cache")
+		}
 	}
 
 	return product, nil
 }
 
-func (ps *productService) SoftDeleteProduct(ctx *gin.Context, uuid uuid.UUID) (sqlc.Product, error) {
-	context := ctx.Request.Context()
-
-	product, err := ps.repo.SoftDelete(context, uuid)
+func (ps *productService) SoftDeleteProduct(ctx context.Context, productUUID uuid.UUID) (sqlc.Product, error) {
+	product, err := ps.repo.SoftDelete(ctx, productUUID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
 			return sqlc.Product{}, utils.NewError(utils.ErrCodeNotFound, "product not found")
 		}
 		return sqlc.Product{}, utils.WrapError(utils.ErrCodeInternal, "failed to soft delete product", err)
 	}
 
-	if err := ps.cache.Clear("products:*"); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear product cache")
+	if ps.cache != nil {
+		if err := ps.cache.Clear("products:*"); err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to clear product cache")
+		}
 	}
 
 	return product, nil
 }
 
-func (ps *productService) RestoreProduct(ctx *gin.Context, uuid uuid.UUID) (sqlc.Product, error) {
-	context := ctx.Request.Context()
-
-	product, err := ps.repo.Restore(context, uuid)
+func (ps *productService) RestoreProduct(ctx context.Context, productUUID uuid.UUID) (sqlc.Product, error) {
+	product, err := ps.repo.Restore(ctx, productUUID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
 			return sqlc.Product{}, utils.NewError(utils.ErrCodeNotFound, "product not found")
 		}
 		return sqlc.Product{}, utils.WrapError(utils.ErrCodeInternal, "failed to restore product", err)
 	}
-	if err := ps.cache.Clear("products:*"); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear product cache")
+
+	if ps.cache != nil {
+		if err := ps.cache.Clear("products:*"); err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to clear product cache")
+		}
 	}
+
 	return product, nil
 }
 
-func (ps *productService) TrashProduct(ctx *gin.Context, uuid uuid.UUID) error {
-	context := ctx.Request.Context()
-
-	_, err := ps.repo.Trash(context, uuid)
+func (ps *productService) TrashProduct(ctx context.Context, productUUID uuid.UUID) error {
+	_, err := ps.repo.Trash(ctx, productUUID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
 			return utils.NewError(utils.ErrCodeNotFound, "product not found")
 		}
 		return utils.WrapError(utils.ErrCodeInternal, "failed to trash product", err)
 	}
-	if err := ps.cache.Clear("products:*"); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear product cache")
+
+	if ps.cache != nil {
+		if err := ps.cache.Clear("products:*"); err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to clear product cache")
+		}
 	}
+
 	return nil
 }
 
