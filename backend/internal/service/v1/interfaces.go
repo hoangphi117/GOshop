@@ -117,14 +117,14 @@ type CartService interface {
 }
 
 type CouponService interface {
-	CreateCoupon(ctx *gin.Context, input v1dto.CreateCouponInput) (v1dto.CouponDTO, error)
-	GetAllCoupons(ctx *gin.Context, search, orderBy, sort string, coupon_type *int32, isActive *bool, page, limit int32, deleted bool) ([]v1dto.CouponDTO, int32, error)
-	GetCouponByUUID(ctx *gin.Context, couponUUID uuid.UUID) (v1dto.CouponDTO, error)
-	UpdateCoupon(ctx *gin.Context, couponUUID uuid.UUID, input v1dto.UpdateCouponInput) (v1dto.CouponDTO, error)
-	SoftDeleteCoupon(ctx *gin.Context, couponUUID uuid.UUID) (v1dto.CouponDTO, error)
-	RestoreCoupon(ctx *gin.Context, couponUUID uuid.UUID) (v1dto.CouponDTO, error)
-	TrashCoupon(ctx *gin.Context, couponUUID uuid.UUID) (v1dto.CouponDTO, error)
-	PreviewCoupon(ctx *gin.Context, input v1dto.PreviewCouponInput) (v1dto.PreviewCouponDTO, error)
+	CreateCoupon(ctx context.Context, input v1dto.CreateCouponInput) (v1dto.CouponDTO, error)
+	GetAllCoupons(ctx context.Context, search, orderBy, sort string, coupon_type *int32, isActive *bool, page, limit int32, deleted bool) ([]v1dto.CouponDTO, int32, error)
+	GetCouponByUUID(ctx context.Context, couponUUID uuid.UUID) (v1dto.CouponDTO, error)
+	UpdateCoupon(ctx context.Context, couponUUID uuid.UUID, input v1dto.UpdateCouponInput) (v1dto.CouponDTO, error)
+	SoftDeleteCoupon(ctx context.Context, couponUUID uuid.UUID) (v1dto.CouponDTO, error)
+	RestoreCoupon(ctx context.Context, couponUUID uuid.UUID) (v1dto.CouponDTO, error)
+	TrashCoupon(ctx context.Context, couponUUID uuid.UUID) error
+	PreviewCoupon(ctx context.Context, userUUID uuid.UUID, input v1dto.PreviewCouponInput) (v1dto.PreviewCouponDTO, error)
 }
 
 type PaymentService interface {

@@ -26,6 +26,7 @@ var (
 	_ v1service.InventoryService    = (*MockInventoryService)(nil)
 	_ v1service.NotificationService = (*MockNotificationService)(nil)
 	_ v1service.CartService         = (*MockCartService)(nil)
+	_ v1service.CouponService       = (*MockCouponService)(nil)
 	_ rabbitmq.RabbitMQService      = (*MockRabbitMQService)(nil)
 	_ shipping.ShippingProvider     = (*MockShippingProvider)(nil)
 	_ payment.PaymentProvider       = (*MockPaymentProvider)(nil)
@@ -188,6 +189,76 @@ func (m *MockCartService) ClearMyCart(ctx context.Context, userUUID uuid.UUID) e
 		return m.ClearMyCartFunc(ctx, userUUID)
 	}
 	return nil
+}
+
+// =========================================================================
+// MockCouponService
+// =========================================================================
+type MockCouponService struct {
+	CreateCouponFunc     func(ctx context.Context, input v1dto.CreateCouponInput) (v1dto.CouponDTO, error)
+	GetAllCouponsFunc    func(ctx context.Context, search, orderBy, sort string, coupon_type *int32, isActive *bool, page, limit int32, deleted bool) ([]v1dto.CouponDTO, int32, error)
+	GetCouponByUUIDFunc  func(ctx context.Context, couponUUID uuid.UUID) (v1dto.CouponDTO, error)
+	UpdateCouponFunc     func(ctx context.Context, couponUUID uuid.UUID, input v1dto.UpdateCouponInput) (v1dto.CouponDTO, error)
+	SoftDeleteCouponFunc func(ctx context.Context, couponUUID uuid.UUID) (v1dto.CouponDTO, error)
+	RestoreCouponFunc    func(ctx context.Context, couponUUID uuid.UUID) (v1dto.CouponDTO, error)
+	TrashCouponFunc      func(ctx context.Context, couponUUID uuid.UUID) error
+	PreviewCouponFunc    func(ctx context.Context, userUUID uuid.UUID, input v1dto.PreviewCouponInput) (v1dto.PreviewCouponDTO, error)
+}
+
+func (m *MockCouponService) CreateCoupon(ctx context.Context, input v1dto.CreateCouponInput) (v1dto.CouponDTO, error) {
+	if m.CreateCouponFunc != nil {
+		return m.CreateCouponFunc(ctx, input)
+	}
+	return v1dto.CouponDTO{}, nil
+}
+
+func (m *MockCouponService) GetAllCoupons(ctx context.Context, search, orderBy, sort string, coupon_type *int32, isActive *bool, page, limit int32, deleted bool) ([]v1dto.CouponDTO, int32, error) {
+	if m.GetAllCouponsFunc != nil {
+		return m.GetAllCouponsFunc(ctx, search, orderBy, sort, coupon_type, isActive, page, limit, deleted)
+	}
+	return nil, 0, nil
+}
+
+func (m *MockCouponService) GetCouponByUUID(ctx context.Context, couponUUID uuid.UUID) (v1dto.CouponDTO, error) {
+	if m.GetCouponByUUIDFunc != nil {
+		return m.GetCouponByUUIDFunc(ctx, couponUUID)
+	}
+	return v1dto.CouponDTO{}, nil
+}
+
+func (m *MockCouponService) UpdateCoupon(ctx context.Context, couponUUID uuid.UUID, input v1dto.UpdateCouponInput) (v1dto.CouponDTO, error) {
+	if m.UpdateCouponFunc != nil {
+		return m.UpdateCouponFunc(ctx, couponUUID, input)
+	}
+	return v1dto.CouponDTO{}, nil
+}
+
+func (m *MockCouponService) SoftDeleteCoupon(ctx context.Context, couponUUID uuid.UUID) (v1dto.CouponDTO, error) {
+	if m.SoftDeleteCouponFunc != nil {
+		return m.SoftDeleteCouponFunc(ctx, couponUUID)
+	}
+	return v1dto.CouponDTO{}, nil
+}
+
+func (m *MockCouponService) RestoreCoupon(ctx context.Context, couponUUID uuid.UUID) (v1dto.CouponDTO, error) {
+	if m.RestoreCouponFunc != nil {
+		return m.RestoreCouponFunc(ctx, couponUUID)
+	}
+	return v1dto.CouponDTO{}, nil
+}
+
+func (m *MockCouponService) TrashCoupon(ctx context.Context, couponUUID uuid.UUID) error {
+	if m.TrashCouponFunc != nil {
+		return m.TrashCouponFunc(ctx, couponUUID)
+	}
+	return nil
+}
+
+func (m *MockCouponService) PreviewCoupon(ctx context.Context, userUUID uuid.UUID, input v1dto.PreviewCouponInput) (v1dto.PreviewCouponDTO, error) {
+	if m.PreviewCouponFunc != nil {
+		return m.PreviewCouponFunc(ctx, userUUID, input)
+	}
+	return v1dto.PreviewCouponDTO{}, nil
 }
 
 // =========================================================================

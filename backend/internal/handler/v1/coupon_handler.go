@@ -2,6 +2,7 @@ package v1handler
 
 import (
 	v1dto "goshop/internal/dto/v1"
+	"goshop/internal/middleware"
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/utils"
 	"goshop/internal/validation"
@@ -41,7 +42,7 @@ func (ch *CouponHandler) CreateCoupon(ctx *gin.Context) {
 		return
 	}
 
-	coupon, err := ch.service.CreateCoupon(ctx, input)
+	coupon, err := ch.service.CreateCoupon(ctx.Request.Context(), input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -76,7 +77,7 @@ func (ch *CouponHandler) GetAllCoupons(ctx *gin.Context) {
 		return
 	}
 
-	coupons, totalCount, err := ch.service.GetAllCoupons(ctx, params.Search, params.OrderBy, params.Sort, params.Type,
+	coupons, totalCount, err := ch.service.GetAllCoupons(ctx.Request.Context(), params.Search, params.OrderBy, params.Sort, params.Type,
 		params.IsActive, params.Page, params.Limit, params.Deleted)
 	if err != nil {
 		utils.ResponseError(ctx, err)
@@ -121,7 +122,7 @@ func (ch *CouponHandler) UpdateCoupon(ctx *gin.Context) {
 		return
 	}
 
-	coupon, err := ch.service.UpdateCoupon(ctx, couponUuid, input)
+	coupon, err := ch.service.UpdateCoupon(ctx.Request.Context(), couponUuid, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -155,7 +156,7 @@ func (ch *CouponHandler) SoftDeleteCoupon(ctx *gin.Context) {
 		return
 	}
 
-	coupon, err := ch.service.SoftDeleteCoupon(ctx, couponUuid)
+	coupon, err := ch.service.SoftDeleteCoupon(ctx.Request.Context(), couponUuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -189,7 +190,7 @@ func (ch *CouponHandler) RestoreCoupon(ctx *gin.Context) {
 		return
 	}
 
-	coupon, err := ch.service.RestoreCoupon(ctx, couponUuid)
+	coupon, err := ch.service.RestoreCoupon(ctx.Request.Context(), couponUuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -222,7 +223,7 @@ func (ch *CouponHandler) TrashCoupon(ctx *gin.Context) {
 		return
 	}
 
-	_, err = ch.service.TrashCoupon(ctx, couponUuid)
+	err = ch.service.TrashCoupon(ctx.Request.Context(), couponUuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -242,13 +243,19 @@ func (ch *CouponHandler) TrashCoupon(ctx *gin.Context) {
 // @Failure      400 {object} utils.ErrorResponse
 // @Router       /coupons/preview [post]
 func (ch *CouponHandler) PreviewCoupon(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
 	var input v1dto.PreviewCouponInput
 	if err := ctx.ShouldBindJSON(&input); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
 	}
 
-	coupon, err := ch.service.PreviewCoupon(ctx, input)
+	coupon, err := ch.service.PreviewCoupon(ctx.Request.Context(), userUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return

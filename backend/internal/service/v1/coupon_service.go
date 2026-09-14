@@ -5,17 +5,16 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
+
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
-	"goshop/internal/middleware"
 	"goshop/internal/repository"
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
-	"strings"
-	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -30,15 +29,18 @@ type couponService struct {
 }
 
 func NewCouponService(repo repository.CouponRepository, userRepo repository.UserRepository, redisClient *redis.Client) CouponService {
+	var cacheService cache.RedisCacheService
+	if redisClient != nil {
+		cacheService = cache.NewRedisCacheService(redisClient)
+	}
 	return &couponService{
 		repo:     repo,
 		userRepo: userRepo,
-		cache:    cache.NewRedisCacheService(redisClient),
+		cache:    cacheService,
 	}
 }
 
 func validateCouponDates(startDateStr, endDateStr string) (time.Time, time.Time, error) {
-	// (RFC3339 / ISO8601: "2026-08-28T10:00:00Z")
 	startDate, err := time.Parse(time.RFC3339, startDateStr)
 	if err != nil {
 		return time.Time{}, time.Time{}, utils.NewError(utils.ErrCodeBadRequest, "Invalid start date format. Expected RFC3339 (e.g. 2026-08-28T10:00:00Z)")
@@ -57,12 +59,114 @@ func validateCouponDates(startDateStr, endDateStr string) (time.Time, time.Time,
 	return startDate, endDate, nil
 }
 
-func (cs *couponService) CreateCoupon(ctx *gin.Context, input v1dto.CreateCouponInput) (v1dto.CouponDTO, error) {
-	reqCtx := ctx.Request.Context()
+func validateEndDate(endDateStr *string, startDate time.Time) (*time.Time, error) {
+	if endDateStr == nil {
+		return nil, nil
+	}
+	parsedEnd, err := time.Parse(time.RFC3339, *endDateStr)
+	if err != nil {
+		return nil, utils.NewError(utils.ErrCodeBadRequest, "Invalid end date format")
+	}
+	if !parsedEnd.After(startDate) {
+		return nil, utils.NewError(utils.ErrCodeBadRequest, "End date must be after start date")
+	}
+	return &parsedEnd, nil
+}
 
+func validateDiscountConfig(couponType int32, discountValue float64, maxDiscountAmount *float64) error {
+	switch couponType {
+	case v1dto.CouponTypePercentage:
+		if discountValue < 1 || discountValue > 100 {
+			return utils.NewError(utils.ErrCodeBadRequest, "Percentage discount value must be between 1 and 100")
+		}
+	case v1dto.CouponTypeFixedAmount:
+		if discountValue <= 0 {
+			return utils.NewError(utils.ErrCodeBadRequest, "Fixed amount discount value must be greater than 0")
+		}
+		if maxDiscountAmount != nil {
+			return utils.NewError(utils.ErrCodeBadRequest, "Max discount amount is not applicable for Fixed Amount coupons")
+		}
+	default:
+		return utils.NewError(utils.ErrCodeBadRequest, "Invalid coupon type")
+	}
+	return nil
+}
+
+func validateCouponEligibility(coupon sqlc.Coupon, subtotal float64, userUsageCount int64, now time.Time) error {
+	if !coupon.CouponIsActive {
+		return utils.NewError(utils.ErrCodeBadRequest, "Coupon is not active")
+	}
+	if now.Before(coupon.CouponStartDate) {
+		return utils.NewError(utils.ErrCodeBadRequest, "Coupon is not yet valid")
+	}
+	if now.After(coupon.CouponEndDate) {
+		return utils.NewError(utils.ErrCodeBadRequest, "Coupon has expired")
+	}
+	if coupon.CouponUsageLimit != nil && coupon.CouponUsedCount >= *coupon.CouponUsageLimit {
+		return utils.NewError(utils.ErrCodeBadRequest, "Coupon has reached its maximum total usage limit")
+	}
+
+	minOrderAmount := utils.NumericToFloat(coupon.CouponMinOrderAmount)
+	if subtotal < minOrderAmount {
+		return utils.NewError(utils.ErrCodeBadRequest, fmt.Sprintf("Subtotal amount must be at least %.2f to apply this coupon", minOrderAmount))
+	}
+
+	if userUsageCount >= int64(coupon.CouponUserUsageLimit) {
+		return utils.NewError(utils.ErrCodeBadRequest, "You have reached your usage limit for this coupon")
+	}
+
+	return nil
+}
+
+func calculateDiscount(coupon sqlc.Coupon, orderAmount float64) float64 {
+	var discount float64
+
+	switch coupon.CouponType {
+	case v1dto.CouponTypePercentage:
+		discount = utils.RoundFloat(orderAmount*utils.NumericToFloat(coupon.CouponDiscountValue)/100, 2)
+		if coupon.CouponMaxDiscountAmount.Valid {
+			maxDiscount := utils.NumericToFloat(coupon.CouponMaxDiscountAmount)
+			if discount > maxDiscount {
+				discount = maxDiscount
+			}
+		}
+	case v1dto.CouponTypeFixedAmount:
+		discount = utils.NumericToFloat(coupon.CouponDiscountValue)
+		if discount > orderAmount {
+			discount = orderAmount
+		}
+	}
+
+	return discount
+}
+
+func (cs *couponService) getUser(ctx context.Context, userUUID uuid.UUID) (sqlc.User, error) {
+	user, err := cs.userRepo.GetByUUID(ctx, userUUID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+			return sqlc.User{}, utils.NewError(utils.ErrCodeNotFound, "user not found")
+		}
+		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to get user", err)
+	}
+	return user, nil
+}
+
+func (cs *couponService) invalidateCouponCache() {
+	if cs.cache != nil {
+		if err := cs.cache.Clear("coupons:*"); err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to clear coupon cache")
+		}
+	}
+}
+
+// -------------------------------------------------------------------------
+// CouponService Implementation
+// -------------------------------------------------------------------------
+
+func (cs *couponService) CreateCoupon(ctx context.Context, input v1dto.CreateCouponInput) (v1dto.CouponDTO, error) {
 	normalizedCode := strings.ToUpper(strings.TrimSpace(input.Code))
 
-	_, err := cs.repo.GetByCode(reqCtx, normalizedCode)
+	_, err := cs.repo.GetByCode(ctx, normalizedCode)
 	if err == nil {
 		return v1dto.CouponDTO{}, utils.NewError(utils.ErrCodeConflict, "Coupon code already exists")
 	}
@@ -72,18 +176,8 @@ func (cs *couponService) CreateCoupon(ctx *gin.Context, input v1dto.CreateCoupon
 		return v1dto.CouponDTO{}, err
 	}
 
-	switch input.Type {
-	case v1dto.CouponTypePercentage:
-		if input.DiscountValue < 1 || input.DiscountValue > 100 {
-			return v1dto.CouponDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Percentage discount value must be between 1 and 100")
-		}
-	case v1dto.CouponTypeFixedAmount:
-		if input.DiscountValue <= 0 {
-			return v1dto.CouponDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Fixed amount discount value must be greater than 0")
-		}
-		if input.MaxDiscountAmount != nil {
-			return v1dto.CouponDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Max discount amount is not applicable for Fixed Amount coupons")
-		}
+	if err := validateDiscountConfig(input.Type, input.DiscountValue, input.MaxDiscountAmount); err != nil {
+		return v1dto.CouponDTO{}, err
 	}
 
 	isActive := true
@@ -111,37 +205,30 @@ func (cs *couponService) CreateCoupon(ctx *gin.Context, input v1dto.CreateCoupon
 		CouponIsActive:          isActive,
 	}
 
-	coupon, err := cs.repo.Create(reqCtx, params)
+	coupon, err := cs.repo.Create(ctx, params)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return v1dto.CouponDTO{}, utils.NewError(utils.ErrCodeConflict, "Coupon code already exists")
 		}
-		return v1dto.CouponDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to create coupon: ", err)
+		return v1dto.CouponDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to create coupon", err)
 	}
 
-	if err := cs.cache.Clear("coupons:*"); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear coupon cache")
-	}
+	cs.invalidateCouponCache()
 
 	return v1dto.MapToCouponDTO(coupon), nil
 }
 
-func (cs *couponService) GetAllCoupons(ctx *gin.Context, search, orderBy, sort string, coupon_type *int32, isActive *bool, page, limit int32, deleted bool) ([]v1dto.CouponDTO, int32, error) {
-	reqCtx := ctx.Request.Context()
-
+func (cs *couponService) GetAllCoupons(ctx context.Context, search, orderBy, sort string, coupon_type *int32, isActive *bool, page, limit int32, deleted bool) ([]v1dto.CouponDTO, int32, error) {
 	if sort == "" {
 		sort = "desc"
 	}
-
 	if orderBy == "" {
-		orderBy = "user_created_at"
+		orderBy = "coupon_created_at"
 	}
-
 	if page <= 0 {
 		page = 1
 	}
-
 	if limit <= 0 {
 		limitInt := utils.GetIntEnv("DEFAULT_LIMIT", 10)
 		limit = int32(limitInt)
@@ -154,46 +241,50 @@ func (cs *couponService) GetAllCoupons(ctx *gin.Context, search, orderBy, sort s
 		utils.Int32Value(coupon_type), utils.BoolValue(isActive),
 		deleted, orderBy, sort,
 	)
+
 	var cacheData struct {
 		Coupons []v1dto.CouponDTO `json:"coupons"`
 		Total   int32             `json:"total"`
 	}
 
-	if err := cs.cache.Get(cacheKey, &cacheData); err == nil && cacheData.Coupons != nil {
-		return cacheData.Coupons, cacheData.Total, nil
+	if cs.cache != nil {
+		if err := cs.cache.Get(cacheKey, &cacheData); err == nil && cacheData.Coupons != nil {
+			return cacheData.Coupons, cacheData.Total, nil
+		}
 	}
 
-	listCoupons, err := cs.repo.GetAll(reqCtx, search, orderBy, sort, coupon_type, isActive, limit, offset, deleted)
+	listCoupons, err := cs.repo.GetAll(ctx, search, orderBy, sort, coupon_type, isActive, limit, offset, deleted)
 	if err != nil {
 		return []v1dto.CouponDTO{}, 0, utils.WrapError(utils.ErrCodeInternal, "Failed to fetch coupon list", err)
 	}
 
-	total, err := cs.repo.CountCoupons(reqCtx, search, coupon_type, isActive, deleted)
+	total, err := cs.repo.CountCoupons(ctx, search, coupon_type, isActive, deleted)
 	if err != nil {
 		return []v1dto.CouponDTO{}, 0, utils.WrapError(utils.ErrCodeInternal, "Failed to count coupons", err)
 	}
 
-	cacheData = struct {
-		Coupons []v1dto.CouponDTO `json:"coupons"`
-		Total   int32             `json:"total"`
-	}{
-		Coupons: v1dto.MapToCouponDTOList(listCoupons),
-		Total:   int32(total),
+	couponsDTO := v1dto.MapToCouponDTOList(listCoupons)
+
+	if cs.cache != nil {
+		cacheData = struct {
+			Coupons []v1dto.CouponDTO `json:"coupons"`
+			Total   int32             `json:"total"`
+		}{
+			Coupons: couponsDTO,
+			Total:   int32(total),
+		}
+		if err := cs.cache.Set(cacheKey, cacheData, 5*time.Minute); err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to set coupon cache")
+		}
 	}
 
-	if err := cs.cache.Set(cacheKey, cacheData, 5*time.Minute); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to set coupon cache")
-	}
-
-	return v1dto.MapToCouponDTOList(listCoupons), int32(total), nil
+	return couponsDTO, int32(total), nil
 }
 
-func (cs *couponService) GetCouponByUUID(ctx *gin.Context, couponUUID uuid.UUID) (v1dto.CouponDTO, error) {
-	reqCtx := ctx.Request.Context()
-
-	coupon, err := cs.repo.GetByUUID(reqCtx, couponUUID)
+func (cs *couponService) GetCouponByUUID(ctx context.Context, couponUUID uuid.UUID) (v1dto.CouponDTO, error) {
+	coupon, err := cs.repo.GetByUUID(ctx, couponUUID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
 			return v1dto.CouponDTO{}, utils.NewError(utils.ErrCodeNotFound, "Coupon not found")
 		}
 		return v1dto.CouponDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get coupon", err)
@@ -202,44 +293,27 @@ func (cs *couponService) GetCouponByUUID(ctx *gin.Context, couponUUID uuid.UUID)
 	return v1dto.MapToCouponDTO(coupon), nil
 }
 
-func (cs *couponService) UpdateCoupon(ctx *gin.Context, couponUUID uuid.UUID, input v1dto.UpdateCouponInput) (v1dto.CouponDTO, error) {
-	reqCtx := ctx.Request.Context()
-
-	existing, err := cs.repo.GetByUUID(reqCtx, couponUUID)
+func (cs *couponService) UpdateCoupon(ctx context.Context, couponUUID uuid.UUID, input v1dto.UpdateCouponInput) (v1dto.CouponDTO, error) {
+	existing, err := cs.repo.GetByUUID(ctx, couponUUID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
 			return v1dto.CouponDTO{}, utils.NewError(utils.ErrCodeNotFound, "Coupon not found")
 		}
 		return v1dto.CouponDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get coupon", err)
 	}
 
-	// Cross validation: MaxDiscountAmount is only valid for Percentage coupons
 	if existing.CouponType == v1dto.CouponTypeFixedAmount && input.MaxDiscountAmount != nil {
 		return v1dto.CouponDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Max discount amount is not applicable for Fixed Amount coupons")
 	}
 
-	var endDate *time.Time
-	if input.EndDate != nil {
-		parsedEnd, err := time.Parse(time.RFC3339, *input.EndDate)
-		if err != nil {
-			return v1dto.CouponDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Invalid end date format")
-		}
-		if !parsedEnd.After(existing.CouponStartDate) {
-			return v1dto.CouponDTO{}, utils.NewError(utils.ErrCodeBadRequest, "End date must be after start date")
-		}
-		endDate = &parsedEnd
+	endDate, err := validateEndDate(input.EndDate, existing.CouponStartDate)
+	if err != nil {
+		return v1dto.CouponDTO{}, err
 	}
 
 	if input.DiscountValue != nil {
-		switch existing.CouponType {
-		case v1dto.CouponTypePercentage:
-			if *input.DiscountValue < 1 || *input.DiscountValue > 100 {
-				return v1dto.CouponDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Percentage discount value must be between 1 and 100")
-			}
-		case v1dto.CouponTypeFixedAmount:
-			if *input.DiscountValue <= 0 {
-				return v1dto.CouponDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Fixed amount discount value must be greater than 0")
-			}
+		if err := validateDiscountConfig(existing.CouponType, *input.DiscountValue, input.MaxDiscountAmount); err != nil {
+			return v1dto.CouponDTO{}, err
 		}
 	}
 
@@ -267,156 +341,91 @@ func (cs *couponService) UpdateCoupon(ctx *gin.Context, couponUUID uuid.UUID, in
 		CouponIsActive:          input.IsActive,
 	}
 
-	updatedCoupon, err := cs.repo.Update(reqCtx, params)
+	updatedCoupon, err := cs.repo.Update(ctx, params)
 	if err != nil {
-		return v1dto.CouponDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to update coupon ", err)
+		return v1dto.CouponDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to update coupon", err)
 	}
 
-	if err := cs.cache.Clear("coupons:*"); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear coupon cache")
-	}
+	cs.invalidateCouponCache()
 
 	return v1dto.MapToCouponDTO(updatedCoupon), nil
 }
 
-func (cs *couponService) SoftDeleteCoupon(ctx *gin.Context, couponUUID uuid.UUID) (v1dto.CouponDTO, error) {
-	reqCtx := ctx.Request.Context()
-
-	coupon, err := cs.repo.SoftDelete(reqCtx, couponUUID)
+func (cs *couponService) SoftDeleteCoupon(ctx context.Context, couponUUID uuid.UUID) (v1dto.CouponDTO, error) {
+	coupon, err := cs.repo.SoftDelete(ctx, couponUUID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
 			return v1dto.CouponDTO{}, utils.NewError(utils.ErrCodeNotFound, "Coupon not found")
 		}
 		return v1dto.CouponDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to soft delete coupon", err)
 	}
 
-	if err := cs.cache.Clear("coupons:*"); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear coupon cache")
-	}
+	cs.invalidateCouponCache()
 
 	return v1dto.MapToCouponDTO(coupon), nil
 }
 
-func (cs *couponService) RestoreCoupon(ctx *gin.Context, couponUUID uuid.UUID) (v1dto.CouponDTO, error) {
-	reqCtx := ctx.Request.Context()
-
-	coupon, err := cs.repo.Restore(reqCtx, couponUUID)
+func (cs *couponService) RestoreCoupon(ctx context.Context, couponUUID uuid.UUID) (v1dto.CouponDTO, error) {
+	coupon, err := cs.repo.Restore(ctx, couponUUID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
 			return v1dto.CouponDTO{}, utils.NewError(utils.ErrCodeNotFound, "Coupon not found or not soft deleted for restoration")
 		}
 		return v1dto.CouponDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to restore coupon", err)
 	}
 
-	if err := cs.cache.Clear("coupons:*"); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear coupon cache")
-	}
+	cs.invalidateCouponCache()
 
 	return v1dto.MapToCouponDTO(coupon), nil
 }
 
-func (cs *couponService) TrashCoupon(ctx *gin.Context, couponUUID uuid.UUID) (v1dto.CouponDTO, error) {
-	reqCtx := ctx.Request.Context()
-
-	coupon, err := cs.repo.Trash(reqCtx, couponUUID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return v1dto.CouponDTO{}, utils.NewError(utils.ErrCodeNotFound, "Coupon not found or not soft deleted for trashing")
-		}
-		return v1dto.CouponDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to trash coupon", err)
-	}
-
-	if err := cs.cache.Clear("coupons:*"); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear coupon cache")
-	}
-
-	return v1dto.MapToCouponDTO(coupon), nil
-}
-
-func (cs *couponService) CountUserCouponUsages(ctx context.Context, userID, couponID int32) (int64, error) {
-	count, err := cs.repo.CountUserUsages(ctx, userID, couponID)
-	if err != nil {
-		return 0, utils.WrapError(utils.ErrCodeInternal, "Failed to count user coupon usages", err)
-	}
-	return count, nil
-}
-
-func (cs *couponService) IncrementCouponUsedCount(ctx context.Context, tx pgx.Tx, couponID int32) error {
-	err := cs.repo.IncrementUsedCount(ctx, tx, couponID)
+func (cs *couponService) TrashCoupon(ctx context.Context, couponUUID uuid.UUID) error {
+	_, err := cs.repo.Trash(ctx, couponUUID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
-			return utils.NewError(utils.ErrCodeConflict, "Coupon usage limit reached, please try another coupon")
+			return utils.NewError(utils.ErrCodeNotFound, "Coupon not found or not soft deleted for trashing")
 		}
-		return utils.WrapError(utils.ErrCodeInternal, "Failed to increment coupon used count", err)
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to trash coupon", err)
 	}
+
+	cs.invalidateCouponCache()
+
 	return nil
 }
 
-func (cs *couponService) RecordUserCouponUsage(ctx context.Context, tx pgx.Tx, couponID, userID, orderID int32) (sqlc.CouponUsage, error) {
-	params := sqlc.RecordCouponUsageParams{
-		CouponUsageCouponID: couponID,
-		CouponUsageUserID:   userID,
-		CouponUsageOrderID:  utils.ConvertToInt32Pointer(orderID),
-	}
-
-	couponUsage, err := cs.repo.RecordUserUsage(ctx, tx, params)
-	if err != nil {
-		return sqlc.CouponUsage{}, utils.WrapError(utils.ErrCodeInternal, "Failed to record user coupon usage", err)
-	}
-
-	return couponUsage, nil
-}
-
-func (cs *couponService) PreviewCoupon(ctx *gin.Context, input v1dto.PreviewCouponInput) (v1dto.PreviewCouponDTO, error) {
-	reqCtx := ctx.Request.Context()
-
-	user, err := middleware.GetUserFromContext(ctx, cs.userRepo)
+func (cs *couponService) PreviewCoupon(ctx context.Context, userUUID uuid.UUID, input v1dto.PreviewCouponInput) (v1dto.PreviewCouponDTO, error) {
+	user, err := cs.getUser(ctx, userUUID)
 	if err != nil {
 		return v1dto.PreviewCouponDTO{}, err
 	}
 
 	normalizedCode := strings.ToUpper(strings.TrimSpace(input.Code))
 
-	coupon, err := cs.repo.GetByCode(reqCtx, normalizedCode)
+	coupon, err := cs.repo.GetByCode(ctx, normalizedCode)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
 			return v1dto.PreviewCouponDTO{}, utils.NewError(utils.ErrCodeNotFound, "Coupon not found")
 		}
 		return v1dto.PreviewCouponDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get coupon", err)
 	}
 
-	if !coupon.CouponIsActive {
-		return v1dto.PreviewCouponDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Coupon is not active")
+	userUsageCount, err := cs.repo.CountUserUsages(ctx, user.UserID, coupon.CouponID)
+	if err != nil {
+		return v1dto.PreviewCouponDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to count user coupon usages", err)
 	}
 
 	now := time.Now()
-	if now.Before(coupon.CouponStartDate) {
-		return v1dto.PreviewCouponDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Coupon is not yet valid")
-	}
-	if now.After(coupon.CouponEndDate) {
-		return v1dto.PreviewCouponDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Coupon has expired")
-	}
-
-	if coupon.CouponUsageLimit != nil && coupon.CouponUsedCount >= *coupon.CouponUsageLimit {
-		return v1dto.PreviewCouponDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Coupon has reached its maximum total usage limit")
-	}
-
-	minOrderAmount := utils.NumericToFloat(coupon.CouponMinOrderAmount)
-	if input.SubtotalAmount < minOrderAmount {
-		return v1dto.PreviewCouponDTO{}, utils.NewError(utils.ErrCodeBadRequest, fmt.Sprintf("Subtotal amount must be at least %.2f to apply this coupon", minOrderAmount))
-	}
-
-	userUsageCount, err := cs.CountUserCouponUsages(reqCtx, user.UserID, coupon.CouponID)
-	if err != nil {
+	if err := validateCouponEligibility(coupon, input.SubtotalAmount, userUsageCount, now); err != nil {
 		return v1dto.PreviewCouponDTO{}, err
-	}
-
-	if userUsageCount >= int64(coupon.CouponUserUsageLimit) {
-		return v1dto.PreviewCouponDTO{}, utils.NewError(utils.ErrCodeBadRequest, "You have reached your usage limit for this coupon")
 	}
 
 	discountAmount := calculateDiscount(coupon, input.SubtotalAmount)
 	finalTotalAmount := input.SubtotalAmount - discountAmount
+	if finalTotalAmount < 0 {
+		finalTotalAmount = 0
+	}
+
+	minOrderAmount := utils.NumericToFloat(coupon.CouponMinOrderAmount)
 
 	return v1dto.PreviewCouponDTO{
 		CouponCode:       coupon.CouponCode,
@@ -429,26 +438,3 @@ func (cs *couponService) PreviewCoupon(ctx *gin.Context, input v1dto.PreviewCoup
 		MinOrderAmount:   minOrderAmount,
 	}, nil
 }
-
-func calculateDiscount(coupon sqlc.Coupon, orderAmount float64) float64 {
-	var discount float64
-
-	switch coupon.CouponType {
-	case CouponTypePercentage:
-		discount = utils.RoundFloat(orderAmount*utils.NumericToFloat(coupon.CouponDiscountValue)/100, 2)
-		if coupon.CouponMaxDiscountAmount.Valid {
-			maxDiscount := utils.NumericToFloat(coupon.CouponMaxDiscountAmount)
-			if discount > maxDiscount {
-				discount = maxDiscount
-			}
-		}
-	case CouponTypeFixedAmount:
-		discount = utils.NumericToFloat(coupon.CouponDiscountValue)
-		if discount > orderAmount {
-			discount = orderAmount
-		}
-	}
-
-	return discount
-}
-
