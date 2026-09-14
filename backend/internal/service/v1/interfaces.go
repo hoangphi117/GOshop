@@ -65,17 +65,17 @@ type OrderService interface {
 	GetOrderInvoicePDF(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) ([]byte, string, error)
 
 	// Shipping
-	CreateShipping(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.CreateShippingInput) (v1dto.AsyncShippingResponseDTO, error)
+	CreateShipping(ctx context.Context, orderUUID uuid.UUID, input v1dto.CreateShippingInput) (v1dto.AsyncShippingResponseDTO, error)
 	ProcessShippingOrderMessage(headers amqp.Table, body []byte) error
-	GetOrderTimeline(ctx *gin.Context, orderUUID uuid.UUID) (v1dto.OrderTimelineResponseDTO, error)
-	HandleShippingWebhook(ctx *gin.Context, rawBody []byte, payload v1dto.GHNWebhookPayload) error
-	CalculateShippingFee(ctx *gin.Context, input v1dto.CalculateShippingFeeInput) (v1dto.ShippingFeeResponseDTO, error)
-	CancelShipping(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.CancelShippingInput) (v1dto.CancelShippingResponseDTO, error)
-	ConfirmOrderDelivery(ctx *gin.Context, orderUUID uuid.UUID) (v1dto.ConfirmDeliveryResponseDTO, error)
-	GetPrintBill(ctx *gin.Context, orderUUID uuid.UUID) (v1dto.PrintBillResponseDTO, error)
-	GetProvinces(ctx *gin.Context) ([]v1dto.ProvinceDTO, error)
-	GetDistricts(ctx *gin.Context, provinceID int) ([]v1dto.DistrictDTO, error)
-	GetWards(ctx *gin.Context, districtID int) ([]v1dto.WardDTO, error)
+	GetOrderTimeline(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (v1dto.OrderTimelineResponseDTO, error)
+	HandleShippingWebhook(ctx context.Context, rawBody []byte, payload v1dto.GHNWebhookPayload) error
+	CalculateShippingFee(ctx context.Context, input v1dto.CalculateShippingFeeInput) (v1dto.ShippingFeeResponseDTO, error)
+	CancelShipping(ctx context.Context, orderUUID uuid.UUID, input v1dto.CancelShippingInput) (v1dto.CancelShippingResponseDTO, error)
+	ConfirmOrderDelivery(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (v1dto.ConfirmDeliveryResponseDTO, error)
+	GetPrintBill(ctx context.Context, orderUUID uuid.UUID) (v1dto.PrintBillResponseDTO, error)
+	GetProvinces(ctx context.Context) ([]v1dto.ProvinceDTO, error)
+	GetDistricts(ctx context.Context, provinceID int) ([]v1dto.DistrictDTO, error)
+	GetWards(ctx context.Context, districtID int) ([]v1dto.WardDTO, error)
 
 	RequestOrderReturn(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.CreateOrderReturnInput, imageURLs []string, videoURL *string) (v1dto.OrderReturnDTO, error)
 	GetOrderReturnDetails(ctx *gin.Context, orderUUID uuid.UUID) (v1dto.OrderReturnDetailDTO, error)
@@ -87,9 +87,9 @@ type OrderService interface {
 	SubmitReturnShipping(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.SubmitReturnShippingInput) (v1dto.SubmitReturnShippingResponseDTO, error)
 	UpdateReturnBankAccount(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.UpdateReturnBankAccountInput) (v1dto.UpdateReturnBankAccountResponseDTO, error)
 	AdminProcessReturnRefund(ctx *gin.Context, returnUUID uuid.UUID, input v1dto.AdminReturnRefundInput) (v1dto.AdminReturnRefundResponseDTO, error)
-	SyncOrderTracking(ctx *gin.Context, orderUUID uuid.UUID) (v1dto.SyncTrackingResponseDTO, error)
+	SyncOrderTracking(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (v1dto.SyncTrackingResponseDTO, error)
 	SyncActiveShippingOrders(ctx context.Context) (v1dto.SyncActiveShippingStatsDTO, error)
-	AdminSyncActiveShippingOrders(ctx *gin.Context) (v1dto.SyncActiveShippingStatsDTO, error)
+	AdminSyncActiveShippingOrders(ctx context.Context, userUUID uuid.UUID) (v1dto.SyncActiveShippingStatsDTO, error)
 }
 
 type OrderPricingService interface {

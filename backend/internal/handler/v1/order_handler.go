@@ -458,7 +458,7 @@ func (oh *OrderHandler) CreateShipping(ctx *gin.Context) {
 		return
 	}
 
-	res, err := oh.service.CreateShipping(ctx, orderUUID, input)
+	res, err := oh.service.CreateShipping(ctx.Request.Context(), orderUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -492,7 +492,13 @@ func (oh *OrderHandler) GetOrderTimeline(ctx *gin.Context) {
 		return
 	}
 
-	timeline, err := oh.service.GetOrderTimeline(ctx, orderUUID)
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized"))
+		return
+	}
+
+	timeline, err := oh.service.GetOrderTimeline(ctx.Request.Context(), userUUID, orderUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -529,7 +535,7 @@ func (oh *OrderHandler) HandleShippingWebhook(ctx *gin.Context) {
 		return
 	}
 
-	if err := oh.service.HandleShippingWebhook(ctx, rawBody, payload); err != nil {
+	if err := oh.service.HandleShippingWebhook(ctx.Request.Context(), rawBody, payload); err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
@@ -559,7 +565,7 @@ func (oh *OrderHandler) CalculateShippingFee(ctx *gin.Context) {
 		return
 	}
 
-	res, err := oh.service.CalculateShippingFee(ctx, input)
+	res, err := oh.service.CalculateShippingFee(ctx.Request.Context(), input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -597,7 +603,7 @@ func (oh *OrderHandler) CancelShipping(ctx *gin.Context) {
 		return
 	}
 
-	res, err := oh.service.CancelShipping(ctx, orderUUID, input)
+	res, err := oh.service.CancelShipping(ctx.Request.Context(), orderUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -630,7 +636,7 @@ func (oh *OrderHandler) GetPrintBill(ctx *gin.Context) {
 		return
 	}
 
-	res, err := oh.service.GetPrintBill(ctx, orderUUID)
+	res, err := oh.service.GetPrintBill(ctx.Request.Context(), orderUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -648,7 +654,7 @@ func (oh *OrderHandler) GetPrintBill(ctx *gin.Context) {
 // @Failure      400 {object} utils.ErrorResponse
 // @Router       /shipping/provinces [get]
 func (oh *OrderHandler) GetProvinces(ctx *gin.Context) {
-	provinces, err := oh.service.GetProvinces(ctx)
+	provinces, err := oh.service.GetProvinces(ctx.Request.Context())
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -672,7 +678,7 @@ func (oh *OrderHandler) GetDistricts(ctx *gin.Context) {
 		return
 	}
 
-	districts, err := oh.service.GetDistricts(ctx, query.ProvinceID)
+	districts, err := oh.service.GetDistricts(ctx.Request.Context(), query.ProvinceID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -696,7 +702,7 @@ func (oh *OrderHandler) GetWards(ctx *gin.Context) {
 		return
 	}
 
-	wards, err := oh.service.GetWards(ctx, query.DistrictID)
+	wards, err := oh.service.GetWards(ctx.Request.Context(), query.DistrictID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -1181,7 +1187,13 @@ func (oh *OrderHandler) ConfirmOrderDelivery(ctx *gin.Context) {
 		return
 	}
 
-	res, err := oh.service.ConfirmOrderDelivery(ctx, orderUUID)
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized"))
+		return
+	}
+
+	res, err := oh.service.ConfirmOrderDelivery(ctx.Request.Context(), userUUID, orderUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -1215,7 +1227,13 @@ func (oh *OrderHandler) SyncOrderTracking(ctx *gin.Context) {
 		return
 	}
 
-	result, err := oh.service.SyncOrderTracking(ctx, orderUUID)
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized"))
+		return
+	}
+
+	result, err := oh.service.SyncOrderTracking(ctx.Request.Context(), userUUID, orderUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -1236,7 +1254,13 @@ func (oh *OrderHandler) SyncOrderTracking(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /admin/orders/sync-active-tracking [post]
 func (oh *OrderHandler) AdminSyncActiveTracking(ctx *gin.Context) {
-	stats, err := oh.service.AdminSyncActiveShippingOrders(ctx)
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized"))
+		return
+	}
+
+	stats, err := oh.service.AdminSyncActiveShippingOrders(ctx.Request.Context(), userUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return

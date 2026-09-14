@@ -15,22 +15,16 @@ import (
 	"goshop/pkg/logger"
 	"goshop/pkg/shipping"
 
-	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-func (s *orderService) CreateShipping(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.CreateShippingInput) (v1dto.AsyncShippingResponseDTO, error) {
-	reqCtx := ctx.Request.Context()
-
-	order, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
+func (s *orderService) CreateShipping(ctx context.Context, orderUUID uuid.UUID, input v1dto.CreateShippingInput) (v1dto.AsyncShippingResponseDTO, error) {
+	order, err := s.orderRepo.GetByUUID(ctx, orderUUID)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return v1dto.AsyncShippingResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "Order not found")
-		}
-		return v1dto.AsyncShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
+		return v1dto.AsyncShippingResponseDTO{}, s.handleOrderNotFoundError(err)
 	}
 
 	if order.OrderStatus != OrderStatusConfirmed {
@@ -49,7 +43,7 @@ func (s *orderService) CreateShipping(ctx *gin.Context, orderUUID uuid.UUID, inp
 		EnqueuedAt: time.Now(),
 	}
 
-	if err := s.rabbitmq.Publish(reqCtx, QueueShippingCreate, msg); err != nil {
+	if err := s.rabbitmq.Publish(ctx, QueueShippingCreate, msg); err != nil {
 		logger.Log.Error().Err(err).Str("order_uuid", orderUUID.String()).Msg("Failed to enqueue shipping creation")
 		return v1dto.AsyncShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to enqueue shipping creation", err)
 	}
@@ -128,22 +122,18 @@ func (s *orderService) ProcessShippingOrderMessage(headers amqp.Table, body []by
 	ghnResp, err := provider.CreateShippingOrder(ctx, ghnReq)
 	if err != nil {
 		logger.Log.Error().Err(err).Str("order_uuid", msg.OrderUUID).Msg("GHN API creation failed")
-		failNote := fmt.Sprintf("GHN shipping creation failed: %s", err.Error())
-		_, _ = s.trackingRepo.InsertEvent(ctx, nil, sqlc.InsertTrackingEventParams{
-			EventOrderID: order.OrderID,
-			EventStatus:  "shipping_failed",
-			EventNote:    &failNote,
-			EventSource:  "system",
-		})
+		if s.trackingRepo != nil {
+			failNote := fmt.Sprintf("GHN shipping creation failed: %s", err.Error())
+			_, _ = s.trackingRepo.InsertEvent(ctx, nil, sqlc.InsertTrackingEventParams{
+				EventOrderID: order.OrderID,
+				EventStatus:  "shipping_failed",
+				EventNote:    &failNote,
+				EventSource:  "system",
+			})
+		}
 		return err
 	}
 
-	tx, err := db.BeginTx(ctx)
-	if err != nil {
-		_ = provider.CancelShippingOrder(ctx, ghnResp.ShippingCode)
-		return err
-	}
-	defer tx.Rollback(ctx)
 	var expectedDelivery pgtype.Timestamptz
 	if ghnResp.ExpectedDelivery != nil {
 		expectedDelivery = pgtype.Timestamptz{
@@ -151,68 +141,73 @@ func (s *orderService) ProcessShippingOrderMessage(headers amqp.Table, body []by
 			Valid: true,
 		}
 	}
-	_, err = s.orderRepo.UpdateShippingAndStatus(ctx, tx, orderUUID, sqlc.UpdateOrderShippingAndStatusParams{
-		ShippingProvider: &msg.Input.Provider,
-		ShippingCode:     &ghnResp.ShippingCode,
-		ShippingFee:      utils.FloatToNumeric(ghnResp.ShippingFee),
-		ExpectedDelivery: expectedDelivery,
-		OrderStatus:      OrderStatusShipped,
-		OrderUuid:        orderUUID,
+
+	err = s.txManager.WithTx(ctx, func(txCtx context.Context) error {
+		tx, _ := db.GetTx(txCtx)
+		_, err = s.orderRepo.UpdateShippingAndStatus(txCtx, tx, orderUUID, sqlc.UpdateOrderShippingAndStatusParams{
+			ShippingProvider: &msg.Input.Provider,
+			ShippingCode:     &ghnResp.ShippingCode,
+			ShippingFee:      utils.FloatToNumeric(ghnResp.ShippingFee),
+			ExpectedDelivery: expectedDelivery,
+			OrderStatus:      OrderStatusShipped,
+			OrderUuid:        orderUUID,
+		})
+		if err != nil {
+			return err
+		}
+
+		if s.trackingRepo != nil {
+			eventNote := fmt.Sprintf("Created shipping order via %s successfully. Tracking code: %s, Fee: %.0f VND",
+				strings.ToUpper(msg.Input.Provider), ghnResp.ShippingCode, ghnResp.ShippingFee)
+			_, err = s.trackingRepo.InsertEvent(txCtx, tx, sqlc.InsertTrackingEventParams{
+				EventOrderID: order.OrderID,
+				EventStatus:  "shipped",
+				EventNote:    &eventNote,
+				EventSource:  "admin",
+			})
+			if err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	if err != nil {
 		_ = provider.CancelShippingOrder(ctx, ghnResp.ShippingCode)
 		return err
 	}
-	// Ghi nhận tracking timeline
-	eventNote := fmt.Sprintf("Created shipping order via %s successfully. Tracking code: %s, Fee: %.0f VND",
-		strings.ToUpper(msg.Input.Provider), ghnResp.ShippingCode, ghnResp.ShippingFee)
-	_, err = s.trackingRepo.InsertEvent(ctx, tx, sqlc.InsertTrackingEventParams{
-		EventOrderID: order.OrderID,
-		EventStatus:  "shipped",
-		EventNote:    &eventNote,
-		EventSource:  "admin",
-	})
-	if err != nil {
-		_ = provider.CancelShippingOrder(ctx, ghnResp.ShippingCode)
-		return err
+
+	if s.cache != nil {
+		_ = s.cache.Clear(fmt.Sprintf("order:%s", orderUUID.String()))
 	}
-	if err := tx.Commit(ctx); err != nil {
-		_ = provider.CancelShippingOrder(ctx, ghnResp.ShippingCode)
-		return err
-	}
-	_ = s.cache.Clear(fmt.Sprintf("order:%s", orderUUID.String()))
 	logger.Log.Info().Str("order_uuid", msg.OrderUUID).Str("shipping_code", ghnResp.ShippingCode).Msg("Shipping order created successfully via RabbitMQ")
 
-	go func() {
-		_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
-			UserID: order.OrderUserID,
-			Type:   "order_shipped",
-			Title:  "Your Order Is On The Way",
-			Body:   fmt.Sprintf("Order #%s has been shipped with tracking code: %s.", order.OrderNumber, ghnResp.ShippingCode),
-			Data: map[string]any{
-				"order_uuid":    orderUUID.String(),
-				"shipping_code": ghnResp.ShippingCode,
-			},
-		})
-	}()
+	if s.notificationService != nil {
+		go func() {
+			_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
+				UserID: order.OrderUserID,
+				Type:   "order_shipped",
+				Title:  "Your Order Is On The Way",
+				Body:   fmt.Sprintf("Order #%s has been shipped with tracking code: %s.", order.OrderNumber, ghnResp.ShippingCode),
+				Data: map[string]any{
+					"order_uuid":    orderUUID.String(),
+					"shipping_code": ghnResp.ShippingCode,
+				},
+			})
+		}()
+	}
 
 	return nil
 }
 
-func (s *orderService) GetOrderTimeline(ctx *gin.Context, orderUUID uuid.UUID) (v1dto.OrderTimelineResponseDTO, error) {
-	reqCtx := ctx.Request.Context()
-
-	user, err := s.getUser(ctx)
+func (s *orderService) GetOrderTimeline(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (v1dto.OrderTimelineResponseDTO, error) {
+	user, err := s.userRepo.GetByUUID(ctx, userUUID)
 	if err != nil {
-		return v1dto.OrderTimelineResponseDTO{}, err
+		return v1dto.OrderTimelineResponseDTO{}, s.handleUserNotFoundError(err)
 	}
 
-	order, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
+	order, err := s.orderRepo.GetByUUID(ctx, orderUUID)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return v1dto.OrderTimelineResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "Order not found")
-		}
-		return v1dto.OrderTimelineResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
+		return v1dto.OrderTimelineResponseDTO{}, s.handleOrderNotFoundError(err)
 	}
 
 	// Check if the user is the owner of the order or has admin/moderator privileges
@@ -221,7 +216,7 @@ func (s *orderService) GetOrderTimeline(ctx *gin.Context, orderUUID uuid.UUID) (
 		return v1dto.OrderTimelineResponseDTO{}, utils.NewError(utils.ErrCodeForbidden, "Access denied")
 	}
 
-	events, err := s.trackingRepo.GetByOrderID(reqCtx, order.OrderID)
+	events, err := s.trackingRepo.GetByOrderID(ctx, order.OrderID)
 	if err != nil {
 		return v1dto.OrderTimelineResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get tracking events", err)
 	}
@@ -232,9 +227,7 @@ func (s *orderService) GetOrderTimeline(ctx *gin.Context, orderUUID uuid.UUID) (
 	}, nil
 }
 
-func (s *orderService) HandleShippingWebhook(ctx *gin.Context, rawBody []byte, payload v1dto.GHNWebhookPayload) error {
-	reqCtx := ctx.Request.Context()
-
+func (s *orderService) HandleShippingWebhook(ctx context.Context, rawBody []byte, payload v1dto.GHNWebhookPayload) error {
 	ghnStatus := strings.ToLower(strings.TrimSpace(payload.Status))
 
 	// Tạo externalEventID để dedup qua bảng webhook_events
@@ -251,7 +244,7 @@ func (s *orderService) HandleShippingWebhook(ctx *gin.Context, rawBody []byte, p
 		WeRawBody:         string(rawBody),
 	}
 
-	event, err := s.webhookRepo.InsertEvent(reqCtx, nil, eventParams)
+	event, err := s.webhookRepo.InsertEvent(ctx, nil, eventParams)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			logger.Log.Info().
@@ -276,11 +269,11 @@ func (s *orderService) HandleShippingWebhook(ctx *gin.Context, rawBody []byte, p
 		return nil
 	}
 
-	order, err := s.orderRepo.GetByShippingCode(reqCtx, payload.OrderCode)
+	order, err := s.orderRepo.GetByShippingCode(ctx, payload.OrderCode)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			logger.Log.Warn().Str("shipping_code", payload.OrderCode).Msg("Received webhook for unknown shipping code")
-			_ = s.webhookRepo.MarkProcessed(reqCtx, nil, event.WeID)
+			_ = s.webhookRepo.MarkProcessed(ctx, nil, event.WeID)
 			return nil
 		}
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to get order by shipping code", err)
@@ -290,56 +283,61 @@ func (s *orderService) HandleShippingWebhook(ctx *gin.Context, rawBody []byte, p
 	switch ghnStatus {
 	case "delivered":
 		if order.OrderStatus == OrderStatusDelivered {
-			_ = s.webhookRepo.MarkProcessed(reqCtx, nil, event.WeID)
+			_ = s.webhookRepo.MarkProcessed(ctx, nil, event.WeID)
 			return nil
 		}
 
-		tx, err := db.BeginTx(reqCtx)
-		if err != nil {
-			return utils.WrapError(utils.ErrCodeInternal, "Failed to begin transaction", err)
-		}
-		defer tx.Rollback(reqCtx)
+		var updatedOrder sqlc.Order
+		err = s.txManager.WithTx(ctx, func(txCtx context.Context) error {
+			tx, _ := db.GetTx(txCtx)
+			var err error
+			updatedOrder, err = s.orderRepo.MarkDeliveredByShippingCode(txCtx, tx, payload.OrderCode)
+			if err != nil {
+				return err
+			}
 
-		updatedOrder, err := s.orderRepo.MarkDeliveredByShippingCode(reqCtx, tx, payload.OrderCode)
+			if s.trackingRepo != nil {
+				eventNote := "Order delivered successfully via shipping provider."
+				_, err = s.trackingRepo.InsertEvent(txCtx, tx, sqlc.InsertTrackingEventParams{
+					EventOrderID: order.OrderID,
+					EventStatus:  "delivered",
+					EventNote:    &eventNote,
+					EventSource:  "ghn",
+				})
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		})
 		if err != nil {
 			return utils.WrapError(utils.ErrCodeInternal, "Failed to update order status to delivered", err)
 		}
 
-		eventNote := "Order delivered successfully via shipping provider."
-		_, err = s.trackingRepo.InsertEvent(reqCtx, tx, sqlc.InsertTrackingEventParams{
-			EventOrderID: order.OrderID,
-			EventStatus:  "delivered",
-			EventNote:    &eventNote,
-			EventSource:  "ghn",
-		})
-		if err != nil {
-			return utils.WrapError(utils.ErrCodeInternal, "Failed to record tracking event", err)
+		// Clear order cache
+		if s.cache != nil {
+			_ = s.cache.Clear(fmt.Sprintf("order:%s", updatedOrder.OrderUuid.String()))
 		}
-
-		if err := tx.Commit(reqCtx); err != nil {
-			return utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
-		}
-
-		// Xóa cache đơn hàng
-		_ = s.cache.Clear(fmt.Sprintf("order:%s", updatedOrder.OrderUuid.String()))
 		logger.Log.Info().Str("order_number", order.OrderNumber).Str("code", payload.OrderCode).Msg("Order marked as DELIVERED via GHN Webhook")
 
-		go func() {
-			_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
-				UserID: updatedOrder.OrderUserID,
-				Type:   "order_delivered",
-				Title:  "Order Delivered",
-				Body:   fmt.Sprintf("Your order #%s has been delivered. Please confirm receipt.", order.OrderNumber),
-				Data:   map[string]any{"order_uuid": updatedOrder.OrderUuid.String()},
-			})
-		}()
+		if s.notificationService != nil {
+			go func() {
+				_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
+					UserID: updatedOrder.OrderUserID,
+					Type:   "order_delivered",
+					Title:  "Order Delivered",
+					Body:   fmt.Sprintf("Your order #%s has been delivered. Please confirm receipt.", order.OrderNumber),
+					Data:   map[string]any{"order_uuid": updatedOrder.OrderUuid.String()},
+				})
+			}()
+		}
 
 	case "delivering":
 		eventNote := "Order is currently being delivered by shipping provider."
 		if payload.Warehouse != "" {
 			eventNote = fmt.Sprintf("Order is being shipped from %s", payload.Warehouse)
 		}
-		_, _ = s.trackingRepo.InsertEvent(reqCtx, nil, sqlc.InsertTrackingEventParams{
+		_, _ = s.trackingRepo.InsertEvent(ctx, nil, sqlc.InsertTrackingEventParams{
 			EventOrderID: order.OrderID,
 			EventStatus:  "delivering",
 			EventNote:    &eventNote,
@@ -352,7 +350,7 @@ func (s *orderService) HandleShippingWebhook(ctx *gin.Context, rawBody []byte, p
 			eventNote = fmt.Sprintf("Delivery failed: %s", payload.Description)
 		}
 
-		_, _ = s.trackingRepo.InsertEvent(reqCtx, nil, sqlc.InsertTrackingEventParams{
+		_, _ = s.trackingRepo.InsertEvent(ctx, nil, sqlc.InsertTrackingEventParams{
 			EventOrderID: order.OrderID,
 			EventStatus:  "delivery_fail",
 			EventNote:    &eventNote,
@@ -365,7 +363,7 @@ func (s *orderService) HandleShippingWebhook(ctx *gin.Context, rawBody []byte, p
 			eventNote = fmt.Sprintf("Order returned: %s", payload.Description)
 		}
 
-		_, _ = s.trackingRepo.InsertEvent(reqCtx, nil, sqlc.InsertTrackingEventParams{
+		_, _ = s.trackingRepo.InsertEvent(ctx, nil, sqlc.InsertTrackingEventParams{
 			EventOrderID: order.OrderID,
 			EventStatus:  "returned",
 			EventNote:    &eventNote,
@@ -377,7 +375,7 @@ func (s *orderService) HandleShippingWebhook(ctx *gin.Context, rawBody []byte, p
 		if payload.Description != "" {
 			eventNote = payload.Description
 		}
-		_, _ = s.trackingRepo.InsertEvent(reqCtx, nil, sqlc.InsertTrackingEventParams{
+		_, _ = s.trackingRepo.InsertEvent(ctx, nil, sqlc.InsertTrackingEventParams{
 			EventOrderID: order.OrderID,
 			EventStatus:  ghnStatus,
 			EventNote:    &eventNote,
@@ -385,8 +383,8 @@ func (s *orderService) HandleShippingWebhook(ctx *gin.Context, rawBody []byte, p
 		})
 	}
 
-	// 4. Đánh dấu webhook event đã xử lý thành công
-	if err := s.webhookRepo.MarkProcessed(reqCtx, nil, event.WeID); err != nil {
+	// 4. Mark webhook event as processed
+	if err := s.webhookRepo.MarkProcessed(ctx, nil, event.WeID); err != nil {
 		logger.Log.Error().
 			Err(err).
 			Int32("webhook_event_id", event.WeID).
@@ -396,9 +394,7 @@ func (s *orderService) HandleShippingWebhook(ctx *gin.Context, rawBody []byte, p
 	return nil
 }
 
-func (s *orderService) CalculateShippingFee(ctx *gin.Context, input v1dto.CalculateShippingFeeInput) (v1dto.ShippingFeeResponseDTO, error) {
-	reqCtx := ctx.Request.Context()
-
+func (s *orderService) CalculateShippingFee(ctx context.Context, input v1dto.CalculateShippingFeeInput) (v1dto.ShippingFeeResponseDTO, error) {
 	provider, err := s.shippingFactory.GetProvider(input.Provider)
 	if err != nil {
 		return v1dto.ShippingFeeResponseDTO{}, utils.NewError(
@@ -417,7 +413,7 @@ func (s *orderService) CalculateShippingFee(ctx *gin.Context, input v1dto.Calcul
 		CODAmount:    input.InsuranceValue,
 	}
 
-	fee, err := provider.CalculateFee(reqCtx, req)
+	fee, err := provider.CalculateFee(ctx, req)
 	if err != nil {
 		logger.Log.Error().
 			Err(err).
@@ -438,15 +434,10 @@ func (s *orderService) CalculateShippingFee(ctx *gin.Context, input v1dto.Calcul
 	}, nil
 }
 
-func (s *orderService) CancelShipping(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.CancelShippingInput) (v1dto.CancelShippingResponseDTO, error) {
-	reqCtx := ctx.Request.Context()
-
-	order, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
+func (s *orderService) CancelShipping(ctx context.Context, orderUUID uuid.UUID, input v1dto.CancelShippingInput) (v1dto.CancelShippingResponseDTO, error) {
+	order, err := s.orderRepo.GetByUUID(ctx, orderUUID)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return v1dto.CancelShippingResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "Order not found")
-		}
-		return v1dto.CancelShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
+		return v1dto.CancelShippingResponseDTO{}, s.handleOrderNotFoundError(err)
 	}
 
 	if order.OrderStatus != OrderStatusShipped {
@@ -477,7 +468,7 @@ func (s *orderService) CancelShipping(ctx *gin.Context, orderUUID uuid.UUID, inp
 		)
 	}
 
-	if err := provider.CancelShippingOrder(reqCtx, shippingCode); err != nil {
+	if err := provider.CancelShippingOrder(ctx, shippingCode); err != nil {
 		logger.Log.Error().
 			Err(err).
 			Str("provider", providerName).
@@ -490,39 +481,40 @@ func (s *orderService) CancelShipping(ctx *gin.Context, orderUUID uuid.UUID, inp
 		)
 	}
 
-	txCtx, cancel := context.WithTimeout(reqCtx, 10*time.Second)
-	defer cancel()
+	var updatedOrder sqlc.Order
+	err = s.txManager.WithTx(ctx, func(txCtx context.Context) error {
+		tx, _ := db.GetTx(txCtx)
+		var err error
+		updatedOrder, err = s.orderRepo.CancelShipping(txCtx, tx, orderUUID)
+		if err != nil {
+			return err
+		}
 
-	tx, err := db.BeginTx(txCtx)
-	if err != nil {
-		return v1dto.CancelShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to begin transaction", err)
-	}
-	defer tx.Rollback(txCtx)
+		if s.trackingRepo != nil {
+			eventNote := fmt.Sprintf("Cancelled waybill %s (%s) successfully.", strings.ToUpper(providerName), shippingCode)
+			if input.Reason != "" {
+				eventNote += fmt.Sprintf(" Reason: %s", input.Reason)
+			}
 
-	updatedOrder, err := s.orderRepo.CancelShipping(txCtx, tx, orderUUID)
+			_, err = s.trackingRepo.InsertEvent(txCtx, tx, sqlc.InsertTrackingEventParams{
+				EventOrderID: order.OrderID,
+				EventStatus:  "shipping_cancelled",
+				EventNote:    &eventNote,
+				EventSource:  "admin",
+			})
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 	if err != nil {
 		return v1dto.CancelShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to update order status after shipping cancellation", err)
 	}
 
-	eventNote := fmt.Sprintf("Cancelled waybill %s (%s) successfully.", strings.ToUpper(providerName), shippingCode)
-	if input.Reason != "" {
-		eventNote += fmt.Sprintf(" Reason: %s", input.Reason)
+	if s.cache != nil {
+		_ = s.cache.Clear(fmt.Sprintf("order:%s", orderUUID.String()))
 	}
-
-	_, err = s.trackingRepo.InsertEvent(reqCtx, tx, sqlc.InsertTrackingEventParams{
-		EventOrderID: order.OrderID,
-		EventStatus:  "shipping_cancelled",
-		EventNote:    &eventNote,
-		EventSource:  "admin",
-	})
-	if err != nil {
-		return v1dto.CancelShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to record tracking event", err)
-	}
-	if err := tx.Commit(reqCtx); err != nil {
-		return v1dto.CancelShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
-	}
-
-	_ = s.cache.Clear(fmt.Sprintf("order:%s", orderUUID.String()))
 
 	logger.Log.Info().
 		Str("order_number", order.OrderNumber).
@@ -538,20 +530,15 @@ func (s *orderService) CancelShipping(ctx *gin.Context, orderUUID uuid.UUID, inp
 	}, nil
 }
 
-func (s *orderService) ConfirmOrderDelivery(ctx *gin.Context, orderUUID uuid.UUID) (v1dto.ConfirmDeliveryResponseDTO, error) {
-	reqCtx := ctx.Request.Context()
-
-	user, err := s.getUser(ctx)
+func (s *orderService) ConfirmOrderDelivery(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (v1dto.ConfirmDeliveryResponseDTO, error) {
+	user, err := s.userRepo.GetByUUID(ctx, userUUID)
 	if err != nil {
-		return v1dto.ConfirmDeliveryResponseDTO{}, err
+		return v1dto.ConfirmDeliveryResponseDTO{}, s.handleUserNotFoundError(err)
 	}
 
-	order, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
+	order, err := s.orderRepo.GetByUUID(ctx, orderUUID)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return v1dto.ConfirmDeliveryResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "Order not found")
-		}
-		return v1dto.ConfirmDeliveryResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
+		return v1dto.ConfirmDeliveryResponseDTO{}, s.handleOrderNotFoundError(err)
 	}
 
 	isAdminOrMod := user.UserLevel == RoleAdmin || user.UserLevel == RoleModerator
@@ -580,47 +567,49 @@ func (s *orderService) ConfirmOrderDelivery(ctx *gin.Context, orderUUID uuid.UUI
 		return v1dto.ConfirmDeliveryResponseDTO{}, utils.NewError(utils.ErrCodeBadRequest, errMsg)
 	}
 
-	txCtx, cancel := context.WithTimeout(reqCtx, 10*time.Second)
-	defer cancel()
+	var updatedOrder sqlc.Order
+	err = s.txManager.WithTx(ctx, func(txCtx context.Context) error {
+		tx, _ := db.GetTx(txCtx)
+		var err error
+		updatedOrder, err = s.orderRepo.MarkDeliveredByUUID(txCtx, tx, orderUUID)
+		if err != nil {
+			return err
+		}
 
-	tx, err := db.BeginTx(txCtx)
-	if err != nil {
-		return v1dto.ConfirmDeliveryResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to begin transaction", err)
-	}
-	defer tx.Rollback(txCtx)
-
-	updatedOrder, err := s.orderRepo.MarkDeliveredByUUID(txCtx, tx, orderUUID)
+		if s.trackingRepo != nil {
+			eventNote := "Customer confirmed order receipt."
+			_, err = s.trackingRepo.InsertEvent(txCtx, tx, sqlc.InsertTrackingEventParams{
+				EventOrderID: order.OrderID,
+				EventStatus:  "delivered",
+				EventNote:    &eventNote,
+				EventSource:  "user",
+			})
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 	if err != nil {
 		return v1dto.ConfirmDeliveryResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to update order to delivered", err)
 	}
 
-	eventNote := "Customer confirmed order receipt."
-	_, err = s.trackingRepo.InsertEvent(txCtx, tx, sqlc.InsertTrackingEventParams{
-		EventOrderID: order.OrderID,
-		EventStatus:  "delivered",
-		EventNote:    &eventNote,
-		EventSource:  "user",
-	})
-	if err != nil {
-		return v1dto.ConfirmDeliveryResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to record tracking event", err)
+	if s.cache != nil {
+		_ = s.cache.Clear(fmt.Sprintf("order:%s", orderUUID.String()))
+		_ = s.cache.Clear("orders:*")
 	}
 
-	if err := tx.Commit(txCtx); err != nil {
-		return v1dto.ConfirmDeliveryResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
+	if s.notificationService != nil {
+		go func() {
+			_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
+				UserID: updatedOrder.OrderUserID,
+				Type:   "order_completed",
+				Title:  "Order Completed",
+				Body:   fmt.Sprintf("Thank you! Order #%s is completed. You can now write a review.", updatedOrder.OrderNumber),
+				Data:   map[string]any{"order_uuid": updatedOrder.OrderUuid.String()},
+			})
+		}()
 	}
-
-	_ = s.cache.Clear(fmt.Sprintf("order:%s", orderUUID.String()))
-	_ = s.cache.Clear("orders:*")
-
-	go func() {
-		_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
-			UserID: updatedOrder.OrderUserID,
-			Type:   "order_completed",
-			Title:  "Order Completed",
-			Body:   fmt.Sprintf("Thank you! Order #%s is completed. You can now write a review.", updatedOrder.OrderNumber),
-			Data:   map[string]any{"order_uuid": updatedOrder.OrderUuid.String()},
-		})
-	}()
 
 	var deliveredAt *time.Time
 	if updatedOrder.OrderDeliveredAt.Valid {
@@ -641,15 +630,10 @@ func (s *orderService) ConfirmOrderDelivery(ctx *gin.Context, orderUUID uuid.UUI
 	}, nil
 }
 
-func (s *orderService) GetPrintBill(ctx *gin.Context, orderUUID uuid.UUID) (v1dto.PrintBillResponseDTO, error) {
-	reqCtx := ctx.Request.Context()
-
-	order, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
+func (s *orderService) GetPrintBill(ctx context.Context, orderUUID uuid.UUID) (v1dto.PrintBillResponseDTO, error) {
+	order, err := s.orderRepo.GetByUUID(ctx, orderUUID)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return v1dto.PrintBillResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "Order not found")
-		}
-		return v1dto.PrintBillResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
+		return v1dto.PrintBillResponseDTO{}, s.handleOrderNotFoundError(err)
 	}
 
 	if order.OrderShippingCode == nil || strings.TrimSpace(*order.OrderShippingCode) == "" {
@@ -667,7 +651,7 @@ func (s *orderService) GetPrintBill(ctx *gin.Context, orderUUID uuid.UUID) (v1dt
 		return v1dto.PrintBillResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get shipping provider", err)
 	}
 
-	res, err := provider.GetPrintBillURL(reqCtx, shippingCode)
+	res, err := provider.GetPrintBillURL(ctx, shippingCode)
 	if err != nil {
 		logger.Log.Error().
 			Err(err).
@@ -688,9 +672,7 @@ func (s *orderService) GetPrintBill(ctx *gin.Context, orderUUID uuid.UUID) (v1dt
 	}, nil
 }
 
-func (s *orderService) GetProvinces(ctx *gin.Context) ([]v1dto.ProvinceDTO, error) {
-	reqCtx := ctx.Request.Context()
-
+func (s *orderService) GetProvinces(ctx context.Context) ([]v1dto.ProvinceDTO, error) {
 	cacheKey := "shipping:ghn:provinces"
 	var cached []v1dto.ProvinceDTO
 	if err := s.cache.Get(cacheKey, &cached); err == nil && len(cached) > 0 {
@@ -707,7 +689,7 @@ func (s *orderService) GetProvinces(ctx *gin.Context) ([]v1dto.ProvinceDTO, erro
 		return nil, utils.NewError(utils.ErrCodeInternal, "Invalid GHN provider adapter")
 	}
 
-	provinces, err := ghnAdapter.GetProvinces(reqCtx)
+	provinces, err := ghnAdapter.GetProvinces(ctx)
 	if err != nil {
 		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to get provinces from GHN", err)
 	}
@@ -717,9 +699,7 @@ func (s *orderService) GetProvinces(ctx *gin.Context) ([]v1dto.ProvinceDTO, erro
 	return provinces, nil
 }
 
-func (s *orderService) GetDistricts(ctx *gin.Context, provinceID int) ([]v1dto.DistrictDTO, error) {
-	reqCtx := ctx.Request.Context()
-
+func (s *orderService) GetDistricts(ctx context.Context, provinceID int) ([]v1dto.DistrictDTO, error) {
 	cacheKey := fmt.Sprintf("shipping:ghn:districts:%d", provinceID)
 	var cached []v1dto.DistrictDTO
 	if err := s.cache.Get(cacheKey, &cached); err == nil && len(cached) > 0 {
@@ -736,7 +716,7 @@ func (s *orderService) GetDistricts(ctx *gin.Context, provinceID int) ([]v1dto.D
 		return nil, utils.NewError(utils.ErrCodeInternal, "Invalid GHN provider adapter")
 	}
 
-	districts, err := ghnAdapter.GetDistricts(reqCtx, provinceID)
+	districts, err := ghnAdapter.GetDistricts(ctx, provinceID)
 	if err != nil {
 		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to fetch districts from GHN", err)
 	}
@@ -745,9 +725,7 @@ func (s *orderService) GetDistricts(ctx *gin.Context, provinceID int) ([]v1dto.D
 	return districts, nil
 }
 
-func (s *orderService) GetWards(ctx *gin.Context, districtID int) ([]v1dto.WardDTO, error) {
-	reqCtx := ctx.Request.Context()
-
+func (s *orderService) GetWards(ctx context.Context, districtID int) ([]v1dto.WardDTO, error) {
 	cacheKey := fmt.Sprintf("shipping:ghn:wards:%d", districtID)
 	var cached []v1dto.WardDTO
 	if err := s.cache.Get(cacheKey, &cached); err == nil && len(cached) > 0 {
@@ -764,7 +742,7 @@ func (s *orderService) GetWards(ctx *gin.Context, districtID int) ([]v1dto.WardD
 		return nil, utils.NewError(utils.ErrCodeInternal, "Invalid GHN provider adapter")
 	}
 
-	wards, err := ghnAdapter.GetWards(reqCtx, districtID)
+	wards, err := ghnAdapter.GetWards(ctx, districtID)
 	if err != nil {
 		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to fetch wards from GHN", err)
 	}
@@ -773,20 +751,15 @@ func (s *orderService) GetWards(ctx *gin.Context, districtID int) ([]v1dto.WardD
 	return wards, nil
 }
 
-func (s *orderService) SyncOrderTracking(ctx *gin.Context, orderUUID uuid.UUID) (v1dto.SyncTrackingResponseDTO, error) {
-	reqCtx := ctx.Request.Context()
-
-	user, err := s.getUser(ctx)
+func (s *orderService) SyncOrderTracking(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (v1dto.SyncTrackingResponseDTO, error) {
+	user, err := s.userRepo.GetByUUID(ctx, userUUID)
 	if err != nil {
-		return v1dto.SyncTrackingResponseDTO{}, err
+		return v1dto.SyncTrackingResponseDTO{}, s.handleUserNotFoundError(err)
 	}
 
-	order, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
+	order, err := s.orderRepo.GetByUUID(ctx, orderUUID)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return v1dto.SyncTrackingResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "Order not found")
-		}
-		return v1dto.SyncTrackingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
+		return v1dto.SyncTrackingResponseDTO{}, s.handleOrderNotFoundError(err)
 	}
 
 	isAdminOrMod := user.UserLevel == RoleAdmin || user.UserLevel == RoleModerator
@@ -813,7 +786,7 @@ func (s *orderService) SyncOrderTracking(ctx *gin.Context, orderUUID uuid.UUID) 
 	}
 
 	// Call shipping provider API to get tracking info
-	trackingInfo, err := provider.GetTrackingInfo(reqCtx, shippingCode)
+	trackingInfo, err := provider.GetTrackingInfo(ctx, shippingCode)
 	if err != nil {
 		logger.Log.Error().
 			Err(err).
@@ -831,15 +804,14 @@ func (s *orderService) SyncOrderTracking(ctx *gin.Context, orderUUID uuid.UUID) 
 
 	isDeliveredNow := false
 	if ghnStatus == "delivered" && order.OrderStatus != OrderStatusDelivered {
-		txCtx, cancel := context.WithTimeout(reqCtx, 10*time.Second)
-		defer cancel()
-
-		tx, err := db.BeginTx(txCtx)
-		if err == nil {
-			defer tx.Rollback(txCtx)
-
+		err = s.txManager.WithTx(ctx, func(txCtx context.Context) error {
+			tx, _ := db.GetTx(txCtx)
 			_, err = s.orderRepo.MarkDeliveredByShippingCode(txCtx, tx, shippingCode)
-			if err == nil {
+			if err != nil {
+				return err
+			}
+
+			if s.trackingRepo != nil {
 				eventNote := fmt.Sprintf("GHN Sync: %s", trackingInfo.StatusText)
 				_, _ = s.trackingRepo.InsertEvent(txCtx, tx, sqlc.InsertTrackingEventParams{
 					EventOrderID: order.OrderID,
@@ -847,31 +819,35 @@ func (s *orderService) SyncOrderTracking(ctx *gin.Context, orderUUID uuid.UUID) 
 					EventNote:    &eventNote,
 					EventSource:  "ghn_sync",
 				})
+			}
+			return nil
+		})
+		if err == nil {
+			isDeliveredNow = true
+			if s.cache != nil {
+				_ = s.cache.Clear(fmt.Sprintf("order:%s", orderUUID.String()))
+				_ = s.cache.Clear("orders:*")
+			}
 
-				if err := tx.Commit(txCtx); err == nil {
-					isDeliveredNow = true
-					_ = s.cache.Clear(fmt.Sprintf("order:%s", orderUUID.String()))
-					_ = s.cache.Clear("orders:*")
-
-					// Realtime notify
-					go func() {
-						_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
-							UserID: order.OrderUserID,
-							Type:   "order_delivered",
-							Title:  "Order Delivered Successfully",
-							Body:   fmt.Sprintf("Your order #%s has been delivered by GHN.", order.OrderNumber),
-							Data: map[string]any{
-								"order_uuid":    orderUUID.String(),
-								"shipping_code": shippingCode,
-							},
-						})
-					}()
-				}
+			// Realtime notify
+			if s.notificationService != nil {
+				go func() {
+					_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
+						UserID: order.OrderUserID,
+						Type:   "order_delivered",
+						Title:  "Order Delivered Successfully",
+						Body:   fmt.Sprintf("Your order #%s has been delivered by GHN.", order.OrderNumber),
+						Data: map[string]any{
+							"order_uuid":    orderUUID.String(),
+							"shipping_code": shippingCode,
+						},
+					})
+				}()
 			}
 		}
 	} else {
 		// Write log if this is has a new status
-		existingEvents, _ := s.trackingRepo.GetByOrderID(reqCtx, order.OrderID)
+		existingEvents, _ := s.trackingRepo.GetByOrderID(ctx, order.OrderID)
 		hasStatusAlready := false
 		for _, ev := range existingEvents {
 			if strings.EqualFold(ev.EventStatus, ghnStatus) {
@@ -882,7 +858,7 @@ func (s *orderService) SyncOrderTracking(ctx *gin.Context, orderUUID uuid.UUID) 
 
 		if !hasStatusAlready && ghnStatus != "" {
 			eventNote := fmt.Sprintf("GHN tracking update: %s", trackingInfo.StatusText)
-			_, _ = s.trackingRepo.InsertEvent(reqCtx, nil, sqlc.InsertTrackingEventParams{
+			_, _ = s.trackingRepo.InsertEvent(ctx, nil, sqlc.InsertTrackingEventParams{
 				EventOrderID: order.OrderID,
 				EventStatus:  ghnStatus,
 				EventNote:    &eventNote,
@@ -892,7 +868,7 @@ func (s *orderService) SyncOrderTracking(ctx *gin.Context, orderUUID uuid.UUID) 
 	}
 
 	// Get all latest timeline
-	updatedEvents, _ := s.trackingRepo.GetByOrderID(reqCtx, order.OrderID)
+	updatedEvents, _ := s.trackingRepo.GetByOrderID(ctx, order.OrderID)
 
 	return v1dto.SyncTrackingResponseDTO{
 		OrderUUID:        order.OrderUuid.String(),
@@ -908,19 +884,17 @@ func (s *orderService) SyncOrderTracking(ctx *gin.Context, orderUUID uuid.UUID) 
 	}, nil
 }
 
-func (s *orderService) AdminSyncActiveShippingOrders(ctx *gin.Context) (v1dto.SyncActiveShippingStatsDTO, error) {
-	reqCtx := ctx.Request.Context()
-
-	user, err := s.getUser(ctx)
+func (s *orderService) AdminSyncActiveShippingOrders(ctx context.Context, userUUID uuid.UUID) (v1dto.SyncActiveShippingStatsDTO, error) {
+	user, err := s.userRepo.GetByUUID(ctx, userUUID)
 	if err != nil {
-		return v1dto.SyncActiveShippingStatsDTO{}, err
+		return v1dto.SyncActiveShippingStatsDTO{}, s.handleUserNotFoundError(err)
 	}
 
 	if user.UserLevel != RoleAdmin && user.UserLevel != RoleModerator {
 		return v1dto.SyncActiveShippingStatsDTO{}, utils.NewError(utils.ErrCodeForbidden, "Access denied")
 	}
 
-	return s.SyncActiveShippingOrders(reqCtx)
+	return s.SyncActiveShippingOrders(ctx)
 }
 
 func (s *orderService) SyncActiveShippingOrders(ctx context.Context) (v1dto.SyncActiveShippingStatsDTO, error) {
@@ -989,63 +963,53 @@ func (s *orderService) SyncActiveShippingOrders(ctx context.Context) (v1dto.Sync
 		ghnStatus := strings.ToLower(strings.TrimSpace(trackingInfo.Status))
 
 		if ghnStatus == "delivered" && order.OrderStatus != OrderStatusDelivered {
-			txCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-			tx, err := db.BeginTx(txCtx)
-			if err != nil {
-				cancel()
-				logger.Log.Error().Err(err).Str("order_number", order.OrderNumber).Msg("Failed to begin transaction for order delivery update")
-				stats.FailedCount++
-				continue
-			}
+			err = s.txManager.WithTx(ctx, func(txCtx context.Context) error {
+				tx, _ := db.GetTx(txCtx)
+				_, err = s.orderRepo.MarkDeliveredByShippingCode(txCtx, tx, shippingCode)
+				if err != nil {
+					return err
+				}
 
-			updatedOrder, err := s.orderRepo.MarkDeliveredByShippingCode(txCtx, tx, shippingCode)
+				if s.trackingRepo != nil {
+					eventNote := fmt.Sprintf("Cronjob Sync: %s", trackingInfo.StatusText)
+					_, err = s.trackingRepo.InsertEvent(txCtx, tx, sqlc.InsertTrackingEventParams{
+						EventOrderID: order.OrderID,
+						EventStatus:  "delivered",
+						EventNote:    &eventNote,
+						EventSource:  "ghn_cron",
+					})
+					if err != nil {
+						return err
+					}
+				}
+				return nil
+			})
 			if err != nil {
-				_ = tx.Rollback(txCtx)
-				cancel()
 				logger.Log.Error().Err(err).Str("order_number", order.OrderNumber).Msg("Failed to mark order delivered in sync cronjob")
 				stats.FailedCount++
 				continue
 			}
 
-			eventNote := fmt.Sprintf("Cronjob Sync: %s", trackingInfo.StatusText)
-			_, err = s.trackingRepo.InsertEvent(txCtx, tx, sqlc.InsertTrackingEventParams{
-				EventOrderID: order.OrderID,
-				EventStatus:  "delivered",
-				EventNote:    &eventNote,
-				EventSource:  "ghn_cron",
-			})
-			if err != nil {
-				_ = tx.Rollback(txCtx)
-				cancel()
-				logger.Log.Error().Err(err).Str("order_number", order.OrderNumber).Msg("Failed to record tracking event in sync cronjob")
-				stats.FailedCount++
-				continue
-			}
-
-			if err := tx.Commit(txCtx); err != nil {
-				cancel()
-				logger.Log.Error().Err(err).Str("order_number", order.OrderNumber).Msg("Failed to commit transaction in sync cronjob")
-				stats.FailedCount++
-				continue
-			}
-			cancel()
-
 			stats.DeliveredCount++
-			_ = s.cache.Clear(fmt.Sprintf("order:%s", order.OrderUuid.String()))
-			_ = s.cache.Clear("orders:*")
+			if s.cache != nil {
+				_ = s.cache.Clear(fmt.Sprintf("order:%s", order.OrderUuid.String()))
+				_ = s.cache.Clear("orders:*")
+			}
 
-			go func(ord sqlc.Order, code string) {
-				_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
-					UserID: ord.OrderUserID,
-					Type:   "order_delivered",
-					Title:  "Order Delivered Successfully",
-					Body:   fmt.Sprintf("Your order #%s has been delivered by GHN.", ord.OrderNumber),
-					Data: map[string]any{
-						"order_uuid":    ord.OrderUuid.String(),
-						"shipping_code": code,
-					},
-				})
-			}(updatedOrder, shippingCode)
+			if s.notificationService != nil {
+				go func(ord sqlc.Order, code string) {
+					_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
+						UserID: ord.OrderUserID,
+						Type:   "order_delivered",
+						Title:  "Order Delivered Successfully",
+						Body:   fmt.Sprintf("Your order #%s has been delivered by GHN.", ord.OrderNumber),
+						Data: map[string]any{
+							"order_uuid":    ord.OrderUuid.String(),
+							"shipping_code": code,
+						},
+					})
+				}(order, shippingCode)
+			}
 
 			logger.Log.Info().
 				Str("order_number", order.OrderNumber).

@@ -11,13 +11,14 @@ import (
 
 // Ensure all mocks implement repository interfaces at compile time
 var (
-	_ repository.OrderRepository     = (*MockOrderRepository)(nil)
-	_ repository.OrderItemRepository = (*MockOrderItemRepository)(nil)
-	_ repository.ProductRepository   = (*MockProductRepository)(nil)
-	_ repository.CouponRepository    = (*MockCouponRepository)(nil)
-	_ repository.CartRepository      = (*MockCartRepository)(nil)
-	_ repository.TrackingRepository  = (*MockTrackingRepository)(nil)
-	_ repository.UserRepository      = (*MockUserRepository)(nil)
+	_ repository.OrderRepository        = (*MockOrderRepository)(nil)
+	_ repository.OrderItemRepository    = (*MockOrderItemRepository)(nil)
+	_ repository.ProductRepository      = (*MockProductRepository)(nil)
+	_ repository.CouponRepository       = (*MockCouponRepository)(nil)
+	_ repository.CartRepository         = (*MockCartRepository)(nil)
+	_ repository.TrackingRepository     = (*MockTrackingRepository)(nil)
+	_ repository.UserRepository         = (*MockUserRepository)(nil)
+	_ repository.WebhookEventRepository = (*MockWebhookEventRepository)(nil)
 )
 
 // =========================================================================
@@ -589,3 +590,26 @@ func (m *MockUserRepository) UpdatePassword(ctx context.Context, input sqlc.Upda
 	}
 	return sqlc.User{}, nil
 }
+
+// =========================================================================
+// 8. MockWebhookEventRepository
+// =========================================================================
+type MockWebhookEventRepository struct {
+	InsertEventFunc   func(ctx context.Context, tx pgx.Tx, input sqlc.InsertWebhookEventParams) (sqlc.WebhookEvent, error)
+	MarkProcessedFunc func(ctx context.Context, tx pgx.Tx, eventID int32) error
+}
+
+func (m *MockWebhookEventRepository) InsertEvent(ctx context.Context, tx pgx.Tx, input sqlc.InsertWebhookEventParams) (sqlc.WebhookEvent, error) {
+	if m.InsertEventFunc != nil {
+		return m.InsertEventFunc(ctx, tx, input)
+	}
+	return sqlc.WebhookEvent{}, nil
+}
+
+func (m *MockWebhookEventRepository) MarkProcessed(ctx context.Context, tx pgx.Tx, eventID int32) error {
+	if m.MarkProcessedFunc != nil {
+		return m.MarkProcessedFunc(ctx, tx, eventID)
+	}
+	return nil
+}
+

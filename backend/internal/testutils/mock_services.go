@@ -7,9 +7,12 @@ import (
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
 	v1service "goshop/internal/service/v1"
+	"goshop/pkg/rabbitmq"
+	"goshop/pkg/shipping"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 // Ensure mocks implement service interfaces at compile time
@@ -18,6 +21,8 @@ var (
 	_ v1service.InventoryService    = (*MockInventoryService)(nil)
 	_ v1service.NotificationService = (*MockNotificationService)(nil)
 	_ v1service.CartService         = (*MockCartService)(nil)
+	_ rabbitmq.RabbitMQService      = (*MockRabbitMQService)(nil)
+	_ shipping.ShippingProvider     = (*MockShippingProvider)(nil)
 )
 
 type MockOrderPricingService struct {
@@ -175,3 +180,96 @@ func (m *MockCartService) ClearMyCart(ctx *gin.Context) error {
 	}
 	return nil
 }
+
+// =========================================================================
+// MockRabbitMQService
+// =========================================================================
+type MockRabbitMQService struct {
+	PublishFunc   func(ctx context.Context, queue string, message any) error
+	ConsumeFunc   func(ctx context.Context, queue string, handler func(amqp.Table, []byte) error) error
+	CloseFunc     func() error
+	IsHealthyFunc func() bool
+}
+
+func (m *MockRabbitMQService) Publish(ctx context.Context, queue string, message any) error {
+	if m.PublishFunc != nil {
+		return m.PublishFunc(ctx, queue, message)
+	}
+	return nil
+}
+
+func (m *MockRabbitMQService) Consume(ctx context.Context, queue string, handler func(amqp.Table, []byte) error) error {
+	if m.ConsumeFunc != nil {
+		return m.ConsumeFunc(ctx, queue, handler)
+	}
+	return nil
+}
+
+func (m *MockRabbitMQService) Close() error {
+	if m.CloseFunc != nil {
+		return m.CloseFunc()
+	}
+	return nil
+}
+
+func (m *MockRabbitMQService) IsHealthy() bool {
+	if m.IsHealthyFunc != nil {
+		return m.IsHealthyFunc()
+	}
+	return true
+}
+
+// =========================================================================
+// MockShippingProvider
+// =========================================================================
+type MockShippingProvider struct {
+	NameFunc                func() string
+	CreateShippingOrderFunc func(ctx context.Context, req shipping.CreateOrderRequest) (*shipping.CreateOrderResponse, error)
+	GetTrackingInfoFunc     func(ctx context.Context, shippingCode string) (*shipping.TrackingInfo, error)
+	CancelShippingOrderFunc func(ctx context.Context, shippingCode string) error
+	CalculateFeeFunc        func(ctx context.Context, req shipping.CreateOrderRequest) (float64, error)
+	GetPrintBillURLFunc     func(ctx context.Context, shippingCode string) (*shipping.PrintBillResponse, error)
+}
+
+func (m *MockShippingProvider) Name() string {
+	if m.NameFunc != nil {
+		return m.NameFunc()
+	}
+	return "ghn"
+}
+
+func (m *MockShippingProvider) CreateShippingOrder(ctx context.Context, req shipping.CreateOrderRequest) (*shipping.CreateOrderResponse, error) {
+	if m.CreateShippingOrderFunc != nil {
+		return m.CreateShippingOrderFunc(ctx, req)
+	}
+	return &shipping.CreateOrderResponse{}, nil
+}
+
+func (m *MockShippingProvider) GetTrackingInfo(ctx context.Context, shippingCode string) (*shipping.TrackingInfo, error) {
+	if m.GetTrackingInfoFunc != nil {
+		return m.GetTrackingInfoFunc(ctx, shippingCode)
+	}
+	return &shipping.TrackingInfo{}, nil
+}
+
+func (m *MockShippingProvider) CancelShippingOrder(ctx context.Context, shippingCode string) error {
+	if m.CancelShippingOrderFunc != nil {
+		return m.CancelShippingOrderFunc(ctx, shippingCode)
+	}
+	return nil
+}
+
+func (m *MockShippingProvider) CalculateFee(ctx context.Context, req shipping.CreateOrderRequest) (float64, error) {
+	if m.CalculateFeeFunc != nil {
+		return m.CalculateFeeFunc(ctx, req)
+	}
+	return 0, nil
+}
+
+func (m *MockShippingProvider) GetPrintBillURL(ctx context.Context, shippingCode string) (*shipping.PrintBillResponse, error) {
+	if m.GetPrintBillURLFunc != nil {
+		return m.GetPrintBillURLFunc(ctx, shippingCode)
+	}
+	return &shipping.PrintBillResponse{}, nil
+}
+
