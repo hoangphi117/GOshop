@@ -88,7 +88,13 @@ func (oh *OrderHandler) GetMyOrders(ctx *gin.Context) {
 		return
 	}
 
-	orders, totalOrders, err := oh.service.GetMyOrders(ctx, input)
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	orders, totalOrders, err := oh.service.GetMyOrders(ctx.Request.Context(), userUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -125,7 +131,13 @@ func (oh *OrderHandler) GetOrderByUUID(ctx *gin.Context) {
 		return
 	}
 
-	order, orderItems, err := oh.service.GetOrderByUUID(ctx, orderUUID)
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	order, orderItems, err := oh.service.GetOrderByUUID(ctx.Request.Context(), userUUID, orderUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -159,7 +171,7 @@ func (oh *OrderHandler) GetAllOrders(ctx *gin.Context) {
 		return
 	}
 
-	orders, totalOrders, err := oh.service.GetAllOrders(ctx, input)
+	orders, totalOrders, err := oh.service.GetAllOrders(ctx.Request.Context(), input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -205,7 +217,7 @@ func (oh *OrderHandler) UpdateOrderStatus(ctx *gin.Context) {
 
 	order := input.MapUpdateStatusInputToModel(orderUUID)
 
-	updatedOrder, orderItems, err := oh.service.UpdateOrderStatus(ctx, order)
+	updatedOrder, orderItems, err := oh.service.UpdateOrderStatus(ctx.Request.Context(), order)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -287,6 +299,12 @@ func (oh *OrderHandler) UpdateOrderShippingInfo(ctx *gin.Context) {
 		return
 	}
 
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
 	var input v1dto.UpdateOrderShippingInfoInput
 	if err := ctx.ShouldBindJSON(&input); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
@@ -295,7 +313,7 @@ func (oh *OrderHandler) UpdateOrderShippingInfo(ctx *gin.Context) {
 
 	order := input.MapUpdateShippingInputToModel(orderUUID)
 
-	updatedOrder, updatedOrderItems, err := oh.service.UpdateOrderShippingInfo(ctx, order)
+	updatedOrder, updatedOrderItems, err := oh.service.UpdateOrderShippingInfo(ctx.Request.Context(), userUUID, order)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -333,13 +351,19 @@ func (oh *OrderHandler) UpdateOrderPaymentStatus(ctx *gin.Context) {
 		return
 	}
 
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
 	var input v1dto.UpdateOrderPaymentStatusInput
 	if err := ctx.ShouldBindJSON(&input); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
 	}
 
-	updatedOrder, updatedOrderItems, err := oh.service.UpdateOrderPaymentStatus(ctx, orderUUID, input)
+	updatedOrder, updatedOrderItems, err := oh.service.UpdateOrderPaymentStatus(ctx.Request.Context(), userUUID, orderUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -375,7 +399,13 @@ func (oh *OrderHandler) DownloadInvoice(ctx *gin.Context) {
 		return
 	}
 
-	pdfBytes, fileName, err := oh.service.GetOrderInvoicePDF(ctx, orderUUID)
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	pdfBytes, fileName, err := oh.service.GetOrderInvoicePDF(ctx.Request.Context(), userUUID, orderUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return

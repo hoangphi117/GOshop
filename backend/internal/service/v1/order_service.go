@@ -339,12 +339,10 @@ func (s *orderService) CreateOrder(ctx context.Context, userUUID uuid.UUID, inpu
 	return order, orderItemsWithDetails, nil
 }
 
-func (s *orderService) GetMyOrders(ctx *gin.Context, input v1dto.GetOrdersParam) ([]v1dto.OrderSummaryDTO, int32, error) {
-	context := ctx.Request.Context()
-
-	user, err := middleware.GetUserFromContext(ctx, s.userRepo)
+func (s *orderService) GetMyOrders(ctx context.Context, userUUID uuid.UUID, input v1dto.GetOrdersParam) ([]v1dto.OrderSummaryDTO, int32, error) {
+	user, err := s.userRepo.GetByUUID(ctx, userUUID)
 	if err != nil {
-		return []v1dto.OrderSummaryDTO{}, 0, err
+		return []v1dto.OrderSummaryDTO{}, 0, s.handleUserNotFoundError(err)
 	}
 
 	if input.Sort == "" {
@@ -379,8 +377,7 @@ func (s *orderService) GetMyOrders(ctx *gin.Context, input v1dto.GetOrdersParam)
 		statusPtr = &input.Status
 	}
 
-	totalOrders, err := s.orderRepo.CountOrders(context, &user.UserID, statusPtr, input.Search)
-
+	totalOrders, err := s.orderRepo.CountOrders(ctx, &user.UserID, statusPtr, input.Search)
 	if err != nil {
 		return []v1dto.OrderSummaryDTO{}, 0, utils.WrapError(utils.ErrCodeInternal, "failed to count orders", err)
 	}
@@ -389,7 +386,7 @@ func (s *orderService) GetMyOrders(ctx *gin.Context, input v1dto.GetOrdersParam)
 	}
 
 	offset := (input.Page - 1) * input.Limit
-	orders, err := s.orderRepo.GetAll(context, &user.UserID, statusPtr, input.Search, input.OrderBy,
+	orders, err := s.orderRepo.GetAll(ctx, &user.UserID, statusPtr, input.Search, input.OrderBy,
 		input.Sort, input.Limit, offset)
 	if err != nil {
 		return []v1dto.OrderSummaryDTO{}, 0, utils.WrapError(utils.ErrCodeInternal, "failed to get orders", err)
@@ -398,7 +395,7 @@ func (s *orderService) GetMyOrders(ctx *gin.Context, input v1dto.GetOrdersParam)
 	ordersDTO := make([]v1dto.OrderSummaryDTO, len(orders))
 	for i, o := range orders {
 		ordersDTO[i] = v1dto.MapToOrderSummaryDTO(o)
-		if items, err := s.orderItemRepo.GetByOrderID(context, o.OrderID); err == nil {
+		if items, err := s.orderItemRepo.GetByOrderID(ctx, o.OrderID); err == nil {
 			itemsDTO := make([]v1dto.OrderItemDTO, len(items))
 			for j, item := range items {
 				itemsDTO[j] = v1dto.MapToOrderItemRowDTO(item)
@@ -416,17 +413,15 @@ func (s *orderService) GetMyOrders(ctx *gin.Context, input v1dto.GetOrdersParam)
 	return ordersDTO, int32(totalOrders), nil
 }
 
-func (s *orderService) GetOrderByUUID(ctx *gin.Context, orderUUID uuid.UUID) (sqlc.GetOrderByUUIDRow, []sqlc.GetOrderItemsByOrderIDRow, error) {
-	context := ctx.Request.Context()
-
-	user, err := middleware.GetUserFromContext(ctx, s.userRepo)
+func (s *orderService) GetOrderByUUID(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (sqlc.GetOrderByUUIDRow, []sqlc.GetOrderItemsByOrderIDRow, error) {
+	user, err := s.userRepo.GetByUUID(ctx, userUUID)
 	if err != nil {
-		return sqlc.GetOrderByUUIDRow{}, nil, err
+		return sqlc.GetOrderByUUIDRow{}, nil, s.handleUserNotFoundError(err)
 	}
 
-	order, err := s.orderRepo.GetByUUID(context, orderUUID)
+	order, err := s.orderRepo.GetByUUID(ctx, orderUUID)
 	if err != nil {
-		return sqlc.GetOrderByUUIDRow{}, nil, utils.NewError(utils.ErrCodeNotFound, "Order not found")
+		return sqlc.GetOrderByUUIDRow{}, nil, s.handleOrderNotFoundError(err)
 	}
 
 	isAdmin := user.UserLevel == RoleAdmin
@@ -436,7 +431,7 @@ func (s *orderService) GetOrderByUUID(ctx *gin.Context, orderUUID uuid.UUID) (sq
 		return sqlc.GetOrderByUUIDRow{}, nil, utils.NewError(utils.ErrCodeForbidden, "You are not authorized to view this order")
 	}
 
-	orderItems, err := s.orderItemRepo.GetByOrderID(context, order.OrderID)
+	orderItems, err := s.orderItemRepo.GetByOrderID(ctx, order.OrderID)
 	if err != nil {
 		return sqlc.GetOrderByUUIDRow{}, nil, utils.WrapError(utils.ErrCodeInternal, "failed to get order items", err)
 	}
@@ -454,9 +449,7 @@ func (s *orderService) generateAdminOrdersCacheKey(input v1dto.GetOrdersParam) s
 		input.Page, input.Limit, input.Status, strings.TrimSpace(input.Search), input.OrderBy, input.Sort)
 }
 
-func (s *orderService) GetAllOrders(ctx *gin.Context, input v1dto.GetOrdersParam) ([]v1dto.OrderSummaryDTO, int32, error) {
-	reqCtx := ctx.Request.Context()
-
+func (s *orderService) GetAllOrders(ctx context.Context, input v1dto.GetOrdersParam) ([]v1dto.OrderSummaryDTO, int32, error) {
 	if input.Sort == "" {
 		input.Sort = "desc"
 	}
@@ -491,7 +484,7 @@ func (s *orderService) GetAllOrders(ctx *gin.Context, input v1dto.GetOrdersParam
 		statusPtr = &input.Status
 	}
 
-	totalRecords, err := s.orderRepo.CountOrders(reqCtx, targetUserID, statusPtr, input.Search)
+	totalRecords, err := s.orderRepo.CountOrders(ctx, targetUserID, statusPtr, input.Search)
 	if err != nil {
 		return []v1dto.OrderSummaryDTO{}, 0, utils.WrapError(utils.ErrCodeInternal, "failed to count orders", err)
 	}
@@ -500,7 +493,7 @@ func (s *orderService) GetAllOrders(ctx *gin.Context, input v1dto.GetOrdersParam
 	}
 
 	offset := (input.Page - 1) * input.Limit
-	orders, err := s.orderRepo.GetAll(reqCtx, targetUserID, statusPtr, input.Search, input.OrderBy, input.Sort, input.Limit, offset)
+	orders, err := s.orderRepo.GetAll(ctx, targetUserID, statusPtr, input.Search, input.OrderBy, input.Sort, input.Limit, offset)
 	if err != nil {
 		return []v1dto.OrderSummaryDTO{}, 0, utils.WrapError(utils.ErrCodeInternal, "failed to get orders", err)
 	}
@@ -508,7 +501,7 @@ func (s *orderService) GetAllOrders(ctx *gin.Context, input v1dto.GetOrdersParam
 	orderDTOs := make([]v1dto.OrderSummaryDTO, len(orders))
 	for i, o := range orders {
 		orderDTOs[i] = v1dto.MapToOrderSummaryDTO(o)
-		if items, err := s.orderItemRepo.GetByOrderID(reqCtx, o.OrderID); err == nil {
+		if items, err := s.orderItemRepo.GetByOrderID(ctx, o.OrderID); err == nil {
 			itemsDTO := make([]v1dto.OrderItemDTO, len(items))
 			for j, item := range items {
 				itemsDTO[j] = v1dto.MapToOrderItemRowDTO(item)
@@ -526,12 +519,10 @@ func (s *orderService) GetAllOrders(ctx *gin.Context, input v1dto.GetOrdersParam
 	return orderDTOs, int32(totalRecords), nil
 }
 
-func (s *orderService) UpdateOrderStatus(ctx *gin.Context, input sqlc.UpdateOrderStatusParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
-	reqCtx := ctx.Request.Context()
-
-	existingOrder, err := s.orderRepo.GetByUUID(reqCtx, input.OrderUuid)
+func (s *orderService) UpdateOrderStatus(ctx context.Context, input sqlc.UpdateOrderStatusParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
+	existingOrder, err := s.orderRepo.GetByUUID(ctx, input.OrderUuid)
 	if err != nil {
-		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeInternal, "Order not found")
+		return sqlc.Order{}, nil, s.handleOrderNotFoundError(err)
 	}
 
 	if !isValidStatusTransition(existingOrder.OrderStatus, input.OrderStatus) {
@@ -542,9 +533,9 @@ func (s *orderService) UpdateOrderStatus(ctx *gin.Context, input sqlc.UpdateOrde
 		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, errMsg)
 	}
 
-	updatedOrder, err := s.orderRepo.UpdateStatus(reqCtx, input)
+	updatedOrder, err := s.orderRepo.UpdateStatus(ctx, input)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
 			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeNotFound, "order not found")
 		}
 		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "failed to update order status", err)
@@ -559,7 +550,7 @@ func (s *orderService) UpdateOrderStatus(ctx *gin.Context, input sqlc.UpdateOrde
 	}
 
 	if statusNote != "" {
-		_, _ = s.trackingRepo.InsertEvent(reqCtx, nil, sqlc.InsertTrackingEventParams{
+		_, _ = s.trackingRepo.InsertEvent(ctx, nil, sqlc.InsertTrackingEventParams{
 			EventOrderID: updatedOrder.OrderID,
 			EventStatus:  v1dto.MapOrderStatusToString(input.OrderStatus),
 			EventNote:    &statusNote,
@@ -567,7 +558,7 @@ func (s *orderService) UpdateOrderStatus(ctx *gin.Context, input sqlc.UpdateOrde
 		})
 	}
 
-	orderItems, err := s.orderItemRepo.GetByOrderID(reqCtx, updatedOrder.OrderID)
+	orderItems, err := s.orderItemRepo.GetByOrderID(ctx, updatedOrder.OrderID)
 	if err != nil {
 		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "failed to get order items", err)
 	}
@@ -740,17 +731,15 @@ func (s *orderService) sendCancellationNotification(ctx context.Context, order s
 	}
 }
 
-func (s *orderService) UpdateOrderShippingInfo(ctx *gin.Context, input sqlc.UpdateOrderShippingInfoParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
-	reqCtx := ctx.Request.Context()
-
-	user, err := middleware.GetUserFromContext(ctx, s.userRepo)
+func (s *orderService) UpdateOrderShippingInfo(ctx context.Context, userUUID uuid.UUID, input sqlc.UpdateOrderShippingInfoParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
+	user, err := s.userRepo.GetByUUID(ctx, userUUID)
 	if err != nil {
-		return sqlc.Order{}, nil, err
+		return sqlc.Order{}, nil, s.handleUserNotFoundError(err)
 	}
 
-	existingOrder, err := s.orderRepo.GetByUUID(reqCtx, input.OrderUuid)
+	existingOrder, err := s.orderRepo.GetByUUID(ctx, input.OrderUuid)
 	if err != nil {
-		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeNotFound, "Order not found")
+		return sqlc.Order{}, nil, s.handleOrderNotFoundError(err)
 	}
 
 	isAdmin := user.UserLevel == RoleAdmin
@@ -784,9 +773,9 @@ func (s *orderService) UpdateOrderShippingInfo(ctx *gin.Context, input sqlc.Upda
 
 	input.AllowedStatuses = allowedStatuses
 
-	updatedOrder, err := s.orderRepo.UpdateOrderShippingInfo(reqCtx, input)
+	updatedOrder, err := s.orderRepo.UpdateOrderShippingInfo(ctx, input)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
 			// Possible reasons: order does not exist, OR status has changed (race condition
 			// was blocked at the right time) -> return a clear error, suggest reloading the page.
 			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeConflict, "Order status has changed or order not found, please refresh and try again")
@@ -794,28 +783,19 @@ func (s *orderService) UpdateOrderShippingInfo(ctx *gin.Context, input sqlc.Upda
 		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "Failed to update shipping info", err)
 	}
 
-	orderItems, err := s.orderItemRepo.GetByOrderID(reqCtx, updatedOrder.OrderID)
+	orderItems, err := s.orderItemRepo.GetByOrderID(ctx, updatedOrder.OrderID)
 	if err != nil {
 		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "Failed to get order items", err)
 	}
 
-	if err := s.cache.Clear("orders:*"); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear order cache")
-	}
+	s.InvalidateOrderCaches(existingOrder.UserUuid)
 	return updatedOrder, orderItems, nil
 }
 
-func (s *orderService) UpdateOrderPaymentStatus(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.UpdateOrderPaymentStatusInput) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
-	reqCtx := ctx.Request.Context()
-
-	userUUID, err := middleware.GetUserUUID(ctx)
+func (s *orderService) UpdateOrderPaymentStatus(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.UpdateOrderPaymentStatusInput) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
+	existingOrder, err := s.orderRepo.GetByUUID(ctx, orderUUID)
 	if err != nil {
-		return sqlc.Order{}, nil, err
-	}
-
-	existingOrder, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
-	if err != nil {
-		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeNotFound, "Order not found")
+		return sqlc.Order{}, nil, s.handleOrderNotFoundError(err)
 	}
 
 	var allowedFromStatuses []int32
@@ -873,15 +853,15 @@ func (s *orderService) UpdateOrderPaymentStatus(ctx *gin.Context, orderUUID uuid
 		AllowedFromStatuses: allowedFromStatuses,
 	}
 
-	updatedOrder, err := s.orderRepo.UpdateOrderPaymentStatus(reqCtx, nil, updateParams)
+	updatedOrder, err := s.orderRepo.UpdateOrderPaymentStatus(ctx, nil, updateParams)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
 			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeConflict, "Payment status has changed by another request, please refresh")
 		}
 		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "Failed to update payment status", err)
 	}
 
-	orderItems, err := s.orderItemRepo.GetByOrderID(reqCtx, updatedOrder.OrderID)
+	orderItems, err := s.orderItemRepo.GetByOrderID(ctx, updatedOrder.OrderID)
 	if err != nil {
 		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "Failed to get order items", err)
 	}
@@ -918,20 +898,15 @@ type cachedInvoicePDF struct {
 	FileName string `json:"file_name"`
 }
 
-func (s *orderService) GetOrderInvoicePDF(ctx *gin.Context, orderUUID uuid.UUID) ([]byte, string, error) {
-	reqCtx := ctx.Request.Context()
-
-	user, err := middleware.GetUserFromContext(ctx, s.userRepo)
+func (s *orderService) GetOrderInvoicePDF(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) ([]byte, string, error) {
+	user, err := s.userRepo.GetByUUID(ctx, userUUID)
 	if err != nil {
-		return nil, "", err
+		return nil, "", s.handleUserNotFoundError(err)
 	}
 
-	order, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
+	order, err := s.orderRepo.GetByUUID(ctx, orderUUID)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, "", utils.NewError(utils.ErrCodeNotFound, "Order not found")
-		}
-		return nil, "", utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
+		return nil, "", s.handleOrderNotFoundError(err)
 	}
 
 	if order.OrderPaymentStatus == OrderPaymentStatusUnpaid {
@@ -942,14 +917,14 @@ func (s *orderService) GetOrderInvoicePDF(ctx *gin.Context, orderUUID uuid.UUID)
 		return nil, "", utils.NewError(utils.ErrCodeForbidden, "Access denied")
 	}
 
-	// 1. Kiểm tra cache Redis (Nếu đã sinh PDF trước đó -> trả về ngay trong ~1ms)
+	// 1. Check Redis Cache
 	cacheKey := fmt.Sprintf("invoice:pdf:%s", orderUUID.String())
 	var cached cachedInvoicePDF
 	if err := s.cache.Get(cacheKey, &cached); err == nil && len(cached.Bytes) > 0 {
 		return cached.Bytes, cached.FileName, nil
 	}
 
-	orderItems, err := s.orderItemRepo.GetByOrderID(reqCtx, order.OrderID)
+	orderItems, err := s.orderItemRepo.GetByOrderID(ctx, order.OrderID)
 	if err != nil {
 		return nil, "", utils.WrapError(utils.ErrCodeInternal, "Failed to get order items", err)
 	}
@@ -1009,7 +984,7 @@ func (s *orderService) GetOrderInvoicePDF(ctx *gin.Context, orderUUID uuid.UUID)
 
 	fileName := fmt.Sprintf("Invoice_%s.pdf", order.OrderNumber)
 
-	// 2. Lưu vào Redis Cache (TTL 24h) cho các lần truy cập tiếp theo
+	// 2. Save to Redis Cache (TTL 24h)
 	_ = s.cache.Set(cacheKey, cachedInvoicePDF{
 		Bytes:    pdfBytes,
 		FileName: fileName,

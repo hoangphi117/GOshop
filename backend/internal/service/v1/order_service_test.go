@@ -1674,3 +1674,994 @@ func TestOrderService_CancelOrder(t *testing.T) {
 	})
 }
 
+func TestOrderService_GetMyOrders(t *testing.T) {
+	ctx := context.Background()
+	userUUID := uuid.New()
+	baseUser := sqlc.User{
+		UserID:    1,
+		UserUuid:  userUUID,
+		UserEmail: "customer@example.com",
+	}
+
+	t.Run("Case 1: User Not Found - Returns 404", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return sqlc.User{}, pgx.ErrNoRows
+			},
+		}
+
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(), nil, nil, nil, nil, nil, nil,
+			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		orders, total, err := svc.GetMyOrders(ctx, userUUID, v1dto.GetOrdersParam{})
+		require.Error(t, err)
+		assert.Empty(t, orders)
+		assert.Equal(t, int32(0), total)
+		assert.Contains(t, err.Error(), "User not found")
+	})
+
+	t.Run("Case 2: Count Error - Returns Internal Error", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return baseUser, nil
+			},
+		}
+		mockOrderRepo := &testutils.MockOrderRepository{
+			CountOrdersFunc: func(ctx context.Context, userID, status *int32, search string) (int64, error) {
+				return 0, errors.New("db count failed")
+			},
+		}
+
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(), nil, nil,
+			mockOrderRepo, nil, nil, nil,
+			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		orders, total, err := svc.GetMyOrders(ctx, userUUID, v1dto.GetOrdersParam{})
+		require.Error(t, err)
+		assert.Empty(t, orders)
+		assert.Equal(t, int32(0), total)
+		assert.Contains(t, err.Error(), "failed to count orders")
+	})
+
+	t.Run("Case 3: Zero Orders - Returns Empty List Without Calling GetAll", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return baseUser, nil
+			},
+		}
+		getAllCalled := false
+		mockOrderRepo := &testutils.MockOrderRepository{
+			CountOrdersFunc: func(ctx context.Context, userID, status *int32, search string) (int64, error) {
+				return 0, nil
+			},
+			GetAllFunc: func(ctx context.Context, userID, status *int32, search, orderBy, sort string, limit, offset int32) ([]sqlc.Order, error) {
+				getAllCalled = true
+				return nil, nil
+			},
+		}
+
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(), nil, nil,
+			mockOrderRepo, nil, nil, nil,
+			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		orders, total, err := svc.GetMyOrders(ctx, userUUID, v1dto.GetOrdersParam{Page: 1, Limit: 10})
+		require.NoError(t, err)
+		assert.Empty(t, orders)
+		assert.Equal(t, int32(0), total)
+		assert.False(t, getAllCalled)
+	})
+
+	t.Run("Case 4: Success - Retrieves Orders With Items and Formats DTO", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return baseUser, nil
+			},
+		}
+		orderUUID1 := uuid.New()
+		order1 := sqlc.Order{
+			OrderID:           101,
+			OrderUuid:         orderUUID1,
+			OrderUserID:       baseUser.UserID,
+			OrderNumber:       "ORD-101",
+			OrderStatus:       v1service.OrderStatusPending,
+			OrderTotalAmount:  utils.FloatToNumeric(500000),
+			OrderCreatedAt:    time.Now(),
+		}
+		mockOrderRepo := &testutils.MockOrderRepository{
+			CountOrdersFunc: func(ctx context.Context, userID, status *int32, search string) (int64, error) {
+				assert.Equal(t, baseUser.UserID, *userID)
+				return 1, nil
+			},
+			GetAllFunc: func(ctx context.Context, userID, status *int32, search, orderBy, sort string, limit, offset int32) ([]sqlc.Order, error) {
+				return []sqlc.Order{order1}, nil
+			},
+		}
+		mockOrderItemRepo := &testutils.MockOrderItemRepository{
+			GetByOrderIDFunc: func(ctx context.Context, orderID int32) ([]sqlc.GetOrderItemsByOrderIDRow, error) {
+				return []sqlc.GetOrderItemsByOrderIDRow{
+					{
+						OrderItemID:        1,
+						OrderItemOrderID:   101,
+						OrderItemProductID: 10,
+						OrderItemQuantity:  2,
+						OrderItemPrice:     utils.FloatToNumeric(250000),
+					},
+				}, nil
+			},
+		}
+
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(), nil, nil,
+			mockOrderRepo,
+			mockOrderItemRepo,
+			nil, nil,
+			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		orders, total, err := svc.GetMyOrders(ctx, userUUID, v1dto.GetOrdersParam{Page: 1, Limit: 10})
+		require.NoError(t, err)
+		assert.Equal(t, int32(1), total)
+		require.Len(t, orders, 1)
+		assert.Equal(t, orderUUID1.String(), orders[0].UUID)
+		require.Len(t, orders[0].Items, 1)
+		assert.Equal(t, int32(2), orders[0].Items[0].Quantity)
+	})
+}
+
+func TestOrderService_GetOrderByUUID(t *testing.T) {
+	ctx := context.Background()
+	userUUID := uuid.New()
+	adminUUID := uuid.New()
+	otherUserUUID := uuid.New()
+	orderUUID := uuid.New()
+
+	baseUser := sqlc.User{
+		UserID:    1,
+		UserUuid:  userUUID,
+		UserLevel: v1service.RoleMember,
+	}
+	adminUser := sqlc.User{
+		UserID:    99,
+		UserUuid:  adminUUID,
+		UserLevel: v1service.RoleAdmin,
+	}
+	otherUser := sqlc.User{
+		UserID:    2,
+		UserUuid:  otherUserUUID,
+		UserLevel: v1service.RoleMember,
+	}
+	orderRow := sqlc.GetOrderByUUIDRow{
+		OrderID:     100,
+		OrderUuid:   orderUUID,
+		OrderUserID: baseUser.UserID,
+		OrderNumber: "ORD-100",
+		OrderStatus: v1service.OrderStatusPending,
+	}
+
+	t.Run("Case 1: User Not Found - Returns 404", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return sqlc.User{}, pgx.ErrNoRows
+			},
+		}
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(), nil, nil, nil, nil, nil, nil,
+			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		_, _, err := svc.GetOrderByUUID(ctx, userUUID, orderUUID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "User not found")
+	})
+
+	t.Run("Case 2: Order Not Found - Returns 404", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return baseUser, nil
+			},
+		}
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return sqlc.GetOrderByUUIDRow{}, pgx.ErrNoRows
+			},
+		}
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(), nil, nil,
+			mockOrderRepo, nil, nil, nil,
+			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		_, _, err := svc.GetOrderByUUID(ctx, userUUID, orderUUID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Order not found")
+	})
+
+	t.Run("Case 3: Forbidden - Other User Cannot View Order", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return otherUser, nil
+			},
+		}
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return orderRow, nil
+			},
+		}
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(), nil, nil,
+			mockOrderRepo, nil, nil, nil,
+			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		_, _, err := svc.GetOrderByUUID(ctx, otherUserUUID, orderUUID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "You are not authorized to view this order")
+	})
+
+	t.Run("Case 4: Success - Owner Can View Order and Items", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return baseUser, nil
+			},
+		}
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return orderRow, nil
+			},
+		}
+		mockOrderItemRepo := &testutils.MockOrderItemRepository{
+			GetByOrderIDFunc: func(ctx context.Context, orderID int32) ([]sqlc.GetOrderItemsByOrderIDRow, error) {
+				return []sqlc.GetOrderItemsByOrderIDRow{
+					{OrderItemID: 1, OrderItemOrderID: orderRow.OrderID, OrderItemQuantity: 1},
+				}, nil
+			},
+		}
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(), nil, nil,
+			mockOrderRepo,
+			mockOrderItemRepo,
+			nil, nil,
+			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		order, items, err := svc.GetOrderByUUID(ctx, userUUID, orderUUID)
+		require.NoError(t, err)
+		assert.Equal(t, orderRow.OrderUuid, order.OrderUuid)
+		require.Len(t, items, 1)
+	})
+
+	t.Run("Case 5: Success - Admin Can View Any Order", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return adminUser, nil
+			},
+		}
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return orderRow, nil // order belongs to UserID 1
+			},
+		}
+		mockOrderItemRepo := &testutils.MockOrderItemRepository{
+			GetByOrderIDFunc: func(ctx context.Context, orderID int32) ([]sqlc.GetOrderItemsByOrderIDRow, error) {
+				return []sqlc.GetOrderItemsByOrderIDRow{}, nil
+			},
+		}
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(), nil, nil,
+			mockOrderRepo,
+			mockOrderItemRepo,
+			nil, nil,
+			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		order, items, err := svc.GetOrderByUUID(ctx, adminUUID, orderUUID)
+		require.NoError(t, err)
+		assert.Equal(t, orderRow.OrderUuid, order.OrderUuid)
+		assert.Empty(t, items)
+	})
+}
+
+func TestOrderService_GetAllOrders(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Case 1: Count Failure - Returns Error", func(t *testing.T) {
+		mockOrderRepo := &testutils.MockOrderRepository{
+			CountOrdersFunc: func(ctx context.Context, userID, status *int32, search string) (int64, error) {
+				return 0, errors.New("db failure")
+			},
+		}
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(), nil, nil,
+			mockOrderRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		orders, total, err := svc.GetAllOrders(ctx, v1dto.GetOrdersParam{})
+		require.Error(t, err)
+		assert.Empty(t, orders)
+		assert.Equal(t, int32(0), total)
+	})
+
+	t.Run("Case 2: Zero Orders - Returns Empty", func(t *testing.T) {
+		mockOrderRepo := &testutils.MockOrderRepository{
+			CountOrdersFunc: func(ctx context.Context, userID, status *int32, search string) (int64, error) {
+				return 0, nil
+			},
+		}
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(), nil, nil,
+			mockOrderRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		orders, total, err := svc.GetAllOrders(ctx, v1dto.GetOrdersParam{Page: 1, Limit: 10})
+		require.NoError(t, err)
+		assert.Empty(t, orders)
+		assert.Equal(t, int32(0), total)
+	})
+
+	t.Run("Case 3: Success - Returns Admin Orders", func(t *testing.T) {
+		orderUUID := uuid.New()
+		order := sqlc.Order{
+			OrderID:          1,
+			OrderUuid:        orderUUID,
+			OrderUserID:      1,
+			OrderNumber:      "ORD-001",
+			OrderStatus:      v1service.OrderStatusConfirmed,
+			OrderTotalAmount: utils.FloatToNumeric(100000),
+			OrderCreatedAt:   time.Now(),
+		}
+		mockOrderRepo := &testutils.MockOrderRepository{
+			CountOrdersFunc: func(ctx context.Context, userID, status *int32, search string) (int64, error) {
+				return 1, nil
+			},
+			GetAllFunc: func(ctx context.Context, userID, status *int32, search, orderBy, sort string, limit, offset int32) ([]sqlc.Order, error) {
+				return []sqlc.Order{order}, nil
+			},
+		}
+		mockOrderItemRepo := &testutils.MockOrderItemRepository{
+			GetByOrderIDFunc: func(ctx context.Context, orderID int32) ([]sqlc.GetOrderItemsByOrderIDRow, error) {
+				return []sqlc.GetOrderItemsByOrderIDRow{}, nil
+			},
+		}
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(), nil, nil,
+			mockOrderRepo,
+			mockOrderItemRepo,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		orders, total, err := svc.GetAllOrders(ctx, v1dto.GetOrdersParam{Page: 1, Limit: 10})
+		require.NoError(t, err)
+		assert.Equal(t, int32(1), total)
+		require.Len(t, orders, 1)
+		assert.Equal(t, orderUUID.String(), orders[0].UUID)
+	})
+}
+
+func TestOrderService_UpdateOrderStatus(t *testing.T) {
+	ctx := context.Background()
+	orderUUID := uuid.New()
+
+	t.Run("Case 1: Order Not Found", func(t *testing.T) {
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return sqlc.GetOrderByUUIDRow{}, pgx.ErrNoRows
+			},
+		}
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(), nil, nil,
+			mockOrderRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		_, _, err := svc.UpdateOrderStatus(ctx, sqlc.UpdateOrderStatusParams{
+			OrderUuid:   orderUUID,
+			OrderStatus: v1service.OrderStatusConfirmed,
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Order not found")
+	})
+
+	t.Run("Case 2: Invalid Transition - Pending to Delivered Directly", func(t *testing.T) {
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return sqlc.GetOrderByUUIDRow{
+					OrderID:     1,
+					OrderUuid:   orderUUID,
+					OrderStatus: v1service.OrderStatusPending,
+				}, nil
+			},
+		}
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(), nil, nil,
+			mockOrderRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		_, _, err := svc.UpdateOrderStatus(ctx, sqlc.UpdateOrderStatusParams{
+			OrderUuid:   orderUUID,
+			OrderStatus: v1service.OrderStatusDelivered,
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Cannot change order status")
+	})
+
+	t.Run("Case 3: Valid Transition - Pending to Confirmed Inserts Tracking and Dispatches Notification", func(t *testing.T) {
+		existingOrder := sqlc.GetOrderByUUIDRow{
+			OrderID:     1,
+			OrderUuid:   orderUUID,
+			OrderUserID: 10,
+			OrderNumber: "ORD-123",
+			OrderStatus: v1service.OrderStatusPending,
+		}
+		updatedOrder := sqlc.Order{
+			OrderID:     1,
+			OrderUuid:   orderUUID,
+			OrderUserID: 10,
+			OrderNumber: "ORD-123",
+			OrderStatus: v1service.OrderStatusConfirmed,
+		}
+		var trackingEvent sqlc.InsertTrackingEventParams
+		mockTracking := &testutils.MockTrackingRepository{
+			InsertEventFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.InsertTrackingEventParams) (sqlc.OrderTrackingEvent, error) {
+				trackingEvent = params
+				return sqlc.OrderTrackingEvent{EventID: 1}, nil
+			},
+		}
+		var notifiedInput v1dto.SendNotificationInput
+		mockNotification := &testutils.MockNotificationService{
+			SendFunc: func(ctx context.Context, input v1dto.SendNotificationInput) error {
+				notifiedInput = input
+				return nil
+			},
+		}
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return existingOrder, nil
+			},
+			UpdateStatusFunc: func(ctx context.Context, params sqlc.UpdateOrderStatusParams) (sqlc.Order, error) {
+				return updatedOrder, nil
+			},
+		}
+		mockOrderItemRepo := &testutils.MockOrderItemRepository{
+			GetByOrderIDFunc: func(ctx context.Context, orderID int32) ([]sqlc.GetOrderItemsByOrderIDRow, error) {
+				return []sqlc.GetOrderItemsByOrderIDRow{
+					{OrderItemID: 1, OrderItemOrderID: 1, OrderItemQuantity: 1},
+				}, nil
+			},
+		}
+
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(), nil, nil,
+			mockOrderRepo,
+			mockOrderItemRepo,
+			nil, nil, nil, nil, nil, nil,
+			mockTracking, nil, nil, nil,
+			mockNotification, nil, nil, nil,
+		)
+
+		resOrder, items, err := svc.UpdateOrderStatus(ctx, sqlc.UpdateOrderStatusParams{
+			OrderUuid:   orderUUID,
+			OrderStatus: v1service.OrderStatusConfirmed,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, v1service.OrderStatusConfirmed, resOrder.OrderStatus)
+		require.Len(t, items, 1)
+
+		// Assert tracking event was recorded
+		assert.Equal(t, int32(1), trackingEvent.EventOrderID)
+		assert.Equal(t, "Confirmed", trackingEvent.EventStatus)
+		assert.Equal(t, "admin", trackingEvent.EventSource)
+
+		// Allow async notification goroutine to complete
+		time.Sleep(50 * time.Millisecond)
+		assert.Equal(t, int32(10), notifiedInput.UserID)
+		assert.Equal(t, "order_confirmed", notifiedInput.Type)
+	})
+}
+
+func TestOrderService_UpdateOrderShippingInfo(t *testing.T) {
+	ctx := context.Background()
+	userUUID := uuid.New()
+	adminUUID := uuid.New()
+	otherUserUUID := uuid.New()
+	orderUUID := uuid.New()
+
+	baseUser := sqlc.User{UserID: 1, UserUuid: userUUID, UserLevel: v1service.RoleMember}
+	adminUser := sqlc.User{UserID: 99, UserUuid: adminUUID, UserLevel: v1service.RoleAdmin}
+	otherUser := sqlc.User{UserID: 2, UserUuid: otherUserUUID, UserLevel: v1service.RoleMember}
+
+	pendingOrder := sqlc.GetOrderByUUIDRow{
+		OrderID:     1,
+		OrderUuid:   orderUUID,
+		OrderUserID: baseUser.UserID,
+		OrderStatus: v1service.OrderStatusPending,
+	}
+
+	t.Run("Case 1: User Not Found", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return sqlc.User{}, pgx.ErrNoRows
+			},
+		}
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(), nil, nil, nil, nil, nil, nil,
+			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		_, _, err := svc.UpdateOrderShippingInfo(ctx, userUUID, sqlc.UpdateOrderShippingInfoParams{OrderUuid: orderUUID})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "User not found")
+	})
+
+	t.Run("Case 2: Forbidden - Other Member Cannot Update", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return otherUser, nil
+			},
+		}
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return pendingOrder, nil
+			},
+		}
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(), nil, nil,
+			mockOrderRepo, nil, nil, nil,
+			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		_, _, err := svc.UpdateOrderShippingInfo(ctx, otherUserUUID, sqlc.UpdateOrderShippingInfoParams{OrderUuid: orderUUID})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "You do not have permission to update this order")
+	})
+
+	t.Run("Case 3: Invalid Status for Member - Confirmed Order Cannot Be Updated by Member", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return baseUser, nil
+			},
+		}
+		confirmedOrder := pendingOrder
+		confirmedOrder.OrderStatus = v1service.OrderStatusConfirmed
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return confirmedOrder, nil
+			},
+		}
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(), nil, nil,
+			mockOrderRepo, nil, nil, nil,
+			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		_, _, err := svc.UpdateOrderShippingInfo(ctx, userUUID, sqlc.UpdateOrderShippingInfoParams{OrderUuid: orderUUID})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "You can only update shipping info for Pending orders")
+	})
+
+	t.Run("Case 4: Success for Member when Pending", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return baseUser, nil
+			},
+		}
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return pendingOrder, nil
+			},
+			UpdateOrderShippingInfoFunc: func(ctx context.Context, params sqlc.UpdateOrderShippingInfoParams) (sqlc.Order, error) {
+				name := ""
+				if params.OrderShippingName != nil {
+					name = *params.OrderShippingName
+				}
+				phone := ""
+				if params.OrderShippingPhone != nil {
+					phone = *params.OrderShippingPhone
+				}
+				addr := ""
+				if params.OrderShippingAddress != nil {
+					addr = *params.OrderShippingAddress
+				}
+				return sqlc.Order{
+					OrderID:              pendingOrder.OrderID,
+					OrderUuid:            pendingOrder.OrderUuid,
+					OrderShippingName:    name,
+					OrderShippingPhone:   phone,
+					OrderShippingAddress: addr,
+				}, nil
+			},
+		}
+		mockOrderItemRepo := &testutils.MockOrderItemRepository{
+			GetByOrderIDFunc: func(ctx context.Context, orderID int32) ([]sqlc.GetOrderItemsByOrderIDRow, error) {
+				return []sqlc.GetOrderItemsByOrderIDRow{}, nil
+			},
+		}
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(), nil, nil,
+			mockOrderRepo,
+			mockOrderItemRepo,
+			nil, nil,
+			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		shippingName := "Tran Van B"
+		shippingPhone := "0912345678"
+		shippingAddress := "456 Nguyen Hue, HCMC"
+		updatedOrder, items, err := svc.UpdateOrderShippingInfo(ctx, userUUID, sqlc.UpdateOrderShippingInfoParams{
+			OrderUuid:            orderUUID,
+			OrderShippingName:    &shippingName,
+			OrderShippingPhone:   &shippingPhone,
+			OrderShippingAddress: &shippingAddress,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "Tran Van B", updatedOrder.OrderShippingName)
+		assert.Empty(t, items)
+	})
+
+	t.Run("Case 5: Success for Admin when Confirmed", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return adminUser, nil
+			},
+		}
+		confirmedOrder := pendingOrder
+		confirmedOrder.OrderStatus = v1service.OrderStatusConfirmed
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return confirmedOrder, nil
+			},
+			UpdateOrderShippingInfoFunc: func(ctx context.Context, params sqlc.UpdateOrderShippingInfoParams) (sqlc.Order, error) {
+				name := ""
+				if params.OrderShippingName != nil {
+					name = *params.OrderShippingName
+				}
+				addr := ""
+				if params.OrderShippingAddress != nil {
+					addr = *params.OrderShippingAddress
+				}
+				return sqlc.Order{
+					OrderID:              confirmedOrder.OrderID,
+					OrderUuid:            confirmedOrder.OrderUuid,
+					OrderShippingName:    name,
+					OrderShippingAddress: addr,
+				}, nil
+			},
+		}
+		mockOrderItemRepo := &testutils.MockOrderItemRepository{
+			GetByOrderIDFunc: func(ctx context.Context, orderID int32) ([]sqlc.GetOrderItemsByOrderIDRow, error) {
+				return []sqlc.GetOrderItemsByOrderIDRow{}, nil
+			},
+		}
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(), nil, nil,
+			mockOrderRepo,
+			mockOrderItemRepo,
+			nil, nil,
+			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		shippingName := "Admin Updated Name"
+		shippingAddress := "Admin Updated Address"
+		updatedOrder, _, err := svc.UpdateOrderShippingInfo(ctx, adminUUID, sqlc.UpdateOrderShippingInfoParams{
+			OrderUuid:            orderUUID,
+			OrderShippingName:    &shippingName,
+			OrderShippingAddress: &shippingAddress,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "Admin Updated Name", updatedOrder.OrderShippingName)
+	})
+}
+
+func TestOrderService_UpdateOrderPaymentStatus(t *testing.T) {
+	ctx := context.Background()
+	adminUUID := uuid.New()
+	orderUUID := uuid.New()
+
+	baseOrder := sqlc.GetOrderByUUIDRow{
+		OrderID:            1,
+		OrderUuid:          orderUUID,
+		UserUuid:           uuid.New(),
+		OrderStatus:        v1service.OrderStatusPending,
+		OrderPaymentStatus: v1service.OrderPaymentStatusUnpaid,
+		OrderTotalAmount:   utils.FloatToNumeric(500000),
+		OrderRefundedAmount: utils.FloatToNumeric(0),
+	}
+
+	t.Run("Case 1: Order Not Found", func(t *testing.T) {
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return sqlc.GetOrderByUUIDRow{}, pgx.ErrNoRows
+			},
+		}
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(), nil, nil,
+			mockOrderRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		_, _, err := svc.UpdateOrderPaymentStatus(ctx, adminUUID, orderUUID, v1dto.UpdateOrderPaymentStatusInput{
+			PaymentStatus: v1service.OrderPaymentStatusPaid,
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Order not found")
+	})
+
+	t.Run("Case 2: Success Marking Unpaid as Paid", func(t *testing.T) {
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return baseOrder, nil
+			},
+			UpdateOrderPaymentStatusFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.UpdateOrderPaymentStatusParams) (sqlc.Order, error) {
+				return sqlc.Order{
+					OrderID:            baseOrder.OrderID,
+					OrderUuid:          baseOrder.OrderUuid,
+					OrderPaymentStatus: params.PaymentStatus,
+				}, nil
+			},
+		}
+		mockOrderItemRepo := &testutils.MockOrderItemRepository{
+			GetByOrderIDFunc: func(ctx context.Context, orderID int32) ([]sqlc.GetOrderItemsByOrderIDRow, error) {
+				return []sqlc.GetOrderItemsByOrderIDRow{}, nil
+			},
+		}
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(), nil, nil,
+			mockOrderRepo,
+			mockOrderItemRepo,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		updatedOrder, _, err := svc.UpdateOrderPaymentStatus(ctx, adminUUID, orderUUID, v1dto.UpdateOrderPaymentStatusInput{
+			PaymentStatus: v1service.OrderPaymentStatusPaid,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, v1service.OrderPaymentStatusPaid, updatedOrder.OrderPaymentStatus)
+	})
+
+	t.Run("Case 3: Cannot Mark Cancelled Order as Paid", func(t *testing.T) {
+		cancelledOrder := baseOrder
+		cancelledOrder.OrderStatus = v1service.OrderStatusCancelled
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return cancelledOrder, nil
+			},
+		}
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(), nil, nil,
+			mockOrderRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		_, _, err := svc.UpdateOrderPaymentStatus(ctx, adminUUID, orderUUID, v1dto.UpdateOrderPaymentStatusInput{
+			PaymentStatus: v1service.OrderPaymentStatusPaid,
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Cannot mark a cancelled or returned order as Paid")
+	})
+
+	t.Run("Case 4: Refund Rejection if Order is Not Cancelled/Returned", func(t *testing.T) {
+		paidPendingOrder := baseOrder
+		paidPendingOrder.OrderStatus = v1service.OrderStatusPending
+		paidPendingOrder.OrderPaymentStatus = v1service.OrderPaymentStatusPaid
+
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return paidPendingOrder, nil
+			},
+		}
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(), nil, nil,
+			mockOrderRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		_, _, err := svc.UpdateOrderPaymentStatus(ctx, adminUUID, orderUUID, v1dto.UpdateOrderPaymentStatusInput{
+			PaymentStatus: v1service.OrderPaymentStatusFullyRefunded,
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Can only refund orders that are Cancelled")
+	})
+
+	t.Run("Case 5: Success Full Refund on Cancelled Order", func(t *testing.T) {
+		paidCancelledOrder := baseOrder
+		paidCancelledOrder.OrderStatus = v1service.OrderStatusCancelled
+		paidCancelledOrder.OrderPaymentStatus = v1service.OrderPaymentStatusPaid
+
+		var capturedParams sqlc.UpdateOrderPaymentStatusParams
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return paidCancelledOrder, nil
+			},
+			UpdateOrderPaymentStatusFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.UpdateOrderPaymentStatusParams) (sqlc.Order, error) {
+				capturedParams = params
+				return sqlc.Order{
+					OrderID:            paidCancelledOrder.OrderID,
+					OrderUuid:          paidCancelledOrder.OrderUuid,
+					OrderPaymentStatus: params.PaymentStatus,
+					OrderRefundedAmount: params.RefundedAmount,
+				}, nil
+			},
+		}
+		mockOrderItemRepo := &testutils.MockOrderItemRepository{
+			GetByOrderIDFunc: func(ctx context.Context, orderID int32) ([]sqlc.GetOrderItemsByOrderIDRow, error) {
+				return []sqlc.GetOrderItemsByOrderIDRow{}, nil
+			},
+		}
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(), nil, nil,
+			mockOrderRepo,
+			mockOrderItemRepo,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		updatedOrder, _, err := svc.UpdateOrderPaymentStatus(ctx, adminUUID, orderUUID, v1dto.UpdateOrderPaymentStatusInput{
+			PaymentStatus: v1service.OrderPaymentStatusFullyRefunded,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, v1service.OrderPaymentStatusFullyRefunded, updatedOrder.OrderPaymentStatus)
+		assert.Equal(t, v1service.OrderPaymentStatusFullyRefunded, capturedParams.PaymentStatus)
+		assert.Equal(t, float64(500000), utils.NumericToFloat(capturedParams.RefundedAmount))
+	})
+}
+
+func TestOrderService_GetOrderInvoicePDF(t *testing.T) {
+	ctx := context.Background()
+	userUUID := uuid.New()
+	adminUUID := uuid.New()
+	otherUserUUID := uuid.New()
+	orderUUID := uuid.New()
+
+	baseUser := sqlc.User{UserID: 1, UserUuid: userUUID, UserLevel: v1service.RoleMember}
+	adminUser := sqlc.User{UserID: 99, UserUuid: adminUUID, UserLevel: v1service.RoleAdmin}
+	otherUser := sqlc.User{UserID: 2, UserUuid: otherUserUUID, UserLevel: v1service.RoleMember}
+
+	paidOrder := sqlc.GetOrderByUUIDRow{
+		OrderID:              100,
+		OrderUuid:            orderUUID,
+		OrderUserID:          baseUser.UserID,
+		OrderNumber:          "ORD-100",
+		OrderStatus:          v1service.OrderStatusConfirmed,
+		OrderPaymentStatus:   v1service.OrderPaymentStatusPaid,
+		OrderPaymentMethod:   v1service.OrderPaymentMethodCOD,
+		OrderShippingName:    "Nguyen Van A",
+		OrderShippingPhone:   "0987654321",
+		OrderShippingAddress: "123 Le Loi, HCMC",
+		OrderSubtotalAmount:  utils.FloatToNumeric(500000),
+		OrderDiscountAmount:  utils.FloatToNumeric(0),
+		OrderTotalAmount:     utils.FloatToNumeric(500000),
+		OrderCreatedAt:       time.Now(),
+	}
+
+	t.Run("Case 1: User Not Found", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return sqlc.User{}, pgx.ErrNoRows
+			},
+		}
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(), nil, nil, nil, nil, nil, nil,
+			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		_, _, err := svc.GetOrderInvoicePDF(ctx, userUUID, orderUUID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "User not found")
+	})
+
+	t.Run("Case 2: Order Unpaid Rejection", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return baseUser, nil
+			},
+		}
+		unpaidOrder := paidOrder
+		unpaidOrder.OrderPaymentStatus = v1service.OrderPaymentStatusUnpaid
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return unpaidOrder, nil
+			},
+		}
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(), nil, nil,
+			mockOrderRepo, nil, nil, nil,
+			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		_, _, err := svc.GetOrderInvoicePDF(ctx, userUUID, orderUUID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Invoice is not available until payment is confirmed")
+	})
+
+	t.Run("Case 3: Forbidden for Non-Owner Non-Admin", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return otherUser, nil
+			},
+		}
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return paidOrder, nil
+			},
+		}
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(), nil, nil,
+			mockOrderRepo, nil, nil, nil,
+			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		_, _, err := svc.GetOrderInvoicePDF(ctx, otherUserUUID, orderUUID)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Access denied")
+	})
+
+	t.Run("Case 4: Success Generating Invoice PDF for Owner", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return baseUser, nil
+			},
+		}
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return paidOrder, nil
+			},
+		}
+		mockOrderItemRepo := &testutils.MockOrderItemRepository{
+			GetByOrderIDFunc: func(ctx context.Context, orderID int32) ([]sqlc.GetOrderItemsByOrderIDRow, error) {
+				return []sqlc.GetOrderItemsByOrderIDRow{
+					{
+						OrderItemID:          1,
+						OrderItemOrderID:     paidOrder.OrderID,
+						OrderItemProductName: "Test Product",
+						OrderItemQuantity:    2,
+						OrderItemPrice:       utils.FloatToNumeric(250000),
+						OrderItemSubtotal:    utils.FloatToNumeric(500000),
+					},
+				}, nil
+			},
+		}
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(), nil, nil,
+			mockOrderRepo,
+			mockOrderItemRepo,
+			nil, nil,
+			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		pdfBytes, filename, err := svc.GetOrderInvoicePDF(ctx, userUUID, orderUUID)
+		require.NoError(t, err)
+		assert.NotEmpty(t, pdfBytes)
+		assert.Equal(t, "Invoice_ORD-100.pdf", filename)
+	})
+
+	t.Run("Case 5: Success Generating Invoice PDF for Admin", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return adminUser, nil
+			},
+		}
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return paidOrder, nil
+			},
+		}
+		mockOrderItemRepo := &testutils.MockOrderItemRepository{
+			GetByOrderIDFunc: func(ctx context.Context, orderID int32) ([]sqlc.GetOrderItemsByOrderIDRow, error) {
+				return []sqlc.GetOrderItemsByOrderIDRow{}, nil
+			},
+		}
+		svc := v1service.NewOrderService(
+			testutils.NewNoopTxManager(), nil, nil,
+			mockOrderRepo,
+			mockOrderItemRepo,
+			nil, nil,
+			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		)
+
+		pdfBytes, filename, err := svc.GetOrderInvoicePDF(ctx, adminUUID, orderUUID)
+		require.NoError(t, err)
+		assert.NotEmpty(t, pdfBytes)
+		assert.Equal(t, "Invoice_ORD-100.pdf", filename)
+	})
+}
+
