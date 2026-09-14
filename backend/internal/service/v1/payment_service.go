@@ -14,6 +14,7 @@ import (
 	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
+	"goshop/internal/middleware"
 	"goshop/internal/repository"
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
@@ -80,7 +81,7 @@ func (s *paymentService) CreatePaymentIntent(ctx *gin.Context, input v1dto.Creat
 	reqCtx := ctx.Request.Context()
 	startTime := time.Now()
 
-	user, err := GetUserFromContext(ctx, s.userRepo)
+	user, err := middleware.GetUserFromContext(ctx, s.userRepo)
 	if err != nil {
 		return v1dto.PaymentIntentDTO{}, err
 	}
@@ -491,7 +492,7 @@ func (s *paymentService) ProcessWebhookMessage(headers amqp.Table, body []byte) 
 func (s *paymentService) GetPaymentHistory(ctx *gin.Context, orderUUID uuid.UUID) ([]v1dto.PaymentTransactionDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	user, err := GetUserFromContext(ctx, s.userRepo)
+	user, err := middleware.GetUserFromContext(ctx, s.userRepo)
 	if err != nil {
 		return nil, err
 	}

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	v1dto "goshop/internal/dto/v1"
+	"goshop/internal/middleware"
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/utils"
 	"goshop/internal/validation"
@@ -39,13 +40,20 @@ func NewOrderHandler(service v1service.OrderService) *OrderHandler {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /orders [post]
 func (oh *OrderHandler) CreateOrder(ctx *gin.Context) {
+
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
 	var input v1dto.CreateOrderInput
 	if err := ctx.ShouldBindJSON(&input); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
 	}
 
-	order, orderItems, err := oh.service.CreateOrder(ctx, input)
+	order, orderItems, err := oh.service.CreateOrder(ctx.Request.Context(), userUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
+	"goshop/internal/middleware"
 	"goshop/internal/repository"
 	"goshop/internal/utils"
 	"goshop/pkg/logger"
@@ -177,7 +178,7 @@ func (s *notificationService) BroadcastNotification(ctx *gin.Context, input v1dt
 func (s *notificationService) GetMyNotifications(ctx *gin.Context, query v1dto.GetNotificationsQuery) ([]v1dto.NotificationDTO, int32, error) {
 	reqCtx := ctx.Request.Context()
 
-	user, err := GetUserFromContext(ctx, s.userRepo)
+	user, err := middleware.GetUserFromContext(ctx, s.userRepo)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -217,7 +218,7 @@ func (s *notificationService) GetMyNotifications(ctx *gin.Context, query v1dto.G
 func (s *notificationService) GetUnreadNotificationCount(ctx *gin.Context) (v1dto.UnreadCountDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	user, err := GetUserFromContext(ctx, s.userRepo)
+	user, err := middleware.GetUserFromContext(ctx, s.userRepo)
 	if err != nil {
 		return v1dto.UnreadCountDTO{}, err
 	}
@@ -233,7 +234,7 @@ func (s *notificationService) GetUnreadNotificationCount(ctx *gin.Context) (v1dt
 
 func (s *notificationService) MarkNotificationAsRead(ctx *gin.Context, notificationUUID uuid.UUID) (v1dto.NotificationDTO, error) {
 	reqCtx := ctx.Request.Context()
-	user, err := GetUserFromContext(ctx, s.userRepo)
+	user, err := middleware.GetUserFromContext(ctx, s.userRepo)
 	if err != nil {
 		return v1dto.NotificationDTO{}, err
 	}
@@ -256,7 +257,7 @@ func (s *notificationService) MarkNotificationAsRead(ctx *gin.Context, notificat
 func (s *notificationService) MarkAllNotificationsAsRead(ctx *gin.Context) error {
 	reqCtx := ctx.Request.Context()
 
-	user, err := GetUserFromContext(ctx, s.userRepo)
+	user, err := middleware.GetUserFromContext(ctx, s.userRepo)
 	if err != nil {
 		return err
 	}
@@ -273,7 +274,7 @@ func (s *notificationService) MarkAllNotificationsAsRead(ctx *gin.Context) error
 func (s *notificationService) DeleteNotification(ctx *gin.Context, notificationUUID uuid.UUID) error {
 	reqCtx := ctx.Request.Context()
 
-	user, err := GetUserFromContext(ctx, s.userRepo)
+	user, err := middleware.GetUserFromContext(ctx, s.userRepo)
 	if err != nil {
 		return err
 	}

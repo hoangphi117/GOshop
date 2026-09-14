@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
+	"goshop/internal/middleware"
 	"goshop/internal/repository"
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
@@ -369,7 +370,7 @@ func (cs *couponService) RecordUserCouponUsage(ctx context.Context, tx pgx.Tx, c
 func (cs *couponService) PreviewCoupon(ctx *gin.Context, input v1dto.PreviewCouponInput) (v1dto.PreviewCouponDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	user, err := GetUserFromContext(ctx, cs.userRepo)
+	user, err := middleware.GetUserFromContext(ctx, cs.userRepo)
 	if err != nil {
 		return v1dto.PreviewCouponDTO{}, err
 	}

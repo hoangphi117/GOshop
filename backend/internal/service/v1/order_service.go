@@ -9,6 +9,7 @@ import (
 	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
+	"goshop/internal/middleware"
 	"goshop/internal/repository"
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
@@ -127,11 +128,11 @@ func NewOrderService(txManager db.TxManager,
 }
 
 func (s *orderService) getUser(ctx *gin.Context) (sqlc.User, error) {
-	return GetUserFromContext(ctx, s.userRepo)
+	return middleware.GetUserFromContext(ctx, s.userRepo)
 }
 
 func (s *orderService) getUserUUID(ctx *gin.Context) (uuid.UUID, error) {
-	return GetUserUUIDFromContext(ctx)
+	return middleware.GetUserUUID(ctx)
 }
 
 const base32Alphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
@@ -163,14 +164,14 @@ func GenerateOrderNumber(userID int32) string {
 	return fmt.Sprintf("%s-%s-%s", datePrefix, userFragment, string(randomSuffix))
 }
 
-func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInput) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
+func (s *orderService) CreateOrder(ctx context.Context, userUUID uuid.UUID, input v1dto.CreateOrderInput) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
 
-	reqCtx := ctx.Request.Context()
-
-	// Get user from context
-	user, err := s.getUser(ctx)
+	user, err := s.userRepo.GetByUUID(ctx, userUUID)
 	if err != nil {
-		return sqlc.Order{}, nil, err
+		if errors.Is(err, pgx.ErrNoRows) {
+			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeNotFound, "User not found")
+		}
+		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "Failed to get user", err)
 	}
 
 	// Validate duplicate products in the order
@@ -193,7 +194,7 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 	/* ======================TRANSACTION START ====================== */
 	var order sqlc.Order
 
-	err = s.txManager.WithTx(reqCtx, func(txCtx context.Context) error {
+	err = s.txManager.WithTx(ctx, func(txCtx context.Context) error {
 		tx, _ := db.GetTx(txCtx)
 
 		// 1. Lock products and deduct stock via InventoryService
@@ -318,7 +319,7 @@ func (s *orderService) CreateOrder(ctx *gin.Context, input v1dto.CreateOrderInpu
 	/* ====================== TRANSACTION END ====================== */
 
 	// Get order items with details after the transaction is committed
-	orderItemsWithDetails, err := s.orderItemRepo.GetByOrderID(reqCtx, order.OrderID)
+	orderItemsWithDetails, err := s.orderItemRepo.GetByOrderID(ctx, order.OrderID)
 	if err != nil {
 		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "failed to get order items", err)
 	}
@@ -374,7 +375,7 @@ func CalculateDiscount(coupon sqlc.Coupon, orderAmount float64) float64 {
 func (s *orderService) GetMyOrders(ctx *gin.Context, input v1dto.GetOrdersParam) ([]v1dto.OrderSummaryDTO, int32, error) {
 	context := ctx.Request.Context()
 
-	user, err := s.getUser(ctx)
+	user, err := middleware.GetUserFromContext(ctx, s.userRepo)
 	if err != nil {
 		return []v1dto.OrderSummaryDTO{}, 0, err
 	}
@@ -451,7 +452,7 @@ func (s *orderService) GetMyOrders(ctx *gin.Context, input v1dto.GetOrdersParam)
 func (s *orderService) GetOrderByUUID(ctx *gin.Context, orderUUID uuid.UUID) (sqlc.GetOrderByUUIDRow, []sqlc.GetOrderItemsByOrderIDRow, error) {
 	context := ctx.Request.Context()
 
-	user, err := s.getUser(ctx)
+	user, err := middleware.GetUserFromContext(ctx, s.userRepo)
 	if err != nil {
 		return sqlc.GetOrderByUUIDRow{}, nil, err
 	}
@@ -651,7 +652,7 @@ func isValidStatusTransition(currentStatus, newStatus int32) bool {
 func (s *orderService) CancelOrder(ctx *gin.Context, orderUUID uuid.UUID) error {
 	reqCtx := ctx.Request.Context()
 
-	user, err := s.getUser(ctx)
+	user, err := middleware.GetUserFromContext(ctx, s.userRepo)
 	if err != nil {
 		return err
 	}
@@ -732,7 +733,7 @@ func (s *orderService) CancelOrder(ctx *gin.Context, orderUUID uuid.UUID) error 
 func (s *orderService) UpdateOrderShippingInfo(ctx *gin.Context, input sqlc.UpdateOrderShippingInfoParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
 	reqCtx := ctx.Request.Context()
 
-	user, err := s.getUser(ctx)
+	user, err := middleware.GetUserFromContext(ctx, s.userRepo)
 	if err != nil {
 		return sqlc.Order{}, nil, err
 	}
@@ -797,7 +798,7 @@ func (s *orderService) UpdateOrderShippingInfo(ctx *gin.Context, input sqlc.Upda
 func (s *orderService) UpdateOrderPaymentStatus(ctx *gin.Context, orderUUID uuid.UUID, input v1dto.UpdateOrderPaymentStatusInput) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
 	reqCtx := ctx.Request.Context()
 
-	userUUID, err := s.getUserUUID(ctx)
+	userUUID, err := middleware.GetUserUUID(ctx)
 	if err != nil {
 		return sqlc.Order{}, nil, err
 	}
@@ -910,7 +911,7 @@ type cachedInvoicePDF struct {
 func (s *orderService) GetOrderInvoicePDF(ctx *gin.Context, orderUUID uuid.UUID) ([]byte, string, error) {
 	reqCtx := ctx.Request.Context()
 
-	user, err := s.getUser(ctx)
+	user, err := middleware.GetUserFromContext(ctx, s.userRepo)
 	if err != nil {
 		return nil, "", err
 	}

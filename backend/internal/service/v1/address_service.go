@@ -7,6 +7,7 @@ import (
 	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
+	"goshop/internal/middleware"
 	"goshop/internal/repository"
 	"goshop/internal/utils"
 	"strings"
@@ -31,7 +32,7 @@ func NewAddressService(repo repository.AddressRepository, userRepo repository.Us
 func (as *addressService) CreateUserAddress(ctx *gin.Context, input v1dto.CreateAddressInput) (v1dto.AddressDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	user, err := GetUserFromContext(ctx, as.userRepo)
+	user, err := middleware.GetUserFromContext(ctx, as.userRepo)
 	if err != nil {
 		return v1dto.AddressDTO{}, err
 	}
@@ -129,7 +130,7 @@ func (as *addressService) CreateUserAddress(ctx *gin.Context, input v1dto.Create
 func (as *addressService) GetMyAddresses(ctx *gin.Context) ([]v1dto.AddressDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	user, err := GetUserFromContext(ctx, as.userRepo)
+	user, err := middleware.GetUserFromContext(ctx, as.userRepo)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +150,7 @@ func (as *addressService) GetMyAddresses(ctx *gin.Context) ([]v1dto.AddressDTO, 
 func (as *addressService) GetAddressByUUID(ctx *gin.Context, addressUUID uuid.UUID) (v1dto.AddressDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	user, err := GetUserFromContext(ctx, as.userRepo)
+	user, err := middleware.GetUserFromContext(ctx, as.userRepo)
 	if err != nil {
 		return v1dto.AddressDTO{}, err
 	}
@@ -172,7 +173,7 @@ func (as *addressService) GetAddressByUUID(ctx *gin.Context, addressUUID uuid.UU
 func (as *addressService) UpdateUserAddress(ctx *gin.Context, addressUUID uuid.UUID, input v1dto.UpdateAddressInput) (v1dto.AddressDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	user, err := GetUserFromContext(ctx, as.userRepo)
+	user, err := middleware.GetUserFromContext(ctx, as.userRepo)
 	if err != nil {
 		return v1dto.AddressDTO{}, err
 	}
@@ -251,7 +252,7 @@ func (as *addressService) UpdateUserAddress(ctx *gin.Context, addressUUID uuid.U
 func (as *addressService) SetDefaultUserAddress(ctx *gin.Context, addressUUID uuid.UUID) error {
 	reqCtx := ctx.Request.Context()
 
-	user, err := GetUserFromContext(ctx, as.userRepo)
+	user, err := middleware.GetUserFromContext(ctx, as.userRepo)
 	if err != nil {
 		return err
 	}
@@ -290,7 +291,7 @@ func (as *addressService) SetDefaultUserAddress(ctx *gin.Context, addressUUID uu
 func (as *addressService) DeleteUserAddress(ctx *gin.Context, addressUUID uuid.UUID) error {
 	reqCtx := ctx.Request.Context()
 
-	user, err := GetUserFromContext(ctx, as.userRepo)
+	user, err := middleware.GetUserFromContext(ctx, as.userRepo)
 	if err != nil {
 		return err
 	}

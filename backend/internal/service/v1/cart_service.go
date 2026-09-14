@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
+	"goshop/internal/middleware"
 	"goshop/internal/repository"
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
@@ -36,7 +37,7 @@ func NewCartService(repo repository.CartRepository, userRepo repository.UserRepo
 func (cs *cartService) GetMyCart(ctx *gin.Context) (v1dto.CartDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	user, err := GetUserFromContext(ctx, cs.userRepo)
+	user, err := middleware.GetUserFromContext(ctx, cs.userRepo)
 	if err != nil {
 		return v1dto.CartDTO{}, err
 	}
@@ -70,7 +71,7 @@ func (cs *cartService) GetMyCart(ctx *gin.Context) (v1dto.CartDTO, error) {
 func (cs *cartService) AddItemToCart(ctx *gin.Context, input v1dto.AddCartItemInput) (v1dto.CartDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	user, err := GetUserFromContext(ctx, cs.userRepo)
+	user, err := middleware.GetUserFromContext(ctx, cs.userRepo)
 	if err != nil {
 		return v1dto.CartDTO{}, err
 	}
@@ -122,7 +123,7 @@ func (cs *cartService) AddItemToCart(ctx *gin.Context, input v1dto.AddCartItemIn
 func (cs *cartService) UpdateCartItemQuantity(ctx *gin.Context, itemUUID uuid.UUID, input v1dto.UpdateCartItemQuantityInput) (v1dto.CartDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	user, err := GetUserFromContext(ctx, cs.userRepo)
+	user, err := middleware.GetUserFromContext(ctx, cs.userRepo)
 	if err != nil {
 		return v1dto.CartDTO{}, err
 	}
@@ -183,7 +184,7 @@ func (cs *cartService) UpdateCartItemQuantity(ctx *gin.Context, itemUUID uuid.UU
 func (cs *cartService) RemoveItemFromCart(ctx *gin.Context, itemUUID uuid.UUID) (v1dto.CartDTO, error) {
 	reqCtx := ctx.Request.Context()
 
-	user, err := GetUserFromContext(ctx, cs.userRepo)
+	user, err := middleware.GetUserFromContext(ctx, cs.userRepo)
 	if err != nil {
 		return v1dto.CartDTO{}, err
 	}
@@ -212,7 +213,7 @@ func (cs *cartService) RemoveItemFromCart(ctx *gin.Context, itemUUID uuid.UUID) 
 func (cs *cartService) ClearMyCart(ctx *gin.Context) error {
 	reqCtx := ctx.Request.Context()
 
-	user, err := GetUserFromContext(ctx, cs.userRepo)
+	user, err := middleware.GetUserFromContext(ctx, cs.userRepo)
 	if err != nil {
 		return err
 	}

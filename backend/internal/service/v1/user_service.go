@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
+	"goshop/internal/middleware"
 	"goshop/internal/repository"
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
@@ -162,13 +163,13 @@ func (us *userService) UpdateUser(ctx *gin.Context, input sqlc.UpdateUserParams)
 }
 
 func (us *userService) GetProfile(ctx *gin.Context) (sqlc.User, error) {
-	return GetUserFromContext(ctx, us.repo)
+	return middleware.GetUserFromContext(ctx, us.repo)
 }
 
 func (us *userService) UpdateProfile(ctx *gin.Context, input sqlc.UpdateUserParams) (sqlc.User, error) {
 	context := ctx.Request.Context()
 
-	userUuid, err := GetUserUUIDFromContext(ctx)
+	userUuid, err := middleware.GetUserUUID(ctx)
 	if err != nil {
 		return sqlc.User{}, err
 	}
@@ -202,7 +203,7 @@ func (us *userService) UpdateProfile(ctx *gin.Context, input sqlc.UpdateUserPara
 }
 
 func (us *userService) ChangePassword(ctx *gin.Context, input v1dto.ChangePasswordRequest) error {
-	user, err := GetUserFromContext(ctx, us.repo)
+	user, err := middleware.GetUserFromContext(ctx, us.repo)
 	if err != nil {
 		return err
 	}
