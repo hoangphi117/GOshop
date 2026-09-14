@@ -148,44 +148,44 @@ func (m *MockNotificationService) DeleteNotification(ctx *gin.Context, notificat
 }
 
 type MockCartService struct {
-	GetMyCartFunc              func(ctx *gin.Context) (v1dto.CartDTO, error)
-	AddItemToCartFunc          func(ctx *gin.Context, input v1dto.AddCartItemInput) (v1dto.CartDTO, error)
-	UpdateCartItemQuantityFunc func(ctx *gin.Context, itemUUID uuid.UUID, input v1dto.UpdateCartItemQuantityInput) (v1dto.CartDTO, error)
-	RemoveItemFromCartFunc     func(ctx *gin.Context, itemUUID uuid.UUID) (v1dto.CartDTO, error)
-	ClearMyCartFunc            func(ctx *gin.Context) error
+	GetMyCartFunc              func(ctx context.Context, userUUID uuid.UUID) (v1dto.CartDTO, error)
+	AddItemToCartFunc          func(ctx context.Context, userUUID uuid.UUID, input v1dto.AddCartItemInput) (v1dto.CartDTO, error)
+	UpdateCartItemQuantityFunc func(ctx context.Context, userUUID uuid.UUID, itemUUID uuid.UUID, input v1dto.UpdateCartItemQuantityInput) (v1dto.CartDTO, error)
+	RemoveItemFromCartFunc     func(ctx context.Context, userUUID uuid.UUID, itemUUID uuid.UUID) (v1dto.CartDTO, error)
+	ClearMyCartFunc            func(ctx context.Context, userUUID uuid.UUID) error
 }
 
-func (m *MockCartService) GetMyCart(ctx *gin.Context) (v1dto.CartDTO, error) {
+func (m *MockCartService) GetMyCart(ctx context.Context, userUUID uuid.UUID) (v1dto.CartDTO, error) {
 	if m.GetMyCartFunc != nil {
-		return m.GetMyCartFunc(ctx)
+		return m.GetMyCartFunc(ctx, userUUID)
 	}
 	return v1dto.CartDTO{}, nil
 }
 
-func (m *MockCartService) AddItemToCart(ctx *gin.Context, input v1dto.AddCartItemInput) (v1dto.CartDTO, error) {
+func (m *MockCartService) AddItemToCart(ctx context.Context, userUUID uuid.UUID, input v1dto.AddCartItemInput) (v1dto.CartDTO, error) {
 	if m.AddItemToCartFunc != nil {
-		return m.AddItemToCartFunc(ctx, input)
+		return m.AddItemToCartFunc(ctx, userUUID, input)
 	}
 	return v1dto.CartDTO{}, nil
 }
 
-func (m *MockCartService) UpdateCartItemQuantity(ctx *gin.Context, itemUUID uuid.UUID, input v1dto.UpdateCartItemQuantityInput) (v1dto.CartDTO, error) {
+func (m *MockCartService) UpdateCartItemQuantity(ctx context.Context, userUUID uuid.UUID, itemUUID uuid.UUID, input v1dto.UpdateCartItemQuantityInput) (v1dto.CartDTO, error) {
 	if m.UpdateCartItemQuantityFunc != nil {
-		return m.UpdateCartItemQuantityFunc(ctx, itemUUID, input)
+		return m.UpdateCartItemQuantityFunc(ctx, userUUID, itemUUID, input)
 	}
 	return v1dto.CartDTO{}, nil
 }
 
-func (m *MockCartService) RemoveItemFromCart(ctx *gin.Context, itemUUID uuid.UUID) (v1dto.CartDTO, error) {
+func (m *MockCartService) RemoveItemFromCart(ctx context.Context, userUUID uuid.UUID, itemUUID uuid.UUID) (v1dto.CartDTO, error) {
 	if m.RemoveItemFromCartFunc != nil {
-		return m.RemoveItemFromCartFunc(ctx, itemUUID)
+		return m.RemoveItemFromCartFunc(ctx, userUUID, itemUUID)
 	}
 	return v1dto.CartDTO{}, nil
 }
 
-func (m *MockCartService) ClearMyCart(ctx *gin.Context) error {
+func (m *MockCartService) ClearMyCart(ctx context.Context, userUUID uuid.UUID) error {
 	if m.ClearMyCartFunc != nil {
-		return m.ClearMyCartFunc(ctx)
+		return m.ClearMyCartFunc(ctx, userUUID)
 	}
 	return nil
 }

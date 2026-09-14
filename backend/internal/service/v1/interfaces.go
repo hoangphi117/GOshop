@@ -109,11 +109,11 @@ type InventoryService interface {
 }
 
 type CartService interface {
-	GetMyCart(ctx *gin.Context) (v1dto.CartDTO, error)
-	AddItemToCart(ctx *gin.Context, input v1dto.AddCartItemInput) (v1dto.CartDTO, error)
-	UpdateCartItemQuantity(ctx *gin.Context, itemUUID uuid.UUID, input v1dto.UpdateCartItemQuantityInput) (v1dto.CartDTO, error)
-	RemoveItemFromCart(ctx *gin.Context, itemUUID uuid.UUID) (v1dto.CartDTO, error)
-	ClearMyCart(ctx *gin.Context) error
+	GetMyCart(ctx context.Context, userUUID uuid.UUID) (v1dto.CartDTO, error)
+	AddItemToCart(ctx context.Context, userUUID uuid.UUID, input v1dto.AddCartItemInput) (v1dto.CartDTO, error)
+	UpdateCartItemQuantity(ctx context.Context, userUUID uuid.UUID, itemUUID uuid.UUID, input v1dto.UpdateCartItemQuantityInput) (v1dto.CartDTO, error)
+	RemoveItemFromCart(ctx context.Context, userUUID uuid.UUID, itemUUID uuid.UUID) (v1dto.CartDTO, error)
+	ClearMyCart(ctx context.Context, userUUID uuid.UUID) error
 }
 
 type CouponService interface {
