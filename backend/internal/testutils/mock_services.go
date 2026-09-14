@@ -27,6 +27,7 @@ var (
 	_ v1service.NotificationService = (*MockNotificationService)(nil)
 	_ v1service.CartService         = (*MockCartService)(nil)
 	_ v1service.CouponService       = (*MockCouponService)(nil)
+	_ v1service.ReviewService       = (*MockReviewService)(nil)
 	_ rabbitmq.RabbitMQService      = (*MockRabbitMQService)(nil)
 	_ shipping.ShippingProvider     = (*MockShippingProvider)(nil)
 	_ payment.PaymentProvider       = (*MockPaymentProvider)(nil)
@@ -519,6 +520,108 @@ func (m *MockRedisCacheService) Exists(key string) (bool, error) {
 func (m *MockRedisCacheService) Del(key string) error {
 	if m.DelFunc != nil {
 		return m.DelFunc(key)
+	}
+	return nil
+}
+
+// =========================================================================
+// MockReviewService
+// =========================================================================
+type MockReviewService struct {
+	CreateReviewFunc            func(ctx context.Context, userUUID uuid.UUID, input v1dto.CreateReviewInput, imageURLs []string, videoURL *string) (v1dto.ReviewDTO, error)
+	GetProductReviewsFunc       func(ctx context.Context, productUUID uuid.UUID, query v1dto.GetReviewsQuery) ([]v1dto.ReviewDTO, int32, error)
+	GetProductRatingSummaryFunc func(ctx context.Context, productUUID uuid.UUID) (v1dto.RatingSummaryRow, error)
+	GetMyReviewsFunc            func(ctx context.Context, userUUID uuid.UUID, query v1dto.GetMyReviewsQuery) ([]v1dto.MyReviewDTO, int32, error)
+	UpdateReviewFunc            func(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID, input v1dto.UpdateReviewInput) (v1dto.ReviewDTO, error)
+	UpdateReviewStatusFunc      func(ctx context.Context, reviewUUID uuid.UUID, input v1dto.UpdateReviewStatusInput) (v1dto.ReviewDTO, error)
+	DeleteReviewFunc            func(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID) error
+	AdminGetAllReviewsFunc      func(ctx context.Context, query v1dto.AdminGetReviewsQuery) ([]v1dto.AdminReviewRow, int32, error)
+	AdminReplyReviewFunc        func(ctx context.Context, reviewUUID uuid.UUID, input v1dto.ReplyReviewInput) (v1dto.ReviewDTO, error)
+	ToggleHelpfulVoteFunc       func(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID) (v1dto.ToggleHelpfulResponseDTO, error)
+	ReportReviewFunc            func(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID, input v1dto.ReportReviewInput) error
+	AdminForceDeleteReviewFunc  func(ctx context.Context, reviewUUID uuid.UUID) error
+}
+
+func (m *MockReviewService) CreateReview(ctx context.Context, userUUID uuid.UUID, input v1dto.CreateReviewInput, imageURLs []string, videoURL *string) (v1dto.ReviewDTO, error) {
+	if m.CreateReviewFunc != nil {
+		return m.CreateReviewFunc(ctx, userUUID, input, imageURLs, videoURL)
+	}
+	return v1dto.ReviewDTO{}, nil
+}
+
+func (m *MockReviewService) GetProductReviews(ctx context.Context, productUUID uuid.UUID, query v1dto.GetReviewsQuery) ([]v1dto.ReviewDTO, int32, error) {
+	if m.GetProductReviewsFunc != nil {
+		return m.GetProductReviewsFunc(ctx, productUUID, query)
+	}
+	return nil, 0, nil
+}
+
+func (m *MockReviewService) GetProductRatingSummary(ctx context.Context, productUUID uuid.UUID) (v1dto.RatingSummaryRow, error) {
+	if m.GetProductRatingSummaryFunc != nil {
+		return m.GetProductRatingSummaryFunc(ctx, productUUID)
+	}
+	return v1dto.RatingSummaryRow{}, nil
+}
+
+func (m *MockReviewService) GetMyReviews(ctx context.Context, userUUID uuid.UUID, query v1dto.GetMyReviewsQuery) ([]v1dto.MyReviewDTO, int32, error) {
+	if m.GetMyReviewsFunc != nil {
+		return m.GetMyReviewsFunc(ctx, userUUID, query)
+	}
+	return nil, 0, nil
+}
+
+func (m *MockReviewService) UpdateReview(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID, input v1dto.UpdateReviewInput) (v1dto.ReviewDTO, error) {
+	if m.UpdateReviewFunc != nil {
+		return m.UpdateReviewFunc(ctx, userUUID, reviewUUID, input)
+	}
+	return v1dto.ReviewDTO{}, nil
+}
+
+func (m *MockReviewService) UpdateReviewStatus(ctx context.Context, reviewUUID uuid.UUID, input v1dto.UpdateReviewStatusInput) (v1dto.ReviewDTO, error) {
+	if m.UpdateReviewStatusFunc != nil {
+		return m.UpdateReviewStatusFunc(ctx, reviewUUID, input)
+	}
+	return v1dto.ReviewDTO{}, nil
+}
+
+func (m *MockReviewService) DeleteReview(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID) error {
+	if m.DeleteReviewFunc != nil {
+		return m.DeleteReviewFunc(ctx, userUUID, reviewUUID)
+	}
+	return nil
+}
+
+func (m *MockReviewService) AdminGetAllReviews(ctx context.Context, query v1dto.AdminGetReviewsQuery) ([]v1dto.AdminReviewRow, int32, error) {
+	if m.AdminGetAllReviewsFunc != nil {
+		return m.AdminGetAllReviewsFunc(ctx, query)
+	}
+	return nil, 0, nil
+}
+
+func (m *MockReviewService) AdminReplyReview(ctx context.Context, reviewUUID uuid.UUID, input v1dto.ReplyReviewInput) (v1dto.ReviewDTO, error) {
+	if m.AdminReplyReviewFunc != nil {
+		return m.AdminReplyReviewFunc(ctx, reviewUUID, input)
+	}
+	return v1dto.ReviewDTO{}, nil
+}
+
+func (m *MockReviewService) ToggleHelpfulVote(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID) (v1dto.ToggleHelpfulResponseDTO, error) {
+	if m.ToggleHelpfulVoteFunc != nil {
+		return m.ToggleHelpfulVoteFunc(ctx, userUUID, reviewUUID)
+	}
+	return v1dto.ToggleHelpfulResponseDTO{}, nil
+}
+
+func (m *MockReviewService) ReportReview(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID, input v1dto.ReportReviewInput) error {
+	if m.ReportReviewFunc != nil {
+		return m.ReportReviewFunc(ctx, userUUID, reviewUUID, input)
+	}
+	return nil
+}
+
+func (m *MockReviewService) AdminForceDeleteReview(ctx context.Context, reviewUUID uuid.UUID) error {
+	if m.AdminForceDeleteReviewFunc != nil {
+		return m.AdminForceDeleteReviewFunc(ctx, reviewUUID)
 	}
 	return nil
 }

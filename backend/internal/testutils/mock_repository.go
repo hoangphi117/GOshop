@@ -3,6 +3,7 @@ package testutils
 import (
 	"context"
 	"goshop/internal/db/sqlc"
+	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/repository"
 
 	"github.com/google/uuid"
@@ -22,6 +23,7 @@ var (
 	_ repository.OrderReturnsRepository = (*MockOrderReturnsRepository)(nil)
 	_ repository.PaymentRepository      = (*MockPaymentRepository)(nil)
 	_ repository.CategoryRepository     = (*MockCategoryRepository)(nil)
+	_ repository.ReviewRepository       = (*MockReviewRepository)(nil)
 )
 
 // =========================================================================
@@ -872,6 +874,188 @@ func (m *MockCategoryRepository) Trash(ctx context.Context, uuid uuid.UUID) (sql
 		return m.TrashFunc(ctx, uuid)
 	}
 	return sqlc.Category{}, nil
+}
+
+// =========================================================================
+// 12. MockReviewRepository
+// =========================================================================
+type MockReviewRepository struct {
+	CreateFunc           func(ctx context.Context, tx pgx.Tx, params sqlc.CreateReviewParams) (sqlc.ProductReview, error)
+	CheckPurchasedFunc   func(ctx context.Context, orderID, userID, productID int32) (bool, error)
+	CheckExistsFunc      func(ctx context.Context, userID, productID, orderID int32) (bool, error)
+	RecalcRatingFunc     func(ctx context.Context, tx pgx.Tx, productID int32) error
+	GetByProductFunc     func(ctx context.Context, productID int32, rating *int32, hasMedia *bool, orderBy, sort string, limit, offset int32) ([]v1dto.ReviewRow, error)
+	CountByProductFunc   func(ctx context.Context, productID int32, rating *int32, hasMedia *bool) (int64, error)
+	GetRatingSummaryFunc func(ctx context.Context, productID int32) (sqlc.GetProductRatingSummaryRow, error)
+	GetByUserIDFunc      func(ctx context.Context, userID int32, limit, offset int32) ([]sqlc.GetReviewsByUserIDRow, error)
+	CountByUserIDFunc    func(ctx context.Context, userID int32) (int64, error)
+	GetByUUIDFunc        func(ctx context.Context, reviewUUID uuid.UUID) (sqlc.GetReviewByUUIDRow, error)
+	UpdateFunc           func(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReviewParams) (sqlc.ProductReview, error)
+	DeleteFunc           func(ctx context.Context, tx pgx.Tx, reviewID int32) error
+	HasReportedFunc      func(ctx context.Context, userID, reviewID int32) (bool, error)
+	CreateReportFunc     func(ctx context.Context, tx pgx.Tx, params sqlc.InsertReviewReportParams) error
+	CountReportsFunc     func(ctx context.Context, tx pgx.Tx, reviewID int32) (int64, error)
+	HasHelpfulVoteFunc   func(ctx context.Context, userID, reviewID int32) (bool, error)
+	AddHelpfulVoteFunc   func(ctx context.Context, tx pgx.Tx, userID, reviewID int32) (int32, error)
+	RemoveHelpfulVoteFunc func(ctx context.Context, tx pgx.Tx, userID, reviewID int32) (int32, error)
+	AdminGetAllFunc      func(ctx context.Context, status *int16, rating *int32, productUUID, search *string, orderBy, sort string, limit, offset int32) ([]v1dto.AdminReviewRow, error)
+	AdminCountFunc       func(ctx context.Context, status *int16, rating *int32, productID *int32, search *string) (int64, error)
+	UpdateStatusFunc     func(ctx context.Context, tx pgx.Tx, reviewID int32, status int16) (sqlc.ProductReview, error)
+	ReplyFunc            func(ctx context.Context, tx pgx.Tx, reviewID int32, reply string) (sqlc.ProductReview, error)
+}
+
+func (m *MockReviewRepository) Create(ctx context.Context, tx pgx.Tx, params sqlc.CreateReviewParams) (sqlc.ProductReview, error) {
+	if m.CreateFunc != nil {
+		return m.CreateFunc(ctx, tx, params)
+	}
+	return sqlc.ProductReview{}, nil
+}
+
+func (m *MockReviewRepository) CheckPurchased(ctx context.Context, orderID, userID, productID int32) (bool, error) {
+	if m.CheckPurchasedFunc != nil {
+		return m.CheckPurchasedFunc(ctx, orderID, userID, productID)
+	}
+	return false, nil
+}
+
+func (m *MockReviewRepository) CheckExists(ctx context.Context, userID, productID, orderID int32) (bool, error) {
+	if m.CheckExistsFunc != nil {
+		return m.CheckExistsFunc(ctx, userID, productID, orderID)
+	}
+	return false, nil
+}
+
+func (m *MockReviewRepository) RecalcRating(ctx context.Context, tx pgx.Tx, productID int32) error {
+	if m.RecalcRatingFunc != nil {
+		return m.RecalcRatingFunc(ctx, tx, productID)
+	}
+	return nil
+}
+
+func (m *MockReviewRepository) GetByProduct(ctx context.Context, productID int32, rating *int32, hasMedia *bool, orderBy, sort string, limit, offset int32) ([]v1dto.ReviewRow, error) {
+	if m.GetByProductFunc != nil {
+		return m.GetByProductFunc(ctx, productID, rating, hasMedia, orderBy, sort, limit, offset)
+	}
+	return nil, nil
+}
+
+func (m *MockReviewRepository) CountByProduct(ctx context.Context, productID int32, rating *int32, hasMedia *bool) (int64, error) {
+	if m.CountByProductFunc != nil {
+		return m.CountByProductFunc(ctx, productID, rating, hasMedia)
+	}
+	return 0, nil
+}
+
+func (m *MockReviewRepository) GetRatingSummary(ctx context.Context, productID int32) (sqlc.GetProductRatingSummaryRow, error) {
+	if m.GetRatingSummaryFunc != nil {
+		return m.GetRatingSummaryFunc(ctx, productID)
+	}
+	return sqlc.GetProductRatingSummaryRow{}, nil
+}
+
+func (m *MockReviewRepository) GetByUserID(ctx context.Context, userID int32, limit, offset int32) ([]sqlc.GetReviewsByUserIDRow, error) {
+	if m.GetByUserIDFunc != nil {
+		return m.GetByUserIDFunc(ctx, userID, limit, offset)
+	}
+	return nil, nil
+}
+
+func (m *MockReviewRepository) CountByUserID(ctx context.Context, userID int32) (int64, error) {
+	if m.CountByUserIDFunc != nil {
+		return m.CountByUserIDFunc(ctx, userID)
+	}
+	return 0, nil
+}
+
+func (m *MockReviewRepository) GetByUUID(ctx context.Context, reviewUUID uuid.UUID) (sqlc.GetReviewByUUIDRow, error) {
+	if m.GetByUUIDFunc != nil {
+		return m.GetByUUIDFunc(ctx, reviewUUID)
+	}
+	return sqlc.GetReviewByUUIDRow{}, nil
+}
+
+func (m *MockReviewRepository) Update(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReviewParams) (sqlc.ProductReview, error) {
+	if m.UpdateFunc != nil {
+		return m.UpdateFunc(ctx, tx, params)
+	}
+	return sqlc.ProductReview{}, nil
+}
+
+func (m *MockReviewRepository) Delete(ctx context.Context, tx pgx.Tx, reviewID int32) error {
+	if m.DeleteFunc != nil {
+		return m.DeleteFunc(ctx, tx, reviewID)
+	}
+	return nil
+}
+
+func (m *MockReviewRepository) HasReported(ctx context.Context, userID, reviewID int32) (bool, error) {
+	if m.HasReportedFunc != nil {
+		return m.HasReportedFunc(ctx, userID, reviewID)
+	}
+	return false, nil
+}
+
+func (m *MockReviewRepository) CreateReport(ctx context.Context, tx pgx.Tx, params sqlc.InsertReviewReportParams) error {
+	if m.CreateReportFunc != nil {
+		return m.CreateReportFunc(ctx, tx, params)
+	}
+	return nil
+}
+
+func (m *MockReviewRepository) CountReports(ctx context.Context, tx pgx.Tx, reviewID int32) (int64, error) {
+	if m.CountReportsFunc != nil {
+		return m.CountReportsFunc(ctx, tx, reviewID)
+	}
+	return 0, nil
+}
+
+func (m *MockReviewRepository) HasHelpfulVote(ctx context.Context, userID, reviewID int32) (bool, error) {
+	if m.HasHelpfulVoteFunc != nil {
+		return m.HasHelpfulVoteFunc(ctx, userID, reviewID)
+	}
+	return false, nil
+}
+
+func (m *MockReviewRepository) AddHelpfulVote(ctx context.Context, tx pgx.Tx, userID, reviewID int32) (int32, error) {
+	if m.AddHelpfulVoteFunc != nil {
+		return m.AddHelpfulVoteFunc(ctx, tx, userID, reviewID)
+	}
+	return 0, nil
+}
+
+func (m *MockReviewRepository) RemoveHelpfulVote(ctx context.Context, tx pgx.Tx, userID, reviewID int32) (int32, error) {
+	if m.RemoveHelpfulVoteFunc != nil {
+		return m.RemoveHelpfulVoteFunc(ctx, tx, userID, reviewID)
+	}
+	return 0, nil
+}
+
+func (m *MockReviewRepository) AdminGetAll(ctx context.Context, status *int16, rating *int32, productUUID, search *string, orderBy, sort string, limit, offset int32) ([]v1dto.AdminReviewRow, error) {
+	if m.AdminGetAllFunc != nil {
+		return m.AdminGetAllFunc(ctx, status, rating, productUUID, search, orderBy, sort, limit, offset)
+	}
+	return nil, nil
+}
+
+func (m *MockReviewRepository) AdminCount(ctx context.Context, status *int16, rating *int32, productID *int32, search *string) (int64, error) {
+	if m.AdminCountFunc != nil {
+		return m.AdminCountFunc(ctx, status, rating, productID, search)
+	}
+	return 0, nil
+}
+
+func (m *MockReviewRepository) UpdateStatus(ctx context.Context, tx pgx.Tx, reviewID int32, status int16) (sqlc.ProductReview, error) {
+	if m.UpdateStatusFunc != nil {
+		return m.UpdateStatusFunc(ctx, tx, reviewID, status)
+	}
+	return sqlc.ProductReview{}, nil
+}
+
+func (m *MockReviewRepository) Reply(ctx context.Context, tx pgx.Tx, reviewID int32, reply string) (sqlc.ProductReview, error) {
+	if m.ReplyFunc != nil {
+		return m.ReplyFunc(ctx, tx, reviewID, reply)
+	}
+	return sqlc.ProductReview{}, nil
 }
 
 

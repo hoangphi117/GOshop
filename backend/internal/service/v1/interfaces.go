@@ -147,18 +147,18 @@ type AddressService interface {
 }
 
 type ReviewService interface {
-	CreateReview(ctx *gin.Context, input v1dto.CreateReviewInput, imageURLs []string, videoURL *string) (v1dto.ReviewDTO, error)
-	GetProductReviews(ctx *gin.Context, productUUID uuid.UUID, query v1dto.GetReviewsQuery) ([]v1dto.ReviewDTO, int32, error)
-	GetProductRatingSummary(ctx *gin.Context, productUUID uuid.UUID) (v1dto.RatingSummaryRow, error)
-	GetMyReviews(ctx *gin.Context, query v1dto.GetMyReviewsQuery) ([]v1dto.MyReviewDTO, int32, error)
-	UpdateReview(ctx *gin.Context, reviewUUID uuid.UUID, input v1dto.UpdateReviewInput) (v1dto.ReviewDTO, error)
-	UpdateReviewStatus(ctx *gin.Context, reviewUUID uuid.UUID, input v1dto.UpdateReviewStatusInput) (v1dto.ReviewDTO, error)
-	DeleteReview(ctx *gin.Context, reviewUUID uuid.UUID) error
-	AdminGetAllReviews(ctx *gin.Context, query v1dto.AdminGetReviewsQuery) ([]v1dto.AdminReviewRow, int32, error)
-	AdminReplyReview(ctx *gin.Context, reviewUUID uuid.UUID, input v1dto.ReplyReviewInput) (v1dto.ReviewDTO, error)
-	ToggleHelpfulVote(ctx *gin.Context, reviewUUID uuid.UUID) (v1dto.ToggleHelpfulResponseDTO, error)
-	ReportReview(ctx *gin.Context, reviewUUID uuid.UUID, input v1dto.ReportReviewInput) error
-	AdminForceDeleteReview(ctx *gin.Context, reviewUUID uuid.UUID) error
+	CreateReview(ctx context.Context, userUUID uuid.UUID, input v1dto.CreateReviewInput, imageURLs []string, videoURL *string) (v1dto.ReviewDTO, error)
+	GetProductReviews(ctx context.Context, productUUID uuid.UUID, query v1dto.GetReviewsQuery) ([]v1dto.ReviewDTO, int32, error)
+	GetProductRatingSummary(ctx context.Context, productUUID uuid.UUID) (v1dto.RatingSummaryRow, error)
+	GetMyReviews(ctx context.Context, userUUID uuid.UUID, query v1dto.GetMyReviewsQuery) ([]v1dto.MyReviewDTO, int32, error)
+	UpdateReview(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID, input v1dto.UpdateReviewInput) (v1dto.ReviewDTO, error)
+	UpdateReviewStatus(ctx context.Context, reviewUUID uuid.UUID, input v1dto.UpdateReviewStatusInput) (v1dto.ReviewDTO, error)
+	DeleteReview(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID) error
+	AdminGetAllReviews(ctx context.Context, query v1dto.AdminGetReviewsQuery) ([]v1dto.AdminReviewRow, int32, error)
+	AdminReplyReview(ctx context.Context, reviewUUID uuid.UUID, input v1dto.ReplyReviewInput) (v1dto.ReviewDTO, error)
+	ToggleHelpfulVote(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID) (v1dto.ToggleHelpfulResponseDTO, error)
+	ReportReview(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID, input v1dto.ReportReviewInput) error
+	AdminForceDeleteReview(ctx context.Context, reviewUUID uuid.UUID) error
 }
 
 type NotificationService interface {

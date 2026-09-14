@@ -2,19 +2,21 @@ package v1service
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
+	"time"
+
 	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
-	"goshop/internal/middleware"
 	"goshop/internal/repository"
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
-	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -41,22 +43,165 @@ func NewReviewService(
 	notificationService NotificationService,
 	redisClient *redis.Client,
 ) ReviewService {
+	var cacheService cache.RedisCacheService
+	if redisClient != nil {
+		cacheService = cache.NewRedisCacheService(redisClient)
+	}
 	return &reviewService{
 		repo:                repo,
 		userRepo:            userRepo,
 		productRepo:         productRepo,
 		orderRepo:           orderRepo,
 		notificationService: notificationService,
-		cache:               cache.NewRedisCacheService(redisClient),
+		cache:               cacheService,
 	}
 }
 
-// CRUD
+// -------------------------------------------------------------------------
+// Single Responsibility Helpers
+// -------------------------------------------------------------------------
 
-func (rs *reviewService) CreateReview(ctx *gin.Context, input v1dto.CreateReviewInput, imageURLs []string, videoURL *string) (v1dto.ReviewDTO, error) {
-	reqCtx := ctx.Request.Context()
+func (rs *reviewService) getUser(ctx context.Context, userUUID uuid.UUID) (sqlc.User, error) {
+	user, err := rs.userRepo.GetByUUID(ctx, userUUID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+			return sqlc.User{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+		}
+		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get user", err)
+	}
+	return user, nil
+}
 
-	user, err := middleware.GetUserFromContext(ctx, rs.userRepo)
+func (rs *reviewService) getProduct(ctx context.Context, productUUID uuid.UUID) (sqlc.GetProductByUUIDRow, error) {
+	product, err := rs.productRepo.GetByUUID(ctx, productUUID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+			return sqlc.GetProductByUUIDRow{}, utils.NewError(utils.ErrCodeNotFound, "Product not found")
+		}
+		return sqlc.GetProductByUUIDRow{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get product", err)
+	}
+	return product, nil
+}
+
+func (rs *reviewService) getOrder(ctx context.Context, orderUUID uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+	order, err := rs.orderRepo.GetByUUID(ctx, orderUUID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+			return sqlc.GetOrderByUUIDRow{}, utils.NewError(utils.ErrCodeNotFound, "Order not found")
+		}
+		return sqlc.GetOrderByUUIDRow{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
+	}
+	return order, nil
+}
+
+func (rs *reviewService) getReview(ctx context.Context, reviewUUID uuid.UUID) (sqlc.GetReviewByUUIDRow, error) {
+	review, err := rs.repo.GetByUUID(ctx, reviewUUID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+			return sqlc.GetReviewByUUIDRow{}, utils.NewError(utils.ErrCodeNotFound, "Review not found")
+		}
+		return sqlc.GetReviewByUUIDRow{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get review", err)
+	}
+	return review, nil
+}
+
+func (rs *reviewService) validateReviewEligibility(ctx context.Context, orderID, userID, productID int32) error {
+	isPurchased, err := rs.repo.CheckPurchased(ctx, orderID, userID, productID)
+	if err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Error checking purchase status", err)
+	}
+	if !isPurchased {
+		return utils.NewError(utils.ErrCodeBadRequest, "User has not purchased this product")
+	}
+
+	isExists, err := rs.repo.CheckExists(ctx, userID, productID, orderID)
+	if err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Error checking review status", err)
+	}
+	if isExists {
+		return utils.NewError(utils.ErrCodeBadRequest, "Review already exists for this product")
+	}
+
+	return nil
+}
+
+func (rs *reviewService) validateReviewEditEligibility(review sqlc.GetReviewByUUIDRow, userID int32) error {
+	if review.ReviewUserID != userID {
+		return utils.NewError(utils.ErrCodeForbidden, "You do not have permission to update this review")
+	}
+
+	if review.ReviewEditCount >= 1 {
+		return utils.NewError(utils.ErrCodeBadRequest, "You can only edit your review once")
+	}
+
+	const maxEditDuration = 30 * 24 * time.Hour
+	if time.Since(review.ReviewCreatedAt) > maxEditDuration {
+		return utils.NewError(utils.ErrCodeBadRequest, "You can only edit your review within 30 days of posting")
+	}
+
+	return nil
+}
+
+func (rs *reviewService) invalidateProductReviewCache(productUUID string) {
+	if rs.cache != nil {
+		if err := rs.cache.Clear("reviews:product:" + productUUID + ":*"); err != nil {
+			logger.Log.Warn().Err(err).Str("product_uuid", productUUID).Msg("Failed to clear product reviews cache")
+		}
+		if err := rs.cache.Del("reviews:summary:" + productUUID); err != nil {
+			logger.Log.Warn().Err(err).Str("product_uuid", productUUID).Msg("Failed to clear review summary cache")
+		}
+		if err := rs.cache.Clear("products:*"); err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to clear products cache")
+		}
+	}
+}
+
+func (rs *reviewService) dispatchReplyNotification(review sqlc.GetReviewByUUIDRow, reply string) {
+	if rs.notificationService != nil {
+		go func() {
+			logger.Log.Info().
+				Int32("recipient_user_id", review.ReviewUserID).
+				Str("review_uuid", review.ReviewUuid.String()).
+				Msg("Dispatching review_reply notification")
+
+			replySnippet := reply
+			if len(replySnippet) > 100 {
+				replySnippet = replySnippet[:97] + "..."
+			}
+
+			_ = rs.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
+				UserID: review.ReviewUserID,
+				Type:   "review_reply",
+				Title:  "Shop replied to your review",
+				Body:   fmt.Sprintf("Shop has replied to your review: \"%s\"", replySnippet),
+				Data: map[string]any{
+					"review_uuid":  review.ReviewUuid.String(),
+					"product_uuid": review.ProductUuid.String(),
+				},
+			})
+		}()
+	}
+}
+
+func (rs *reviewService) generateReviewCacheKey(productUUID string, rating *int32, hasMedia *bool, orderBy, sort string, page, limit int32) string {
+	ratingStr := "all"
+	if rating != nil {
+		ratingStr = fmt.Sprintf("%d", *rating)
+	}
+	mediaStr := "all"
+	if hasMedia != nil {
+		mediaStr = fmt.Sprintf("%t", *hasMedia)
+	}
+	return fmt.Sprintf("reviews:product:%s:rating:%s:media:%s:order:%s:sort:%s:p:%d:l:%d",
+		productUUID, ratingStr, mediaStr, orderBy, sort, page, limit)
+}
+
+// -------------------------------------------------------------------------
+// ReviewService Implementation
+// -------------------------------------------------------------------------
+
+func (rs *reviewService) CreateReview(ctx context.Context, userUUID uuid.UUID, input v1dto.CreateReviewInput, imageURLs []string, videoURL *string) (v1dto.ReviewDTO, error) {
+	user, err := rs.getUser(ctx, userUUID)
 	if err != nil {
 		return v1dto.ReviewDTO{}, err
 	}
@@ -66,9 +211,9 @@ func (rs *reviewService) CreateReview(ctx *gin.Context, input v1dto.CreateReview
 		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Invalid product UUID")
 	}
 
-	product, err := rs.productRepo.GetByUUID(reqCtx, productUUID)
+	product, err := rs.getProduct(ctx, productUUID)
 	if err != nil {
-		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeNotFound, "Product not found")
+		return v1dto.ReviewDTO{}, err
 	}
 
 	orderUUID, err := uuid.Parse(input.OrderUUID)
@@ -76,32 +221,20 @@ func (rs *reviewService) CreateReview(ctx *gin.Context, input v1dto.CreateReview
 		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Invalid order UUID")
 	}
 
-	order, err := rs.orderRepo.GetByUUID(reqCtx, orderUUID)
+	order, err := rs.getOrder(ctx, orderUUID)
 	if err != nil {
-		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeNotFound, "Order not found")
+		return v1dto.ReviewDTO{}, err
 	}
 
-	isPurchased, err := rs.repo.CheckPurchased(reqCtx, order.OrderID, user.UserID, product.ProductID)
-	if err != nil {
-		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Error checking purchase status", err)
-	}
-	if !isPurchased {
-		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeBadRequest, "User has not purchased this product")
-	}
-
-	isExists, err := rs.repo.CheckExists(reqCtx, user.UserID, product.ProductID, order.OrderID)
-	if err != nil {
-		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Error checking review status", err)
-	}
-	if isExists {
-		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Review already exists for this product")
+	if err := rs.validateReviewEligibility(ctx, order.OrderID, user.UserID, product.ProductID); err != nil {
+		return v1dto.ReviewDTO{}, err
 	}
 
 	if err := utils.ValidateReviewContent(input.Title, input.Comment); err != nil {
 		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeBadRequest, err.Error())
 	}
 
-	txCtx, cancel := context.WithTimeout(reqCtx, 5*time.Second)
+	txCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	tx, err := db.BeginTx(txCtx)
@@ -137,24 +270,12 @@ func (rs *reviewService) CreateReview(ctx *gin.Context, input v1dto.CreateReview
 		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
 	}
 
-	go func(pUUID string) {
-		if err := rs.cache.Clear("reviews:product:" + pUUID + ":*"); err != nil {
-			logger.Log.Warn().Err(err).Str("product_uuid", pUUID).Msg("Failed to clear product reviews cache")
-		}
-		if err := rs.cache.Del("reviews:summary:" + pUUID); err != nil {
-			logger.Log.Warn().Err(err).Str("product_uuid", pUUID).Msg("Failed to clear review summary cache")
-		}
-		if err := rs.cache.Clear("products:*"); err != nil {
-			logger.Log.Warn().Err(err).Msg("Failed to clear products cache")
-		}
-	}(input.ProductUUID)
+	rs.invalidateProductReviewCache(input.ProductUUID)
 
 	return v1dto.MapCreatedReviewToDTO(review, user.UserFullname, product.ProductUuid.String(), order.OrderUuid.String()), nil
 }
 
-func (rs *reviewService) GetProductReviews(ctx *gin.Context, productUUID uuid.UUID, query v1dto.GetReviewsQuery) ([]v1dto.ReviewDTO, int32, error) {
-	reqCtx := ctx.Request.Context()
-
+func (rs *reviewService) GetProductReviews(ctx context.Context, productUUID uuid.UUID, query v1dto.GetReviewsQuery) ([]v1dto.ReviewDTO, int32, error) {
 	page := query.Page
 	if page <= 0 {
 		page = 1
@@ -172,27 +293,29 @@ func (rs *reviewService) GetProductReviews(ctx *gin.Context, productUUID uuid.UU
 		Total   int32             `json:"total"`
 	}
 
-	if err := rs.cache.Get(cacheKey, &cacheData); err == nil && cacheData.Reviews != nil {
-		return cacheData.Reviews, cacheData.Total, nil
+	if rs.cache != nil {
+		if err := rs.cache.Get(cacheKey, &cacheData); err == nil && cacheData.Reviews != nil {
+			return cacheData.Reviews, cacheData.Total, nil
+		}
 	}
 
-	product, err := rs.productRepo.GetByUUID(reqCtx, productUUID)
+	product, err := rs.getProduct(ctx, productUUID)
 	if err != nil {
-		return nil, 0, utils.NewError(utils.ErrCodeNotFound, "Product not found")
+		return nil, 0, err
 	}
 
 	var total int32
 	if query.Rating == nil && query.HasMedia == nil {
 		total = product.ProductReviewCount
 	} else {
-		count, err := rs.repo.CountByProduct(reqCtx, product.ProductID, query.Rating, query.HasMedia)
+		count, err := rs.repo.CountByProduct(ctx, product.ProductID, query.Rating, query.HasMedia)
 		if err != nil {
 			return nil, 0, utils.WrapError(utils.ErrCodeInternal, "Failed to count reviews", err)
 		}
 		total = int32(count)
 	}
 
-	reviewRows, err := rs.repo.GetByProduct(reqCtx, product.ProductID, query.Rating, query.HasMedia, query.OrderBy, query.Sort, limit, offset)
+	reviewRows, err := rs.repo.GetByProduct(ctx, product.ProductID, query.Rating, query.HasMedia, query.OrderBy, query.Sort, limit, offset)
 	if err != nil {
 		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "Failed to get reviews", err)
 	}
@@ -225,47 +348,35 @@ func (rs *reviewService) GetProductReviews(ctx *gin.Context, productUUID uuid.UU
 		}
 	}
 
-	cacheData = struct {
-		Reviews []v1dto.ReviewDTO `json:"reviews"`
-		Total   int32             `json:"total"`
-	}{
-		Reviews: reviewDTOs,
-		Total:   total,
+	if rs.cache != nil {
+		cacheData = struct {
+			Reviews []v1dto.ReviewDTO `json:"reviews"`
+			Total   int32             `json:"total"`
+		}{
+			Reviews: reviewDTOs,
+			Total:   total,
+		}
+		_ = rs.cache.Set(cacheKey, cacheData, 5*time.Minute)
 	}
-
-	_ = rs.cache.Set(cacheKey, cacheData, 5*time.Minute)
 
 	return reviewDTOs, total, nil
 }
 
-func (rs *reviewService) generateReviewCacheKey(productUUID string, rating *int32, hasMedia *bool, orderBy, sort string, page, limit int32) string {
-	ratingStr := "all"
-	if rating != nil {
-		ratingStr = fmt.Sprintf("%d", *rating)
-	}
-	mediaStr := "all"
-	if hasMedia != nil {
-		mediaStr = fmt.Sprintf("%t", *hasMedia)
-	}
-	return fmt.Sprintf("reviews:product:%s:rating:%s:media:%s:order:%s:sort:%s:p:%d:l:%d",
-		productUUID, ratingStr, mediaStr, orderBy, sort, page, limit)
-}
-
-func (rs *reviewService) GetProductRatingSummary(ctx *gin.Context, productUUID uuid.UUID) (v1dto.RatingSummaryRow, error) {
-	reqCtx := ctx.Request.Context()
-
+func (rs *reviewService) GetProductRatingSummary(ctx context.Context, productUUID uuid.UUID) (v1dto.RatingSummaryRow, error) {
 	cacheKey := "reviews:summary:" + productUUID.String()
 	var summaryDTO v1dto.RatingSummaryRow
-	if err := rs.cache.Get(cacheKey, &summaryDTO); err == nil {
-		return summaryDTO, nil
+	if rs.cache != nil {
+		if err := rs.cache.Get(cacheKey, &summaryDTO); err == nil && summaryDTO.TotalReviews > 0 {
+			return summaryDTO, nil
+		}
 	}
 
-	product, err := rs.productRepo.GetByUUID(reqCtx, productUUID)
+	product, err := rs.getProduct(ctx, productUUID)
 	if err != nil {
-		return v1dto.RatingSummaryRow{}, utils.NewError(utils.ErrCodeNotFound, "Product not found")
+		return v1dto.RatingSummaryRow{}, err
 	}
 
-	summary, err := rs.repo.GetRatingSummary(reqCtx, product.ProductID)
+	summary, err := rs.repo.GetRatingSummary(ctx, product.ProductID)
 	if err != nil {
 		return v1dto.RatingSummaryRow{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get rating summary", err)
 	}
@@ -281,17 +392,19 @@ func (rs *reviewService) GetProductRatingSummary(ctx *gin.Context, productUUID u
 		OneStar:        summary.OneStar,
 	}
 
-	_ = rs.cache.Set(cacheKey, summaryDTO, 5*time.Minute)
+	if rs.cache != nil {
+		_ = rs.cache.Set(cacheKey, summaryDTO, 5*time.Minute)
+	}
 
 	return summaryDTO, nil
 }
 
-func (rs *reviewService) GetMyReviews(ctx *gin.Context, query v1dto.GetMyReviewsQuery) ([]v1dto.MyReviewDTO, int32, error) {
-	reqCtx := ctx.Request.Context()
-	user, err := middleware.GetUserFromContext(ctx, rs.userRepo)
+func (rs *reviewService) GetMyReviews(ctx context.Context, userUUID uuid.UUID, query v1dto.GetMyReviewsQuery) ([]v1dto.MyReviewDTO, int32, error) {
+	user, err := rs.getUser(ctx, userUUID)
 	if err != nil {
 		return nil, 0, err
 	}
+
 	page := query.Page
 	if page <= 0 {
 		page = 1
@@ -303,7 +416,7 @@ func (rs *reviewService) GetMyReviews(ctx *gin.Context, query v1dto.GetMyReviews
 
 	offset := (page - 1) * limit
 
-	total, err := rs.repo.CountByUserID(reqCtx, user.UserID)
+	total, err := rs.repo.CountByUserID(ctx, user.UserID)
 	if err != nil {
 		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "Failed to count user reviews", err)
 	}
@@ -311,7 +424,7 @@ func (rs *reviewService) GetMyReviews(ctx *gin.Context, query v1dto.GetMyReviews
 		return []v1dto.MyReviewDTO{}, 0, nil
 	}
 
-	rows, err := rs.repo.GetByUserID(reqCtx, user.UserID, limit, offset)
+	rows, err := rs.repo.GetByUserID(ctx, user.UserID, limit, offset)
 	if err != nil {
 		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "Failed to get user reviews", err)
 	}
@@ -319,37 +432,26 @@ func (rs *reviewService) GetMyReviews(ctx *gin.Context, query v1dto.GetMyReviews
 	return v1dto.MapToMyReviewDTOs(rows), int32(total), nil
 }
 
-func (rs *reviewService) UpdateReview(ctx *gin.Context, reviewUUID uuid.UUID, input v1dto.UpdateReviewInput) (v1dto.ReviewDTO, error) {
-	reqCtx := ctx.Request.Context()
-
-	user, err := middleware.GetUserFromContext(ctx, rs.userRepo)
+func (rs *reviewService) UpdateReview(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID, input v1dto.UpdateReviewInput) (v1dto.ReviewDTO, error) {
+	user, err := rs.getUser(ctx, userUUID)
 	if err != nil {
 		return v1dto.ReviewDTO{}, err
 	}
 
-	review, err := rs.repo.GetByUUID(reqCtx, reviewUUID)
+	review, err := rs.getReview(ctx, reviewUUID)
 	if err != nil {
-		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeNotFound, "Review not found")
+		return v1dto.ReviewDTO{}, err
 	}
 
-	if review.ReviewUserID != user.UserID {
-		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeForbidden, "You do not have permission to update this review")
-	}
-
-	if review.ReviewEditCount >= 1 {
-		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeBadRequest, "You can only edit your review once")
-	}
-
-	const maxEditDuration = 30 * 24 * time.Hour
-	if time.Since(review.ReviewCreatedAt) > maxEditDuration {
-		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeBadRequest, "You can only edit your review within 30 days of posting")
+	if err := rs.validateReviewEditEligibility(review, user.UserID); err != nil {
+		return v1dto.ReviewDTO{}, err
 	}
 
 	if err := utils.ValidateReviewContent(input.Title, input.Comment); err != nil {
 		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeBadRequest, err.Error())
 	}
 
-	txCtx, cancel := context.WithTimeout(reqCtx, 5*time.Second)
+	txCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	tx, err := db.BeginTx(txCtx)
@@ -378,12 +480,7 @@ func (rs *reviewService) UpdateReview(ctx *gin.Context, reviewUUID uuid.UUID, in
 		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
 	}
 
-	// Async clear cache
-	go func(pUUID string) {
-		_ = rs.cache.Clear("reviews:product:" + pUUID + ":*")
-		_ = rs.cache.Del("reviews:summary:" + pUUID)
-		_ = rs.cache.Clear("products:*")
-	}(review.ProductUuid.String())
+	rs.invalidateProductReviewCache(review.ProductUuid.String())
 
 	images := updatedReview.ReviewImages
 	if images == nil {
@@ -405,24 +502,70 @@ func (rs *reviewService) UpdateReview(ctx *gin.Context, reviewUUID uuid.UUID, in
 	}, nil
 }
 
-func (rs *reviewService) DeleteReview(ctx *gin.Context, reviewUUID uuid.UUID) error {
-	reqCtx := ctx.Request.Context()
+func (rs *reviewService) UpdateReviewStatus(ctx context.Context, reviewUUID uuid.UUID, input v1dto.UpdateReviewStatusInput) (v1dto.ReviewDTO, error) {
+	review, err := rs.getReview(ctx, reviewUUID)
+	if err != nil {
+		return v1dto.ReviewDTO{}, err
+	}
 
-	user, err := middleware.GetUserFromContext(ctx, rs.userRepo)
+	txCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	tx, err := db.BeginTx(txCtx)
+	if err != nil {
+		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to start transaction", err)
+	}
+	defer tx.Rollback(txCtx)
+
+	updatedReview, err := rs.repo.UpdateStatus(txCtx, tx, review.ReviewID, input.Status)
+	if err != nil {
+		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to update review status", err)
+	}
+
+	if err := rs.repo.RecalcRating(txCtx, tx, review.ReviewProductID); err != nil {
+		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to recalculate product rating", err)
+	}
+
+	if err := tx.Commit(txCtx); err != nil {
+		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
+	}
+
+	rs.invalidateProductReviewCache(review.ProductUuid.String())
+
+	images := updatedReview.ReviewImages
+	if images == nil {
+		images = []string{}
+	}
+
+	return v1dto.ReviewDTO{
+		UUID:      updatedReview.ReviewUuid.String(),
+		Rating:    int32(updatedReview.ReviewRating),
+		Title:     updatedReview.ReviewTitle,
+		Comment:   updatedReview.ReviewComment,
+		Images:    images,
+		VideoURL:  updatedReview.ReviewVideoUrl,
+		HasMedia:  updatedReview.ReviewHasMedia,
+		CreatedAt: updatedReview.ReviewCreatedAt.Format("2006-01-02 15:04:05"),
+		UpdatedAt: updatedReview.ReviewUpdatedAt.Format("2006-01-02 15:04:05"),
+	}, nil
+}
+
+func (rs *reviewService) DeleteReview(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID) error {
+	user, err := rs.getUser(ctx, userUUID)
 	if err != nil {
 		return err
 	}
 
-	review, err := rs.repo.GetByUUID(reqCtx, reviewUUID)
+	review, err := rs.getReview(ctx, reviewUUID)
 	if err != nil {
-		return utils.NewError(utils.ErrCodeNotFound, "Review not found")
+		return err
 	}
 
 	if review.ReviewUserID != user.UserID {
 		return utils.NewError(utils.ErrCodeForbidden, "You do not have permission to delete this review")
 	}
 
-	txCtx, cancel := context.WithTimeout(reqCtx, 5*time.Second)
+	txCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	tx, err := db.BeginTx(txCtx)
@@ -443,12 +586,7 @@ func (rs *reviewService) DeleteReview(ctx *gin.Context, reviewUUID uuid.UUID) er
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
 	}
 
-	// Async clear cache
-	go func(pUUID string) {
-		_ = rs.cache.Clear("reviews:product:" + pUUID + ":*")
-		_ = rs.cache.Del("reviews:summary:" + pUUID)
-		_ = rs.cache.Clear("products:*")
-	}(review.ProductUuid.String())
+	rs.invalidateProductReviewCache(review.ProductUuid.String())
 
 	go func(images []string, videoURL *string) {
 		filesToDelete := make([]string, 0, len(images)+1)
@@ -462,28 +600,24 @@ func (rs *reviewService) DeleteReview(ctx *gin.Context, reviewUUID uuid.UUID) er
 	return nil
 }
 
-// Action
-
-func (rs *reviewService) ToggleHelpfulVote(ctx *gin.Context, reviewUUID uuid.UUID) (v1dto.ToggleHelpfulResponseDTO, error) {
-	reqCtx := ctx.Request.Context()
-
-	user, err := middleware.GetUserFromContext(ctx, rs.userRepo)
+func (rs *reviewService) ToggleHelpfulVote(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID) (v1dto.ToggleHelpfulResponseDTO, error) {
+	user, err := rs.getUser(ctx, userUUID)
 	if err != nil {
 		return v1dto.ToggleHelpfulResponseDTO{}, err
 	}
 
-	review, err := rs.repo.GetByUUID(reqCtx, reviewUUID)
+	review, err := rs.getReview(ctx, reviewUUID)
 	if err != nil {
-		return v1dto.ToggleHelpfulResponseDTO{}, utils.NewError(utils.ErrCodeNotFound, "Review not found")
+		return v1dto.ToggleHelpfulResponseDTO{}, err
 	}
 
-	// Check if the user is trying to vote for their own review
 	if review.ReviewUserID == user.UserID {
 		return v1dto.ToggleHelpfulResponseDTO{}, utils.NewError(utils.ErrCodeBadRequest, "You cannot vote for your own review")
 	}
 
-	txCtx, cancel := context.WithTimeout(reqCtx, 5*time.Second)
+	txCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
+
 	tx, err := db.BeginTx(txCtx)
 	if err != nil {
 		return v1dto.ToggleHelpfulResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to start transaction", err)
@@ -512,17 +646,13 @@ func (rs *reviewService) ToggleHelpfulVote(ctx *gin.Context, reviewUUID uuid.UUI
 		voted = true
 	}
 
-	if err != nil {
-		return v1dto.ToggleHelpfulResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to toggle vote", err)
-	}
-
 	if err := tx.Commit(txCtx); err != nil {
 		return v1dto.ToggleHelpfulResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
 	}
 
-	go func(pUUID string) {
-		_ = rs.cache.Clear("reviews:product:" + pUUID + ":*")
-	}(review.ProductUuid.String())
+	if rs.cache != nil {
+		_ = rs.cache.Clear("reviews:product:" + review.ProductUuid.String() + ":*")
+	}
 
 	return v1dto.ToggleHelpfulResponseDTO{
 		Voted:        voted,
@@ -530,24 +660,22 @@ func (rs *reviewService) ToggleHelpfulVote(ctx *gin.Context, reviewUUID uuid.UUI
 	}, nil
 }
 
-func (rs *reviewService) ReportReview(ctx *gin.Context, reviewUUID uuid.UUID, input v1dto.ReportReviewInput) error {
-	reqCtx := ctx.Request.Context()
-
-	user, err := middleware.GetUserFromContext(ctx, rs.userRepo)
+func (rs *reviewService) ReportReview(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID, input v1dto.ReportReviewInput) error {
+	user, err := rs.getUser(ctx, userUUID)
 	if err != nil {
 		return err
 	}
 
-	review, err := rs.repo.GetByUUID(reqCtx, reviewUUID)
-
+	review, err := rs.getReview(ctx, reviewUUID)
 	if err != nil {
-		return utils.NewError(utils.ErrCodeNotFound, "Review not found")
+		return err
 	}
+
 	if review.ReviewUserID == user.UserID {
 		return utils.NewError(utils.ErrCodeBadRequest, "You cannot report your own review")
 	}
 
-	reported, err := rs.repo.HasReported(reqCtx, user.UserID, review.ReviewID)
+	reported, err := rs.repo.HasReported(ctx, user.UserID, review.ReviewID)
 	if err != nil {
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to check report status", err)
 	}
@@ -555,7 +683,7 @@ func (rs *reviewService) ReportReview(ctx *gin.Context, reviewUUID uuid.UUID, in
 		return utils.NewError(utils.ErrCodeBadRequest, "You have already reported this review")
 	}
 
-	txCtx, cancel := context.WithTimeout(reqCtx, 5*time.Second)
+	txCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	tx, err := db.BeginTx(txCtx)
@@ -577,8 +705,7 @@ func (rs *reviewService) ReportReview(ctx *gin.Context, reviewUUID uuid.UUID, in
 		if _, err := rs.repo.UpdateStatus(txCtx, tx, review.ReviewID, ReviewStatusReported); err != nil {
 			return utils.WrapError(utils.ErrCodeInternal, "Failed to update review status", err)
 		}
-		err := rs.repo.RecalcRating(txCtx, tx, review.ReviewProductID)
-		if err != nil {
+		if err := rs.repo.RecalcRating(txCtx, tx, review.ReviewProductID); err != nil {
 			return utils.WrapError(utils.ErrCodeInternal, "Failed to recalculate product rating", err)
 		}
 	}
@@ -587,17 +714,12 @@ func (rs *reviewService) ReportReview(ctx *gin.Context, reviewUUID uuid.UUID, in
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
 	}
 
-	go func(pUUID string) {
-		_ = rs.cache.Clear("reviews:product:" + pUUID + ":*")
-		_ = rs.cache.Del("reviews:summary:" + pUUID)
-	}(review.ProductUuid.String())
+	rs.invalidateProductReviewCache(review.ProductUuid.String())
+
 	return nil
 }
 
-// Admin
-func (rs *reviewService) AdminGetAllReviews(ctx *gin.Context, query v1dto.AdminGetReviewsQuery) ([]v1dto.AdminReviewRow, int32, error) {
-	reqCtx := ctx.Request.Context()
-
+func (rs *reviewService) AdminGetAllReviews(ctx context.Context, query v1dto.AdminGetReviewsQuery) ([]v1dto.AdminReviewRow, int32, error) {
 	page := query.Page
 	if page <= 0 {
 		page = 1
@@ -616,14 +738,14 @@ func (rs *reviewService) AdminGetAllReviews(ctx *gin.Context, query v1dto.AdminG
 		if err != nil {
 			return nil, 0, utils.NewError(utils.ErrCodeBadRequest, "Invalid product UUID")
 		}
-		product, err := rs.productRepo.GetByUUID(reqCtx, pUUID)
+		product, err := rs.getProduct(ctx, pUUID)
 		if err != nil {
-			return nil, 0, utils.NewError(utils.ErrCodeNotFound, "Product not found")
+			return nil, 0, err
 		}
 		productID = &product.ProductID
 	}
 
-	total, err := rs.repo.AdminCount(reqCtx, query.Status, query.Rating, productID, query.Search)
+	total, err := rs.repo.AdminCount(ctx, query.Status, query.Rating, productID, query.Search)
 	if err != nil {
 		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "Failed to count reviews", err)
 	}
@@ -632,76 +754,21 @@ func (rs *reviewService) AdminGetAllReviews(ctx *gin.Context, query v1dto.AdminG
 		return []v1dto.AdminReviewRow{}, 0, nil
 	}
 
-	rows, err := rs.repo.AdminGetAll(reqCtx, query.Status, query.Rating, query.ProductUUID, query.Search, "r.review_created_at", query.Sort, limit, offset)
+	rows, err := rs.repo.AdminGetAll(ctx, query.Status, query.Rating, query.ProductUUID, query.Search, "r.review_created_at", query.Sort, limit, offset)
 	if err != nil {
 		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "Failed to get reviews", err)
 	}
+
 	return rows, int32(total), nil
 }
 
-func (rs *reviewService) UpdateReviewStatus(ctx *gin.Context, reviewUUID uuid.UUID, input v1dto.UpdateReviewStatusInput) (v1dto.ReviewDTO, error) {
-	reqCtx := ctx.Request.Context()
-
-	review, err := rs.repo.GetByUUID(reqCtx, reviewUUID)
+func (rs *reviewService) AdminReplyReview(ctx context.Context, reviewUUID uuid.UUID, input v1dto.ReplyReviewInput) (v1dto.ReviewDTO, error) {
+	review, err := rs.getReview(ctx, reviewUUID)
 	if err != nil {
-		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeNotFound, "Review not found")
+		return v1dto.ReviewDTO{}, err
 	}
 
-	txCtx, cancel := context.WithTimeout(reqCtx, 5*time.Second)
-	defer cancel()
-
-	tx, err := db.BeginTx(txCtx)
-	if err != nil {
-		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to start transaction", err)
-	}
-	defer tx.Rollback(txCtx)
-
-	updatedReview, err := rs.repo.UpdateStatus(txCtx, tx, review.ReviewID, input.Status)
-	if err != nil {
-		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to update review status", err)
-	}
-
-	if err := rs.repo.RecalcRating(txCtx, tx, review.ReviewProductID); err != nil {
-		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to recalculate product rating", err)
-	}
-
-	if err := tx.Commit(txCtx); err != nil {
-		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
-	}
-
-	go func(pUUID string) {
-		_ = rs.cache.Clear("reviews:product:" + pUUID + ":*")
-		_ = rs.cache.Del("reviews:summary:" + pUUID)
-		_ = rs.cache.Clear("products:*")
-	}(review.ProductUuid.String())
-
-	images := updatedReview.ReviewImages
-	if images == nil {
-		images = []string{}
-	}
-
-	return v1dto.ReviewDTO{
-		UUID:      updatedReview.ReviewUuid.String(),
-		Rating:    int32(updatedReview.ReviewRating),
-		Title:     updatedReview.ReviewTitle,
-		Comment:   updatedReview.ReviewComment,
-		Images:    images,
-		VideoURL:  updatedReview.ReviewVideoUrl,
-		HasMedia:  updatedReview.ReviewHasMedia,
-		CreatedAt: updatedReview.ReviewCreatedAt.Format("2006-01-02 15:04:05"),
-		UpdatedAt: updatedReview.ReviewUpdatedAt.Format("2006-01-02 15:04:05"),
-	}, nil
-}
-
-func (rs *reviewService) AdminReplyReview(ctx *gin.Context, reviewUUID uuid.UUID, input v1dto.ReplyReviewInput) (v1dto.ReviewDTO, error) {
-	reqCtx := ctx.Request.Context()
-
-	review, err := rs.repo.GetByUUID(reqCtx, reviewUUID)
-	if err != nil {
-		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeNotFound, "Review not found")
-	}
-
-	txCtx, cancel := context.WithTimeout(reqCtx, 5*time.Second)
+	txCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	tx, err := db.BeginTx(txCtx)
@@ -719,35 +786,11 @@ func (rs *reviewService) AdminReplyReview(ctx *gin.Context, reviewUUID uuid.UUID
 		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
 	}
 
-	go func(pUUID string) {
-		_ = rs.cache.Clear("reviews:product:" + pUUID + ":*")
-	}(review.ProductUuid.String())
-
-	// Send real-time notification to review author
-	if rs.notificationService != nil {
-		go func() {
-			logger.Log.Info().
-				Int32("recipient_user_id", review.ReviewUserID).
-				Str("review_uuid", review.ReviewUuid.String()).
-				Msg("Dispatching review_reply notification")
-
-			replySnippet := input.Reply
-			if len(replySnippet) > 100 {
-				replySnippet = replySnippet[:97] + "..."
-			}
-
-			_ = rs.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
-				UserID: review.ReviewUserID,
-				Type:   "review_reply",
-				Title:  "Shop replied to your review",
-				Body:   fmt.Sprintf("Shop has replied to your review: \"%s\"", replySnippet),
-				Data: map[string]any{
-					"review_uuid":  review.ReviewUuid.String(),
-					"product_uuid": review.ProductUuid.String(),
-				},
-			})
-		}()
+	if rs.cache != nil {
+		_ = rs.cache.Clear("reviews:product:" + review.ProductUuid.String() + ":*")
 	}
+
+	rs.dispatchReplyNotification(review, input.Reply)
 
 	images := updatedReview.ReviewImages
 	if images == nil {
@@ -775,16 +818,15 @@ func (rs *reviewService) AdminReplyReview(ctx *gin.Context, reviewUUID uuid.UUID
 	}, nil
 }
 
-func (rs *reviewService) AdminForceDeleteReview(ctx *gin.Context, reviewUUID uuid.UUID) error {
-	reqCtx := ctx.Request.Context()
-
-	review, err := rs.repo.GetByUUID(reqCtx, reviewUUID)
+func (rs *reviewService) AdminForceDeleteReview(ctx context.Context, reviewUUID uuid.UUID) error {
+	review, err := rs.getReview(ctx, reviewUUID)
 	if err != nil {
-		return utils.NewError(utils.ErrCodeNotFound, "Review not found")
+		return err
 	}
 
-	txCtx, cancel := context.WithTimeout(reqCtx, 5*time.Second)
+	txCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
+
 	tx, err := db.BeginTx(txCtx)
 	if err != nil {
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to begin transaction", err)
@@ -803,11 +845,7 @@ func (rs *reviewService) AdminForceDeleteReview(ctx *gin.Context, reviewUUID uui
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
 	}
 
-	go func(pUUID string) {
-		_ = rs.cache.Clear("reviews:product:" + pUUID + ":*")
-		_ = rs.cache.Del("reviews:summary:" + pUUID)
-		_ = rs.cache.Clear("products:*")
-	}(review.ProductUuid.String())
+	rs.invalidateProductReviewCache(review.ProductUuid.String())
 
 	go func(images []string, videoURL *string) {
 		files := make([]string, 0, len(images)+1)

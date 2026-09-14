@@ -2,6 +2,7 @@ package v1handler
 
 import (
 	v1dto "goshop/internal/dto/v1"
+	"goshop/internal/middleware"
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/utils"
 	"goshop/internal/validation"
@@ -42,6 +43,12 @@ func NewReviewHandler(service v1service.ReviewService) *ReviewHandler {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /reviews [post]
 func (rh *ReviewHandler) CreateReview(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
 	var input v1dto.CreateReviewInput
 	if err := ctx.ShouldBind(&input); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
@@ -92,7 +99,7 @@ func (rh *ReviewHandler) CreateReview(ctx *gin.Context) {
 		}
 	}
 
-	review, err := rh.service.CreateReview(ctx, input, imageURLs, videoURL)
+	review, err := rh.service.CreateReview(ctx.Request.Context(), userUUID, input, imageURLs, videoURL)
 	if err != nil {
 		rh.cleanupFiles(savedFiles, uploadDir)
 		utils.ResponseError(ctx, err)
@@ -102,7 +109,7 @@ func (rh *ReviewHandler) CreateReview(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusCreated, "Review created successfully", review)
 }
 
-func (h *ReviewHandler) cleanupFiles(fileNames []string, uploadDir string) {
+func (rh *ReviewHandler) cleanupFiles(fileNames []string, uploadDir string) {
 	for _, name := range fileNames {
 		_ = os.Remove(filepath.Join(uploadDir, name))
 	}
@@ -142,7 +149,7 @@ func (rh *ReviewHandler) GetProductReviews(ctx *gin.Context) {
 		return
 	}
 
-	reviews, total, err := rh.service.GetProductReviews(ctx, productUUID, query)
+	reviews, total, err := rh.service.GetProductReviews(ctx.Request.Context(), productUUID, query)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -184,7 +191,7 @@ func (rh *ReviewHandler) GetProductRatingSummary(ctx *gin.Context) {
 		return
 	}
 
-	summary, err := rh.service.GetProductRatingSummary(ctx, productUUID)
+	summary, err := rh.service.GetProductRatingSummary(ctx.Request.Context(), productUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -207,13 +214,19 @@ func (rh *ReviewHandler) GetProductRatingSummary(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /reviews/me [get]
 func (rh *ReviewHandler) GetMyReviews(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
 	var query v1dto.GetMyReviewsQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
 	}
 
-	reviews, total, err := rh.service.GetMyReviews(ctx, query)
+	reviews, total, err := rh.service.GetMyReviews(ctx.Request.Context(), userUUID, query)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -247,6 +260,12 @@ func (rh *ReviewHandler) GetMyReviews(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /reviews/{uuid} [put]
 func (rh *ReviewHandler) UpdateReview(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
 	var param v1dto.ReviewUUIDParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
@@ -265,7 +284,7 @@ func (rh *ReviewHandler) UpdateReview(ctx *gin.Context) {
 		return
 	}
 
-	updatedReview, err := rh.service.UpdateReview(ctx, reviewUUID, input)
+	updatedReview, err := rh.service.UpdateReview(ctx.Request.Context(), userUUID, reviewUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -287,6 +306,12 @@ func (rh *ReviewHandler) UpdateReview(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /reviews/{uuid} [delete]
 func (rh *ReviewHandler) DeleteReview(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
 	var param v1dto.ReviewUUIDParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
@@ -299,7 +324,7 @@ func (rh *ReviewHandler) DeleteReview(ctx *gin.Context) {
 		return
 	}
 
-	if err := rh.service.DeleteReview(ctx, reviewUUID); err != nil {
+	if err := rh.service.DeleteReview(ctx.Request.Context(), userUUID, reviewUUID); err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
@@ -340,7 +365,7 @@ func (rh *ReviewHandler) UpdateReviewStatus(ctx *gin.Context) {
 		return
 	}
 
-	updatedReview, err := rh.service.UpdateReviewStatus(ctx, reviewUUID, input)
+	updatedReview, err := rh.service.UpdateReviewStatus(ctx.Request.Context(), reviewUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -375,7 +400,7 @@ func (rh *ReviewHandler) AdminGetAllReviews(ctx *gin.Context) {
 		return
 	}
 
-	reviews, total, err := rh.service.AdminGetAllReviews(ctx, query)
+	reviews, total, err := rh.service.AdminGetAllReviews(ctx.Request.Context(), query)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -428,7 +453,7 @@ func (rh *ReviewHandler) AdminReplyReview(ctx *gin.Context) {
 		return
 	}
 
-	updatedReview, err := rh.service.AdminReplyReview(ctx, reviewUUID, input)
+	updatedReview, err := rh.service.AdminReplyReview(ctx.Request.Context(), reviewUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -450,6 +475,12 @@ func (rh *ReviewHandler) AdminReplyReview(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /reviews/{uuid}/helpful [post]
 func (rh *ReviewHandler) ToggleHelpfulVote(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
 	var param v1dto.ReviewUUIDParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
@@ -462,7 +493,7 @@ func (rh *ReviewHandler) ToggleHelpfulVote(ctx *gin.Context) {
 		return
 	}
 
-	response, err := rh.service.ToggleHelpfulVote(ctx, reviewUUID)
+	response, err := rh.service.ToggleHelpfulVote(ctx.Request.Context(), userUUID, reviewUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -486,6 +517,12 @@ func (rh *ReviewHandler) ToggleHelpfulVote(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /reviews/{uuid}/report [post]
 func (rh *ReviewHandler) ReportReview(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
 	var param v1dto.ReviewUUIDParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
@@ -504,7 +541,7 @@ func (rh *ReviewHandler) ReportReview(ctx *gin.Context) {
 		return
 	}
 
-	if err := rh.service.ReportReview(ctx, reviewUUID, input); err != nil {
+	if err := rh.service.ReportReview(ctx.Request.Context(), userUUID, reviewUUID, input); err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
@@ -536,7 +573,7 @@ func (rh *ReviewHandler) AdminForceDeleteReview(ctx *gin.Context) {
 		return
 	}
 
-	if err := rh.service.AdminForceDeleteReview(ctx, reviewUUID); err != nil {
+	if err := rh.service.AdminForceDeleteReview(ctx.Request.Context(), reviewUUID); err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
