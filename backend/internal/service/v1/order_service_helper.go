@@ -12,6 +12,9 @@ import (
 
 // InvalidateOrderCaches clears product, order, coupon, and user cart caches.
 func (s *orderService) InvalidateOrderCaches(userUUID uuid.UUID) {
+	if s.cache == nil {
+		return
+	}
 	if err := s.cache.Clear("products:*"); err != nil {
 		logger.Log.Warn().Err(err).Msg("Failed to clear product cache")
 	}

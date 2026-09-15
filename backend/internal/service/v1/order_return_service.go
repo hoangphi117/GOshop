@@ -10,15 +10,78 @@ import (
 	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
+	"goshop/internal/repository"
 	"goshop/internal/utils"
+	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 	"goshop/pkg/payment"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/redis/go-redis/v9"
 )
 
-func (s *orderService) RequestOrderReturn(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.CreateOrderReturnInput, imageURLs []string, videoURL *string) (v1dto.OrderReturnDTO, error) {
+type orderReturnService struct {
+	txManager           db.TxManager
+	orderRepo           repository.OrderRepository
+	orderItemRepo       repository.OrderItemRepository
+	orderReturnRepo     repository.OrderReturnsRepository
+	productRepo         repository.ProductRepository
+	userRepo            repository.UserRepository
+	trackingRepo        repository.TrackingRepository
+	paymentRepo         repository.PaymentRepository
+	paymentProviders    map[string]payment.PaymentProvider
+	notificationService NotificationService
+	cache               cache.RedisCacheService
+}
+
+func NewOrderReturnService(
+	txManager db.TxManager,
+	orderRepo repository.OrderRepository,
+	orderItemRepo repository.OrderItemRepository,
+	orderReturnRepo repository.OrderReturnsRepository,
+	productRepo repository.ProductRepository,
+	userRepo repository.UserRepository,
+	trackingRepo repository.TrackingRepository,
+	paymentRepo repository.PaymentRepository,
+	paymentProviders map[string]payment.PaymentProvider,
+	notificationService NotificationService,
+	redisClient *redis.Client,
+) OrderReturnService {
+	var cacheService cache.RedisCacheService
+	if redisClient != nil {
+		cacheService = cache.NewRedisCacheService(redisClient)
+	}
+	return &orderReturnService{
+		txManager:           txManager,
+		orderRepo:           orderRepo,
+		orderItemRepo:       orderItemRepo,
+		orderReturnRepo:     orderReturnRepo,
+		productRepo:         productRepo,
+		userRepo:            userRepo,
+		trackingRepo:        trackingRepo,
+		paymentRepo:         paymentRepo,
+		paymentProviders:    paymentProviders,
+		notificationService: notificationService,
+		cache:               cacheService,
+	}
+}
+
+func (s *orderReturnService) handleUserNotFoundError(err error) error {
+	if errors.Is(err, pgx.ErrNoRows) {
+		return utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
+	return utils.WrapError(utils.ErrCodeInternal, "Failed to get user", err)
+}
+
+func (s *orderReturnService) handleOrderNotFoundError(err error) error {
+	if errors.Is(err, pgx.ErrNoRows) {
+		return utils.NewError(utils.ErrCodeNotFound, "Order not found")
+	}
+	return utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
+}
+
+func (s *orderReturnService) RequestOrderReturn(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.CreateOrderReturnInput, imageURLs []string, videoURL *string) (v1dto.OrderReturnDTO, error) {
 	user, err := s.userRepo.GetByUUID(ctx, userUUID)
 	if err != nil {
 		return v1dto.OrderReturnDTO{}, s.handleUserNotFoundError(err)
@@ -140,7 +203,7 @@ func (s *orderService) RequestOrderReturn(ctx context.Context, userUUID uuid.UUI
 	}, nil
 }
 
-func (s *orderService) AdminGetReturns(ctx context.Context, userUUID uuid.UUID, query v1dto.AdminGetReturnsQuery) ([]v1dto.AdminReturnSummaryDTO, int64, error) {
+func (s *orderReturnService) AdminGetReturns(ctx context.Context, userUUID uuid.UUID, query v1dto.AdminGetReturnsQuery) ([]v1dto.AdminReturnSummaryDTO, int64, error) {
 	user, err := s.userRepo.GetByUUID(ctx, userUUID)
 	if err != nil {
 		return nil, 0, s.handleUserNotFoundError(err)
@@ -210,7 +273,7 @@ func (s *orderService) AdminGetReturns(ctx context.Context, userUUID uuid.UUID, 
 	return result, total, nil
 }
 
-func (s *orderService) AdminGetReturnDetail(ctx context.Context, userUUID uuid.UUID, returnUUID uuid.UUID) (v1dto.AdminReturnDetailDTO, error) {
+func (s *orderReturnService) AdminGetReturnDetail(ctx context.Context, userUUID uuid.UUID, returnUUID uuid.UUID) (v1dto.AdminReturnDetailDTO, error) {
 	user, err := s.userRepo.GetByUUID(ctx, userUUID)
 	if err != nil {
 		return v1dto.AdminReturnDetailDTO{}, s.handleUserNotFoundError(err)
@@ -331,7 +394,7 @@ func (s *orderService) AdminGetReturnDetail(ctx context.Context, userUUID uuid.U
 	}, nil
 }
 
-func (s *orderService) AdminUpdateReturnStatus(ctx context.Context, userUUID uuid.UUID, returnUUID uuid.UUID, input v1dto.AdminUpdateReturnInput) (v1dto.AdminReturnSummaryDTO, error) {
+func (s *orderReturnService) AdminUpdateReturnStatus(ctx context.Context, userUUID uuid.UUID, returnUUID uuid.UUID, input v1dto.AdminUpdateReturnInput) (v1dto.AdminReturnSummaryDTO, error) {
 	user, err := s.userRepo.GetByUUID(ctx, userUUID)
 	if err != nil {
 		return v1dto.AdminReturnSummaryDTO{}, s.handleUserNotFoundError(err)
@@ -486,7 +549,7 @@ type resolvedOrderReturn struct {
 }
 
 // resolveOrderReturn resolves the associated return request and order info given either an order UUID or a return request UUID.
-func (s *orderService) resolveOrderReturn(ctx context.Context, identifier uuid.UUID) (*resolvedOrderReturn, error) {
+func (s *orderReturnService) resolveOrderReturn(ctx context.Context, identifier uuid.UUID) (*resolvedOrderReturn, error) {
 	var res resolvedOrderReturn
 
 	// 1. Check if identifier is an Order UUID
@@ -541,7 +604,7 @@ func isReturnAccessibleByUser(user sqlc.User, res *resolvedOrderReturn) bool {
 	return user.UserID == res.OrderUserID || user.UserID == res.Return.ReturnUserID
 }
 
-func (s *orderService) GetOrderReturnDetails(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (v1dto.OrderReturnDetailDTO, error) {
+func (s *orderReturnService) GetOrderReturnDetails(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (v1dto.OrderReturnDetailDTO, error) {
 	user, err := s.userRepo.GetByUUID(ctx, userUUID)
 	if err != nil {
 		return v1dto.OrderReturnDetailDTO{}, s.handleUserNotFoundError(err)
@@ -603,7 +666,7 @@ func (s *orderService) GetOrderReturnDetails(ctx context.Context, userUUID uuid.
 	}, nil
 }
 
-func (s *orderService) GetMyOrderReturns(ctx context.Context, userUUID uuid.UUID, query v1dto.GetMyOrderReturnsQuery) ([]v1dto.UserReturnSummaryDTO, int64, error) {
+func (s *orderReturnService) GetMyOrderReturns(ctx context.Context, userUUID uuid.UUID, query v1dto.GetMyOrderReturnsQuery) ([]v1dto.UserReturnSummaryDTO, int64, error) {
 	user, err := s.userRepo.GetByUUID(ctx, userUUID)
 	if err != nil {
 		return nil, 0, s.handleUserNotFoundError(err)
@@ -667,7 +730,7 @@ func (s *orderService) GetMyOrderReturns(ctx context.Context, userUUID uuid.UUID
 	return result, total, nil
 }
 
-func (s *orderService) CancelOrderReturn(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.CancelOrderReturnInput) (v1dto.CancelOrderReturnResponseDTO, error) {
+func (s *orderReturnService) CancelOrderReturn(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.CancelOrderReturnInput) (v1dto.CancelOrderReturnResponseDTO, error) {
 	user, err := s.userRepo.GetByUUID(ctx, userUUID)
 	if err != nil {
 		return v1dto.CancelOrderReturnResponseDTO{}, s.handleUserNotFoundError(err)
@@ -743,7 +806,7 @@ func (s *orderService) CancelOrderReturn(ctx context.Context, userUUID uuid.UUID
 	}, nil
 }
 
-func (s *orderService) SubmitReturnShipping(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.SubmitReturnShippingInput) (v1dto.SubmitReturnShippingResponseDTO, error) {
+func (s *orderReturnService) SubmitReturnShipping(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.SubmitReturnShippingInput) (v1dto.SubmitReturnShippingResponseDTO, error) {
 	user, err := s.userRepo.GetByUUID(ctx, userUUID)
 	if err != nil {
 		return v1dto.SubmitReturnShippingResponseDTO{}, s.handleUserNotFoundError(err)
@@ -838,7 +901,7 @@ func (s *orderService) SubmitReturnShipping(ctx context.Context, userUUID uuid.U
 	}, nil
 }
 
-func (s *orderService) UpdateReturnBankAccount(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.UpdateReturnBankAccountInput) (v1dto.UpdateReturnBankAccountResponseDTO, error) {
+func (s *orderReturnService) UpdateReturnBankAccount(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.UpdateReturnBankAccountInput) (v1dto.UpdateReturnBankAccountResponseDTO, error) {
 	user, err := s.userRepo.GetByUUID(ctx, userUUID)
 	if err != nil {
 		return v1dto.UpdateReturnBankAccountResponseDTO{}, s.handleUserNotFoundError(err)
@@ -922,7 +985,7 @@ func (s *orderService) UpdateReturnBankAccount(ctx context.Context, userUUID uui
 	}, nil
 }
 
-func (s *orderService) AdminProcessReturnRefund(ctx context.Context, userUUID uuid.UUID, returnUUID uuid.UUID, input v1dto.AdminReturnRefundInput) (v1dto.AdminReturnRefundResponseDTO, error) {
+func (s *orderReturnService) AdminProcessReturnRefund(ctx context.Context, userUUID uuid.UUID, returnUUID uuid.UUID, input v1dto.AdminReturnRefundInput) (v1dto.AdminReturnRefundResponseDTO, error) {
 	user, err := s.userRepo.GetByUUID(ctx, userUUID)
 	if err != nil {
 		return v1dto.AdminReturnRefundResponseDTO{}, s.handleUserNotFoundError(err)

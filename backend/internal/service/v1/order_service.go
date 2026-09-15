@@ -13,10 +13,7 @@ import (
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
-	"goshop/pkg/payment"
 	"goshop/pkg/pdf"
-	"goshop/pkg/rabbitmq"
-	"goshop/pkg/shipping"
 	"math/big"
 	"slices"
 	"strings"
@@ -68,61 +65,52 @@ type orderService struct {
 	inventoryService    InventoryService
 	orderRepo           repository.OrderRepository
 	orderItemRepo       repository.OrderItemRepository
-	orderReturnRepo     repository.OrderReturnsRepository
 	productRepo         repository.ProductRepository
 	userRepo            repository.UserRepository
 	cartService         CartService
 	cartRepo            repository.CartRepository
 	couponRepo          repository.CouponRepository
 	trackingRepo        repository.TrackingRepository
-	webhookRepo         repository.WebhookEventRepository
 	paymentRepo         repository.PaymentRepository
-	paymentProviders    map[string]payment.PaymentProvider
 	notificationService NotificationService
 	cache               cache.RedisCacheService
-	shippingFactory     *shipping.ShippingFactory
-	rabbitmq            rabbitmq.RabbitMQService
 }
 
-func NewOrderService(txManager db.TxManager,
+func NewOrderService(
+	txManager db.TxManager,
 	pricingService OrderPricingService,
 	inventoryService InventoryService,
 	orderRepo repository.OrderRepository,
 	orderItemRepo repository.OrderItemRepository,
-	orderReturnRepo repository.OrderReturnsRepository,
 	productRepo repository.ProductRepository,
 	userRepo repository.UserRepository,
 	cartService CartService,
 	cartRepo repository.CartRepository,
 	couponRepo repository.CouponRepository,
 	trackingRepo repository.TrackingRepository,
-	webhookRepo repository.WebhookEventRepository,
 	paymentRepo repository.PaymentRepository,
-	paymentProviders map[string]payment.PaymentProvider,
 	notificationService NotificationService,
 	redisClient *redis.Client,
-	shippingFactory *shipping.ShippingFactory,
-	rabbitmq rabbitmq.RabbitMQService) OrderService {
+) OrderService {
+	var cacheService cache.RedisCacheService
+	if redisClient != nil {
+		cacheService = cache.NewRedisCacheService(redisClient)
+	}
 	return &orderService{
 		txManager:           txManager,
 		pricingService:      pricingService,
 		inventoryService:    inventoryService,
 		orderRepo:           orderRepo,
 		orderItemRepo:       orderItemRepo,
-		orderReturnRepo:     orderReturnRepo,
 		productRepo:         productRepo,
 		userRepo:            userRepo,
 		cartService:         cartService,
 		cartRepo:            cartRepo,
 		couponRepo:          couponRepo,
 		trackingRepo:        trackingRepo,
-		webhookRepo:         webhookRepo,
 		paymentRepo:         paymentRepo,
-		paymentProviders:    paymentProviders,
 		notificationService: notificationService,
-		cache:               cache.NewRedisCacheService(redisClient),
-		shippingFactory:     shippingFactory,
-		rabbitmq:            rabbitmq,
+		cache:               cacheService,
 	}
 }
 
@@ -358,8 +346,10 @@ func (s *orderService) GetMyOrders(ctx context.Context, userUUID uuid.UUID, inpu
 		Total  int32                   `json:"total"`
 	}
 
-	if err := s.cache.Get(cacheKey, &cacheData); err == nil && cacheData.Orders != nil {
-		return cacheData.Orders, cacheData.Total, nil
+	if s.cache != nil {
+		if err := s.cache.Get(cacheKey, &cacheData); err == nil && cacheData.Orders != nil {
+			return cacheData.Orders, cacheData.Total, nil
+		}
 	}
 
 	var statusPtr *int32
@@ -396,8 +386,10 @@ func (s *orderService) GetMyOrders(ctx context.Context, userUUID uuid.UUID, inpu
 
 	cacheData.Orders = ordersDTO
 	cacheData.Total = int32(totalOrders)
-	if err := s.cache.Set(cacheKey, cacheData, 2*time.Minute); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to set user orders cache")
+	if s.cache != nil {
+		if err := s.cache.Set(cacheKey, cacheData, 2*time.Minute); err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to set user orders cache")
+		}
 	}
 
 	return ordersDTO, int32(totalOrders), nil
@@ -463,8 +455,10 @@ func (s *orderService) GetAllOrders(ctx context.Context, input v1dto.GetOrdersPa
 		Total  int32                   `json:"total"`
 	}
 
-	if err := s.cache.Get(cacheKey, &cacheData); err == nil && cacheData.Orders != nil {
-		return cacheData.Orders, cacheData.Total, nil
+	if s.cache != nil {
+		if err := s.cache.Get(cacheKey, &cacheData); err == nil && cacheData.Orders != nil {
+			return cacheData.Orders, cacheData.Total, nil
+		}
 	}
 
 	var targetUserID *int32 = nil
@@ -502,8 +496,10 @@ func (s *orderService) GetAllOrders(ctx context.Context, input v1dto.GetOrdersPa
 
 	cacheData.Orders = orderDTOs
 	cacheData.Total = int32(totalRecords)
-	if err := s.cache.Set(cacheKey, cacheData, 2*time.Minute); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to set admin orders cache")
+	if s.cache != nil {
+		if err := s.cache.Set(cacheKey, cacheData, 2*time.Minute); err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to set admin orders cache")
+		}
 	}
 
 	return orderDTOs, int32(totalRecords), nil
@@ -553,8 +549,10 @@ func (s *orderService) UpdateOrderStatus(ctx context.Context, input sqlc.UpdateO
 		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "failed to get order items", err)
 	}
 
-	if err := s.cache.Clear("orders:*"); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to clear order cache")
+	if s.cache != nil {
+		if err := s.cache.Clear("orders:*"); err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to clear order cache")
+		}
 	}
 
 	if input.OrderStatus == OrderStatusConfirmed {
@@ -875,10 +873,12 @@ func (s *orderService) UpdateOrderPaymentStatus(ctx context.Context, userUUID uu
 		Str("changed_by", userUUID.String()).
 		Msg("Order payment status changed with audit info")
 
-	userKey := fmt.Sprintf("orders:user:%s:*", existingOrder.UserUuid.String())
-	_ = s.cache.Clear(userKey)
-	_ = s.cache.Clear("orders:admin:*")
-	_ = s.cache.Del(fmt.Sprintf("invoice:pdf:%s", existingOrder.OrderUuid.String()))
+	if s.cache != nil {
+		userKey := fmt.Sprintf("orders:user:%s:*", existingOrder.UserUuid.String())
+		_ = s.cache.Clear(userKey)
+		_ = s.cache.Clear("orders:admin:*")
+		_ = s.cache.Del(fmt.Sprintf("invoice:pdf:%s", existingOrder.OrderUuid.String()))
+	}
 
 	return updatedOrder, orderItems, nil
 }
@@ -910,8 +910,10 @@ func (s *orderService) GetOrderInvoicePDF(ctx context.Context, userUUID uuid.UUI
 	// 1. Check Redis Cache
 	cacheKey := fmt.Sprintf("invoice:pdf:%s", orderUUID.String())
 	var cached cachedInvoicePDF
-	if err := s.cache.Get(cacheKey, &cached); err == nil && len(cached.Bytes) > 0 {
-		return cached.Bytes, cached.FileName, nil
+	if s.cache != nil {
+		if err := s.cache.Get(cacheKey, &cached); err == nil && len(cached.Bytes) > 0 {
+			return cached.Bytes, cached.FileName, nil
+		}
 	}
 
 	orderItems, err := s.orderItemRepo.GetByOrderID(ctx, order.OrderID)
@@ -975,10 +977,12 @@ func (s *orderService) GetOrderInvoicePDF(ctx context.Context, userUUID uuid.UUI
 	fileName := fmt.Sprintf("Invoice_%s.pdf", order.OrderNumber)
 
 	// 2. Save to Redis Cache (TTL 24h)
-	_ = s.cache.Set(cacheKey, cachedInvoicePDF{
-		Bytes:    pdfBytes,
-		FileName: fileName,
-	}, 24*time.Hour)
+	if s.cache != nil {
+		_ = s.cache.Set(cacheKey, cachedInvoicePDF{
+			Bytes:    pdfBytes,
+			FileName: fileName,
+		}, 24*time.Hour)
+	}
 
 	return pdfBytes, fileName, nil
 }

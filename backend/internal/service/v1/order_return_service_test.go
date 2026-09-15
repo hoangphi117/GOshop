@@ -35,7 +35,7 @@ type testReturnServiceDeps struct {
 	notificationService *testutils.MockNotificationService
 }
 
-func newTestReturnService(deps testReturnServiceDeps) v1service.OrderService {
+func newTestReturnService(deps testReturnServiceDeps) v1service.OrderReturnService {
 	txMgr := deps.txManager
 	if txMgr == nil {
 		txMgr = testutils.NewNoopTxManager()
@@ -89,25 +89,17 @@ func newTestReturnService(deps testReturnServiceDeps) v1service.OrderService {
 		notifSvc = &testutils.MockNotificationService{}
 	}
 
-	return v1service.NewOrderService(
+	return v1service.NewOrderReturnService(
 		txMgr,
-		&testutils.MockOrderPricingService{},
-		&testutils.MockInventoryService{},
 		orderRepo,
 		orderItemRepo,
 		returnRepo,
 		productRepo,
 		userRepo,
-		&testutils.MockCartService{},
-		&testutils.MockCartRepository{},
-		&testutils.MockCouponRepository{},
 		trackingRepo,
-		nil,
 		paymentRepo,
 		deps.paymentProviders,
 		notifSvc,
-		nil,
-		nil,
 		nil,
 	)
 }

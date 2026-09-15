@@ -11,17 +11,78 @@ import (
 	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
+	"goshop/internal/repository"
 	"goshop/internal/utils"
+	"goshop/pkg/cache"
 	"goshop/pkg/logger"
+	"goshop/pkg/rabbitmq"
 	"goshop/pkg/shipping"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/redis/go-redis/v9"
 )
 
-func (s *orderService) CreateShipping(ctx context.Context, orderUUID uuid.UUID, input v1dto.CreateShippingInput) (v1dto.AsyncShippingResponseDTO, error) {
+type orderShippingService struct {
+	txManager           db.TxManager
+	orderRepo           repository.OrderRepository
+	orderItemRepo       repository.OrderItemRepository
+	trackingRepo        repository.TrackingRepository
+	shippingFactory     *shipping.ShippingFactory
+	webhookRepo         repository.WebhookEventRepository
+	notificationService NotificationService
+	userRepo            repository.UserRepository
+	cache               cache.RedisCacheService
+	rabbitmq            rabbitmq.RabbitMQService
+}
+
+func NewOrderShippingService(
+	txManager db.TxManager,
+	orderRepo repository.OrderRepository,
+	orderItemRepo repository.OrderItemRepository,
+	trackingRepo repository.TrackingRepository,
+	shippingFactory *shipping.ShippingFactory,
+	webhookRepo repository.WebhookEventRepository,
+	notificationService NotificationService,
+	userRepo repository.UserRepository,
+	redisClient *redis.Client,
+	rabbitmq rabbitmq.RabbitMQService,
+) OrderShippingService {
+	var cacheService cache.RedisCacheService
+	if redisClient != nil {
+		cacheService = cache.NewRedisCacheService(redisClient)
+	}
+	return &orderShippingService{
+		txManager:           txManager,
+		orderRepo:           orderRepo,
+		orderItemRepo:       orderItemRepo,
+		trackingRepo:        trackingRepo,
+		shippingFactory:     shippingFactory,
+		webhookRepo:         webhookRepo,
+		notificationService: notificationService,
+		userRepo:            userRepo,
+		cache:               cacheService,
+		rabbitmq:            rabbitmq,
+	}
+}
+
+func (s *orderShippingService) handleUserNotFoundError(err error) error {
+	if errors.Is(err, pgx.ErrNoRows) {
+		return utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
+	return utils.WrapError(utils.ErrCodeInternal, "Failed to get user", err)
+}
+
+func (s *orderShippingService) handleOrderNotFoundError(err error) error {
+	if errors.Is(err, pgx.ErrNoRows) {
+		return utils.NewError(utils.ErrCodeNotFound, "Order not found")
+	}
+	return utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
+}
+
+func (s *orderShippingService) CreateShipping(ctx context.Context, orderUUID uuid.UUID, input v1dto.CreateShippingInput) (v1dto.AsyncShippingResponseDTO, error) {
 	order, err := s.orderRepo.GetByUUID(ctx, orderUUID)
 	if err != nil {
 		return v1dto.AsyncShippingResponseDTO{}, s.handleOrderNotFoundError(err)
@@ -55,7 +116,7 @@ func (s *orderService) CreateShipping(ctx context.Context, orderUUID uuid.UUID, 
 	}, nil
 }
 
-func (s *orderService) ProcessShippingOrderMessage(headers amqp.Table, body []byte) error {
+func (s *orderShippingService) ProcessShippingOrderMessage(headers amqp.Table, body []byte) error {
 	ctx := context.Background()
 
 	var msg v1dto.CreateShippingQueueMessage
@@ -199,7 +260,7 @@ func (s *orderService) ProcessShippingOrderMessage(headers amqp.Table, body []by
 	return nil
 }
 
-func (s *orderService) GetOrderTimeline(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (v1dto.OrderTimelineResponseDTO, error) {
+func (s *orderShippingService) GetOrderTimeline(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (v1dto.OrderTimelineResponseDTO, error) {
 	user, err := s.userRepo.GetByUUID(ctx, userUUID)
 	if err != nil {
 		return v1dto.OrderTimelineResponseDTO{}, s.handleUserNotFoundError(err)
@@ -210,7 +271,6 @@ func (s *orderService) GetOrderTimeline(ctx context.Context, userUUID uuid.UUID,
 		return v1dto.OrderTimelineResponseDTO{}, s.handleOrderNotFoundError(err)
 	}
 
-	// Check if the user is the owner of the order or has admin/moderator privileges
 	isAdminOrMod := user.UserLevel == RoleAdmin || user.UserLevel == RoleModerator
 	if order.OrderUserID != user.UserID && !isAdminOrMod {
 		return v1dto.OrderTimelineResponseDTO{}, utils.NewError(utils.ErrCodeForbidden, "Access denied")
@@ -227,10 +287,9 @@ func (s *orderService) GetOrderTimeline(ctx context.Context, userUUID uuid.UUID,
 	}, nil
 }
 
-func (s *orderService) HandleShippingWebhook(ctx context.Context, rawBody []byte, payload v1dto.GHNWebhookPayload) error {
+func (s *orderShippingService) HandleShippingWebhook(ctx context.Context, rawBody []byte, payload v1dto.GHNWebhookPayload) error {
 	ghnStatus := strings.ToLower(strings.TrimSpace(payload.Status))
 
-	// Tạo externalEventID để dedup qua bảng webhook_events
 	var eventTime int64
 	if !payload.Time.IsZero() {
 		eventTime = payload.Time.Unix()
@@ -279,7 +338,6 @@ func (s *orderService) HandleShippingWebhook(ctx context.Context, rawBody []byte
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to get order by shipping code", err)
 	}
 
-	// Xử lý nghiệp vụ theo trạng thái từ GHN
 	switch ghnStatus {
 	case "delivered":
 		if order.OrderStatus == OrderStatusDelivered {
@@ -314,7 +372,6 @@ func (s *orderService) HandleShippingWebhook(ctx context.Context, rawBody []byte
 			return utils.WrapError(utils.ErrCodeInternal, "Failed to update order status to delivered", err)
 		}
 
-		// Clear order cache
 		if s.cache != nil {
 			_ = s.cache.Clear(fmt.Sprintf("order:%s", updatedOrder.OrderUuid.String()))
 		}
@@ -383,7 +440,6 @@ func (s *orderService) HandleShippingWebhook(ctx context.Context, rawBody []byte
 		})
 	}
 
-	// 4. Mark webhook event as processed
 	if err := s.webhookRepo.MarkProcessed(ctx, nil, event.WeID); err != nil {
 		logger.Log.Error().
 			Err(err).
@@ -394,7 +450,7 @@ func (s *orderService) HandleShippingWebhook(ctx context.Context, rawBody []byte
 	return nil
 }
 
-func (s *orderService) CalculateShippingFee(ctx context.Context, input v1dto.CalculateShippingFeeInput) (v1dto.ShippingFeeResponseDTO, error) {
+func (s *orderShippingService) CalculateShippingFee(ctx context.Context, input v1dto.CalculateShippingFeeInput) (v1dto.ShippingFeeResponseDTO, error) {
 	provider, err := s.shippingFactory.GetProvider(input.Provider)
 	if err != nil {
 		return v1dto.ShippingFeeResponseDTO{}, utils.NewError(
@@ -434,7 +490,7 @@ func (s *orderService) CalculateShippingFee(ctx context.Context, input v1dto.Cal
 	}, nil
 }
 
-func (s *orderService) CancelShipping(ctx context.Context, orderUUID uuid.UUID, input v1dto.CancelShippingInput) (v1dto.CancelShippingResponseDTO, error) {
+func (s *orderShippingService) CancelShipping(ctx context.Context, orderUUID uuid.UUID, input v1dto.CancelShippingInput) (v1dto.CancelShippingResponseDTO, error) {
 	order, err := s.orderRepo.GetByUUID(ctx, orderUUID)
 	if err != nil {
 		return v1dto.CancelShippingResponseDTO{}, s.handleOrderNotFoundError(err)
@@ -530,7 +586,7 @@ func (s *orderService) CancelShipping(ctx context.Context, orderUUID uuid.UUID, 
 	}, nil
 }
 
-func (s *orderService) ConfirmOrderDelivery(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (v1dto.ConfirmDeliveryResponseDTO, error) {
+func (s *orderShippingService) ConfirmOrderDelivery(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (v1dto.ConfirmDeliveryResponseDTO, error) {
 	user, err := s.userRepo.GetByUUID(ctx, userUUID)
 	if err != nil {
 		return v1dto.ConfirmDeliveryResponseDTO{}, s.handleUserNotFoundError(err)
@@ -630,7 +686,7 @@ func (s *orderService) ConfirmOrderDelivery(ctx context.Context, userUUID uuid.U
 	}, nil
 }
 
-func (s *orderService) GetPrintBill(ctx context.Context, orderUUID uuid.UUID) (v1dto.PrintBillResponseDTO, error) {
+func (s *orderShippingService) GetPrintBill(ctx context.Context, orderUUID uuid.UUID) (v1dto.PrintBillResponseDTO, error) {
 	order, err := s.orderRepo.GetByUUID(ctx, orderUUID)
 	if err != nil {
 		return v1dto.PrintBillResponseDTO{}, s.handleOrderNotFoundError(err)
@@ -672,11 +728,13 @@ func (s *orderService) GetPrintBill(ctx context.Context, orderUUID uuid.UUID) (v
 	}, nil
 }
 
-func (s *orderService) GetProvinces(ctx context.Context) ([]v1dto.ProvinceDTO, error) {
+func (s *orderShippingService) GetProvinces(ctx context.Context) ([]v1dto.ProvinceDTO, error) {
 	cacheKey := "shipping:ghn:provinces"
 	var cached []v1dto.ProvinceDTO
-	if err := s.cache.Get(cacheKey, &cached); err == nil && len(cached) > 0 {
-		return cached, nil
+	if s.cache != nil {
+		if err := s.cache.Get(cacheKey, &cached); err == nil && len(cached) > 0 {
+			return cached, nil
+		}
 	}
 
 	provider, err := s.shippingFactory.GetProvider("ghn")
@@ -694,16 +752,20 @@ func (s *orderService) GetProvinces(ctx context.Context) ([]v1dto.ProvinceDTO, e
 		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to get provinces from GHN", err)
 	}
 
-	_ = s.cache.Set(cacheKey, provinces, 24*time.Hour)
+	if s.cache != nil {
+		_ = s.cache.Set(cacheKey, provinces, 24*time.Hour)
+	}
 
 	return provinces, nil
 }
 
-func (s *orderService) GetDistricts(ctx context.Context, provinceID int) ([]v1dto.DistrictDTO, error) {
+func (s *orderShippingService) GetDistricts(ctx context.Context, provinceID int) ([]v1dto.DistrictDTO, error) {
 	cacheKey := fmt.Sprintf("shipping:ghn:districts:%d", provinceID)
 	var cached []v1dto.DistrictDTO
-	if err := s.cache.Get(cacheKey, &cached); err == nil && len(cached) > 0 {
-		return cached, nil
+	if s.cache != nil {
+		if err := s.cache.Get(cacheKey, &cached); err == nil && len(cached) > 0 {
+			return cached, nil
+		}
 	}
 
 	provider, err := s.shippingFactory.GetProvider("ghn")
@@ -720,16 +782,20 @@ func (s *orderService) GetDistricts(ctx context.Context, provinceID int) ([]v1dt
 	if err != nil {
 		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to fetch districts from GHN", err)
 	}
-	_ = s.cache.Set(cacheKey, districts, addressCacheTTL)
+	if s.cache != nil {
+		_ = s.cache.Set(cacheKey, districts, addressCacheTTL)
+	}
 
 	return districts, nil
 }
 
-func (s *orderService) GetWards(ctx context.Context, districtID int) ([]v1dto.WardDTO, error) {
+func (s *orderShippingService) GetWards(ctx context.Context, districtID int) ([]v1dto.WardDTO, error) {
 	cacheKey := fmt.Sprintf("shipping:ghn:wards:%d", districtID)
 	var cached []v1dto.WardDTO
-	if err := s.cache.Get(cacheKey, &cached); err == nil && len(cached) > 0 {
-		return cached, nil
+	if s.cache != nil {
+		if err := s.cache.Get(cacheKey, &cached); err == nil && len(cached) > 0 {
+			return cached, nil
+		}
 	}
 
 	provider, err := s.shippingFactory.GetProvider("ghn")
@@ -746,12 +812,14 @@ func (s *orderService) GetWards(ctx context.Context, districtID int) ([]v1dto.Wa
 	if err != nil {
 		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to fetch wards from GHN", err)
 	}
-	_ = s.cache.Set(cacheKey, wards, addressCacheTTL)
+	if s.cache != nil {
+		_ = s.cache.Set(cacheKey, wards, addressCacheTTL)
+	}
 
 	return wards, nil
 }
 
-func (s *orderService) SyncOrderTracking(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (v1dto.SyncTrackingResponseDTO, error) {
+func (s *orderShippingService) SyncOrderTracking(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (v1dto.SyncTrackingResponseDTO, error) {
 	user, err := s.userRepo.GetByUUID(ctx, userUUID)
 	if err != nil {
 		return v1dto.SyncTrackingResponseDTO{}, s.handleUserNotFoundError(err)
@@ -785,7 +853,6 @@ func (s *orderService) SyncOrderTracking(ctx context.Context, userUUID uuid.UUID
 		return v1dto.SyncTrackingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Unsupported shipping provider", err)
 	}
 
-	// Call shipping provider API to get tracking info
 	trackingInfo, err := provider.GetTrackingInfo(ctx, shippingCode)
 	if err != nil {
 		logger.Log.Error().
@@ -829,7 +896,6 @@ func (s *orderService) SyncOrderTracking(ctx context.Context, userUUID uuid.UUID
 				_ = s.cache.Clear("orders:*")
 			}
 
-			// Realtime notify
 			if s.notificationService != nil {
 				go func() {
 					_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
@@ -846,7 +912,6 @@ func (s *orderService) SyncOrderTracking(ctx context.Context, userUUID uuid.UUID
 			}
 		}
 	} else {
-		// Write log if this is has a new status
 		existingEvents, _ := s.trackingRepo.GetByOrderID(ctx, order.OrderID)
 		hasStatusAlready := false
 		for _, ev := range existingEvents {
@@ -867,7 +932,6 @@ func (s *orderService) SyncOrderTracking(ctx context.Context, userUUID uuid.UUID
 		}
 	}
 
-	// Get all latest timeline
 	updatedEvents, _ := s.trackingRepo.GetByOrderID(ctx, order.OrderID)
 
 	return v1dto.SyncTrackingResponseDTO{
@@ -884,7 +948,7 @@ func (s *orderService) SyncOrderTracking(ctx context.Context, userUUID uuid.UUID
 	}, nil
 }
 
-func (s *orderService) AdminSyncActiveShippingOrders(ctx context.Context, userUUID uuid.UUID) (v1dto.SyncActiveShippingStatsDTO, error) {
+func (s *orderShippingService) AdminSyncActiveShippingOrders(ctx context.Context, userUUID uuid.UUID) (v1dto.SyncActiveShippingStatsDTO, error) {
 	user, err := s.userRepo.GetByUUID(ctx, userUUID)
 	if err != nil {
 		return v1dto.SyncActiveShippingStatsDTO{}, s.handleUserNotFoundError(err)
@@ -897,7 +961,7 @@ func (s *orderService) AdminSyncActiveShippingOrders(ctx context.Context, userUU
 	return s.SyncActiveShippingOrders(ctx)
 }
 
-func (s *orderService) SyncActiveShippingOrders(ctx context.Context) (v1dto.SyncActiveShippingStatsDTO, error) {
+func (s *orderShippingService) SyncActiveShippingOrders(ctx context.Context) (v1dto.SyncActiveShippingStatsDTO, error) {
 	const batchLimit int32 = 50
 	orders, err := s.orderRepo.GetActiveShippedOrders(ctx, batchLimit)
 	if err != nil {

@@ -17,12 +17,20 @@ import (
 )
 
 type OrderHandler struct {
-	service v1service.OrderService
+	service         v1service.OrderService
+	shippingService v1service.OrderShippingService
+	returnService   v1service.OrderReturnService
 }
 
-func NewOrderHandler(service v1service.OrderService) *OrderHandler {
+func NewOrderHandler(
+	service v1service.OrderService,
+	shippingService v1service.OrderShippingService,
+	returnService v1service.OrderReturnService,
+) *OrderHandler {
 	return &OrderHandler{
-		service: service,
+		service:         service,
+		shippingService: shippingService,
+		returnService:   returnService,
 	}
 }
 
@@ -458,7 +466,7 @@ func (oh *OrderHandler) CreateShipping(ctx *gin.Context) {
 		return
 	}
 
-	res, err := oh.service.CreateShipping(ctx.Request.Context(), orderUUID, input)
+	res, err := oh.shippingService.CreateShipping(ctx.Request.Context(), orderUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -498,7 +506,7 @@ func (oh *OrderHandler) GetOrderTimeline(ctx *gin.Context) {
 		return
 	}
 
-	timeline, err := oh.service.GetOrderTimeline(ctx.Request.Context(), userUUID, orderUUID)
+	timeline, err := oh.shippingService.GetOrderTimeline(ctx.Request.Context(), userUUID, orderUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -535,7 +543,7 @@ func (oh *OrderHandler) HandleShippingWebhook(ctx *gin.Context) {
 		return
 	}
 
-	if err := oh.service.HandleShippingWebhook(ctx.Request.Context(), rawBody, payload); err != nil {
+	if err := oh.shippingService.HandleShippingWebhook(ctx.Request.Context(), rawBody, payload); err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
@@ -565,7 +573,7 @@ func (oh *OrderHandler) CalculateShippingFee(ctx *gin.Context) {
 		return
 	}
 
-	res, err := oh.service.CalculateShippingFee(ctx.Request.Context(), input)
+	res, err := oh.shippingService.CalculateShippingFee(ctx.Request.Context(), input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -603,7 +611,7 @@ func (oh *OrderHandler) CancelShipping(ctx *gin.Context) {
 		return
 	}
 
-	res, err := oh.service.CancelShipping(ctx.Request.Context(), orderUUID, input)
+	res, err := oh.shippingService.CancelShipping(ctx.Request.Context(), orderUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -636,7 +644,7 @@ func (oh *OrderHandler) GetPrintBill(ctx *gin.Context) {
 		return
 	}
 
-	res, err := oh.service.GetPrintBill(ctx.Request.Context(), orderUUID)
+	res, err := oh.shippingService.GetPrintBill(ctx.Request.Context(), orderUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -654,7 +662,7 @@ func (oh *OrderHandler) GetPrintBill(ctx *gin.Context) {
 // @Failure      400 {object} utils.ErrorResponse
 // @Router       /shipping/provinces [get]
 func (oh *OrderHandler) GetProvinces(ctx *gin.Context) {
-	provinces, err := oh.service.GetProvinces(ctx.Request.Context())
+	provinces, err := oh.shippingService.GetProvinces(ctx.Request.Context())
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -678,7 +686,7 @@ func (oh *OrderHandler) GetDistricts(ctx *gin.Context) {
 		return
 	}
 
-	districts, err := oh.service.GetDistricts(ctx.Request.Context(), query.ProvinceID)
+	districts, err := oh.shippingService.GetDistricts(ctx.Request.Context(), query.ProvinceID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -702,7 +710,7 @@ func (oh *OrderHandler) GetWards(ctx *gin.Context) {
 		return
 	}
 
-	wards, err := oh.service.GetWards(ctx.Request.Context(), query.DistrictID)
+	wards, err := oh.shippingService.GetWards(ctx.Request.Context(), query.DistrictID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -796,7 +804,7 @@ func (oh *OrderHandler) RequestOrderReturn(ctx *gin.Context) {
 		}
 	}
 
-	returnDTO, err := oh.service.RequestOrderReturn(ctx.Request.Context(), userUUID, orderUUID, input, images, videoURL)
+	returnDTO, err := oh.returnService.RequestOrderReturn(ctx.Request.Context(), userUUID, orderUUID, input, images, videoURL)
 	if err != nil {
 		oh.cleanupFiles(savedFiles, uploadDir)
 		utils.ResponseError(ctx, err)
@@ -837,7 +845,7 @@ func (oh *OrderHandler) GetOrderReturnDetails(ctx *gin.Context) {
 		return
 	}
 
-	res, err := oh.service.GetOrderReturnDetails(ctx.Request.Context(), userUUID, orderUUID)
+	res, err := oh.returnService.GetOrderReturnDetails(ctx.Request.Context(), userUUID, orderUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -874,7 +882,7 @@ func (oh *OrderHandler) GetMyOrderReturns(ctx *gin.Context) {
 		return
 	}
 
-	returns, total, err := oh.service.GetMyOrderReturns(ctx.Request.Context(), userUUID, query)
+	returns, total, err := oh.returnService.GetMyOrderReturns(ctx.Request.Context(), userUUID, query)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -928,7 +936,7 @@ func (oh *OrderHandler) AdminGetReturns(ctx *gin.Context) {
 		return
 	}
 
-	returns, total, err := oh.service.AdminGetReturns(ctx.Request.Context(), userUUID, query)
+	returns, total, err := oh.returnService.AdminGetReturns(ctx.Request.Context(), userUUID, query)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -979,7 +987,7 @@ func (oh *OrderHandler) AdminGetReturnDetail(ctx *gin.Context) {
 		return
 	}
 
-	res, err := oh.service.AdminGetReturnDetail(ctx.Request.Context(), userUUID, returnUUID)
+	res, err := oh.returnService.AdminGetReturnDetail(ctx.Request.Context(), userUUID, returnUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -1027,7 +1035,7 @@ func (oh *OrderHandler) AdminUpdateReturnStatus(ctx *gin.Context) {
 		return
 	}
 
-	res, err := oh.service.AdminUpdateReturnStatus(ctx.Request.Context(), userUUID, returnUUID, input)
+	res, err := oh.returnService.AdminUpdateReturnStatus(ctx.Request.Context(), userUUID, returnUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -1072,7 +1080,7 @@ func (oh *OrderHandler) CancelOrderReturn(ctx *gin.Context) {
 	var input v1dto.CancelOrderReturnInput
 	_ = ctx.ShouldBindJSON(&input)
 
-	res, err := oh.service.CancelOrderReturn(ctx.Request.Context(), userUUID, orderUUID, input)
+	res, err := oh.returnService.CancelOrderReturn(ctx.Request.Context(), userUUID, orderUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -1120,7 +1128,7 @@ func (oh *OrderHandler) SubmitReturnShipping(ctx *gin.Context) {
 		return
 	}
 
-	res, err := oh.service.SubmitReturnShipping(ctx.Request.Context(), userUUID, orderUUID, input)
+	res, err := oh.returnService.SubmitReturnShipping(ctx.Request.Context(), userUUID, orderUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -1168,7 +1176,7 @@ func (oh *OrderHandler) UpdateReturnBankAccount(ctx *gin.Context) {
 		return
 	}
 
-	res, err := oh.service.UpdateReturnBankAccount(ctx.Request.Context(), userUUID, orderUUID, input)
+	res, err := oh.returnService.UpdateReturnBankAccount(ctx.Request.Context(), userUUID, orderUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -1213,7 +1221,7 @@ func (oh *OrderHandler) AdminProcessReturnRefund(ctx *gin.Context) {
 	var input v1dto.AdminReturnRefundInput
 	_ = ctx.ShouldBindJSON(&input)
 
-	res, err := oh.service.AdminProcessReturnRefund(ctx.Request.Context(), userUUID, returnUUID, input)
+	res, err := oh.returnService.AdminProcessReturnRefund(ctx.Request.Context(), userUUID, returnUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -1253,7 +1261,7 @@ func (oh *OrderHandler) ConfirmOrderDelivery(ctx *gin.Context) {
 		return
 	}
 
-	res, err := oh.service.ConfirmOrderDelivery(ctx.Request.Context(), userUUID, orderUUID)
+	res, err := oh.shippingService.ConfirmOrderDelivery(ctx.Request.Context(), userUUID, orderUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -1293,7 +1301,7 @@ func (oh *OrderHandler) SyncOrderTracking(ctx *gin.Context) {
 		return
 	}
 
-	result, err := oh.service.SyncOrderTracking(ctx.Request.Context(), userUUID, orderUUID)
+	result, err := oh.shippingService.SyncOrderTracking(ctx.Request.Context(), userUUID, orderUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -1320,7 +1328,7 @@ func (oh *OrderHandler) AdminSyncActiveTracking(ctx *gin.Context) {
 		return
 	}
 
-	stats, err := oh.service.AdminSyncActiveShippingOrders(ctx.Request.Context(), userUUID)
+	stats, err := oh.shippingService.AdminSyncActiveShippingOrders(ctx.Request.Context(), userUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return

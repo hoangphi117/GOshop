@@ -69,12 +69,52 @@ func NewOrderModule(ctx *ModuleContext, wsHub ws.Hub, rabbitmqService rabbitmq.R
 	pricingService := v1service.NewOrderPricingService(couponRepo)
 	inventoryService := v1service.NewInventoryService(productRepo)
 
-	orderService := v1service.NewOrderService(ctx.TxManager, pricingService, inventoryService, orderRepo, orderItemRepo, orderReturnRepo, productRepo, userRepo,
-		cartService, cartRepo, couponRepo, trackingRepo, webhookRepo,
-		paymentRepo, paymentProviders, notificationService, ctx.Redis, shippingFactory, rabbitmqService)
+	orderService := v1service.NewOrderService(
+		ctx.TxManager,
+		pricingService,
+		inventoryService,
+		orderRepo,
+		orderItemRepo,
+		productRepo,
+		userRepo,
+		cartService,
+		cartRepo,
+		couponRepo,
+		trackingRepo,
+		paymentRepo,
+		notificationService,
+		ctx.Redis,
+	)
+
+	shippingService := v1service.NewOrderShippingService(
+		ctx.TxManager,
+		orderRepo,
+		orderItemRepo,
+		trackingRepo,
+		shippingFactory,
+		webhookRepo,
+		notificationService,
+		userRepo,
+		ctx.Redis,
+		rabbitmqService,
+	)
+
+	returnService := v1service.NewOrderReturnService(
+		ctx.TxManager,
+		orderRepo,
+		orderItemRepo,
+		orderReturnRepo,
+		productRepo,
+		userRepo,
+		trackingRepo,
+		paymentRepo,
+		paymentProviders,
+		notificationService,
+		ctx.Redis,
+	)
 
 	go func() {
-		err := rabbitmqService.Consume(context.Background(), v1service.QueueShippingCreate, orderService.ProcessShippingOrderMessage)
+		err := rabbitmqService.Consume(context.Background(), v1service.QueueShippingCreate, shippingService.ProcessShippingOrderMessage)
 		if err != nil {
 			logger.Log.Error().Err(err).Msg("Failed to start RabbitMQ consumer for shipping.order.create")
 		}
@@ -96,13 +136,13 @@ func NewOrderModule(ctx *ModuleContext, wsHub ws.Hub, rabbitmqService rabbitmq.R
 			Msg("Shipping tracking sync cronjob worker started")
 
 		for range ticker.C {
-			if _, err := orderService.SyncActiveShippingOrders(context.Background()); err != nil {
+			if _, err := shippingService.SyncActiveShippingOrders(context.Background()); err != nil {
 				logger.Log.Error().Err(err).Msg("Error occurred during periodic shipping sync cronjob")
 			}
 		}
 	}()
 
-	orderHandler := v1handler.NewOrderHandler(orderService)
+	orderHandler := v1handler.NewOrderHandler(orderService, shippingService, returnService)
 
 	orderRoutes := v1routes.NewOrderRoutes(orderHandler)
 	adminOrderRoutes := v1routes.NewAdminOrderRoutes(orderHandler)

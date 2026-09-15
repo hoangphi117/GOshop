@@ -21,20 +21,23 @@ import (
 
 // Ensure mocks implement service interfaces at compile time
 var (
-	_ v1service.OrderPricingService = (*MockOrderPricingService)(nil)
-	_ v1service.InventoryService    = (*MockInventoryService)(nil)
-	_ v1service.NotificationService = (*MockNotificationService)(nil)
-	_ v1service.CartService         = (*MockCartService)(nil)
-	_ v1service.CouponService       = (*MockCouponService)(nil)
-	_ v1service.ReviewService       = (*MockReviewService)(nil)
-	_ v1service.AddressService      = (*MockAddressService)(nil)
-	_ v1service.PaymentService      = (*MockPaymentService)(nil)
-	_ rabbitmq.RabbitMQService      = (*MockRabbitMQService)(nil)
-	_ shipping.ShippingProvider     = (*MockShippingProvider)(nil)
-	_ payment.PaymentProvider       = (*MockPaymentProvider)(nil)
-	_ auth.TokenService             = (*MockTokenService)(nil)
-	_ mail.EmailProviderService     = (*MockEmailProviderService)(nil)
-	_ cache.RedisCacheService       = (*MockRedisCacheService)(nil)
+	_ v1service.OrderPricingService  = (*MockOrderPricingService)(nil)
+	_ v1service.InventoryService     = (*MockInventoryService)(nil)
+	_ v1service.NotificationService  = (*MockNotificationService)(nil)
+	_ v1service.CartService          = (*MockCartService)(nil)
+	_ v1service.CouponService        = (*MockCouponService)(nil)
+	_ v1service.ReviewService        = (*MockReviewService)(nil)
+	_ v1service.AddressService       = (*MockAddressService)(nil)
+	_ v1service.PaymentService       = (*MockPaymentService)(nil)
+	_ v1service.OrderService         = (*MockOrderService)(nil)
+	_ v1service.OrderShippingService = (*MockOrderShippingService)(nil)
+	_ v1service.OrderReturnService   = (*MockOrderReturnService)(nil)
+	_ rabbitmq.RabbitMQService       = (*MockRabbitMQService)(nil)
+	_ shipping.ShippingProvider      = (*MockShippingProvider)(nil)
+	_ payment.PaymentProvider        = (*MockPaymentProvider)(nil)
+	_ auth.TokenService              = (*MockTokenService)(nil)
+	_ mail.EmailProviderService      = (*MockEmailProviderService)(nil)
+	_ cache.RedisCacheService        = (*MockRedisCacheService)(nil)
 )
 
 type MockOrderPricingService struct {
@@ -822,6 +825,279 @@ func (m *MockPaymentService) ReconcilePendingPayments(ctx context.Context) error
 		return m.ReconcilePendingPaymentsFunc(ctx)
 	}
 	return nil
+}
+
+type MockOrderService struct {
+	CreateOrderFunc              func(ctx context.Context, userUUID uuid.UUID, input v1dto.CreateOrderInput) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error)
+	GetMyOrdersFunc              func(ctx context.Context, userUUID uuid.UUID, input v1dto.GetOrdersParam) ([]v1dto.OrderSummaryDTO, int32, error)
+	GetOrderByUUIDFunc           func(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (sqlc.GetOrderByUUIDRow, []sqlc.GetOrderItemsByOrderIDRow, error)
+	GetAllOrdersFunc             func(ctx context.Context, input v1dto.GetOrdersParam) ([]v1dto.OrderSummaryDTO, int32, error)
+	UpdateOrderStatusFunc        func(ctx context.Context, input sqlc.UpdateOrderStatusParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error)
+	CancelOrderFunc              func(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, reason *string) (sqlc.Order, error)
+	UpdateOrderShippingInfoFunc  func(ctx context.Context, userUUID uuid.UUID, input sqlc.UpdateOrderShippingInfoParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error)
+	UpdateOrderPaymentStatusFunc func(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.UpdateOrderPaymentStatusInput) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error)
+	GetOrderInvoicePDFFunc       func(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) ([]byte, string, error)
+}
+
+func (m *MockOrderService) CreateOrder(ctx context.Context, userUUID uuid.UUID, input v1dto.CreateOrderInput) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
+	if m.CreateOrderFunc != nil {
+		return m.CreateOrderFunc(ctx, userUUID, input)
+	}
+	return sqlc.Order{}, nil, nil
+}
+
+func (m *MockOrderService) GetMyOrders(ctx context.Context, userUUID uuid.UUID, input v1dto.GetOrdersParam) ([]v1dto.OrderSummaryDTO, int32, error) {
+	if m.GetMyOrdersFunc != nil {
+		return m.GetMyOrdersFunc(ctx, userUUID, input)
+	}
+	return nil, 0, nil
+}
+
+func (m *MockOrderService) GetOrderByUUID(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (sqlc.GetOrderByUUIDRow, []sqlc.GetOrderItemsByOrderIDRow, error) {
+	if m.GetOrderByUUIDFunc != nil {
+		return m.GetOrderByUUIDFunc(ctx, userUUID, orderUUID)
+	}
+	return sqlc.GetOrderByUUIDRow{}, nil, nil
+}
+
+func (m *MockOrderService) GetAllOrders(ctx context.Context, input v1dto.GetOrdersParam) ([]v1dto.OrderSummaryDTO, int32, error) {
+	if m.GetAllOrdersFunc != nil {
+		return m.GetAllOrdersFunc(ctx, input)
+	}
+	return nil, 0, nil
+}
+
+func (m *MockOrderService) UpdateOrderStatus(ctx context.Context, input sqlc.UpdateOrderStatusParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
+	if m.UpdateOrderStatusFunc != nil {
+		return m.UpdateOrderStatusFunc(ctx, input)
+	}
+	return sqlc.Order{}, nil, nil
+}
+
+func (m *MockOrderService) CancelOrder(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, reason *string) (sqlc.Order, error) {
+	if m.CancelOrderFunc != nil {
+		return m.CancelOrderFunc(ctx, userUUID, orderUUID, reason)
+	}
+	return sqlc.Order{}, nil
+}
+
+func (m *MockOrderService) UpdateOrderShippingInfo(ctx context.Context, userUUID uuid.UUID, input sqlc.UpdateOrderShippingInfoParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
+	if m.UpdateOrderShippingInfoFunc != nil {
+		return m.UpdateOrderShippingInfoFunc(ctx, userUUID, input)
+	}
+	return sqlc.Order{}, nil, nil
+}
+
+func (m *MockOrderService) UpdateOrderPaymentStatus(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.UpdateOrderPaymentStatusInput) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
+	if m.UpdateOrderPaymentStatusFunc != nil {
+		return m.UpdateOrderPaymentStatusFunc(ctx, userUUID, orderUUID, input)
+	}
+	return sqlc.Order{}, nil, nil
+}
+
+func (m *MockOrderService) GetOrderInvoicePDF(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) ([]byte, string, error) {
+	if m.GetOrderInvoicePDFFunc != nil {
+		return m.GetOrderInvoicePDFFunc(ctx, userUUID, orderUUID)
+	}
+	return nil, "", nil
+}
+
+type MockOrderShippingService struct {
+	CreateShippingFunc                func(ctx context.Context, orderUUID uuid.UUID, input v1dto.CreateShippingInput) (v1dto.AsyncShippingResponseDTO, error)
+	ProcessShippingOrderMessageFunc   func(headers amqp.Table, body []byte) error
+	GetOrderTimelineFunc              func(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (v1dto.OrderTimelineResponseDTO, error)
+	HandleShippingWebhookFunc         func(ctx context.Context, rawBody []byte, payload v1dto.GHNWebhookPayload) error
+	CalculateShippingFeeFunc          func(ctx context.Context, input v1dto.CalculateShippingFeeInput) (v1dto.ShippingFeeResponseDTO, error)
+	CancelShippingFunc                func(ctx context.Context, orderUUID uuid.UUID, input v1dto.CancelShippingInput) (v1dto.CancelShippingResponseDTO, error)
+	ConfirmOrderDeliveryFunc          func(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (v1dto.ConfirmDeliveryResponseDTO, error)
+	GetPrintBillFunc                  func(ctx context.Context, orderUUID uuid.UUID) (v1dto.PrintBillResponseDTO, error)
+	GetProvincesFunc                  func(ctx context.Context) ([]v1dto.ProvinceDTO, error)
+	GetDistrictsFunc                  func(ctx context.Context, provinceID int) ([]v1dto.DistrictDTO, error)
+	GetWardsFunc                      func(ctx context.Context, districtID int) ([]v1dto.WardDTO, error)
+	SyncOrderTrackingFunc             func(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (v1dto.SyncTrackingResponseDTO, error)
+	SyncActiveShippingOrdersFunc      func(ctx context.Context) (v1dto.SyncActiveShippingStatsDTO, error)
+	AdminSyncActiveShippingOrdersFunc func(ctx context.Context, userUUID uuid.UUID) (v1dto.SyncActiveShippingStatsDTO, error)
+}
+
+func (m *MockOrderShippingService) CreateShipping(ctx context.Context, orderUUID uuid.UUID, input v1dto.CreateShippingInput) (v1dto.AsyncShippingResponseDTO, error) {
+	if m.CreateShippingFunc != nil {
+		return m.CreateShippingFunc(ctx, orderUUID, input)
+	}
+	return v1dto.AsyncShippingResponseDTO{}, nil
+}
+
+func (m *MockOrderShippingService) ProcessShippingOrderMessage(headers amqp.Table, body []byte) error {
+	if m.ProcessShippingOrderMessageFunc != nil {
+		return m.ProcessShippingOrderMessageFunc(headers, body)
+	}
+	return nil
+}
+
+func (m *MockOrderShippingService) GetOrderTimeline(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (v1dto.OrderTimelineResponseDTO, error) {
+	if m.GetOrderTimelineFunc != nil {
+		return m.GetOrderTimelineFunc(ctx, userUUID, orderUUID)
+	}
+	return v1dto.OrderTimelineResponseDTO{}, nil
+}
+
+func (m *MockOrderShippingService) HandleShippingWebhook(ctx context.Context, rawBody []byte, payload v1dto.GHNWebhookPayload) error {
+	if m.HandleShippingWebhookFunc != nil {
+		return m.HandleShippingWebhookFunc(ctx, rawBody, payload)
+	}
+	return nil
+}
+
+func (m *MockOrderShippingService) CalculateShippingFee(ctx context.Context, input v1dto.CalculateShippingFeeInput) (v1dto.ShippingFeeResponseDTO, error) {
+	if m.CalculateShippingFeeFunc != nil {
+		return m.CalculateShippingFeeFunc(ctx, input)
+	}
+	return v1dto.ShippingFeeResponseDTO{}, nil
+}
+
+func (m *MockOrderShippingService) CancelShipping(ctx context.Context, orderUUID uuid.UUID, input v1dto.CancelShippingInput) (v1dto.CancelShippingResponseDTO, error) {
+	if m.CancelShippingFunc != nil {
+		return m.CancelShippingFunc(ctx, orderUUID, input)
+	}
+	return v1dto.CancelShippingResponseDTO{}, nil
+}
+
+func (m *MockOrderShippingService) ConfirmOrderDelivery(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (v1dto.ConfirmDeliveryResponseDTO, error) {
+	if m.ConfirmOrderDeliveryFunc != nil {
+		return m.ConfirmOrderDeliveryFunc(ctx, userUUID, orderUUID)
+	}
+	return v1dto.ConfirmDeliveryResponseDTO{}, nil
+}
+
+func (m *MockOrderShippingService) GetPrintBill(ctx context.Context, orderUUID uuid.UUID) (v1dto.PrintBillResponseDTO, error) {
+	if m.GetPrintBillFunc != nil {
+		return m.GetPrintBillFunc(ctx, orderUUID)
+	}
+	return v1dto.PrintBillResponseDTO{}, nil
+}
+
+func (m *MockOrderShippingService) GetProvinces(ctx context.Context) ([]v1dto.ProvinceDTO, error) {
+	if m.GetProvincesFunc != nil {
+		return m.GetProvincesFunc(ctx)
+	}
+	return nil, nil
+}
+
+func (m *MockOrderShippingService) GetDistricts(ctx context.Context, provinceID int) ([]v1dto.DistrictDTO, error) {
+	if m.GetDistrictsFunc != nil {
+		return m.GetDistrictsFunc(ctx, provinceID)
+	}
+	return nil, nil
+}
+
+func (m *MockOrderShippingService) GetWards(ctx context.Context, districtID int) ([]v1dto.WardDTO, error) {
+	if m.GetWardsFunc != nil {
+		return m.GetWardsFunc(ctx, districtID)
+	}
+	return nil, nil
+}
+
+func (m *MockOrderShippingService) SyncOrderTracking(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (v1dto.SyncTrackingResponseDTO, error) {
+	if m.SyncOrderTrackingFunc != nil {
+		return m.SyncOrderTrackingFunc(ctx, userUUID, orderUUID)
+	}
+	return v1dto.SyncTrackingResponseDTO{}, nil
+}
+
+func (m *MockOrderShippingService) SyncActiveShippingOrders(ctx context.Context) (v1dto.SyncActiveShippingStatsDTO, error) {
+	if m.SyncActiveShippingOrdersFunc != nil {
+		return m.SyncActiveShippingOrdersFunc(ctx)
+	}
+	return v1dto.SyncActiveShippingStatsDTO{}, nil
+}
+
+func (m *MockOrderShippingService) AdminSyncActiveShippingOrders(ctx context.Context, userUUID uuid.UUID) (v1dto.SyncActiveShippingStatsDTO, error) {
+	if m.AdminSyncActiveShippingOrdersFunc != nil {
+		return m.AdminSyncActiveShippingOrdersFunc(ctx, userUUID)
+	}
+	return v1dto.SyncActiveShippingStatsDTO{}, nil
+}
+
+type MockOrderReturnService struct {
+	RequestOrderReturnFunc       func(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.CreateOrderReturnInput, imageURLs []string, videoURL *string) (v1dto.OrderReturnDTO, error)
+	GetOrderReturnDetailsFunc    func(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (v1dto.OrderReturnDetailDTO, error)
+	GetMyOrderReturnsFunc        func(ctx context.Context, userUUID uuid.UUID, query v1dto.GetMyOrderReturnsQuery) ([]v1dto.UserReturnSummaryDTO, int64, error)
+	AdminGetReturnsFunc          func(ctx context.Context, userUUID uuid.UUID, query v1dto.AdminGetReturnsQuery) ([]v1dto.AdminReturnSummaryDTO, int64, error)
+	AdminGetReturnDetailFunc     func(ctx context.Context, userUUID uuid.UUID, returnUUID uuid.UUID) (v1dto.AdminReturnDetailDTO, error)
+	AdminUpdateReturnStatusFunc  func(ctx context.Context, userUUID uuid.UUID, returnUUID uuid.UUID, input v1dto.AdminUpdateReturnInput) (v1dto.AdminReturnSummaryDTO, error)
+	CancelOrderReturnFunc        func(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.CancelOrderReturnInput) (v1dto.CancelOrderReturnResponseDTO, error)
+	SubmitReturnShippingFunc     func(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.SubmitReturnShippingInput) (v1dto.SubmitReturnShippingResponseDTO, error)
+	UpdateReturnBankAccountFunc  func(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.UpdateReturnBankAccountInput) (v1dto.UpdateReturnBankAccountResponseDTO, error)
+	AdminProcessReturnRefundFunc func(ctx context.Context, userUUID uuid.UUID, returnUUID uuid.UUID, input v1dto.AdminReturnRefundInput) (v1dto.AdminReturnRefundResponseDTO, error)
+}
+
+func (m *MockOrderReturnService) RequestOrderReturn(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.CreateOrderReturnInput, imageURLs []string, videoURL *string) (v1dto.OrderReturnDTO, error) {
+	if m.RequestOrderReturnFunc != nil {
+		return m.RequestOrderReturnFunc(ctx, userUUID, orderUUID, input, imageURLs, videoURL)
+	}
+	return v1dto.OrderReturnDTO{}, nil
+}
+
+func (m *MockOrderReturnService) GetOrderReturnDetails(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (v1dto.OrderReturnDetailDTO, error) {
+	if m.GetOrderReturnDetailsFunc != nil {
+		return m.GetOrderReturnDetailsFunc(ctx, userUUID, orderUUID)
+	}
+	return v1dto.OrderReturnDetailDTO{}, nil
+}
+
+func (m *MockOrderReturnService) GetMyOrderReturns(ctx context.Context, userUUID uuid.UUID, query v1dto.GetMyOrderReturnsQuery) ([]v1dto.UserReturnSummaryDTO, int64, error) {
+	if m.GetMyOrderReturnsFunc != nil {
+		return m.GetMyOrderReturnsFunc(ctx, userUUID, query)
+	}
+	return nil, 0, nil
+}
+
+func (m *MockOrderReturnService) AdminGetReturns(ctx context.Context, userUUID uuid.UUID, query v1dto.AdminGetReturnsQuery) ([]v1dto.AdminReturnSummaryDTO, int64, error) {
+	if m.AdminGetReturnsFunc != nil {
+		return m.AdminGetReturnsFunc(ctx, userUUID, query)
+	}
+	return nil, 0, nil
+}
+
+func (m *MockOrderReturnService) AdminGetReturnDetail(ctx context.Context, userUUID uuid.UUID, returnUUID uuid.UUID) (v1dto.AdminReturnDetailDTO, error) {
+	if m.AdminGetReturnDetailFunc != nil {
+		return m.AdminGetReturnDetailFunc(ctx, userUUID, returnUUID)
+	}
+	return v1dto.AdminReturnDetailDTO{}, nil
+}
+
+func (m *MockOrderReturnService) AdminUpdateReturnStatus(ctx context.Context, userUUID uuid.UUID, returnUUID uuid.UUID, input v1dto.AdminUpdateReturnInput) (v1dto.AdminReturnSummaryDTO, error) {
+	if m.AdminUpdateReturnStatusFunc != nil {
+		return m.AdminUpdateReturnStatusFunc(ctx, userUUID, returnUUID, input)
+	}
+	return v1dto.AdminReturnSummaryDTO{}, nil
+}
+
+func (m *MockOrderReturnService) CancelOrderReturn(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.CancelOrderReturnInput) (v1dto.CancelOrderReturnResponseDTO, error) {
+	if m.CancelOrderReturnFunc != nil {
+		return m.CancelOrderReturnFunc(ctx, userUUID, orderUUID, input)
+	}
+	return v1dto.CancelOrderReturnResponseDTO{}, nil
+}
+
+func (m *MockOrderReturnService) SubmitReturnShipping(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.SubmitReturnShippingInput) (v1dto.SubmitReturnShippingResponseDTO, error) {
+	if m.SubmitReturnShippingFunc != nil {
+		return m.SubmitReturnShippingFunc(ctx, userUUID, orderUUID, input)
+	}
+	return v1dto.SubmitReturnShippingResponseDTO{}, nil
+}
+
+func (m *MockOrderReturnService) UpdateReturnBankAccount(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.UpdateReturnBankAccountInput) (v1dto.UpdateReturnBankAccountResponseDTO, error) {
+	if m.UpdateReturnBankAccountFunc != nil {
+		return m.UpdateReturnBankAccountFunc(ctx, userUUID, orderUUID, input)
+	}
+	return v1dto.UpdateReturnBankAccountResponseDTO{}, nil
+}
+
+func (m *MockOrderReturnService) AdminProcessReturnRefund(ctx context.Context, userUUID uuid.UUID, returnUUID uuid.UUID, input v1dto.AdminReturnRefundInput) (v1dto.AdminReturnRefundResponseDTO, error) {
+	if m.AdminProcessReturnRefundFunc != nil {
+		return m.AdminProcessReturnRefundFunc(ctx, userUUID, returnUUID, input)
+	}
+	return v1dto.AdminReturnRefundResponseDTO{}, nil
 }
 
 

@@ -7,18 +7,79 @@ import (
 	"testing"
 	"time"
 
+	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
+	"goshop/internal/repository"
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/testutils"
 	"goshop/internal/utils"
+	"goshop/pkg/rabbitmq"
 	"goshop/pkg/shipping"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type testShippingServiceDeps struct {
+	txManager           db.TxManager
+	orderRepo           repository.OrderRepository
+	orderItemRepo       repository.OrderItemRepository
+	trackingRepo        repository.TrackingRepository
+	shippingFactory     *shipping.ShippingFactory
+	webhookRepo         repository.WebhookEventRepository
+	notificationService v1service.NotificationService
+	userRepo            repository.UserRepository
+	redisClient         *redis.Client
+	rabbitmq            rabbitmq.RabbitMQService
+}
+
+func newTestShippingService(deps testShippingServiceDeps) v1service.OrderShippingService {
+	txMgr := deps.txManager
+	if txMgr == nil {
+		txMgr = testutils.NewNoopTxManager()
+	}
+	orderRepo := deps.orderRepo
+	if orderRepo == nil {
+		orderRepo = &testutils.MockOrderRepository{}
+	}
+	orderItemRepo := deps.orderItemRepo
+	if orderItemRepo == nil {
+		orderItemRepo = &testutils.MockOrderItemRepository{}
+	}
+	trackingRepo := deps.trackingRepo
+	if trackingRepo == nil {
+		trackingRepo = &testutils.MockTrackingRepository{}
+	}
+	webhookRepo := deps.webhookRepo
+	if webhookRepo == nil {
+		webhookRepo = &testutils.MockWebhookEventRepository{}
+	}
+	notifService := deps.notificationService
+	if notifService == nil {
+		notifService = &testutils.MockNotificationService{}
+	}
+	userRepo := deps.userRepo
+	if userRepo == nil {
+		userRepo = &testutils.MockUserRepository{}
+	}
+
+	return v1service.NewOrderShippingService(
+		txMgr,
+		orderRepo,
+		orderItemRepo,
+		trackingRepo,
+		deps.shippingFactory,
+		webhookRepo,
+		notifService,
+		userRepo,
+		deps.redisClient,
+		deps.rabbitmq,
+	)
+}
 
 func assertAppErrorCode(t *testing.T, err error, expectedCode utils.ErrorCode) {
 	t.Helper()
@@ -53,12 +114,9 @@ func TestOrderService_CreateShipping(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			orderRepo: mockOrderRepo,
+		})
 
 		res, err := svc.CreateShipping(ctx, orderUUID, baseInput)
 		require.Error(t, err)
@@ -77,12 +135,9 @@ func TestOrderService_CreateShipping(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			orderRepo: mockOrderRepo,
+		})
 
 		res, err := svc.CreateShipping(ctx, orderUUID, baseInput)
 		require.Error(t, err)
@@ -104,12 +159,9 @@ func TestOrderService_CreateShipping(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			orderRepo: mockOrderRepo,
+		})
 
 		res, err := svc.CreateShipping(ctx, orderUUID, baseInput)
 		require.Error(t, err)
@@ -135,13 +187,10 @@ func TestOrderService_CreateShipping(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-			mockRabbitMQ,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			orderRepo: mockOrderRepo,
+			rabbitmq: mockRabbitMQ,
+		})
 
 		res, err := svc.CreateShipping(ctx, orderUUID, baseInput)
 		require.Error(t, err)
@@ -172,13 +221,10 @@ func TestOrderService_CreateShipping(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-			mockRabbitMQ,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			orderRepo: mockOrderRepo,
+			rabbitmq: mockRabbitMQ,
+		})
 
 		res, err := svc.CreateShipping(ctx, orderUUID, baseInput)
 		require.NoError(t, err)
@@ -210,10 +256,7 @@ func TestOrderService_ProcessShippingOrderMessage(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("Case 1: Invalid JSON Message - Returns Error", func(t *testing.T) {
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{})
 
 		err := svc.ProcessShippingOrderMessage(nil, []byte("invalid json"))
 		require.Error(t, err)
@@ -226,12 +269,9 @@ func TestOrderService_ProcessShippingOrderMessage(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			orderRepo: mockOrderRepo,
+		})
 
 		err := svc.ProcessShippingOrderMessage(nil, body)
 		require.Error(t, err)
@@ -266,15 +306,11 @@ func TestOrderService_ProcessShippingOrderMessage(t *testing.T) {
 		}
 		factory := shipping.NewShippingFactory(mockProvider)
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			mockOrderItemRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-			factory,
-			nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			orderRepo: mockOrderRepo,
+			orderItemRepo: mockOrderItemRepo,
+			shippingFactory: factory,
+		})
 
 		err := svc.ProcessShippingOrderMessage(nil, body)
 		require.Error(t, err)
@@ -341,19 +377,13 @@ func TestOrderService_ProcessShippingOrderMessage(t *testing.T) {
 		}
 		factory := shipping.NewShippingFactory(mockProvider)
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			mockOrderItemRepo,
-			nil, nil, nil, nil, nil, nil,
-			mockTrackingRepo,
-			nil, nil, nil,
-			mockNotification,
-			nil,
-			factory,
-			nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			orderRepo: mockOrderRepo,
+			orderItemRepo: mockOrderItemRepo,
+			trackingRepo: mockTrackingRepo,
+			shippingFactory: factory,
+			notificationService: mockNotification,
+		})
 
 		err := svc.ProcessShippingOrderMessage(nil, body)
 		require.NoError(t, err)
@@ -382,12 +412,9 @@ func TestOrderService_GetOrderTimeline(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil, nil, nil, nil, nil,
-			mockUserRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			userRepo: mockUserRepo,
+		})
 
 		_, err := svc.GetOrderTimeline(ctx, userUUID, orderUUID)
 		require.Error(t, err)
@@ -407,14 +434,10 @@ func TestOrderService_GetOrderTimeline(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil,
-			mockUserRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			orderRepo: mockOrderRepo,
+			userRepo: mockUserRepo,
+		})
 
 		_, err := svc.GetOrderTimeline(ctx, userUUID, orderUUID)
 		require.Error(t, err)
@@ -438,14 +461,10 @@ func TestOrderService_GetOrderTimeline(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil,
-			mockUserRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			orderRepo: mockOrderRepo,
+			userRepo: mockUserRepo,
+		})
 
 		_, err := svc.GetOrderTimeline(ctx, userUUID, orderUUID)
 		require.Error(t, err)
@@ -489,16 +508,11 @@ func TestOrderService_GetOrderTimeline(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil,
-			mockUserRepo,
-			nil, nil, nil,
-			mockTrackingRepo,
-			nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			orderRepo: mockOrderRepo,
+			trackingRepo: mockTrackingRepo,
+			userRepo: mockUserRepo,
+		})
 
 		timeline, err := svc.GetOrderTimeline(ctx, userUUID, orderUUID)
 		require.NoError(t, err)
@@ -527,12 +541,9 @@ func TestOrderService_HandleShippingWebhook(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-			mockWebhookRepo,
-			nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			webhookRepo: mockWebhookRepo,
+		})
 
 		err := svc.HandleShippingWebhook(ctx, rawBody, payload)
 		require.Error(t, err)
@@ -557,14 +568,10 @@ func TestOrderService_HandleShippingWebhook(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil,
-			mockWebhookRepo,
-			nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			orderRepo: mockOrderRepo,
+			webhookRepo: mockWebhookRepo,
+		})
 
 		err := svc.HandleShippingWebhook(ctx, rawBody, payload)
 		require.NoError(t, err)
@@ -620,17 +627,12 @@ func TestOrderService_HandleShippingWebhook(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil, nil, nil, nil, nil,
-			mockTrackingRepo,
-			mockWebhookRepo,
-			nil, nil,
-			mockNotification,
-			nil, nil, nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			orderRepo: mockOrderRepo,
+			trackingRepo: mockTrackingRepo,
+			webhookRepo: mockWebhookRepo,
+			notificationService: mockNotification,
+		})
 
 		err := svc.HandleShippingWebhook(ctx, rawBody, payload)
 		require.NoError(t, err)
@@ -677,15 +679,11 @@ func TestOrderService_HandleShippingWebhook(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil, nil, nil, nil, nil,
-			mockTrackingRepo,
-			mockWebhookRepo,
-			nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			orderRepo: mockOrderRepo,
+			trackingRepo: mockTrackingRepo,
+			webhookRepo: mockWebhookRepo,
+		})
 
 		err := svc.HandleShippingWebhook(ctx, rawBody, deliveringPayload)
 		require.NoError(t, err)
@@ -705,12 +703,9 @@ func TestOrderService_CalculateShippingFee(t *testing.T) {
 
 	t.Run("Case 1: Unsupported Provider - Returns 400", func(t *testing.T) {
 		factory := shipping.NewShippingFactory()
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-			factory,
-			nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			shippingFactory: factory,
+		})
 
 		res, err := svc.CalculateShippingFee(ctx, input)
 		require.Error(t, err)
@@ -727,12 +722,9 @@ func TestOrderService_CalculateShippingFee(t *testing.T) {
 		}
 		factory := shipping.NewShippingFactory(mockProvider)
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-			factory,
-			nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			shippingFactory: factory,
+		})
 
 		res, err := svc.CalculateShippingFee(ctx, input)
 		require.NoError(t, err)
@@ -757,12 +749,9 @@ func TestOrderService_CancelShipping(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			orderRepo: mockOrderRepo,
+		})
 
 		_, err := svc.CancelShipping(ctx, orderUUID, input)
 		require.Error(t, err)
@@ -780,12 +769,9 @@ func TestOrderService_CancelShipping(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			orderRepo: mockOrderRepo,
+		})
 
 		_, err := svc.CancelShipping(ctx, orderUUID, input)
 		require.Error(t, err)
@@ -805,12 +791,9 @@ func TestOrderService_CancelShipping(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			orderRepo: mockOrderRepo,
+		})
 
 		_, err := svc.CancelShipping(ctx, orderUUID, input)
 		require.Error(t, err)
@@ -838,14 +821,10 @@ func TestOrderService_CancelShipping(t *testing.T) {
 		}
 		factory := shipping.NewShippingFactory(mockProvider)
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-			factory,
-			nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			orderRepo: mockOrderRepo,
+			shippingFactory: factory,
+		})
 
 		_, err := svc.CancelShipping(ctx, orderUUID, input)
 		require.Error(t, err)
@@ -891,16 +870,11 @@ func TestOrderService_CancelShipping(t *testing.T) {
 		}
 		factory := shipping.NewShippingFactory(mockProvider)
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil, nil, nil, nil, nil,
-			mockTrackingRepo,
-			nil, nil, nil, nil, nil,
-			factory,
-			nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			orderRepo: mockOrderRepo,
+			trackingRepo: mockTrackingRepo,
+			shippingFactory: factory,
+		})
 
 		res, err := svc.CancelShipping(ctx, orderUUID, input)
 		require.NoError(t, err)
@@ -931,12 +905,9 @@ func TestOrderService_ConfirmOrderDelivery(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil, nil, nil, nil, nil,
-			mockUserRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			userRepo: mockUserRepo,
+		})
 
 		_, err := svc.ConfirmOrderDelivery(ctx, userUUID, orderUUID)
 		require.Error(t, err)
@@ -956,14 +927,10 @@ func TestOrderService_ConfirmOrderDelivery(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil,
-			mockUserRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			orderRepo: mockOrderRepo,
+			userRepo: mockUserRepo,
+		})
 
 		_, err := svc.ConfirmOrderDelivery(ctx, userUUID, orderUUID)
 		require.Error(t, err)
@@ -988,14 +955,10 @@ func TestOrderService_ConfirmOrderDelivery(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil,
-			mockUserRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			orderRepo: mockOrderRepo,
+			userRepo: mockUserRepo,
+		})
 
 		_, err := svc.ConfirmOrderDelivery(ctx, userUUID, orderUUID)
 		require.Error(t, err)
@@ -1020,14 +983,10 @@ func TestOrderService_ConfirmOrderDelivery(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil,
-			mockUserRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			orderRepo: mockOrderRepo,
+			userRepo: mockUserRepo,
+		})
 
 		_, err := svc.ConfirmOrderDelivery(ctx, userUUID, orderUUID)
 		require.Error(t, err)
@@ -1080,18 +1039,12 @@ func TestOrderService_ConfirmOrderDelivery(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil,
-			mockUserRepo,
-			nil, nil, nil,
-			mockTrackingRepo,
-			nil, nil, nil,
-			mockNotification,
-			nil, nil, nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			orderRepo: mockOrderRepo,
+			trackingRepo: mockTrackingRepo,
+			notificationService: mockNotification,
+			userRepo: mockUserRepo,
+		})
 
 		res, err := svc.ConfirmOrderDelivery(ctx, userUUID, orderUUID)
 		require.NoError(t, err)
@@ -1115,12 +1068,9 @@ func TestOrderService_GetPrintBill(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			orderRepo: mockOrderRepo,
+		})
 
 		_, err := svc.GetPrintBill(ctx, orderUUID)
 		require.Error(t, err)
@@ -1138,12 +1088,9 @@ func TestOrderService_GetPrintBill(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			orderRepo: mockOrderRepo,
+		})
 
 		_, err := svc.GetPrintBill(ctx, orderUUID)
 		require.Error(t, err)
@@ -1175,14 +1122,10 @@ func TestOrderService_GetPrintBill(t *testing.T) {
 		}
 		factory := shipping.NewShippingFactory(mockProvider)
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-			factory,
-			nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			orderRepo: mockOrderRepo,
+			shippingFactory: factory,
+		})
 
 		res, err := svc.GetPrintBill(ctx, orderUUID)
 		require.NoError(t, err)
@@ -1212,12 +1155,9 @@ func TestOrderService_SyncOrderTracking(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil, nil, nil, nil, nil,
-			mockUserRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			userRepo: mockUserRepo,
+		})
 
 		_, err := svc.SyncOrderTracking(ctx, userUUID, orderUUID)
 		require.Error(t, err)
@@ -1237,14 +1177,10 @@ func TestOrderService_SyncOrderTracking(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil,
-			mockUserRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			orderRepo: mockOrderRepo,
+			userRepo: mockUserRepo,
+		})
 
 		_, err := svc.SyncOrderTracking(ctx, userUUID, orderUUID)
 		require.Error(t, err)
@@ -1268,14 +1204,10 @@ func TestOrderService_SyncOrderTracking(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil,
-			mockUserRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			orderRepo: mockOrderRepo,
+			userRepo: mockUserRepo,
+		})
 
 		_, err := svc.SyncOrderTracking(ctx, userUUID, orderUUID)
 		require.Error(t, err)
@@ -1300,14 +1232,10 @@ func TestOrderService_SyncOrderTracking(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil,
-			mockUserRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			orderRepo: mockOrderRepo,
+			userRepo: mockUserRepo,
+		})
 
 		_, err := svc.SyncOrderTracking(ctx, userUUID, orderUUID)
 		require.Error(t, err)
@@ -1373,20 +1301,13 @@ func TestOrderService_SyncOrderTracking(t *testing.T) {
 		}
 		factory := shipping.NewShippingFactory(mockProvider)
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil,
-			mockUserRepo,
-			nil, nil, nil,
-			mockTrackingRepo,
-			nil, nil, nil,
-			&testutils.MockNotificationService{},
-			nil,
-			factory,
-			nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			orderRepo: mockOrderRepo,
+			trackingRepo: mockTrackingRepo,
+			shippingFactory: factory,
+			notificationService: &testutils.MockNotificationService{},
+			userRepo: mockUserRepo,
+		})
 
 		res, err := svc.SyncOrderTracking(ctx, userUUID, orderUUID)
 		require.NoError(t, err)
@@ -1423,12 +1344,9 @@ func TestOrderService_AdminSyncActiveShippingOrders(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil, nil, nil, nil, nil,
-			mockUserRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			userRepo: mockUserRepo,
+		})
 
 		_, err := svc.AdminSyncActiveShippingOrders(ctx, adminUUID)
 		require.Error(t, err)
@@ -1442,12 +1360,9 @@ func TestOrderService_AdminSyncActiveShippingOrders(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil, nil, nil, nil, nil,
-			mockUserRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			userRepo: mockUserRepo,
+		})
 
 		_, err := svc.AdminSyncActiveShippingOrders(ctx, memberUUID)
 		require.Error(t, err)
@@ -1505,20 +1420,13 @@ func TestOrderService_AdminSyncActiveShippingOrders(t *testing.T) {
 		}
 		factory := shipping.NewShippingFactory(mockProvider)
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil,
-			mockUserRepo,
-			nil, nil, nil,
-			mockTrackingRepo,
-			nil, nil, nil,
-			&testutils.MockNotificationService{},
-			nil,
-			factory,
-			nil,
-		)
+		svc := newTestShippingService(testShippingServiceDeps{
+			orderRepo: mockOrderRepo,
+			trackingRepo: mockTrackingRepo,
+			shippingFactory: factory,
+			notificationService: &testutils.MockNotificationService{},
+			userRepo: mockUserRepo,
+		})
 
 		stats, err := svc.AdminSyncActiveShippingOrders(ctx, adminUUID)
 		require.NoError(t, err)

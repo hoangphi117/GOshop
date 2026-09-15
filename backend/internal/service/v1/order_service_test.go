@@ -6,17 +6,109 @@ import (
 	"testing"
 	"time"
 
+	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
+	"goshop/internal/repository"
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/testutils"
 	"goshop/internal/utils"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type testOrderServiceDeps struct {
+	txManager           db.TxManager
+	pricingService      v1service.OrderPricingService
+	inventoryService    v1service.InventoryService
+	orderRepo           repository.OrderRepository
+	orderItemRepo       repository.OrderItemRepository
+	productRepo         repository.ProductRepository
+	userRepo            repository.UserRepository
+	cartService         v1service.CartService
+	cartRepo            repository.CartRepository
+	couponRepo          repository.CouponRepository
+	trackingRepo        repository.TrackingRepository
+	paymentRepo         repository.PaymentRepository
+	notificationService v1service.NotificationService
+	redisClient         *redis.Client
+}
+
+func newTestOrderService(deps testOrderServiceDeps) v1service.OrderService {
+	txMgr := deps.txManager
+	if txMgr == nil {
+		txMgr = testutils.NewNoopTxManager()
+	}
+	pricingSvc := deps.pricingService
+	if pricingSvc == nil {
+		pricingSvc = &testutils.MockOrderPricingService{}
+	}
+	invSvc := deps.inventoryService
+	if invSvc == nil {
+		invSvc = &testutils.MockInventoryService{}
+	}
+	orderRepo := deps.orderRepo
+	if orderRepo == nil {
+		orderRepo = &testutils.MockOrderRepository{}
+	}
+	orderItemRepo := deps.orderItemRepo
+	if orderItemRepo == nil {
+		orderItemRepo = &testutils.MockOrderItemRepository{}
+	}
+	productRepo := deps.productRepo
+	if productRepo == nil {
+		productRepo = &testutils.MockProductRepository{}
+	}
+	userRepo := deps.userRepo
+	if userRepo == nil {
+		userRepo = &testutils.MockUserRepository{}
+	}
+	cartSvc := deps.cartService
+	if cartSvc == nil {
+		cartSvc = &testutils.MockCartService{}
+	}
+	cartRepo := deps.cartRepo
+	if cartRepo == nil {
+		cartRepo = &testutils.MockCartRepository{}
+	}
+	couponRepo := deps.couponRepo
+	if couponRepo == nil {
+		couponRepo = &testutils.MockCouponRepository{}
+	}
+	trackingRepo := deps.trackingRepo
+	if trackingRepo == nil {
+		trackingRepo = &testutils.MockTrackingRepository{}
+	}
+	paymentRepo := deps.paymentRepo
+	if paymentRepo == nil {
+		paymentRepo = &testutils.MockPaymentRepository{}
+	}
+	notifSvc := deps.notificationService
+	if notifSvc == nil {
+		notifSvc = &testutils.MockNotificationService{}
+	}
+
+	return v1service.NewOrderService(
+		txMgr,
+		pricingSvc,
+		invSvc,
+		orderRepo,
+		orderItemRepo,
+		productRepo,
+		userRepo,
+		cartSvc,
+		cartRepo,
+		couponRepo,
+		trackingRepo,
+		paymentRepo,
+		notifSvc,
+		deps.redisClient,
+	)
+}
 
 func TestOrderService_CreateOrder(t *testing.T) {
 	ctx := context.Background()
@@ -50,27 +142,9 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			&testutils.MockOrderPricingService{},
-			&testutils.MockInventoryService{},
-			&testutils.MockOrderRepository{},
-			&testutils.MockOrderItemRepository{},
-			nil,
-			&testutils.MockProductRepository{},
-			mockUserRepo,
-			&testutils.MockCartService{},
-			&testutils.MockCartRepository{},
-			&testutils.MockCouponRepository{},
-			&testutils.MockTrackingRepository{},
-			nil,
-			nil,
-			nil,
-			&testutils.MockNotificationService{},
-			nil,
-			nil,
-			nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			userRepo: mockUserRepo,
+		})
 
 		_, _, err := svc.CreateOrder(ctx, userUUID, baseInput)
 		require.Error(t, err)
@@ -84,27 +158,9 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			&testutils.MockOrderPricingService{},
-			&testutils.MockInventoryService{},
-			&testutils.MockOrderRepository{},
-			&testutils.MockOrderItemRepository{},
-			nil,
-			&testutils.MockProductRepository{},
-			mockUserRepo,
-			&testutils.MockCartService{},
-			&testutils.MockCartRepository{},
-			&testutils.MockCouponRepository{},
-			&testutils.MockTrackingRepository{},
-			nil,
-			nil,
-			nil,
-			&testutils.MockNotificationService{},
-			nil,
-			nil,
-			nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			userRepo: mockUserRepo,
+		})
 
 		_, _, err := svc.CreateOrder(ctx, userUUID, baseInput)
 		require.Error(t, err)
@@ -124,27 +180,9 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			{ProductUUID: productUUID1.String(), Quantity: 2},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			&testutils.MockOrderPricingService{},
-			&testutils.MockInventoryService{},
-			&testutils.MockOrderRepository{},
-			&testutils.MockOrderItemRepository{},
-			nil,
-			&testutils.MockProductRepository{},
-			mockUserRepo,
-			&testutils.MockCartService{},
-			&testutils.MockCartRepository{},
-			&testutils.MockCouponRepository{},
-			&testutils.MockTrackingRepository{},
-			nil,
-			nil,
-			nil,
-			&testutils.MockNotificationService{},
-			nil,
-			nil,
-			nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			userRepo: mockUserRepo,
+		})
 
 		_, _, err := svc.CreateOrder(ctx, userUUID, inputWithDuplicate)
 		require.Error(t, err)
@@ -163,27 +201,10 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			&testutils.MockOrderPricingService{},
-			mockInventory,
-			&testutils.MockOrderRepository{},
-			&testutils.MockOrderItemRepository{},
-			nil,
-			&testutils.MockProductRepository{},
-			mockUserRepo,
-			&testutils.MockCartService{},
-			&testutils.MockCartRepository{},
-			&testutils.MockCouponRepository{},
-			&testutils.MockTrackingRepository{},
-			nil,
-			nil,
-			nil,
-			&testutils.MockNotificationService{},
-			nil,
-			nil,
-			nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			inventoryService: mockInventory,
+			userRepo: mockUserRepo,
+		})
 
 		_, _, err := svc.CreateOrder(ctx, userUUID, baseInput)
 		require.Error(t, err)
@@ -210,27 +231,11 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			mockPricing,
-			mockInventory,
-			&testutils.MockOrderRepository{},
-			&testutils.MockOrderItemRepository{},
-			nil,
-			&testutils.MockProductRepository{},
-			mockUserRepo,
-			&testutils.MockCartService{},
-			&testutils.MockCartRepository{},
-			&testutils.MockCouponRepository{},
-			&testutils.MockTrackingRepository{},
-			nil,
-			nil,
-			nil,
-			&testutils.MockNotificationService{},
-			nil,
-			nil,
-			nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			pricingService: mockPricing,
+			inventoryService: mockInventory,
+			userRepo: mockUserRepo,
+		})
 
 		_, _, err := svc.CreateOrder(ctx, userUUID, baseInput)
 		require.Error(t, err)
@@ -275,27 +280,12 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			mockPricing,
-			mockInventory,
-			&testutils.MockOrderRepository{},
-			&testutils.MockOrderItemRepository{},
-			nil,
-			&testutils.MockProductRepository{},
-			mockUserRepo,
-			&testutils.MockCartService{},
-			&testutils.MockCartRepository{},
-			mockCouponRepo,
-			&testutils.MockTrackingRepository{},
-			nil,
-			nil,
-			nil,
-			&testutils.MockNotificationService{},
-			nil,
-			nil,
-			nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			pricingService: mockPricing,
+			inventoryService: mockInventory,
+			userRepo: mockUserRepo,
+			couponRepo: mockCouponRepo,
+		})
 
 		_, _, err := svc.CreateOrder(ctx, userUUID, baseInput)
 		require.Error(t, err)
@@ -332,27 +322,12 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			mockPricing,
-			mockInventory,
-			mockOrderRepo,
-			&testutils.MockOrderItemRepository{},
-			nil,
-			&testutils.MockProductRepository{},
-			mockUserRepo,
-			&testutils.MockCartService{},
-			&testutils.MockCartRepository{},
-			&testutils.MockCouponRepository{},
-			&testutils.MockTrackingRepository{},
-			nil,
-			nil,
-			nil,
-			&testutils.MockNotificationService{},
-			nil,
-			nil,
-			nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			pricingService: mockPricing,
+			inventoryService: mockInventory,
+			orderRepo: mockOrderRepo,
+			userRepo: mockUserRepo,
+		})
 
 		_, _, err := svc.CreateOrder(ctx, userUUID, baseInput)
 		require.Error(t, err)
@@ -401,27 +376,13 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			mockPricing,
-			mockInventory,
-			mockOrderRepo,
-			&testutils.MockOrderItemRepository{},
-			nil,
-			&testutils.MockProductRepository{},
-			mockUserRepo,
-			&testutils.MockCartService{},
-			&testutils.MockCartRepository{},
-			mockCouponRepo,
-			&testutils.MockTrackingRepository{},
-			nil,
-			nil,
-			nil,
-			&testutils.MockNotificationService{},
-			nil,
-			nil,
-			nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			pricingService: mockPricing,
+			inventoryService: mockInventory,
+			orderRepo: mockOrderRepo,
+			userRepo: mockUserRepo,
+			couponRepo: mockCouponRepo,
+		})
 
 		_, _, err := svc.CreateOrder(ctx, userUUID, baseInput)
 		require.Error(t, err)
@@ -462,27 +423,13 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			mockPricing,
-			mockInventory,
-			mockOrderRepo,
-			mockOrderItemRepo,
-			nil,
-			&testutils.MockProductRepository{},
-			mockUserRepo,
-			&testutils.MockCartService{},
-			&testutils.MockCartRepository{},
-			&testutils.MockCouponRepository{},
-			&testutils.MockTrackingRepository{},
-			nil,
-			nil,
-			nil,
-			&testutils.MockNotificationService{},
-			nil,
-			nil,
-			nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			pricingService: mockPricing,
+			inventoryService: mockInventory,
+			orderRepo: mockOrderRepo,
+			orderItemRepo: mockOrderItemRepo,
+			userRepo: mockUserRepo,
+		})
 
 		_, _, err := svc.CreateOrder(ctx, userUUID, baseInput)
 		require.Error(t, err)
@@ -528,27 +475,14 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			mockPricing,
-			mockInventory,
-			mockOrderRepo,
-			mockOrderItemRepo,
-			nil,
-			&testutils.MockProductRepository{},
-			mockUserRepo,
-			&testutils.MockCartService{},
-			&testutils.MockCartRepository{},
-			&testutils.MockCouponRepository{},
-			mockTrackingRepo,
-			nil,
-			nil,
-			nil,
-			&testutils.MockNotificationService{},
-			nil,
-			nil,
-			nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			pricingService: mockPricing,
+			inventoryService: mockInventory,
+			orderRepo: mockOrderRepo,
+			orderItemRepo: mockOrderItemRepo,
+			userRepo: mockUserRepo,
+			trackingRepo: mockTrackingRepo,
+		})
 
 		_, _, err := svc.CreateOrder(ctx, userUUID, baseInput)
 		require.Error(t, err)
@@ -597,27 +531,14 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			mockPricing,
-			mockInventory,
-			mockOrderRepo,
-			mockOrderItemRepo,
-			nil,
-			&testutils.MockProductRepository{},
-			mockUserRepo,
-			&testutils.MockCartService{},
-			&testutils.MockCartRepository{},
-			&testutils.MockCouponRepository{},
-			mockTrackingRepo,
-			nil,
-			nil,
-			nil,
-			&testutils.MockNotificationService{},
-			nil,
-			nil,
-			nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			pricingService: mockPricing,
+			inventoryService: mockInventory,
+			orderRepo: mockOrderRepo,
+			orderItemRepo: mockOrderItemRepo,
+			userRepo: mockUserRepo,
+			trackingRepo: mockTrackingRepo,
+		})
 
 		_, _, err := svc.CreateOrder(ctx, userUUID, baseInput)
 		require.Error(t, err)
@@ -759,27 +680,16 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			mockPricing,
-			mockInventory,
-			mockOrderRepo,
-			mockOrderItemRepo,
-			nil,
-			&testutils.MockProductRepository{},
-			mockUserRepo,
-			&testutils.MockCartService{},
-			mockCartRepo,
-			&testutils.MockCouponRepository{},
-			mockTrackingRepo,
-			nil,
-			nil,
-			nil,
-			mockNotification,
-			nil,
-			nil,
-			nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			pricingService: mockPricing,
+			inventoryService: mockInventory,
+			orderRepo: mockOrderRepo,
+			orderItemRepo: mockOrderItemRepo,
+			userRepo: mockUserRepo,
+			cartRepo: mockCartRepo,
+			trackingRepo: mockTrackingRepo,
+			notificationService: mockNotification,
+		})
 
 		order, items, err := svc.CreateOrder(ctx, userUUID, baseInput)
 		require.NoError(t, err)
@@ -921,27 +831,17 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			mockPricing,
-			mockInventory,
-			mockOrderRepo,
-			mockOrderItemRepo,
-			nil,
-			&testutils.MockProductRepository{},
-			mockUserRepo,
-			&testutils.MockCartService{},
-			mockCartRepo,
-			mockCouponRepo,
-			mockTrackingRepo,
-			nil,
-			nil,
-			nil,
-			mockNotification,
-			nil,
-			nil,
-			nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			pricingService: mockPricing,
+			inventoryService: mockInventory,
+			orderRepo: mockOrderRepo,
+			orderItemRepo: mockOrderItemRepo,
+			userRepo: mockUserRepo,
+			cartRepo: mockCartRepo,
+			couponRepo: mockCouponRepo,
+			trackingRepo: mockTrackingRepo,
+			notificationService: mockNotification,
+		})
 
 		order, items, err := svc.CreateOrder(ctx, userUUID, couponInput)
 		require.NoError(t, err)
@@ -1011,27 +911,16 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			mockPricing,
-			mockInventory,
-			mockOrderRepo,
-			mockOrderItemRepo,
-			nil,
-			&testutils.MockProductRepository{},
-			mockUserRepo,
-			&testutils.MockCartService{},
-			mockCartRepo,
-			&testutils.MockCouponRepository{},
-			mockTrackingRepo,
-			nil,
-			nil,
-			nil,
-			mockNotification,
-			nil,
-			nil,
-			nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			pricingService: mockPricing,
+			inventoryService: mockInventory,
+			orderRepo: mockOrderRepo,
+			orderItemRepo: mockOrderItemRepo,
+			userRepo: mockUserRepo,
+			cartRepo: mockCartRepo,
+			trackingRepo: mockTrackingRepo,
+			notificationService: mockNotification,
+		})
 
 		order, items, err := svc.CreateOrder(ctx, userUUID, baseInput)
 		require.NoError(t, err)
@@ -1086,27 +975,15 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			mockPricing,
-			mockInventory,
-			mockOrderRepo,
-			mockOrderItemRepo,
-			nil,
-			&testutils.MockProductRepository{},
-			mockUserRepo,
-			&testutils.MockCartService{},
-			mockCartRepo,
-			&testutils.MockCouponRepository{},
-			mockTrackingRepo,
-			nil,
-			nil,
-			nil,
-			&testutils.MockNotificationService{},
-			nil,
-			nil,
-			nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			pricingService: mockPricing,
+			inventoryService: mockInventory,
+			orderRepo: mockOrderRepo,
+			orderItemRepo: mockOrderItemRepo,
+			userRepo: mockUserRepo,
+			cartRepo: mockCartRepo,
+			trackingRepo: mockTrackingRepo,
+		})
 
 		order, items, err := svc.CreateOrder(ctx, userUUID, baseInput)
 		require.NoError(t, err)
@@ -1164,12 +1041,9 @@ func TestOrderService_CancelOrder(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil, nil, nil, nil, nil,
-			mockUserRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			userRepo: mockUserRepo,
+		})
 
 		_, err := svc.CancelOrder(ctx, userUUID, orderUUID, nil)
 		require.Error(t, err)
@@ -1188,14 +1062,10 @@ func TestOrderService_CancelOrder(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil,
-			mockUserRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+			userRepo: mockUserRepo,
+		})
 
 		_, err := svc.CancelOrder(ctx, userUUID, orderUUID, nil)
 		require.Error(t, err)
@@ -1221,14 +1091,10 @@ func TestOrderService_CancelOrder(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil,
-			mockUserRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+			userRepo: mockUserRepo,
+		})
 
 		_, err := svc.CancelOrder(ctx, otherUserUUID, orderUUID, nil)
 		require.Error(t, err)
@@ -1250,14 +1116,10 @@ func TestOrderService_CancelOrder(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil,
-			mockUserRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+			userRepo: mockUserRepo,
+		})
 
 		_, err := svc.CancelOrder(ctx, userUUID, orderUUID, nil)
 		require.Error(t, err)
@@ -1279,14 +1141,10 @@ func TestOrderService_CancelOrder(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			nil, nil, nil,
-			mockUserRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+			userRepo: mockUserRepo,
+		})
 
 		_, err := svc.CancelOrder(ctx, userUUID, orderUUID, nil)
 		require.Error(t, err)
@@ -1310,15 +1168,11 @@ func TestOrderService_CancelOrder(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			mockOrderItemRepo,
-			nil, nil,
-			mockUserRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+			orderItemRepo: mockOrderItemRepo,
+			userRepo: mockUserRepo,
+		})
 
 		_, err := svc.CancelOrder(ctx, userUUID, orderUUID, nil)
 		require.Error(t, err)
@@ -1345,15 +1199,11 @@ func TestOrderService_CancelOrder(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil, nil,
-			mockOrderRepo,
-			mockOrderItemRepo,
-			nil, nil,
-			mockUserRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+			orderItemRepo: mockOrderItemRepo,
+			userRepo: mockUserRepo,
+		})
 
 		_, err := svc.CancelOrder(ctx, userUUID, orderUUID, nil)
 		require.Error(t, err)
@@ -1385,16 +1235,12 @@ func TestOrderService_CancelOrder(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil,
-			mockInventory,
-			mockOrderRepo,
-			mockOrderItemRepo,
-			nil, nil,
-			mockUserRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			inventoryService: mockInventory,
+			orderRepo: mockOrderRepo,
+			orderItemRepo: mockOrderItemRepo,
+			userRepo: mockUserRepo,
+		})
 
 		_, err := svc.CancelOrder(ctx, userUUID, orderUUID, nil)
 		require.Error(t, err)
@@ -1431,18 +1277,13 @@ func TestOrderService_CancelOrder(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil,
-			mockInventory,
-			mockOrderRepo,
-			mockOrderItemRepo,
-			nil, nil,
-			mockUserRepo,
-			nil, nil, nil,
-			mockTracking,
-			nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			inventoryService: mockInventory,
+			orderRepo: mockOrderRepo,
+			orderItemRepo: mockOrderItemRepo,
+			userRepo: mockUserRepo,
+			trackingRepo: mockTracking,
+		})
 
 		_, err := svc.CancelOrder(ctx, userUUID, orderUUID, nil)
 		require.Error(t, err)
@@ -1499,20 +1340,14 @@ func TestOrderService_CancelOrder(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil,
-			mockInventory,
-			mockOrderRepo,
-			mockOrderItemRepo,
-			nil, nil,
-			mockUserRepo,
-			nil, nil, nil,
-			mockTracking,
-			nil, nil, nil,
-			mockNotification,
-			nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			inventoryService: mockInventory,
+			orderRepo: mockOrderRepo,
+			orderItemRepo: mockOrderItemRepo,
+			userRepo: mockUserRepo,
+			trackingRepo: mockTracking,
+			notificationService: mockNotification,
+		})
 
 		cancelledOrder, err := svc.CancelOrder(ctx, userUUID, orderUUID, &reason)
 		require.NoError(t, err)
@@ -1590,20 +1425,14 @@ func TestOrderService_CancelOrder(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil,
-			mockInventory,
-			mockOrderRepo,
-			mockOrderItemRepo,
-			nil, nil,
-			mockUserRepo,
-			nil, nil, nil,
-			mockTracking,
-			nil, nil, nil,
-			mockNotification,
-			nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			inventoryService: mockInventory,
+			orderRepo: mockOrderRepo,
+			orderItemRepo: mockOrderItemRepo,
+			userRepo: mockUserRepo,
+			trackingRepo: mockTracking,
+			notificationService: mockNotification,
+		})
 
 		cancelledOrder, err := svc.CancelOrder(ctx, adminUUID, orderUUID, nil)
 		require.NoError(t, err)
@@ -1653,20 +1482,14 @@ func TestOrderService_CancelOrder(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(),
-			nil,
-			mockInventory,
-			mockOrderRepo,
-			mockOrderItemRepo,
-			nil, nil,
-			mockUserRepo,
-			nil, nil, nil,
-			mockTracking,
-			nil, nil, nil,
-			mockNotification,
-			nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			inventoryService: mockInventory,
+			orderRepo: mockOrderRepo,
+			orderItemRepo: mockOrderItemRepo,
+			userRepo: mockUserRepo,
+			trackingRepo: mockTracking,
+			notificationService: mockNotification,
+		})
 
 		cancelledOrder, err := svc.CancelOrder(ctx, userUUID, orderUUID, nil)
 		require.NoError(t, err)
@@ -1690,10 +1513,9 @@ func TestOrderService_GetMyOrders(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(), nil, nil, nil, nil, nil, nil,
-			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			userRepo: mockUserRepo,
+		})
 
 		orders, total, err := svc.GetMyOrders(ctx, userUUID, v1dto.GetOrdersParam{})
 		require.Error(t, err)
@@ -1714,11 +1536,10 @@ func TestOrderService_GetMyOrders(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(), nil, nil,
-			mockOrderRepo, nil, nil, nil,
-			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+			userRepo: mockUserRepo,
+		})
 
 		orders, total, err := svc.GetMyOrders(ctx, userUUID, v1dto.GetOrdersParam{})
 		require.Error(t, err)
@@ -1744,11 +1565,10 @@ func TestOrderService_GetMyOrders(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(), nil, nil,
-			mockOrderRepo, nil, nil, nil,
-			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+			userRepo: mockUserRepo,
+		})
 
 		orders, total, err := svc.GetMyOrders(ctx, userUUID, v1dto.GetOrdersParam{Page: 1, Limit: 10})
 		require.NoError(t, err)
@@ -1796,13 +1616,11 @@ func TestOrderService_GetMyOrders(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(), nil, nil,
-			mockOrderRepo,
-			mockOrderItemRepo,
-			nil, nil,
-			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+			orderItemRepo: mockOrderItemRepo,
+			userRepo: mockUserRepo,
+		})
 
 		orders, total, err := svc.GetMyOrders(ctx, userUUID, v1dto.GetOrdersParam{Page: 1, Limit: 10})
 		require.NoError(t, err)
@@ -1850,10 +1668,9 @@ func TestOrderService_GetOrderByUUID(t *testing.T) {
 				return sqlc.User{}, pgx.ErrNoRows
 			},
 		}
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(), nil, nil, nil, nil, nil, nil,
-			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			userRepo: mockUserRepo,
+		})
 
 		_, _, err := svc.GetOrderByUUID(ctx, userUUID, orderUUID)
 		require.Error(t, err)
@@ -1871,11 +1688,10 @@ func TestOrderService_GetOrderByUUID(t *testing.T) {
 				return sqlc.GetOrderByUUIDRow{}, pgx.ErrNoRows
 			},
 		}
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(), nil, nil,
-			mockOrderRepo, nil, nil, nil,
-			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+			userRepo: mockUserRepo,
+		})
 
 		_, _, err := svc.GetOrderByUUID(ctx, userUUID, orderUUID)
 		require.Error(t, err)
@@ -1893,11 +1709,10 @@ func TestOrderService_GetOrderByUUID(t *testing.T) {
 				return orderRow, nil
 			},
 		}
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(), nil, nil,
-			mockOrderRepo, nil, nil, nil,
-			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+			userRepo: mockUserRepo,
+		})
 
 		_, _, err := svc.GetOrderByUUID(ctx, otherUserUUID, orderUUID)
 		require.Error(t, err)
@@ -1922,13 +1737,11 @@ func TestOrderService_GetOrderByUUID(t *testing.T) {
 				}, nil
 			},
 		}
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(), nil, nil,
-			mockOrderRepo,
-			mockOrderItemRepo,
-			nil, nil,
-			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+			orderItemRepo: mockOrderItemRepo,
+			userRepo: mockUserRepo,
+		})
 
 		order, items, err := svc.GetOrderByUUID(ctx, userUUID, orderUUID)
 		require.NoError(t, err)
@@ -1952,13 +1765,11 @@ func TestOrderService_GetOrderByUUID(t *testing.T) {
 				return []sqlc.GetOrderItemsByOrderIDRow{}, nil
 			},
 		}
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(), nil, nil,
-			mockOrderRepo,
-			mockOrderItemRepo,
-			nil, nil,
-			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+			orderItemRepo: mockOrderItemRepo,
+			userRepo: mockUserRepo,
+		})
 
 		order, items, err := svc.GetOrderByUUID(ctx, adminUUID, orderUUID)
 		require.NoError(t, err)
@@ -1976,10 +1787,9 @@ func TestOrderService_GetAllOrders(t *testing.T) {
 				return 0, errors.New("db failure")
 			},
 		}
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(), nil, nil,
-			mockOrderRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+		})
 
 		orders, total, err := svc.GetAllOrders(ctx, v1dto.GetOrdersParam{})
 		require.Error(t, err)
@@ -1993,10 +1803,9 @@ func TestOrderService_GetAllOrders(t *testing.T) {
 				return 0, nil
 			},
 		}
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(), nil, nil,
-			mockOrderRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+		})
 
 		orders, total, err := svc.GetAllOrders(ctx, v1dto.GetOrdersParam{Page: 1, Limit: 10})
 		require.NoError(t, err)
@@ -2028,12 +1837,10 @@ func TestOrderService_GetAllOrders(t *testing.T) {
 				return []sqlc.GetOrderItemsByOrderIDRow{}, nil
 			},
 		}
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(), nil, nil,
-			mockOrderRepo,
-			mockOrderItemRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+			orderItemRepo: mockOrderItemRepo,
+		})
 
 		orders, total, err := svc.GetAllOrders(ctx, v1dto.GetOrdersParam{Page: 1, Limit: 10})
 		require.NoError(t, err)
@@ -2053,10 +1860,9 @@ func TestOrderService_UpdateOrderStatus(t *testing.T) {
 				return sqlc.GetOrderByUUIDRow{}, pgx.ErrNoRows
 			},
 		}
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(), nil, nil,
-			mockOrderRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+		})
 
 		_, _, err := svc.UpdateOrderStatus(ctx, sqlc.UpdateOrderStatusParams{
 			OrderUuid:   orderUUID,
@@ -2076,10 +1882,9 @@ func TestOrderService_UpdateOrderStatus(t *testing.T) {
 				}, nil
 			},
 		}
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(), nil, nil,
-			mockOrderRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+		})
 
 		_, _, err := svc.UpdateOrderStatus(ctx, sqlc.UpdateOrderStatusParams{
 			OrderUuid:   orderUUID,
@@ -2134,14 +1939,12 @@ func TestOrderService_UpdateOrderStatus(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(), nil, nil,
-			mockOrderRepo,
-			mockOrderItemRepo,
-			nil, nil, nil, nil, nil, nil,
-			mockTracking, nil, nil, nil,
-			mockNotification, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+			orderItemRepo: mockOrderItemRepo,
+			trackingRepo: mockTracking,
+			notificationService: mockNotification,
+		})
 
 		resOrder, items, err := svc.UpdateOrderStatus(ctx, sqlc.UpdateOrderStatusParams{
 			OrderUuid:   orderUUID,
@@ -2187,10 +1990,9 @@ func TestOrderService_UpdateOrderShippingInfo(t *testing.T) {
 				return sqlc.User{}, pgx.ErrNoRows
 			},
 		}
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(), nil, nil, nil, nil, nil, nil,
-			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			userRepo: mockUserRepo,
+		})
 
 		_, _, err := svc.UpdateOrderShippingInfo(ctx, userUUID, sqlc.UpdateOrderShippingInfoParams{OrderUuid: orderUUID})
 		require.Error(t, err)
@@ -2208,11 +2010,10 @@ func TestOrderService_UpdateOrderShippingInfo(t *testing.T) {
 				return pendingOrder, nil
 			},
 		}
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(), nil, nil,
-			mockOrderRepo, nil, nil, nil,
-			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+			userRepo: mockUserRepo,
+		})
 
 		_, _, err := svc.UpdateOrderShippingInfo(ctx, otherUserUUID, sqlc.UpdateOrderShippingInfoParams{OrderUuid: orderUUID})
 		require.Error(t, err)
@@ -2232,11 +2033,10 @@ func TestOrderService_UpdateOrderShippingInfo(t *testing.T) {
 				return confirmedOrder, nil
 			},
 		}
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(), nil, nil,
-			mockOrderRepo, nil, nil, nil,
-			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+			userRepo: mockUserRepo,
+		})
 
 		_, _, err := svc.UpdateOrderShippingInfo(ctx, userUUID, sqlc.UpdateOrderShippingInfoParams{OrderUuid: orderUUID})
 		require.Error(t, err)
@@ -2280,13 +2080,11 @@ func TestOrderService_UpdateOrderShippingInfo(t *testing.T) {
 				return []sqlc.GetOrderItemsByOrderIDRow{}, nil
 			},
 		}
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(), nil, nil,
-			mockOrderRepo,
-			mockOrderItemRepo,
-			nil, nil,
-			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+			orderItemRepo: mockOrderItemRepo,
+			userRepo: mockUserRepo,
+		})
 
 		shippingName := "Tran Van B"
 		shippingPhone := "0912345678"
@@ -2336,13 +2134,11 @@ func TestOrderService_UpdateOrderShippingInfo(t *testing.T) {
 				return []sqlc.GetOrderItemsByOrderIDRow{}, nil
 			},
 		}
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(), nil, nil,
-			mockOrderRepo,
-			mockOrderItemRepo,
-			nil, nil,
-			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+			orderItemRepo: mockOrderItemRepo,
+			userRepo: mockUserRepo,
+		})
 
 		shippingName := "Admin Updated Name"
 		shippingAddress := "Admin Updated Address"
@@ -2377,10 +2173,9 @@ func TestOrderService_UpdateOrderPaymentStatus(t *testing.T) {
 				return sqlc.GetOrderByUUIDRow{}, pgx.ErrNoRows
 			},
 		}
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(), nil, nil,
-			mockOrderRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+		})
 
 		_, _, err := svc.UpdateOrderPaymentStatus(ctx, adminUUID, orderUUID, v1dto.UpdateOrderPaymentStatusInput{
 			PaymentStatus: v1service.OrderPaymentStatusPaid,
@@ -2407,12 +2202,10 @@ func TestOrderService_UpdateOrderPaymentStatus(t *testing.T) {
 				return []sqlc.GetOrderItemsByOrderIDRow{}, nil
 			},
 		}
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(), nil, nil,
-			mockOrderRepo,
-			mockOrderItemRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+			orderItemRepo: mockOrderItemRepo,
+		})
 
 		updatedOrder, _, err := svc.UpdateOrderPaymentStatus(ctx, adminUUID, orderUUID, v1dto.UpdateOrderPaymentStatusInput{
 			PaymentStatus: v1service.OrderPaymentStatusPaid,
@@ -2429,10 +2222,9 @@ func TestOrderService_UpdateOrderPaymentStatus(t *testing.T) {
 				return cancelledOrder, nil
 			},
 		}
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(), nil, nil,
-			mockOrderRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+		})
 
 		_, _, err := svc.UpdateOrderPaymentStatus(ctx, adminUUID, orderUUID, v1dto.UpdateOrderPaymentStatusInput{
 			PaymentStatus: v1service.OrderPaymentStatusPaid,
@@ -2451,10 +2243,9 @@ func TestOrderService_UpdateOrderPaymentStatus(t *testing.T) {
 				return paidPendingOrder, nil
 			},
 		}
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(), nil, nil,
-			mockOrderRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+		})
 
 		_, _, err := svc.UpdateOrderPaymentStatus(ctx, adminUUID, orderUUID, v1dto.UpdateOrderPaymentStatusInput{
 			PaymentStatus: v1service.OrderPaymentStatusFullyRefunded,
@@ -2488,12 +2279,10 @@ func TestOrderService_UpdateOrderPaymentStatus(t *testing.T) {
 				return []sqlc.GetOrderItemsByOrderIDRow{}, nil
 			},
 		}
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(), nil, nil,
-			mockOrderRepo,
-			mockOrderItemRepo,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+			orderItemRepo: mockOrderItemRepo,
+		})
 
 		updatedOrder, _, err := svc.UpdateOrderPaymentStatus(ctx, adminUUID, orderUUID, v1dto.UpdateOrderPaymentStatusInput{
 			PaymentStatus: v1service.OrderPaymentStatusFullyRefunded,
@@ -2539,10 +2328,9 @@ func TestOrderService_GetOrderInvoicePDF(t *testing.T) {
 				return sqlc.User{}, pgx.ErrNoRows
 			},
 		}
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(), nil, nil, nil, nil, nil, nil,
-			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			userRepo: mockUserRepo,
+		})
 
 		_, _, err := svc.GetOrderInvoicePDF(ctx, userUUID, orderUUID)
 		require.Error(t, err)
@@ -2562,11 +2350,10 @@ func TestOrderService_GetOrderInvoicePDF(t *testing.T) {
 				return unpaidOrder, nil
 			},
 		}
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(), nil, nil,
-			mockOrderRepo, nil, nil, nil,
-			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+			userRepo: mockUserRepo,
+		})
 
 		_, _, err := svc.GetOrderInvoicePDF(ctx, userUUID, orderUUID)
 		require.Error(t, err)
@@ -2584,11 +2371,10 @@ func TestOrderService_GetOrderInvoicePDF(t *testing.T) {
 				return paidOrder, nil
 			},
 		}
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(), nil, nil,
-			mockOrderRepo, nil, nil, nil,
-			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+			userRepo: mockUserRepo,
+		})
 
 		_, _, err := svc.GetOrderInvoicePDF(ctx, otherUserUUID, orderUUID)
 		require.Error(t, err)
@@ -2620,13 +2406,11 @@ func TestOrderService_GetOrderInvoicePDF(t *testing.T) {
 				}, nil
 			},
 		}
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(), nil, nil,
-			mockOrderRepo,
-			mockOrderItemRepo,
-			nil, nil,
-			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+			orderItemRepo: mockOrderItemRepo,
+			userRepo: mockUserRepo,
+		})
 
 		pdfBytes, filename, err := svc.GetOrderInvoicePDF(ctx, userUUID, orderUUID)
 		require.NoError(t, err)
@@ -2650,13 +2434,11 @@ func TestOrderService_GetOrderInvoicePDF(t *testing.T) {
 				return []sqlc.GetOrderItemsByOrderIDRow{}, nil
 			},
 		}
-		svc := v1service.NewOrderService(
-			testutils.NewNoopTxManager(), nil, nil,
-			mockOrderRepo,
-			mockOrderItemRepo,
-			nil, nil,
-			mockUserRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		)
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+			orderItemRepo: mockOrderItemRepo,
+			userRepo: mockUserRepo,
+		})
 
 		pdfBytes, filename, err := svc.GetOrderInvoicePDF(ctx, adminUUID, orderUUID)
 		require.NoError(t, err)
