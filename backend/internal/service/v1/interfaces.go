@@ -138,12 +138,12 @@ type PaymentService interface {
 }
 
 type AddressService interface {
-	CreateUserAddress(ctx *gin.Context, input v1dto.CreateAddressInput) (v1dto.AddressDTO, error)
-	GetMyAddresses(ctx *gin.Context) ([]v1dto.AddressDTO, error)
-	GetAddressByUUID(ctx *gin.Context, addressUUID uuid.UUID) (v1dto.AddressDTO, error)
-	UpdateUserAddress(ctx *gin.Context, addressUUID uuid.UUID, input v1dto.UpdateAddressInput) (v1dto.AddressDTO, error)
-	SetDefaultUserAddress(ctx *gin.Context, addressUUID uuid.UUID) error
-	DeleteUserAddress(ctx *gin.Context, addressUUID uuid.UUID) error
+	CreateUserAddress(ctx context.Context, userUUID uuid.UUID, input v1dto.CreateAddressInput) (v1dto.AddressDTO, error)
+	GetMyAddresses(ctx context.Context, userUUID uuid.UUID) ([]v1dto.AddressDTO, error)
+	GetAddressByUUID(ctx context.Context, userUUID uuid.UUID, addressUUID uuid.UUID) (v1dto.AddressDTO, error)
+	UpdateUserAddress(ctx context.Context, userUUID uuid.UUID, addressUUID uuid.UUID, input v1dto.UpdateAddressInput) (v1dto.AddressDTO, error)
+	SetDefaultUserAddress(ctx context.Context, userUUID uuid.UUID, addressUUID uuid.UUID) error
+	DeleteUserAddress(ctx context.Context, userUUID uuid.UUID, addressUUID uuid.UUID) error
 }
 
 type ReviewService interface {

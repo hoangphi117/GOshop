@@ -24,6 +24,7 @@ var (
 	_ repository.PaymentRepository      = (*MockPaymentRepository)(nil)
 	_ repository.CategoryRepository     = (*MockCategoryRepository)(nil)
 	_ repository.ReviewRepository       = (*MockReviewRepository)(nil)
+	_ repository.AddressRepository      = (*MockAddressRepository)(nil)
 )
 
 // =========================================================================
@@ -1143,4 +1144,83 @@ func (m *MockBannerRepository) Trash(ctx context.Context, bannerUUID uuid.UUID) 
 		return m.TrashFunc(ctx, bannerUUID)
 	}
 	return nil
+}
+
+// =========================================================================
+// 13. MockAddressRepository
+// =========================================================================
+
+type MockAddressRepository struct {
+	CreateFunc             func(ctx context.Context, tx pgx.Tx, params sqlc.CreateUserAddressParams) (sqlc.UserAddress, error)
+	CountFunc              func(ctx context.Context, userID int32) (int64, error)
+	ClearDefaultFunc       func(ctx context.Context, tx pgx.Tx, userID int32) error
+	UpdateFunc             func(ctx context.Context, params sqlc.UpdateUserAddressParams) (sqlc.UserAddress, error)
+	SetDefaultFunc         func(ctx context.Context, tx pgx.Tx, userID int32, addressUUID uuid.UUID) (sqlc.UserAddress, error)
+	DeleteFunc             func(ctx context.Context, tx pgx.Tx, userID int32, addressUUID uuid.UUID) (bool, error)
+	SetLatestAsDefaultFunc func(ctx context.Context, tx pgx.Tx, userID int32) error
+	GetByUserIDFunc        func(ctx context.Context, userID int32) ([]sqlc.UserAddress, error)
+	GetByUUIDFunc          func(ctx context.Context, userID int32, addressUUID uuid.UUID) (sqlc.UserAddress, error)
+}
+
+func (m *MockAddressRepository) Create(ctx context.Context, tx pgx.Tx, params sqlc.CreateUserAddressParams) (sqlc.UserAddress, error) {
+	if m.CreateFunc != nil {
+		return m.CreateFunc(ctx, tx, params)
+	}
+	return sqlc.UserAddress{}, nil
+}
+
+func (m *MockAddressRepository) Count(ctx context.Context, userID int32) (int64, error) {
+	if m.CountFunc != nil {
+		return m.CountFunc(ctx, userID)
+	}
+	return 0, nil
+}
+
+func (m *MockAddressRepository) ClearDefault(ctx context.Context, tx pgx.Tx, userID int32) error {
+	if m.ClearDefaultFunc != nil {
+		return m.ClearDefaultFunc(ctx, tx, userID)
+	}
+	return nil
+}
+
+func (m *MockAddressRepository) Update(ctx context.Context, params sqlc.UpdateUserAddressParams) (sqlc.UserAddress, error) {
+	if m.UpdateFunc != nil {
+		return m.UpdateFunc(ctx, params)
+	}
+	return sqlc.UserAddress{}, nil
+}
+
+func (m *MockAddressRepository) SetDefault(ctx context.Context, tx pgx.Tx, userID int32, addressUUID uuid.UUID) (sqlc.UserAddress, error) {
+	if m.SetDefaultFunc != nil {
+		return m.SetDefaultFunc(ctx, tx, userID, addressUUID)
+	}
+	return sqlc.UserAddress{}, nil
+}
+
+func (m *MockAddressRepository) Delete(ctx context.Context, tx pgx.Tx, userID int32, addressUUID uuid.UUID) (bool, error) {
+	if m.DeleteFunc != nil {
+		return m.DeleteFunc(ctx, tx, userID, addressUUID)
+	}
+	return false, nil
+}
+
+func (m *MockAddressRepository) SetLatestAsDefault(ctx context.Context, tx pgx.Tx, userID int32) error {
+	if m.SetLatestAsDefaultFunc != nil {
+		return m.SetLatestAsDefaultFunc(ctx, tx, userID)
+	}
+	return nil
+}
+
+func (m *MockAddressRepository) GetByUserID(ctx context.Context, userID int32) ([]sqlc.UserAddress, error) {
+	if m.GetByUserIDFunc != nil {
+		return m.GetByUserIDFunc(ctx, userID)
+	}
+	return nil, nil
+}
+
+func (m *MockAddressRepository) GetByUUID(ctx context.Context, userID int32, addressUUID uuid.UUID) (sqlc.UserAddress, error) {
+	if m.GetByUUIDFunc != nil {
+		return m.GetByUUIDFunc(ctx, userID, addressUUID)
+	}
+	return sqlc.UserAddress{}, nil
 }

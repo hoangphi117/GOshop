@@ -2,6 +2,7 @@ package v1handler
 
 import (
 	v1dto "goshop/internal/dto/v1"
+	"goshop/internal/middleware"
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/utils"
 	"goshop/internal/validation"
@@ -35,13 +36,19 @@ func NewAddressHandler(service v1service.AddressService) *AddressHandler {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /addresses [post]
 func (ah *AddressHandler) CreateUserAddress(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
 	var input v1dto.CreateAddressInput
 	if err := ctx.ShouldBindJSON(&input); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
 	}
 
-	addressDTO, err := ah.service.CreateUserAddress(ctx, input)
+	addressDTO, err := ah.service.CreateUserAddress(ctx.Request.Context(), userUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -61,8 +68,13 @@ func (ah *AddressHandler) CreateUserAddress(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /addresses [get]
 func (ah *AddressHandler) GetMyAddresses(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
 
-	addresses, err := ah.service.GetMyAddresses(ctx)
+	addresses, err := ah.service.GetMyAddresses(ctx.Request.Context(), userUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -84,6 +96,12 @@ func (ah *AddressHandler) GetMyAddresses(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /addresses/{uuid} [get]
 func (ah *AddressHandler) GetAddressByUUID(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
 	var param v1dto.AddressUUIDParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
@@ -96,7 +114,7 @@ func (ah *AddressHandler) GetAddressByUUID(ctx *gin.Context) {
 		return
 	}
 
-	addressDTO, err := ah.service.GetAddressByUUID(ctx, addressUUID)
+	addressDTO, err := ah.service.GetAddressByUUID(ctx.Request.Context(), userUUID, addressUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -120,6 +138,12 @@ func (ah *AddressHandler) GetAddressByUUID(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /addresses/{uuid} [put]
 func (ah *AddressHandler) UpdateUserAddress(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
 	var param v1dto.AddressUUIDParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
@@ -138,7 +162,7 @@ func (ah *AddressHandler) UpdateUserAddress(ctx *gin.Context) {
 		return
 	}
 
-	addressDTO, err := ah.service.UpdateUserAddress(ctx, addressUUID, input)
+	addressDTO, err := ah.service.UpdateUserAddress(ctx.Request.Context(), userUUID, addressUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -160,6 +184,12 @@ func (ah *AddressHandler) UpdateUserAddress(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /addresses/{uuid}/default [patch]
 func (ah *AddressHandler) SetDefaultUserAddress(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
 	var param v1dto.AddressUUIDParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
@@ -172,7 +202,7 @@ func (ah *AddressHandler) SetDefaultUserAddress(ctx *gin.Context) {
 		return
 	}
 
-	if err := ah.service.SetDefaultUserAddress(ctx, addressUUID); err != nil {
+	if err := ah.service.SetDefaultUserAddress(ctx.Request.Context(), userUUID, addressUUID); err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
@@ -193,6 +223,12 @@ func (ah *AddressHandler) SetDefaultUserAddress(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /addresses/{uuid} [delete]
 func (ah *AddressHandler) DeleteUserAddress(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
 	var param v1dto.AddressUUIDParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
@@ -205,7 +241,7 @@ func (ah *AddressHandler) DeleteUserAddress(ctx *gin.Context) {
 		return
 	}
 
-	if err := ah.service.DeleteUserAddress(ctx, addressUUID); err != nil {
+	if err := ah.service.DeleteUserAddress(ctx.Request.Context(), userUUID, addressUUID); err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}

@@ -28,6 +28,7 @@ var (
 	_ v1service.CartService         = (*MockCartService)(nil)
 	_ v1service.CouponService       = (*MockCouponService)(nil)
 	_ v1service.ReviewService       = (*MockReviewService)(nil)
+	_ v1service.AddressService      = (*MockAddressService)(nil)
 	_ rabbitmq.RabbitMQService      = (*MockRabbitMQService)(nil)
 	_ shipping.ShippingProvider     = (*MockShippingProvider)(nil)
 	_ payment.PaymentProvider       = (*MockPaymentProvider)(nil)
@@ -704,3 +705,59 @@ func (m *MockBannerService) AdminTrashBanner(ctx context.Context, bannerUUID uui
 	}
 	return nil
 }
+
+// =========================================================================
+// MockAddressService
+// =========================================================================
+
+type MockAddressService struct {
+	CreateUserAddressFunc     func(ctx context.Context, userUUID uuid.UUID, input v1dto.CreateAddressInput) (v1dto.AddressDTO, error)
+	GetMyAddressesFunc        func(ctx context.Context, userUUID uuid.UUID) ([]v1dto.AddressDTO, error)
+	GetAddressByUUIDFunc      func(ctx context.Context, userUUID uuid.UUID, addressUUID uuid.UUID) (v1dto.AddressDTO, error)
+	UpdateUserAddressFunc     func(ctx context.Context, userUUID uuid.UUID, addressUUID uuid.UUID, input v1dto.UpdateAddressInput) (v1dto.AddressDTO, error)
+	SetDefaultUserAddressFunc func(ctx context.Context, userUUID uuid.UUID, addressUUID uuid.UUID) error
+	DeleteUserAddressFunc     func(ctx context.Context, userUUID uuid.UUID, addressUUID uuid.UUID) error
+}
+
+func (m *MockAddressService) CreateUserAddress(ctx context.Context, userUUID uuid.UUID, input v1dto.CreateAddressInput) (v1dto.AddressDTO, error) {
+	if m.CreateUserAddressFunc != nil {
+		return m.CreateUserAddressFunc(ctx, userUUID, input)
+	}
+	return v1dto.AddressDTO{}, nil
+}
+
+func (m *MockAddressService) GetMyAddresses(ctx context.Context, userUUID uuid.UUID) ([]v1dto.AddressDTO, error) {
+	if m.GetMyAddressesFunc != nil {
+		return m.GetMyAddressesFunc(ctx, userUUID)
+	}
+	return nil, nil
+}
+
+func (m *MockAddressService) GetAddressByUUID(ctx context.Context, userUUID uuid.UUID, addressUUID uuid.UUID) (v1dto.AddressDTO, error) {
+	if m.GetAddressByUUIDFunc != nil {
+		return m.GetAddressByUUIDFunc(ctx, userUUID, addressUUID)
+	}
+	return v1dto.AddressDTO{}, nil
+}
+
+func (m *MockAddressService) UpdateUserAddress(ctx context.Context, userUUID uuid.UUID, addressUUID uuid.UUID, input v1dto.UpdateAddressInput) (v1dto.AddressDTO, error) {
+	if m.UpdateUserAddressFunc != nil {
+		return m.UpdateUserAddressFunc(ctx, userUUID, addressUUID, input)
+	}
+	return v1dto.AddressDTO{}, nil
+}
+
+func (m *MockAddressService) SetDefaultUserAddress(ctx context.Context, userUUID uuid.UUID, addressUUID uuid.UUID) error {
+	if m.SetDefaultUserAddressFunc != nil {
+		return m.SetDefaultUserAddressFunc(ctx, userUUID, addressUUID)
+	}
+	return nil
+}
+
+func (m *MockAddressService) DeleteUserAddress(ctx context.Context, userUUID uuid.UUID, addressUUID uuid.UUID) error {
+	if m.DeleteUserAddressFunc != nil {
+		return m.DeleteUserAddressFunc(ctx, userUUID, addressUUID)
+	}
+	return nil
+}
+
