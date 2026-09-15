@@ -62,7 +62,7 @@ func TestAuthService_Register(t *testing.T) {
 		assertAppErrorCode(t, err, utils.ErrCodeInternal)
 	})
 
-	t.Run("Case 3: Happy Path - Registers User with Hashed Password", func(t *testing.T) {
+	t.Run("Case 3: Happy Path - Registers User with Hashed Password and Normalized Email", func(t *testing.T) {
 		var capturedUser sqlc.CreateUserParams
 		mockRepo := &testutils.MockUserRepository{
 			CreateFunc: func(ctx context.Context, input sqlc.CreateUserParams) (sqlc.User, error) {
@@ -106,37 +106,92 @@ func TestAuthService_Login(t *testing.T) {
 		UserPassword: string(hashedPass),
 	}
 
-	t.Run("Case 1: User Not Found - Returns 401 Unauthorized", func(t *testing.T) {
+	t.Run("Case 1: IP Rate Limit Exceeded - Returns 429 Too Many Requests", func(t *testing.T) {
+		mockCache := &testutils.MockRedisCacheService{
+			GetFunc: func(key string, dest any) error {
+				if ptr, ok := dest.(*int); ok {
+					*ptr = 5
+				}
+				return nil
+			},
+		}
+
+		svc := v1service.NewAuthService(nil, nil, mockCache, nil, nil, "http://localhost:3000")
+
+		_, _, _, err := svc.Login(ctx, "1.2.3.4", "user@example.com", plainPass)
+		require.Error(t, err)
+		assertAppErrorCode(t, err, utils.ErrCodeTooManyRequests)
+		assert.Contains(t, err.Error(), "Too many login attempts")
+	})
+
+	t.Run("Case 2: User Not Found - Records Failed Attempt and Returns 401", func(t *testing.T) {
+		var recordedKey string
+		var recordedAttempts int
+		mockCache := &testutils.MockRedisCacheService{
+			GetFunc: func(key string, dest any) error {
+				return nil
+			},
+			SetFunc: func(key string, value any, ttl time.Duration) error {
+				recordedKey = key
+				if val, ok := value.(int); ok {
+					recordedAttempts = val
+				}
+				return nil
+			},
+		}
 		mockRepo := &testutils.MockUserRepository{
 			GetByEmailFunc: func(ctx context.Context, email string) (sqlc.User, error) {
 				return sqlc.User{}, pgx.ErrNoRows
 			},
 		}
 
-		svc := v1service.NewAuthService(mockRepo, nil, nil, nil, nil, "http://localhost:3000")
+		svc := v1service.NewAuthService(mockRepo, nil, mockCache, nil, nil, "http://localhost:3000")
 
 		_, _, _, err := svc.Login(ctx, "192.168.1.1", "nonexistent@example.com", plainPass)
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeUnauthorized)
 		assert.Contains(t, err.Error(), "Invalid email or password")
+		assert.Equal(t, "auth:ratelimit:login:192.168.1.1", recordedKey)
+		assert.Equal(t, 1, recordedAttempts)
 	})
 
-	t.Run("Case 2: Password Mismatch - Returns 401 Unauthorized", func(t *testing.T) {
+	t.Run("Case 3: Password Mismatch - Records Failed Attempt and Returns 401", func(t *testing.T) {
+		var recordedKey string
+		mockCache := &testutils.MockRedisCacheService{
+			GetFunc: func(key string, dest any) error {
+				return nil
+			},
+			SetFunc: func(key string, value any, ttl time.Duration) error {
+				recordedKey = key
+				return nil
+			},
+		}
 		mockRepo := &testutils.MockUserRepository{
 			GetByEmailFunc: func(ctx context.Context, email string) (sqlc.User, error) {
 				return testUser, nil
 			},
 		}
 
-		svc := v1service.NewAuthService(mockRepo, nil, nil, nil, nil, "http://localhost:3000")
+		svc := v1service.NewAuthService(mockRepo, nil, mockCache, nil, nil, "http://localhost:3000")
 
 		_, _, _, err := svc.Login(ctx, "192.168.1.2", "user@example.com", "wrongpass")
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeUnauthorized)
 		assert.Contains(t, err.Error(), "Invalid email or password")
+		assert.Equal(t, "auth:ratelimit:login:192.168.1.2", recordedKey)
 	})
 
-	t.Run("Case 3: Happy Path - Returns Access and Refresh Tokens", func(t *testing.T) {
+	t.Run("Case 4: Happy Path - Resets Rate Limit and Returns Tokens", func(t *testing.T) {
+		var deletedKey string
+		mockCache := &testutils.MockRedisCacheService{
+			GetFunc: func(key string, dest any) error {
+				return nil
+			},
+			DelFunc: func(key string) error {
+				deletedKey = key
+				return nil
+			},
+		}
 		mockRepo := &testutils.MockUserRepository{
 			GetByEmailFunc: func(ctx context.Context, email string) (sqlc.User, error) {
 				return testUser, nil
@@ -156,13 +211,14 @@ func TestAuthService_Login(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewAuthService(mockRepo, mockTokenSvc, nil, nil, nil, "http://localhost:3000")
+		svc := v1service.NewAuthService(mockRepo, mockTokenSvc, mockCache, nil, nil, "http://localhost:3000")
 
 		accessToken, refreshToken, expiresIn, err := svc.Login(ctx, "192.168.1.3", "  USER@EXAMPLE.COM  ", plainPass)
 		require.NoError(t, err)
 		assert.Equal(t, "generated-access-token", accessToken)
 		assert.Equal(t, "generated-refresh-token", refreshToken)
 		assert.Greater(t, expiresIn, 0)
+		assert.Equal(t, "auth:ratelimit:login:192.168.1.3", deletedKey)
 	})
 }
 
@@ -385,9 +441,9 @@ func TestAuthService_ResetPassword(t *testing.T) {
 		assertAppErrorCode(t, err, utils.ErrCodeNotFound)
 	})
 
-	t.Run("Case 2: Happy Path - Updates Password and Clears Token from Cache", func(t *testing.T) {
+	t.Run("Case 2: Happy Path - Updates Password and Deletes Token from Cache", func(t *testing.T) {
 		var capturedParams sqlc.UpdatePasswordParams
-		var clearedToken string
+		var deletedTokenKey string
 
 		mockCache := &testutils.MockRedisCacheService{
 			GetFunc: func(key string, dest any) error {
@@ -396,8 +452,8 @@ func TestAuthService_ResetPassword(t *testing.T) {
 				}
 				return nil
 			},
-			ClearFunc: func(pattern string) error {
-				clearedToken = pattern
+			DelFunc: func(key string) error {
+				deletedTokenKey = key
 				return nil
 			},
 		}
@@ -414,6 +470,6 @@ func TestAuthService_ResetPassword(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, userUUID, capturedParams.UserUuid)
 		assert.NoError(t, bcrypt.CompareHashAndPassword([]byte(capturedParams.NewPassword), []byte("brandnewsecret123")))
-		assert.Equal(t, "reset:valid-reset-token", clearedToken)
+		assert.Equal(t, "reset:valid-reset-token", deletedTokenKey)
 	})
 }

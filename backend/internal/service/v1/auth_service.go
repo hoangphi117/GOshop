@@ -13,14 +13,21 @@ import (
 	"goshop/pkg/mail"
 	"goshop/pkg/rabbitmq"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
-	"golang.org/x/time/rate"
+)
+
+const (
+	passwordResetTokenTTL = time.Hour
+	loginRateLimitTTL     = 5 * time.Minute
+	maxLoginAttempts      = 5
+
+	UserStatusActive = 1
+	UserLevelUser    = 3
 )
 
 type authService struct {
@@ -31,20 +38,6 @@ type authService struct {
 	rabbitmq      rabbitmq.RabbitMQService
 	storefrontURL string
 }
-
-type LoginAttempt struct {
-	limiter  *rate.Limiter
-	lastSeen time.Time
-}
-
-const passwordResetTokenTTL = time.Hour
-
-var (
-	mu               sync.Mutex
-	clients          = make(map[string]*LoginAttempt)
-	LoginAttemptTTL  = 5 * time.Minute
-	MaxLoginAttempts = 5
-)
 
 func NewAuthService(
 	userRepo repository.UserRepository,
@@ -64,62 +57,59 @@ func NewAuthService(
 	}
 }
 
-func (as *authService) getLoginAttempt(ip string) *rate.Limiter {
-	mu.Lock()
-	defer mu.Unlock()
+// ----------------- Redis Rate Limiter Helpers -----------------
 
-	client, exists := clients[ip]
-	if !exists {
-		limiter := rate.NewLimiter(rate.Limit(float32(MaxLoginAttempts)/float32(LoginAttemptTTL.Seconds())), MaxLoginAttempts)
-		newClient := &LoginAttempt{limiter, time.Now()}
-		clients[ip] = newClient
-		return limiter
-	}
-
-	client.lastSeen = time.Now()
-	return client.limiter
-}
-
-func (as *authService) CheckLoginAttempt(ip string) error {
-	if ip == "" {
+func (as *authService) checkLoginRateLimit(ip string) error {
+	if ip == "" || as.cacheService == nil {
 		return nil
 	}
-	limiter := as.getLoginAttempt(ip)
-	if !limiter.Allow() {
+
+	key := fmt.Sprintf("auth:ratelimit:login:%s", ip)
+	var attempts int
+	if err := as.cacheService.Get(key, &attempts); err == nil && attempts >= maxLoginAttempts {
 		return utils.NewError(utils.ErrCodeTooManyRequests, "Too many login attempts. Please try again later.")
 	}
+
 	return nil
 }
 
-func (as *authService) CleanupClients(ip string) {
-	if ip == "" {
+func (as *authService) recordFailedLogin(ip string) {
+	if ip == "" || as.cacheService == nil {
 		return
 	}
-	mu.Lock()
-	defer mu.Unlock()
-
-	delete(clients, ip)
+	key := fmt.Sprintf("auth:ratelimit:login:%s", ip)
+	var attempts int
+	_ = as.cacheService.Get(key, &attempts)
+	attempts++
+	_ = as.cacheService.Set(key, attempts, loginRateLimitTTL)
 }
 
+func (as *authService) resetLoginRateLimit(ip string) {
+	if ip == "" || as.cacheService == nil {
+		return
+	}
+
+	key := fmt.Sprintf("auth:ratelimit:login:%s", ip)
+	_ = as.cacheService.Del(key)
+}
+
+// ----------------- Core Auth Methods -----------------
+
 func (as *authService) Login(ctx context.Context, ip string, email, password string) (string, string, int, error) {
-	if err := as.CheckLoginAttempt(ip); err != nil {
+	if err := as.checkLoginRateLimit(ip); err != nil {
 		return "", "", 0, err
 	}
 
 	email = utils.NormalizeString(email)
 	user, err := as.userRepo.GetByEmail(ctx, email)
 	if err != nil {
-		if ip != "" {
-			as.getLoginAttempt(ip)
-		}
+		as.recordFailedLogin(ip)
 		return "", "", 0, utils.NewError(utils.ErrCodeUnauthorized, "Invalid email or password")
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.UserPassword), []byte(password))
 	if err != nil {
-		if ip != "" {
-			as.getLoginAttempt(ip)
-		}
+		as.recordFailedLogin(ip)
 		return "", "", 0, utils.NewError(utils.ErrCodeUnauthorized, "Invalid email or password")
 	}
 
@@ -137,9 +127,7 @@ func (as *authService) Login(ctx context.Context, ip string, email, password str
 		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "Failed to store refresh token", err)
 	}
 
-	if ip != "" {
-		as.CleanupClients(ip)
-	}
+	as.resetLoginRateLimit(ip)
 
 	return accessToken, refreshToken.Token, int(auth.AccessTokenTTL.Seconds()), nil
 }
@@ -153,7 +141,7 @@ func (as *authService) Logout(ctx context.Context, accessToken string, refreshTo
 				exp := time.Unix(int64(expUnix), 0)
 				key := "blacklist:" + jti
 				ttl := time.Until(exp)
-				if as.cacheService != nil {
+				if as.cacheService != nil && ttl > 0 {
 					_ = as.cacheService.Set(key, "revoked", ttl)
 				}
 			}
@@ -212,6 +200,8 @@ func (as *authService) RefreshToken(ctx context.Context, refreshToken string) (s
 }
 
 func (as *authService) RequestForgotPassword(ctx context.Context, email string) error {
+	email = utils.NormalizeString(email)
+
 	rateLimitKey := fmt.Sprintf("reset:ratelimit:%s", email)
 	if as.cacheService != nil {
 		if exists, err := as.cacheService.Exists(rateLimitKey); err == nil && exists {
@@ -219,7 +209,6 @@ func (as *authService) RequestForgotPassword(ctx context.Context, email string) 
 		}
 	}
 
-	email = utils.NormalizeString(email)
 	user, err := as.userRepo.GetByEmail(ctx, email)
 	if err != nil {
 		return utils.NewError(utils.ErrCodeNotFound, "Email not found")
@@ -306,7 +295,7 @@ func (as *authService) ResetPassword(ctx context.Context, token, newPassword str
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to update password", err)
 	}
 
-	_ = as.cacheService.Clear("reset:" + token)
+	_ = as.cacheService.Del("reset:" + token)
 
 	return nil
 }
@@ -319,11 +308,11 @@ func (as *authService) Register(ctx context.Context, input v1dto.RegisterInput) 
 
 	user := sqlc.CreateUserParams{
 		UserFullname: input.Name,
-		UserEmail:    strings.ToLower(strings.TrimSpace(input.Email)),
+		UserEmail:    utils.NormalizeString(input.Email),
 		UserPassword: string(hashedPassword),
 		UserAge:      input.Age,
-		UserStatus:   1,
-		UserLevel:    3,
+		UserStatus:   UserStatusActive,
+		UserLevel:    UserLevelUser,
 	}
 
 	if _, err := as.userRepo.Create(ctx, user); err != nil {
