@@ -49,11 +49,15 @@ coverage.out
 uploads/
 **/uploads/
 
-# Frontend (Node / Next.js)
+# Frontend (Node / Next.js / Turbo)
 node_modules/
 **/node_modules/
 .next/
 **/.next/
+.turbo/
+**/.turbo/
+dist/
+**/dist/
 out/
 **/out/
 npm-debug.log*

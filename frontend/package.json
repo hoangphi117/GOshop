@@ -6,6 +6,7 @@
     "dev:storefront": "turbo run dev --filter=storefront",
     "build": "turbo run build",
     "lint": "turbo run lint",
+    "clean": "node scripts/clean.mjs",
     "gen:api": "turbo run gen:api --filter=@goshop/api-client"
   },
   "devDependencies": {
