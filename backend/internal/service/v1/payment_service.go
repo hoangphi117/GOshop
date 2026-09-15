@@ -6,15 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"strings"
 	"time"
 
 	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
-	"goshop/internal/middleware"
 	"goshop/internal/repository"
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
@@ -22,7 +19,6 @@ import (
 	"goshop/pkg/payment"
 	"goshop/pkg/rabbitmq"
 
-	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -50,6 +46,7 @@ type paymentService struct {
 	webhookBaseURL      string
 }
 
+// NewPaymentService creates a new instance of PaymentService.
 func NewPaymentService(
 	paymentRepo repository.PaymentRepository,
 	orderRepo repository.OrderRepository,
@@ -76,17 +73,18 @@ func NewPaymentService(
 	}
 }
 
+// ── Service Implementation ────────────────────────────────────────
+
 // 1. TẠO PAYMENT INTENT
-func (s *paymentService) CreatePaymentIntent(ctx *gin.Context, input v1dto.CreatePaymentIntentInput) (v1dto.PaymentIntentDTO, error) {
-	reqCtx := ctx.Request.Context()
+func (s *paymentService) CreatePaymentIntent(ctx context.Context, userUUID uuid.UUID, clientIP, idempotencyKey string, input v1dto.CreatePaymentIntentInput) (v1dto.PaymentIntentDTO, error) {
 	startTime := time.Now()
 
-	user, err := middleware.GetUserFromContext(ctx, s.userRepo)
+	user, err := s.getUser(ctx, userUUID)
 	if err != nil {
 		return v1dto.PaymentIntentDTO{}, err
 	}
 
-	order, err := s.orderRepo.GetByUUID(reqCtx, input.OrderUUID)
+	order, err := s.orderRepo.GetByUUID(ctx, input.OrderUUID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return v1dto.PaymentIntentDTO{}, utils.NewError(utils.ErrCodeNotFound, "Order not found")
@@ -94,52 +92,23 @@ func (s *paymentService) CreatePaymentIntent(ctx *gin.Context, input v1dto.Creat
 		return v1dto.PaymentIntentDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to get order", err)
 	}
 
-	if order.OrderUserID != user.UserID {
-		return v1dto.PaymentIntentDTO{}, utils.NewError(utils.ErrCodeForbidden, "You are not authorized to pay for this order")
-	}
-
-	if order.OrderPaymentStatus == OrderPaymentStatusPaid {
-		return v1dto.PaymentIntentDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Order has already been paid")
-	}
-
-	if order.OrderStatus != OrderStatusPending && order.OrderStatus != OrderStatusConfirmed {
-		return v1dto.PaymentIntentDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Order status does not allow payment")
-	}
-
-	if order.OrderPaymentMethod == OrderPaymentMethodCOD {
-		return v1dto.PaymentIntentDTO{}, utils.NewError(utils.ErrCodeBadRequest, "COD orders cannot create online payment intent")
+	if err := s.validateOrderForPayment(order, user); err != nil {
+		return v1dto.PaymentIntentDTO{}, err
 	}
 
 	orderAmount := utils.NumericToFloat(order.OrderTotalAmount)
-	if orderAmount <= 0 {
-		return v1dto.PaymentIntentDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Order amount is 0, online payment is not required")
-	}
 
-	// Idempotency check via Redis and DB
-	idempotencyKey := strings.TrimSpace(ctx.GetHeader("X-Idempotency-Key"))
+	idempotencyKey = strings.TrimSpace(idempotencyKey)
 	if idempotencyKey == "" {
 		return v1dto.PaymentIntentDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Missing X-Idempotency-Key header")
 	}
 
-	redisKey := fmt.Sprintf("idem:payment:%s", idempotencyKey)
-	var cachedDTO v1dto.PaymentIntentDTO
-	if err := s.cache.Get(redisKey, &cachedDTO); err == nil {
-		if cachedDTO.OrderUUID != order.OrderUuid.String() {
-			return v1dto.PaymentIntentDTO{}, utils.NewError(utils.ErrCodeConflict, "Idempotency key already used for a different order")
-		}
-		return cachedDTO, nil
+	cached, err := s.checkIdempotency(ctx, idempotencyKey, order)
+	if err != nil {
+		return v1dto.PaymentIntentDTO{}, err
 	}
-
-	existingTxn, err := s.paymentRepo.GetByIdempotencyKey(reqCtx, nil, idempotencyKey)
-	if err == nil {
-		if existingTxn.PtOrderID != order.OrderID {
-			return v1dto.PaymentIntentDTO{}, utils.NewError(utils.ErrCodeConflict, "Idempotency key already used for a different order")
-		}
-		dto := v1dto.MapToPaymentIntentDTO(existingTxn, order.OrderUuid)
-		_ = s.cache.Set(redisKey, dto, 24*time.Hour)
-		return dto, nil
-	} else if !errors.Is(err, pgx.ErrNoRows) {
-		return v1dto.PaymentIntentDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to check idempotency key", err)
+	if cached != nil {
+		return *cached, nil
 	}
 
 	providerName := strings.ToLower(strings.TrimSpace(input.Provider))
@@ -148,14 +117,8 @@ func (s *paymentService) CreatePaymentIntent(ctx *gin.Context, input v1dto.Creat
 		return v1dto.PaymentIntentDTO{}, utils.NewError(utils.ErrCodeBadRequest, fmt.Sprintf("Unsupported payment provider: %s", providerName))
 	}
 
-	// Ghép OrderNumber (16 ký tự) + Timestamp để tạo TxnRef duy nhất
 	txnRef := fmt.Sprintf("%s_%d", order.OrderNumber, time.Now().Unix())
-
-	webhookBase := strings.TrimRight(s.webhookBaseURL, "/")
-	if !strings.Contains(webhookBase, "/api/v1/webhooks/payment") {
-		webhookBase = fmt.Sprintf("%s/api/v1/webhooks/payment", webhookBase)
-	}
-	webhookURL := fmt.Sprintf("%s/%s", webhookBase, providerName)
+	webhookURL := s.buildWebhookURL(providerName)
 
 	paymentReq := payment.CreatePaymentRequest{
 		OrderNumber: txnRef,
@@ -164,13 +127,13 @@ func (s *paymentService) CreatePaymentIntent(ctx *gin.Context, input v1dto.Creat
 		Description: fmt.Sprintf("Payment for order %s", order.OrderNumber),
 		ReturnURL:   s.returnURL,
 		WebhookURL:  webhookURL,
-		ClientIP:    ctx.ClientIP(),
+		ClientIP:    clientIP,
 	}
-	providerResp, err := provider.CreatePaymentURL(reqCtx, paymentReq)
+	providerResp, err := provider.CreatePaymentURL(ctx, paymentReq)
 	if err != nil {
 		logger.Log.Error().
 			Err(err).
-			Str("trace_id", logger.GetTraceId(reqCtx)).
+			Str("trace_id", logger.GetTraceId(ctx)).
 			Str("module", "payment").
 			Str("action", "create_intent").
 			Str("provider", providerName).
@@ -196,15 +159,12 @@ func (s *paymentService) CreatePaymentIntent(ctx *gin.Context, input v1dto.Creat
 		PtStatus:         PaymentStatusPending,
 	}
 
-	paymentTxn, err := s.paymentRepo.Create(reqCtx, nil, ptParams)
+	paymentTxn, err := s.paymentRepo.Create(ctx, nil, ptParams)
 	if err != nil {
-		// Kiểm tra nếu là lỗi trùng Idempotency Key
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			logger.Log.Warn().Str("key", idempotencyKey).Msg("Concurrent duplicate payment intent request detected, fetching existing transaction")
-
-			// Graceful Recovery: Lấy transaction vừa được tạo bởi request chạy trước
-			existingTxn, getErr := s.paymentRepo.GetByIdempotencyKey(reqCtx, nil, idempotencyKey)
+			existingTxn, getErr := s.paymentRepo.GetByIdempotencyKey(ctx, nil, idempotencyKey)
 			if getErr == nil {
 				return v1dto.MapToPaymentIntentDTO(existingTxn, order.OrderUuid), nil
 			}
@@ -213,10 +173,13 @@ func (s *paymentService) CreatePaymentIntent(ctx *gin.Context, input v1dto.Creat
 	}
 
 	responseDTO := v1dto.MapToPaymentIntentDTO(paymentTxn, order.OrderUuid)
-	_ = s.cache.Set(redisKey, responseDTO, 24*time.Hour)
+	redisKey := fmt.Sprintf("idem:payment:%s", idempotencyKey)
+	if s.cache != nil {
+		_ = s.cache.Set(redisKey, responseDTO, 24*time.Hour)
+	}
 
 	logger.Log.Info().
-		Str("trace_id", logger.GetTraceId(reqCtx)).
+		Str("trace_id", logger.GetTraceId(ctx)).
 		Str("module", "payment").
 		Str("action", "create_intent").
 		Str("order_number", order.OrderNumber).
@@ -232,8 +195,7 @@ func (s *paymentService) CreatePaymentIntent(ctx *gin.Context, input v1dto.Creat
 }
 
 // 2. NHẬN WEBHOOK TỪ CỔNG (VERIFY + DEDUP + PUSH RABBITMQ)
-func (s *paymentService) HandleWebhook(ctx *gin.Context, providerName string) error {
-	reqCtx := ctx.Request.Context()
+func (s *paymentService) HandleWebhook(ctx context.Context, providerName string, rawPayload []byte, headers map[string]string) error {
 	startTime := time.Now()
 
 	providerName = strings.ToLower(strings.TrimSpace(providerName))
@@ -242,25 +204,6 @@ func (s *paymentService) HandleWebhook(ctx *gin.Context, providerName string) er
 		return utils.NewError(utils.ErrCodeBadRequest, fmt.Sprintf("Unsupported payment provider: %s", providerName))
 	}
 
-	var rawPayload []byte
-	var err error
-	if ctx.Request.Method == http.MethodGet {
-		rawPayload = []byte(ctx.Request.URL.RawQuery)
-	} else {
-		rawPayload, err = io.ReadAll(ctx.Request.Body)
-		if err != nil {
-			return utils.NewError(utils.ErrCodeBadRequest, "Failed to read request body")
-		}
-	}
-
-	headers := make(map[string]string)
-	for k, v := range ctx.Request.Header {
-		if len(v) > 0 {
-			headers[k] = v[0]
-		}
-	}
-
-	// Verify HMAC signature
 	if err := provider.VerifyWebhook(rawPayload, headers); err != nil {
 		logger.Log.Warn().
 			Err(err).
@@ -276,7 +219,6 @@ func (s *paymentService) HandleWebhook(ctx *gin.Context, providerName string) er
 		return utils.WrapError(utils.ErrCodeBadRequest, "Failed to parse webhook payload", err)
 	}
 
-	// Dedup qua bảng webhook_events
 	eventParams := sqlc.InsertWebhookEventParams{
 		WeProvider:        providerName,
 		WeExternalEventID: result.EventID,
@@ -284,18 +226,15 @@ func (s *paymentService) HandleWebhook(ctx *gin.Context, providerName string) er
 		WeRawBody:         string(rawPayload),
 	}
 
-	event, err := s.webhookRepo.InsertEvent(reqCtx, nil, eventParams)
+	event, err := s.webhookRepo.InsertEvent(ctx, nil, eventParams)
 	if err != nil {
-		// Chỉ coi là duplicate khi DB trả về ErrNoRows (do ON CONFLICT DO NOTHING)
 		if errors.Is(err, pgx.ErrNoRows) {
 			logger.Log.Info().
 				Str("provider", providerName).
 				Str("event_id", result.EventID).
 				Msg("Duplicate webhook event received (ON CONFLICT), acknowledging gateway")
-			return nil // Báo 200 OK cho Gateway biết đã nhận rồi, đừng gửi nữa
+			return nil
 		}
-		// Nếu là lỗi DB thật (mất kết nối, timeout...) -> BẮT BUỘC trả lỗi để Handler trả 500
-		// Gateway nhận mã HTTP 500 sẽ tự động Retry lại sau 1p, 5p, 15p
 		logger.Log.Error().
 			Err(err).
 			Str("provider", providerName).
@@ -304,7 +243,6 @@ func (s *paymentService) HandleWebhook(ctx *gin.Context, providerName string) er
 		return utils.WrapError(utils.ErrCodeInternal, "failed to persist webhook event", err)
 	}
 
-	// Nếu không lỗi nhưng WeID == 0 (phòng trường hợp thư viện sqlc không trả ErrNoRows)
 	if event.WeID == 0 {
 		logger.Log.Info().
 			Str("provider", providerName).
@@ -313,13 +251,10 @@ func (s *paymentService) HandleWebhook(ctx *gin.Context, providerName string) er
 		return nil
 	}
 
-	// Tách lấy OrderNumber gốc (16 ký tự)
-	orderNumberParts := strings.Split(result.OrderNumber, "_")
-	realOrderNumber := orderNumberParts[0]
+	realOrderNumber, _, _ := strings.Cut(result.OrderNumber, "_")
 
-	// Lấy order để lấy OrderUUID
 	var orderUUID string
-	order, err := s.orderRepo.GetByOrderNumber(reqCtx, realOrderNumber)
+	order, err := s.orderRepo.GetByOrderNumber(ctx, realOrderNumber)
 	if err == nil {
 		orderUUID = order.OrderUuid.String()
 	}
@@ -336,7 +271,7 @@ func (s *paymentService) HandleWebhook(ctx *gin.Context, providerName string) er
 		Metadata:       result.Metadata,
 	}
 
-	if err := s.rabbitmq.Publish(reqCtx, "payment.webhook", msgPayload); err != nil {
+	if err := s.rabbitmq.Publish(ctx, "payment.webhook", msgPayload); err != nil {
 		logger.Log.Error().Err(err).Msg("Failed to publish payment webhook to RabbitMQ")
 		return utils.WrapError(utils.ErrCodeInternal, "failed to enqueue webhook event", err)
 	}
@@ -369,19 +304,15 @@ func (s *paymentService) ProcessWebhookMessage(headers amqp.Table, body []byte) 
 		newPaymentStatus = PaymentStatusPaid
 	}
 
-	/* =================== BEGIN TRANSACTION =================== */
-	tx, err := db.DBPool.Begin(ctx)
+	tx, err := db.BeginTx(ctx)
 	if err != nil {
 		logger.Log.Error().Err(err).Msg("Failed to begin database transaction")
 		return err
 	}
-	defer tx.Rollback(ctx) // Tự động rollback nếu có lỗi xảy ra trước khi commit
+	defer tx.Rollback(ctx)
 
-	// 2. TÌM CHÍNH XÁC TRANSACTION BẰNG TXN_REF (Dùng index pt_txn_ref hoặc fallback pt_provider_txn_id)
-	// msg.OrderNumber lúc này chứa chuỗi "260831-05-BZ7AMC_1788100000"
 	pt, err := s.paymentRepo.GetByTxnRef(ctx, tx, msg.Provider, msg.OrderNumber)
 	if err != nil {
-		// Fallback cho các bản ghi cũ
 		pt, err = s.paymentRepo.GetByProviderTxnID(ctx, tx, msg.Provider, msg.OrderNumber)
 	}
 	if err != nil {
@@ -390,10 +321,9 @@ func (s *paymentService) ProcessWebhookMessage(headers amqp.Table, body []byte) 
 			Str("provider", msg.Provider).
 			Str("txn_ref", msg.OrderNumber).
 			Msg("Payment transaction not found by txn_ref")
-		return err // Trả lỗi để RabbitMQ retry
+		return err
 	}
 
-	// KIỂM TRA IDEMPOTENCY / REDELIVERY: Nếu giao dịch đã ở trạng thái Paid từ trước, ACK ngay lập tức
 	if pt.PtStatus == PaymentStatusPaid {
 		logger.Log.Info().
 			Str("module", "payment").
@@ -404,10 +334,9 @@ func (s *paymentService) ProcessWebhookMessage(headers amqp.Table, body []byte) 
 
 		_ = s.webhookRepo.MarkProcessed(ctx, tx, msg.WebhookEventID)
 		_ = tx.Commit(ctx)
-		return nil // rả về nil để RabbitMQ ACK message thành công, KHÔNG retry vào DLQ
+		return nil
 	}
 
-	// 3. CẬP NHẬT TRẠNG THÁI TRANSACTION VÀ GHI ĐÈ MÃ GIAO DỊCH NGÂN HÀNG THẬT (LƯU KÈM TXN_REF VÀO METADATA)
 	metaBytes, _ := json.Marshal(map[string]interface{}{
 		"txn_ref":  msg.OrderNumber,
 		"trans_id": msg.ProviderTxnID,
@@ -415,7 +344,7 @@ func (s *paymentService) ProcessWebhookMessage(headers amqp.Table, body []byte) 
 	_, err = s.paymentRepo.UpdateStatusAtomically(ctx, tx, sqlc.UpdatePaymentStatusAtomicallyParams{
 		PtUuid:              pt.PtUuid,
 		NewStatus:           newPaymentStatus,
-		ProviderTxnID:       &msg.ProviderTxnID, // Lưu mã ngân hàng thật (ví dụ: transId MoMo)
+		ProviderTxnID:       &msg.ProviderTxnID,
 		Metadata:            metaBytes,
 		AllowedFromStatuses: []int32{PaymentStatusPending},
 	})
@@ -424,10 +353,8 @@ func (s *paymentService) ProcessWebhookMessage(headers amqp.Table, body []byte) 
 		return err
 	}
 
-	// 4. CẬP NHẬT TRẠNG THÁI ORDER SANG PAID (Dùng pt.PtOrderID hoặc msg.OrderUUID)
 	var paidOrder *sqlc.GetOrderByOrderNumberRow
 	if msg.Status == "success" {
-		// Tách mã đơn gốc (ví dụ: "260831-05-BZ7AMC")
 		realOrderNumber, _, _ := strings.Cut(msg.OrderNumber, "_")
 
 		order, err := s.orderRepo.GetByOrderNumber(ctx, realOrderNumber)
@@ -446,7 +373,6 @@ func (s *paymentService) ProcessWebhookMessage(headers amqp.Table, body []byte) 
 		}
 	}
 
-	// 5. ĐÁNH DẤU WEBHOOK EVENT ĐÃ XỬ LÝ
 	if err := s.webhookRepo.MarkProcessed(ctx, tx, msg.WebhookEventID); err != nil {
 		logger.Log.Error().
 			Err(err).
@@ -455,27 +381,17 @@ func (s *paymentService) ProcessWebhookMessage(headers amqp.Table, body []byte) 
 		return utils.WrapError(utils.ErrCodeInternal, "failed to mark webhook event as processed", err)
 	}
 
-	/* =================== COMMIT TRANSACTION =================== */
 	if err := tx.Commit(ctx); err != nil {
 		logger.Log.Error().Err(err).Msg("Failed to commit database transaction")
 		return err
 	}
 
-	_ = s.cache.Clear("orders:*")
+	if s.cache != nil {
+		_ = s.cache.Clear("orders:*")
+	}
 
 	if msg.Status == "success" && paidOrder != nil {
-		go func() {
-			_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
-				UserID: paidOrder.OrderUserID,
-				Type:   "payment_success",
-				Title:  "Payment Received",
-				Body:   fmt.Sprintf("Payment for order #%s was successfully received.", paidOrder.OrderNumber),
-				Data: map[string]any{
-					"order_uuid":       paidOrder.OrderUuid.String(),
-					"provider_txn_id":  msg.ProviderTxnID,
-				},
-			})
-		}()
+		s.dispatchSuccessNotification(*paidOrder, msg.ProviderTxnID)
 	}
 
 	logger.Log.Info().
@@ -489,15 +405,13 @@ func (s *paymentService) ProcessWebhookMessage(headers amqp.Table, body []byte) 
 	return nil
 }
 
-func (s *paymentService) GetPaymentHistory(ctx *gin.Context, orderUUID uuid.UUID) ([]v1dto.PaymentTransactionDTO, error) {
-	reqCtx := ctx.Request.Context()
-
-	user, err := middleware.GetUserFromContext(ctx, s.userRepo)
+func (s *paymentService) GetPaymentHistory(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) ([]v1dto.PaymentTransactionDTO, error) {
+	user, err := s.getUser(ctx, userUUID)
 	if err != nil {
 		return nil, err
 	}
 
-	order, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
+	order, err := s.orderRepo.GetByUUID(ctx, orderUUID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, utils.NewError(utils.ErrCodeNotFound, "Order not found")
@@ -509,12 +423,12 @@ func (s *paymentService) GetPaymentHistory(ctx *gin.Context, orderUUID uuid.UUID
 		return nil, utils.NewError(utils.ErrCodeForbidden, "You are not authorized to view payment history for this order")
 	}
 
-	paymentTxns, err := s.paymentRepo.GetByOrderID(reqCtx, nil, order.OrderID)
+	paymentTxns, err := s.paymentRepo.GetByOrderID(ctx, nil, order.OrderID)
 	if err != nil {
 		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to get payment transactions", err)
 	}
 
-	var history []v1dto.PaymentTransactionDTO
+	history := make([]v1dto.PaymentTransactionDTO, 0, len(paymentTxns))
 	for _, txn := range paymentTxns {
 		history = append(history, v1dto.MapToPaymentTransactionDTO(txn, order.OrderUuid))
 	}
@@ -522,20 +436,18 @@ func (s *paymentService) GetPaymentHistory(ctx *gin.Context, orderUUID uuid.UUID
 	return history, nil
 }
 
-func (s *paymentService) ConfirmCODPayment(ctx *gin.Context, orderUUID uuid.UUID) error {
-	reqCtx := ctx.Request.Context()
+func (s *paymentService) ConfirmCODPayment(ctx context.Context, orderUUID uuid.UUID) error {
 	startTime := time.Now()
 
-	tx, err := db.DBPool.Begin(reqCtx)
+	tx, err := db.BeginTx(ctx)
 	if err != nil {
 		logger.Log.Error().Err(err).Msg("Failed to begin database transaction for COD confirmation")
 		return utils.WrapError(utils.ErrCodeInternal, "failed to begin database transaction", err)
 	}
-	defer tx.Rollback(reqCtx)
+	defer tx.Rollback(ctx)
 
-	order, err := s.orderRepo.GetByUUID(reqCtx, orderUUID)
+	order, err := s.orderRepo.GetByUUID(ctx, orderUUID)
 	if err != nil {
-		_ = tx.Rollback(reqCtx)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return utils.NewError(utils.ErrCodeNotFound, "Order not found")
 		}
@@ -543,21 +455,17 @@ func (s *paymentService) ConfirmCODPayment(ctx *gin.Context, orderUUID uuid.UUID
 	}
 
 	if order.OrderPaymentMethod != OrderPaymentMethodCOD {
-		_ = tx.Rollback(reqCtx)
 		return utils.NewError(utils.ErrCodeBadRequest, "Order is not a COD order")
 	}
 
 	if order.OrderPaymentStatus == OrderPaymentStatusPaid {
-		_ = tx.Rollback(reqCtx)
 		return utils.NewError(utils.ErrCodeBadRequest, "Order has already been confirmed as paid")
 	}
 
 	if order.OrderStatus == OrderStatusCancelled {
-		_ = tx.Rollback(reqCtx)
 		return utils.NewError(utils.ErrCodeBadRequest, "Order is cancelled, cannot confirm payment")
 	}
 
-	// Tạo record lưu vết trong payment_transactions
 	idempotencyKey := fmt.Sprintf("cod:%s", order.OrderNumber)
 	providerTxnID := fmt.Sprintf("COD_%s", order.OrderNumber)
 
@@ -571,33 +479,34 @@ func (s *paymentService) ConfirmCODPayment(ctx *gin.Context, orderUUID uuid.UUID
 		PtStatus:         PaymentStatusPaid,
 	}
 
-	paymentTxn, err := s.paymentRepo.Create(reqCtx, tx, ptParams)
+	paymentTxn, err := s.paymentRepo.Create(ctx, tx, ptParams)
 	if err != nil {
 		logger.Log.Error().Err(err).Str("order_number", order.OrderNumber).Msg("Failed to create COD payment transaction")
 		return utils.WrapError(utils.ErrCodeInternal, "failed to create payment transaction", err)
 	}
 
-	_, err = s.orderRepo.UpdateOrderPaymentStatus(reqCtx, tx, sqlc.UpdateOrderPaymentStatusParams{
+	_, err = s.orderRepo.UpdateOrderPaymentStatus(ctx, tx, sqlc.UpdateOrderPaymentStatusParams{
 		OrderUuid:           order.OrderUuid,
 		PaymentStatus:       OrderPaymentStatusPaid,
 		RefundedAmount:      utils.FloatToNumeric(0),
 		AllowedFromStatuses: []int32{OrderPaymentStatusUnpaid},
 	})
-
 	if err != nil {
 		logger.Log.Error().Err(err).Str("order_number", order.OrderNumber).Msg("Failed to update order payment status for COD confirmation")
 		return utils.WrapError(utils.ErrCodeInternal, "failed to update order payment status", err)
 	}
 
-	if err := tx.Commit(reqCtx); err != nil {
+	if err := tx.Commit(ctx); err != nil {
 		logger.Log.Error().Err(err).Msg("Failed to commit database transaction for COD confirmation")
 		return utils.WrapError(utils.ErrCodeInternal, "failed to commit database transaction", err)
 	}
 
-	_ = s.cache.Clear("orders:*")
+	if s.cache != nil {
+		_ = s.cache.Clear("orders:*")
+	}
 
 	logger.Log.Info().
-		Str("trace_id", logger.GetTraceId(reqCtx)).
+		Str("trace_id", logger.GetTraceId(ctx)).
 		Str("module", "payment").
 		Str("action", "confirm_cod").
 		Str("order_number", order.OrderNumber).
@@ -609,8 +518,7 @@ func (s *paymentService) ConfirmCODPayment(ctx *gin.Context, orderUUID uuid.UUID
 	return nil
 }
 
-func (s *paymentService) RefundPayment(ctx *gin.Context, input v1dto.RefundPaymentInput) (v1dto.PaymentTransactionDTO, error) {
-	reqCtx := ctx.Request.Context()
+func (s *paymentService) RefundPayment(ctx context.Context, idempotencyKey string, input v1dto.RefundPaymentInput) (v1dto.PaymentTransactionDTO, error) {
 	startTime := time.Now()
 
 	orderUUID, err := uuid.Parse(input.OrderUUID)
@@ -618,18 +526,15 @@ func (s *paymentService) RefundPayment(ctx *gin.Context, input v1dto.RefundPayme
 		return v1dto.PaymentTransactionDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Invalid order UUID format")
 	}
 
-	/* ============================================================
-	   PHASE 1: RESERVE & CREATE PENDING AUDIT RECORD (DB TX)
-	   ============================================================ */
-	txPhase1, err := db.DBPool.Begin(reqCtx)
+	/* =================== PHASE 1: RESERVE PENDING RECORD =================== */
+	txPhase1, err := db.BeginTx(ctx)
 	if err != nil {
 		logger.Log.Error().Err(err).Msg("Failed to begin phase 1 db transaction for refund")
 		return v1dto.PaymentTransactionDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to begin db transaction", err)
 	}
-	defer txPhase1.Rollback(reqCtx)
+	defer txPhase1.Rollback(ctx)
 
-	// A. Pessimistic Lock (FOR UPDATE) để chặn Race Condition hoàn tiền vượt hạn mức
-	order, err := s.orderRepo.GetByUUIDForUpdate(reqCtx, txPhase1, orderUUID)
+	order, err := s.orderRepo.GetByUUIDForUpdate(ctx, txPhase1, orderUUID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return v1dto.PaymentTransactionDTO{}, utils.NewError(utils.ErrCodeNotFound, "Order not found")
@@ -637,7 +542,6 @@ func (s *paymentService) RefundPayment(ctx *gin.Context, input v1dto.RefundPayme
 		return v1dto.PaymentTransactionDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to get order", err)
 	}
 
-	// B. Kiểm tra điều kiện nghiệp vụ
 	if order.OrderPaymentStatus != OrderPaymentStatusPaid && order.OrderPaymentStatus != OrderPaymentStatusPartiallyRefunded {
 		return v1dto.PaymentTransactionDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Only Paid or Partially Refunded orders can be refunded")
 	}
@@ -654,16 +558,13 @@ func (s *paymentService) RefundPayment(ctx *gin.Context, input v1dto.RefundPayme
 			fmt.Sprintf("Refund amount exceeds refundable balance. Maximum refundable: %.2f VND", remainingRefundable))
 	}
 
-	// 1. Chuẩn hóa Idempotency Key: Ưu tiên Client Header -> Fallback sang Deterministic Hash (Không dùng time.Now)
-	idempotencyKey := ctx.GetHeader("X-Idempotency-Key")
 	if idempotencyKey == "" {
 		raw := fmt.Sprintf("%s:%.2f:%s:%.2f", order.OrderNumber, input.Amount, strings.TrimSpace(input.Reason), currentRefunded)
 		hash := sha256.Sum256([]byte(raw))
 		idempotencyKey = fmt.Sprintf("refund:%s:%x", order.OrderNumber, hash[:8])
 	}
 
-	// C. Tìm giao dịch thanh toán gốc đã Paid
-	txns, err := s.paymentRepo.GetByOrderID(reqCtx, txPhase1, order.OrderID)
+	txns, err := s.paymentRepo.GetByOrderID(ctx, txPhase1, order.OrderID)
 	if err != nil {
 		return v1dto.PaymentTransactionDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to get payment history", err)
 	}
@@ -679,27 +580,24 @@ func (s *paymentService) RefundPayment(ctx *gin.Context, input v1dto.RefundPayme
 		return v1dto.PaymentTransactionDTO{}, utils.NewError(utils.ErrCodeBadRequest, "No successful original payment transaction found to refund")
 	}
 
-	// D. Tạo bản ghi giao dịch Refund ở trạng thái PENDING (Lưu vết trước khi ra Gateway)
 	refundNumeric := utils.FloatToNumeric(input.Amount)
-	pendingRefundTxn, err := s.paymentRepo.CreateRefund(reqCtx, txPhase1, sqlc.CreateRefundTransactionParams{
+	pendingRefundTxn, err := s.paymentRepo.CreateRefund(ctx, txPhase1, sqlc.CreateRefundTransactionParams{
 		OrderID:        order.OrderID,
 		IdempotencyKey: idempotencyKey,
 		Provider:       originalTxn.PtProvider,
 		ProviderTxnID:  nil,
 		Amount:         refundNumeric,
 		Currency:       "VND",
-		Status:         PaymentStatusPending, // 1: Pending trong quá trình gọi Gateway
+		Status:         PaymentStatusPending,
 		RefundOf:       &originalTxn.PtID,
 		RefundAmount:   refundNumeric,
 	})
 	if err != nil {
-		// Kiểm tra nếu là lỗi trùng lặp Idempotency Key
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			_ = txPhase1.Rollback(reqCtx)
+			_ = txPhase1.Rollback(ctx)
 
-			// Tra cứu bản ghi giao dịch refund đã tồn tại
-			existingTxn, getErr := s.paymentRepo.GetByIdempotencyKey(reqCtx, nil, idempotencyKey)
+			existingTxn, getErr := s.paymentRepo.GetByIdempotencyKey(ctx, nil, idempotencyKey)
 			if getErr == nil {
 				if existingTxn.PtStatus == PaymentStatusPaid {
 					logger.Log.Info().
@@ -724,14 +622,12 @@ func (s *paymentService) RefundPayment(ctx *gin.Context, input v1dto.RefundPayme
 		return v1dto.PaymentTransactionDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to reserve refund transaction", err)
 	}
 
-	if err := txPhase1.Commit(reqCtx); err != nil {
+	if err := txPhase1.Commit(ctx); err != nil {
 		logger.Log.Error().Err(err).Msg("Failed to commit phase 1 refund transaction")
 		return v1dto.PaymentTransactionDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to commit phase 1", err)
 	}
 
-	/* ============================================================
-	   PHASE 2: CALL EXTERNAL GATEWAY REFUND API
-	   ============================================================ */
+	/* =================== PHASE 2: CALL EXTERNAL GATEWAY =================== */
 	var refundTxnID string
 	var gatewayErr error
 
@@ -745,7 +641,7 @@ func (s *paymentService) RefundPayment(ctx *gin.Context, input v1dto.RefundPayme
 				providerTxnID = *originalTxn.PtProviderTxnID
 			}
 
-			refundResp, err := provider.Refund(reqCtx, payment.RefundRequest{
+			refundResp, err := provider.Refund(ctx, payment.RefundRequest{
 				OrderNumber:   order.OrderNumber,
 				ProviderTxnID: providerTxnID,
 				Amount:        input.Amount,
@@ -759,28 +655,24 @@ func (s *paymentService) RefundPayment(ctx *gin.Context, input v1dto.RefundPayme
 			}
 		}
 	} else {
-		// Đơn COD: Hoàn tiền mặt nội bộ
 		refundTxnID = fmt.Sprintf("REFUND_COD_%s_%d", order.OrderNumber, time.Now().Unix())
 	}
 
-	/* ============================================================
-	   PHASE 3: CONFIRM OR FAIL (FINALIZE IN DB TX)
-	   ============================================================ */
-	txPhase3, err := db.DBPool.Begin(reqCtx)
+	/* =================== PHASE 3: FINALIZE IN DB =================== */
+	txPhase3, err := db.BeginTx(ctx)
 	if err != nil {
 		logger.Log.Error().Err(err).Msg("Failed to begin phase 3 db transaction for refund")
 		return v1dto.PaymentTransactionDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to begin phase 3 db transaction", err)
 	}
-	defer txPhase3.Rollback(reqCtx)
+	defer txPhase3.Rollback(ctx)
 
 	if gatewayErr != nil {
-		// Gateway thất bại -> Đánh dấu bản ghi là FAILED (Giữ nguyên audit trail)
-		_, _ = s.paymentRepo.UpdateStatusAtomically(reqCtx, txPhase3, sqlc.UpdatePaymentStatusAtomicallyParams{
+		_, _ = s.paymentRepo.UpdateStatusAtomically(ctx, txPhase3, sqlc.UpdatePaymentStatusAtomicallyParams{
 			PtUuid:              pendingRefundTxn.PtUuid,
 			NewStatus:           PaymentStatusFailed,
 			AllowedFromStatuses: []int32{PaymentStatusPending},
 		})
-		_ = txPhase3.Commit(reqCtx)
+		_ = txPhase3.Commit(ctx)
 		logger.Log.Error().
 			Err(gatewayErr).
 			Str("provider", originalTxn.PtProvider).
@@ -789,8 +681,7 @@ func (s *paymentService) RefundPayment(ctx *gin.Context, input v1dto.RefundPayme
 		return v1dto.PaymentTransactionDTO{}, utils.WrapError(utils.ErrCodeBadGateway, "Gateway refund failed", gatewayErr)
 	}
 
-	// Gateway thành công -> Chuyển sang PAID (2)
-	finalRefundTxn, err := s.paymentRepo.UpdateStatusAtomically(reqCtx, txPhase3, sqlc.UpdatePaymentStatusAtomicallyParams{
+	finalRefundTxn, err := s.paymentRepo.UpdateStatusAtomically(ctx, txPhase3, sqlc.UpdatePaymentStatusAtomicallyParams{
 		PtUuid:              pendingRefundTxn.PtUuid,
 		NewStatus:           PaymentStatusPaid,
 		ProviderTxnID:       &refundTxnID,
@@ -801,14 +692,13 @@ func (s *paymentService) RefundPayment(ctx *gin.Context, input v1dto.RefundPayme
 		return v1dto.PaymentTransactionDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to confirm refund transaction", err)
 	}
 
-	// Cập nhật trạng thái và số tiền đã hoàn trong bảng orders
 	newTotalRefunded := currentRefunded + input.Amount
 	var newOrderStatus int32 = OrderPaymentStatusPartiallyRefunded
 	if newTotalRefunded >= totalAmount {
 		newOrderStatus = OrderPaymentStatusFullyRefunded
 	}
 
-	_, err = s.orderRepo.UpdateOrderPaymentStatus(reqCtx, txPhase3, sqlc.UpdateOrderPaymentStatusParams{
+	_, err = s.orderRepo.UpdateOrderPaymentStatus(ctx, txPhase3, sqlc.UpdateOrderPaymentStatusParams{
 		OrderUuid:           order.OrderUuid,
 		PaymentStatus:       newOrderStatus,
 		RefundedAmount:      utils.FloatToNumeric(newTotalRefunded),
@@ -819,28 +709,19 @@ func (s *paymentService) RefundPayment(ctx *gin.Context, input v1dto.RefundPayme
 		return v1dto.PaymentTransactionDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to update order payment status", err)
 	}
 
-	if err := txPhase3.Commit(reqCtx); err != nil {
+	if err := txPhase3.Commit(ctx); err != nil {
 		logger.Log.Error().Err(err).Msg("Failed to commit phase 3 database transaction for refund")
 		return v1dto.PaymentTransactionDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to commit database transaction", err)
 	}
 
-	_ = s.cache.Clear("orders:*")
+	if s.cache != nil {
+		_ = s.cache.Clear("orders:*")
+	}
 
-	go func() {
-		_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
-			UserID: order.OrderUserID,
-			Type:   "payment_refunded",
-			Title:  "Payment Refunded",
-			Body:   fmt.Sprintf("A refund of %.0f VND for order #%s has been successfully processed.", input.Amount, order.OrderNumber),
-			Data: map[string]any{
-				"order_uuid":      order.OrderUuid.String(),
-				"refund_txn_uuid": finalRefundTxn.PtUuid.String(),
-			},
-		})
-	}()
+	s.dispatchRefundNotification(order, finalRefundTxn, input.Amount)
 
 	logger.Log.Info().
-		Str("trace_id", logger.GetTraceId(reqCtx)).
+		Str("trace_id", logger.GetTraceId(ctx)).
 		Str("module", "payment").
 		Str("action", "refund").
 		Str("order_number", order.OrderNumber).
@@ -858,24 +739,24 @@ func (s *paymentService) RefundPayment(ctx *gin.Context, input v1dto.RefundPayme
 func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 	startTime := time.Now()
 
-	// 0. Distributed Lock: Chống race condition khi có nhiều instance chạy cron song song
 	lockKey := "lock:payment:reconciliation"
-	acquired, err := s.cache.SetNX(lockKey, "locked", 4*time.Minute)
-	if err != nil {
-		logger.Log.Error().Err(err).Msg("Reconciliation: Failed to acquire distributed lock in Redis")
-		return err
+	if s.cache != nil {
+		acquired, err := s.cache.SetNX(lockKey, "locked", 4*time.Minute)
+		if err != nil {
+			logger.Log.Error().Err(err).Msg("Reconciliation: Failed to acquire distributed lock in Redis")
+			return err
+		}
+		if !acquired {
+			logger.Log.Info().Msg("Reconciliation: Another instance is currently running reconciliation, skipping this cycle")
+			return nil
+		}
+		defer func() {
+			_ = s.cache.Del(lockKey)
+		}()
 	}
-	if !acquired {
-		logger.Log.Info().Msg("Reconciliation: Another instance is currently running reconciliation, skipping this cycle")
-		return nil
-	}
-	defer func() {
-		_ = s.cache.Del(lockKey)
-	}()
 
 	olderThan := time.Now().Add(-15 * time.Minute)
 
-	// 1. Lấy danh sách tối đa 50 giao dịch Pending tạo trước 15 phút (kèm thông tin Order và User qua JOIN)
 	pendingTxns, err := s.paymentRepo.GetPendingTransactionsOlderThan(ctx, nil, sqlc.GetPendingTransactionsOlderThanParams{
 		OlderThan: olderThan,
 		Lim:       50,
@@ -886,7 +767,7 @@ func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 	}
 
 	if len(pendingTxns) == 0 {
-		return nil // Không có giao dịch treo cần xử lý
+		return nil
 	}
 
 	logger.Log.Info().
@@ -896,7 +777,6 @@ func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 	successCount := 0
 	expiredCount := 0
 
-	// 2. Duyệt từng giao dịch treo để đối soát
 	for _, txn := range pendingTxns {
 		provider, exists := s.providers[txn.PtProvider]
 		if !exists {
@@ -907,7 +787,6 @@ func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 			continue
 		}
 
-		// Xác định queryOrderID: Ưu tiên cột pt_txn_ref chuyên dụng
 		queryOrderID := txn.OrderNumber
 		if txn.PtTxnRef != nil && *txn.PtTxnRef != "" {
 			queryOrderID = *txn.PtTxnRef
@@ -915,7 +794,6 @@ func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 			queryOrderID = *txn.PtProviderTxnID
 		}
 
-		// A. Gọi API Cổng thanh toán để kiểm tra trạng thái thực tế theo txnRef
 		status, err := provider.QueryTransactionStatus(ctx, queryOrderID)
 		if err != nil {
 			logger.Log.Warn().
@@ -926,8 +804,7 @@ func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 			continue
 		}
 
-		// B. Bắt đầu Database Transaction để cập nhật Atomic
-		tx, err := db.DBPool.Begin(ctx)
+		tx, err := db.BeginTx(ctx)
 		if err != nil {
 			logger.Log.Error().Err(err).Msg("Reconciliation: Failed to begin db transaction")
 			continue
@@ -935,7 +812,6 @@ func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 
 		switch status {
 		case payment.TxnStatusSuccess:
-			// TRƯỜNG HỢP 1: Khách đã trả tiền thành công nhưng Webhook bị rớt mạng -> Bù trạng thái PAID (2)
 			_, err = s.paymentRepo.UpdateStatusAtomically(ctx, tx, sqlc.UpdatePaymentStatusAtomicallyParams{
 				PtUuid:              txn.PtUuid,
 				NewStatus:           PaymentStatusPaid,
@@ -956,7 +832,6 @@ func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 				continue
 			}
 
-			// Cập nhật trạng thái Order sang Paid (Hỗ trợ idempotent nếu Order đã là Paid)
 			_, err = s.orderRepo.UpdateOrderPaymentStatus(ctx, tx, sqlc.UpdateOrderPaymentStatusParams{
 				OrderUuid:           txn.OrderUuid,
 				PaymentStatus:       OrderPaymentStatusPaid,
@@ -990,10 +865,9 @@ func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 				Msg("Reconciliation: Successfully recovered missed paid transaction")
 
 		case payment.TxnStatusFailed, payment.TxnStatusExpired:
-			// TRƯỜNG HỢP 2: Khách bỏ ngang / Giao dịch thất bại / Quá hạn -> Cập nhật EXPIRED (4)
 			_, err = s.paymentRepo.UpdateStatusAtomically(ctx, tx, sqlc.UpdatePaymentStatusAtomicallyParams{
 				PtUuid:              txn.PtUuid,
-				NewStatus:           PaymentStatusExpired, // 4: Expired
+				NewStatus:           PaymentStatusExpired,
 				AllowedFromStatuses: []int32{PaymentStatusPending},
 			})
 			if err != nil {
@@ -1022,13 +896,11 @@ func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 				Msg("Reconciliation: Marked abandoned payment transaction as Expired")
 
 		case payment.TxnStatusPending:
-			// Khách vẫn đang trong thời gian mở app (chưa hết hạn gateway) -> Giữ nguyên chờ lần quét sau
 			_ = tx.Rollback(ctx)
 		}
 	}
 
-	// 3. Xóa cache đơn hàng nếu có cập nhật
-	if successCount > 0 {
+	if successCount > 0 && s.cache != nil {
 		_ = s.cache.Clear("orders:*")
 	}
 
@@ -1039,4 +911,113 @@ func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 		Msg("Reconciliation: Job finished successfully")
 
 	return nil
+}
+
+// ── Private SRP Helper Methods ────────────────────────────────────
+
+func (s *paymentService) getUser(ctx context.Context, userUUID uuid.UUID) (sqlc.User, error) {
+	user, err := s.userRepo.GetByUUID(ctx, userUUID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return sqlc.User{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+		}
+		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to get user", err)
+	}
+	return user, nil
+}
+
+func (s *paymentService) validateOrderForPayment(order sqlc.GetOrderByUUIDRow, user sqlc.User) error {
+	if order.OrderUserID != user.UserID {
+		return utils.NewError(utils.ErrCodeForbidden, "You are not authorized to pay for this order")
+	}
+
+	if order.OrderPaymentStatus == OrderPaymentStatusPaid {
+		return utils.NewError(utils.ErrCodeBadRequest, "Order has already been paid")
+	}
+
+	if order.OrderStatus != OrderStatusPending && order.OrderStatus != OrderStatusConfirmed {
+		return utils.NewError(utils.ErrCodeBadRequest, "Order status does not allow payment")
+	}
+
+	if order.OrderPaymentMethod == OrderPaymentMethodCOD {
+		return utils.NewError(utils.ErrCodeBadRequest, "COD orders cannot create online payment intent")
+	}
+
+	orderAmount := utils.NumericToFloat(order.OrderTotalAmount)
+	if orderAmount <= 0 {
+		return utils.NewError(utils.ErrCodeBadRequest, "Order amount is 0, online payment is not required")
+	}
+
+	return nil
+}
+
+func (s *paymentService) checkIdempotency(ctx context.Context, idempotencyKey string, order sqlc.GetOrderByUUIDRow) (*v1dto.PaymentIntentDTO, error) {
+	redisKey := fmt.Sprintf("idem:payment:%s", idempotencyKey)
+	var cachedDTO v1dto.PaymentIntentDTO
+	if s.cache != nil {
+		if err := s.cache.Get(redisKey, &cachedDTO); err == nil {
+			if cachedDTO.OrderUUID != order.OrderUuid.String() {
+				return nil, utils.NewError(utils.ErrCodeConflict, "Idempotency key already used for a different order")
+			}
+			return &cachedDTO, nil
+		}
+	}
+
+	existingTxn, err := s.paymentRepo.GetByIdempotencyKey(ctx, nil, idempotencyKey)
+	if err == nil {
+		if existingTxn.PtOrderID != order.OrderID {
+			return nil, utils.NewError(utils.ErrCodeConflict, "Idempotency key already used for a different order")
+		}
+		dto := v1dto.MapToPaymentIntentDTO(existingTxn, order.OrderUuid)
+		if s.cache != nil {
+			_ = s.cache.Set(redisKey, dto, 24*time.Hour)
+		}
+		return &dto, nil
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to check idempotency key", err)
+	}
+
+	return nil, nil
+}
+
+func (s *paymentService) buildWebhookURL(providerName string) string {
+	webhookBase := strings.TrimRight(s.webhookBaseURL, "/")
+	if !strings.Contains(webhookBase, "/api/v1/webhooks/payment") {
+		webhookBase = fmt.Sprintf("%s/api/v1/webhooks/payment", webhookBase)
+	}
+	return fmt.Sprintf("%s/%s", webhookBase, providerName)
+}
+
+func (s *paymentService) dispatchSuccessNotification(paidOrder sqlc.GetOrderByOrderNumberRow, providerTxnID string) {
+	if s.notificationService != nil {
+		go func() {
+			_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
+				UserID: paidOrder.OrderUserID,
+				Type:   "payment_success",
+				Title:  "Payment Received",
+				Body:   fmt.Sprintf("Payment for order #%s was successfully received.", paidOrder.OrderNumber),
+				Data: map[string]any{
+					"order_uuid":      paidOrder.OrderUuid.String(),
+					"provider_txn_id": providerTxnID,
+				},
+			})
+		}()
+	}
+}
+
+func (s *paymentService) dispatchRefundNotification(order sqlc.Order, finalRefundTxn sqlc.PaymentTransaction, amount float64) {
+	if s.notificationService != nil {
+		go func() {
+			_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
+				UserID: order.OrderUserID,
+				Type:   "payment_refunded",
+				Title:  "Payment Refunded",
+				Body:   fmt.Sprintf("A refund of %.0f VND for order #%s has been successfully processed.", amount, order.OrderNumber),
+				Data: map[string]any{
+					"order_uuid":      order.OrderUuid.String(),
+					"refund_txn_uuid": finalRefundTxn.PtUuid.String(),
+				},
+			})
+		}()
+	}
 }

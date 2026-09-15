@@ -1,11 +1,14 @@
 package v1handler
 
 import (
+	"io"
+	"net/http"
+
 	v1dto "goshop/internal/dto/v1"
+	"goshop/internal/middleware"
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/utils"
 	"goshop/internal/validation"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -35,13 +38,22 @@ func NewPaymentHandler(paymentService v1service.PaymentService) *PaymentHandler 
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /payments/create-intent [post]
 func (h *PaymentHandler) CreatePaymentIntent(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
 	var input v1dto.CreatePaymentIntentInput
 	if err := ctx.ShouldBindJSON(&input); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
 	}
 
-	result, err := h.paymentService.CreatePaymentIntent(ctx, input)
+	clientIP := ctx.ClientIP()
+	idempotencyKey := ctx.GetHeader("X-Idempotency-Key")
+
+	result, err := h.paymentService.CreatePaymentIntent(ctx.Request.Context(), userUUID, clientIP, idempotencyKey, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -61,7 +73,26 @@ func (h *PaymentHandler) CreatePaymentIntent(ctx *gin.Context) {
 func (h *PaymentHandler) HandleWebhook(ctx *gin.Context) {
 	provider := ctx.Param("provider")
 
-	if err := h.paymentService.HandleWebhook(ctx, provider); err != nil {
+	var rawPayload []byte
+	var err error
+	if ctx.Request.Method == http.MethodGet {
+		rawPayload = []byte(ctx.Request.URL.RawQuery)
+	} else {
+		rawPayload, err = io.ReadAll(ctx.Request.Body)
+		if err != nil {
+			utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Failed to read request body"))
+			return
+		}
+	}
+
+	headers := make(map[string]string)
+	for k, v := range ctx.Request.Header {
+		if len(v) > 0 {
+			headers[k] = v[0]
+		}
+	}
+
+	if err := h.paymentService.HandleWebhook(ctx.Request.Context(), provider, rawPayload, headers); err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
@@ -85,6 +116,12 @@ func (h *PaymentHandler) HandleWebhook(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /payments/order/{order_uuid} [get]
 func (h *PaymentHandler) GetPaymentHistory(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
 	var params v1dto.GetTransactionHistoryByOrderUUID
 	if err := ctx.ShouldBindUri(&params); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
@@ -97,7 +134,7 @@ func (h *PaymentHandler) GetPaymentHistory(ctx *gin.Context) {
 		return
 	}
 
-	paymentHistory, err := h.paymentService.GetPaymentHistory(ctx, orderUUID)
+	paymentHistory, err := h.paymentService.GetPaymentHistory(ctx.Request.Context(), userUUID, orderUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -131,7 +168,7 @@ func (h *PaymentHandler) ConfirmCODPayment(ctx *gin.Context) {
 		return
 	}
 
-	if err := h.paymentService.ConfirmCODPayment(ctx, orderUUID); err != nil {
+	if err := h.paymentService.ConfirmCODPayment(ctx.Request.Context(), orderUUID); err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
@@ -159,7 +196,9 @@ func (h *PaymentHandler) RefundPayment(ctx *gin.Context) {
 		return
 	}
 
-	refundResult, err := h.paymentService.RefundPayment(ctx, input)
+	idempotencyKey := ctx.GetHeader("X-Idempotency-Key")
+
+	refundResult, err := h.paymentService.RefundPayment(ctx.Request.Context(), idempotencyKey, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return

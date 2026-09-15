@@ -6,7 +6,6 @@ import (
 	v1dto "goshop/internal/dto/v1"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -128,12 +127,12 @@ type CouponService interface {
 }
 
 type PaymentService interface {
-	CreatePaymentIntent(ctx *gin.Context, input v1dto.CreatePaymentIntentInput) (v1dto.PaymentIntentDTO, error)
-	HandleWebhook(ctx *gin.Context, provider string) error
+	CreatePaymentIntent(ctx context.Context, userUUID uuid.UUID, clientIP, idempotencyKey string, input v1dto.CreatePaymentIntentInput) (v1dto.PaymentIntentDTO, error)
+	HandleWebhook(ctx context.Context, provider string, rawPayload []byte, headers map[string]string) error
 	ProcessWebhookMessage(headers amqp.Table, body []byte) error
-	GetPaymentHistory(ctx *gin.Context, orderUUID uuid.UUID) ([]v1dto.PaymentTransactionDTO, error)
-	ConfirmCODPayment(ctx *gin.Context, orderUUID uuid.UUID) error
-	RefundPayment(ctx *gin.Context, input v1dto.RefundPaymentInput) (v1dto.PaymentTransactionDTO, error)
+	GetPaymentHistory(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) ([]v1dto.PaymentTransactionDTO, error)
+	ConfirmCODPayment(ctx context.Context, orderUUID uuid.UUID) error
+	RefundPayment(ctx context.Context, idempotencyKey string, input v1dto.RefundPaymentInput) (v1dto.PaymentTransactionDTO, error)
 	ReconcilePendingPayments(ctx context.Context) error
 }
 
