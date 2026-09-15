@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import {
   Search as SearchIcon,
   Eye,
@@ -31,17 +32,20 @@ import {
 } from '@/components/ui/select'
 import { DataTablePagination } from '@/components/data-table'
 import { useOrders } from './hooks/use-orders'
-import { OrderDetailsDialog } from './components/order-details-dialog'
+import {
+  formatCurrency,
+  formatDateTime,
+  renderOrderStatusBadge,
+} from './order-utils'
 import type { Order } from './types'
 
 export function Orders() {
+  const navigate = useNavigate()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [searchTerm, setSearchTerm] = useState('')
   const [activeSearch, setActiveSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
-  const [detailsOpen, setDetailsOpen] = useState(false)
 
   const parsedStatus =
     statusFilter !== 'all' ? (Number(statusFilter) as 1 | 2 | 3 | 4 | 5 | 6) : undefined
@@ -75,86 +79,7 @@ export function Orders() {
   }
 
   const handleOpenDetails = (order: Order) => {
-    setSelectedOrder(order)
-    setDetailsOpen(true)
-  }
-
-  const formatCurrency = (val?: number) => {
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND',
-    }).format(val ?? 0)
-  }
-
-  const formatDateTimeVN = (dateStr?: string) => {
-    if (!dateStr) return '—'
-    try {
-      if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(dateStr)) {
-        return dateStr
-      }
-      const d = new Date(dateStr)
-      if (isNaN(d.getTime())) return dateStr
-      return new Intl.DateTimeFormat('vi-VN', {
-        timeZone: 'Asia/Ho_Chi_Minh',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false,
-      }).format(d)
-    } catch {
-      return dateStr
-    }
-  }
-
-  const renderOrderStatusBadge = (status?: string) => {
-    const s = status?.toLowerCase()
-    if (s === 'delivered') {
-      return (
-        <Badge
-          variant='outline'
-          className='bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
-        >
-          Delivered
-        </Badge>
-      )
-    }
-    if (s === 'shipped') {
-      return (
-        <Badge
-          variant='outline'
-          className='bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20'
-        >
-          Shipped
-        </Badge>
-      )
-    }
-    if (s === 'confirmed') {
-      return (
-        <Badge
-          variant='outline'
-          className='bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
-        >
-          Confirmed
-        </Badge>
-      )
-    }
-    if (s === 'pending') {
-      return (
-        <Badge
-          variant='outline'
-          className='bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
-        >
-          Pending
-        </Badge>
-      )
-    }
-    if (s === 'cancelled') {
-      return <Badge variant='destructive'>Cancelled</Badge>
-    }
-    return <Badge variant='secondary'>{status || 'Unknown'}</Badge>
+    navigate({ to: '/orders/$uuid', params: { uuid: order.uuid } })
   }
 
   const renderPaymentBadge = (method?: string, paymentStatus?: string) => {
@@ -330,7 +255,7 @@ export function Orders() {
                     </TableCell>
                     <TableCell>{renderOrderStatusBadge(order.status)}</TableCell>
                     <TableCell className='text-muted-foreground text-xs'>
-                      {formatDateTimeVN(order.created_at)}
+                      {formatDateTime(order.created_at)}
                     </TableCell>
                     <TableCell className='text-right'>
                       <Button
@@ -366,12 +291,6 @@ export function Orders() {
           className='mt-auto'
         />
       </Main>
-
-      <OrderDetailsDialog
-        open={detailsOpen}
-        onOpenChange={setDetailsOpen}
-        order={selectedOrder}
-      />
     </>
   )
 }

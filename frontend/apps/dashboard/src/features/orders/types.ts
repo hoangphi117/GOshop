@@ -27,8 +27,78 @@ export interface Order {
   payment_status: string
   note?: string
   status: string
+  shipping_provider?: string
+  shipping_code?: string
+  expected_delivery?: string
   items?: OrderItem[]
   created_at: string
+}
+
+export interface TrackingEvent {
+  event_id: number
+  status: string
+  status_text: string
+  note?: string
+  source: string
+  created_at: string
+}
+
+export interface OrderTimeline {
+  order_uuid: string
+  order_number: string
+  events: TrackingEvent[]
+}
+
+export interface Province {
+  province_id: number
+  province_name: string
+  code?: string
+}
+
+export interface District {
+  district_id: number
+  province_id: number
+  district_name: string
+  code?: string
+}
+
+export interface Ward {
+  ward_code: string
+  district_id: number
+  ward_name: string
+}
+
+export interface CreateShippingInput {
+  provider: 'ghn' | 'manual'
+  district_id: number
+  ward_code: string
+  weight: number
+  length: number
+  width: number
+  height: number
+  required_note?: 'KHONGCHOXEMHANG' | 'CHOXEMHANGKHONGTHU' | 'CHOTHUHANG'
+  note?: string
+}
+
+export interface PrintBillResponse {
+  order_uuid: string
+  order_number: string
+  shipping_code: string
+  token?: string
+  print_a5?: string
+  print_80x80?: string
+  print_52x70?: string
+}
+
+export interface CalculateFeeInput {
+  provider: 'ghn' | 'manual'
+  district_id: number
+  ward_code: string
+  weight: number
+  length?: number
+  width?: number
+  height?: number
+  insurance_value?: number
 }
 
 export interface OrderQueryParams {

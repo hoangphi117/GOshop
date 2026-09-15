@@ -27,6 +27,9 @@ type OrderDTO struct {
 	PaymentStatus   string         `json:"payment_status"`
 	Note            string         `json:"note,omitempty"`
 	Status          string         `json:"status"`
+	ShippingProvider *string        `json:"shipping_provider,omitempty"`
+	ShippingCode     *string        `json:"shipping_code,omitempty"`
+	ExpectedDelivery *string        `json:"expected_delivery,omitempty"`
 	Items           []OrderItemDTO `json:"items"`
 	CreatedAt       string         `json:"created_at"`
 }
@@ -166,26 +169,34 @@ func MapGetOrderByUUIDRowToOrderDTO(order sqlc.GetOrderByUUIDRow, items []sqlc.G
 	if order.OrderNote != nil {
 		note = *order.OrderNote
 	}
+	var expectedDelivery *string
+	if order.OrderExpectedDelivery.Valid {
+		formatted := formatVNTime(order.OrderExpectedDelivery.Time)
+		expectedDelivery = &formatted
+	}
 	return OrderDTO{
-		UUID:            order.OrderUuid.String(),
-		OrderNumber:     order.OrderNumber,
-		UserUUID:        order.UserUuid.String(),
-		UserName:        order.UserFullname,
-		ShippingName:    order.OrderShippingName,
-		ShippingPhone:   order.OrderShippingPhone,
-		ShippingAddress: order.OrderShippingAddress,
-		CouponCode:      order.OrderCouponCode,
-		SubtotalAmount:  utils.NumericToFloat(order.OrderSubtotalAmount),
-		DiscountAmount:  utils.NumericToFloat(order.OrderDiscountAmount),
-		ShippingFee:     utils.NumericToFloat(order.OrderShippingFee),
-		TotalAmount:     utils.NumericToFloat(order.OrderTotalAmount),
-		RefundedAmount:  utils.NumericToFloat(order.OrderRefundedAmount),
-		PaymentMethod:   MapPaymentMethodToString(order.OrderPaymentMethod),
-		PaymentStatus:   MapPaymentStatusToString(order.OrderPaymentStatus),
-		Note:            note,
-		Status:          MapOrderStatusToString(order.OrderStatus),
-		Items:           itemsDTO,
-		CreatedAt:       formatVNTime(order.OrderCreatedAt),
+		UUID:             order.OrderUuid.String(),
+		OrderNumber:      order.OrderNumber,
+		UserUUID:         order.UserUuid.String(),
+		UserName:         order.UserFullname,
+		ShippingName:     order.OrderShippingName,
+		ShippingPhone:    order.OrderShippingPhone,
+		ShippingAddress:  order.OrderShippingAddress,
+		CouponCode:       order.OrderCouponCode,
+		SubtotalAmount:   utils.NumericToFloat(order.OrderSubtotalAmount),
+		DiscountAmount:   utils.NumericToFloat(order.OrderDiscountAmount),
+		ShippingFee:      utils.NumericToFloat(order.OrderShippingFee),
+		TotalAmount:      utils.NumericToFloat(order.OrderTotalAmount),
+		RefundedAmount:   utils.NumericToFloat(order.OrderRefundedAmount),
+		PaymentMethod:    MapPaymentMethodToString(order.OrderPaymentMethod),
+		PaymentStatus:    MapPaymentStatusToString(order.OrderPaymentStatus),
+		Note:             note,
+		Status:           MapOrderStatusToString(order.OrderStatus),
+		ShippingProvider: order.OrderShippingProvider,
+		ShippingCode:     order.OrderShippingCode,
+		ExpectedDelivery: expectedDelivery,
+		Items:            itemsDTO,
+		CreatedAt:        formatVNTime(order.OrderCreatedAt),
 	}
 }
 
@@ -198,24 +209,32 @@ func MapToOrderDTO(order sqlc.Order, items []sqlc.GetOrderItemsByOrderIDRow) Ord
 	if order.OrderNote != nil {
 		note = *order.OrderNote
 	}
+	var expectedDelivery *string
+	if order.OrderExpectedDelivery.Valid {
+		formatted := formatVNTime(order.OrderExpectedDelivery.Time)
+		expectedDelivery = &formatted
+	}
 	return OrderDTO{
-		UUID:            order.OrderUuid.String(),
-		OrderNumber:     order.OrderNumber,
-		ShippingName:    order.OrderShippingName,
-		ShippingPhone:   order.OrderShippingPhone,
-		ShippingAddress: order.OrderShippingAddress,
-		ShippingFee:     utils.NumericToFloat(order.OrderShippingFee),
-		CouponCode:      order.OrderCouponCode,
-		SubtotalAmount:  utils.NumericToFloat(order.OrderSubtotalAmount),
-		DiscountAmount:  utils.NumericToFloat(order.OrderDiscountAmount),
-		TotalAmount:     utils.NumericToFloat(order.OrderTotalAmount),
-		RefundedAmount:  utils.NumericToFloat(order.OrderRefundedAmount),
-		PaymentMethod:   MapPaymentMethodToString(order.OrderPaymentMethod),
-		PaymentStatus:   MapPaymentStatusToString(order.OrderPaymentStatus),
-		Note:            note,
-		Status:          MapOrderStatusToString(order.OrderStatus),
-		Items:           itemsDTO,
-		CreatedAt:       formatVNTime(order.OrderCreatedAt),
+		UUID:             order.OrderUuid.String(),
+		OrderNumber:      order.OrderNumber,
+		ShippingName:     order.OrderShippingName,
+		ShippingPhone:    order.OrderShippingPhone,
+		ShippingAddress:  order.OrderShippingAddress,
+		ShippingFee:      utils.NumericToFloat(order.OrderShippingFee),
+		CouponCode:       order.OrderCouponCode,
+		SubtotalAmount:   utils.NumericToFloat(order.OrderSubtotalAmount),
+		DiscountAmount:   utils.NumericToFloat(order.OrderDiscountAmount),
+		TotalAmount:      utils.NumericToFloat(order.OrderTotalAmount),
+		RefundedAmount:   utils.NumericToFloat(order.OrderRefundedAmount),
+		PaymentMethod:    MapPaymentMethodToString(order.OrderPaymentMethod),
+		PaymentStatus:    MapPaymentStatusToString(order.OrderPaymentStatus),
+		Note:             note,
+		Status:           MapOrderStatusToString(order.OrderStatus),
+		ShippingProvider: order.OrderShippingProvider,
+		ShippingCode:     order.OrderShippingCode,
+		ExpectedDelivery: expectedDelivery,
+		Items:            itemsDTO,
+		CreatedAt:        formatVNTime(order.OrderCreatedAt),
 	}
 }
 

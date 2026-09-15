@@ -408,8 +408,12 @@ func MapTrackingStatusToText(status string) string {
 		return "Courier picking up goods"
 	case "storing":
 		return "Stored at courier warehouse"
-	case "shipped", "delivering":
+	case "shipped":
+		return "Shipment created"
+	case "delivering":
 		return "Out for delivery"
+	case "delivery_fail":
+		return "Delivery attempt failed"
 	case "delivered":
 		return "Delivered successfully"
 	case "cancelled", "auto_cancelled":
