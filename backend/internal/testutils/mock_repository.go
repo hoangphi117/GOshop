@@ -25,6 +25,7 @@ var (
 	_ repository.CategoryRepository     = (*MockCategoryRepository)(nil)
 	_ repository.ReviewRepository       = (*MockReviewRepository)(nil)
 	_ repository.AddressRepository      = (*MockAddressRepository)(nil)
+	_ repository.NotificationRepository = (*MockNotificationRepository)(nil)
 )
 
 // =========================================================================
@@ -1224,3 +1225,75 @@ func (m *MockAddressRepository) GetByUUID(ctx context.Context, userID int32, add
 	}
 	return sqlc.UserAddress{}, nil
 }
+
+// =========================================================================
+// MockNotificationRepository
+// =========================================================================
+
+type MockNotificationRepository struct {
+	CreateFunc            func(ctx context.Context, params sqlc.CreateNotificationParams) (sqlc.Notification, error)
+	CreateForAllUsersFunc func(ctx context.Context, nType, title, body string, data []byte) error
+	GetByUserIDFunc       func(ctx context.Context, userID int32, limit, offset int32) ([]sqlc.Notification, error)
+	CountByUserIDFunc     func(ctx context.Context, userID int32) (int64, error)
+	CountUnreadByUserIDFunc func(ctx context.Context, userID int32) (int64, error)
+	MarkAsReadFunc        func(ctx context.Context, notifUUID uuid.UUID, userID int32) (sqlc.Notification, error)
+	MarkAllAsReadFunc     func(ctx context.Context, userID int32) error
+	DeleteFunc            func(ctx context.Context, notifUUID uuid.UUID, userID int32) error
+}
+
+func (m *MockNotificationRepository) Create(ctx context.Context, params sqlc.CreateNotificationParams) (sqlc.Notification, error) {
+	if m.CreateFunc != nil {
+		return m.CreateFunc(ctx, params)
+	}
+	return sqlc.Notification{}, nil
+}
+
+func (m *MockNotificationRepository) CreateForAllUsers(ctx context.Context, nType, title, body string, data []byte) error {
+	if m.CreateForAllUsersFunc != nil {
+		return m.CreateForAllUsersFunc(ctx, nType, title, body, data)
+	}
+	return nil
+}
+
+func (m *MockNotificationRepository) GetByUserID(ctx context.Context, userID int32, limit, offset int32) ([]sqlc.Notification, error) {
+	if m.GetByUserIDFunc != nil {
+		return m.GetByUserIDFunc(ctx, userID, limit, offset)
+	}
+	return nil, nil
+}
+
+func (m *MockNotificationRepository) CountByUserID(ctx context.Context, userID int32) (int64, error) {
+	if m.CountByUserIDFunc != nil {
+		return m.CountByUserIDFunc(ctx, userID)
+	}
+	return 0, nil
+}
+
+func (m *MockNotificationRepository) CountUnreadByUserID(ctx context.Context, userID int32) (int64, error) {
+	if m.CountUnreadByUserIDFunc != nil {
+		return m.CountUnreadByUserIDFunc(ctx, userID)
+	}
+	return 0, nil
+}
+
+func (m *MockNotificationRepository) MarkAsRead(ctx context.Context, notifUUID uuid.UUID, userID int32) (sqlc.Notification, error) {
+	if m.MarkAsReadFunc != nil {
+		return m.MarkAsReadFunc(ctx, notifUUID, userID)
+	}
+	return sqlc.Notification{}, nil
+}
+
+func (m *MockNotificationRepository) MarkAllAsRead(ctx context.Context, userID int32) error {
+	if m.MarkAllAsReadFunc != nil {
+		return m.MarkAllAsReadFunc(ctx, userID)
+	}
+	return nil
+}
+
+func (m *MockNotificationRepository) Delete(ctx context.Context, notifUUID uuid.UUID, userID int32) error {
+	if m.DeleteFunc != nil {
+		return m.DeleteFunc(ctx, notifUUID, userID)
+	}
+	return nil
+}
+

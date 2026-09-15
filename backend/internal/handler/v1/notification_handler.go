@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	v1dto "goshop/internal/dto/v1"
+	"goshop/internal/middleware"
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/utils"
 	"goshop/internal/validation"
@@ -40,7 +41,7 @@ func (h *NotificationHandler) CreateNotification(ctx *gin.Context) {
 		return
 	}
 
-	res, err := h.notificationService.CreateNotification(ctx, input)
+	res, err := h.notificationService.CreateNotification(ctx.Request.Context(), input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -69,7 +70,7 @@ func (h *NotificationHandler) BroadcastNotification(ctx *gin.Context) {
 		return
 	}
 
-	if err := h.notificationService.BroadcastNotification(ctx, input); err != nil {
+	if err := h.notificationService.BroadcastNotification(ctx.Request.Context(), input); err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
@@ -91,13 +92,19 @@ func (h *NotificationHandler) BroadcastNotification(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /notifications/me [get]
 func (h *NotificationHandler) GetMyNotifications(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
 	var query v1dto.GetNotificationsQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
 	}
 
-	res, total, err := h.notificationService.GetMyNotifications(ctx, query)
+	res, total, err := h.notificationService.GetMyNotifications(ctx.Request.Context(), userUUID, query)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -125,7 +132,13 @@ func (h *NotificationHandler) GetMyNotifications(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /notifications/me/unread [get]
 func (h *NotificationHandler) GetUnreadCount(ctx *gin.Context) {
-	res, err := h.notificationService.GetUnreadNotificationCount(ctx)
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	res, err := h.notificationService.GetUnreadNotificationCount(ctx.Request.Context(), userUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -147,6 +160,12 @@ func (h *NotificationHandler) GetUnreadCount(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /notifications/{uuid}/read [patch]
 func (h *NotificationHandler) MarkNotificationAsRead(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
 	var params v1dto.NotificationUUID
 	if err := ctx.ShouldBindUri(&params); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
@@ -159,7 +178,7 @@ func (h *NotificationHandler) MarkNotificationAsRead(ctx *gin.Context) {
 		return
 	}
 
-	res, err := h.notificationService.MarkNotificationAsRead(ctx, notifUUID)
+	res, err := h.notificationService.MarkNotificationAsRead(ctx.Request.Context(), userUUID, notifUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -179,7 +198,13 @@ func (h *NotificationHandler) MarkNotificationAsRead(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /notifications/read-all [patch]
 func (h *NotificationHandler) MarkAllNotificationsAsRead(ctx *gin.Context) {
-	err := h.notificationService.MarkAllNotificationsAsRead(ctx)
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	err = h.notificationService.MarkAllNotificationsAsRead(ctx.Request.Context(), userUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -200,6 +225,12 @@ func (h *NotificationHandler) MarkAllNotificationsAsRead(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /notifications/{uuid} [delete]
 func (h *NotificationHandler) DeleteNotification(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
 	var params v1dto.NotificationUUID
 	if err := ctx.ShouldBindUri(&params); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
@@ -212,7 +243,7 @@ func (h *NotificationHandler) DeleteNotification(ctx *gin.Context) {
 		return
 	}
 
-	err = h.notificationService.DeleteNotification(ctx, notifUUID)
+	err = h.notificationService.DeleteNotification(ctx.Request.Context(), userUUID, notifUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return

@@ -14,7 +14,6 @@ import (
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/shipping"
 
-	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -85,13 +84,13 @@ func (m *MockInventoryService) RestoreStock(ctx context.Context, items []v1servi
 
 type MockNotificationService struct {
 	SendFunc                       func(ctx context.Context, input v1dto.SendNotificationInput) error
-	CreateNotificationFunc         func(ctx *gin.Context, input v1dto.CreateNotificationInput) (v1dto.NotificationDTO, error)
-	BroadcastNotificationFunc      func(ctx *gin.Context, input v1dto.BroadcastNotificationInput) error
-	GetMyNotificationsFunc         func(ctx *gin.Context, query v1dto.GetNotificationsQuery) ([]v1dto.NotificationDTO, int32, error)
-	GetUnreadNotificationCountFunc func(ctx *gin.Context) (v1dto.UnreadCountDTO, error)
-	MarkNotificationAsReadFunc     func(ctx *gin.Context, notificationUUID uuid.UUID) (v1dto.NotificationDTO, error)
-	MarkAllNotificationsAsReadFunc func(ctx *gin.Context) error
-	DeleteNotificationFunc         func(ctx *gin.Context, notificationUUID uuid.UUID) error
+	CreateNotificationFunc         func(ctx context.Context, input v1dto.CreateNotificationInput) (v1dto.NotificationDTO, error)
+	BroadcastNotificationFunc      func(ctx context.Context, input v1dto.BroadcastNotificationInput) error
+	GetMyNotificationsFunc         func(ctx context.Context, userUUID uuid.UUID, query v1dto.GetNotificationsQuery) ([]v1dto.NotificationDTO, int32, error)
+	GetUnreadNotificationCountFunc func(ctx context.Context, userUUID uuid.UUID) (v1dto.UnreadCountDTO, error)
+	MarkNotificationAsReadFunc     func(ctx context.Context, userUUID uuid.UUID, notificationUUID uuid.UUID) (v1dto.NotificationDTO, error)
+	MarkAllNotificationsAsReadFunc func(ctx context.Context, userUUID uuid.UUID) error
+	DeleteNotificationFunc         func(ctx context.Context, userUUID uuid.UUID, notificationUUID uuid.UUID) error
 }
 
 func (m *MockNotificationService) Send(ctx context.Context, input v1dto.SendNotificationInput) error {
@@ -101,51 +100,51 @@ func (m *MockNotificationService) Send(ctx context.Context, input v1dto.SendNoti
 	return nil
 }
 
-func (m *MockNotificationService) CreateNotification(ctx *gin.Context, input v1dto.CreateNotificationInput) (v1dto.NotificationDTO, error) {
+func (m *MockNotificationService) CreateNotification(ctx context.Context, input v1dto.CreateNotificationInput) (v1dto.NotificationDTO, error) {
 	if m.CreateNotificationFunc != nil {
 		return m.CreateNotificationFunc(ctx, input)
 	}
 	return v1dto.NotificationDTO{}, nil
 }
 
-func (m *MockNotificationService) BroadcastNotification(ctx *gin.Context, input v1dto.BroadcastNotificationInput) error {
+func (m *MockNotificationService) BroadcastNotification(ctx context.Context, input v1dto.BroadcastNotificationInput) error {
 	if m.BroadcastNotificationFunc != nil {
 		return m.BroadcastNotificationFunc(ctx, input)
 	}
 	return nil
 }
 
-func (m *MockNotificationService) GetMyNotifications(ctx *gin.Context, query v1dto.GetNotificationsQuery) ([]v1dto.NotificationDTO, int32, error) {
+func (m *MockNotificationService) GetMyNotifications(ctx context.Context, userUUID uuid.UUID, query v1dto.GetNotificationsQuery) ([]v1dto.NotificationDTO, int32, error) {
 	if m.GetMyNotificationsFunc != nil {
-		return m.GetMyNotificationsFunc(ctx, query)
+		return m.GetMyNotificationsFunc(ctx, userUUID, query)
 	}
 	return nil, 0, nil
 }
 
-func (m *MockNotificationService) GetUnreadNotificationCount(ctx *gin.Context) (v1dto.UnreadCountDTO, error) {
+func (m *MockNotificationService) GetUnreadNotificationCount(ctx context.Context, userUUID uuid.UUID) (v1dto.UnreadCountDTO, error) {
 	if m.GetUnreadNotificationCountFunc != nil {
-		return m.GetUnreadNotificationCountFunc(ctx)
+		return m.GetUnreadNotificationCountFunc(ctx, userUUID)
 	}
 	return v1dto.UnreadCountDTO{}, nil
 }
 
-func (m *MockNotificationService) MarkNotificationAsRead(ctx *gin.Context, notificationUUID uuid.UUID) (v1dto.NotificationDTO, error) {
+func (m *MockNotificationService) MarkNotificationAsRead(ctx context.Context, userUUID uuid.UUID, notificationUUID uuid.UUID) (v1dto.NotificationDTO, error) {
 	if m.MarkNotificationAsReadFunc != nil {
-		return m.MarkNotificationAsReadFunc(ctx, notificationUUID)
+		return m.MarkNotificationAsReadFunc(ctx, userUUID, notificationUUID)
 	}
 	return v1dto.NotificationDTO{}, nil
 }
 
-func (m *MockNotificationService) MarkAllNotificationsAsRead(ctx *gin.Context) error {
+func (m *MockNotificationService) MarkAllNotificationsAsRead(ctx context.Context, userUUID uuid.UUID) error {
 	if m.MarkAllNotificationsAsReadFunc != nil {
-		return m.MarkAllNotificationsAsReadFunc(ctx)
+		return m.MarkAllNotificationsAsReadFunc(ctx, userUUID)
 	}
 	return nil
 }
 
-func (m *MockNotificationService) DeleteNotification(ctx *gin.Context, notificationUUID uuid.UUID) error {
+func (m *MockNotificationService) DeleteNotification(ctx context.Context, userUUID uuid.UUID, notificationUUID uuid.UUID) error {
 	if m.DeleteNotificationFunc != nil {
-		return m.DeleteNotificationFunc(ctx, notificationUUID)
+		return m.DeleteNotificationFunc(ctx, userUUID, notificationUUID)
 	}
 	return nil
 }

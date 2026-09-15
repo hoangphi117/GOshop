@@ -163,13 +163,13 @@ type ReviewService interface {
 
 type NotificationService interface {
 	Send(ctx context.Context, input v1dto.SendNotificationInput) error
-	CreateNotification(ctx *gin.Context, input v1dto.CreateNotificationInput) (v1dto.NotificationDTO, error)
-	BroadcastNotification(ctx *gin.Context, input v1dto.BroadcastNotificationInput) error
-	GetMyNotifications(ctx *gin.Context, query v1dto.GetNotificationsQuery) ([]v1dto.NotificationDTO, int32, error)
-	GetUnreadNotificationCount(ctx *gin.Context) (v1dto.UnreadCountDTO, error)
-	MarkNotificationAsRead(ctx *gin.Context, notificationUUID uuid.UUID) (v1dto.NotificationDTO, error)
-	MarkAllNotificationsAsRead(ctx *gin.Context) error
-	DeleteNotification(ctx *gin.Context, notificationUUID uuid.UUID) error
+	CreateNotification(ctx context.Context, input v1dto.CreateNotificationInput) (v1dto.NotificationDTO, error)
+	BroadcastNotification(ctx context.Context, input v1dto.BroadcastNotificationInput) error
+	GetMyNotifications(ctx context.Context, userUUID uuid.UUID, query v1dto.GetNotificationsQuery) ([]v1dto.NotificationDTO, int32, error)
+	GetUnreadNotificationCount(ctx context.Context, userUUID uuid.UUID) (v1dto.UnreadCountDTO, error)
+	MarkNotificationAsRead(ctx context.Context, userUUID uuid.UUID, notificationUUID uuid.UUID) (v1dto.NotificationDTO, error)
+	MarkAllNotificationsAsRead(ctx context.Context, userUUID uuid.UUID) error
+	DeleteNotification(ctx context.Context, userUUID uuid.UUID, notificationUUID uuid.UUID) error
 }
 
 type BannerService interface {
