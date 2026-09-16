@@ -88,6 +88,8 @@ interface Order {
   shipping_name?: string;
   shipping_phone?: string;
   shipping_address?: string;
+  shipping_code?: string;
+  shipping_provider?: string;
   note?: string;
   items?: OrderItem[];
 }
@@ -710,7 +712,7 @@ function MyOrdersPageContent() {
 
   const getActiveStepIndex = (
     order: Order,
-    _events: TrackingEvent[],
+    events: TrackingEvent[],
   ): number => {
     const s = (order.status || "").toUpperCase();
     const ps = (order.payment_status || "").toUpperCase();
@@ -719,9 +721,9 @@ function MyOrdersPageContent() {
     if (s.includes("CANCEL")) return -1;
     if (s.includes("RETURN")) return -2;
 
-    // If delivered or completed, order received is reached (Step 3 or Step 4 To Rate)
+    // If delivered or completed -> Completed
     if (s.includes("DELIVER") || s.includes("COMPLETE")) {
-      return 4; // Reached "To rate" stage
+      return 4;
     }
 
     if (s.includes("SHIP")) {
@@ -808,12 +810,28 @@ function MyOrdersPageContent() {
           s.includes("received")
         );
       });
-      return ev?.created_at || null;
+      return ev?.created_at || (order as unknown as Record<string, unknown>).order_delivered_at as string || null;
     }
 
-    // Step 4: To rate
+    // Step 4: Completed
     if (stepIdx === 4) {
-      return null;
+      const deliveredEv = events.find((e) => {
+        const es = (e.status || "").toLowerCase();
+        const est = (e.status_text || "").toLowerCase();
+        if (es.includes("delivering") || est.includes("out for delivery"))
+          return false;
+        return (
+          es.includes("delivered") ||
+          es.includes("complete") ||
+          es.includes("received")
+        );
+      });
+      return (
+        deliveredEv?.created_at ||
+        ((order as unknown as Record<string, unknown>)
+          .order_delivered_at as string) ||
+        null
+      );
     }
 
     return null;
@@ -833,12 +851,17 @@ function MyOrdersPageContent() {
     return (
       s.includes("delivered") ||
       s.includes("complete") ||
+      s.includes("returned") ||
+      s.includes("refunded") ||
       st.includes("delivered") ||
       st.includes("complete") ||
+      st.includes("returned") ||
+      st.includes("refunded") ||
       s.includes("received") ||
       st.includes("received") ||
       st.includes("đã giao") ||
-      st.includes("đã nhận")
+      st.includes("đã nhận") ||
+      st.includes("thành công")
     );
   };
 
@@ -857,6 +880,39 @@ function MyOrdersPageContent() {
       st.includes("out for delivery") ||
       st.includes("vận chuyển") ||
       st.includes("đang giao")
+    );
+  };
+
+  const formatEventStatusText = (ev: TrackingEvent): string => {
+    if (ev.status_text && !ev.status_text.includes("_")) return ev.status_text;
+    const s = (ev.status || "").toLowerCase();
+    switch (s) {
+      case "return_shipping_submitted":
+        return "Return waybill submitted";
+      case "return_requested":
+        return "Return requested";
+      case "return_approved":
+        return "Return request approved";
+      case "return_rejected":
+        return "Return request rejected";
+      case "return_cancelled":
+        return "Return request cancelled";
+      case "returned":
+        return "Returned goods processed";
+      default:
+        return (
+          ev.status_text ||
+          ev.status?.replace(/_/g, " ").toUpperCase() ||
+          "Status Update"
+        );
+    }
+  };
+
+  const formatEventNote = (note?: string): string => {
+    if (!note) return "";
+    return note.replace(
+      /User submitted return shipping info for/gi,
+      "Return waybill submitted for",
     );
   };
 
@@ -882,10 +938,17 @@ function MyOrdersPageContent() {
     const isPaid = selectedOrder.payment_status?.toUpperCase() === "PAID";
     const activeStepIndex = getActiveStepIndex(selectedOrder, timelineEvents);
     const isCancelled = activeStepIndex === -1;
-    const isReturned = activeStepIndex === -2;
+    const isReturned =
+      activeStepIndex === -2 ||
+      selectedOrder.status?.toUpperCase() === "RETURNED";
+    const hasReturnRequest =
+      isReturned ||
+      timelineEvents.some((e) =>
+        (e.status || "").toLowerCase().startsWith("return_"),
+      );
     const isCOD = checkIsCOD(selectedOrder);
 
-    // Dynamic 5-stage steps
+    // 5-stage steps
     const currentSteps = [
       { key: "placed", label: "Order Placed", icon: FileText },
       {
@@ -895,11 +958,107 @@ function MyOrdersPageContent() {
       },
       { key: "shipped", label: "Order shipped out", icon: Truck },
       { key: "received", label: "Order received", icon: PackageCheck },
-      { key: "rate", label: "To rate", icon: Star },
+      { key: "completed", label: "Completed", icon: CheckCircle2 },
     ];
 
+    const synthesizeOrderEvents = (ord: Order): TrackingEvent[] => {
+      const list: TrackingEvent[] = [];
+      const s = (ord.status || "").toUpperCase();
+      const ps = (ord.payment_status || "").toUpperCase();
+
+      // 1. Placed
+      list.push({
+        event_id: 1,
+        status: "placed",
+        status_text: "Order placed successfully",
+        note: `Order #${ord.order_number || ord.uuid.slice(0, 8).toUpperCase()} has been placed.`,
+        source: "system",
+        created_at: ord.created_at || new Date().toISOString(),
+      });
+
+      // 2. Confirmed / Paid
+      if (
+        ps === "PAID" ||
+        s === "CONFIRMED" ||
+        s === "SHIPPED" ||
+        s === "DELIVERED" ||
+        s === "RETURNED"
+      ) {
+        list.push({
+          event_id: 2,
+          status: "confirmed",
+          status_text: isCOD ? "Order confirmed" : "Payment confirmed",
+          note: isCOD
+            ? "Order verified for Cash on Delivery (COD)"
+            : `Payment received via ${ord.payment_method || "Online Payment"}.`,
+          source: "system",
+          created_at: ord.created_at || new Date().toISOString(),
+        });
+      }
+
+      // 3. Shipped
+      if (
+        s === "SHIPPED" ||
+        s === "IN_TRANSIT" ||
+        s === "DELIVERED" ||
+        s === "RETURNED" ||
+        ord.shipping_code
+      ) {
+        list.push({
+          event_id: 3,
+          status: "in_transit",
+          status_text: "In transit with carrier",
+          note: `Parcel handed over to GHN Express${ord.shipping_code ? ` (Tracking: ${ord.shipping_code})` : ""}.`,
+          source: "carrier",
+          created_at: ord.created_at || new Date().toISOString(),
+        });
+      }
+
+      // 4. Delivered
+      if (s === "DELIVERED" || s === "RETURNED") {
+        list.push({
+          event_id: 4,
+          status: "delivered",
+          status_text: "Delivered successfully",
+          note: "Parcel delivered successfully to recipient.",
+          source: "carrier",
+          created_at: ord.created_at || new Date().toISOString(),
+        });
+      }
+
+      // 5. Cancelled
+      if (s === "CANCELLED") {
+        list.push({
+          event_id: 5,
+          status: "cancelled",
+          status_text: "Order cancelled",
+          note: "Order has been cancelled.",
+          source: "system",
+          created_at: ord.created_at || new Date().toISOString(),
+        });
+      }
+
+      // 6. Returned
+      if (s === "RETURNED") {
+        list.push({
+          event_id: 6,
+          status: "returned",
+          status_text: "Returned goods processed successfully",
+          note: "Return request processed and completed.",
+          source: "system",
+          created_at: ord.created_at || new Date().toISOString(),
+        });
+      }
+
+      return list;
+    };
+
     // Reverse events for tracking history (latest first)
-    const sortedEvents = [...timelineEvents].reverse();
+    const effectiveEvents =
+      timelineEvents.length > 0
+        ? timelineEvents
+        : synthesizeOrderEvents(selectedOrder);
+    const sortedEvents = [...effectiveEvents].reverse();
 
     return (
       <div className="space-y-4">
@@ -949,19 +1108,28 @@ function MyOrdersPageContent() {
               </div>
             </div>
           ) : isReturned ? (
-            <div className="p-4 rounded-xl bg-purple-50 border border-purple-200 flex items-start gap-3 text-xs">
-              <div className="w-9 h-9 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center shrink-0 mt-0.5">
-                <RotateCcw className="w-5 h-5" />
+            <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-full bg-blue-100 text-[#0D47A1] flex items-center justify-center shrink-0 mt-0.5">
+                  <RotateCcw className="w-5 h-5" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="font-extrabold text-[#0D47A1] text-sm">
+                    Return & Refund Request Active
+                  </h3>
+                  <p className="text-slate-600">
+                    Your return request is active. Track progress, view notes, and provide carrier shipping details for your return package.
+                  </p>
+                </div>
               </div>
-              <div className="space-y-1">
-                <h3 className="font-extrabold text-purple-800 text-sm">
-                  Return & Refund Under Review
-                </h3>
-                <p className="text-purple-700">
-                  Your return request has been submitted and is currently being
-                  inspected by our support specialists.
-                </p>
-              </div>
+              <button
+                type="button"
+                onClick={() => handleOpenReturnDetails(selectedOrder)}
+                className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 shrink-0 self-start sm:self-auto cursor-pointer"
+              >
+                <Truck className="w-3.5 h-3.5" />
+                <span>Update Return Shipment</span>
+              </button>
             </div>
           ) : (
             <div className="overflow-x-auto pb-2">
@@ -1099,14 +1267,14 @@ function MyOrdersPageContent() {
                 </button>
               )}
 
-              {isReturned && (
+              {hasReturnRequest && (
                 <button
                   type="button"
                   onClick={() => handleOpenReturnDetails(selectedOrder)}
-                  className="px-3 py-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
                 >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>View Return Request</span>
+                  <Truck className="w-3.5 h-3.5" />
+                  <span>Update Return Shipment</span>
                 </button>
               )}
             </div>
@@ -1134,6 +1302,18 @@ function MyOrdersPageContent() {
                   GHN Logistics
                 </strong>
               </span>
+
+              {hasReturnRequest && (
+                <button
+                  type="button"
+                  onClick={() => handleOpenReturnDetails(selectedOrder)}
+                  className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  title="Update return courier and tracking waybill"
+                >
+                  <Truck className="w-3.5 h-3.5" />
+                  <span>Update Return Shipment</span>
+                </button>
+              )}
 
               <button
                 type="button"
@@ -1219,7 +1399,7 @@ function MyOrdersPageContent() {
                           isDelivered ? "text-emerald-700" : "text-slate-900"
                         }`}
                       >
-                        {ev.status_text || ev.status.toUpperCase()}
+                        {formatEventStatusText(ev)}
                       </h4>
                       {ev.note && (
                         <p
@@ -1227,7 +1407,7 @@ function MyOrdersPageContent() {
                             isDelivered ? "text-emerald-600" : "text-slate-600"
                           }`}
                         >
-                          {ev.note}
+                          {formatEventNote(ev.note)}
                         </p>
                       )}
                     </div>
@@ -1493,7 +1673,18 @@ function MyOrdersPageContent() {
               </button>
             )}
 
-            {isDelivered && (
+            {hasReturnRequest && (
+              <button
+                type="button"
+                onClick={() => handleOpenReturnDetails(selectedOrder)}
+                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <Truck className="w-4 h-4" />
+                <span>Update Return Shipment</span>
+              </button>
+            )}
+
+            {isDelivered && !hasReturnRequest && (
               <button
                 type="button"
                 onClick={() => handleOpenReturnModal(selectedOrder)}
@@ -1817,7 +2008,7 @@ function MyOrdersPageContent() {
                         </button>
                       )}
 
-                      {/* View Return Button (if Returned) */}
+                      {/* View Return / Shipping Button (if Returned) */}
                       {isReturned && (
                         <button
                           type="button"
@@ -1825,11 +2016,11 @@ function MyOrdersPageContent() {
                             e.stopPropagation();
                             handleOpenReturnDetails(order);
                           }}
-                          className="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer"
-                          title="View return request progress"
+                          className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition-all flex items-center gap-1 shadow-xs cursor-pointer"
+                          title="View return request and update shipping tracking"
                         >
-                          <RotateCcw className="w-3.5 h-3.5" />
-                          <span>Return Details</span>
+                          <Truck className="w-3.5 h-3.5" />
+                          <span>Return & Shipping</span>
                         </button>
                       )}
 

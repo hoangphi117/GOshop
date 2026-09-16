@@ -110,18 +110,94 @@ export interface OrderQueryParams {
   status?: 1 | 2 | 3 | 4 | 5 | 6
 }
 
-export const ORDER_STATUS_MAP: Record<number, { label: string; text: string }> = {
-  1: { label: 'Pending', text: 'pending' },
-  2: { label: 'Confirmed', text: 'confirmed' },
-  3: { label: 'Shipped', text: 'shipped' },
-  4: { label: 'Delivered', text: 'delivered' },
-  5: { label: 'Cancelled', text: 'cancelled' },
-  6: { label: 'Returned', text: 'returned' },
-}
+export const ORDER_STATUS_MAP: Record<number, { label: string; text: string }> =
+  {
+    1: { label: 'Pending', text: 'pending' },
+    2: { label: 'Confirmed', text: 'confirmed' },
+    3: { label: 'Shipped', text: 'shipped' },
+    4: { label: 'Delivered', text: 'delivered' },
+    5: { label: 'Cancelled', text: 'cancelled' },
+    6: { label: 'Returned', text: 'returned' },
+  }
 
-export const PAYMENT_STATUS_MAP: Record<number, { label: string; text: string }> = {
+export const PAYMENT_STATUS_MAP: Record<
+  number,
+  { label: string; text: string }
+> = {
   1: { label: 'Unpaid', text: 'unpaid' },
   2: { label: 'Paid', text: 'paid' },
   3: { label: 'Partially Refunded', text: 'partially refunded' },
   4: { label: 'Refunded', text: 'refunded' },
+}
+
+export const RETURN_STATUS_MAP: Record<
+  number,
+  {
+    label: string
+    variant: 'default' | 'secondary' | 'destructive' | 'outline'
+  }
+> = {
+  1: { label: 'Pending Approval', variant: 'secondary' },
+  2: { label: 'Approved (Awaiting Return)', variant: 'outline' },
+  3: { label: 'Rejected', variant: 'destructive' },
+  4: { label: 'Completed', variant: 'default' },
+  5: { label: 'Cancelled', variant: 'secondary' },
+}
+
+export interface ReturnCustomer {
+  user_uuid: string
+  fullname: string
+  email: string
+}
+
+export interface ReturnOrderInfo {
+  order_uuid: string
+  order_number: string
+  total_amount: number
+  refunded_amount: number
+  payment_method: string
+  payment_status: string
+  order_status: string
+  shipping_name: string
+  shipping_phone: string
+  shipping_address: string
+  created_at: string
+}
+
+export interface OrderReturnDetail {
+  return_uuid: string
+  reason: string
+  images: string[]
+  video_url?: string | null
+  status: number
+  status_name: string
+  status_text: string
+  admin_note?: string | null
+  shipping_provider?: string | null
+  shipping_code?: string | null
+  shipping_note?: string | null
+  bank_name?: string | null
+  bank_account?: string | null
+  bank_account_name?: string | null
+  created_at: string
+  updated_at: string
+  customer?: ReturnCustomer
+  order?: ReturnOrderInfo
+  items?: OrderItem[]
+  events?: TrackingEvent[]
+}
+
+export interface AdminUpdateReturnInput {
+  status: 2 | 3 | 4
+  admin_note?: string
+}
+
+export interface AdminReturnRefundInput {
+  amount?: number
+  reason?: string
+  bank_name?: string
+  bank_account?: string
+  bank_account_name?: string
+  bank_txn_ref?: string
+  accounting_note?: string
 }

@@ -20,7 +20,8 @@ export function useOrderTimeline(uuid: string | null) {
       })
       if (error) {
         throw new Error(
-          (error as { error?: string })?.error || 'Failed to fetch tracking timeline'
+          (error as { error?: string })?.error ||
+            'Failed to fetch tracking timeline'
         )
       }
       return (data?.data as unknown as OrderTimeline) || null
@@ -93,7 +94,8 @@ export function useCalculateShippingFee() {
       })
       if (error) {
         throw new Error(
-          (error as { error?: string })?.error || 'Failed to calculate shipping fee'
+          (error as { error?: string })?.error ||
+            'Failed to calculate shipping fee'
         )
       }
       return data?.data
@@ -126,7 +128,8 @@ export function useShippingMutations() {
       })
       if (error) {
         throw new Error(
-          (error as { error?: string })?.error || 'Failed to create shipping order'
+          (error as { error?: string })?.error ||
+            'Failed to create shipping order'
         )
       }
       return data?.data
@@ -135,13 +138,7 @@ export function useShippingMutations() {
   })
 
   const cancelShipping = useMutation({
-    mutationFn: async ({
-      uuid,
-      reason,
-    }: {
-      uuid: string
-      reason?: string
-    }) => {
+    mutationFn: async ({ uuid, reason }: { uuid: string; reason?: string }) => {
       const { data, error } = await api.POST(
         '/admin/orders/{uuid}/shipping/cancel',
         {
@@ -161,12 +158,9 @@ export function useShippingMutations() {
 
   const syncTracking = useMutation({
     mutationFn: async ({ uuid }: { uuid: string }) => {
-      const { data, error } = await api.POST(
-        '/admin/orders/{uuid}/sync-tracking',
-        {
-          params: { path: { uuid } },
-        }
-      )
+      const { data, error } = await api.POST('/orders/{uuid}/sync-tracking', {
+        params: { path: { uuid } },
+      })
       if (error) {
         throw new Error(
           (error as { error?: string })?.error || 'Failed to sync tracking'
@@ -186,7 +180,8 @@ export function useShippingMutations() {
     )
     if (error) {
       throw new Error(
-        (error as { error?: string })?.error || 'Failed to generate print bill URL'
+        (error as { error?: string })?.error ||
+          'Failed to generate print bill URL'
       )
     }
     return data?.data as unknown as PrintBillResponse

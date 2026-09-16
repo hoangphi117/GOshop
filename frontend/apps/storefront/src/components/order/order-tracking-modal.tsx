@@ -235,7 +235,11 @@ export function OrderTrackingModal({
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-black text-[#0D1B2A]">
-                            {evt.status_text || evt.status}
+                            {evt.status_text && !evt.status_text.includes('_')
+                              ? evt.status_text
+                              : evt.status === 'return_shipping_submitted'
+                                ? 'Return waybill submitted'
+                                : evt.status_text || evt.status}
                           </span>
                           {getSourceBadge(evt.source)}
                         </div>
@@ -248,7 +252,10 @@ export function OrderTrackingModal({
                       </div>
                       {evt.note && (
                         <p className="text-xs text-slate-600 leading-relaxed pt-0.5">
-                          {evt.note}
+                          {evt.note.replace(
+                            /User submitted return shipping info for/gi,
+                            'Return waybill submitted for'
+                          )}
                         </p>
                       )}
                     </div>

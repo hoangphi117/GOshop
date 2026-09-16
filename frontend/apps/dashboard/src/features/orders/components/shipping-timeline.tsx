@@ -4,7 +4,6 @@ import {
   CreditCard,
   Truck,
   PackageCheck,
-  Star,
   CheckCheck,
   Clock,
   Ban,
@@ -44,12 +43,17 @@ export function ShippingTimeline({
     return (
       s.includes('delivered') ||
       s.includes('complete') ||
+      s.includes('returned') ||
+      s.includes('refunded') ||
       st.includes('delivered') ||
       st.includes('complete') ||
+      st.includes('returned') ||
+      st.includes('refunded') ||
       s.includes('received') ||
       st.includes('received') ||
       st.includes('đã giao') ||
-      st.includes('đã nhận')
+      st.includes('đã nhận') ||
+      st.includes('thành công')
     )
   }
 
@@ -71,10 +75,60 @@ export function ShippingTimeline({
     )
   }
 
+  const formatEventStatusText = (ev: TrackingEvent): string => {
+    if (ev.status_text && !ev.status_text.includes('_')) return ev.status_text
+    const s = (ev.status || '').toLowerCase()
+    switch (s) {
+      case 'return_shipping_submitted':
+        return 'Return waybill submitted'
+      case 'return_requested':
+        return 'Return requested'
+      case 'return_approved':
+        return 'Return request approved'
+      case 'return_rejected':
+        return 'Return request rejected'
+      case 'return_cancelled':
+        return 'Return request cancelled'
+      case 'returned':
+        return 'Returned goods processed'
+      default:
+        return (
+          ev.status_text ||
+          ev.status?.replace(/_/g, ' ').toUpperCase() ||
+          'Status Update'
+        )
+    }
+  }
+
+  const formatEventNote = (note?: string): string => {
+    if (!note) return ''
+    return note.replace(
+      /User submitted return shipping info for/gi,
+      'Return waybill submitted for'
+    )
+  }
+
   const checkIsCOD = (o: Order) => {
     const pm = (o.payment_method || '').toUpperCase()
     return pm.includes('COD') || pm.includes('CASH')
   }
+
+  // Check delivered timestamp
+  const deliveredEv = events.find((e) => {
+    const s = (e.status || '').toLowerCase()
+    const st = (e.status_text || '').toLowerCase()
+    if (s.includes('delivering') || st.includes('out for delivery'))
+      return false
+    return (
+      s.includes('delivered') ||
+      s.includes('complete') ||
+      s.includes('received')
+    )
+  })
+  const deliveredTimestamp =
+    deliveredEv?.created_at ||
+    ((order as unknown as Record<string, unknown>).order_delivered_at as string) ||
+    null
 
   const getActiveStepIndex = (o: Order): number => {
     const s = (o.status || '').toUpperCase()
@@ -86,7 +140,7 @@ export function ShippingTimeline({
 
     // If delivered or completed
     if (s.includes('DELIVER') || s.includes('COMPLETE')) {
-      return 4 // Reached "To rate" stage
+      return 4
     }
 
     if (s.includes('SHIP')) {
@@ -166,7 +220,12 @@ export function ShippingTimeline({
           s.includes('received')
         )
       })
-      return ev?.created_at || null
+      return ev?.created_at || deliveredTimestamp
+    }
+
+    // Step 4: Completed
+    if (stepIdx === 4) {
+      return deliveredTimestamp
     }
 
     return null
@@ -190,11 +249,105 @@ export function ShippingTimeline({
     },
     { key: 'shipped', label: 'Order shipped out', icon: Truck },
     { key: 'received', label: 'Order received', icon: PackageCheck },
-    { key: 'rate', label: 'Completed / Rated', icon: Star },
+    { key: 'completed', label: 'Completed', icon: CheckCircle2 },
   ]
 
+  const synthesizeOrderEvents = (ord: Order): TrackingEvent[] => {
+    const list: TrackingEvent[] = []
+    const s = (ord.status || '').toUpperCase()
+    const ps = (ord.payment_status || '').toUpperCase()
+
+    // 1. Placed
+    list.push({
+      event_id: 1,
+      status: 'placed',
+      status_text: 'Order placed successfully',
+      note: `Order #${ord.order_number || ord.uuid?.slice(0, 8).toUpperCase()} has been placed.`,
+      source: 'system',
+      created_at: ord.created_at || new Date().toISOString(),
+    })
+
+    // 2. Confirmed / Paid
+    if (
+      ps === 'PAID' ||
+      s === 'CONFIRMED' ||
+      s === 'SHIPPED' ||
+      s === 'DELIVERED' ||
+      s === 'RETURNED'
+    ) {
+      list.push({
+        event_id: 2,
+        status: 'confirmed',
+        status_text: isCOD ? 'Order confirmed' : 'Payment confirmed',
+        note: isCOD
+          ? 'Order verified for Cash on Delivery (COD)'
+          : `Payment received via ${ord.payment_method || 'Online Payment'}.`,
+        source: 'system',
+        created_at: ord.created_at || new Date().toISOString(),
+      })
+    }
+
+    // 3. Shipped
+    if (
+      s === 'SHIPPED' ||
+      s === 'IN_TRANSIT' ||
+      s === 'DELIVERED' ||
+      s === 'RETURNED' ||
+      ord.shipping_code
+    ) {
+      list.push({
+        event_id: 3,
+        status: 'in_transit',
+        status_text: 'In transit with carrier',
+        note: `Parcel handed over to GHN Express${ord.shipping_code ? ` (Tracking: ${ord.shipping_code})` : ''}.`,
+        source: 'carrier',
+        created_at: ord.created_at || new Date().toISOString(),
+      })
+    }
+
+    // 4. Delivered
+    if (s === 'DELIVERED' || s === 'RETURNED') {
+      list.push({
+        event_id: 4,
+        status: 'delivered',
+        status_text: 'Delivered successfully',
+        note: 'Parcel delivered successfully to recipient.',
+        source: 'carrier',
+        created_at: ord.created_at || new Date().toISOString(),
+      })
+    }
+
+    // 5. Cancelled
+    if (s === 'CANCELLED') {
+      list.push({
+        event_id: 5,
+        status: 'cancelled',
+        status_text: 'Order cancelled',
+        note: 'Order has been cancelled.',
+        source: 'system',
+        created_at: ord.created_at || new Date().toISOString(),
+      })
+    }
+
+    // 6. Returned
+    if (s === 'RETURNED') {
+      list.push({
+        event_id: 6,
+        status: 'returned',
+        status_text: 'Returned goods processed successfully',
+        note: 'Return request processed and completed.',
+        source: 'system',
+        created_at: ord.created_at || new Date().toISOString(),
+      })
+    }
+
+    return list
+  }
+
   // Reverse events for tracking history (latest first)
-  const sortedEvents = [...events].reverse()
+  const effectiveEvents =
+    events.length > 0 ? events : synthesizeOrderEvents(order)
+  const sortedEvents = [...effectiveEvents].reverse()
 
   return (
     <div className='space-y-5'>
@@ -447,7 +600,7 @@ export function ShippingTimeline({
                             : 'text-foreground'
                         }`}
                       >
-                        {ev.status_text || ev.status.toUpperCase()}
+                        {formatEventStatusText(ev)}
                       </h4>
                     </div>
                     {ev.note && (
@@ -458,7 +611,7 @@ export function ShippingTimeline({
                             : 'text-muted-foreground'
                         }`}
                       >
-                        {ev.note}
+                        {formatEventNote(ev.note)}
                       </p>
                     )}
                   </div>

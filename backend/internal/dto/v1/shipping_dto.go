@@ -416,6 +416,10 @@ func MapTrackingStatusToText(status string) string {
 		return "Delivery attempt failed"
 	case "delivered":
 		return "Delivered successfully"
+	case "reviewed", "rated":
+		return "Order rated"
+	case "review_expired", "completed":
+		return "Order completed"
 	case "cancelled", "auto_cancelled":
 		return "Order cancelled"
 	case "shipping_cancelled":
@@ -428,6 +432,8 @@ func MapTrackingStatusToText(status string) string {
 		return "Return request rejected"
 	case "return_cancelled":
 		return "Return request cancelled"
+	case "return_shipping_submitted":
+		return "Return waybill submitted"
 	case "returned":
 		return "Returned goods processed successfully"
 	default:

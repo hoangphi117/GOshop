@@ -280,11 +280,143 @@ func (s *orderShippingService) GetOrderTimeline(ctx context.Context, userUUID uu
 	if err != nil {
 		return v1dto.OrderTimelineResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get tracking events", err)
 	}
+
+	eventDTOs := v1dto.MapToEventDTOs(events)
+	if len(eventDTOs) == 0 {
+		eventDTOs = s.synthesizeBaselineTimeline(order)
+	}
+
 	return v1dto.OrderTimelineResponseDTO{
 		OrderUUID:   order.OrderUuid.String(),
 		OrderNumber: order.OrderNumber,
-		Events:      v1dto.MapToEventDTOs(events),
+		Events:      eventDTOs,
 	}, nil
+}
+
+func (s *orderShippingService) synthesizeBaselineTimeline(order sqlc.GetOrderByUUIDRow) []v1dto.TrackingEventDTO {
+	eventDTOs := make([]v1dto.TrackingEventDTO, 0)
+	var nextID int32 = 1
+
+	// 1. Order Placed
+	placedNote := fmt.Sprintf("Order #%s placed successfully by customer", order.OrderNumber)
+	eventDTOs = append(eventDTOs, v1dto.TrackingEventDTO{
+		EventID:    nextID,
+		Status:     "placed",
+		StatusText: "Order placed successfully",
+		Note:       &placedNote,
+		Source:     "system",
+		CreatedAt:  order.OrderCreatedAt,
+	})
+	nextID++
+
+	// 2. Payment confirmed / Order confirmed
+	if order.OrderPaymentStatus == 2 || order.OrderStatus >= 2 {
+		confTime := order.OrderCreatedAt.Add(time.Minute * 2)
+		if order.OrderStatus >= 2 && !order.OrderUpdatedAt.IsZero() && order.OrderUpdatedAt.After(order.OrderCreatedAt) {
+			confTime = order.OrderUpdatedAt
+		}
+		confNote := "Order payment confirmed"
+		if order.OrderPaymentMethod == 1 {
+			confNote = "Order verified for Cash on Delivery (COD)"
+		} else if order.OrderPaymentMethod == 2 {
+			confNote = "Bank transfer payment verified"
+		} else if order.OrderPaymentMethod == 3 {
+			confNote = "E-wallet payment processed successfully"
+		}
+		eventDTOs = append(eventDTOs, v1dto.TrackingEventDTO{
+			EventID:    nextID,
+			Status:     "confirmed",
+			StatusText: "Payment confirmed",
+			Note:       &confNote,
+			Source:     "system",
+			CreatedAt:  confTime,
+		})
+		nextID++
+	}
+
+	// 3. Shipped / In Transit
+	if order.OrderStatus >= 3 || (order.OrderShippingCode != nil && strings.TrimSpace(*order.OrderShippingCode) != "") {
+		provider := "GHN Express"
+		if order.OrderShippingProvider != nil && strings.TrimSpace(*order.OrderShippingProvider) != "" {
+			provider = *order.OrderShippingProvider
+		}
+		codeStr := ""
+		if order.OrderShippingCode != nil && strings.TrimSpace(*order.OrderShippingCode) != "" {
+			codeStr = fmt.Sprintf(" (Tracking: %s)", *order.OrderShippingCode)
+		}
+		shipNote := fmt.Sprintf("Package handed over to carrier %s%s", provider, codeStr)
+		shipTime := order.OrderCreatedAt.Add(time.Hour * 2)
+		if !order.OrderUpdatedAt.IsZero() && order.OrderUpdatedAt.After(order.OrderCreatedAt) {
+			shipTime = order.OrderUpdatedAt
+		}
+		eventDTOs = append(eventDTOs, v1dto.TrackingEventDTO{
+			EventID:    nextID,
+			Status:     "in_transit",
+			StatusText: "In transit with carrier",
+			Note:       &shipNote,
+			Source:     "carrier",
+			CreatedAt:  shipTime,
+		})
+		nextID++
+	}
+
+	// 4. Delivered
+	if order.OrderStatus == 4 || order.OrderDeliveredAt.Valid {
+		delTime := order.OrderCreatedAt.Add(time.Hour * 24)
+		if order.OrderDeliveredAt.Valid {
+			delTime = order.OrderDeliveredAt.Time
+		} else if !order.OrderUpdatedAt.IsZero() && order.OrderUpdatedAt.After(order.OrderCreatedAt) {
+			delTime = order.OrderUpdatedAt
+		}
+		delNote := "Parcel successfully delivered to recipient"
+		eventDTOs = append(eventDTOs, v1dto.TrackingEventDTO{
+			EventID:    nextID,
+			Status:     "delivered",
+			StatusText: "Delivered successfully",
+			Note:       &delNote,
+			Source:     "carrier",
+			CreatedAt:  delTime,
+		})
+		nextID++
+	}
+
+	// 5. Cancelled
+	if order.OrderStatus == 5 || order.OrderCancelledAt.Valid {
+		cancelTime := order.OrderUpdatedAt
+		if order.OrderCancelledAt.Valid {
+			cancelTime = order.OrderCancelledAt.Time
+		}
+		cancelNote := "Order has been cancelled"
+		eventDTOs = append(eventDTOs, v1dto.TrackingEventDTO{
+			EventID:    nextID,
+			Status:     "cancelled",
+			StatusText: "Order cancelled",
+			Note:       &cancelNote,
+			Source:     "system",
+			CreatedAt:  cancelTime,
+		})
+		nextID++
+	}
+
+	// 6. Returned
+	if order.OrderStatus == 6 || order.OrderReturnedAt.Valid {
+		retTime := order.OrderUpdatedAt
+		if order.OrderReturnedAt.Valid {
+			retTime = order.OrderReturnedAt.Time
+		}
+		retNote := "Return request approved and goods processed"
+		eventDTOs = append(eventDTOs, v1dto.TrackingEventDTO{
+			EventID:    nextID,
+			Status:     "returned",
+			StatusText: "Returned goods processed successfully",
+			Note:       &retNote,
+			Source:     "system",
+			CreatedAt:  retTime,
+		})
+		nextID++
+	}
+
+	return eventDTOs
 }
 
 func (s *orderShippingService) HandleShippingWebhook(ctx context.Context, rawBody []byte, payload v1dto.GHNWebhookPayload) error {
