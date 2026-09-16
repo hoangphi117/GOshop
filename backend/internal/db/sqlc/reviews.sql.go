@@ -220,6 +220,16 @@ func (q *Queries) DeleteReview(ctx context.Context, reviewID int32) error {
 	return err
 }
 
+const deleteReviewReportsByReviewID = `-- name: DeleteReviewReportsByReviewID :exec
+DELETE FROM product_review_reports
+WHERE review_id = $1
+`
+
+func (q *Queries) DeleteReviewReportsByReviewID(ctx context.Context, reviewID int32) error {
+	_, err := q.db.Exec(ctx, deleteReviewReportsByReviewID, reviewID)
+	return err
+}
+
 const getProductRatingSummary = `-- name: GetProductRatingSummary :one
 SELECT
     COUNT(*)::bigint AS total_reviews,
@@ -317,6 +327,59 @@ func (q *Queries) GetReviewByUUID(ctx context.Context, reviewUuid uuid.UUID) (Ge
 		&i.ProductUuid,
 	)
 	return i, err
+}
+
+const getReviewReportsByReviewID = `-- name: GetReviewReportsByReviewID :many
+SELECT 
+    prr.report_id,
+    prr.user_id,
+    u.user_fullname AS user_name,
+    u.user_email,
+    prr.reason,
+    prr.details,
+    prr.created_at
+FROM product_review_reports prr
+JOIN users u ON u.user_id = prr.user_id
+WHERE prr.review_id = $1
+ORDER BY prr.created_at DESC
+`
+
+type GetReviewReportsByReviewIDRow struct {
+	ReportID  int32     `json:"report_id"`
+	UserID    int32     `json:"user_id"`
+	UserName  string    `json:"user_name"`
+	UserEmail string    `json:"user_email"`
+	Reason    string    `json:"reason"`
+	Details   *string   `json:"details"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (q *Queries) GetReviewReportsByReviewID(ctx context.Context, reviewID int32) ([]GetReviewReportsByReviewIDRow, error) {
+	rows, err := q.db.Query(ctx, getReviewReportsByReviewID, reviewID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetReviewReportsByReviewIDRow{}
+	for rows.Next() {
+		var i GetReviewReportsByReviewIDRow
+		if err := rows.Scan(
+			&i.ReportID,
+			&i.UserID,
+			&i.UserName,
+			&i.UserEmail,
+			&i.Reason,
+			&i.Details,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getReviewsByUserID = `-- name: GetReviewsByUserID :many

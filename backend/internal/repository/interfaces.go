@@ -173,6 +173,8 @@ type ReviewRepository interface {
 	HasReported(ctx context.Context, userID, reviewID int32) (bool, error)
 	CreateReport(ctx context.Context, tx pgx.Tx, params sqlc.InsertReviewReportParams) error
 	CountReports(ctx context.Context, tx pgx.Tx, reviewID int32) (int64, error)
+	GetReportsByReviewID(ctx context.Context, reviewID int32) ([]sqlc.GetReviewReportsByReviewIDRow, error)
+	DeleteReportsByReviewID(ctx context.Context, tx pgx.Tx, reviewID int32) error
 
 	// Helpful votes
 	HasHelpfulVote(ctx context.Context, userID, reviewID int32) (bool, error)

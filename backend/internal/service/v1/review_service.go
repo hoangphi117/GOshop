@@ -547,16 +547,25 @@ func (rs *reviewService) UpdateReviewStatus(ctx context.Context, reviewUUID uuid
 		images = []string{}
 	}
 
+	var replyAt *string
+	if updatedReview.ReviewReplyAt.Valid {
+		formatted := updatedReview.ReviewReplyAt.Time.Format("2006-01-02 15:04:05")
+		replyAt = &formatted
+	}
+
 	return v1dto.ReviewDTO{
-		UUID:      updatedReview.ReviewUuid.String(),
-		Rating:    int32(updatedReview.ReviewRating),
-		Title:     updatedReview.ReviewTitle,
-		Comment:   updatedReview.ReviewComment,
-		Images:    images,
-		VideoURL:  updatedReview.ReviewVideoUrl,
-		HasMedia:  updatedReview.ReviewHasMedia,
-		CreatedAt: updatedReview.ReviewCreatedAt.Format("2006-01-02 15:04:05"),
-		UpdatedAt: updatedReview.ReviewUpdatedAt.Format("2006-01-02 15:04:05"),
+		UUID:         updatedReview.ReviewUuid.String(),
+		Rating:       int32(updatedReview.ReviewRating),
+		Title:        updatedReview.ReviewTitle,
+		Comment:      updatedReview.ReviewComment,
+		Images:       images,
+		VideoURL:     updatedReview.ReviewVideoUrl,
+		HasMedia:     updatedReview.ReviewHasMedia,
+		Reply:        updatedReview.ReviewReply,
+		ReplyAt:      replyAt,
+		HelpfulCount: updatedReview.ReviewHelpfulCount,
+		CreatedAt:    updatedReview.ReviewCreatedAt.Format("2006-01-02 15:04:05"),
+		UpdatedAt:    updatedReview.ReviewUpdatedAt.Format("2006-01-02 15:04:05"),
 	}, nil
 }
 
@@ -729,7 +738,7 @@ func (rs *reviewService) ReportReview(ctx context.Context, userUUID uuid.UUID, r
 	return nil
 }
 
-func (rs *reviewService) AdminGetAllReviews(ctx context.Context, query v1dto.AdminGetReviewsQuery) ([]v1dto.AdminReviewRow, int32, error) {
+func (rs *reviewService) AdminGetAllReviews(ctx context.Context, query v1dto.AdminGetReviewsQuery) ([]v1dto.AdminReviewDTO, int32, error) {
 	page := query.Page
 	if page <= 0 {
 		page = 1
@@ -761,7 +770,7 @@ func (rs *reviewService) AdminGetAllReviews(ctx context.Context, query v1dto.Adm
 	}
 
 	if total == 0 {
-		return []v1dto.AdminReviewRow{}, 0, nil
+		return []v1dto.AdminReviewDTO{}, 0, nil
 	}
 
 	rows, err := rs.repo.AdminGetAll(ctx, query.Status, query.Rating, query.ProductUUID, query.Search, "r.review_created_at", query.Sort, limit, offset)
@@ -769,7 +778,7 @@ func (rs *reviewService) AdminGetAllReviews(ctx context.Context, query v1dto.Adm
 		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "Failed to get reviews", err)
 	}
 
-	return rows, int32(total), nil
+	return v1dto.MapToAdminReviewDTOs(rows), int32(total), nil
 }
 
 func (rs *reviewService) AdminReplyReview(ctx context.Context, reviewUUID uuid.UUID, input v1dto.ReplyReviewInput) (v1dto.ReviewDTO, error) {
@@ -814,17 +823,18 @@ func (rs *reviewService) AdminReplyReview(ctx context.Context, reviewUUID uuid.U
 	}
 
 	return v1dto.ReviewDTO{
-		UUID:      updatedReview.ReviewUuid.String(),
-		Rating:    int32(updatedReview.ReviewRating),
-		Title:     updatedReview.ReviewTitle,
-		Comment:   updatedReview.ReviewComment,
-		Images:    images,
-		VideoURL:  updatedReview.ReviewVideoUrl,
-		HasMedia:  updatedReview.ReviewHasMedia,
-		Reply:     updatedReview.ReviewReply,
-		ReplyAt:   replyAt,
-		CreatedAt: updatedReview.ReviewCreatedAt.Format("2006-01-02 15:04:05"),
-		UpdatedAt: updatedReview.ReviewUpdatedAt.Format("2006-01-02 15:04:05"),
+		UUID:         updatedReview.ReviewUuid.String(),
+		Rating:       int32(updatedReview.ReviewRating),
+		Title:        updatedReview.ReviewTitle,
+		Comment:      updatedReview.ReviewComment,
+		Images:       images,
+		VideoURL:     updatedReview.ReviewVideoUrl,
+		HasMedia:     updatedReview.ReviewHasMedia,
+		Reply:        updatedReview.ReviewReply,
+		ReplyAt:      replyAt,
+		HelpfulCount: updatedReview.ReviewHelpfulCount,
+		CreatedAt:    updatedReview.ReviewCreatedAt.Format("2006-01-02 15:04:05"),
+		UpdatedAt:    updatedReview.ReviewUpdatedAt.Format("2006-01-02 15:04:05"),
 	}, nil
 }
 
@@ -865,6 +875,58 @@ func (rs *reviewService) AdminForceDeleteReview(ctx context.Context, reviewUUID 
 		}
 		utils.DeleteUploadedFiles(files...)
 	}(review.ReviewImages, review.ReviewVideoUrl)
+
+	return nil
+}
+
+func (rs *reviewService) GetReviewReports(ctx context.Context, reviewUUID uuid.UUID) ([]v1dto.ReviewReportDTO, error) {
+	review, err := rs.getReview(ctx, reviewUUID)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := rs.repo.GetReportsByReviewID(ctx, review.ReviewID)
+	if err != nil {
+		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to get review reports", err)
+	}
+
+	return v1dto.MapToReviewReportDTOs(rows), nil
+}
+
+func (rs *reviewService) AdminDismissReports(ctx context.Context, reviewUUID uuid.UUID) error {
+	review, err := rs.getReview(ctx, reviewUUID)
+	if err != nil {
+		return err
+	}
+
+	txCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	tx, err := db.BeginTx(txCtx)
+	if err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to start transaction", err)
+	}
+	defer tx.Rollback(txCtx)
+
+	if err := rs.repo.DeleteReportsByReviewID(txCtx, tx, review.ReviewID); err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to delete reports", err)
+	}
+
+	// If the review was marked as Reported, restore to Visible and recalc rating
+	if review.ReviewStatus == ReviewStatusReported {
+		if _, err := rs.repo.UpdateStatus(txCtx, tx, review.ReviewID, ReviewStatusVisible); err != nil {
+			return utils.WrapError(utils.ErrCodeInternal, "Failed to restore review status", err)
+		}
+		if err := rs.repo.RecalcRating(txCtx, tx, review.ReviewProductID); err != nil {
+			return utils.WrapError(utils.ErrCodeInternal, "Failed to recalculate product rating", err)
+		}
+	}
+
+	if err := tx.Commit(txCtx); err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
+	}
+
+	rs.invalidateProductReviewCache(review.ProductUuid.String())
 
 	return nil
 }

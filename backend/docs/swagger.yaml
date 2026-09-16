@@ -1083,6 +1083,24 @@ definitions:
       video_url:
         type: string
     type: object
+  goshop_internal_dto_v1.ReviewReportDTO:
+    properties:
+      created_at:
+        type: string
+      details:
+        type: string
+      reason:
+        description: spam, inappropriate, fake, other
+        type: string
+      report_id:
+        type: integer
+      user_email:
+        type: string
+      user_id:
+        type: integer
+      user_name:
+        type: string
+    type: object
   goshop_internal_dto_v1.ShippingFeeResponseDTO:
     properties:
       provider:
@@ -3220,6 +3238,36 @@ paths:
       summary: Force delete review
       tags:
       - Admin - Reviews
+  /admin/reviews/{uuid}/dismiss-reports:
+    post:
+      description: Dismiss all reports for a review and restore its visibility (Admin/Moderator)
+      parameters:
+      - description: Review UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Dismiss review reports
+      tags:
+      - Admin - Reviews
   /admin/reviews/{uuid}/reply:
     patch:
       consumes:
@@ -3261,6 +3309,43 @@ paths:
       - BearerAuth: []
       - ApiKeyAuth: []
       summary: Reply to review
+      tags:
+      - Admin - Reviews
+  /admin/reviews/{uuid}/reports:
+    get:
+      description: Get all user reports filed against a specific review (Admin/Moderator)
+      parameters:
+      - description: Review UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/goshop_internal_dto_v1.ReviewReportDTO'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get review reports
       tags:
       - Admin - Reviews
   /admin/reviews/{uuid}/status:

@@ -637,7 +637,7 @@ func TestReviewService_AdminGetAllReviews(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, int32(1), total)
 		assert.Len(t, rows, 1)
-		assert.Equal(t, reviewUUID, rows[0].ReviewUUID)
+		assert.Equal(t, reviewUUID.String(), rows[0].UUID)
 	})
 }
 
@@ -675,6 +675,97 @@ func TestReviewService_AdminForceDeleteReview(t *testing.T) {
 
 		svc := v1service.NewReviewService(mockReviewRepo, nil, nil, nil, nil, nil)
 		err := svc.AdminForceDeleteReview(ctx, reviewUUID)
+
+		require.Error(t, err)
+		assertAppErrorCode(t, err, utils.ErrCodeNotFound)
+	})
+}
+
+func TestReviewService_UpdateReviewStatus(t *testing.T) {
+	ctx := context.Background()
+	reviewUUID := uuid.New()
+
+	t.Run("Case 1: Review Not Found -> Returns 404", func(t *testing.T) {
+		mockReviewRepo := &testutils.MockReviewRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetReviewByUUIDRow, error) {
+				return sqlc.GetReviewByUUIDRow{}, pgx.ErrNoRows
+			},
+		}
+
+		svc := v1service.NewReviewService(mockReviewRepo, nil, nil, nil, nil, nil)
+		_, err := svc.UpdateReviewStatus(ctx, reviewUUID, v1dto.UpdateReviewStatusInput{
+			Status: 2,
+		})
+
+		require.Error(t, err)
+		assertAppErrorCode(t, err, utils.ErrCodeNotFound)
+	})
+}
+
+func TestReviewService_GetReviewReports(t *testing.T) {
+	ctx := context.Background()
+	reviewUUID := uuid.New()
+
+	t.Run("Case 1: Review Not Found -> Returns 404", func(t *testing.T) {
+		mockReviewRepo := &testutils.MockReviewRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetReviewByUUIDRow, error) {
+				return sqlc.GetReviewByUUIDRow{}, pgx.ErrNoRows
+			},
+		}
+
+		svc := v1service.NewReviewService(mockReviewRepo, nil, nil, nil, nil, nil)
+		_, err := svc.GetReviewReports(ctx, reviewUUID)
+
+		require.Error(t, err)
+		assertAppErrorCode(t, err, utils.ErrCodeNotFound)
+	})
+
+	t.Run("Case 2: Happy Path -> Returns Mapped Reports", func(t *testing.T) {
+		mockReviewRepo := &testutils.MockReviewRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetReviewByUUIDRow, error) {
+				return sqlc.GetReviewByUUIDRow{
+					ReviewID:   10,
+					ReviewUuid: reviewUUID,
+				}, nil
+			},
+			GetReportsByReviewIDFunc: func(ctx context.Context, reviewID int32) ([]sqlc.GetReviewReportsByReviewIDRow, error) {
+				return []sqlc.GetReviewReportsByReviewIDRow{
+					{
+						ReportID:  1,
+						UserID:    5,
+						UserName:  "Spam Reporter",
+						UserEmail: "reporter@example.com",
+						Reason:    "spam",
+						CreatedAt: time.Now(),
+					},
+				}, nil
+			},
+		}
+
+		svc := v1service.NewReviewService(mockReviewRepo, nil, nil, nil, nil, nil)
+		reports, err := svc.GetReviewReports(ctx, reviewUUID)
+
+		require.NoError(t, err)
+		assert.Len(t, reports, 1)
+		assert.Equal(t, int32(1), reports[0].ReportID)
+		assert.Equal(t, "Spam Reporter", reports[0].UserName)
+		assert.Equal(t, "spam", reports[0].Reason)
+	})
+}
+
+func TestReviewService_AdminDismissReports(t *testing.T) {
+	ctx := context.Background()
+	reviewUUID := uuid.New()
+
+	t.Run("Case 1: Review Not Found -> Returns 404", func(t *testing.T) {
+		mockReviewRepo := &testutils.MockReviewRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetReviewByUUIDRow, error) {
+				return sqlc.GetReviewByUUIDRow{}, pgx.ErrNoRows
+			},
+		}
+
+		svc := v1service.NewReviewService(mockReviewRepo, nil, nil, nil, nil, nil)
+		err := svc.AdminDismissReports(ctx, reviewUUID)
 
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeNotFound)

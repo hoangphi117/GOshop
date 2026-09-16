@@ -63,6 +63,39 @@ type AdminReviewRow struct {
 	ReviewCreatedAt    time.Time
 	ReviewUpdatedAt    time.Time
 	ReviewHelpfulCount int32
+	ReportCount        int64
+}
+
+type AdminReviewDTO struct {
+	UUID          string   `json:"uuid"`
+	ProductUUID   string   `json:"product_uuid"`
+	ProductName   string   `json:"product_name"`
+	OrderUUID     string   `json:"order_uuid"`
+	ReviewerName  string   `json:"reviewer_name"`
+	ReviewerEmail string   `json:"reviewer_email"`
+	Rating        int32    `json:"rating"`
+	Title         *string  `json:"title,omitempty"`
+	Comment       *string  `json:"comment,omitempty"`
+	Images        []string `json:"images"`
+	VideoURL      *string  `json:"video_url,omitempty"`
+	HasMedia      bool     `json:"has_media"`
+	Status        int16    `json:"status"` // 1: Visible, 2: Hidden, 3: Reported
+	Reply         *string  `json:"reply,omitempty"`
+	ReplyAt       *string  `json:"reply_at,omitempty"`
+	HelpfulCount  int32    `json:"helpful_count"`
+	ReportCount   int64    `json:"report_count"`
+	CreatedAt     string   `json:"created_at"`
+	UpdatedAt     string   `json:"updated_at,omitempty"`
+}
+
+type ReviewReportDTO struct {
+	ReportID  int32   `json:"report_id"`
+	UserID    int32   `json:"user_id"`
+	UserName  string  `json:"user_name"`
+	UserEmail string  `json:"user_email"`
+	Reason    string  `json:"reason"` // spam, inappropriate, fake, other
+	Details   *string `json:"details,omitempty"`
+	CreatedAt string  `json:"created_at"`
 }
 
 type ToggleHelpfulResponseDTO struct {
@@ -212,6 +245,66 @@ func MapToMyReviewDTOs(rows []sqlc.GetReviewsByUserIDRow) []MyReviewDTO {
 	result := make([]MyReviewDTO, len(rows))
 	for i, r := range rows {
 		result[i] = MapToMyReviewDTO(r)
+	}
+	return result
+}
+
+func MapToAdminReviewDTO(r AdminReviewRow) AdminReviewDTO {
+	images := r.ReviewImages
+	if images == nil {
+		images = []string{}
+	}
+	var replyAt *string
+	if r.ReviewReplyAt != nil {
+		formatted := r.ReviewReplyAt.Format("2006-01-02 15:04:05")
+		replyAt = &formatted
+	}
+	return AdminReviewDTO{
+		UUID:          r.ReviewUUID.String(),
+		ProductUUID:   r.ProductUUID.String(),
+		ProductName:   r.ProductName,
+		OrderUUID:     r.OrderUUID.String(),
+		ReviewerName:  r.ReviewerName,
+		ReviewerEmail: r.ReviewerEmail,
+		Rating:        int32(r.ReviewRating),
+		Title:         r.ReviewTitle,
+		Comment:       r.ReviewComment,
+		Images:        images,
+		VideoURL:      r.ReviewVideoURL,
+		HasMedia:      r.ReviewHasMedia,
+		Status:        r.ReviewStatus,
+		Reply:         r.ReviewReply,
+		ReplyAt:       replyAt,
+		HelpfulCount:  r.ReviewHelpfulCount,
+		ReportCount:   r.ReportCount,
+		CreatedAt:     r.ReviewCreatedAt.Format("2006-01-02 15:04:05"),
+		UpdatedAt:     r.ReviewUpdatedAt.Format("2006-01-02 15:04:05"),
+	}
+}
+func MapToAdminReviewDTOs(rows []AdminReviewRow) []AdminReviewDTO {
+	result := make([]AdminReviewDTO, len(rows))
+	for i, r := range rows {
+		result[i] = MapToAdminReviewDTO(r)
+	}
+	return result
+}
+
+func MapToReviewReportDTO(r sqlc.GetReviewReportsByReviewIDRow) ReviewReportDTO {
+	return ReviewReportDTO{
+		ReportID:  r.ReportID,
+		UserID:    r.UserID,
+		UserName:  r.UserName,
+		UserEmail: r.UserEmail,
+		Reason:    r.Reason,
+		Details:   r.Details,
+		CreatedAt: r.CreatedAt.Format("2006-01-02 15:04:05"),
+	}
+}
+
+func MapToReviewReportDTOs(rows []sqlc.GetReviewReportsByReviewIDRow) []ReviewReportDTO {
+	result := make([]ReviewReportDTO, len(rows))
+	for i, r := range rows {
+		result[i] = MapToReviewReportDTO(r)
 	}
 	return result
 }

@@ -897,6 +897,8 @@ type MockReviewRepository struct {
 	HasReportedFunc      func(ctx context.Context, userID, reviewID int32) (bool, error)
 	CreateReportFunc     func(ctx context.Context, tx pgx.Tx, params sqlc.InsertReviewReportParams) error
 	CountReportsFunc     func(ctx context.Context, tx pgx.Tx, reviewID int32) (int64, error)
+	GetReportsByReviewIDFunc func(ctx context.Context, reviewID int32) ([]sqlc.GetReviewReportsByReviewIDRow, error)
+	DeleteReportsByReviewIDFunc func(ctx context.Context, tx pgx.Tx, reviewID int32) error
 	HasHelpfulVoteFunc   func(ctx context.Context, userID, reviewID int32) (bool, error)
 	AddHelpfulVoteFunc   func(ctx context.Context, tx pgx.Tx, userID, reviewID int32) (int32, error)
 	RemoveHelpfulVoteFunc func(ctx context.Context, tx pgx.Tx, userID, reviewID int32) (int32, error)
@@ -1058,6 +1060,20 @@ func (m *MockReviewRepository) Reply(ctx context.Context, tx pgx.Tx, reviewID in
 		return m.ReplyFunc(ctx, tx, reviewID, reply)
 	}
 	return sqlc.ProductReview{}, nil
+}
+
+func (m *MockReviewRepository) GetReportsByReviewID(ctx context.Context, reviewID int32) ([]sqlc.GetReviewReportsByReviewIDRow, error) {
+	if m.GetReportsByReviewIDFunc != nil {
+		return m.GetReportsByReviewIDFunc(ctx, reviewID)
+	}
+	return nil, nil
+}
+
+func (m *MockReviewRepository) DeleteReportsByReviewID(ctx context.Context, tx pgx.Tx, reviewID int32) error {
+	if m.DeleteReportsByReviewIDFunc != nil {
+		return m.DeleteReportsByReviewIDFunc(ctx, tx, reviewID)
+	}
+	return nil
 }
 
 // =========================================================================

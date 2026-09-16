@@ -68,6 +68,7 @@ type Querier interface {
 	DeleteHelpfulVote(ctx context.Context, arg DeleteHelpfulVoteParams) error
 	DeleteNotification(ctx context.Context, arg DeleteNotificationParams) error
 	DeleteReview(ctx context.Context, reviewID int32) error
+	DeleteReviewReportsByReviewID(ctx context.Context, reviewID int32) error
 	DeleteUserAddress(ctx context.Context, arg DeleteUserAddressParams) (bool, error)
 	GetActiveBannersByPosition(ctx context.Context, bannerPosition string) ([]GetActiveBannersByPositionRow, error)
 	GetActiveReturnByOrderID(ctx context.Context, returnOrderID int32) (OrderReturn, error)
@@ -110,6 +111,7 @@ type Querier interface {
 	GetReturnByUUID(ctx context.Context, returnUuid uuid.UUID) (OrderReturn, error)
 	GetReturnsByUserID(ctx context.Context, arg GetReturnsByUserIDParams) ([]GetReturnsByUserIDRow, error)
 	GetReviewByUUID(ctx context.Context, reviewUuid uuid.UUID) (GetReviewByUUIDRow, error)
+	GetReviewReportsByReviewID(ctx context.Context, reviewID int32) ([]GetReviewReportsByReviewIDRow, error)
 	GetReviewsByUserID(ctx context.Context, arg GetReviewsByUserIDParams) ([]GetReviewsByUserIDRow, error)
 	GetTrackingEventsByOrderID(ctx context.Context, eventOrderID int32) ([]OrderTrackingEvent, error)
 	GetUserAddressByUUID(ctx context.Context, arg GetUserAddressByUUIDParams) (UserAddress, error)

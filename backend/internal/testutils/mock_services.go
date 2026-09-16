@@ -539,11 +539,13 @@ type MockReviewService struct {
 	UpdateReviewFunc            func(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID, input v1dto.UpdateReviewInput) (v1dto.ReviewDTO, error)
 	UpdateReviewStatusFunc      func(ctx context.Context, reviewUUID uuid.UUID, input v1dto.UpdateReviewStatusInput) (v1dto.ReviewDTO, error)
 	DeleteReviewFunc            func(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID) error
-	AdminGetAllReviewsFunc      func(ctx context.Context, query v1dto.AdminGetReviewsQuery) ([]v1dto.AdminReviewRow, int32, error)
+	AdminGetAllReviewsFunc      func(ctx context.Context, query v1dto.AdminGetReviewsQuery) ([]v1dto.AdminReviewDTO, int32, error)
 	AdminReplyReviewFunc        func(ctx context.Context, reviewUUID uuid.UUID, input v1dto.ReplyReviewInput) (v1dto.ReviewDTO, error)
 	ToggleHelpfulVoteFunc       func(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID) (v1dto.ToggleHelpfulResponseDTO, error)
 	ReportReviewFunc            func(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID, input v1dto.ReportReviewInput) error
 	AdminForceDeleteReviewFunc  func(ctx context.Context, reviewUUID uuid.UUID) error
+	GetReviewReportsFunc        func(ctx context.Context, reviewUUID uuid.UUID) ([]v1dto.ReviewReportDTO, error)
+	AdminDismissReportsFunc     func(ctx context.Context, reviewUUID uuid.UUID) error
 }
 
 func (m *MockReviewService) CreateReview(ctx context.Context, userUUID uuid.UUID, input v1dto.CreateReviewInput, imageURLs []string, videoURL *string) (v1dto.ReviewDTO, error) {
@@ -595,7 +597,7 @@ func (m *MockReviewService) DeleteReview(ctx context.Context, userUUID uuid.UUID
 	return nil
 }
 
-func (m *MockReviewService) AdminGetAllReviews(ctx context.Context, query v1dto.AdminGetReviewsQuery) ([]v1dto.AdminReviewRow, int32, error) {
+func (m *MockReviewService) AdminGetAllReviews(ctx context.Context, query v1dto.AdminGetReviewsQuery) ([]v1dto.AdminReviewDTO, int32, error) {
 	if m.AdminGetAllReviewsFunc != nil {
 		return m.AdminGetAllReviewsFunc(ctx, query)
 	}
@@ -626,6 +628,20 @@ func (m *MockReviewService) ReportReview(ctx context.Context, userUUID uuid.UUID
 func (m *MockReviewService) AdminForceDeleteReview(ctx context.Context, reviewUUID uuid.UUID) error {
 	if m.AdminForceDeleteReviewFunc != nil {
 		return m.AdminForceDeleteReviewFunc(ctx, reviewUUID)
+	}
+	return nil
+}
+
+func (m *MockReviewService) GetReviewReports(ctx context.Context, reviewUUID uuid.UUID) ([]v1dto.ReviewReportDTO, error) {
+	if m.GetReviewReportsFunc != nil {
+		return m.GetReviewReportsFunc(ctx, reviewUUID)
+	}
+	return nil, nil
+}
+
+func (m *MockReviewService) AdminDismissReports(ctx context.Context, reviewUUID uuid.UUID) error {
+	if m.AdminDismissReportsFunc != nil {
+		return m.AdminDismissReportsFunc(ctx, reviewUUID)
 	}
 	return nil
 }

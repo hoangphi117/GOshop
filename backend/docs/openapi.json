@@ -3200,6 +3200,66 @@
                 }
             }
         },
+        "/admin/reviews/{uuid}/dismiss-reports": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Dismiss all reports for a review and restore its visibility (Admin/Moderator)",
+                "tags": [
+                    "Admin - Reviews"
+                ],
+                "summary": "Dismiss review reports",
+                "parameters": [
+                    {
+                        "description": "Review UUID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/goshop_internal_utils.APIResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/admin/reviews/{uuid}/reply": {
             "patch": {
                 "security": [
@@ -3252,6 +3312,81 @@
                                             "properties": {
                                                 "data": {
                                                     "$ref": "#/components/schemas/goshop_internal_dto_v1.ReviewDTO"
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/reviews/{uuid}/reports": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Get all user reports filed against a specific review (Admin/Moderator)",
+                "tags": [
+                    "Admin - Reviews"
+                ],
+                "summary": "Get review reports",
+                "parameters": [
+                    {
+                        "description": "Review UUID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "allOf": [
+                                        {
+                                            "$ref": "#/components/schemas/goshop_internal_utils.APIResponse"
+                                        },
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/components/schemas/goshop_internal_dto_v1.ReviewReportDTO"
+                                                    }
                                                 }
                                             }
                                         }
@@ -8545,8 +8680,7 @@
                         }
                     }
                 },
-                "description": "Refresh token",
-                "required": true
+                "description": "Refresh token"
             }
         },
         "securitySchemes": {
@@ -9630,6 +9764,9 @@
                     "discount_amount": {
                         "type": "number"
                     },
+                    "expected_delivery": {
+                        "type": "string"
+                    },
                     "items": {
                         "type": "array",
                         "items": {
@@ -9654,6 +9791,9 @@
                     "shipping_address": {
                         "type": "string"
                     },
+                    "shipping_code": {
+                        "type": "string"
+                    },
                     "shipping_fee": {
                         "type": "number"
                     },
@@ -9661,6 +9801,9 @@
                         "type": "string"
                     },
                     "shipping_phone": {
+                        "type": "string"
+                    },
+                    "shipping_provider": {
                         "type": "string"
                     },
                     "status": {
@@ -9909,6 +10052,12 @@
                     "price": {
                         "type": "number"
                     },
+                    "rating": {
+                        "type": "number"
+                    },
+                    "reviews_count": {
+                        "type": "integer"
+                    },
                     "sku": {
                         "type": "string"
                     },
@@ -9942,9 +10091,6 @@
             },
             "goshop_internal_dto_v1.RefreshTokenInput": {
                 "type": "object",
-                "required": [
-                    "refresh_token"
-                ],
                 "properties": {
                     "refresh_token": {
                         "type": "string"
@@ -10109,6 +10255,33 @@
                         "type": "string"
                     },
                     "video_url": {
+                        "type": "string"
+                    }
+                }
+            },
+            "goshop_internal_dto_v1.ReviewReportDTO": {
+                "type": "object",
+                "properties": {
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "details": {
+                        "type": "string"
+                    },
+                    "reason": {
+                        "description": "spam, inappropriate, fake, other",
+                        "type": "string"
+                    },
+                    "report_id": {
+                        "type": "integer"
+                    },
+                    "user_email": {
+                        "type": "string"
+                    },
+                    "user_id": {
+                        "type": "integer"
+                    },
+                    "user_name": {
                         "type": "string"
                     }
                 }
@@ -10289,6 +10462,12 @@
                         "type": "string",
                         "minLength": 5
                     },
+                    "district_id": {
+                        "type": "integer"
+                    },
+                    "district_name": {
+                        "type": "string"
+                    },
                     "label": {
                         "type": "string",
                         "maxLength": 50
@@ -10302,6 +10481,18 @@
                         "type": "string",
                         "maxLength": 20,
                         "minLength": 9
+                    },
+                    "province_id": {
+                        "type": "integer"
+                    },
+                    "province_name": {
+                        "type": "string"
+                    },
+                    "ward_code": {
+                        "type": "string"
+                    },
+                    "ward_name": {
+                        "type": "string"
                     }
                 }
             },

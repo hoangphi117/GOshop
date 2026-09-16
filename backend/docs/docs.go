@@ -2764,6 +2764,55 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/reviews/{uuid}/dismiss-reports": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Dismiss all reports for a review and restore its visibility (Admin/Moderator)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Reviews"
+                ],
+                "summary": "Dismiss review reports",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Review UUID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/reviews/{uuid}/reply": {
             "patch": {
                 "security": [
@@ -2816,6 +2865,70 @@ const docTemplate = `{
                                     "properties": {
                                         "data": {
                                             "$ref": "#/definitions/goshop_internal_dto_v1.ReviewDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/reviews/{uuid}/reports": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Get all user reports filed against a specific review (Admin/Moderator)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Reviews"
+                ],
+                "summary": "Get review reports",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Review UUID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/goshop_internal_dto_v1.ReviewReportDTO"
+                                            }
                                         }
                                     }
                                 }
@@ -8914,6 +9027,33 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "video_url": {
+                    "type": "string"
+                }
+            }
+        },
+        "goshop_internal_dto_v1.ReviewReportDTO": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "details": {
+                    "type": "string"
+                },
+                "reason": {
+                    "description": "spam, inappropriate, fake, other",
+                    "type": "string"
+                },
+                "report_id": {
+                    "type": "integer"
+                },
+                "user_email": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                },
+                "user_name": {
                     "type": "string"
                 }
             }

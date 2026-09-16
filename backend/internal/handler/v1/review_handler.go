@@ -579,3 +579,66 @@ func (rh *ReviewHandler) AdminForceDeleteReview(ctx *gin.Context) {
 	}
 	utils.ResponseSuccess(ctx, http.StatusOK, "Review permanently deleted by admin", nil)
 }
+
+// GetReviewReports godoc
+// @Summary      Get review reports
+// @Description  Get all user reports filed against a specific review (Admin/Moderator)
+// @Tags         Admin - Reviews
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Review UUID"
+// @Success      200 {object} utils.APIResponse{data=[]v1dto.ReviewReportDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/reviews/{uuid}/reports [get]
+func (rh *ReviewHandler) GetReviewReports(ctx *gin.Context) {
+	var param v1dto.ReviewUUIDParam
+	if err := ctx.ShouldBindUri(&param); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+	reviewUUID, err := uuid.Parse(param.UUID)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid review UUID"))
+		return
+	}
+
+	reports, err := rh.service.GetReviewReports(ctx.Request.Context(), reviewUUID)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+	utils.ResponseSuccess(ctx, http.StatusOK, "Review reports retrieved successfully", reports)
+}
+
+// AdminDismissReports godoc
+// @Summary      Dismiss review reports
+// @Description  Dismiss all reports for a review and restore its visibility (Admin/Moderator)
+// @Tags         Admin - Reviews
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        uuid path string true "Review UUID"
+// @Success      200 {object} utils.APIResponse
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/reviews/{uuid}/dismiss-reports [post]
+func (rh *ReviewHandler) AdminDismissReports(ctx *gin.Context) {
+	var param v1dto.ReviewUUIDParam
+	if err := ctx.ShouldBindUri(&param); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+	reviewUUID, err := uuid.Parse(param.UUID)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid review UUID"))
+		return
+	}
+
+	if err := rh.service.AdminDismissReports(ctx.Request.Context(), reviewUUID); err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+	utils.ResponseSuccess(ctx, http.StatusOK, "Review reports dismissed and visibility restored", nil)
+}

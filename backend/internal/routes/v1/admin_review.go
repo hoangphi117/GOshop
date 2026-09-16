@@ -20,6 +20,8 @@ func (ur *AdminReviewRoutes) Register(r *gin.RouterGroup) {
 	reviews := r.Group("/reviews")
 	{
 		reviews.GET("", ur.handler.AdminGetAllReviews)
+		reviews.GET("/:uuid/reports", ur.handler.GetReviewReports)
+		reviews.POST("/:uuid/dismiss-reports", ur.handler.AdminDismissReports)
 		reviews.PATCH("/:uuid/status", ur.handler.UpdateReviewStatus)
 		reviews.PATCH("/:uuid/reply", ur.handler.AdminReplyReview)
 		reviews.DELETE("/:uuid", ur.handler.AdminForceDeleteReview)
