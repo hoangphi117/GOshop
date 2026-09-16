@@ -2,7 +2,6 @@ package v1service_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -13,7 +12,6 @@ import (
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/testutils"
 	"goshop/internal/utils"
-	"goshop/pkg/payment"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -30,8 +28,7 @@ type testReturnServiceDeps struct {
 	productRepo         *testutils.MockProductRepository
 	userRepo            *testutils.MockUserRepository
 	trackingRepo        *testutils.MockTrackingRepository
-	paymentRepo         *testutils.MockPaymentRepository
-	paymentProviders    map[string]payment.PaymentProvider
+	paymentService      v1service.PaymentService
 	notificationService *testutils.MockNotificationService
 }
 
@@ -76,11 +73,11 @@ func newTestReturnService(deps testReturnServiceDeps) v1service.OrderReturnServi
 	} else {
 		trackingRepo = &testutils.MockTrackingRepository{}
 	}
-	var paymentRepo repository.PaymentRepository
-	if deps.paymentRepo != nil {
-		paymentRepo = deps.paymentRepo
+	var paymentSvc v1service.PaymentService
+	if deps.paymentService != nil {
+		paymentSvc = deps.paymentService
 	} else {
-		paymentRepo = &testutils.MockPaymentRepository{}
+		paymentSvc = &testutils.MockPaymentService{}
 	}
 	var notifSvc v1service.NotificationService
 	if deps.notificationService != nil {
@@ -97,8 +94,7 @@ func newTestReturnService(deps testReturnServiceDeps) v1service.OrderReturnServi
 		productRepo,
 		userRepo,
 		trackingRepo,
-		paymentRepo,
-		deps.paymentProviders,
+		paymentSvc,
 		notifSvc,
 		nil,
 	)
@@ -878,7 +874,7 @@ func TestOrderService_AdminUpdateReturnStatus(t *testing.T) {
 					OrderNumber: "ORD-2026-001",
 				}, nil
 			},
-			UpdateStatusFunc: func(ctx context.Context, params sqlc.UpdateOrderStatusParams) (sqlc.Order, error) {
+			UpdateStatusFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.UpdateOrderStatusParams) (sqlc.Order, error) {
 				assert.Equal(t, v1service.OrderStatusReturned, params.OrderStatus)
 				return sqlc.Order{OrderID: 10, OrderStatus: v1service.OrderStatusReturned}, nil
 			},
@@ -1154,7 +1150,7 @@ func TestOrderService_AdminProcessReturnRefund(t *testing.T) {
 		UserEmail: "admin@example.com",
 	}
 
-	t.Run("Case 1: Happy Path - Manual Bank Refund", func(t *testing.T) {
+	t.Run("Case 1: Happy Path - Manual Bank Refund via PaymentService", func(t *testing.T) {
 		mockUserRepo := &testutils.MockUserRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
 				return adminUser, nil
@@ -1178,25 +1174,25 @@ func TestOrderService_AdminProcessReturnRefund(t *testing.T) {
 				}
 				return sqlc.GetOrderByUUIDRow{}, pgx.ErrNoRows
 			},
-			GetByIDFunc: func(ctx context.Context, orderID int32) (sqlc.GetOrderByIDRow, error) {
-				return sqlc.GetOrderByIDRow{
-					OrderID:             10,
-					OrderUserID:         2,
-					OrderUuid:           orderUUID,
-					OrderNumber:         "ORD-2026-001",
-					OrderStatus:         v1service.OrderStatusReturned,
-					OrderPaymentMethod:  v1service.OrderPaymentMethodCOD,
-					OrderPaymentStatus:  v1service.OrderPaymentStatusPaid,
-					OrderTotalAmount:    utils.FloatToNumeric(300000),
-					OrderRefundedAmount: utils.FloatToNumeric(0),
-				}, nil
+			GetByIDFunc: func(ctx context.Context, id int32) (sqlc.GetOrderByIDRow, error) {
+				if id == 10 {
+					return sqlc.GetOrderByIDRow{
+						OrderID:             10,
+						OrderUserID:         2,
+						OrderUuid:           orderUUID,
+						OrderNumber:         "ORD-2026-001",
+						OrderStatus:         int32(v1service.OrderStatusReturned),
+						OrderPaymentMethod:  v1service.OrderPaymentMethodCOD,
+						OrderPaymentStatus:  v1service.OrderPaymentStatusPaid,
+						OrderTotalAmount:    utils.FloatToNumeric(300000),
+						OrderRefundedAmount: utils.FloatToNumeric(0),
+					}, nil
+				}
+				return sqlc.GetOrderByIDRow{}, pgx.ErrNoRows
 			},
-			UpdateOrderPaymentStatusFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.UpdateOrderPaymentStatusParams) (sqlc.Order, error) {
-				return sqlc.Order{
-					OrderID:             10,
-					OrderPaymentStatus:  params.PaymentStatus,
-					OrderRefundedAmount: params.RefundedAmount,
-				}, nil
+			UpdateStatusFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.UpdateOrderStatusParams) (sqlc.Order, error) {
+				assert.Equal(t, int32(v1service.OrderStatusReturned), params.OrderStatus)
+				return sqlc.Order{}, nil
 			},
 		}
 
@@ -1210,18 +1206,31 @@ func TestOrderService_AdminProcessReturnRefund(t *testing.T) {
 					ReturnReason:  "Defective part",
 				}, nil
 			},
+			UpdateStatusFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReturnStatusParams) (sqlc.OrderReturn, error) {
+				assert.Equal(t, int16(v1service.OrderReturnStatusCompleted), params.Status)
+				return sqlc.OrderReturn{
+					ReturnID:     1,
+					ReturnUuid:   returnUUID,
+					ReturnStatus: v1service.OrderReturnStatusCompleted,
+				}, nil
+			},
 		}
 
-		var refundTxnCreated bool
-		mockPaymentRepo := &testutils.MockPaymentRepository{
-			GetByOrderIDFunc: func(ctx context.Context, tx pgx.Tx, orderID int32) ([]sqlc.PaymentTransaction, error) {
-				return []sqlc.PaymentTransaction{}, nil
-			},
-			CreateRefundFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.CreateRefundTransactionParams) (sqlc.PaymentTransaction, error) {
-				refundTxnCreated = true
-				assert.Equal(t, int32(10), params.OrderID)
-				return sqlc.PaymentTransaction{
-					PtID: 100,
+		var refundCalled bool
+		mockPaymentService := &testutils.MockPaymentService{
+			RefundPaymentFunc: func(ctx context.Context, idempotencyKey string, input v1dto.RefundPaymentInput) (v1dto.PaymentTransactionDTO, error) {
+				refundCalled = true
+				assert.Equal(t, orderUUID.String(), input.OrderUUID)
+				assert.Equal(t, 300000.0, input.Amount)
+				refAmt := 300000.0
+				refTxn := "MB123456789"
+				return v1dto.PaymentTransactionDTO{
+					UUID:          uuid.New().String(),
+					Amount:        300000.0,
+					RefundAmount:  &refAmt,
+					Provider:      "bank_transfer",
+					ProviderTxnID: &refTxn,
+					Status:        "Paid",
 				}, nil
 			},
 		}
@@ -1249,7 +1258,7 @@ func TestOrderService_AdminProcessReturnRefund(t *testing.T) {
 			orderRepo:           mockOrderRepo,
 			orderReturnRepo:     mockReturnRepo,
 			trackingRepo:        mockTrackingRepo,
-			paymentRepo:         mockPaymentRepo,
+			paymentService:      mockPaymentService,
 			notificationService: mockNotification,
 		})
 
@@ -1260,14 +1269,14 @@ func TestOrderService_AdminProcessReturnRefund(t *testing.T) {
 		})
 		require.NoError(t, err)
 		time.Sleep(25 * time.Millisecond)
-		assert.True(t, refundTxnCreated)
+		assert.False(t, refundCalled)
 		assert.True(t, trackingInserted)
 		assert.True(t, notificationSent)
 		assert.Equal(t, 300000.0, res.RefundAmount)
-		assert.Equal(t, "Refunded", res.PaymentStatus)
+		assert.Equal(t, "MB123456789", res.RefundTxnID)
 	})
 
-	t.Run("Case 2: Happy Path - Gateway Refund (MoMo/VNPAY)", func(t *testing.T) {
+	t.Run("Case 2: Happy Path - Gateway Refund (MoMo/VNPAY) via PaymentService", func(t *testing.T) {
 		mockUserRepo := &testutils.MockUserRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
 				return adminUser, nil
@@ -1291,25 +1300,21 @@ func TestOrderService_AdminProcessReturnRefund(t *testing.T) {
 				}
 				return sqlc.GetOrderByUUIDRow{}, pgx.ErrNoRows
 			},
-			GetByIDFunc: func(ctx context.Context, orderID int32) (sqlc.GetOrderByIDRow, error) {
-				return sqlc.GetOrderByIDRow{
-					OrderID:             10,
-					OrderUserID:         2,
-					OrderUuid:           orderUUID,
-					OrderNumber:         "ORD-2026-001",
-					OrderStatus:         v1service.OrderStatusReturned,
-					OrderPaymentMethod:  v1service.OrderPaymentMethodEWallet,
-					OrderPaymentStatus:  v1service.OrderPaymentStatusPaid,
-					OrderTotalAmount:    utils.FloatToNumeric(500000),
-					OrderRefundedAmount: utils.FloatToNumeric(0),
-				}, nil
-			},
-			UpdateOrderPaymentStatusFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.UpdateOrderPaymentStatusParams) (sqlc.Order, error) {
-				return sqlc.Order{
-					OrderID:             10,
-					OrderPaymentStatus:  params.PaymentStatus,
-					OrderRefundedAmount: params.RefundedAmount,
-				}, nil
+			GetByIDFunc: func(ctx context.Context, id int32) (sqlc.GetOrderByIDRow, error) {
+				if id == 10 {
+					return sqlc.GetOrderByIDRow{
+						OrderID:             10,
+						OrderUserID:         2,
+						OrderUuid:           orderUUID,
+						OrderNumber:         "ORD-2026-001",
+						OrderStatus:         int32(v1service.OrderStatusReturned),
+						OrderPaymentMethod:  v1service.OrderPaymentMethodEWallet,
+						OrderPaymentStatus:  v1service.OrderPaymentStatusPaid,
+						OrderTotalAmount:    utils.FloatToNumeric(500000),
+						OrderRefundedAmount: utils.FloatToNumeric(0),
+					}, nil
+				}
+				return sqlc.GetOrderByIDRow{}, pgx.ErrNoRows
 			},
 		}
 
@@ -1323,32 +1328,23 @@ func TestOrderService_AdminProcessReturnRefund(t *testing.T) {
 					ReturnReason:  "Defective item",
 				}, nil
 			},
-		}
-
-		providerTxnID := "MOMO_TRANS_123"
-		mockPaymentRepo := &testutils.MockPaymentRepository{
-			GetByOrderIDFunc: func(ctx context.Context, tx pgx.Tx, orderID int32) ([]sqlc.PaymentTransaction, error) {
-				return []sqlc.PaymentTransaction{
-					{
-						PtID:            5,
-						PtProvider:      "momo",
-						PtStatus:        v1service.PaymentStatusPaid,
-						PtProviderTxnID: &providerTxnID,
-					},
-				}, nil
-			},
-			CreateRefundFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.CreateRefundTransactionParams) (sqlc.PaymentTransaction, error) {
-				return sqlc.PaymentTransaction{PtID: 105}, nil
+			UpdateStatusFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReturnStatusParams) (sqlc.OrderReturn, error) {
+				return sqlc.OrderReturn{}, nil
 			},
 		}
 
-		mockPaymentProvider := &testutils.MockPaymentProvider{
-			RefundFunc: func(ctx context.Context, req payment.RefundRequest) (payment.RefundResponse, error) {
-				assert.Equal(t, 200000.0, req.Amount)
-				return payment.RefundResponse{
-					RefundTxnID: "MOMO_REFUND_999",
-					Amount:      req.Amount,
-					Status:      payment.TxnStatusSuccess,
+		mockPaymentService := &testutils.MockPaymentService{
+			RefundPaymentFunc: func(ctx context.Context, idempotencyKey string, input v1dto.RefundPaymentInput) (v1dto.PaymentTransactionDTO, error) {
+				assert.Equal(t, 200000.0, input.Amount)
+				refAmt := 200000.0
+				refTxn := "MOMO_REFUND_999"
+				return v1dto.PaymentTransactionDTO{
+					UUID:          uuid.New().String(),
+					Amount:        200000.0,
+					RefundAmount:  &refAmt,
+					Provider:      "momo",
+					ProviderTxnID: &refTxn,
+					Status:        "Paid",
 				}, nil
 			},
 		}
@@ -1357,10 +1353,7 @@ func TestOrderService_AdminProcessReturnRefund(t *testing.T) {
 			userRepo:        mockUserRepo,
 			orderRepo:       mockOrderRepo,
 			orderReturnRepo: mockReturnRepo,
-			paymentRepo:     mockPaymentRepo,
-			paymentProviders: map[string]payment.PaymentProvider{
-				"momo": mockPaymentProvider,
-			},
+			paymentService:  mockPaymentService,
 		})
 
 		partialAmt := 200000.0
@@ -1369,11 +1362,10 @@ func TestOrderService_AdminProcessReturnRefund(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.Equal(t, 200000.0, res.RefundAmount)
-		assert.Equal(t, "Partially Refunded", res.PaymentStatus)
 		assert.Equal(t, "MOMO_REFUND_999", res.RefundTxnID)
 	})
 
-	t.Run("Case 3: Gateway Refund Failure - Returns 502 Bad Gateway", func(t *testing.T) {
+	t.Run("Case 3: Gateway Refund Failure - Propagates PaymentService Error", func(t *testing.T) {
 		mockUserRepo := &testutils.MockUserRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
 				return adminUser, nil
@@ -1397,18 +1389,21 @@ func TestOrderService_AdminProcessReturnRefund(t *testing.T) {
 				}
 				return sqlc.GetOrderByUUIDRow{}, pgx.ErrNoRows
 			},
-			GetByIDFunc: func(ctx context.Context, orderID int32) (sqlc.GetOrderByIDRow, error) {
-				return sqlc.GetOrderByIDRow{
-					OrderID:             10,
-					OrderUserID:         2,
-					OrderUuid:           orderUUID,
-					OrderNumber:         "ORD-2026-001",
-					OrderStatus:         v1service.OrderStatusReturned,
-					OrderPaymentMethod:  v1service.OrderPaymentMethodEWallet,
-					OrderPaymentStatus:  v1service.OrderPaymentStatusPaid,
-					OrderTotalAmount:    utils.FloatToNumeric(500000),
-					OrderRefundedAmount: utils.FloatToNumeric(0),
-				}, nil
+			GetByIDFunc: func(ctx context.Context, id int32) (sqlc.GetOrderByIDRow, error) {
+				if id == 10 {
+					return sqlc.GetOrderByIDRow{
+						OrderID:             10,
+						OrderUserID:         2,
+						OrderUuid:           orderUUID,
+						OrderNumber:         "ORD-2026-001",
+						OrderStatus:         int32(v1service.OrderStatusReturned),
+						OrderPaymentMethod:  v1service.OrderPaymentMethodEWallet,
+						OrderPaymentStatus:  v1service.OrderPaymentStatusPaid,
+						OrderTotalAmount:    utils.FloatToNumeric(500000),
+						OrderRefundedAmount: utils.FloatToNumeric(0),
+					}, nil
+				}
+				return sqlc.GetOrderByIDRow{}, pgx.ErrNoRows
 			},
 		}
 
@@ -1424,23 +1419,9 @@ func TestOrderService_AdminProcessReturnRefund(t *testing.T) {
 			},
 		}
 
-		mockPaymentRepo := &testutils.MockPaymentRepository{
-			GetByOrderIDFunc: func(ctx context.Context, tx pgx.Tx, orderID int32) ([]sqlc.PaymentTransaction, error) {
-				providerTxnID := "MOMO_TRANS_123"
-				return []sqlc.PaymentTransaction{
-					{
-						PtID:            5,
-						PtProvider:      "momo",
-						PtStatus:        v1service.PaymentStatusPaid,
-						PtProviderTxnID: &providerTxnID,
-					},
-				}, nil
-			},
-		}
-
-		mockPaymentProvider := &testutils.MockPaymentProvider{
-			RefundFunc: func(ctx context.Context, req payment.RefundRequest) (payment.RefundResponse, error) {
-				return payment.RefundResponse{}, errors.New("gateway connection timeout")
+		mockPaymentService := &testutils.MockPaymentService{
+			RefundPaymentFunc: func(ctx context.Context, idempotencyKey string, input v1dto.RefundPaymentInput) (v1dto.PaymentTransactionDTO, error) {
+				return v1dto.PaymentTransactionDTO{}, utils.NewError(utils.ErrCodeBadGateway, "gateway connection timeout")
 			},
 		}
 
@@ -1448,10 +1429,7 @@ func TestOrderService_AdminProcessReturnRefund(t *testing.T) {
 			userRepo:        mockUserRepo,
 			orderRepo:       mockOrderRepo,
 			orderReturnRepo: mockReturnRepo,
-			paymentRepo:     mockPaymentRepo,
-			paymentProviders: map[string]payment.PaymentProvider{
-				"momo": mockPaymentProvider,
-			},
+			paymentService:  mockPaymentService,
 		})
 
 		_, err := svc.AdminProcessReturnRefund(ctx, adminUUID, returnUUID, v1dto.AdminReturnRefundInput{})

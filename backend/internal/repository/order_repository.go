@@ -70,8 +70,12 @@ func (r *SqlOrderRepository) GetLastOrderNumber(ctx context.Context, orderNumber
 	return lastOrderNumber, nil
 }
 
-func (r *SqlOrderRepository) UpdateStatus(ctx context.Context, params sqlc.UpdateOrderStatusParams) (sqlc.Order, error) {
-	order, err := r.db.UpdateOrderStatus(ctx, params)
+func (r *SqlOrderRepository) UpdateStatus(ctx context.Context, tx pgx.Tx, params sqlc.UpdateOrderStatusParams) (sqlc.Order, error) {
+	q := r.db
+	if tx != nil {
+		q = sqlc.New(tx)
+	}
+	order, err := q.UpdateOrderStatus(ctx, params)
 	if err != nil {
 		return sqlc.Order{}, err
 	}

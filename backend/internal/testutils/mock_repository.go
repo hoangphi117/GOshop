@@ -38,7 +38,7 @@ type MockOrderRepository struct {
 	GetByIDFunc                     func(ctx context.Context, orderID int32) (sqlc.GetOrderByIDRow, error)
 	GetByUUIDForUpdateFunc          func(ctx context.Context, tx pgx.Tx, uuid uuid.UUID) (sqlc.Order, error)
 	GetByOrderNumberFunc            func(ctx context.Context, orderNumber string) (sqlc.GetOrderByOrderNumberRow, error)
-	UpdateStatusFunc                func(ctx context.Context, params sqlc.UpdateOrderStatusParams) (sqlc.Order, error)
+	UpdateStatusFunc                func(ctx context.Context, tx pgx.Tx, params sqlc.UpdateOrderStatusParams) (sqlc.Order, error)
 	CancelOrderFunc                 func(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID) (sqlc.Order, error)
 	UpdateOrderShippingInfoFunc     func(ctx context.Context, params sqlc.UpdateOrderShippingInfoParams) (sqlc.Order, error)
 	UpdateOrderPaymentStatusFunc    func(ctx context.Context, tx pgx.Tx, params sqlc.UpdateOrderPaymentStatusParams) (sqlc.Order, error)
@@ -94,9 +94,9 @@ func (m *MockOrderRepository) GetByOrderNumber(ctx context.Context, orderNumber 
 	return sqlc.GetOrderByOrderNumberRow{}, nil
 }
 
-func (m *MockOrderRepository) UpdateStatus(ctx context.Context, params sqlc.UpdateOrderStatusParams) (sqlc.Order, error) {
+func (m *MockOrderRepository) UpdateStatus(ctx context.Context, tx pgx.Tx, params sqlc.UpdateOrderStatusParams) (sqlc.Order, error) {
 	if m.UpdateStatusFunc != nil {
-		return m.UpdateStatusFunc(ctx, params)
+		return m.UpdateStatusFunc(ctx, tx, params)
 	}
 	return sqlc.Order{}, nil
 }

@@ -13,8 +13,6 @@ import (
 	"goshop/internal/repository"
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
-	"goshop/pkg/logger"
-	"goshop/pkg/payment"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -29,8 +27,7 @@ type orderReturnService struct {
 	productRepo         repository.ProductRepository
 	userRepo            repository.UserRepository
 	trackingRepo        repository.TrackingRepository
-	paymentRepo         repository.PaymentRepository
-	paymentProviders    map[string]payment.PaymentProvider
+	paymentService      PaymentService
 	notificationService NotificationService
 	cache               cache.RedisCacheService
 }
@@ -43,8 +40,7 @@ func NewOrderReturnService(
 	productRepo repository.ProductRepository,
 	userRepo repository.UserRepository,
 	trackingRepo repository.TrackingRepository,
-	paymentRepo repository.PaymentRepository,
-	paymentProviders map[string]payment.PaymentProvider,
+	paymentService PaymentService,
 	notificationService NotificationService,
 	redisClient *redis.Client,
 ) OrderReturnService {
@@ -60,8 +56,7 @@ func NewOrderReturnService(
 		productRepo:         productRepo,
 		userRepo:            userRepo,
 		trackingRepo:        trackingRepo,
-		paymentRepo:         paymentRepo,
-		paymentProviders:    paymentProviders,
+		paymentService:      paymentService,
 		notificationService: notificationService,
 		cache:               cacheService,
 	}
@@ -465,7 +460,7 @@ func (s *orderReturnService) AdminUpdateReturnStatus(ctx context.Context, userUU
 				})
 			}
 		case OrderReturnStatusCompleted:
-			_, err := s.orderRepo.UpdateStatus(txCtx, sqlc.UpdateOrderStatusParams{
+			_, err := s.orderRepo.UpdateStatus(txCtx, tx, sqlc.UpdateOrderStatusParams{
 				OrderUuid:   order.OrderUuid,
 				OrderStatus: OrderStatusReturned,
 			})
@@ -1004,154 +999,128 @@ func (s *orderReturnService) AdminProcessReturnRefund(ctx context.Context, userU
 	if returnRequest.ReturnStatus != OrderReturnStatusCompleted && returnRequest.ReturnStatus != OrderReturnStatusApproved {
 		return v1dto.AdminReturnRefundResponseDTO{}, utils.NewError(
 			utils.ErrCodeBadRequest,
-			fmt.Sprintf("Refund can only be processed when return request is Approved or Completed. Current status: %s",
-				v1dto.MapReturnStatusToString(returnRequest.ReturnStatus)),
+			"Refund can only be processed when return request is Approved or Completed. Current status: "+v1dto.MapReturnStatusToString(returnRequest.ReturnStatus),
 		)
 	}
 
-	order, err := s.orderRepo.GetByUUID(ctx, resolved.OrderUUID)
+	orderRow, err := s.orderRepo.GetByID(ctx, returnRequest.ReturnOrderID)
 	if err != nil {
-		return v1dto.AdminReturnRefundResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order for refund", err)
+		return v1dto.AdminReturnRefundResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order for return request", err)
 	}
 
-	if order.OrderPaymentStatus != OrderPaymentStatusPaid && order.OrderPaymentStatus != OrderPaymentStatusPartiallyRefunded {
+	orderTotalAmount := utils.NumericToFloat(orderRow.OrderTotalAmount)
+	currentRefunded := utils.NumericToFloat(orderRow.OrderRefundedAmount)
+	remainingRefundable := orderTotalAmount - currentRefunded
+
+	refundAmt := remainingRefundable
+	if input.Amount != nil && *input.Amount > 0 {
+		refundAmt = *input.Amount
+	}
+	if refundAmt > remainingRefundable {
 		return v1dto.AdminReturnRefundResponseDTO{}, utils.NewError(
 			utils.ErrCodeBadRequest,
-			fmt.Sprintf("Order is unpaid or not in an eligible state for refund. Current payment status: %s",
-				v1dto.MapPaymentStatusToString(order.OrderPaymentStatus)),
+			fmt.Sprintf("Refund amount exceeds refundable balance. Maximum refundable: %.0f VND", remainingRefundable),
 		)
 	}
 
-	totalAmount := utils.NumericToFloat(order.OrderTotalAmount)
-	currentRefunded := utils.NumericToFloat(order.OrderRefundedAmount)
-	remainingRefundable := totalAmount - currentRefunded
-
-	if remainingRefundable <= 0 {
-		return v1dto.AdminReturnRefundResponseDTO{}, utils.NewError(utils.ErrCodeBadRequest, "This order has already been fully refunded")
+	refundReason := input.Reason
+	if strings.TrimSpace(refundReason) == "" {
+		refundReason = fmt.Sprintf("Refund for return request: %s", returnRequest.ReturnReason)
 	}
 
-	refundAmount := remainingRefundable
-	if input.Amount != nil && *input.Amount > 0 {
-		if *input.Amount > remainingRefundable {
-			return v1dto.AdminReturnRefundResponseDTO{}, utils.NewError(
-				utils.ErrCodeBadRequest,
-				fmt.Sprintf("Refund amount (%.2f) exceeds maximum refundable balance (%.2f)", *input.Amount, remainingRefundable),
-			)
-		}
-		refundAmount = *input.Amount
-	}
-
-	reason := input.Reason
-	if strings.TrimSpace(reason) == "" {
-		reason = fmt.Sprintf("Refund for return request: %s", returnRequest.ReturnReason)
-	}
-
-	txns, err := s.paymentRepo.GetByOrderID(ctx, nil, order.OrderID)
-	if err != nil {
-		return v1dto.AdminReturnRefundResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get payment history", err)
-	}
-
-	var originalTxn *sqlc.PaymentTransaction
-	for _, t := range txns {
-		if t.PtStatus == PaymentStatusPaid && t.PtRefundOf == nil {
-			originalTxn = &t
-			break
-		}
-	}
-
+	var refundProvider string
 	var refundTxnID string
-	providerName := "cod"
+	var totalRefunded float64
 
-	if order.OrderPaymentMethod != OrderPaymentMethodCOD && originalTxn != nil && originalTxn.PtProvider != "cod" {
-		providerName = originalTxn.PtProvider
-		provider, exists := s.paymentProviders[providerName]
-		if !exists {
-			return v1dto.AdminReturnRefundResponseDTO{}, utils.NewError(
-				utils.ErrCodeBadRequest,
-				fmt.Sprintf("Payment provider '%s' does not support automated refund API. Please process refund via manual bank transfer.", providerName),
-			)
-		}
+	isCOD := orderRow.OrderPaymentMethod == OrderPaymentMethodCOD
+	isManualBankRefund := strings.TrimSpace(input.BankTxnRef) != "" || isCOD
 
-		origProviderTxnID := ""
-		if originalTxn.PtProviderTxnID != nil {
-			origProviderTxnID = *originalTxn.PtProviderTxnID
-		}
-
-		refundResp, gErr := provider.Refund(ctx, payment.RefundRequest{
-			OrderNumber:   order.OrderNumber,
-			ProviderTxnID: origProviderTxnID,
-			Amount:        refundAmount,
-			TotalAmount:   totalAmount,
-			Reason:        reason,
+	if !isManualBankRefund {
+		// Try online gateway refund
+		idempotencyKey := fmt.Sprintf("refund:return:%s:%.0f", returnRequest.ReturnUuid, refundAmt)
+		txnDTO, err := s.paymentService.RefundPayment(ctx, idempotencyKey, v1dto.RefundPaymentInput{
+			OrderUUID: resolved.OrderUUID.String(),
+			Amount:    refundAmt,
+			Reason:    refundReason,
 		})
-		if gErr != nil {
-			logger.Log.Error().Err(gErr).Str("provider", providerName).Msg("Gateway refund failed")
-			return v1dto.AdminReturnRefundResponseDTO{}, utils.WrapError(
-				utils.ErrCodeBadGateway,
-				fmt.Sprintf("Payment gateway %s rejected refund request: %v", strings.ToUpper(providerName), gErr),
-				gErr,
-			)
+		if err == nil {
+			refundProvider = txnDTO.Provider
+			if txnDTO.ProviderTxnID != nil {
+				refundTxnID = *txnDTO.ProviderTxnID
+			}
+			if txnDTO.RefundAmount != nil {
+				totalRefunded = *txnDTO.RefundAmount
+			} else {
+				totalRefunded = currentRefunded + refundAmt
+			}
+		} else if strings.Contains(err.Error(), "No successful original payment transaction found") || strings.Contains(err.Error(), "not supported") {
+			// Seamlessly fallback to manual bank transfer refund
+			isManualBankRefund = true
+		} else {
+			return v1dto.AdminReturnRefundResponseDTO{}, err
 		}
-		refundTxnID = refundResp.RefundTxnID
-	} else {
-		providerName = "bank_transfer"
+	}
+
+	if isManualBankRefund {
+		refundProvider = "bank_transfer"
 		if strings.TrimSpace(input.BankTxnRef) != "" {
 			refundTxnID = strings.TrimSpace(input.BankTxnRef)
 		} else {
-			refundTxnID = fmt.Sprintf("REFUND_BANK_%s_%d", order.OrderNumber, time.Now().Unix())
+			refundTxnID = fmt.Sprintf("BANK_REFUND_%s_%d", resolved.OrderNumber, time.Now().Unix())
 		}
+		totalRefunded = currentRefunded + refundAmt
 	}
 
-	idempotencyKey := fmt.Sprintf("refund:return:%s:%.0f:%d", returnRequest.ReturnUuid.String(), refundAmount, time.Now().Unix())
-	refundNumeric := utils.FloatToNumeric(refundAmount)
-	var origPtID *int32
-	if originalTxn != nil {
-		origPtID = &originalTxn.PtID
-	}
-
-	newTotalRefunded := currentRefunded + refundAmount
-	var newOrderStatus int32 = OrderPaymentStatusPartiallyRefunded
-	if newTotalRefunded >= totalAmount {
-		newOrderStatus = OrderPaymentStatusFullyRefunded
+	refundCompletedNote := fmt.Sprintf("Return completed and refunded %.0f VND via %s (Txn ID: %s)", refundAmt, strings.ToUpper(refundProvider), refundTxnID)
+	if strings.TrimSpace(input.AccountingNote) != "" {
+		refundCompletedNote += fmt.Sprintf(". Note: %s", strings.TrimSpace(input.AccountingNote))
 	}
 
 	err = s.txManager.WithTx(ctx, func(txCtx context.Context) error {
 		tx, _ := db.GetTx(txCtx)
 
-		_, err = s.paymentRepo.CreateRefund(txCtx, tx, sqlc.CreateRefundTransactionParams{
-			OrderID:        order.OrderID,
-			IdempotencyKey: idempotencyKey,
-			Provider:       providerName,
-			ProviderTxnID:  &refundTxnID,
-			Amount:         refundNumeric,
-			Currency:       "VND",
-			Status:         PaymentStatusPaid,
-			RefundOf:       origPtID,
-			RefundAmount:   refundNumeric,
+		// 1. Update Return Status to Completed
+		_, err = s.orderReturnRepo.UpdateStatus(txCtx, tx, sqlc.UpdateReturnStatusParams{
+			ReturnUuid: returnRequest.ReturnUuid,
+			Status:     OrderReturnStatusCompleted,
+			AdminNote:  &refundCompletedNote,
 		})
 		if err != nil {
 			return err
 		}
 
-		_, err = s.orderRepo.UpdateOrderPaymentStatus(txCtx, tx, sqlc.UpdateOrderPaymentStatusParams{
-			OrderUuid:           order.OrderUuid,
-			PaymentStatus:       newOrderStatus,
-			RefundedAmount:      utils.FloatToNumeric(newTotalRefunded),
-			AllowedFromStatuses: []int32{OrderPaymentStatusPaid, OrderPaymentStatusPartiallyRefunded},
-		})
-		if err != nil {
-			return err
+		// 2. Update order payment status and refunded amount for manual bank refund
+		if isManualBankRefund {
+			var newPaymentStatus int32 = OrderPaymentStatusPartiallyRefunded
+			if totalRefunded >= orderTotalAmount {
+				newPaymentStatus = OrderPaymentStatusFullyRefunded
+			}
+			_, _ = s.orderRepo.UpdateOrderPaymentStatus(txCtx, tx, sqlc.UpdateOrderPaymentStatusParams{
+				OrderUuid:           resolved.OrderUUID,
+				PaymentStatus:       newPaymentStatus,
+				RefundedAmount:      utils.FloatToNumeric(totalRefunded),
+				AllowedFromStatuses: []int32{OrderPaymentStatusUnpaid, OrderPaymentStatusPaid, OrderPaymentStatusPartiallyRefunded},
+			})
 		}
 
+		// 3. Update Order Status to Returned if fully refunded
+		if totalRefunded >= orderTotalAmount {
+			_, _ = s.orderRepo.UpdateStatus(txCtx, tx, sqlc.UpdateOrderStatusParams{
+				OrderUuid:   resolved.OrderUUID,
+				OrderStatus: OrderStatusReturned,
+			})
+		}
+
+		// 4. Tracking Event
 		if s.trackingRepo != nil {
 			eventNote := fmt.Sprintf("Refund processed successfully: %.0f VND via %s. Txn ID: %s.",
-				refundAmount, strings.ToUpper(providerName), refundTxnID)
+				refundAmt, strings.ToUpper(refundProvider), refundTxnID)
 			if strings.TrimSpace(input.AccountingNote) != "" {
 				eventNote += fmt.Sprintf(" Note: %s", strings.TrimSpace(input.AccountingNote))
 			}
 
 			_, err = s.trackingRepo.InsertEvent(txCtx, tx, sqlc.InsertTrackingEventParams{
-				EventOrderID: order.OrderID,
+				EventOrderID: resolved.OrderID,
 				EventStatus:  "refunded",
 				EventNote:    &eventNote,
 				EventSource:  "admin",
@@ -1163,47 +1132,47 @@ func (s *orderReturnService) AdminProcessReturnRefund(ctx context.Context, userU
 		return nil
 	})
 	if err != nil {
-		return v1dto.AdminReturnRefundResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to record refund transaction", err)
+		return v1dto.AdminReturnRefundResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to finalize return status", err)
 	}
 
 	if s.cache != nil {
-		_ = s.cache.Clear(fmt.Sprintf("order:%s", order.OrderUuid.String()))
+		_ = s.cache.Clear(fmt.Sprintf("order:%s", resolved.OrderUUID.String()))
 		_ = s.cache.Clear("orders:*")
+		_ = s.cache.Clear("products:*")
+		_ = s.cache.Clear("product:*")
 	}
 
 	if s.notificationService != nil {
 		go func() {
 			_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
-				UserID: order.OrderUserID,
+				UserID: resolved.OrderUserID,
 				Type:   "return_refunded",
 				Title:  "Refund Completed",
-				Body:   fmt.Sprintf("Refund of %.0f VND for order #%s has been processed successfully.", refundAmount, order.OrderNumber),
+				Body:   fmt.Sprintf("Refund of %.0f VND for order #%s has been processed successfully.", refundAmt, resolved.OrderNumber),
 				Data: map[string]any{
-					"order_uuid":  order.OrderUuid.String(),
+					"order_uuid":  resolved.OrderUUID.String(),
 					"return_uuid": returnRequest.ReturnUuid.String(),
 				},
 			})
 		}()
 	}
 
-	logger.Log.Info().
-		Str("return_uuid", returnRequest.ReturnUuid.String()).
-		Str("order_number", order.OrderNumber).
-		Float64("refund_amount", refundAmount).
-		Str("refund_txn_id", refundTxnID).
-		Msg("Admin processed return refund successfully")
+	paymentStatusStr := "REFUNDED"
+	if totalRefunded < orderTotalAmount {
+		paymentStatusStr = "PARTIALLY_REFUNDED"
+	}
 
 	return v1dto.AdminReturnRefundResponseDTO{
 		ReturnUUID:       returnRequest.ReturnUuid.String(),
-		OrderUUID:        order.OrderUuid.String(),
-		OrderNumber:      order.OrderNumber,
-		RefundAmount:     refundAmount,
-		TotalRefunded:    newTotalRefunded,
-		OrderTotalAmount: totalAmount,
-		PaymentMethod:    v1dto.MapPaymentMethodToString(order.OrderPaymentMethod),
-		PaymentStatus:    v1dto.MapPaymentStatusToString(newOrderStatus),
+		OrderUUID:        resolved.OrderUUID.String(),
+		OrderNumber:      resolved.OrderNumber,
+		RefundAmount:     refundAmt,
+		TotalRefunded:    totalRefunded,
+		OrderTotalAmount: orderTotalAmount,
+		PaymentMethod:    v1dto.MapPaymentMethodToString(orderRow.OrderPaymentMethod),
+		PaymentStatus:    paymentStatusStr,
 		RefundTxnID:      refundTxnID,
-		RefundProvider:   providerName,
+		RefundProvider:   refundProvider,
 		RefundedAt:       time.Now(),
 		Message:          "Return refund processed successfully.",
 	}, nil

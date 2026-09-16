@@ -519,7 +519,7 @@ func (s *orderService) UpdateOrderStatus(ctx context.Context, input sqlc.UpdateO
 		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, errMsg)
 	}
 
-	updatedOrder, err := s.orderRepo.UpdateStatus(ctx, input)
+	updatedOrder, err := s.orderRepo.UpdateStatus(ctx, nil, input)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
 			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeNotFound, "order not found")

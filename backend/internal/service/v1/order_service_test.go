@@ -1927,7 +1927,7 @@ func TestOrderService_UpdateOrderStatus(t *testing.T) {
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
 				return existingOrder, nil
 			},
-			UpdateStatusFunc: func(ctx context.Context, params sqlc.UpdateOrderStatusParams) (sqlc.Order, error) {
+			UpdateStatusFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.UpdateOrderStatusParams) (sqlc.Order, error) {
 				return updatedOrder, nil
 			},
 		}

@@ -8,6 +8,7 @@ import (
 	v1routes "goshop/internal/routes/v1"
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/utils"
+	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 	"goshop/pkg/payment"
 	"goshop/pkg/rabbitmq"
@@ -99,6 +100,20 @@ func NewOrderModule(ctx *ModuleContext, wsHub ws.Hub, rabbitmqService rabbitmq.R
 		rabbitmqService,
 	)
 
+	cacheService := cache.NewRedisCacheService(ctx.Redis)
+	paymentService := v1service.NewPaymentService(
+		paymentRepo,
+		orderRepo,
+		userRepo,
+		webhookRepo,
+		paymentProviders,
+		notificationService,
+		cacheService,
+		rabbitmqService,
+		utils.GetEnv("PAYMENT_RETURN_URL", "http://localhost:3001/payment/result"),
+		utils.GetEnv("PAYMENT_WEBHOOK_BASE_URL", "http://localhost:8080"),
+	)
+
 	returnService := v1service.NewOrderReturnService(
 		ctx.TxManager,
 		orderRepo,
@@ -107,8 +122,7 @@ func NewOrderModule(ctx *ModuleContext, wsHub ws.Hub, rabbitmqService rabbitmq.R
 		productRepo,
 		userRepo,
 		trackingRepo,
-		paymentRepo,
-		paymentProviders,
+		paymentService,
 		notificationService,
 		ctx.Redis,
 	)

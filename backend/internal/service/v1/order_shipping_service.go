@@ -631,7 +631,7 @@ func (s *orderShippingService) CancelShipping(ctx context.Context, orderUUID uui
 	if order.OrderStatus != OrderStatusShipped {
 		return v1dto.CancelShippingResponseDTO{}, utils.NewError(
 			utils.ErrCodeBadRequest,
-			fmt.Sprintf("Cannot cancel shipping for order with status %d. Order must be in Shipped status.", order.OrderStatus),
+			fmt.Sprintf("Cannot cancel shipping for order with status %s. Order must be in Shipped status.", v1dto.MapOrderStatusToString(order.OrderStatus)),
 		)
 	}
 
