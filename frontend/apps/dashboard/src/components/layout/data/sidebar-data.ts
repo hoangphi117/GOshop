@@ -14,6 +14,7 @@ import {
   Image,
   TicketPercent,
   RotateCcw,
+  MessageSquareQuote,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -68,6 +69,11 @@ export const sidebarData: SidebarData = {
           title: 'Returns',
           url: '/returns',
           icon: RotateCcw,
+        },
+        {
+          title: 'Reviews',
+          url: '/reviews',
+          icon: MessageSquareQuote,
         },
         {
           title: 'Banners',
