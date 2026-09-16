@@ -169,6 +169,18 @@ func (ps *productService) GetProductByUUID(ctx context.Context, productUUID uuid
 	return product, nil
 }
 
+func (ps *productService) GetProductBySlug(ctx context.Context, slug string) (sqlc.GetProductBySlugRow, error) {
+	product, err := ps.repo.GetBySlug(ctx, slug)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+			return sqlc.GetProductBySlugRow{}, utils.NewError(utils.ErrCodeNotFound, "product not found")
+		}
+		return sqlc.GetProductBySlugRow{}, utils.WrapError(utils.ErrCodeInternal, "failed to get product", err)
+	}
+
+	return product, nil
+}
+
 func (ps *productService) UpdateProduct(ctx context.Context, input v1dto.UpdateProductInput) (sqlc.UpdateProductRow, error) {
 	if input.CategoryUUID != nil {
 		categoryUuid, err := uuid.Parse(*input.CategoryUUID)

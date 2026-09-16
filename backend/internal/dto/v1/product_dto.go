@@ -81,7 +81,7 @@ type GetProductsParam struct {
 }
 
 type GetProductByUuidParam struct {
-	Uuid string `uri:"uuid" binding:"uuid"`
+	Uuid string `uri:"uuid" binding:"required"`
 }
 
 // ==================================
@@ -156,6 +156,17 @@ func (input *UpdateProductRequest) MapUpdateToServiceInput(productUuid uuid.UUID
 
 // Mapper for GET Single / List
 func MapGetProductByUUIDRowToDTO(p sqlc.GetProductByUUIDRow) *ProductDTO {
+	dto := mapFieldsToDTO(
+		p.ProductUuid, p.ProductName, p.ProductSlug, p.ProductDescription,
+		p.ProductPrice, p.ProductStock, p.ProductSku, p.CategoryUuid,
+		p.CategoryName, p.ProductImageUrl, p.ProductStatus, p.ProductCreatedAt,
+		p.ProductAvgRating, p.ProductReviewCount,
+	)
+	return &dto
+}
+
+// Mapper for GET Single by Slug
+func MapGetProductBySlugRowToDTO(p sqlc.GetProductBySlugRow) *ProductDTO {
 	dto := mapFieldsToDTO(
 		p.ProductUuid, p.ProductName, p.ProductSlug, p.ProductDescription,
 		p.ProductPrice, p.ProductStock, p.ProductSku, p.CategoryUuid,

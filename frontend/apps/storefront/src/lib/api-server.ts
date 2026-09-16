@@ -60,18 +60,27 @@ export interface ApiResponse<T> {
   pagination?: Pagination
 }
 
-const SERVER_API_BASE =
+const RAW_SERVER_API_BASE = (
   process.env.INTERNAL_API_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
   'http://localhost:8080'
+).replace(/\/$/, '')
 
-const API_KEY = process.env.API_KEY || 'abcd-1234-1111'
+const SERVER_API_BASE = RAW_SERVER_API_BASE.endsWith('/api/v1')
+  ? RAW_SERVER_API_BASE
+  : `${RAW_SERVER_API_BASE}/api/v1`
+
+const API_KEY =
+  process.env.API_KEY ||
+  process.env.NEXT_PUBLIC_API_KEY ||
+  'abcd-1234-1111'
 
 export async function fetchServer<T>(
   path: string,
   init?: RequestInit & { revalidate?: number }
 ): Promise<T | null> {
-  const url = `${SERVER_API_BASE}${path.startsWith('/') ? path : `/${path}`}`
+  const cleanPath = path.startsWith('/') ? path : `/${path}`
+  const url = `${SERVER_API_BASE}${cleanPath}`
   const isDev = process.env.NODE_ENV === 'development'
   const { revalidate = isDev ? 0 : 60, ...customInit } = init || {}
 
@@ -83,9 +92,9 @@ export async function fetchServer<T>(
         'X-API-KEY': API_KEY,
         ...(customInit.headers || {}),
       },
-      next: {
-        revalidate: isDev ? 0 : revalidate,
-      },
+      ...(isDev
+        ? { cache: 'no-store' as RequestCache }
+        : ({ next: { revalidate } } as any)),
     })
 
     if (!res.ok) {
@@ -251,30 +260,40 @@ export interface GetProductReviewsParams {
 export async function getProductByUuidOrSlug(
   identifier: string
 ): Promise<Product | null> {
-  let targetUuid = identifier
+  if (!identifier) return null
+  const decoded = decodeURIComponent(identifier).trim()
 
-  // If identifier is a slug, resolve it to UUID
-  if (!UUID_REGEX.test(identifier)) {
-    const listRes = await getProducts({ limit: 100 })
-    const matched = listRes.products.find(
-      (p) =>
-        p.slug?.toLowerCase() === identifier.toLowerCase() ||
-        p.uuid === identifier
-    )
-    if (matched) {
-      targetUuid = matched.uuid
-    } else {
-      return null
-    }
-  }
-
+  // 1. Direct fetch with identifier (Go backend natively handles both UUID and slug)
   const res = await fetchServer<ApiResponse<Product>>(
-    `/products/${targetUuid}`,
+    `/products/${encodeURIComponent(decoded)}`,
     {
       revalidate: 60,
     }
   )
-  return res?.data || null
+  if (res?.data) {
+    return res.data
+  }
+
+  // 2. Fallback: If not found and identifier is a slug, search in products catalog
+  if (!UUID_REGEX.test(decoded)) {
+    const listRes = await getProducts({ limit: 100 })
+    const matched = listRes.products.find(
+      (p) =>
+        p.slug?.toLowerCase() === decoded.toLowerCase() ||
+        p.uuid === decoded
+    )
+    if (matched) {
+      const fallbackRes = await fetchServer<ApiResponse<Product>>(
+        `/products/${matched.uuid}`,
+        {
+          revalidate: 60,
+        }
+      )
+      return fallbackRes?.data || null
+    }
+  }
+
+  return null
 }
 
 export async function getProductReviews(

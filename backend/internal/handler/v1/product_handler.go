@@ -115,18 +115,25 @@ func (ph *ProductHandler) GetProductByUUID(ctx *gin.Context) {
 	}
 
 	productUuid, err := uuid.Parse(params.Uuid)
+	if err == nil {
+		product, err := ph.service.GetProductByUUID(ctx.Request.Context(), productUuid)
+		if err != nil {
+			utils.ResponseError(ctx, err)
+			return
+		}
+		productDTO := v1dto.MapGetProductByUUIDRowToDTO(product)
+		utils.ResponseSuccess(ctx, http.StatusOK, "Product retrieved successfully", productDTO)
+		return
+	}
+
+	// Fallback to query by slug when identifier is not a valid UUID
+	product, err := ph.service.GetProductBySlug(ctx.Request.Context(), params.Uuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
 
-	product, err := ph.service.GetProductByUUID(ctx.Request.Context(), productUuid)
-	if err != nil {
-		utils.ResponseError(ctx, err)
-		return
-	}
-
-	productDTO := v1dto.MapGetProductByUUIDRowToDTO(product)
+	productDTO := v1dto.MapGetProductBySlugRowToDTO(product)
 	utils.ResponseSuccess(ctx, http.StatusOK, "Product retrieved successfully", productDTO)
 }
 
