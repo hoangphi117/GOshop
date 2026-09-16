@@ -2515,6 +2515,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/reviews/{uuid}/dismiss-reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dismiss review reports
+         * @description Dismiss all reports for a review and restore its visibility (Admin/Moderator)
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Review UUID */
+                    uuid: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/reviews/{uuid}/reply": {
         parameters: {
             query?: never;
@@ -2580,6 +2640,68 @@ export interface paths {
                 };
             };
         };
+        trace?: never;
+    };
+    "/admin/reviews/{uuid}/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get review reports
+         * @description Get all user reports filed against a specific review (Admin/Moderator)
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Review UUID */
+                    uuid: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
+                            data?: components["schemas"]["goshop_internal_dto_v1.ReviewReportDTO"][];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/admin/reviews/{uuid}/status": {
@@ -3683,7 +3805,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody: components["requestBodies"]["goshop_internal_dto_v1.RefreshTokenInput"];
+            requestBody?: components["requestBodies"]["goshop_internal_dto_v1.RefreshTokenInput"];
             responses: {
                 /** @description Logout successfully */
                 200: {
@@ -3740,7 +3862,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody: components["requestBodies"]["goshop_internal_dto_v1.RefreshTokenInput"];
+            requestBody?: components["requestBodies"]["goshop_internal_dto_v1.RefreshTokenInput"];
             responses: {
                 /** @description Token refreshed successfully */
                 200: {
@@ -7353,6 +7475,7 @@ export interface components {
             coupon_code?: string;
             created_at?: string;
             discount_amount?: number;
+            expected_delivery?: string;
             items?: components["schemas"]["goshop_internal_dto_v1.OrderItemDTO"][];
             note?: string;
             order_number?: string;
@@ -7360,9 +7483,11 @@ export interface components {
             payment_status?: string;
             refunded_amount?: number;
             shipping_address?: string;
+            shipping_code?: string;
             shipping_fee?: number;
             shipping_name?: string;
             shipping_phone?: string;
+            shipping_provider?: string;
             status?: string;
             subtotal_amount?: number;
             total_amount?: number;
@@ -7445,6 +7570,8 @@ export interface components {
             image_url?: string;
             name?: string;
             price?: number;
+            rating?: number;
+            reviews_count?: number;
             sku?: string;
             slug?: string;
             status?: string;
@@ -7457,7 +7584,7 @@ export interface components {
             province_name?: string;
         };
         "goshop_internal_dto_v1.RefreshTokenInput": {
-            refresh_token: string;
+            refresh_token?: string;
         };
         "goshop_internal_dto_v1.RefundPaymentInput": {
             amount: number;
@@ -7502,6 +7629,16 @@ export interface components {
             updated_at?: string;
             uuid?: string;
             video_url?: string;
+        };
+        "goshop_internal_dto_v1.ReviewReportDTO": {
+            created_at?: string;
+            details?: string;
+            /** @description spam, inappropriate, fake, other */
+            reason?: string;
+            report_id?: number;
+            user_email?: string;
+            user_id?: number;
+            user_name?: string;
         };
         "goshop_internal_dto_v1.ShippingFeeResponseDTO": {
             provider?: string;
@@ -7564,9 +7701,15 @@ export interface components {
         };
         "goshop_internal_dto_v1.UpdateAddressInput": {
             address?: string;
+            district_id?: number;
+            district_name?: string;
             label?: string;
             name?: string;
             phone?: string;
+            province_id?: number;
+            province_name?: string;
+            ward_code?: string;
+            ward_name?: string;
         };
         "goshop_internal_dto_v1.UpdateBannerRequest": {
             end_at?: string;
