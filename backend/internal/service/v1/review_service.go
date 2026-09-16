@@ -105,8 +105,18 @@ func (rs *reviewService) getReview(ctx context.Context, reviewUUID uuid.UUID) (s
 	return review, nil
 }
 
-func (rs *reviewService) validateReviewEligibility(ctx context.Context, orderID, userID, productID int32) error {
-	isPurchased, err := rs.repo.CheckPurchased(ctx, orderID, userID, productID)
+const maxReviewWindow = 30 * 24 * time.Hour
+
+func (rs *reviewService) validateReviewEligibility(ctx context.Context, order sqlc.GetOrderByUUIDRow, userID, productID int32) error {
+	if order.OrderDeliveredAt.Valid {
+		if time.Since(order.OrderDeliveredAt.Time) > maxReviewWindow {
+			return utils.NewError(utils.ErrCodeBadRequest, "The review window for this order has expired (allowed within 30 days of delivery)")
+		}
+	} else if order.OrderStatus == 4 && !order.OrderUpdatedAt.IsZero() && time.Since(order.OrderUpdatedAt) > maxReviewWindow {
+		return utils.NewError(utils.ErrCodeBadRequest, "The review window for this order has expired (allowed within 30 days of delivery)")
+	}
+
+	isPurchased, err := rs.repo.CheckPurchased(ctx, order.OrderID, userID, productID)
 	if err != nil {
 		return utils.WrapError(utils.ErrCodeInternal, "Error checking purchase status", err)
 	}
@@ -114,7 +124,7 @@ func (rs *reviewService) validateReviewEligibility(ctx context.Context, orderID,
 		return utils.NewError(utils.ErrCodeBadRequest, "User has not purchased this product")
 	}
 
-	isExists, err := rs.repo.CheckExists(ctx, userID, productID, orderID)
+	isExists, err := rs.repo.CheckExists(ctx, userID, productID, order.OrderID)
 	if err != nil {
 		return utils.WrapError(utils.ErrCodeInternal, "Error checking review status", err)
 	}
@@ -226,7 +236,7 @@ func (rs *reviewService) CreateReview(ctx context.Context, userUUID uuid.UUID, i
 		return v1dto.ReviewDTO{}, err
 	}
 
-	if err := rs.validateReviewEligibility(ctx, order.OrderID, user.UserID, product.ProductID); err != nil {
+	if err := rs.validateReviewEligibility(ctx, order, user.UserID, product.ProductID); err != nil {
 		return v1dto.ReviewDTO{}, err
 	}
 

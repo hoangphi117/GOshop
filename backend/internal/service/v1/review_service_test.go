@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -152,6 +153,42 @@ func TestReviewService_CreateReview(t *testing.T) {
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeBadRequest)
 		assert.Contains(t, err.Error(), "already exists")
+	})
+
+	t.Run("Case 6: Review Window Expired (> 30 days after delivery) -> Returns 400", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
+			},
+		}
+		mockProductRepo := &testutils.MockProductRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetProductByUUIDRow, error) {
+				return sqlc.GetProductByUUIDRow{ProductID: 10, ProductUuid: productUUID}, nil
+			},
+		}
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return sqlc.GetOrderByUUIDRow{
+					OrderID:   100,
+					OrderUuid: orderUUID,
+					OrderDeliveredAt: pgtype.Timestamptz{
+						Time:  time.Now().Add(-35 * 24 * time.Hour),
+						Valid: true,
+					},
+				}, nil
+			},
+		}
+
+		svc := v1service.NewReviewService(nil, mockUserRepo, mockProductRepo, mockOrderRepo, nil, nil)
+		_, err := svc.CreateReview(ctx, userUUID, v1dto.CreateReviewInput{
+			ProductUUID: productUUID.String(),
+			OrderUUID:   orderUUID.String(),
+			Rating:      5,
+		}, nil, nil)
+
+		require.Error(t, err)
+		assertAppErrorCode(t, err, utils.ErrCodeBadRequest)
+		assert.Contains(t, err.Error(), "expired")
 	})
 }
 
