@@ -127,7 +127,8 @@ export function ShippingTimeline({
   })
   const deliveredTimestamp =
     deliveredEv?.created_at ||
-    ((order as unknown as Record<string, unknown>).order_delivered_at as string) ||
+    ((order as unknown as Record<string, unknown>)
+      .order_delivered_at as string) ||
     null
 
   const getActiveStepIndex = (o: Order): number => {
@@ -136,14 +137,50 @@ export function ShippingTimeline({
     const isCOD = checkIsCOD(o)
 
     if (s.includes('CANCEL')) return -1
-    if (s.includes('RETURN')) return -2
 
-    // If delivered or completed
-    if (s.includes('DELIVER') || s.includes('COMPLETE')) {
+    // Check if any returned or return requested
+    const hasReturnEvent = events.some((e) =>
+      (e.status || '').toLowerCase().startsWith('return')
+    )
+    if (s === 'RETURNED' || hasReturnEvent) {
       return 4
     }
 
-    if (s.includes('SHIP')) {
+    // If delivered or completed
+    if (s === 'DELIVERED' || s === 'COMPLETED' || s === 'COMPLETE') {
+      return 4
+    }
+
+    // If carrier event has delivered (excluding delivering/out for delivery)
+    const hasDeliveredEvent = events.some((e) => {
+      const es = (e.status || '').toLowerCase()
+      const est = (e.status_text || '').toLowerCase()
+      if (
+        es.includes('delivering') ||
+        est.includes('out for delivery') ||
+        est.includes('đang giao')
+      ) {
+        return false
+      }
+      return (
+        es.includes('delivered') ||
+        es.includes('complete') ||
+        es.includes('received') ||
+        est.includes('delivered') ||
+        est.includes('đã giao') ||
+        est.includes('đã nhận')
+      )
+    })
+    if (hasDeliveredEvent) {
+      return 4
+    }
+
+    if (
+      s === 'SHIPPED' ||
+      s === 'IN_TRANSIT' ||
+      s === 'INTRANSIT' ||
+      events.some(isShippingEvent)
+    ) {
       return 2 // Order shipped out
     }
 
@@ -205,27 +242,91 @@ export function ShippingTimeline({
     if (stepIdx === 2) {
       const ev = events.find((e) => {
         const s = (e.status || '').toLowerCase()
-        return s.includes('ship') || s.includes('transit') || s.includes('pick')
+        const st = (e.status_text || '').toLowerCase()
+        return (
+          s.includes('ship') ||
+          s.includes('transit') ||
+          s.includes('pick') ||
+          s.includes('delivering') ||
+          st.includes('out for delivery') ||
+          st.includes('đang giao')
+        )
       })
       return ev?.created_at || null
     }
 
-    // Step 3: Order received
+    // Step 3: Order received (Must NOT match delivering or out for delivery)
     if (stepIdx === 3) {
       const ev = events.find((e) => {
         const s = (e.status || '').toLowerCase()
+        const st = (e.status_text || '').toLowerCase()
+        if (
+          s.includes('delivering') ||
+          st.includes('out for delivery') ||
+          st.includes('đang giao')
+        ) {
+          return false
+        }
         return (
-          s.includes('deliver') ||
+          s.includes('delivered') ||
           s.includes('complete') ||
-          s.includes('received')
+          s.includes('received') ||
+          st.includes('delivered') ||
+          st.includes('complete') ||
+          st.includes('đã giao') ||
+          st.includes('đã nhận')
         )
       })
-      return ev?.created_at || deliveredTimestamp
+      const isDeliveredStatus =
+        (order.status || '').toUpperCase() === 'DELIVERED' ||
+        (order.status || '').toUpperCase() === 'RETURNED'
+      return ev?.created_at || (isDeliveredStatus ? deliveredTimestamp : null)
     }
 
-    // Step 4: Completed
+    // Step 4: Completed or Return State
     if (stepIdx === 4) {
-      return deliveredTimestamp
+      const returnCompletedEv = events.find(
+        (e) => (e.status || '').toLowerCase() === 'returned'
+      )
+      if (returnCompletedEv) return returnCompletedEv.created_at
+
+      const returnApprovedEv = events.find(
+        (e) => (e.status || '').toLowerCase() === 'return_approved'
+      )
+      if (returnApprovedEv) return returnApprovedEv.created_at
+
+      const returnRequestedEv = events.find(
+        (e) => (e.status || '').toLowerCase() === 'return_requested'
+      )
+      if (returnRequestedEv) return returnRequestedEv.created_at
+
+      const returnRejectedEv = events.find(
+        (e) => (e.status || '').toLowerCase() === 'return_rejected'
+      )
+      if (returnRejectedEv) return returnRejectedEv.created_at
+
+      const deliveredEv = events.find((e) => {
+        const es = (e.status || '').toLowerCase()
+        const est = (e.status_text || '').toLowerCase()
+        if (
+          es.includes('delivering') ||
+          est.includes('out for delivery') ||
+          est.includes('đang giao')
+        ) {
+          return false
+        }
+        return (
+          es.includes('delivered') ||
+          es.includes('complete') ||
+          es.includes('received') ||
+          est.includes('delivered') ||
+          est.includes('đã giao')
+        )
+      })
+      const isDeliveredStatus =
+        (order.status || '').toUpperCase() === 'DELIVERED' ||
+        (order.status || '').toUpperCase() === 'RETURNED'
+      return deliveredEv?.created_at || (isDeliveredStatus ? deliveredTimestamp : null)
     }
 
     return null
@@ -234,7 +335,53 @@ export function ShippingTimeline({
   const isCOD = checkIsCOD(order)
   const activeStepIndex = getActiveStepIndex(order)
   const isCancelled = activeStepIndex === -1
-  const isReturned = activeStepIndex === -2
+
+  const returnApprovedEvent = events.find(
+    (e) => (e.status || '').toLowerCase() === 'return_approved'
+  )
+  const returnRequestedEvent = events.find(
+    (e) => (e.status || '').toLowerCase() === 'return_requested'
+  )
+  const returnRejectedEvent = events.find(
+    (e) => (e.status || '').toLowerCase() === 'return_rejected'
+  )
+  const returnCancelledEvent = events.find(
+    (e) => (e.status || '').toLowerCase() === 'return_cancelled'
+  )
+  const isOrderReturned =
+    (order.status || '').toUpperCase() === 'RETURNED' ||
+    events.some((e) => (e.status || '').toLowerCase() === 'returned')
+
+  const isReturnApproved = Boolean(
+    returnApprovedEvent &&
+      !isOrderReturned &&
+      !returnRejectedEvent &&
+      !returnCancelledEvent
+  )
+  const isReturnRequested = Boolean(
+    returnRequestedEvent &&
+      !returnApprovedEvent &&
+      !isOrderReturned &&
+      !returnRejectedEvent &&
+      !returnCancelledEvent
+  )
+
+  let finalStepLabel = 'Completed'
+  let finalStepIcon = CheckCircle2
+  if (isOrderReturned) {
+    finalStepLabel = 'Returned & Refunded'
+    finalStepIcon = RotateCcw
+  } else if (isReturnApproved) {
+    finalStepLabel = 'Return approved'
+    finalStepIcon = ShieldCheck
+  } else if (isReturnRequested) {
+    finalStepLabel = 'Return requested'
+    finalStepIcon = Clock
+  } else if (returnRejectedEvent) {
+    finalStepLabel = 'Return rejected'
+    finalStepIcon = Ban
+  }
+
   const isDelivered = order.status?.toUpperCase() === 'DELIVERED'
   const isShipped =
     order.status?.toUpperCase() === 'SHIPPED' ||
@@ -249,7 +396,7 @@ export function ShippingTimeline({
     },
     { key: 'shipped', label: 'Order shipped out', icon: Truck },
     { key: 'received', label: 'Order received', icon: PackageCheck },
-    { key: 'completed', label: 'Completed', icon: CheckCircle2 },
+    { key: 'completed', label: finalStepLabel, icon: finalStepIcon },
   ]
 
   const synthesizeOrderEvents = (ord: Order): TrackingEvent[] => {
@@ -368,21 +515,6 @@ export function ShippingTimeline({
               </p>
               <p className='pt-1 font-mono text-[11px] font-medium text-destructive/80'>
                 Updated on: {formatDateTime(order.created_at)}
-              </p>
-            </div>
-          </div>
-        ) : isReturned ? (
-          <div className='flex items-start gap-3 rounded-lg border border-purple-500/30 bg-purple-500/5 p-4 text-xs'>
-            <div className='mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400'>
-              <RotateCcw className='size-5' />
-            </div>
-            <div className='space-y-1'>
-              <h3 className='text-sm font-bold text-purple-700 dark:text-purple-300'>
-                Return & Refund Process
-              </h3>
-              <p className='text-muted-foreground'>
-                This order is under return inspection or has completed return
-                processing.
               </p>
             </div>
           </div>

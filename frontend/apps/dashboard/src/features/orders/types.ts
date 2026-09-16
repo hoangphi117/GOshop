@@ -201,3 +201,30 @@ export interface AdminReturnRefundInput {
   bank_txn_ref?: string
   accounting_note?: string
 }
+
+export interface AdminReturnSummary {
+  return_uuid: string
+  order_uuid: string
+  order_number: string
+  user_fullname?: string
+  user_email?: string
+  total_amount: number
+  reason: string
+  images: string[]
+  video_url?: string | null
+  status: number
+  status_name: string
+  status_text: string
+  admin_note?: string | null
+  shipping_provider?: string | null
+  shipping_code?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AdminGetReturnsQuery {
+  page?: number
+  limit?: number
+  status?: 1 | 2 | 3 | 4 | 5
+  search?: string
+}

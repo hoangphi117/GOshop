@@ -13,6 +13,7 @@ import {
   ShoppingCart,
   Image,
   TicketPercent,
+  RotateCcw,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -62,6 +63,11 @@ export const sidebarData: SidebarData = {
           title: 'Orders',
           url: '/orders',
           icon: ShoppingCart,
+        },
+        {
+          title: 'Returns',
+          url: '/returns',
+          icon: RotateCcw,
         },
         {
           title: 'Banners',
