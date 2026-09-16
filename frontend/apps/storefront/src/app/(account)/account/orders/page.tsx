@@ -50,6 +50,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Download,
+  Loader2,
 } from "lucide-react";
 
 interface OrderItem {
@@ -557,7 +558,21 @@ function MyOrdersPageContent() {
       );
 
       if (res.ok) {
-        toast.success("Live tracking data synchronized with shipping carrier!");
+        const syncJson = await res.json().catch(() => null);
+        toast.success("Tracking status synced successfully with carrier");
+
+        const syncEvents: TrackingEvent[] = Array.isArray(
+          syncJson?.data?.timeline,
+        )
+          ? syncJson.data.timeline
+          : Array.isArray(syncJson?.data?.events)
+            ? syncJson.data.events
+            : [];
+
+        if (syncEvents.length > 0) {
+          setTimelineEvents(syncEvents);
+        }
+
         // Refresh timeline events & order details
         const [orderRes, timelineRes] = await Promise.all([
           authFetch(`${baseUrl}/api/v1/orders/${order.uuid}`),
@@ -569,12 +584,16 @@ function MyOrdersPageContent() {
         }
         if (timelineRes.ok) {
           const tlJson = await timelineRes.json();
-          const events: TrackingEvent[] = Array.isArray(tlJson?.data)
-            ? tlJson.data
-            : Array.isArray(tlJson?.data?.data)
-              ? tlJson.data.data
-              : [];
-          setTimelineEvents(events);
+          const events: TrackingEvent[] = Array.isArray(tlJson?.data?.events)
+            ? tlJson.data.events
+            : Array.isArray(tlJson?.data?.timeline)
+              ? tlJson.data.timeline
+              : Array.isArray(tlJson?.data)
+                ? tlJson.data
+                : [];
+          if (events.length > 0) {
+            setTimelineEvents(events);
+          }
         }
         await fetchOrders();
       } else {
@@ -719,14 +738,50 @@ function MyOrdersPageContent() {
     const isCOD = checkIsCOD(order);
 
     if (s.includes("CANCEL")) return -1;
-    if (s.includes("RETURN")) return -2;
 
-    // If delivered or completed -> Completed
-    if (s.includes("DELIVER") || s.includes("COMPLETE")) {
+    // Check if any returned or return requested
+    const hasReturnEvent = events.some((e) =>
+      (e.status || "").toLowerCase().startsWith("return"),
+    );
+    if (s === "RETURNED" || hasReturnEvent) {
       return 4;
     }
 
-    if (s.includes("SHIP")) {
+    // If delivered or completed
+    if (s === "DELIVERED" || s === "COMPLETED" || s === "COMPLETE") {
+      return 4;
+    }
+
+    // If carrier event has delivered (excluding delivering/out for delivery)
+    const hasDeliveredEvent = events.some((e) => {
+      const es = (e.status || "").toLowerCase();
+      const est = (e.status_text || "").toLowerCase();
+      if (
+        es.includes("delivering") ||
+        est.includes("out for delivery") ||
+        est.includes("đang giao")
+      ) {
+        return false;
+      }
+      return (
+        es.includes("delivered") ||
+        es.includes("complete") ||
+        es.includes("received") ||
+        est.includes("delivered") ||
+        est.includes("đã giao") ||
+        est.includes("đã nhận")
+      );
+    });
+    if (hasDeliveredEvent) {
+      return 4;
+    }
+
+    if (
+      s === "SHIPPED" ||
+      s === "IN_TRANSIT" ||
+      s === "INTRANSIT" ||
+      events.some(isShippingEvent)
+    ) {
       return 2; // Order shipped out
     }
 
@@ -793,43 +848,103 @@ function MyOrdersPageContent() {
     if (stepIdx === 2) {
       const ev = events.find((e) => {
         const s = (e.status || "").toLowerCase();
+        const st = (e.status_text || "").toLowerCase();
         return (
-          s.includes("ship") || s.includes("transit") || s.includes("pick")
+          s.includes("ship") ||
+          s.includes("transit") ||
+          s.includes("pick") ||
+          s.includes("delivering") ||
+          st.includes("out for delivery") ||
+          st.includes("đang giao")
         );
       });
       return ev?.created_at || null;
     }
 
-    // Step 3: Order received
+    // Step 3: Order received (Must NOT match "delivering" or "out for delivery")
     if (stepIdx === 3) {
       const ev = events.find((e) => {
         const s = (e.status || "").toLowerCase();
+        const st = (e.status_text || "").toLowerCase();
+        if (
+          s.includes("delivering") ||
+          st.includes("out for delivery") ||
+          st.includes("đang giao")
+        ) {
+          return false;
+        }
         return (
-          s.includes("deliver") ||
+          s.includes("delivered") ||
           s.includes("complete") ||
-          s.includes("received")
+          s.includes("received") ||
+          st.includes("delivered") ||
+          st.includes("complete") ||
+          st.includes("đã giao") ||
+          st.includes("đã nhận")
         );
       });
-      return ev?.created_at || (order as unknown as Record<string, unknown>).order_delivered_at as string || null;
+      const isDeliveredStatus =
+        (order.status || "").toUpperCase() === "DELIVERED" ||
+        (order.status || "").toUpperCase() === "RETURNED";
+      return (
+        ev?.created_at ||
+        (isDeliveredStatus
+          ? ((order as unknown as Record<string, unknown>)
+              .order_delivered_at as string)
+          : null) ||
+        null
+      );
     }
 
-    // Step 4: Completed
+    // Step 4: Final Step (Completed, Returned, or Return in progress)
     if (stepIdx === 4) {
+      const returnedEv = events.find(
+        (e) => (e.status || "").toLowerCase() === "returned",
+      );
+      if (returnedEv?.created_at) return returnedEv.created_at;
+
+      const returnAppEv = events.find(
+        (e) => (e.status || "").toLowerCase() === "return_approved",
+      );
+      if (returnAppEv?.created_at) return returnAppEv.created_at;
+
+      const returnReqEv = events.find(
+        (e) => (e.status || "").toLowerCase() === "return_requested",
+      );
+      if (returnReqEv?.created_at) return returnReqEv.created_at;
+
+      const returnRejEv = events.find(
+        (e) => (e.status || "").toLowerCase() === "return_rejected",
+      );
+      if (returnRejEv?.created_at) return returnRejEv.created_at;
+
       const deliveredEv = events.find((e) => {
         const es = (e.status || "").toLowerCase();
         const est = (e.status_text || "").toLowerCase();
-        if (es.includes("delivering") || est.includes("out for delivery"))
+        if (
+          es.includes("delivering") ||
+          est.includes("out for delivery") ||
+          est.includes("đang giao")
+        ) {
           return false;
+        }
         return (
           es.includes("delivered") ||
           es.includes("complete") ||
-          es.includes("received")
+          es.includes("received") ||
+          est.includes("delivered") ||
+          est.includes("đã giao")
         );
       });
+      const isDeliveredStatus =
+        (order.status || "").toUpperCase() === "DELIVERED" ||
+        (order.status || "").toUpperCase() === "RETURNED";
       return (
         deliveredEv?.created_at ||
-        ((order as unknown as Record<string, unknown>)
-          .order_delivered_at as string) ||
+        (isDeliveredStatus
+          ? ((order as unknown as Record<string, unknown>)
+              .order_delivered_at as string)
+          : null) ||
         null
       );
     }
@@ -938,15 +1053,61 @@ function MyOrdersPageContent() {
     const isPaid = selectedOrder.payment_status?.toUpperCase() === "PAID";
     const activeStepIndex = getActiveStepIndex(selectedOrder, timelineEvents);
     const isCancelled = activeStepIndex === -1;
-    const isReturned =
-      activeStepIndex === -2 ||
-      selectedOrder.status?.toUpperCase() === "RETURNED";
-    const hasReturnRequest =
-      isReturned ||
-      timelineEvents.some((e) =>
-        (e.status || "").toLowerCase().startsWith("return_"),
-      );
     const isCOD = checkIsCOD(selectedOrder);
+
+    const returnApprovedEvent = timelineEvents.find(
+      (e) => (e.status || "").toLowerCase() === "return_approved",
+    );
+    const returnRequestedEvent = timelineEvents.find(
+      (e) => (e.status || "").toLowerCase() === "return_requested",
+    );
+    const returnRejectedEvent = timelineEvents.find(
+      (e) => (e.status || "").toLowerCase() === "return_rejected",
+    );
+    const returnCancelledEvent = timelineEvents.find(
+      (e) => (e.status || "").toLowerCase() === "return_cancelled",
+    );
+    const isOrderReturned =
+      (selectedOrder.status || "").toUpperCase() === "RETURNED" ||
+      timelineEvents.some((e) => (e.status || "").toLowerCase() === "returned");
+
+    const isReturnApproved = Boolean(
+      returnApprovedEvent &&
+      !isOrderReturned &&
+      !returnRejectedEvent &&
+      !returnCancelledEvent,
+    );
+    const isReturnRequested = Boolean(
+      returnRequestedEvent &&
+      !returnApprovedEvent &&
+      !isOrderReturned &&
+      !returnRejectedEvent &&
+      !returnCancelledEvent,
+    );
+    const hasReturnRequest = Boolean(
+      returnRequestedEvent ||
+      returnApprovedEvent ||
+      isOrderReturned ||
+      timelineEvents.some((e) =>
+        (e.status || "").toLowerCase().startsWith("return"),
+      ),
+    );
+
+    let finalStepLabel = "Completed";
+    let finalStepIcon = CheckCircle2;
+    if (isOrderReturned) {
+      finalStepLabel = "Returned & Refunded";
+      finalStepIcon = RotateCcw;
+    } else if (isReturnApproved) {
+      finalStepLabel = "Return approved";
+      finalStepIcon = ShieldCheck;
+    } else if (isReturnRequested) {
+      finalStepLabel = "Return requested";
+      finalStepIcon = Clock;
+    } else if (returnRejectedEvent) {
+      finalStepLabel = "Return rejected";
+      finalStepIcon = Ban;
+    }
 
     // 5-stage steps
     const currentSteps = [
@@ -958,7 +1119,7 @@ function MyOrdersPageContent() {
       },
       { key: "shipped", label: "Order shipped out", icon: Truck },
       { key: "received", label: "Order received", icon: PackageCheck },
-      { key: "completed", label: "Completed", icon: CheckCircle2 },
+      { key: "completed", label: finalStepLabel, icon: finalStepIcon },
     ];
 
     const synthesizeOrderEvents = (ord: Order): TrackingEvent[] => {
@@ -1086,6 +1247,34 @@ function MyOrdersPageContent() {
           </div>
         </div>
 
+        {/* Return & Refund Request Approved Banner (Appears only after Admin Approves) */}
+        {isReturnApproved && (
+          <div className="p-4 rounded-2xl bg-blue-50/80 border border-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-full bg-blue-100 text-[#0D47A1] flex items-center justify-center shrink-0 mt-0.5">
+                <RotateCcw className="w-5 h-5 text-blue-600" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-extrabold text-[#0D47A1] text-sm">
+                  Return & Refund Request Approved
+                </h3>
+                <p className="text-slate-600">
+                  Your return request has been approved by the seller. Please
+                  ship the product back and provide courier tracking details.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleOpenReturnDetails(selectedOrder)}
+              className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 shrink-0 self-start sm:self-auto cursor-pointer"
+            >
+              <Truck className="w-3.5 h-3.5" />
+              <span>Update Return Shipment</span>
+            </button>
+          </div>
+        )}
+
         {/* Shopee Stepper Progress Bar (ALL GREEN) */}
         <div className="p-5 sm:p-6 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
           {isCancelled ? (
@@ -1106,30 +1295,6 @@ function MyOrdersPageContent() {
                   Updated on: {formatDateTime(selectedOrder.created_at)}
                 </p>
               </div>
-            </div>
-          ) : isReturned ? (
-            <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-full bg-blue-100 text-[#0D47A1] flex items-center justify-center shrink-0 mt-0.5">
-                  <RotateCcw className="w-5 h-5" />
-                </div>
-                <div className="space-y-1">
-                  <h3 className="font-extrabold text-[#0D47A1] text-sm">
-                    Return & Refund Request Active
-                  </h3>
-                  <p className="text-slate-600">
-                    Your return request is active. Track progress, view notes, and provide carrier shipping details for your return package.
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => handleOpenReturnDetails(selectedOrder)}
-                className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 shrink-0 self-start sm:self-auto cursor-pointer"
-              >
-                <Truck className="w-3.5 h-3.5" />
-                <span>Update Return Shipment</span>
-              </button>
             </div>
           ) : (
             <div className="overflow-x-auto pb-2">
@@ -1266,17 +1431,6 @@ function MyOrdersPageContent() {
                   <span>Return / Refund</span>
                 </button>
               )}
-
-              {hasReturnRequest && (
-                <button
-                  type="button"
-                  onClick={() => handleOpenReturnDetails(selectedOrder)}
-                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
-                >
-                  <Truck className="w-3.5 h-3.5" />
-                  <span>Update Return Shipment</span>
-                </button>
-              )}
             </div>
           </div>
         </div>
@@ -1319,12 +1473,14 @@ function MyOrdersPageContent() {
                 type="button"
                 disabled={isSyncingTracking}
                 onClick={() => handleSyncTracking(selectedOrder)}
-                className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-[#0D47A1] border border-blue-200 font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
                 title="Synchronize live tracking updates from shipping carrier"
               >
-                <RefreshCw
-                  className={`w-3.5 h-3.5 ${isSyncingTracking ? "animate-spin" : ""}`}
-                />
+                {isSyncingTracking ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                ) : (
+                  <RefreshCw className="w-3.5 h-3.5" />
+                )}
                 <span>Sync Tracking</span>
               </button>
             </div>

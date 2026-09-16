@@ -91,8 +91,18 @@ export function OrderTrackingModal({
         setIsSyncing(false)
         return
       }
-      toast.success('Carrier tracking synchronized successfully!')
-      fetchTimeline()
+      const syncJson = await res.json().catch(() => null)
+      toast.success('Tracking status synced successfully with carrier')
+      const syncEvents: TrackingEvent[] = Array.isArray(syncJson?.data?.timeline)
+        ? syncJson.data.timeline
+        : Array.isArray(syncJson?.data?.events)
+          ? syncJson.data.events
+          : []
+      if (syncEvents.length > 0) {
+        setEvents(syncEvents)
+      } else {
+        fetchTimeline()
+      }
       onStatusUpdated?.()
     } catch {
       toast.error('Network error during tracking sync.')
@@ -183,11 +193,15 @@ export function OrderTrackingModal({
             type="button"
             disabled={isSyncing || loading}
             onClick={handleSyncTracking}
-            className="px-3.5 py-2 rounded-xl bg-white border border-slate-200 hover:border-[#2196F3] hover:text-[#2196F3] text-slate-700 text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-            title="Fetch latest updates from GHN"
+            className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            title="Synchronize live tracking updates from shipping carrier"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-[#2196F3]' : ''}`} />
-            <span>{isSyncing ? 'Syncing...' : 'Sync Carrier'}</span>
+            {isSyncing ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
+            ) : (
+              <RefreshCw className="w-3.5 h-3.5" />
+            )}
+            <span>Sync Tracking</span>
           </button>
         </div>
 
