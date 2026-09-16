@@ -303,14 +303,25 @@ export default function MyReturnsPage() {
                     </span>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setSelectedOrderUuid(ret.order_uuid)}
-                    className="mt-2 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-[#2196F3] border border-slate-200 hover:border-blue-200 text-xs font-bold transition-all cursor-pointer"
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                    <span>View Details</span>
-                  </button>
+                  {ret.status === 2 && !ret.shipping_code ? (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedOrderUuid(ret.order_uuid)}
+                      className="mt-2 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                    >
+                      <Truck className="w-3.5 h-3.5" />
+                      <span>Update Shipment</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedOrderUuid(ret.order_uuid)}
+                      className="mt-2 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-[#2196F3] border border-slate-200 hover:border-blue-200 text-xs font-bold transition-all cursor-pointer"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>View Details</span>
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

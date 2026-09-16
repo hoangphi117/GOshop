@@ -446,7 +446,7 @@ func (s *orderReturnService) AdminUpdateReturnStatus(ctx context.Context, userUU
 		switch input.Status {
 		case OrderReturnStatusApproved:
 			if s.trackingRepo != nil {
-				eventNote := fmt.Sprintf("Request approved. Please ship the package back to the warehouse. Note: %s", noteStr)
+				eventNote := fmt.Sprintf("Request approved. Please ship the package back to the warehouse and update shipping information in \"Returns & Refunds\" tab. Note: %s", noteStr)
 				_, _ = s.trackingRepo.InsertEvent(txCtx, tx, sqlc.InsertTrackingEventParams{
 					EventOrderID: returnRequest.ReturnOrderID,
 					EventStatus:  "return_approved",
@@ -862,7 +862,7 @@ func (s *orderReturnService) SubmitReturnShipping(ctx context.Context, userUUID 
 		}
 
 		if s.trackingRepo != nil {
-			eventNote := fmt.Sprintf("User submitted return shipping info for %s (Tracking Code: %s).", strings.ToUpper(provider), shippingCode)
+			eventNote := fmt.Sprintf("Return waybill submitted for %s (Tracking Code: %s).", strings.ToUpper(provider), shippingCode)
 			if note != nil {
 				eventNote += fmt.Sprintf(" Note: %s", *note)
 			}

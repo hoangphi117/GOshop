@@ -592,12 +592,31 @@ export function ReturnDetailModal({
               <div className="p-4 rounded-2xl bg-white border border-slate-200/80 space-y-3">
                 <span className="font-bold text-[#0D1B2A] block">Return Progress Timeline</span>
                 <div className="relative pl-6 space-y-4 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
-                  {data.events.map((evt, idx) => (
-                    <div key={idx} className="relative">
-                      <div className="absolute -left-6 top-1 w-3 h-3 rounded-full bg-[#2196F3] border-2 border-white shadow-2xs" />
-                      <div className="space-y-0.5">
+                  {data.events.map((evt, idx) => {
+                    const isFinished =
+                      (evt.status || '').toLowerCase().includes('returned') ||
+                      (evt.status || '').toLowerCase().includes('complete') ||
+                      (evt.status || '').toLowerCase().includes('refunded') ||
+                      (data.status === 4 && idx === 0)
+
+                    return (
+                      <div key={idx} className="relative">
+                        {isFinished ? (
+                          <div className="absolute -left-7 top-0.5 w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xs">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                          </div>
+                        ) : (
+                          <div className="absolute -left-6 top-1 w-3 h-3 rounded-full bg-[#2196F3] border-2 border-white shadow-2xs" />
+                        )}
+                        <div className="space-y-0.5">
                         <div className="flex items-center justify-between">
-                          <span className="font-bold text-slate-900">{evt.status_text || evt.status}</span>
+                          <span className="font-bold text-slate-900">
+                            {evt.status_text && !evt.status_text.includes('_')
+                              ? evt.status_text
+                              : evt.status === 'return_shipping_submitted'
+                                ? 'Return waybill submitted'
+                                : evt.status_text || evt.status}
+                          </span>
                           <span className="text-[11px] text-slate-400">
                             {new Date(evt.created_at).toLocaleString('en-US', {
                               dateStyle: 'short',
@@ -605,10 +624,18 @@ export function ReturnDetailModal({
                             })}
                           </span>
                         </div>
-                        {evt.note && <p className="text-slate-600 text-[11px]">{evt.note}</p>}
+                          {evt.note && (
+                            <p className="text-slate-600 text-[11px]">
+                              {evt.note.replace(
+                                /User submitted return shipping info for/gi,
+                                'Return waybill submitted for'
+                              )}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             )}

@@ -34,6 +34,7 @@ import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { useOrderDetails, useOrderMutations } from '../hooks/use-orders'
 import { ShippingTab } from './shipping-tab'
+import { ReturnsTab } from './returns-tab'
 import type { Order } from '../types'
 import {
   formatCurrency,
@@ -437,18 +438,9 @@ export function OrderDetail({ uuid }: { uuid: string }) {
             {order && <ShippingTab order={order as unknown as Order} />}
           </TabsContent>
 
-          {/* Returns Tab — placeholder for Phase 4 */}
-          <TabsContent value='returns'>
-            <div className='flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground'>
-              <RotateCcw className='size-10' />
-              <p className='text-sm font-medium'>
-                Return management coming soon
-              </p>
-              <p className='text-xs'>
-                Return requests, refund processing, and RMA tracking will be
-                available here.
-              </p>
-            </div>
+          {/* Returns Tab — Phase 3 Return & Refund Management */}
+          <TabsContent value='returns' className='space-y-4'>
+            <ReturnsTab orderUUID={uuid} order={order as unknown as Order} />
           </TabsContent>
         </Tabs>
       </Main>
