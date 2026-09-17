@@ -14,25 +14,30 @@ import (
 )
 
 const getOverviewStats = `-- name: GetOverviewStats :one
-WITH order_stats AS (
+WITH paid_orders AS (
     SELECT
-        COALESCE(SUM(order_total_amount) FILTER (
-            WHERE order_created_at >= NOW() - INTERVAL '30 days'
+        o.order_id,
+        (o.order_total_amount - o.order_refunded_amount)::numeric(14,2) AS net_revenue,
+        COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at) AS paid_time
+    FROM orders o
+    WHERE o.order_payment_status IN (2, 3) -- Paid or Partially Refunded
+      AND COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at) >= NOW() - INTERVAL '60 days'
+),
+order_stats AS (
+    SELECT
+        COALESCE(SUM(net_revenue) FILTER (
+            WHERE paid_time >= NOW() - INTERVAL '30 days'
         ), 0)::numeric(14,2) AS revenue,
         COUNT(order_id) FILTER (
-            WHERE order_created_at >= NOW() - INTERVAL '30 days'
+            WHERE paid_time >= NOW() - INTERVAL '30 days'
         )::bigint AS order_count,
-        COALESCE(SUM(order_total_amount) FILTER (
-            WHERE order_created_at >= NOW() - INTERVAL '60 days'
-              AND order_created_at < NOW() - INTERVAL '30 days'
+        COALESCE(SUM(net_revenue) FILTER (
+            WHERE paid_time < NOW() - INTERVAL '30 days'
         ), 0)::numeric(14,2) AS prev_revenue,
         COUNT(order_id) FILTER (
-            WHERE order_created_at >= NOW() - INTERVAL '60 days'
-              AND order_created_at < NOW() - INTERVAL '30 days'
+            WHERE paid_time < NOW() - INTERVAL '30 days'
         )::bigint AS prev_order_count
-    FROM orders
-    WHERE order_status IN (2, 3, 4)
-      AND order_created_at >= NOW() - INTERVAL '60 days'
+    FROM paid_orders
 ),
 pending_orders AS (
     SELECT COUNT(order_id)::bigint AS pending_count
@@ -54,14 +59,14 @@ customer_stats AS (
       AND user_created_at >= NOW() - INTERVAL '60 days'
 )
 SELECT
-    o.revenue,
-    o.order_count,
-    o.prev_revenue,
-    o.prev_order_count,
+    s.revenue,
+    s.order_count,
+    s.prev_revenue,
+    s.prev_order_count,
     po.pending_count,
     c.new_customers,
     c.prev_new_customers
-FROM order_stats o
+FROM order_stats s
 CROSS JOIN pending_orders po
 CROSS JOIN customer_stats c
 `
@@ -126,6 +131,7 @@ type GetRecentOrdersRow struct {
 	UserEmail          string         `json:"user_email"`
 }
 
+// Operational list view, not revenue-related; unchanged.
 func (q *Queries) GetRecentOrders(ctx context.Context, limitCount int32) ([]GetRecentOrdersRow, error) {
 	rows, err := q.db.Query(ctx, getRecentOrders, limitCount)
 	if err != nil {
@@ -162,7 +168,7 @@ func (q *Queries) GetRecentOrders(ctx context.Context, limitCount int32) ([]GetR
 const getRevenueDailyChart = `-- name: GetRevenueDailyChart :many
 SELECT
     gs.day::timestamptz AS date,
-    COALESCE(SUM(o.order_total_amount), 0)::numeric(14,2) AS total_revenue,
+    COALESCE(SUM(o.order_total_amount - o.order_refunded_amount), 0)::numeric(14,2) AS total_revenue,
     COUNT(o.order_id)::bigint AS total_orders
 FROM generate_series(
     date_trunc('day', NOW() - (($1::int - 1) * INTERVAL '1 day')),
@@ -170,8 +176,8 @@ FROM generate_series(
     INTERVAL '1 day'
 ) AS gs(day)
 LEFT JOIN orders o
-    ON date_trunc('day', o.order_created_at) = gs.day
-   AND o.order_status IN (2, 3, 4)
+    ON o.order_payment_status IN (2, 3)
+   AND date_trunc('day', COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at)) = gs.day
 GROUP BY gs.day
 ORDER BY gs.day ASC
 `
@@ -205,7 +211,7 @@ func (q *Queries) GetRevenueDailyChart(ctx context.Context, days int32) ([]GetRe
 const getRevenueMonthlyChart = `-- name: GetRevenueMonthlyChart :many
 SELECT
     gs.month::timestamptz AS month,
-    COALESCE(SUM(o.order_total_amount), 0)::numeric(14,2) AS total_revenue,
+    COALESCE(SUM(o.order_total_amount - o.order_refunded_amount), 0)::numeric(14,2) AS total_revenue,
     COUNT(o.order_id)::bigint AS total_orders
 FROM generate_series(
     date_trunc('month', NOW() - (($1::int - 1) * INTERVAL '1 month')),
@@ -213,8 +219,8 @@ FROM generate_series(
     INTERVAL '1 month'
 ) AS gs(month)
 LEFT JOIN orders o
-    ON date_trunc('month', o.order_created_at) = gs.month
-   AND o.order_status IN (2, 3, 4)
+    ON o.order_payment_status IN (2, 3)
+   AND date_trunc('month', COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at)) = gs.month
 GROUP BY gs.month
 ORDER BY gs.month ASC
 `
@@ -260,8 +266,8 @@ FROM order_items oi
 JOIN orders o ON o.order_id = oi.order_item_order_id
 JOIN products p ON p.product_id = oi.order_item_product_id
 JOIN categories c ON c.category_id = p.product_category_id
-WHERE o.order_status IN (2, 3, 4)
-  AND o.order_created_at >= NOW() - ($1::int * INTERVAL '1 day')
+WHERE o.order_payment_status IN (2, 3)
+  AND COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at) >= NOW() - ($1::int * INTERVAL '1 day')
   AND p.product_deleted_at IS NULL
 GROUP BY p.product_id, p.product_uuid, p.product_name, p.product_slug, p.product_price, p.product_image_url, c.category_name
 ORDER BY total_units_sold DESC, total_sales_amount DESC

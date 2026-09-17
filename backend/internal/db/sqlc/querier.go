@@ -109,6 +109,7 @@ type Querier interface {
 	GetProductBySlug(ctx context.Context, productSlug string) (GetProductBySlugRow, error)
 	GetProductByUUID(ctx context.Context, productUuid uuid.UUID) (GetProductByUUIDRow, error)
 	GetProductRatingSummary(ctx context.Context, reviewProductID int32) (GetProductRatingSummaryRow, error)
+	// Operational list view, not revenue-related; unchanged.
 	GetRecentOrders(ctx context.Context, limitCount int32) ([]GetRecentOrdersRow, error)
 	GetReturnByUUID(ctx context.Context, returnUuid uuid.UUID) (OrderReturn, error)
 	GetReturnsByUserID(ctx context.Context, arg GetReturnsByUserIDParams) ([]GetReturnsByUserIDRow, error)
