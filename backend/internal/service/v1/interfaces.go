@@ -187,3 +187,10 @@ type BannerService interface {
 	AdminRestoreBanner(ctx context.Context, bannerUUID uuid.UUID) (v1dto.AdminBannerDetailDTO, error)
 	AdminTrashBanner(ctx context.Context, bannerUUID uuid.UUID) error
 }
+
+type AnalyticsService interface {
+	GetOverview(ctx context.Context) (v1dto.OverviewStatsDTO, error)
+	GetRevenueChart(ctx context.Context, period string, days, months int32) ([]v1dto.RevenueChartPointDTO, error)
+	GetRecentOrders(ctx context.Context, limit int32) ([]v1dto.RecentOrderDTO, error)
+	GetTopProducts(ctx context.Context, days, limit int32) ([]v1dto.TopProductDTO, error)
+}
