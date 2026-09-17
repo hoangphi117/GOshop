@@ -48,7 +48,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
@@ -56,7 +56,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/goshop_internal_dto_v1.AddressDTO"
+                                                "$ref": "#/definitions/v1dto.AddressDTO"
                                             }
                                         }
                                     }
@@ -67,7 +67,7 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -99,7 +99,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.CreateAddressInput"
+                            "$ref": "#/definitions/v1dto.CreateAddressInput"
                         }
                     }
                 ],
@@ -109,13 +109,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.AddressDTO"
+                                            "$ref": "#/definitions/v1dto.AddressDTO"
                                         }
                                     }
                                 }
@@ -125,13 +125,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -170,13 +170,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.AddressDTO"
+                                            "$ref": "#/definitions/v1dto.AddressDTO"
                                         }
                                     }
                                 }
@@ -186,13 +186,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -231,7 +231,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.UpdateAddressInput"
+                            "$ref": "#/definitions/v1dto.UpdateAddressInput"
                         }
                     }
                 ],
@@ -241,13 +241,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.AddressDTO"
+                                            "$ref": "#/definitions/v1dto.AddressDTO"
                                         }
                                     }
                                 }
@@ -257,13 +257,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -301,13 +301,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -344,19 +344,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                            "$ref": "#/definitions/utils.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -426,7 +426,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
@@ -434,7 +434,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/goshop_internal_dto_v1.AdminBannerDetailDTO"
+                                                "$ref": "#/definitions/v1dto.AdminBannerDetailDTO"
                                             }
                                         }
                                     }
@@ -445,13 +445,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -483,7 +483,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.CreateBannerRequest"
+                            "$ref": "#/definitions/v1dto.CreateBannerRequest"
                         }
                     }
                 ],
@@ -493,13 +493,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.AdminBannerDetailDTO"
+                                            "$ref": "#/definitions/v1dto.AdminBannerDetailDTO"
                                         }
                                     }
                                 }
@@ -509,13 +509,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -554,13 +554,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.AdminBannerDetailDTO"
+                                            "$ref": "#/definitions/v1dto.AdminBannerDetailDTO"
                                         }
                                     }
                                 }
@@ -570,13 +570,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -615,7 +615,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.UpdateBannerRequest"
+                            "$ref": "#/definitions/v1dto.UpdateBannerRequest"
                         }
                     }
                 ],
@@ -625,13 +625,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.AdminBannerDetailDTO"
+                                            "$ref": "#/definitions/v1dto.AdminBannerDetailDTO"
                                         }
                                     }
                                 }
@@ -641,13 +641,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -682,19 +682,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                            "$ref": "#/definitions/utils.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -733,13 +733,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.AdminBannerDetailDTO"
+                                            "$ref": "#/definitions/v1dto.AdminBannerDetailDTO"
                                         }
                                     }
                                 }
@@ -749,13 +749,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -796,7 +796,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.UpdateBannerStatusRequest"
+                            "$ref": "#/definitions/v1dto.UpdateBannerStatusRequest"
                         }
                     }
                 ],
@@ -806,13 +806,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.AdminBannerDetailDTO"
+                                            "$ref": "#/definitions/v1dto.AdminBannerDetailDTO"
                                         }
                                     }
                                 }
@@ -822,13 +822,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -865,19 +865,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                            "$ref": "#/definitions/utils.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -911,7 +911,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.CreateCategoryInput"
+                            "$ref": "#/definitions/v1dto.CreateCategoryInput"
                         }
                     }
                 ],
@@ -921,13 +921,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.CategoryDTO"
+                                            "$ref": "#/definitions/v1dto.CategoryDTO"
                                         }
                                     }
                                 }
@@ -937,7 +937,7 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -978,7 +978,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.UpdateCategoryInput"
+                            "$ref": "#/definitions/v1dto.UpdateCategoryInput"
                         }
                     }
                 ],
@@ -988,13 +988,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.CategoryDTO"
+                                            "$ref": "#/definitions/v1dto.CategoryDTO"
                                         }
                                     }
                                 }
@@ -1004,13 +1004,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -1049,13 +1049,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.CategoryDTO"
+                                            "$ref": "#/definitions/v1dto.CategoryDTO"
                                         }
                                     }
                                 }
@@ -1065,13 +1065,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -1110,13 +1110,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.CategoryDTO"
+                                            "$ref": "#/definitions/v1dto.CategoryDTO"
                                         }
                                     }
                                 }
@@ -1126,13 +1126,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -1169,13 +1169,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -1261,7 +1261,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
@@ -1269,7 +1269,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/goshop_internal_dto_v1.CouponDTO"
+                                                "$ref": "#/definitions/v1dto.CouponDTO"
                                             }
                                         }
                                     }
@@ -1280,13 +1280,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -1318,7 +1318,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.CreateCouponInput"
+                            "$ref": "#/definitions/v1dto.CreateCouponInput"
                         }
                     }
                 ],
@@ -1328,13 +1328,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.CouponDTO"
+                                            "$ref": "#/definitions/v1dto.CouponDTO"
                                         }
                                     }
                                 }
@@ -1344,13 +1344,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -1391,7 +1391,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.UpdateCouponInput"
+                            "$ref": "#/definitions/v1dto.UpdateCouponInput"
                         }
                     }
                 ],
@@ -1401,13 +1401,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.CouponDTO"
+                                            "$ref": "#/definitions/v1dto.CouponDTO"
                                         }
                                     }
                                 }
@@ -1417,13 +1417,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -1460,13 +1460,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.CouponDTO"
+                                            "$ref": "#/definitions/v1dto.CouponDTO"
                                         }
                                     }
                                 }
@@ -1476,13 +1476,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -1521,13 +1521,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.CouponDTO"
+                                            "$ref": "#/definitions/v1dto.CouponDTO"
                                         }
                                     }
                                 }
@@ -1537,13 +1537,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -1580,13 +1580,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -1620,7 +1620,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.CreateNotificationInput"
+                            "$ref": "#/definitions/v1dto.CreateNotificationInput"
                         }
                     }
                 ],
@@ -1630,13 +1630,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.NotificationDTO"
+                                            "$ref": "#/definitions/v1dto.NotificationDTO"
                                         }
                                     }
                                 }
@@ -1646,13 +1646,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -1686,7 +1686,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.BroadcastNotificationInput"
+                            "$ref": "#/definitions/v1dto.BroadcastNotificationInput"
                         }
                     }
                 ],
@@ -1694,19 +1694,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                            "$ref": "#/definitions/utils.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -1792,7 +1792,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
@@ -1800,7 +1800,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/goshop_internal_dto_v1.OrderDTO"
+                                                "$ref": "#/definitions/v1dto.OrderDTO"
                                             }
                                         }
                                     }
@@ -1811,13 +1811,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -1847,13 +1847,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.SyncActiveShippingStatsDTO"
+                                            "$ref": "#/definitions/v1dto.SyncActiveShippingStatsDTO"
                                         }
                                     }
                                 }
@@ -1863,13 +1863,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -1910,7 +1910,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.UpdateOrderStatusInput"
+                            "$ref": "#/definitions/v1dto.UpdateOrderStatusInput"
                         }
                     }
                 ],
@@ -1920,13 +1920,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.OrderDTO"
+                                            "$ref": "#/definitions/v1dto.OrderDTO"
                                         }
                                     }
                                 }
@@ -1936,13 +1936,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -1983,7 +1983,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.UpdateOrderPaymentStatusInput"
+                            "$ref": "#/definitions/v1dto.UpdateOrderPaymentStatusInput"
                         }
                     }
                 ],
@@ -1993,13 +1993,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.OrderDTO"
+                                            "$ref": "#/definitions/v1dto.OrderDTO"
                                         }
                                     }
                                 }
@@ -2009,13 +2009,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -2056,7 +2056,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.CreateShippingInput"
+                            "$ref": "#/definitions/v1dto.CreateShippingInput"
                         }
                     }
                 ],
@@ -2066,13 +2066,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.ShippingResponseDTO"
+                                            "$ref": "#/definitions/v1dto.ShippingResponseDTO"
                                         }
                                     }
                                 }
@@ -2082,13 +2082,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -2128,7 +2128,7 @@ const docTemplate = `{
                         "name": "body",
                         "in": "body",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.CancelShippingInput"
+                            "$ref": "#/definitions/v1dto.CancelShippingInput"
                         }
                     }
                 ],
@@ -2138,13 +2138,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.CancelShippingResponseDTO"
+                                            "$ref": "#/definitions/v1dto.CancelShippingResponseDTO"
                                         }
                                     }
                                 }
@@ -2154,7 +2154,7 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -2191,13 +2191,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                            "$ref": "#/definitions/utils.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -2231,7 +2231,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.RefundPaymentInput"
+                            "$ref": "#/definitions/v1dto.RefundPaymentInput"
                         }
                     }
                 ],
@@ -2241,13 +2241,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.PaymentTransactionDTO"
+                                            "$ref": "#/definitions/v1dto.PaymentTransactionDTO"
                                         }
                                     }
                                 }
@@ -2257,13 +2257,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -2300,19 +2300,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                            "$ref": "#/definitions/utils.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -2377,7 +2377,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
@@ -2385,7 +2385,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/goshop_internal_dto_v1.OrderReturnDTO"
+                                                "$ref": "#/definitions/v1dto.OrderReturnDTO"
                                             }
                                         }
                                     }
@@ -2396,13 +2396,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -2441,13 +2441,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.OrderReturnDTO"
+                                            "$ref": "#/definitions/v1dto.OrderReturnDTO"
                                         }
                                     }
                                 }
@@ -2457,13 +2457,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -2502,7 +2502,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.AdminUpdateReturnInput"
+                            "$ref": "#/definitions/v1dto.AdminUpdateReturnInput"
                         }
                     }
                 ],
@@ -2510,19 +2510,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                            "$ref": "#/definitions/utils.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -2562,7 +2562,7 @@ const docTemplate = `{
                         "name": "body",
                         "in": "body",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.AdminReturnRefundInput"
+                            "$ref": "#/definitions/v1dto.AdminReturnRefundInput"
                         }
                     }
                 ],
@@ -2570,19 +2570,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                            "$ref": "#/definitions/utils.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -2684,7 +2684,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
@@ -2692,7 +2692,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/goshop_internal_dto_v1.ReviewDTO"
+                                                "$ref": "#/definitions/v1dto.ReviewDTO"
                                             }
                                         }
                                     }
@@ -2703,13 +2703,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -2746,19 +2746,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                            "$ref": "#/definitions/utils.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -2795,19 +2795,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                            "$ref": "#/definitions/utils.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -2848,7 +2848,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.ReplyReviewInput"
+                            "$ref": "#/definitions/v1dto.ReplyReviewInput"
                         }
                     }
                 ],
@@ -2858,13 +2858,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.ReviewDTO"
+                                            "$ref": "#/definitions/v1dto.ReviewDTO"
                                         }
                                     }
                                 }
@@ -2874,13 +2874,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -2919,7 +2919,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
@@ -2927,7 +2927,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/goshop_internal_dto_v1.ReviewReportDTO"
+                                                "$ref": "#/definitions/v1dto.ReviewReportDTO"
                                             }
                                         }
                                     }
@@ -2938,13 +2938,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -2985,7 +2985,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.UpdateReviewStatusInput"
+                            "$ref": "#/definitions/v1dto.UpdateReviewStatusInput"
                         }
                     }
                 ],
@@ -2995,13 +2995,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.ReviewDTO"
+                                            "$ref": "#/definitions/v1dto.ReviewDTO"
                                         }
                                     }
                                 }
@@ -3011,13 +3011,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -3089,7 +3089,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
@@ -3097,7 +3097,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/goshop_internal_dto_v1.UserDTO"
+                                                "$ref": "#/definitions/v1dto.UserDTO"
                                             }
                                         }
                                     }
@@ -3108,13 +3108,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -3146,7 +3146,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.CreateUserInput"
+                            "$ref": "#/definitions/v1dto.CreateUserInput"
                         }
                     }
                 ],
@@ -3156,13 +3156,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.UserDTO"
+                                            "$ref": "#/definitions/v1dto.UserDTO"
                                         }
                                     }
                                 }
@@ -3172,13 +3172,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -3250,7 +3250,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
@@ -3258,7 +3258,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/goshop_internal_dto_v1.UserDTO"
+                                                "$ref": "#/definitions/v1dto.UserDTO"
                                             }
                                         }
                                     }
@@ -3269,13 +3269,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -3314,13 +3314,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.UserDTO"
+                                            "$ref": "#/definitions/v1dto.UserDTO"
                                         }
                                     }
                                 }
@@ -3330,13 +3330,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -3375,7 +3375,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.UpdateUserInput"
+                            "$ref": "#/definitions/v1dto.UpdateUserInput"
                         }
                     }
                 ],
@@ -3385,13 +3385,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.UserDTO"
+                                            "$ref": "#/definitions/v1dto.UserDTO"
                                         }
                                     }
                                 }
@@ -3401,13 +3401,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -3446,13 +3446,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.UserDTO"
+                                            "$ref": "#/definitions/v1dto.UserDTO"
                                         }
                                     }
                                 }
@@ -3462,13 +3462,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -3507,13 +3507,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.UserDTO"
+                                            "$ref": "#/definitions/v1dto.UserDTO"
                                         }
                                     }
                                 }
@@ -3523,13 +3523,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -3569,13 +3569,288 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/analytics/overview": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Get 30-day KPI cards (revenue, orders, new customers, pending orders) with growth comparison",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Analytics"
+                ],
+                "summary": "Get analytics overview statistics",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/v1dto.OverviewStatsDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/analytics/recent-orders": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Retrieve the latest N orders with basic customer info",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Analytics"
+                ],
+                "summary": "Get recent orders for dashboard",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 5,
+                        "description": "Max orders to return (1-50)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/v1dto.RecentOrderDTO"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/analytics/revenue-chart": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Get historical revenue and order count points aggregated by daily or monthly",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Analytics"
+                ],
+                "summary": "Get revenue chart data",
+                "parameters": [
+                    {
+                        "enum": [
+                            "daily",
+                            "monthly"
+                        ],
+                        "type": "string",
+                        "default": "daily",
+                        "description": "Aggregation period: daily or monthly",
+                        "name": "period",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 30,
+                        "description": "Number of days (for daily)",
+                        "name": "days",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 12,
+                        "description": "Number of months (for monthly)",
+                        "name": "months",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/v1dto.RevenueChartPointDTO"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/analytics/top-products": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Get the top best-selling products by quantity and revenue over the last N days",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Analytics"
+                ],
+                "summary": "Get top selling products",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 30,
+                        "description": "Time window in days",
+                        "name": "days",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 5,
+                        "description": "Max items to return (1-50)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/v1dto.TopProductDTO"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -3609,7 +3884,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.CreateProductRequest"
+                            "$ref": "#/definitions/v1dto.CreateProductRequest"
                         }
                     }
                 ],
@@ -3619,13 +3894,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.ProductDTO"
+                                            "$ref": "#/definitions/v1dto.ProductDTO"
                                         }
                                     }
                                 }
@@ -3635,25 +3910,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Validation error",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -3694,7 +3969,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.UpdateProductRequest"
+                            "$ref": "#/definitions/v1dto.UpdateProductRequest"
                         }
                     }
                 ],
@@ -3704,13 +3979,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.ProductDTO"
+                                            "$ref": "#/definitions/v1dto.ProductDTO"
                                         }
                                     }
                                 }
@@ -3720,25 +3995,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Validation error",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Product not found",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -3778,13 +4053,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.ProductDTO"
+                                            "$ref": "#/definitions/v1dto.ProductDTO"
                                         }
                                     }
                                 }
@@ -3794,25 +4069,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid UUID",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Product not found",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -3854,13 +4129,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.ProductDTO"
+                                            "$ref": "#/definitions/v1dto.ProductDTO"
                                         }
                                     }
                                 }
@@ -3870,25 +4145,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid UUID",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Product not found",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -3931,25 +4206,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid UUID",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Product not found",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -3975,7 +4250,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.RequestForgotPasswordInput"
+                            "$ref": "#/definitions/v1dto.RequestForgotPasswordInput"
                         }
                     }
                 ],
@@ -3983,25 +4258,25 @@ const docTemplate = `{
                     "200": {
                         "description": "Password reset link sent successfully",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                            "$ref": "#/definitions/utils.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Validation error",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "User with this email not found",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -4027,7 +4302,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.LoginInput"
+                            "$ref": "#/definitions/v1dto.LoginInput"
                         }
                     }
                 ],
@@ -4037,13 +4312,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.LoginResponse"
+                                            "$ref": "#/definitions/v1dto.LoginResponse"
                                         }
                                     }
                                 }
@@ -4053,19 +4328,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Validation error",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Invalid email or password",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -4090,7 +4365,7 @@ const docTemplate = `{
                         "name": "request",
                         "in": "body",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.RefreshTokenInput"
+                            "$ref": "#/definitions/v1dto.RefreshTokenInput"
                         }
                     }
                 ],
@@ -4098,19 +4373,19 @@ const docTemplate = `{
                     "200": {
                         "description": "Logout successfully",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                            "$ref": "#/definitions/utils.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Validation error",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -4135,7 +4410,7 @@ const docTemplate = `{
                         "name": "request",
                         "in": "body",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.RefreshTokenInput"
+                            "$ref": "#/definitions/v1dto.RefreshTokenInput"
                         }
                     }
                 ],
@@ -4145,13 +4420,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.LoginResponse"
+                                            "$ref": "#/definitions/v1dto.LoginResponse"
                                         }
                                     }
                                 }
@@ -4161,19 +4436,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Validation error",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Invalid or expired refresh token",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -4199,7 +4474,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.RegisterInput"
+                            "$ref": "#/definitions/v1dto.RegisterInput"
                         }
                     }
                 ],
@@ -4207,25 +4482,25 @@ const docTemplate = `{
                     "201": {
                         "description": "Register successfully",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                            "$ref": "#/definitions/utils.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Validation error",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "409": {
                         "description": "Email already registered",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -4251,7 +4526,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.ResetPasswordInput"
+                            "$ref": "#/definitions/v1dto.ResetPasswordInput"
                         }
                     }
                 ],
@@ -4259,19 +4534,19 @@ const docTemplate = `{
                     "200": {
                         "description": "Password reset successfully",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                            "$ref": "#/definitions/utils.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Validation error or invalid token",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -4352,7 +4627,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
@@ -4360,7 +4635,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/goshop_internal_dto_v1.ProductDTO"
+                                                "$ref": "#/definitions/v1dto.ProductDTO"
                                             }
                                         }
                                     }
@@ -4371,13 +4646,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid query parameters",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -4411,13 +4686,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.ProductDTO"
+                                            "$ref": "#/definitions/v1dto.ProductDTO"
                                         }
                                     }
                                 }
@@ -4427,19 +4702,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Invalid UUID format",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Product not found",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -4478,7 +4753,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
@@ -4486,7 +4761,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/goshop_internal_dto_v1.BannerDTO"
+                                                "$ref": "#/definitions/v1dto.BannerDTO"
                                             }
                                         }
                                     }
@@ -4497,7 +4772,7 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -4527,13 +4802,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.CartDTO"
+                                            "$ref": "#/definitions/v1dto.CartDTO"
                                         }
                                     }
                                 }
@@ -4543,7 +4818,7 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -4569,13 +4844,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                            "$ref": "#/definitions/utils.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -4609,7 +4884,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.AddCartItemInput"
+                            "$ref": "#/definitions/v1dto.AddCartItemInput"
                         }
                     }
                 ],
@@ -4619,13 +4894,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.CartDTO"
+                                            "$ref": "#/definitions/v1dto.CartDTO"
                                         }
                                     }
                                 }
@@ -4635,13 +4910,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -4682,7 +4957,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.UpdateCartItemQuantityInput"
+                            "$ref": "#/definitions/v1dto.UpdateCartItemQuantityInput"
                         }
                     }
                 ],
@@ -4692,13 +4967,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.CartDTO"
+                                            "$ref": "#/definitions/v1dto.CartDTO"
                                         }
                                     }
                                 }
@@ -4708,13 +4983,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -4751,13 +5026,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.CartDTO"
+                                            "$ref": "#/definitions/v1dto.CartDTO"
                                         }
                                     }
                                 }
@@ -4767,13 +5042,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -4829,7 +5104,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
@@ -4837,7 +5112,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/goshop_internal_dto_v1.CategoryDTO"
+                                                "$ref": "#/definitions/v1dto.CategoryDTO"
                                             }
                                         }
                                     }
@@ -4848,7 +5123,7 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -4879,13 +5154,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.CategoryDTO"
+                                            "$ref": "#/definitions/v1dto.CategoryDTO"
                                         }
                                     }
                                 }
@@ -4895,13 +5170,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -4927,7 +5202,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.PreviewCouponInput"
+                            "$ref": "#/definitions/v1dto.PreviewCouponInput"
                         }
                     }
                 ],
@@ -4937,13 +5212,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.PreviewCouponDTO"
+                                            "$ref": "#/definitions/v1dto.PreviewCouponDTO"
                                         }
                                     }
                                 }
@@ -4953,7 +5228,7 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -4999,7 +5274,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
@@ -5007,7 +5282,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/goshop_internal_dto_v1.NotificationDTO"
+                                                "$ref": "#/definitions/v1dto.NotificationDTO"
                                             }
                                         }
                                     }
@@ -5018,13 +5293,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -5054,13 +5329,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.UnreadCountDTO"
+                                            "$ref": "#/definitions/v1dto.UnreadCountDTO"
                                         }
                                     }
                                 }
@@ -5070,7 +5345,7 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -5098,13 +5373,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                            "$ref": "#/definitions/utils.APIResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -5144,13 +5419,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -5189,13 +5464,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.NotificationDTO"
+                                            "$ref": "#/definitions/v1dto.NotificationDTO"
                                         }
                                     }
                                 }
@@ -5205,13 +5480,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -5297,7 +5572,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
@@ -5305,7 +5580,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/goshop_internal_dto_v1.OrderDTO"
+                                                "$ref": "#/definitions/v1dto.OrderDTO"
                                             }
                                         }
                                     }
@@ -5316,13 +5591,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -5354,7 +5629,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.CreateOrderInput"
+                            "$ref": "#/definitions/v1dto.CreateOrderInput"
                         }
                     }
                 ],
@@ -5364,13 +5639,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.OrderDTO"
+                                            "$ref": "#/definitions/v1dto.OrderDTO"
                                         }
                                     }
                                 }
@@ -5380,13 +5655,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -5420,7 +5695,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.CalculateShippingFeeInput"
+                            "$ref": "#/definitions/v1dto.CalculateShippingFeeInput"
                         }
                     }
                 ],
@@ -5430,13 +5705,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.ShippingFeeResponseDTO"
+                                            "$ref": "#/definitions/v1dto.ShippingFeeResponseDTO"
                                         }
                                     }
                                 }
@@ -5446,7 +5721,7 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -5511,7 +5786,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
@@ -5519,7 +5794,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/goshop_internal_dto_v1.OrderReturnDTO"
+                                                "$ref": "#/definitions/v1dto.OrderReturnDTO"
                                             }
                                         }
                                     }
@@ -5530,13 +5805,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -5575,13 +5850,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.OrderDTO"
+                                            "$ref": "#/definitions/v1dto.OrderDTO"
                                         }
                                     }
                                 }
@@ -5591,19 +5866,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -5640,19 +5915,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                            "$ref": "#/definitions/utils.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -5689,19 +5964,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                            "$ref": "#/definitions/utils.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -5754,13 +6029,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -5799,13 +6074,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.OrderReturnDTO"
+                                            "$ref": "#/definitions/v1dto.OrderReturnDTO"
                                         }
                                     }
                                 }
@@ -5815,13 +6090,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -5892,13 +6167,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.OrderReturnDTO"
+                                            "$ref": "#/definitions/v1dto.OrderReturnDTO"
                                         }
                                     }
                                 }
@@ -5908,13 +6183,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -5955,7 +6230,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.UpdateReturnBankAccountInput"
+                            "$ref": "#/definitions/v1dto.UpdateReturnBankAccountInput"
                         }
                     }
                 ],
@@ -5963,19 +6238,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                            "$ref": "#/definitions/utils.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -6015,7 +6290,7 @@ const docTemplate = `{
                         "name": "body",
                         "in": "body",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.CancelOrderReturnInput"
+                            "$ref": "#/definitions/v1dto.CancelOrderReturnInput"
                         }
                     }
                 ],
@@ -6023,19 +6298,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                            "$ref": "#/definitions/utils.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -6076,7 +6351,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.SubmitReturnShippingInput"
+                            "$ref": "#/definitions/v1dto.SubmitReturnShippingInput"
                         }
                     }
                 ],
@@ -6084,19 +6359,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                            "$ref": "#/definitions/utils.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -6137,7 +6412,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.UpdateOrderShippingInfoInput"
+                            "$ref": "#/definitions/v1dto.UpdateOrderShippingInfoInput"
                         }
                     }
                 ],
@@ -6147,13 +6422,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.OrderDTO"
+                                            "$ref": "#/definitions/v1dto.OrderDTO"
                                         }
                                     }
                                 }
@@ -6163,13 +6438,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -6208,13 +6483,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.SyncTrackingResponseDTO"
+                                            "$ref": "#/definitions/v1dto.SyncTrackingResponseDTO"
                                         }
                                     }
                                 }
@@ -6224,13 +6499,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -6269,13 +6544,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.OrderTimelineResponseDTO"
+                                            "$ref": "#/definitions/v1dto.OrderTimelineResponseDTO"
                                         }
                                     }
                                 }
@@ -6285,13 +6560,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -6325,7 +6600,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.CreatePaymentIntentInput"
+                            "$ref": "#/definitions/v1dto.CreatePaymentIntentInput"
                         }
                     }
                 ],
@@ -6335,13 +6610,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.PaymentIntentDTO"
+                                            "$ref": "#/definitions/v1dto.PaymentIntentDTO"
                                         }
                                     }
                                 }
@@ -6351,13 +6626,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -6396,7 +6671,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
@@ -6404,7 +6679,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/goshop_internal_dto_v1.PaymentTransactionDTO"
+                                                "$ref": "#/definitions/v1dto.PaymentTransactionDTO"
                                             }
                                         }
                                     }
@@ -6415,13 +6690,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -6506,7 +6781,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
@@ -6514,7 +6789,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/goshop_internal_dto_v1.ReviewDTO"
+                                                "$ref": "#/definitions/v1dto.ReviewDTO"
                                             }
                                         }
                                     }
@@ -6525,7 +6800,7 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -6554,13 +6829,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                            "$ref": "#/definitions/utils.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -6636,13 +6911,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.ReviewDTO"
+                                            "$ref": "#/definitions/v1dto.ReviewDTO"
                                         }
                                     }
                                 }
@@ -6652,13 +6927,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -6704,7 +6979,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
@@ -6712,7 +6987,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/goshop_internal_dto_v1.MyReviewDTO"
+                                                "$ref": "#/definitions/v1dto.MyReviewDTO"
                                             }
                                         }
                                     }
@@ -6723,13 +6998,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -6770,7 +7045,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.UpdateReviewInput"
+                            "$ref": "#/definitions/v1dto.UpdateReviewInput"
                         }
                     }
                 ],
@@ -6780,13 +7055,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.ReviewDTO"
+                                            "$ref": "#/definitions/v1dto.ReviewDTO"
                                         }
                                     }
                                 }
@@ -6796,13 +7071,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -6837,19 +7112,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                            "$ref": "#/definitions/utils.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -6888,13 +7163,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.ToggleHelpfulResponseDTO"
+                                            "$ref": "#/definitions/v1dto.ToggleHelpfulResponseDTO"
                                         }
                                     }
                                 }
@@ -6904,13 +7179,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -6951,7 +7226,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.ReportReviewInput"
+                            "$ref": "#/definitions/v1dto.ReportReviewInput"
                         }
                     }
                 ],
@@ -6959,19 +7234,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                            "$ref": "#/definitions/utils.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -7002,7 +7277,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
@@ -7010,7 +7285,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/goshop_internal_dto_v1.DistrictDTO"
+                                                "$ref": "#/definitions/v1dto.DistrictDTO"
                                             }
                                         }
                                     }
@@ -7021,7 +7296,7 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -7043,7 +7318,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
@@ -7051,7 +7326,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/goshop_internal_dto_v1.ProvinceDTO"
+                                                "$ref": "#/definitions/v1dto.ProvinceDTO"
                                             }
                                         }
                                     }
@@ -7062,7 +7337,7 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -7093,7 +7368,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
@@ -7101,7 +7376,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/goshop_internal_dto_v1.WardDTO"
+                                                "$ref": "#/definitions/v1dto.WardDTO"
                                             }
                                         }
                                     }
@@ -7112,7 +7387,7 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -7138,7 +7413,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.GHNWebhookPayload"
+                            "$ref": "#/definitions/v1dto.GHNWebhookPayload"
                         }
                     }
                 ],
@@ -7153,7 +7428,7 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -7209,13 +7484,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.UploadResponseDTO"
+                                            "$ref": "#/definitions/v1dto.UploadResponseDTO"
                                         }
                                     }
                                 }
@@ -7225,19 +7500,19 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -7267,13 +7542,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.UserDTO"
+                                            "$ref": "#/definitions/v1dto.UserDTO"
                                         }
                                     }
                                 }
@@ -7283,7 +7558,7 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -7315,7 +7590,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.UpdateProfileInput"
+                            "$ref": "#/definitions/v1dto.UpdateProfileInput"
                         }
                     }
                 ],
@@ -7325,13 +7600,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/goshop_internal_dto_v1.UserDTO"
+                                            "$ref": "#/definitions/v1dto.UserDTO"
                                         }
                                     }
                                 }
@@ -7341,13 +7616,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -7381,7 +7656,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_dto_v1.ChangePasswordRequest"
+                            "$ref": "#/definitions/v1dto.ChangePasswordRequest"
                         }
                     }
                 ],
@@ -7389,19 +7664,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                            "$ref": "#/definitions/utils.APIResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -7434,7 +7709,7 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -7462,7 +7737,7 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/utils.ErrorResponse"
                         }
                     }
                 }
@@ -7470,7 +7745,91 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "goshop_internal_dto_v1.AddCartItemInput": {
+        "utils.APIResponse": {
+            "type": "object",
+            "properties": {
+                "data": {},
+                "message": {
+                    "type": "string",
+                    "example": "Operation completed successfully"
+                },
+                "pagination": {
+                    "$ref": "#/definitions/utils.Pagination"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "success"
+                }
+            }
+        },
+        "utils.ErrorCode": {
+            "type": "string",
+            "enum": [
+                "BAD_REQUEST",
+                "NOT_FOUND",
+                "CONFLICT",
+                "INTERNAL_SERVER_ERROR",
+                "UNAUTHORIZED",
+                "TOO_MANY_REQUESTS",
+                "FORBIDDEN",
+                "BAD_GATEWAY"
+            ],
+            "x-enum-varnames": [
+                "ErrCodeBadRequest",
+                "ErrCodeNotFound",
+                "ErrCodeConflict",
+                "ErrCodeInternal",
+                "ErrCodeUnauthorized",
+                "ErrCodeTooManyRequests",
+                "ErrCodeForbidden",
+                "ErrCodeBadGateway"
+            ]
+        },
+        "utils.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/utils.ErrorCode"
+                        }
+                    ],
+                    "example": "BAD_REQUEST"
+                },
+                "detail": {
+                    "type": "string",
+                    "example": "Detailed explanation"
+                },
+                "error": {
+                    "type": "string",
+                    "example": "Invalid input format"
+                }
+            }
+        },
+        "utils.Pagination": {
+            "type": "object",
+            "properties": {
+                "has_next": {
+                    "type": "boolean"
+                },
+                "has_prev": {
+                    "type": "boolean"
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total_pages": {
+                    "type": "integer"
+                },
+                "total_records": {
+                    "type": "integer"
+                }
+            }
+        },
+        "v1dto.AddCartItemInput": {
             "type": "object",
             "required": [
                 "product_uuid",
@@ -7487,7 +7846,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.AddressDTO": {
+        "v1dto.AddressDTO": {
             "type": "object",
             "properties": {
                 "address": {
@@ -7531,7 +7890,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.AdminBannerDetailDTO": {
+        "v1dto.AdminBannerDetailDTO": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -7572,7 +7931,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.AdminReturnRefundInput": {
+        "v1dto.AdminReturnRefundInput": {
             "type": "object",
             "properties": {
                 "accounting_note": {
@@ -7604,7 +7963,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.AdminUpdateReturnInput": {
+        "v1dto.AdminUpdateReturnInput": {
             "type": "object",
             "required": [
                 "status"
@@ -7625,7 +7984,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.BannerDTO": {
+        "v1dto.BannerDTO": {
             "type": "object",
             "properties": {
                 "image_url": {
@@ -7648,7 +8007,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.BroadcastNotificationInput": {
+        "v1dto.BroadcastNotificationInput": {
             "type": "object",
             "required": [
                 "body",
@@ -7673,7 +8032,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.CalculateShippingFeeInput": {
+        "v1dto.CalculateShippingFeeInput": {
             "type": "object",
             "required": [
                 "district_id",
@@ -7722,7 +8081,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.CancelOrderReturnInput": {
+        "v1dto.CancelOrderReturnInput": {
             "type": "object",
             "properties": {
                 "reason": {
@@ -7731,7 +8090,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.CancelShippingInput": {
+        "v1dto.CancelShippingInput": {
             "type": "object",
             "properties": {
                 "reason": {
@@ -7741,7 +8100,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.CancelShippingResponseDTO": {
+        "v1dto.CancelShippingResponseDTO": {
             "type": "object",
             "properties": {
                 "message": {
@@ -7762,13 +8121,13 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.CartDTO": {
+        "v1dto.CartDTO": {
             "type": "object",
             "properties": {
                 "items": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/goshop_internal_dto_v1.CartItemDTO"
+                        "$ref": "#/definitions/v1dto.CartItemDTO"
                     }
                 },
                 "total_amount": {
@@ -7782,7 +8141,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.CartItemDTO": {
+        "v1dto.CartItemDTO": {
             "type": "object",
             "properties": {
                 "is_available": {
@@ -7818,7 +8177,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.CategoryDTO": {
+        "v1dto.CategoryDTO": {
             "type": "object",
             "properties": {
                 "category_name": {
@@ -7841,7 +8200,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.ChangePasswordRequest": {
+        "v1dto.ChangePasswordRequest": {
             "type": "object",
             "required": [
                 "confirm_password",
@@ -7864,7 +8223,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.CouponDTO": {
+        "v1dto.CouponDTO": {
             "type": "object",
             "properties": {
                 "code": {
@@ -7917,7 +8276,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.CreateAddressInput": {
+        "v1dto.CreateAddressInput": {
             "type": "object",
             "required": [
                 "address",
@@ -7973,7 +8332,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.CreateBannerRequest": {
+        "v1dto.CreateBannerRequest": {
             "type": "object",
             "required": [
                 "image_url",
@@ -8019,7 +8378,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.CreateCategoryInput": {
+        "v1dto.CreateCategoryInput": {
             "type": "object",
             "required": [
                 "category_name"
@@ -8043,7 +8402,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.CreateCouponInput": {
+        "v1dto.CreateCouponInput": {
             "type": "object",
             "required": [
                 "code",
@@ -8104,7 +8463,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.CreateNotificationInput": {
+        "v1dto.CreateNotificationInput": {
             "type": "object",
             "required": [
                 "body",
@@ -8133,7 +8492,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.CreateOrderInput": {
+        "v1dto.CreateOrderInput": {
             "type": "object",
             "required": [
                 "items",
@@ -8153,7 +8512,7 @@ const docTemplate = `{
                     "type": "array",
                     "minItems": 1,
                     "items": {
-                        "$ref": "#/definitions/goshop_internal_dto_v1.CreateOrderItemInput"
+                        "$ref": "#/definitions/v1dto.CreateOrderItemInput"
                     }
                 },
                 "note": {
@@ -8188,7 +8547,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.CreateOrderItemInput": {
+        "v1dto.CreateOrderItemInput": {
             "type": "object",
             "required": [
                 "product_uuid",
@@ -8205,7 +8564,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.CreatePaymentIntentInput": {
+        "v1dto.CreatePaymentIntentInput": {
             "type": "object",
             "required": [
                 "order_uuid",
@@ -8223,7 +8582,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.CreateProductRequest": {
+        "v1dto.CreateProductRequest": {
             "type": "object",
             "required": [
                 "category_uuid",
@@ -8267,7 +8626,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.CreateShippingInput": {
+        "v1dto.CreateShippingInput": {
             "type": "object",
             "required": [
                 "district_id",
@@ -8326,7 +8685,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.CreateUserInput": {
+        "v1dto.CreateUserInput": {
             "type": "object",
             "required": [
                 "email",
@@ -8367,7 +8726,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.DistrictDTO": {
+        "v1dto.DistrictDTO": {
             "type": "object",
             "properties": {
                 "code": {
@@ -8384,7 +8743,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.GHNWebhookPayload": {
+        "v1dto.GHNWebhookPayload": {
             "type": "object",
             "required": [
                 "OrderCode",
@@ -8417,7 +8776,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.LoginInput": {
+        "v1dto.LoginInput": {
             "type": "object",
             "required": [
                 "email",
@@ -8433,7 +8792,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.LoginResponse": {
+        "v1dto.LoginResponse": {
             "type": "object",
             "properties": {
                 "access_token": {
@@ -8447,7 +8806,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.MyReviewDTO": {
+        "v1dto.MyReviewDTO": {
             "type": "object",
             "properties": {
                 "can_edit": {
@@ -8494,7 +8853,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.NotificationDTO": {
+        "v1dto.NotificationDTO": {
             "type": "object",
             "properties": {
                 "body": {
@@ -8524,7 +8883,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.OrderDTO": {
+        "v1dto.OrderDTO": {
             "type": "object",
             "properties": {
                 "coupon_code": {
@@ -8542,7 +8901,7 @@ const docTemplate = `{
                 "items": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/goshop_internal_dto_v1.OrderItemDTO"
+                        "$ref": "#/definitions/v1dto.OrderItemDTO"
                     }
                 },
                 "note": {
@@ -8598,7 +8957,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.OrderItemDTO": {
+        "v1dto.OrderItemDTO": {
             "type": "object",
             "properties": {
                 "image_url": {
@@ -8627,7 +8986,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.OrderReturnDTO": {
+        "v1dto.OrderReturnDTO": {
             "type": "object",
             "properties": {
                 "bank_account": {
@@ -8669,13 +9028,13 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.OrderTimelineResponseDTO": {
+        "v1dto.OrderTimelineResponseDTO": {
             "type": "object",
             "properties": {
                 "events": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/goshop_internal_dto_v1.TrackingEventDTO"
+                        "$ref": "#/definitions/v1dto.TrackingEventDTO"
                     }
                 },
                 "order_number": {
@@ -8686,7 +9045,36 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.PaymentIntentDTO": {
+        "v1dto.OverviewStatsDTO": {
+            "type": "object",
+            "properties": {
+                "customer_growth": {
+                    "description": "% vs previous 30 days",
+                    "type": "number"
+                },
+                "new_customers": {
+                    "type": "integer"
+                },
+                "order_growth": {
+                    "description": "% vs previous 30 days",
+                    "type": "number"
+                },
+                "pending_orders": {
+                    "type": "integer"
+                },
+                "revenue_growth": {
+                    "description": "% vs previous 30 days",
+                    "type": "number"
+                },
+                "total_orders": {
+                    "type": "integer"
+                },
+                "total_revenue": {
+                    "type": "number"
+                }
+            }
+        },
+        "v1dto.PaymentIntentDTO": {
             "type": "object",
             "properties": {
                 "amount": {
@@ -8715,7 +9103,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.PaymentTransactionDTO": {
+        "v1dto.PaymentTransactionDTO": {
             "type": "object",
             "properties": {
                 "amount": {
@@ -8753,7 +9141,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.PreviewCouponDTO": {
+        "v1dto.PreviewCouponDTO": {
             "type": "object",
             "properties": {
                 "coupon_code": {
@@ -8783,7 +9171,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.PreviewCouponInput": {
+        "v1dto.PreviewCouponInput": {
             "type": "object",
             "required": [
                 "code",
@@ -8800,7 +9188,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.ProductDTO": {
+        "v1dto.ProductDTO": {
             "type": "object",
             "properties": {
                 "category_name": {
@@ -8847,7 +9235,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.ProvinceDTO": {
+        "v1dto.ProvinceDTO": {
             "type": "object",
             "properties": {
                 "code": {
@@ -8861,7 +9249,39 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.RefreshTokenInput": {
+        "v1dto.RecentOrderDTO": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "customer_email": {
+                    "type": "string"
+                },
+                "customer_name": {
+                    "type": "string"
+                },
+                "order_number": {
+                    "type": "string"
+                },
+                "payment_method": {
+                    "type": "integer"
+                },
+                "payment_status": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "integer"
+                },
+                "total_amount": {
+                    "type": "number"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "v1dto.RefreshTokenInput": {
             "type": "object",
             "properties": {
                 "refresh_token": {
@@ -8869,7 +9289,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.RefundPaymentInput": {
+        "v1dto.RefundPaymentInput": {
             "type": "object",
             "required": [
                 "amount",
@@ -8889,7 +9309,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.RegisterInput": {
+        "v1dto.RegisterInput": {
             "type": "object",
             "required": [
                 "email",
@@ -8914,7 +9334,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.ReplyReviewInput": {
+        "v1dto.ReplyReviewInput": {
             "type": "object",
             "required": [
                 "reply"
@@ -8927,7 +9347,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.ReportReviewInput": {
+        "v1dto.ReportReviewInput": {
             "type": "object",
             "required": [
                 "reason"
@@ -8948,7 +9368,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.RequestForgotPasswordInput": {
+        "v1dto.RequestForgotPasswordInput": {
             "type": "object",
             "required": [
                 "email"
@@ -8959,7 +9379,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.ResetPasswordInput": {
+        "v1dto.ResetPasswordInput": {
             "type": "object",
             "required": [
                 "new_password",
@@ -8975,7 +9395,21 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.ReviewDTO": {
+        "v1dto.RevenueChartPointDTO": {
+            "type": "object",
+            "properties": {
+                "date": {
+                    "type": "string"
+                },
+                "order_count": {
+                    "type": "integer"
+                },
+                "revenue": {
+                    "type": "number"
+                }
+            }
+        },
+        "v1dto.ReviewDTO": {
             "type": "object",
             "properties": {
                 "can_edit": {
@@ -9031,7 +9465,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.ReviewReportDTO": {
+        "v1dto.ReviewReportDTO": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -9058,7 +9492,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.ShippingFeeResponseDTO": {
+        "v1dto.ShippingFeeResponseDTO": {
             "type": "object",
             "properties": {
                 "provider": {
@@ -9069,7 +9503,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.ShippingResponseDTO": {
+        "v1dto.ShippingResponseDTO": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -9099,7 +9533,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.SubmitReturnShippingInput": {
+        "v1dto.SubmitReturnShippingInput": {
             "type": "object",
             "required": [
                 "shipping_code",
@@ -9122,7 +9556,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.SyncActiveShippingStatsDTO": {
+        "v1dto.SyncActiveShippingStatsDTO": {
             "type": "object",
             "properties": {
                 "delivered_count": {
@@ -9142,7 +9576,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.SyncTrackingResponseDTO": {
+        "v1dto.SyncTrackingResponseDTO": {
             "type": "object",
             "properties": {
                 "current_status": {
@@ -9175,12 +9609,12 @@ const docTemplate = `{
                 "timeline": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/goshop_internal_dto_v1.TrackingEventDTO"
+                        "$ref": "#/definitions/v1dto.TrackingEventDTO"
                     }
                 }
             }
         },
-        "goshop_internal_dto_v1.ToggleHelpfulResponseDTO": {
+        "v1dto.ToggleHelpfulResponseDTO": {
             "type": "object",
             "properties": {
                 "helpful_count": {
@@ -9193,7 +9627,36 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.TrackingEventDTO": {
+        "v1dto.TopProductDTO": {
+            "type": "object",
+            "properties": {
+                "category_name": {
+                    "type": "string"
+                },
+                "image_url": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "number"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "total_revenue": {
+                    "type": "number"
+                },
+                "total_units_sold": {
+                    "type": "integer"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "v1dto.TrackingEventDTO": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -9219,7 +9682,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.UnreadCountDTO": {
+        "v1dto.UnreadCountDTO": {
             "type": "object",
             "properties": {
                 "unread_count": {
@@ -9227,7 +9690,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.UpdateAddressInput": {
+        "v1dto.UpdateAddressInput": {
             "type": "object",
             "properties": {
                 "address": {
@@ -9268,7 +9731,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.UpdateBannerRequest": {
+        "v1dto.UpdateBannerRequest": {
             "type": "object",
             "properties": {
                 "end_at": {
@@ -9309,7 +9772,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.UpdateBannerStatusRequest": {
+        "v1dto.UpdateBannerStatusRequest": {
             "type": "object",
             "required": [
                 "is_active"
@@ -9320,7 +9783,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.UpdateCartItemQuantityInput": {
+        "v1dto.UpdateCartItemQuantityInput": {
             "type": "object",
             "required": [
                 "quantity"
@@ -9333,7 +9796,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.UpdateCategoryInput": {
+        "v1dto.UpdateCategoryInput": {
             "type": "object",
             "properties": {
                 "category_name": {
@@ -9354,7 +9817,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.UpdateCouponInput": {
+        "v1dto.UpdateCouponInput": {
             "type": "object",
             "properties": {
                 "clear_max_discount_amount": {
@@ -9398,7 +9861,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.UpdateOrderPaymentStatusInput": {
+        "v1dto.UpdateOrderPaymentStatusInput": {
             "type": "object",
             "required": [
                 "payment_status"
@@ -9425,7 +9888,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.UpdateOrderShippingInfoInput": {
+        "v1dto.UpdateOrderShippingInfoInput": {
             "type": "object",
             "properties": {
                 "note": {
@@ -9448,7 +9911,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.UpdateOrderStatusInput": {
+        "v1dto.UpdateOrderStatusInput": {
             "type": "object",
             "required": [
                 "status"
@@ -9467,7 +9930,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.UpdateProductRequest": {
+        "v1dto.UpdateProductRequest": {
             "type": "object",
             "properties": {
                 "category_uuid": {
@@ -9506,7 +9969,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.UpdateProfileInput": {
+        "v1dto.UpdateProfileInput": {
             "type": "object",
             "properties": {
                 "age": {
@@ -9523,7 +9986,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.UpdateReturnBankAccountInput": {
+        "v1dto.UpdateReturnBankAccountInput": {
             "type": "object",
             "required": [
                 "bank_account",
@@ -9548,7 +10011,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.UpdateReviewInput": {
+        "v1dto.UpdateReviewInput": {
             "type": "object",
             "required": [
                 "rating"
@@ -9569,7 +10032,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.UpdateReviewStatusInput": {
+        "v1dto.UpdateReviewStatusInput": {
             "type": "object",
             "required": [
                 "status"
@@ -9586,7 +10049,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.UpdateUserInput": {
+        "v1dto.UpdateUserInput": {
             "type": "object",
             "properties": {
                 "age": {
@@ -9615,7 +10078,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.UploadResponseDTO": {
+        "v1dto.UploadResponseDTO": {
             "type": "object",
             "properties": {
                 "file_name": {
@@ -9632,7 +10095,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.UserDTO": {
+        "v1dto.UserDTO": {
             "type": "object",
             "properties": {
                 "age": {
@@ -9658,7 +10121,7 @@ const docTemplate = `{
                 }
             }
         },
-        "goshop_internal_dto_v1.WardDTO": {
+        "v1dto.WardDTO": {
             "type": "object",
             "properties": {
                 "district_id": {
@@ -9669,90 +10132,6 @@ const docTemplate = `{
                 },
                 "ward_name": {
                     "type": "string"
-                }
-            }
-        },
-        "goshop_internal_utils.APIResponse": {
-            "type": "object",
-            "properties": {
-                "data": {},
-                "message": {
-                    "type": "string",
-                    "example": "Operation completed successfully"
-                },
-                "pagination": {
-                    "$ref": "#/definitions/goshop_internal_utils.Pagination"
-                },
-                "status": {
-                    "type": "string",
-                    "example": "success"
-                }
-            }
-        },
-        "goshop_internal_utils.ErrorCode": {
-            "type": "string",
-            "enum": [
-                "BAD_REQUEST",
-                "NOT_FOUND",
-                "CONFLICT",
-                "INTERNAL_SERVER_ERROR",
-                "UNAUTHORIZED",
-                "TOO_MANY_REQUESTS",
-                "FORBIDDEN",
-                "BAD_GATEWAY"
-            ],
-            "x-enum-varnames": [
-                "ErrCodeBadRequest",
-                "ErrCodeNotFound",
-                "ErrCodeConflict",
-                "ErrCodeInternal",
-                "ErrCodeUnauthorized",
-                "ErrCodeTooManyRequests",
-                "ErrCodeForbidden",
-                "ErrCodeBadGateway"
-            ]
-        },
-        "goshop_internal_utils.ErrorResponse": {
-            "type": "object",
-            "properties": {
-                "code": {
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorCode"
-                        }
-                    ],
-                    "example": "BAD_REQUEST"
-                },
-                "detail": {
-                    "type": "string",
-                    "example": "Detailed explanation"
-                },
-                "error": {
-                    "type": "string",
-                    "example": "Invalid input format"
-                }
-            }
-        },
-        "goshop_internal_utils.Pagination": {
-            "type": "object",
-            "properties": {
-                "has_next": {
-                    "type": "boolean"
-                },
-                "has_prev": {
-                    "type": "boolean"
-                },
-                "limit": {
-                    "type": "integer"
-                },
-                "page": {
-                    "type": "integer"
-                },
-                "total_pages": {
-                    "type": "integer"
-                },
-                "total_records": {
-                    "type": "integer"
                 }
             }
         }

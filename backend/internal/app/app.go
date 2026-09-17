@@ -114,6 +114,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		NewAuthModule(ctx, tokenService, cacheRedisService, mailService, rabbitmqService, cfg.StorefrontURL),
 		NewUploadModule(ctx),
 		NewBannerModule(ctx, cacheRedisService),
+		NewAnalyticsModule(ctx),
 	}
 
 	routes.RegisterRoutes(r, tokenService, cacheRedisService, getModuleRoutes(modules), getAdminModuleRoutes(modules))
