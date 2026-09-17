@@ -32,7 +32,7 @@ func NewAnalyticsHandler(service v1service.AnalyticsService) *AnalyticsHandler {
 // @Failure      401 {object} utils.ErrorResponse
 // @Failure      403 {object} utils.ErrorResponse
 // @Failure      500 {object} utils.ErrorResponse
-// @Router       /api/v1/admin/analytics/overview [get]
+// @Router       /admin/analytics/overview [get]
 func (h *AnalyticsHandler) GetOverview(ctx *gin.Context) {
 	stats, err := h.service.GetOverview(ctx.Request.Context())
 	if err != nil {
@@ -56,7 +56,7 @@ func (h *AnalyticsHandler) GetOverview(ctx *gin.Context) {
 // @Success      200 {object} utils.APIResponse{data=[]v1dto.RevenueChartPointDTO}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      500 {object} utils.ErrorResponse
-// @Router       /api/v1/admin/analytics/revenue-chart [get]
+// @Router       /admin/analytics/revenue-chart [get]
 func (h *AnalyticsHandler) GetRevenueChart(ctx *gin.Context) {
 	var query v1dto.RevenueChartQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
@@ -84,7 +84,7 @@ func (h *AnalyticsHandler) GetRevenueChart(ctx *gin.Context) {
 // @Success      200 {object} utils.APIResponse{data=[]v1dto.RecentOrderDTO}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      500 {object} utils.ErrorResponse
-// @Router       /api/v1/admin/analytics/recent-orders [get]
+// @Router       /admin/analytics/recent-orders [get]
 func (h *AnalyticsHandler) GetRecentOrders(ctx *gin.Context) {
 	var query v1dto.RecentOrdersQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
@@ -113,7 +113,7 @@ func (h *AnalyticsHandler) GetRecentOrders(ctx *gin.Context) {
 // @Success      200 {object} utils.APIResponse{data=[]v1dto.TopProductDTO}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      500 {object} utils.ErrorResponse
-// @Router       /api/v1/admin/analytics/top-products [get]
+// @Router       /admin/analytics/top-products [get]
 func (h *AnalyticsHandler) GetTopProducts(ctx *gin.Context) {
 	var query v1dto.TopProductsQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {

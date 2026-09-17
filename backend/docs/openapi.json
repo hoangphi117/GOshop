@@ -404,6 +404,333 @@
                 }
             }
         },
+        "/admin/analytics/overview": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Get 30-day KPI cards (revenue, orders, new customers, pending orders) with growth comparison",
+                "tags": [
+                    "Admin - Analytics"
+                ],
+                "summary": "Get analytics overview statistics",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "allOf": [
+                                        {
+                                            "$ref": "#/components/schemas/goshop_internal_utils.APIResponse"
+                                        },
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/goshop_internal_dto_v1.OverviewStatsDTO"
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/analytics/recent-orders": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Retrieve the latest N orders with basic customer info",
+                "tags": [
+                    "Admin - Analytics"
+                ],
+                "summary": "Get recent orders for dashboard",
+                "parameters": [
+                    {
+                        "description": "Max orders to return (1-50)",
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 5
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "allOf": [
+                                        {
+                                            "$ref": "#/components/schemas/goshop_internal_utils.APIResponse"
+                                        },
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/components/schemas/goshop_internal_dto_v1.RecentOrderDTO"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/analytics/revenue-chart": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Get historical revenue and order count points aggregated by daily or monthly",
+                "tags": [
+                    "Admin - Analytics"
+                ],
+                "summary": "Get revenue chart data",
+                "parameters": [
+                    {
+                        "description": "Aggregation period: daily or monthly",
+                        "name": "period",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "daily",
+                                "monthly"
+                            ],
+                            "default": "daily"
+                        }
+                    },
+                    {
+                        "description": "Number of days (for daily)",
+                        "name": "days",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 30
+                        }
+                    },
+                    {
+                        "description": "Number of months (for monthly)",
+                        "name": "months",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 12
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "allOf": [
+                                        {
+                                            "$ref": "#/components/schemas/goshop_internal_utils.APIResponse"
+                                        },
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/components/schemas/goshop_internal_dto_v1.RevenueChartPointDTO"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/analytics/top-products": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Get the top best-selling products by quantity and revenue over the last N days",
+                "tags": [
+                    "Admin - Analytics"
+                ],
+                "summary": "Get top selling products",
+                "parameters": [
+                    {
+                        "description": "Time window in days",
+                        "name": "days",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 30
+                        }
+                    },
+                    {
+                        "description": "Max items to return (1-50)",
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 5
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "allOf": [
+                                        {
+                                            "$ref": "#/components/schemas/goshop_internal_utils.APIResponse"
+                                        },
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/components/schemas/goshop_internal_dto_v1.TopProductDTO"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/admin/banners": {
             "get": {
                 "security": [
@@ -9914,6 +10241,35 @@
                     }
                 }
             },
+            "goshop_internal_dto_v1.OverviewStatsDTO": {
+                "type": "object",
+                "properties": {
+                    "customer_growth": {
+                        "description": "% vs previous 30 days",
+                        "type": "number"
+                    },
+                    "new_customers": {
+                        "type": "integer"
+                    },
+                    "order_growth": {
+                        "description": "% vs previous 30 days",
+                        "type": "number"
+                    },
+                    "pending_orders": {
+                        "type": "integer"
+                    },
+                    "revenue_growth": {
+                        "description": "% vs previous 30 days",
+                        "type": "number"
+                    },
+                    "total_orders": {
+                        "type": "integer"
+                    },
+                    "total_revenue": {
+                        "type": "number"
+                    }
+                }
+            },
             "goshop_internal_dto_v1.PaymentIntentDTO": {
                 "type": "object",
                 "properties": {
@@ -10089,6 +10445,38 @@
                     }
                 }
             },
+            "goshop_internal_dto_v1.RecentOrderDTO": {
+                "type": "object",
+                "properties": {
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "customer_email": {
+                        "type": "string"
+                    },
+                    "customer_name": {
+                        "type": "string"
+                    },
+                    "order_number": {
+                        "type": "string"
+                    },
+                    "payment_method": {
+                        "type": "integer"
+                    },
+                    "payment_status": {
+                        "type": "integer"
+                    },
+                    "status": {
+                        "type": "integer"
+                    },
+                    "total_amount": {
+                        "type": "number"
+                    },
+                    "uuid": {
+                        "type": "string"
+                    }
+                }
+            },
             "goshop_internal_dto_v1.RefreshTokenInput": {
                 "type": "object",
                 "properties": {
@@ -10200,6 +10588,20 @@
                     },
                     "token": {
                         "type": "string"
+                    }
+                }
+            },
+            "goshop_internal_dto_v1.RevenueChartPointDTO": {
+                "type": "object",
+                "properties": {
+                    "date": {
+                        "type": "string"
+                    },
+                    "order_count": {
+                        "type": "integer"
+                    },
+                    "revenue": {
+                        "type": "number"
                     }
                 }
             },
@@ -10418,6 +10820,35 @@
                     "voted": {
                         "description": "true: đã vote, false: đã hủy vote",
                         "type": "boolean"
+                    }
+                }
+            },
+            "goshop_internal_dto_v1.TopProductDTO": {
+                "type": "object",
+                "properties": {
+                    "category_name": {
+                        "type": "string"
+                    },
+                    "image_url": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "price": {
+                        "type": "number"
+                    },
+                    "slug": {
+                        "type": "string"
+                    },
+                    "total_revenue": {
+                        "type": "number"
+                    },
+                    "total_units_sold": {
+                        "type": "integer"
+                    },
+                    "uuid": {
+                        "type": "string"
                     }
                 }
             },

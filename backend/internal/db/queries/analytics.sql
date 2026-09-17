@@ -1,76 +1,86 @@
 -- name: GetOverviewStats :one
-WITH current_orders AS (
+WITH order_stats AS (
     SELECT
-        COALESCE(SUM(order_total_amount), 0)::numeric(14,2) AS revenue,
-        COUNT(order_id)::bigint AS order_count
-    FROM orders
-    WHERE order_status IN (2, 3, 4) -- Confirmed, Shipped, Delivered
-      AND order_created_at >= NOW() - INTERVAL '30 days'
-),
-previous_orders AS (
-    SELECT
-        COALESCE(SUM(order_total_amount), 0)::numeric(14,2) AS prev_revenue,
-        COUNT(order_id)::bigint AS prev_order_count
+        COALESCE(SUM(order_total_amount) FILTER (
+            WHERE order_created_at >= NOW() - INTERVAL '30 days'
+        ), 0)::numeric(14,2) AS revenue,
+        COUNT(order_id) FILTER (
+            WHERE order_created_at >= NOW() - INTERVAL '30 days'
+        )::bigint AS order_count,
+        COALESCE(SUM(order_total_amount) FILTER (
+            WHERE order_created_at >= NOW() - INTERVAL '60 days'
+              AND order_created_at < NOW() - INTERVAL '30 days'
+        ), 0)::numeric(14,2) AS prev_revenue,
+        COUNT(order_id) FILTER (
+            WHERE order_created_at >= NOW() - INTERVAL '60 days'
+              AND order_created_at < NOW() - INTERVAL '30 days'
+        )::bigint AS prev_order_count
     FROM orders
     WHERE order_status IN (2, 3, 4)
       AND order_created_at >= NOW() - INTERVAL '60 days'
-      AND order_created_at < NOW() - INTERVAL '30 days'
 ),
 pending_orders AS (
     SELECT COUNT(order_id)::bigint AS pending_count
     FROM orders
-    WHERE order_status = 1 -- Pending
+    WHERE order_status = 1
 ),
-current_customers AS (
-    SELECT COUNT(user_id)::bigint AS new_customers
-    FROM users
-    WHERE user_level = 3 -- Member
-      AND user_deleted_at IS NULL
-      AND user_created_at >= NOW() - INTERVAL '30 days'
-),
-previous_customers AS (
-    SELECT COUNT(user_id)::bigint AS prev_new_customers
+customer_stats AS (
+    SELECT
+        COUNT(user_id) FILTER (
+            WHERE user_created_at >= NOW() - INTERVAL '30 days'
+        )::bigint AS new_customers,
+        COUNT(user_id) FILTER (
+            WHERE user_created_at >= NOW() - INTERVAL '60 days'
+              AND user_created_at < NOW() - INTERVAL '30 days'
+        )::bigint AS prev_new_customers
     FROM users
     WHERE user_level = 3
       AND user_deleted_at IS NULL
       AND user_created_at >= NOW() - INTERVAL '60 days'
-      AND user_created_at < NOW() - INTERVAL '30 days'
 )
 SELECT
-    c.revenue,
-    c.order_count,
-    p.prev_revenue,
-    p.prev_order_count,
+    o.revenue,
+    o.order_count,
+    o.prev_revenue,
+    o.prev_order_count,
     po.pending_count,
-    cc.new_customers,
-    pc.prev_new_customers
-FROM current_orders c
-CROSS JOIN previous_orders p
+    c.new_customers,
+    c.prev_new_customers
+FROM order_stats o
 CROSS JOIN pending_orders po
-CROSS JOIN current_customers cc
-CROSS JOIN previous_customers pc;
+CROSS JOIN customer_stats c;
 
 -- name: GetRevenueDailyChart :many
 SELECT
-    date_trunc('day', order_created_at)::timestamptz AS date,
-    COALESCE(SUM(order_total_amount), 0)::numeric(14,2) AS total_revenue,
-    COUNT(order_id)::bigint AS total_orders
-FROM orders
-WHERE order_status IN (2, 3, 4)
-  AND order_created_at >= NOW() - (sqlc.arg('days')::int * INTERVAL '1 day')
-GROUP BY date_trunc('day', order_created_at)
-ORDER BY date ASC;
+    gs.day::timestamptz AS date,
+    COALESCE(SUM(o.order_total_amount), 0)::numeric(14,2) AS total_revenue,
+    COUNT(o.order_id)::bigint AS total_orders
+FROM generate_series(
+    date_trunc('day', NOW() - ((sqlc.arg('days')::int - 1) * INTERVAL '1 day')),
+    date_trunc('day', NOW()),
+    INTERVAL '1 day'
+) AS gs(day)
+LEFT JOIN orders o
+    ON date_trunc('day', o.order_created_at) = gs.day
+   AND o.order_status IN (2, 3, 4)
+GROUP BY gs.day
+ORDER BY gs.day ASC;
 
 -- name: GetRevenueMonthlyChart :many
 SELECT
-    date_trunc('month', order_created_at)::timestamptz AS month,
-    COALESCE(SUM(order_total_amount), 0)::numeric(14,2) AS total_revenue,
-    COUNT(order_id)::bigint AS total_orders
-FROM orders
-WHERE order_status IN (2, 3, 4)
-  AND order_created_at >= NOW() - (sqlc.arg('months')::int * INTERVAL '1 month')
-GROUP BY date_trunc('month', order_created_at)
-ORDER BY month ASC;
+    gs.month::timestamptz AS month,
+    COALESCE(SUM(o.order_total_amount), 0)::numeric(14,2) AS total_revenue,
+    COUNT(o.order_id)::bigint AS total_orders
+FROM generate_series(
+    date_trunc('month', NOW() - ((sqlc.arg('months')::int - 1) * INTERVAL '1 month')),
+    date_trunc('month', NOW()),
+    INTERVAL '1 month'
+) AS gs(month)
+LEFT JOIN orders o
+    ON date_trunc('month', o.order_created_at) = gs.month
+   AND o.order_status IN (2, 3, 4)
+GROUP BY gs.month
+ORDER BY gs.month ASC;
 
 -- name: GetRecentOrders :many
 SELECT
