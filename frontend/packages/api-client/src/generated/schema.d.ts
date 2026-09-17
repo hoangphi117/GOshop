@@ -317,6 +317,266 @@ export interface paths {
         };
         trace?: never;
     };
+    "/admin/analytics/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get analytics overview statistics
+         * @description Get 30-day KPI cards (revenue, orders, new customers, pending orders) with growth comparison
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
+                            data?: components["schemas"]["goshop_internal_dto_v1.OverviewStatsDTO"];
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/analytics/recent-orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get recent orders for dashboard
+         * @description Retrieve the latest N orders with basic customer info
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Max orders to return (1-50) */
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
+                            data?: components["schemas"]["goshop_internal_dto_v1.RecentOrderDTO"][];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/analytics/revenue-chart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get revenue chart data
+         * @description Get historical revenue and order count points aggregated by daily or monthly
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Aggregation period: daily or monthly */
+                    period?: "daily" | "monthly";
+                    /** @description Number of days (for daily) */
+                    days?: number;
+                    /** @description Number of months (for monthly) */
+                    months?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
+                            data?: components["schemas"]["goshop_internal_dto_v1.RevenueChartPointDTO"][];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/analytics/top-products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get top selling products
+         * @description Get the top best-selling products by quantity and revenue over the last N days
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Time window in days */
+                    days?: number;
+                    /** @description Max items to return (1-50) */
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
+                            data?: components["schemas"]["goshop_internal_dto_v1.TopProductDTO"][];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/banners": {
         parameters: {
             query?: never;
@@ -7524,6 +7784,18 @@ export interface components {
             order_number?: string;
             order_uuid?: string;
         };
+        "goshop_internal_dto_v1.OverviewStatsDTO": {
+            /** @description % vs previous 30 days */
+            customer_growth?: number;
+            new_customers?: number;
+            /** @description % vs previous 30 days */
+            order_growth?: number;
+            pending_orders?: number;
+            /** @description % vs previous 30 days */
+            revenue_growth?: number;
+            total_orders?: number;
+            total_revenue?: number;
+        };
         "goshop_internal_dto_v1.PaymentIntentDTO": {
             amount?: number;
             created_at?: string;
@@ -7583,6 +7855,17 @@ export interface components {
             province_id?: number;
             province_name?: string;
         };
+        "goshop_internal_dto_v1.RecentOrderDTO": {
+            created_at?: string;
+            customer_email?: string;
+            customer_name?: string;
+            order_number?: string;
+            payment_method?: number;
+            payment_status?: number;
+            status?: number;
+            total_amount?: number;
+            uuid?: string;
+        };
         "goshop_internal_dto_v1.RefreshTokenInput": {
             refresh_token?: string;
         };
@@ -7611,6 +7894,11 @@ export interface components {
         "goshop_internal_dto_v1.ResetPasswordInput": {
             new_password: string;
             token: string;
+        };
+        "goshop_internal_dto_v1.RevenueChartPointDTO": {
+            date?: string;
+            order_count?: number;
+            revenue?: number;
         };
         "goshop_internal_dto_v1.ReviewDTO": {
             can_edit?: boolean;
@@ -7684,6 +7972,16 @@ export interface components {
             helpful_count?: number;
             /** @description true: đã vote, false: đã hủy vote */
             voted?: boolean;
+        };
+        "goshop_internal_dto_v1.TopProductDTO": {
+            category_name?: string;
+            image_url?: string;
+            name?: string;
+            price?: number;
+            slug?: string;
+            total_revenue?: number;
+            total_units_sold?: number;
+            uuid?: string;
         };
         "goshop_internal_dto_v1.TrackingEventDTO": {
             created_at?: string;
