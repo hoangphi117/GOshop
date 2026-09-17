@@ -23,8 +23,12 @@ INSERT INTO payment_transactions (
     pt_provider_url,
     pt_amount, 
     pt_currency, 
-    pt_status
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    pt_status,
+    pt_paid_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9,
+    CASE WHEN $9 = 2 THEN now() ELSE NULL END
+)
 RETURNING pt_id, pt_uuid, pt_order_id, pt_idempotency_key, pt_provider, pt_txn_ref, pt_provider_txn_id, pt_provider_url, pt_amount, pt_currency, pt_status, pt_refund_of, pt_refund_amount, pt_paid_at, pt_expired_at, pt_metadata, pt_created_at, pt_updated_at
 `
 

@@ -115,20 +115,21 @@ func (q *Queries) GetActiveShippedOrders(ctx context.Context, limit int32) ([]Or
 }
 
 const getOrderByShippingCode = `-- name: GetOrderByShippingCode :one
-SELECT order_id, order_uuid, order_number, order_status, order_payment_method, order_payment_status, order_shipping_code
+SELECT order_id, order_uuid, order_number, order_status, order_payment_method, order_payment_status, order_shipping_code, order_total_amount
 FROM orders
 WHERE order_shipping_code = $1
 LIMIT 1
 `
 
 type GetOrderByShippingCodeRow struct {
-	OrderID            int32     `json:"order_id"`
-	OrderUuid          uuid.UUID `json:"order_uuid"`
-	OrderNumber        string    `json:"order_number"`
-	OrderStatus        int32     `json:"order_status"`
-	OrderPaymentMethod int32     `json:"order_payment_method"`
-	OrderPaymentStatus int32     `json:"order_payment_status"`
-	OrderShippingCode  *string   `json:"order_shipping_code"`
+	OrderID            int32          `json:"order_id"`
+	OrderUuid          uuid.UUID      `json:"order_uuid"`
+	OrderNumber        string         `json:"order_number"`
+	OrderStatus        int32          `json:"order_status"`
+	OrderPaymentMethod int32          `json:"order_payment_method"`
+	OrderPaymentStatus int32          `json:"order_payment_status"`
+	OrderShippingCode  *string        `json:"order_shipping_code"`
+	OrderTotalAmount   pgtype.Numeric `json:"order_total_amount"`
 }
 
 func (q *Queries) GetOrderByShippingCode(ctx context.Context, orderShippingCode *string) (GetOrderByShippingCodeRow, error) {
@@ -142,6 +143,7 @@ func (q *Queries) GetOrderByShippingCode(ctx context.Context, orderShippingCode 
 		&i.OrderPaymentMethod,
 		&i.OrderPaymentStatus,
 		&i.OrderShippingCode,
+		&i.OrderTotalAmount,
 	)
 	return i, err
 }

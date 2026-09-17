@@ -8,8 +8,12 @@ INSERT INTO payment_transactions (
     pt_provider_url,
     pt_amount, 
     pt_currency, 
-    pt_status
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    pt_status,
+    pt_paid_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9,
+    CASE WHEN $9 = 2 THEN now() ELSE NULL END
+)
 RETURNING *;
 
 -- name: GetPaymentByIdempotencyKey :one

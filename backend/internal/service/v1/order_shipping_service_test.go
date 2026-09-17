@@ -29,6 +29,7 @@ type testShippingServiceDeps struct {
 	orderRepo           repository.OrderRepository
 	orderItemRepo       repository.OrderItemRepository
 	trackingRepo        repository.TrackingRepository
+	paymentRepo         repository.PaymentRepository
 	shippingFactory     *shipping.ShippingFactory
 	webhookRepo         repository.WebhookEventRepository
 	notificationService v1service.NotificationService
@@ -54,6 +55,10 @@ func newTestShippingService(deps testShippingServiceDeps) v1service.OrderShippin
 	if trackingRepo == nil {
 		trackingRepo = &testutils.MockTrackingRepository{}
 	}
+	paymentRepo := deps.paymentRepo
+	if paymentRepo == nil {
+		paymentRepo = &testutils.MockPaymentRepository{}
+	}
 	webhookRepo := deps.webhookRepo
 	if webhookRepo == nil {
 		webhookRepo = &testutils.MockWebhookEventRepository{}
@@ -72,6 +77,7 @@ func newTestShippingService(deps testShippingServiceDeps) v1service.OrderShippin
 		orderRepo,
 		orderItemRepo,
 		trackingRepo,
+		paymentRepo,
 		deps.shippingFactory,
 		webhookRepo,
 		notifService,
@@ -594,19 +600,23 @@ func TestOrderService_HandleShippingWebhook(t *testing.T) {
 		mockOrderRepo := &testutils.MockOrderRepository{
 			GetByShippingCodeFunc: func(ctx context.Context, sc string) (sqlc.GetOrderByShippingCodeRow, error) {
 				return sqlc.GetOrderByShippingCodeRow{
-					OrderID:           10,
-					OrderUuid:         orderUUID,
-					OrderNumber:       "ORD-2026-001",
-					OrderStatus:       v1service.OrderStatusShipped,
-					OrderShippingCode: &shippingCode,
+					OrderID:            10,
+					OrderUuid:          orderUUID,
+					OrderNumber:        "ORD-2026-001",
+					OrderStatus:        v1service.OrderStatusShipped,
+					OrderPaymentMethod: v1service.OrderPaymentMethodCOD,
+					OrderPaymentStatus: v1service.OrderPaymentStatusUnpaid,
+					OrderTotalAmount:   utils.FloatToNumeric(250000),
+					OrderShippingCode:  &shippingCode,
 				}, nil
 			},
 			MarkDeliveredByShippingCodeFunc: func(ctx context.Context, tx pgx.Tx, sc string) (sqlc.Order, error) {
 				return sqlc.Order{
-					OrderID:     10,
-					OrderUserID: 1,
-					OrderUuid:   orderUUID,
-					OrderStatus: v1service.OrderStatusDelivered,
+					OrderID:            10,
+					OrderUserID:        1,
+					OrderUuid:          orderUUID,
+					OrderStatus:        v1service.OrderStatusDelivered,
+					OrderPaymentStatus: v1service.OrderPaymentStatusPaid,
 				}, nil
 			},
 		}
@@ -620,6 +630,18 @@ func TestOrderService_HandleShippingWebhook(t *testing.T) {
 			},
 		}
 
+		var paymentTransactionCreated bool
+		mockPaymentRepo := &testutils.MockPaymentRepository{
+			CreateFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.CreatePaymentTransactionParams) (sqlc.PaymentTransaction, error) {
+				paymentTransactionCreated = true
+				assert.Equal(t, int32(10), params.PtOrderID)
+				assert.Equal(t, "ghn_cod", params.PtProvider)
+				assert.Equal(t, v1service.PaymentStatusPaid, params.PtStatus)
+				assert.Equal(t, 250000.0, utils.NumericToFloat(params.PtAmount))
+				return sqlc.PaymentTransaction{PtID: 1}, nil
+			},
+		}
+
 		mockNotification := &testutils.MockNotificationService{
 			SendFunc: func(ctx context.Context, input v1dto.SendNotificationInput) error {
 				assert.Equal(t, "order_delivered", input.Type)
@@ -628,9 +650,10 @@ func TestOrderService_HandleShippingWebhook(t *testing.T) {
 		}
 
 		svc := newTestShippingService(testShippingServiceDeps{
-			orderRepo: mockOrderRepo,
-			trackingRepo: mockTrackingRepo,
-			webhookRepo: mockWebhookRepo,
+			orderRepo:           mockOrderRepo,
+			trackingRepo:        mockTrackingRepo,
+			paymentRepo:         mockPaymentRepo,
+			webhookRepo:         mockWebhookRepo,
 			notificationService: mockNotification,
 		})
 
@@ -638,6 +661,7 @@ func TestOrderService_HandleShippingWebhook(t *testing.T) {
 		require.NoError(t, err)
 		time.Sleep(25 * time.Millisecond)
 		assert.True(t, trackingInserted)
+		assert.True(t, paymentTransactionCreated)
 		assert.True(t, webhookMarkedProcessed)
 	})
 

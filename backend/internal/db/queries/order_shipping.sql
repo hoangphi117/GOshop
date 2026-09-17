@@ -11,7 +11,7 @@ WHERE order_uuid = sqlc.arg(order_uuid)
 RETURNING *;
 
 -- name: GetOrderByShippingCode :one
-SELECT order_id, order_uuid, order_number, order_status, order_payment_method, order_payment_status, order_shipping_code
+SELECT order_id, order_uuid, order_number, order_status, order_payment_method, order_payment_status, order_shipping_code, order_total_amount
 FROM orders
 WHERE order_shipping_code = $1
 LIMIT 1;

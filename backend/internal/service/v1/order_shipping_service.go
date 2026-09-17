@@ -20,6 +20,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/redis/go-redis/v9"
@@ -30,6 +31,7 @@ type orderShippingService struct {
 	orderRepo           repository.OrderRepository
 	orderItemRepo       repository.OrderItemRepository
 	trackingRepo        repository.TrackingRepository
+	paymentRepo         repository.PaymentRepository
 	shippingFactory     *shipping.ShippingFactory
 	webhookRepo         repository.WebhookEventRepository
 	notificationService NotificationService
@@ -43,6 +45,7 @@ func NewOrderShippingService(
 	orderRepo repository.OrderRepository,
 	orderItemRepo repository.OrderItemRepository,
 	trackingRepo repository.TrackingRepository,
+	paymentRepo repository.PaymentRepository,
 	shippingFactory *shipping.ShippingFactory,
 	webhookRepo repository.WebhookEventRepository,
 	notificationService NotificationService,
@@ -59,6 +62,7 @@ func NewOrderShippingService(
 		orderRepo:           orderRepo,
 		orderItemRepo:       orderItemRepo,
 		trackingRepo:        trackingRepo,
+		paymentRepo:         paymentRepo,
 		shippingFactory:     shippingFactory,
 		webhookRepo:         webhookRepo,
 		notificationService: notificationService,
@@ -484,6 +488,34 @@ func (s *orderShippingService) HandleShippingWebhook(ctx context.Context, rawBod
 			updatedOrder, err = s.orderRepo.MarkDeliveredByShippingCode(txCtx, tx, payload.OrderCode)
 			if err != nil {
 				return err
+			}
+
+			// If COD order (PaymentMethod == 1), create a successful payment transaction record for financial ledger
+			if order.OrderPaymentMethod == OrderPaymentMethodCOD && s.paymentRepo != nil {
+				codTxnRef := fmt.Sprintf("COD_%s", payload.OrderCode)
+				codIdempotencyKey := fmt.Sprintf("cod_delivered_%d_%s", order.OrderID, payload.OrderCode)
+				_, err = s.paymentRepo.Create(txCtx, tx, sqlc.CreatePaymentTransactionParams{
+					PtOrderID:        order.OrderID,
+					PtIdempotencyKey: codIdempotencyKey,
+					PtProvider:       "ghn_cod",
+					PtTxnRef:         &codTxnRef,
+					PtProviderTxnID:  &payload.OrderCode,
+					PtProviderUrl:    nil,
+					PtAmount:         order.OrderTotalAmount,
+					PtCurrency:       "VND",
+					PtStatus:         PaymentStatusPaid, // 2: Paid
+				})
+				if err != nil {
+					var pgErr *pgconn.PgError
+					if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+						logger.Log.Info().
+							Str("order_number", order.OrderNumber).
+							Str("code", payload.OrderCode).
+							Msg("COD payment transaction already exists, skipping duplicate insert")
+					} else {
+						return err
+					}
+				}
 			}
 
 			if s.trackingRepo != nil {

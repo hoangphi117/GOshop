@@ -92,6 +92,7 @@ func NewOrderModule(ctx *ModuleContext, wsHub ws.Hub, rabbitmqService rabbitmq.R
 		orderRepo,
 		orderItemRepo,
 		trackingRepo,
+		paymentRepo,
 		shippingFactory,
 		webhookRepo,
 		notificationService,
