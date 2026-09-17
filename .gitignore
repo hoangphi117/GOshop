@@ -74,3 +74,5 @@ coverage.*
 .codex/
 .gemini/
 .claude/
+
+.gitnexus/
