@@ -211,3 +211,11 @@ type BannerRepository interface {
 	Restore(ctx context.Context, bannerUUID uuid.UUID) (sqlc.Banner, error)
 	Trash(ctx context.Context, bannerUUID uuid.UUID) error
 }
+
+type AnalyticsRepository interface {
+	GetOverview(ctx context.Context) (sqlc.GetOverviewStatsRow, error)
+	GetRevenueDaily(ctx context.Context, days int32) ([]sqlc.GetRevenueDailyChartRow, error)
+	GetRevenueMonthly(ctx context.Context, months int32) ([]sqlc.GetRevenueMonthlyChartRow, error)
+	GetRecentOrders(ctx context.Context, limit int32) ([]sqlc.GetRecentOrdersRow, error)
+	GetTopSellingProducts(ctx context.Context, days, limit int32) ([]sqlc.GetTopSellingProductsRow, error)
+}
