@@ -1313,4 +1313,48 @@ func (m *MockNotificationRepository) Delete(ctx context.Context, notifUUID uuid.
 	return nil
 }
 
+type MockAnalyticsRepository struct {
+	GetOverviewFunc           func(ctx context.Context) (sqlc.GetOverviewStatsRow, error)
+	GetRevenueDailyFunc       func(ctx context.Context, days int32) ([]sqlc.GetRevenueDailyChartRow, error)
+	GetRevenueMonthlyFunc     func(ctx context.Context, months int32) ([]sqlc.GetRevenueMonthlyChartRow, error)
+	GetRecentOrdersFunc       func(ctx context.Context, limit int32) ([]sqlc.GetRecentOrdersRow, error)
+	GetTopSellingProductsFunc func(ctx context.Context, days, limit int32) ([]sqlc.GetTopSellingProductsRow, error)
+}
+
+func (m *MockAnalyticsRepository) GetOverview(ctx context.Context) (sqlc.GetOverviewStatsRow, error) {
+	if m.GetOverviewFunc != nil {
+		return m.GetOverviewFunc(ctx)
+	}
+	return sqlc.GetOverviewStatsRow{}, nil
+}
+
+func (m *MockAnalyticsRepository) GetRevenueDaily(ctx context.Context, days int32) ([]sqlc.GetRevenueDailyChartRow, error) {
+	if m.GetRevenueDailyFunc != nil {
+		return m.GetRevenueDailyFunc(ctx, days)
+	}
+	return nil, nil
+}
+
+func (m *MockAnalyticsRepository) GetRevenueMonthly(ctx context.Context, months int32) ([]sqlc.GetRevenueMonthlyChartRow, error) {
+	if m.GetRevenueMonthlyFunc != nil {
+		return m.GetRevenueMonthlyFunc(ctx, months)
+	}
+	return nil, nil
+}
+
+func (m *MockAnalyticsRepository) GetRecentOrders(ctx context.Context, limit int32) ([]sqlc.GetRecentOrdersRow, error) {
+	if m.GetRecentOrdersFunc != nil {
+		return m.GetRecentOrdersFunc(ctx, limit)
+	}
+	return nil, nil
+}
+
+func (m *MockAnalyticsRepository) GetTopSellingProducts(ctx context.Context, days, limit int32) ([]sqlc.GetTopSellingProductsRow, error) {
+	if m.GetTopSellingProductsFunc != nil {
+		return m.GetTopSellingProductsFunc(ctx, days, limit)
+	}
+	return nil, nil
+}
+
+
 
