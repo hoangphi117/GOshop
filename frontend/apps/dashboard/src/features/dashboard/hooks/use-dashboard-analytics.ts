@@ -1,7 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type {
+  LowStockProductResponse,
+  LowStockProductsQueryParams,
+  OrderStatusDistributionQueryParams,
+  OrderStatusDistributionResponse,
   OverviewStats,
+  PaymentMethodBreakdownQueryParams,
+  PaymentMethodBreakdownResponse,
   RecentOrder,
   RecentOrdersQueryParams,
   RevenueChartPoint,
@@ -86,3 +92,69 @@ export function useTopProducts(params: TopProductsQueryParams = {}) {
     staleTime: 1000 * 60 * 5,
   })
 }
+
+export function useOrderStatusDistribution(params: OrderStatusDistributionQueryParams = {}) {
+  return useQuery({
+    queryKey: ['analyticsOrderStatusDistribution', params],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/admin/analytics/order-status-distribution', {
+        params: {
+          query: {
+            days: params.days,
+            from_date: params.from_date,
+            to_date: params.to_date,
+          },
+        },
+      })
+      if (error) {
+        throw new Error((error as { error?: string })?.error || 'Failed to fetch order status distribution')
+      }
+      return data?.data as OrderStatusDistributionResponse
+    },
+    staleTime: 1000 * 60 * 2,
+  })
+}
+
+export function useLowStockAlerts(params: LowStockProductsQueryParams = {}) {
+  return useQuery({
+    queryKey: ['analyticsLowStockAlerts', params],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/admin/analytics/low-stock-alerts', {
+        params: {
+          query: {
+            threshold: params.threshold,
+            limit: params.limit,
+          },
+        },
+      })
+      if (error) {
+        throw new Error((error as { error?: string })?.error || 'Failed to fetch low stock alerts')
+      }
+      return data?.data as LowStockProductResponse
+    },
+    staleTime: 1000 * 60 * 2,
+  })
+}
+
+export function usePaymentMethodBreakdown(params: PaymentMethodBreakdownQueryParams = {}) {
+  return useQuery({
+    queryKey: ['analyticsPaymentMethods', params],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/admin/analytics/payment-methods', {
+        params: {
+          query: {
+            days: params.days,
+            from_date: params.from_date,
+            to_date: params.to_date,
+          },
+        },
+      })
+      if (error) {
+        throw new Error((error as { error?: string })?.error || 'Failed to fetch payment method breakdown')
+      }
+      return data?.data as PaymentMethodBreakdownResponse
+    },
+    staleTime: 1000 * 60 * 5,
+  })
+}
+

@@ -1,11 +1,15 @@
+import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   Clock,
   DollarSign,
+  RefreshCw,
   ShoppingBag,
   TrendingDown,
   TrendingUp,
   Users,
 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import {
   Card,
   CardContent,
@@ -24,12 +28,34 @@ import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { formatCurrency } from '@/features/orders/order-utils'
 import { Analytics } from './components/analytics'
+import { LowStockAlertCard } from './components/low-stock-alert-card'
+import { OrderStatusChart } from './components/order-status-chart'
 import { Overview } from './components/overview'
+import { PaymentMethodChart } from './components/payment-method-chart'
 import { RecentSales } from './components/recent-sales'
 import { useAnalyticsOverview } from './hooks/use-dashboard-analytics'
 
 export function Dashboard() {
-  const { data: stats, isLoading } = useAnalyticsOverview()
+  const queryClient = useQueryClient()
+  const { data: stats, isLoading, isFetching } = useAnalyticsOverview()
+  const [lastUpdated, setLastUpdated] = useState<string>('Just now')
+
+  const handleRefresh = async () => {
+    await queryClient.invalidateQueries({
+      predicate: (query) =>
+        Array.isArray(query.queryKey) &&
+        typeof query.queryKey[0] === 'string' &&
+        query.queryKey[0].startsWith('analytics'),
+    })
+    const now = new Date()
+    setLastUpdated(
+      now.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      })
+    )
+  }
 
   return (
     <>
@@ -44,12 +70,27 @@ export function Dashboard() {
 
       {/* ===== Main ===== */}
       <Main>
-        <div className='mb-2 flex items-center justify-between space-y-2'>
+        <div className='mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
           <div>
             <h1 className='text-2xl font-bold tracking-tight'>Analytics Dashboard</h1>
             <p className='text-xs text-muted-foreground'>
               Real-time business performance & revenue metrics (rolling 30 days)
             </p>
+          </div>
+          <div className='flex items-center gap-2'>
+            <span className='text-xs text-muted-foreground hidden sm:inline-block'>
+              Last synced: <span className='font-medium text-foreground'>{lastUpdated}</span>
+            </span>
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={handleRefresh}
+              disabled={isFetching}
+              className='h-8 gap-1.5 text-xs'
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
+            </Button>
           </div>
         </div>
 
@@ -176,7 +217,7 @@ export function Dashboard() {
               </Card>
             </div>
 
-            {/* ===== Charts & Recent Sales Grid ===== */}
+            {/* ===== Row 1: Revenue Trends & Recent Orders ===== */}
             <div className='grid grid-cols-1 gap-4 lg:grid-cols-7'>
               <Card className='col-span-1 lg:col-span-4'>
                 <CardHeader>
@@ -199,6 +240,48 @@ export function Dashboard() {
                 </CardHeader>
                 <CardContent>
                   <RecentSales />
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* ===== Row 2: Order Fulfillment & Payment Gateways ===== */}
+            <div className='grid grid-cols-1 gap-4 lg:grid-cols-7'>
+              <Card className='col-span-1 lg:col-span-4'>
+                <CardHeader>
+                  <CardTitle>Order Status Distribution</CardTitle>
+                  <CardDescription>
+                    Breakdown of order volumes across pending, shipped, delivered, and cancelled states
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <OrderStatusChart />
+                </CardContent>
+              </Card>
+
+              <Card className='col-span-1 lg:col-span-3'>
+                <CardHeader>
+                  <CardTitle>Payment Methods</CardTitle>
+                  <CardDescription>
+                    Revenue contribution across COD, Bank Transfer, and E-Wallets
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <PaymentMethodChart />
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* ===== Row 3: Inventory Alerts ===== */}
+            <div className='grid grid-cols-1 gap-4 lg:grid-cols-7'>
+              <Card className='col-span-1 lg:col-span-7'>
+                <CardHeader>
+                  <CardTitle>Inventory Depletion Alerts</CardTitle>
+                  <CardDescription>
+                    Active warehouse alerts for low-stock and out-of-stock items
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <LowStockAlertCard />
                 </CardContent>
               </Card>
             </div>
@@ -257,3 +340,4 @@ const topNav = [
     disabled: true,
   },
 ]
+
