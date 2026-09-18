@@ -362,6 +362,171 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/analytics/low-stock-alerts": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Get list of products with inventory stock below or equal to the specified threshold",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Analytics"
+                ],
+                "summary": "Get low stock product alerts",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 5,
+                        "description": "Inventory threshold alert limit (default: 5)",
+                        "name": "threshold",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Max items to return (1-50, default: 10)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/goshop_internal_dto_v1.LowStockProductResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/analytics/order-status-distribution": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Get order counts, revenue, and percentages grouped by order status with optional date filtering",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Analytics"
+                ],
+                "summary": "Get order status distribution",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 30,
+                        "description": "Time window in days (default: 30)",
+                        "name": "days",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Start date (YYYY-MM-DD)",
+                        "name": "from_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End date (YYYY-MM-DD)",
+                        "name": "to_date",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/goshop_internal_dto_v1.OrderStatusDistributionResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/analytics/overview": {
             "get": {
                 "security": [
@@ -397,6 +562,91 @@ const docTemplate = `{
                                     }
                                 }
                             ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/analytics/payment-methods": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Get net revenue, order volume, and percentages categorized by payment method",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Analytics"
+                ],
+                "summary": "Get payment method breakdown",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 30,
+                        "description": "Time window in days (default: 30)",
+                        "name": "days",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Start date (YYYY-MM-DD)",
+                        "name": "from_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End date (YYYY-MM-DD)",
+                        "name": "to_date",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/goshop_internal_dto_v1.PaymentMethodBreakdownResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
                         }
                     },
                     "401": {
@@ -8722,6 +8972,56 @@ const docTemplate = `{
                 }
             }
         },
+        "goshop_internal_dto_v1.LowStockProductDTO": {
+            "type": "object",
+            "properties": {
+                "alert_level": {
+                    "description": "\"critical\" (stock \u003c= 0), \"warning\" (stock \u003c= threshold)",
+                    "type": "string"
+                },
+                "category_name": {
+                    "type": "string"
+                },
+                "image_url": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "number"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "stock": {
+                    "description": "Current available stock",
+                    "type": "integer"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "goshop_internal_dto_v1.LowStockProductResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/goshop_internal_dto_v1.LowStockProductDTO"
+                    }
+                },
+                "threshold": {
+                    "description": "Warning threshold used (e.g., 5)",
+                    "type": "integer"
+                },
+                "total_low": {
+                    "description": "Count of items below threshold",
+                    "type": "integer"
+                }
+            }
+        },
         "goshop_internal_dto_v1.MyReviewDTO": {
             "type": "object",
             "properties": {
@@ -8944,6 +9244,45 @@ const docTemplate = `{
                 }
             }
         },
+        "goshop_internal_dto_v1.OrderStatusDistributionItemDTO": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "description": "Number of orders in this status",
+                    "type": "integer"
+                },
+                "percentage": {
+                    "description": "Percentage of total orders (0.0 to 100.0)",
+                    "type": "number"
+                },
+                "status": {
+                    "description": "1: Pending, 2: Confirmed, 3: Shipped, 4: Delivered, 5: Cancelled, 6: Returned",
+                    "type": "integer"
+                },
+                "status_name": {
+                    "description": "e.g., \"Pending\", \"Delivered\", \"Cancelled\"",
+                    "type": "string"
+                },
+                "total_amount": {
+                    "description": "Total monetary value of orders in this status",
+                    "type": "number"
+                }
+            }
+        },
+        "goshop_internal_dto_v1.OrderStatusDistributionResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/goshop_internal_dto_v1.OrderStatusDistributionItemDTO"
+                    }
+                },
+                "total_orders": {
+                    "type": "integer"
+                }
+            }
+        },
         "goshop_internal_dto_v1.OrderTimelineResponseDTO": {
             "type": "object",
             "properties": {
@@ -9016,6 +9355,48 @@ const docTemplate = `{
                 },
                 "status": {
                     "type": "string"
+                }
+            }
+        },
+        "goshop_internal_dto_v1.PaymentMethodBreakdownItemDTO": {
+            "type": "object",
+            "properties": {
+                "method_name": {
+                    "description": "\"COD (Cash on Delivery)\", \"Bank Transfer\", \"E-Wallet\"",
+                    "type": "string"
+                },
+                "net_revenue": {
+                    "description": "Net revenue after refunds",
+                    "type": "number"
+                },
+                "order_count": {
+                    "description": "Total orders paid via this method",
+                    "type": "integer"
+                },
+                "payment_method": {
+                    "description": "1: COD, 2: Online / Bank Transfer, 3: E-Wallet",
+                    "type": "integer"
+                },
+                "percentage": {
+                    "description": "Revenue share percentage (0.0 to 100.0)",
+                    "type": "number"
+                }
+            }
+        },
+        "goshop_internal_dto_v1.PaymentMethodBreakdownResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/goshop_internal_dto_v1.PaymentMethodBreakdownItemDTO"
+                    }
+                },
+                "total_orders": {
+                    "type": "integer"
+                },
+                "total_revenue": {
+                    "type": "number"
                 }
             }
         },

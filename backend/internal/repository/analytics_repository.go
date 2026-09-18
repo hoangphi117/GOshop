@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"goshop/internal/db/sqlc"
+	"time"
 )
 
 type SqlAnalyticsRepository struct {
@@ -33,5 +34,25 @@ func (r *SqlAnalyticsRepository) GetTopSellingProducts(ctx context.Context, days
 	return r.db.GetTopSellingProducts(ctx, sqlc.GetTopSellingProductsParams{
 		Days:       days,
 		LimitCount: limit,
+	})
+}
+
+func (r *SqlAnalyticsRepository) GetOrderStatusDistribution(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetOrderStatusDistributionRow, error) {
+	return r.db.GetOrderStatusDistribution(ctx, sqlc.GetOrderStatusDistributionParams{
+		FromDate: fromDate,
+		ToDate:   toDate,
+	})
+}
+
+func (r *SqlAnalyticsRepository) GetLowStockProducts(ctx context.Context, threshold, limit int32) ([]sqlc.GetLowStockProductsRow, error) {
+	return r.db.GetLowStockProducts(ctx, sqlc.GetLowStockProductsParams{
+		Threshold: threshold,
+		Limit:     limit,
+	})
+}
+func (r *SqlAnalyticsRepository) GetPaymentMethodBreakdown(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetPaymentMethodBreakdownRow, error) {
+	return r.db.GetPaymentMethodBreakdown(ctx, sqlc.GetPaymentMethodBreakdownParams{
+		FromDate: fromDate,
+		ToDate:   toDate,
 	})
 }

@@ -13,6 +13,112 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const getLowStockProducts = `-- name: GetLowStockProducts :many
+SELECT 
+    p.product_id,
+    p.product_uuid,
+    p.product_name,
+    p.product_slug,
+    p.product_image_url,
+    p.product_stock,
+    p.product_price,
+    c.category_name
+FROM products p
+LEFT JOIN categories c ON p.product_category_id = c.category_id
+WHERE p.product_stock <= $1::int
+  AND p.product_status = 1
+ORDER BY p.product_stock ASC
+LIMIT $2::int
+`
+
+type GetLowStockProductsParams struct {
+	Threshold int32 `json:"threshold"`
+	Limit     int32 `json:"limit"`
+}
+
+type GetLowStockProductsRow struct {
+	ProductID       int32          `json:"product_id"`
+	ProductUuid     uuid.UUID      `json:"product_uuid"`
+	ProductName     string         `json:"product_name"`
+	ProductSlug     string         `json:"product_slug"`
+	ProductImageUrl *string        `json:"product_image_url"`
+	ProductStock    *int32         `json:"product_stock"`
+	ProductPrice    pgtype.Numeric `json:"product_price"`
+	CategoryName    *string        `json:"category_name"`
+}
+
+func (q *Queries) GetLowStockProducts(ctx context.Context, arg GetLowStockProductsParams) ([]GetLowStockProductsRow, error) {
+	rows, err := q.db.Query(ctx, getLowStockProducts, arg.Threshold, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetLowStockProductsRow{}
+	for rows.Next() {
+		var i GetLowStockProductsRow
+		if err := rows.Scan(
+			&i.ProductID,
+			&i.ProductUuid,
+			&i.ProductName,
+			&i.ProductSlug,
+			&i.ProductImageUrl,
+			&i.ProductStock,
+			&i.ProductPrice,
+			&i.CategoryName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getOrderStatusDistribution = `-- name: GetOrderStatusDistribution :many
+SELECT 
+    order_status,
+    COUNT(*)::bigint AS count,
+    COALESCE(SUM(order_total_amount), 0)::numeric(14,2) AS total_amount
+FROM orders
+WHERE order_created_at >= $1
+  AND order_created_at <= $2
+GROUP BY order_status
+ORDER BY order_status ASC
+`
+
+type GetOrderStatusDistributionParams struct {
+	FromDate time.Time `json:"from_date"`
+	ToDate   time.Time `json:"to_date"`
+}
+
+type GetOrderStatusDistributionRow struct {
+	OrderStatus int32          `json:"order_status"`
+	Count       int64          `json:"count"`
+	TotalAmount pgtype.Numeric `json:"total_amount"`
+}
+
+func (q *Queries) GetOrderStatusDistribution(ctx context.Context, arg GetOrderStatusDistributionParams) ([]GetOrderStatusDistributionRow, error) {
+	rows, err := q.db.Query(ctx, getOrderStatusDistribution, arg.FromDate, arg.ToDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetOrderStatusDistributionRow{}
+	for rows.Next() {
+		var i GetOrderStatusDistributionRow
+		if err := rows.Scan(&i.OrderStatus, &i.Count, &i.TotalAmount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getOverviewStats = `-- name: GetOverviewStats :one
 WITH paid_orders AS (
     SELECT
@@ -94,6 +200,50 @@ func (q *Queries) GetOverviewStats(ctx context.Context) (GetOverviewStatsRow, er
 		&i.PrevNewCustomers,
 	)
 	return i, err
+}
+
+const getPaymentMethodBreakdown = `-- name: GetPaymentMethodBreakdown :many
+SELECT 
+    order_payment_method,
+    COUNT(*)::bigint AS order_count,
+    COALESCE(SUM(order_total_amount - order_refunded_amount), 0)::numeric(14,2) AS net_revenue
+FROM orders
+WHERE order_payment_status IN (2, 3)
+  AND order_created_at >= $1
+  AND order_created_at <= $2
+GROUP BY order_payment_method
+ORDER BY net_revenue DESC
+`
+
+type GetPaymentMethodBreakdownParams struct {
+	FromDate time.Time `json:"from_date"`
+	ToDate   time.Time `json:"to_date"`
+}
+
+type GetPaymentMethodBreakdownRow struct {
+	OrderPaymentMethod int32          `json:"order_payment_method"`
+	OrderCount         int64          `json:"order_count"`
+	NetRevenue         pgtype.Numeric `json:"net_revenue"`
+}
+
+func (q *Queries) GetPaymentMethodBreakdown(ctx context.Context, arg GetPaymentMethodBreakdownParams) ([]GetPaymentMethodBreakdownRow, error) {
+	rows, err := q.db.Query(ctx, getPaymentMethodBreakdown, arg.FromDate, arg.ToDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetPaymentMethodBreakdownRow{}
+	for rows.Next() {
+		var i GetPaymentMethodBreakdownRow
+		if err := rows.Scan(&i.OrderPaymentMethod, &i.OrderCount, &i.NetRevenue); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getRecentOrders = `-- name: GetRecentOrders :many

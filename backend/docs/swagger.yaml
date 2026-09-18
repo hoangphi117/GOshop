@@ -693,6 +693,40 @@ definitions:
       refresh_token:
         type: string
     type: object
+  goshop_internal_dto_v1.LowStockProductDTO:
+    properties:
+      alert_level:
+        description: '"critical" (stock <= 0), "warning" (stock <= threshold)'
+        type: string
+      category_name:
+        type: string
+      image_url:
+        type: string
+      name:
+        type: string
+      price:
+        type: number
+      slug:
+        type: string
+      stock:
+        description: Current available stock
+        type: integer
+      uuid:
+        type: string
+    type: object
+  goshop_internal_dto_v1.LowStockProductResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/goshop_internal_dto_v1.LowStockProductDTO'
+        type: array
+      threshold:
+        description: Warning threshold used (e.g., 5)
+        type: integer
+      total_low:
+        description: Count of items below threshold
+        type: integer
+    type: object
   goshop_internal_dto_v1.MyReviewDTO:
     properties:
       can_edit:
@@ -840,6 +874,34 @@ definitions:
       video_url:
         type: string
     type: object
+  goshop_internal_dto_v1.OrderStatusDistributionItemDTO:
+    properties:
+      count:
+        description: Number of orders in this status
+        type: integer
+      percentage:
+        description: Percentage of total orders (0.0 to 100.0)
+        type: number
+      status:
+        description: '1: Pending, 2: Confirmed, 3: Shipped, 4: Delivered, 5: Cancelled,
+          6: Returned'
+        type: integer
+      status_name:
+        description: e.g., "Pending", "Delivered", "Cancelled"
+        type: string
+      total_amount:
+        description: Total monetary value of orders in this status
+        type: number
+    type: object
+  goshop_internal_dto_v1.OrderStatusDistributionResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/goshop_internal_dto_v1.OrderStatusDistributionItemDTO'
+        type: array
+      total_orders:
+        type: integer
+    type: object
   goshop_internal_dto_v1.OrderTimelineResponseDTO:
     properties:
       events:
@@ -889,6 +951,35 @@ definitions:
         type: string
       status:
         type: string
+    type: object
+  goshop_internal_dto_v1.PaymentMethodBreakdownItemDTO:
+    properties:
+      method_name:
+        description: '"COD (Cash on Delivery)", "Bank Transfer", "E-Wallet"'
+        type: string
+      net_revenue:
+        description: Net revenue after refunds
+        type: number
+      order_count:
+        description: Total orders paid via this method
+        type: integer
+      payment_method:
+        description: '1: COD, 2: Online / Bank Transfer, 3: E-Wallet'
+        type: integer
+      percentage:
+        description: Revenue share percentage (0.0 to 100.0)
+        type: number
+    type: object
+  goshop_internal_dto_v1.PaymentMethodBreakdownResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/goshop_internal_dto_v1.PaymentMethodBreakdownItemDTO'
+        type: array
+      total_orders:
+        type: integer
+      total_revenue:
+        type: number
     type: object
   goshop_internal_dto_v1.PaymentTransactionDTO:
     properties:
@@ -1871,6 +1962,107 @@ paths:
       summary: Set default address
       tags:
       - Addresses
+  /admin/analytics/low-stock-alerts:
+    get:
+      description: Get list of products with inventory stock below or equal to the
+        specified threshold
+      parameters:
+      - default: 5
+        description: 'Inventory threshold alert limit (default: 5)'
+        in: query
+        name: threshold
+        type: integer
+      - default: 10
+        description: 'Max items to return (1-50, default: 10)'
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.LowStockProductResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get low stock product alerts
+      tags:
+      - Admin - Analytics
+  /admin/analytics/order-status-distribution:
+    get:
+      description: Get order counts, revenue, and percentages grouped by order status
+        with optional date filtering
+      parameters:
+      - default: 30
+        description: 'Time window in days (default: 30)'
+        in: query
+        name: days
+        type: integer
+      - description: Start date (YYYY-MM-DD)
+        in: query
+        name: from_date
+        type: string
+      - description: End date (YYYY-MM-DD)
+        in: query
+        name: to_date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.OrderStatusDistributionResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get order status distribution
+      tags:
+      - Admin - Analytics
   /admin/analytics/overview:
     get:
       description: Get 30-day KPI cards (revenue, orders, new customers, pending orders)
@@ -1903,6 +2095,58 @@ paths:
       - BearerAuth: []
       - ApiKeyAuth: []
       summary: Get analytics overview statistics
+      tags:
+      - Admin - Analytics
+  /admin/analytics/payment-methods:
+    get:
+      description: Get net revenue, order volume, and percentages categorized by payment
+        method
+      parameters:
+      - default: 30
+        description: 'Time window in days (default: 30)'
+        in: query
+        name: days
+        type: integer
+      - description: Start date (YYYY-MM-DD)
+        in: query
+        name: from_date
+        type: string
+      - description: End date (YYYY-MM-DD)
+        in: query
+        name: to_date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.PaymentMethodBreakdownResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get payment method breakdown
       tags:
       - Admin - Analytics
   /admin/analytics/recent-orders:

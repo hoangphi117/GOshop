@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"goshop/internal/db/sqlc"
+	v1dto "goshop/internal/dto/v1"
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/testutils"
 	"goshop/internal/utils"
@@ -278,6 +279,266 @@ func TestAnalyticsService_GetTopProducts(t *testing.T) {
 
 		svc := v1service.NewAnalyticsService(mockRepo)
 		_, err := svc.GetTopProducts(ctx, 30, 5)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "db error")
+	})
+}
+
+func TestAnalyticsService_GetOrderStatusDistribution(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Success: Map distribution with percentage and status name", func(t *testing.T) {
+		mockRepo := &testutils.MockAnalyticsRepository{
+			GetOrderStatusDistributionFunc: func(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetOrderStatusDistributionRow, error) {
+				return []sqlc.GetOrderStatusDistributionRow{
+					{
+						OrderStatus: 1, // Pending
+						Count:       20,
+						TotalAmount: utils.FloatToNumeric(5000000),
+					},
+					{
+						OrderStatus: 4, // Delivered
+						Count:       80,
+						TotalAmount: utils.FloatToNumeric(20000000),
+					},
+				}, nil
+			},
+		}
+
+		svc := v1service.NewAnalyticsService(mockRepo)
+		res, err := svc.GetOrderStatusDistribution(ctx, v1dto.OrderStatusDistributionQuery{Days: 30})
+
+		require.NoError(t, err)
+		assert.Equal(t, int64(100), res.TotalOrders)
+		require.Len(t, res.Items, 2)
+
+		// Item 1: Pending
+		assert.Equal(t, int32(1), res.Items[0].Status)
+		assert.Equal(t, "Pending", res.Items[0].StatusName)
+		assert.Equal(t, int64(20), res.Items[0].Count)
+		assert.Equal(t, float64(5000000), res.Items[0].TotalAmount)
+		assert.Equal(t, 20.0, res.Items[0].Percentage)
+
+		// Item 2: Delivered
+		assert.Equal(t, int32(4), res.Items[1].Status)
+		assert.Equal(t, "Delivered", res.Items[1].StatusName)
+		assert.Equal(t, int64(80), res.Items[1].Count)
+		assert.Equal(t, float64(20000000), res.Items[1].TotalAmount)
+		assert.Equal(t, 80.0, res.Items[1].Percentage)
+	})
+
+	t.Run("Success: Zero total orders returns 0 percentage safely", func(t *testing.T) {
+		mockRepo := &testutils.MockAnalyticsRepository{
+			GetOrderStatusDistributionFunc: func(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetOrderStatusDistributionRow, error) {
+				return []sqlc.GetOrderStatusDistributionRow{}, nil
+			},
+		}
+
+		svc := v1service.NewAnalyticsService(mockRepo)
+		res, err := svc.GetOrderStatusDistribution(ctx, v1dto.OrderStatusDistributionQuery{Days: 7})
+
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), res.TotalOrders)
+		assert.Empty(t, res.Items)
+	})
+
+	t.Run("Success: Custom from_date and to_date", func(t *testing.T) {
+		var capturedFrom, capturedTo time.Time
+		mockRepo := &testutils.MockAnalyticsRepository{
+			GetOrderStatusDistributionFunc: func(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetOrderStatusDistributionRow, error) {
+				capturedFrom = fromDate
+				capturedTo = toDate
+				return []sqlc.GetOrderStatusDistributionRow{}, nil
+			},
+		}
+
+		svc := v1service.NewAnalyticsService(mockRepo)
+		_, err := svc.GetOrderStatusDistribution(ctx, v1dto.OrderStatusDistributionQuery{
+			FromDate: "2026-09-01",
+			ToDate:   "2026-09-15",
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, "2026-09-01", capturedFrom.Format("2006-01-02"))
+		assert.Equal(t, "2026-09-15", capturedTo.Format("2006-01-02"))
+	})
+
+	t.Run("Failure: Invalid date range (from > to)", func(t *testing.T) {
+		mockRepo := &testutils.MockAnalyticsRepository{}
+		svc := v1service.NewAnalyticsService(mockRepo)
+
+		_, err := svc.GetOrderStatusDistribution(ctx, v1dto.OrderStatusDistributionQuery{
+			FromDate: "2026-09-20",
+			ToDate:   "2026-09-01",
+		})
+
+		require.Error(t, err)
+	})
+
+	t.Run("Failure: Repository error returned", func(t *testing.T) {
+		mockRepo := &testutils.MockAnalyticsRepository{
+			GetOrderStatusDistributionFunc: func(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetOrderStatusDistributionRow, error) {
+				return nil, errors.New("db failure")
+			},
+		}
+
+		svc := v1service.NewAnalyticsService(mockRepo)
+		_, err := svc.GetOrderStatusDistribution(ctx, v1dto.OrderStatusDistributionQuery{Days: 30})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "db failure")
+	})
+}
+
+func TestAnalyticsService_GetLowStockProducts(t *testing.T) {
+	ctx := context.Background()
+	p1UUID := uuid.New()
+	p2UUID := uuid.New()
+	catName := "Fashion"
+	imgURL := "https://example.com/img.png"
+	stock0 := int32(0)
+	stock3 := int32(3)
+
+	t.Run("Success: Map low stock products with alert levels", func(t *testing.T) {
+		mockRepo := &testutils.MockAnalyticsRepository{
+			GetLowStockProductsFunc: func(ctx context.Context, threshold, limit int32) ([]sqlc.GetLowStockProductsRow, error) {
+				assert.Equal(t, int32(5), threshold)
+				assert.Equal(t, int32(10), limit)
+				return []sqlc.GetLowStockProductsRow{
+					{
+						ProductID:       1,
+						ProductUuid:     p1UUID,
+						ProductName:     "Out of Stock T-Shirt",
+						ProductSlug:     "out-of-stock-t-shirt",
+						ProductPrice:    utils.FloatToNumeric(150000),
+						ProductImageUrl: &imgURL,
+						ProductStock:    &stock0,
+						CategoryName:    &catName,
+					},
+					{
+						ProductID:       2,
+						ProductUuid:     p2UUID,
+						ProductName:     "Low Stock Jacket",
+						ProductSlug:     "low-stock-jacket",
+						ProductPrice:    utils.FloatToNumeric(500000),
+						ProductImageUrl: nil,
+						ProductStock:    &stock3,
+						CategoryName:    nil, // uncategorized
+					},
+				}, nil
+			},
+		}
+
+		svc := v1service.NewAnalyticsService(mockRepo)
+		res, err := svc.GetLowStockProducts(ctx, v1dto.LowStockProductsQuery{}) // defaults: threshold 5, limit 10
+
+		require.NoError(t, err)
+		assert.Equal(t, int32(5), res.Threshold)
+		assert.Equal(t, int64(2), res.TotalLow)
+		require.Len(t, res.Items, 2)
+
+		// Item 1: Stock 0 -> critical
+		assert.Equal(t, p1UUID.String(), res.Items[0].UUID)
+		assert.Equal(t, "Out of Stock T-Shirt", res.Items[0].Name)
+		assert.Equal(t, int32(0), res.Items[0].Stock)
+		assert.Equal(t, "critical", res.Items[0].AlertLevel)
+		assert.Equal(t, "Fashion", res.Items[0].CategoryName)
+		assert.Equal(t, &imgURL, res.Items[0].ImageURL)
+
+		// Item 2: Stock 3 -> warning
+		assert.Equal(t, p2UUID.String(), res.Items[1].UUID)
+		assert.Equal(t, "Low Stock Jacket", res.Items[1].Name)
+		assert.Equal(t, int32(3), res.Items[1].Stock)
+		assert.Equal(t, "warning", res.Items[1].AlertLevel)
+		assert.Equal(t, "", res.Items[1].CategoryName)
+		assert.Nil(t, res.Items[1].ImageURL)
+	})
+
+	t.Run("Failure: Repository error returned", func(t *testing.T) {
+		mockRepo := &testutils.MockAnalyticsRepository{
+			GetLowStockProductsFunc: func(ctx context.Context, threshold, limit int32) ([]sqlc.GetLowStockProductsRow, error) {
+				return nil, errors.New("inventory query error")
+			},
+		}
+
+		svc := v1service.NewAnalyticsService(mockRepo)
+		_, err := svc.GetLowStockProducts(ctx, v1dto.LowStockProductsQuery{Threshold: 5, Limit: 10})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "inventory query error")
+	})
+}
+
+func TestAnalyticsService_GetPaymentMethodBreakdown(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Success: Map payment methods breakdown with percentage", func(t *testing.T) {
+		mockRepo := &testutils.MockAnalyticsRepository{
+			GetPaymentMethodBreakdownFunc: func(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetPaymentMethodBreakdownRow, error) {
+				return []sqlc.GetPaymentMethodBreakdownRow{
+					{
+						OrderPaymentMethod: 1, // COD
+						OrderCount:         60,
+						NetRevenue:         utils.FloatToNumeric(30000000),
+					},
+					{
+						OrderPaymentMethod: 2, // Online / Bank Transfer
+						OrderCount:         40,
+						NetRevenue:         utils.FloatToNumeric(20000000),
+					},
+				}, nil
+			},
+		}
+
+		svc := v1service.NewAnalyticsService(mockRepo)
+		res, err := svc.GetPaymentMethodBreakdown(ctx, v1dto.PaymentMethodBreakdownQuery{Days: 30})
+
+		require.NoError(t, err)
+		assert.Equal(t, float64(50000000), res.TotalRevenue)
+		assert.Equal(t, int64(100), res.TotalOrders)
+		require.Len(t, res.Items, 2)
+
+		// Item 1: COD
+		assert.Equal(t, int32(1), res.Items[0].PaymentMethod)
+		assert.Equal(t, "COD", res.Items[0].MethodName)
+		assert.Equal(t, int64(60), res.Items[0].OrderCount)
+		assert.Equal(t, float64(30000000), res.Items[0].NetRevenue)
+		assert.Equal(t, 60.0, res.Items[0].Percentage)
+
+		// Item 2: Online
+		assert.Equal(t, int32(2), res.Items[1].PaymentMethod)
+		assert.Equal(t, "Bank Transfer", res.Items[1].MethodName)
+		assert.Equal(t, int64(40), res.Items[1].OrderCount)
+		assert.Equal(t, float64(20000000), res.Items[1].NetRevenue)
+		assert.Equal(t, 40.0, res.Items[1].Percentage)
+	})
+
+	t.Run("Success: Zero total revenue handles percentage safely", func(t *testing.T) {
+		mockRepo := &testutils.MockAnalyticsRepository{
+			GetPaymentMethodBreakdownFunc: func(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetPaymentMethodBreakdownRow, error) {
+				return []sqlc.GetPaymentMethodBreakdownRow{}, nil
+			},
+		}
+
+		svc := v1service.NewAnalyticsService(mockRepo)
+		res, err := svc.GetPaymentMethodBreakdown(ctx, v1dto.PaymentMethodBreakdownQuery{Days: 30})
+
+		require.NoError(t, err)
+		assert.Equal(t, float64(0), res.TotalRevenue)
+		assert.Equal(t, int64(0), res.TotalOrders)
+		assert.Empty(t, res.Items)
+	})
+
+	t.Run("Failure: Repository error returned", func(t *testing.T) {
+		mockRepo := &testutils.MockAnalyticsRepository{
+			GetPaymentMethodBreakdownFunc: func(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetPaymentMethodBreakdownRow, error) {
+				return nil, errors.New("db error")
+			},
+		}
+
+		svc := v1service.NewAnalyticsService(mockRepo)
+		_, err := svc.GetPaymentMethodBreakdown(ctx, v1dto.PaymentMethodBreakdownQuery{Days: 30})
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "db error")

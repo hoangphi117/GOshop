@@ -2,6 +2,9 @@ package v1service
 
 import (
 	"context"
+	"errors"
+	"time"
+
 	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/repository"
 	"goshop/internal/utils"
@@ -135,4 +138,166 @@ func calculateGrowth(current, previous float64) float64 {
 		return 0.0
 	}
 	return utils.RoundFloat(((current-previous)/previous)*100.0, 2)
+}
+
+func (s *analyticsService) GetOrderStatusDistribution(ctx context.Context, params v1dto.OrderStatusDistributionQuery) (v1dto.OrderStatusDistributionResponse, error) {
+	fromDate, toDate, err := resolveDateRange(params.Days, params.FromDate, params.ToDate)
+	if err != nil {
+		return v1dto.OrderStatusDistributionResponse{}, utils.WrapError(utils.ErrCodeBadRequest, "Invalid date range", err)
+	}
+
+	rows, err := s.repo.GetOrderStatusDistribution(ctx, fromDate, toDate)
+	if err != nil {
+		return v1dto.OrderStatusDistributionResponse{}, err
+	}
+
+	var totalOrders int64
+	for _, r := range rows {
+		totalOrders += r.Count
+	}
+
+	items := make([]v1dto.OrderStatusDistributionItemDTO, len(rows))
+	for i, r := range rows {
+		var percentage float64
+		if totalOrders > 0 {
+			percentage = utils.RoundFloat((float64(r.Count)/float64(totalOrders))*100.0, 2)
+		}
+		items[i] = v1dto.OrderStatusDistributionItemDTO{
+			Status:      r.OrderStatus,
+			StatusName:  v1dto.MapOrderStatusToString(r.OrderStatus),
+			Count:       r.Count,
+			TotalAmount: utils.NumericToFloat(r.TotalAmount),
+			Percentage:  percentage,
+		}
+	}
+	return v1dto.OrderStatusDistributionResponse{
+		TotalOrders: totalOrders,
+		Items:       items,
+	}, nil
+}
+
+func (s *analyticsService) GetLowStockProducts(ctx context.Context, params v1dto.LowStockProductsQuery) (v1dto.LowStockProductResponse, error) {
+	threshold := params.Threshold
+	if threshold <= 0 {
+		threshold = 5
+	}
+
+	limit := params.Limit
+	if limit <= 0 {
+		limit = 10
+	}
+
+	rows, err := s.repo.GetLowStockProducts(ctx, threshold, limit)
+	if err != nil {
+		return v1dto.LowStockProductResponse{}, err
+	}
+
+	products := make([]v1dto.LowStockProductDTO, len(rows))
+	for i, r := range rows {
+		stock := int32(0)
+		if r.ProductStock != nil {
+			stock = *r.ProductStock
+		}
+
+		alertLevel := "warning"
+		if stock <= 0 {
+			alertLevel = "critical"
+		}
+
+		categoryName := ""
+		if r.CategoryName != nil {
+			categoryName = *r.CategoryName
+		}
+
+		products[i] = v1dto.LowStockProductDTO{
+			UUID:         r.ProductUuid.String(),
+			Name:         r.ProductName,
+			Slug:         r.ProductSlug,
+			Price:        utils.NumericToFloat(r.ProductPrice),
+			Stock:        stock,
+			ImageURL:     r.ProductImageUrl,
+			CategoryName: categoryName,
+			AlertLevel:   alertLevel,
+		}
+	}
+	return v1dto.LowStockProductResponse{
+		Threshold: threshold,
+		TotalLow:  int64(len(products)),
+		Items:     products,
+	}, nil
+}
+
+func (s *analyticsService) GetPaymentMethodBreakdown(ctx context.Context, params v1dto.PaymentMethodBreakdownQuery) (v1dto.PaymentMethodBreakdownResponse, error) {
+	fromDate, toDate, err := resolveDateRange(params.Days, params.FromDate, params.ToDate)
+	if err != nil {
+		return v1dto.PaymentMethodBreakdownResponse{}, utils.WrapError(utils.ErrCodeBadRequest, "Invalid date range", err)
+	}
+
+	rows, err := s.repo.GetPaymentMethodBreakdown(ctx, fromDate, toDate)
+	if err != nil {
+		return v1dto.PaymentMethodBreakdownResponse{}, err
+	}
+
+	// Calculate total revenue and total orders for percentage calculations
+	var totalRevenue float64
+	var totalOrders int64
+	for _, r := range rows {
+		totalRevenue += utils.NumericToFloat(r.NetRevenue)
+		totalOrders += r.OrderCount
+	}
+
+	items := make([]v1dto.PaymentMethodBreakdownItemDTO, len(rows))
+	for i, r := range rows {
+		netRevenue := utils.NumericToFloat(r.NetRevenue)
+
+		var percentage float64
+		if totalRevenue > 0 {
+			percentage = utils.RoundFloat((netRevenue/totalRevenue)*100.0, 2)
+		}
+
+		items[i] = v1dto.PaymentMethodBreakdownItemDTO{
+			PaymentMethod: r.OrderPaymentMethod,
+			MethodName:    v1dto.MapPaymentMethodToString(r.OrderPaymentMethod),
+			OrderCount:    r.OrderCount,
+			NetRevenue:    netRevenue,
+			Percentage:    percentage,
+		}
+	}
+
+	return v1dto.PaymentMethodBreakdownResponse{
+		TotalRevenue: utils.RoundFloat(totalRevenue, 2),
+		TotalOrders:  totalOrders,
+		Items:        items,
+	}, nil
+}
+
+func resolveDateRange(days int32, fromStr, toStr string) (time.Time, time.Time, error) {
+	now := time.Now()
+
+	if fromStr != "" || toStr != "" {
+		if fromStr == "" || toStr == "" {
+			return time.Time{}, time.Time{}, errors.New("both from_date and to_date must be provided")
+		}
+		from, err := time.Parse("2006-01-02", fromStr)
+		if err != nil {
+			return time.Time{}, time.Time{}, err
+		}
+		to, err := time.Parse("2006-01-02", toStr)
+		if err != nil {
+			return time.Time{}, time.Time{}, err
+		}
+		if from.After(to) {
+			return time.Time{}, time.Time{}, errors.New("from_date must be before or equal to to_date")
+		}
+		// Set toDate to the end of the day (23:59:59.999999999)
+		to = to.Add(24*time.Hour - time.Nanosecond)
+		return from, to, nil
+	}
+
+	// Fallback
+	if days <= 0 {
+		days = 30
+	}
+	fromDate := now.AddDate(0, 0, -int(days))
+	return fromDate, now, nil
 }

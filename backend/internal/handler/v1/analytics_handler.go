@@ -129,3 +129,98 @@ func (h *AnalyticsHandler) GetTopProducts(ctx *gin.Context) {
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Top selling products retrieved successfully", products)
 }
+
+// GetOrderStatusDistribution godoc
+// @Summary      Get order status distribution
+// @Description  Get order counts, revenue, and percentages grouped by order status with optional date filtering
+// @Tags         Admin - Analytics
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        days      query int    false "Time window in days (default: 30)" default(30)
+// @Param        from_date query string false "Start date (YYYY-MM-DD)"
+// @Param        to_date   query string false "End date (YYYY-MM-DD)"
+// @Success      200 {object} utils.APIResponse{data=v1dto.OrderStatusDistributionResponse}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Failure      403 {object} utils.ErrorResponse
+// @Failure      500 {object} utils.ErrorResponse
+// @Router       /admin/analytics/order-status-distribution [get]
+func (h *AnalyticsHandler) GetOrderStatusDistribution(ctx *gin.Context) {
+	var query v1dto.OrderStatusDistributionQuery
+	if err := ctx.ShouldBindQuery(&query); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	res, err := h.service.GetOrderStatusDistribution(ctx.Request.Context(), query)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Order status distribution retrieved successfully", res)
+}
+
+// GetLowStockProducts godoc
+// @Summary      Get low stock product alerts
+// @Description  Get list of products with inventory stock below or equal to the specified threshold
+// @Tags         Admin - Analytics
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        threshold query int false "Inventory threshold alert limit (default: 5)" default(5)
+// @Param        limit     query int false "Max items to return (1-50, default: 10)" default(10)
+// @Success      200 {object} utils.APIResponse{data=v1dto.LowStockProductResponse}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Failure      403 {object} utils.ErrorResponse
+// @Failure      500 {object} utils.ErrorResponse
+// @Router       /admin/analytics/low-stock-alerts [get]
+func (h *AnalyticsHandler) GetLowStockProducts(ctx *gin.Context) {
+	var query v1dto.LowStockProductsQuery
+	if err := ctx.ShouldBindQuery(&query); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	res, err := h.service.GetLowStockProducts(ctx.Request.Context(), query)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Low stock products retrieved successfully", res)
+}
+
+// GetPaymentMethodBreakdown godoc
+// @Summary      Get payment method breakdown
+// @Description  Get net revenue, order volume, and percentages categorized by payment method
+// @Tags         Admin - Analytics
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        days      query int    false "Time window in days (default: 30)" default(30)
+// @Param        from_date query string false "Start date (YYYY-MM-DD)"
+// @Param        to_date   query string false "End date (YYYY-MM-DD)"
+// @Success      200 {object} utils.APIResponse{data=v1dto.PaymentMethodBreakdownResponse}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Failure      403 {object} utils.ErrorResponse
+// @Failure      500 {object} utils.ErrorResponse
+// @Router       /admin/analytics/payment-methods [get]
+func (h *AnalyticsHandler) GetPaymentMethodBreakdown(ctx *gin.Context) {
+	var query v1dto.PaymentMethodBreakdownQuery
+	if err := ctx.ShouldBindQuery(&query); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	res, err := h.service.GetPaymentMethodBreakdown(ctx.Request.Context(), query)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Payment method breakdown retrieved successfully", res)
+}

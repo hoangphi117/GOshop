@@ -129,3 +129,43 @@ FROM orders o
 JOIN users u ON u.user_id = o.order_user_id
 ORDER BY o.order_created_at DESC
 LIMIT sqlc.arg('limit_count')::int;
+
+-- name: GetOrderStatusDistribution :many
+SELECT 
+    order_status,
+    COUNT(*)::bigint AS count,
+    COALESCE(SUM(order_total_amount), 0)::numeric(14,2) AS total_amount
+FROM orders
+WHERE order_created_at >= sqlc.arg('from_date')
+  AND order_created_at <= sqlc.arg('to_date')
+GROUP BY order_status
+ORDER BY order_status ASC;
+
+-- name: GetLowStockProducts :many
+SELECT 
+    p.product_id,
+    p.product_uuid,
+    p.product_name,
+    p.product_slug,
+    p.product_image_url,
+    p.product_stock,
+    p.product_price,
+    c.category_name
+FROM products p
+LEFT JOIN categories c ON p.product_category_id = c.category_id
+WHERE p.product_stock <= sqlc.arg('threshold')::int
+  AND p.product_status = 1
+ORDER BY p.product_stock ASC
+LIMIT sqlc.arg('limit')::int;
+
+-- name: GetPaymentMethodBreakdown :many
+SELECT 
+    order_payment_method,
+    COUNT(*)::bigint AS order_count,
+    COALESCE(SUM(order_total_amount - order_refunded_amount), 0)::numeric(14,2) AS net_revenue
+FROM orders
+WHERE order_payment_status IN (2, 3)
+  AND order_created_at >= sqlc.arg('from_date')
+  AND order_created_at <= sqlc.arg('to_date')
+GROUP BY order_payment_method
+ORDER BY net_revenue DESC;

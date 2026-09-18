@@ -21,5 +21,8 @@ func (r *AdminAnalyticsRoutes) Register(rg *gin.RouterGroup) {
 		analytics.GET("/revenue-chart", r.handler.GetRevenueChart)
 		analytics.GET("/recent-orders", r.handler.GetRecentOrders)
 		analytics.GET("/top-products", r.handler.GetTopProducts)
+		analytics.GET("/order-status-distribution", r.handler.GetOrderStatusDistribution)
+		analytics.GET("/low-stock-alerts", r.handler.GetLowStockProducts)
+		analytics.GET("/payment-methods", r.handler.GetPaymentMethodBreakdown)
 	}
 }

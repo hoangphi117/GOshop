@@ -317,6 +317,172 @@ export interface paths {
         };
         trace?: never;
     };
+    "/admin/analytics/low-stock-alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get low stock product alerts
+         * @description Get list of products with inventory stock below or equal to the specified threshold
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Inventory threshold alert limit (default: 5) */
+                    threshold?: number;
+                    /** @description Max items to return (1-50, default: 10) */
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
+                            data?: components["schemas"]["goshop_internal_dto_v1.LowStockProductResponse"];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/analytics/order-status-distribution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get order status distribution
+         * @description Get order counts, revenue, and percentages grouped by order status with optional date filtering
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Time window in days (default: 30) */
+                    days?: number;
+                    /** @description Start date (YYYY-MM-DD) */
+                    from_date?: string;
+                    /** @description End date (YYYY-MM-DD) */
+                    to_date?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
+                            data?: components["schemas"]["goshop_internal_dto_v1.OrderStatusDistributionResponse"];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/analytics/overview": {
         parameters: {
             query?: never;
@@ -346,6 +512,90 @@ export interface paths {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
                             data?: components["schemas"]["goshop_internal_dto_v1.OverviewStatsDTO"];
                         };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/analytics/payment-methods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get payment method breakdown
+         * @description Get net revenue, order volume, and percentages categorized by payment method
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Time window in days (default: 30) */
+                    days?: number;
+                    /** @description Start date (YYYY-MM-DD) */
+                    from_date?: string;
+                    /** @description End date (YYYY-MM-DD) */
+                    to_date?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
+                            data?: components["schemas"]["goshop_internal_dto_v1.PaymentMethodBreakdownResponse"];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -7704,6 +7954,25 @@ export interface components {
             expires_in?: number;
             refresh_token?: string;
         };
+        "goshop_internal_dto_v1.LowStockProductDTO": {
+            /** @description "critical" (stock <= 0), "warning" (stock <= threshold) */
+            alert_level?: string;
+            category_name?: string;
+            image_url?: string;
+            name?: string;
+            price?: number;
+            slug?: string;
+            /** @description Current available stock */
+            stock?: number;
+            uuid?: string;
+        };
+        "goshop_internal_dto_v1.LowStockProductResponse": {
+            items?: components["schemas"]["goshop_internal_dto_v1.LowStockProductDTO"][];
+            /** @description Warning threshold used (e.g., 5) */
+            threshold?: number;
+            /** @description Count of items below threshold */
+            total_low?: number;
+        };
         "goshop_internal_dto_v1.MyReviewDTO": {
             can_edit?: boolean;
             comment?: string;
@@ -7779,6 +8048,22 @@ export interface components {
             status?: string;
             video_url?: string;
         };
+        "goshop_internal_dto_v1.OrderStatusDistributionItemDTO": {
+            /** @description Number of orders in this status */
+            count?: number;
+            /** @description Percentage of total orders (0.0 to 100.0) */
+            percentage?: number;
+            /** @description 1: Pending, 2: Confirmed, 3: Shipped, 4: Delivered, 5: Cancelled, 6: Returned */
+            status?: number;
+            /** @description e.g., "Pending", "Delivered", "Cancelled" */
+            status_name?: string;
+            /** @description Total monetary value of orders in this status */
+            total_amount?: number;
+        };
+        "goshop_internal_dto_v1.OrderStatusDistributionResponse": {
+            items?: components["schemas"]["goshop_internal_dto_v1.OrderStatusDistributionItemDTO"][];
+            total_orders?: number;
+        };
         "goshop_internal_dto_v1.OrderTimelineResponseDTO": {
             events?: components["schemas"]["goshop_internal_dto_v1.TrackingEventDTO"][];
             order_number?: string;
@@ -7805,6 +8090,23 @@ export interface components {
             payment_uuid?: string;
             provider?: string;
             status?: string;
+        };
+        "goshop_internal_dto_v1.PaymentMethodBreakdownItemDTO": {
+            /** @description "COD (Cash on Delivery)", "Bank Transfer", "E-Wallet" */
+            method_name?: string;
+            /** @description Net revenue after refunds */
+            net_revenue?: number;
+            /** @description Total orders paid via this method */
+            order_count?: number;
+            /** @description 1: COD, 2: Online / Bank Transfer, 3: E-Wallet */
+            payment_method?: number;
+            /** @description Revenue share percentage (0.0 to 100.0) */
+            percentage?: number;
+        };
+        "goshop_internal_dto_v1.PaymentMethodBreakdownResponse": {
+            items?: components["schemas"]["goshop_internal_dto_v1.PaymentMethodBreakdownItemDTO"][];
+            total_orders?: number;
+            total_revenue?: number;
         };
         "goshop_internal_dto_v1.PaymentTransactionDTO": {
             amount?: number;

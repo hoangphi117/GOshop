@@ -90,6 +90,7 @@ type Querier interface {
 	GetCouponByUUID(ctx context.Context, couponUuid uuid.UUID) (Coupon, error)
 	GetLatestOrderNumber(ctx context.Context, orderNumber string) (string, error)
 	GetLatestReturnByOrderID(ctx context.Context, returnOrderID int32) (OrderReturn, error)
+	GetLowStockProducts(ctx context.Context, arg GetLowStockProductsParams) ([]GetLowStockProductsRow, error)
 	GetNotificationsByUserId(ctx context.Context, arg GetNotificationsByUserIdParams) ([]Notification, error)
 	// Upsert "no-op": if cart already exists for user, return it; otherwise create a new cart and return it.
 	// Atomic, safe for concurrent requests, and avoids race conditions by using INSERT ... ON CONFLICT.
@@ -100,10 +101,12 @@ type Querier interface {
 	GetOrderByUUID(ctx context.Context, orderUuid uuid.UUID) (GetOrderByUUIDRow, error)
 	GetOrderByUUIDForUpdate(ctx context.Context, orderUuid uuid.UUID) (Order, error)
 	GetOrderItemsByOrderID(ctx context.Context, orderItemOrderID int32) ([]GetOrderItemsByOrderIDRow, error)
+	GetOrderStatusDistribution(ctx context.Context, arg GetOrderStatusDistributionParams) ([]GetOrderStatusDistributionRow, error)
 	GetOverviewStats(ctx context.Context) (GetOverviewStatsRow, error)
 	GetPaymentByIdempotencyKey(ctx context.Context, ptIdempotencyKey string) (PaymentTransaction, error)
 	GetPaymentByProviderTxnID(ctx context.Context, arg GetPaymentByProviderTxnIDParams) (PaymentTransaction, error)
 	GetPaymentByTxnRef(ctx context.Context, arg GetPaymentByTxnRefParams) (PaymentTransaction, error)
+	GetPaymentMethodBreakdown(ctx context.Context, arg GetPaymentMethodBreakdownParams) ([]GetPaymentMethodBreakdownRow, error)
 	GetPaymentTransactionsByOrderID(ctx context.Context, ptOrderID int32) ([]PaymentTransaction, error)
 	GetPendingTransactionsOlderThan(ctx context.Context, arg GetPendingTransactionsOlderThanParams) ([]GetPendingTransactionsOlderThanRow, error)
 	GetProductBySlug(ctx context.Context, productSlug string) (GetProductBySlugRow, error)

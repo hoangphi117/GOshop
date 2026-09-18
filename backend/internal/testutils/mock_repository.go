@@ -2,6 +2,8 @@ package testutils
 
 import (
 	"context"
+	"time"
+
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/repository"
@@ -1314,11 +1316,14 @@ func (m *MockNotificationRepository) Delete(ctx context.Context, notifUUID uuid.
 }
 
 type MockAnalyticsRepository struct {
-	GetOverviewFunc           func(ctx context.Context) (sqlc.GetOverviewStatsRow, error)
-	GetRevenueDailyFunc       func(ctx context.Context, days int32) ([]sqlc.GetRevenueDailyChartRow, error)
-	GetRevenueMonthlyFunc     func(ctx context.Context, months int32) ([]sqlc.GetRevenueMonthlyChartRow, error)
-	GetRecentOrdersFunc       func(ctx context.Context, limit int32) ([]sqlc.GetRecentOrdersRow, error)
-	GetTopSellingProductsFunc func(ctx context.Context, days, limit int32) ([]sqlc.GetTopSellingProductsRow, error)
+	GetOverviewFunc                 func(ctx context.Context) (sqlc.GetOverviewStatsRow, error)
+	GetRevenueDailyFunc             func(ctx context.Context, days int32) ([]sqlc.GetRevenueDailyChartRow, error)
+	GetRevenueMonthlyFunc           func(ctx context.Context, months int32) ([]sqlc.GetRevenueMonthlyChartRow, error)
+	GetRecentOrdersFunc             func(ctx context.Context, limit int32) ([]sqlc.GetRecentOrdersRow, error)
+	GetTopSellingProductsFunc       func(ctx context.Context, days, limit int32) ([]sqlc.GetTopSellingProductsRow, error)
+	GetOrderStatusDistributionFunc func(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetOrderStatusDistributionRow, error)
+	GetLowStockProductsFunc         func(ctx context.Context, threshold, limit int32) ([]sqlc.GetLowStockProductsRow, error)
+	GetPaymentMethodBreakdownFunc   func(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetPaymentMethodBreakdownRow, error)
 }
 
 func (m *MockAnalyticsRepository) GetOverview(ctx context.Context) (sqlc.GetOverviewStatsRow, error) {
@@ -1355,6 +1360,28 @@ func (m *MockAnalyticsRepository) GetTopSellingProducts(ctx context.Context, day
 	}
 	return nil, nil
 }
+
+func (m *MockAnalyticsRepository) GetOrderStatusDistribution(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetOrderStatusDistributionRow, error) {
+	if m.GetOrderStatusDistributionFunc != nil {
+		return m.GetOrderStatusDistributionFunc(ctx, fromDate, toDate)
+	}
+	return nil, nil
+}
+
+func (m *MockAnalyticsRepository) GetLowStockProducts(ctx context.Context, threshold, limit int32) ([]sqlc.GetLowStockProductsRow, error) {
+	if m.GetLowStockProductsFunc != nil {
+		return m.GetLowStockProductsFunc(ctx, threshold, limit)
+	}
+	return nil, nil
+}
+
+func (m *MockAnalyticsRepository) GetPaymentMethodBreakdown(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetPaymentMethodBreakdownRow, error) {
+	if m.GetPaymentMethodBreakdownFunc != nil {
+		return m.GetPaymentMethodBreakdownFunc(ctx, fromDate, toDate)
+	}
+	return nil, nil
+}
+
 
 
 
