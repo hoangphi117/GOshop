@@ -31,6 +31,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { DataTablePagination } from '@/components/data-table'
+import { Checkbox } from '@/components/ui/checkbox'
+import { BulkActionBar } from './components/bulk-action-bar'
+import { useBulkOrderActions } from './hooks/use-bulk-order-actions'
 import { useOrders } from './hooks/use-orders'
 import {
   formatCurrency,
@@ -46,6 +49,7 @@ export function Orders() {
   const [searchTerm, setSearchTerm] = useState('')
   const [activeSearch, setActiveSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [selectedOrderUuids, setSelectedOrderUuids] = useState<Set<string>>(new Set())
 
   const parsedStatus =
     statusFilter !== 'all' ? (Number(statusFilter) as 1 | 2 | 3 | 4 | 5 | 6) : undefined
@@ -57,8 +61,81 @@ export function Orders() {
     status: parsedStatus,
   })
 
+  const { bulkUpdateStatus, bulkCancelOrders, isProcessing } = useBulkOrderActions()
+
   const orders = (ordersData?.data as unknown as Order[]) || []
   const pagination = ordersData?.pagination
+
+  const isAllSelected = orders.length > 0 && orders.every((o) => selectedOrderUuids.has(o.uuid))
+  const isSomeSelected = orders.some((o) => selectedOrderUuids.has(o.uuid)) && !isAllSelected
+
+  const handleToggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedOrderUuids((prev) => {
+        const next = new Set(prev)
+        orders.forEach((o) => next.delete(o.uuid))
+        return next
+      })
+    } else {
+      setSelectedOrderUuids((prev) => {
+        const next = new Set(prev)
+        orders.forEach((o) => next.add(o.uuid))
+        return next
+      })
+    }
+  }
+
+  const handleToggleSelectRow = (uuid: string) => {
+    setSelectedOrderUuids((prev) => {
+      const next = new Set(prev)
+      if (next.has(uuid)) {
+        next.delete(uuid)
+      } else {
+        next.add(uuid)
+      }
+      return next
+    })
+  }
+
+  const handleClearSelection = () => {
+    setSelectedOrderUuids(new Set())
+  }
+
+  const handleBulkConfirm = () => {
+    bulkUpdateStatus.mutate(
+      {
+        order_uuids: Array.from(selectedOrderUuids),
+        status: 2,
+      },
+      {
+        onSuccess: () => handleClearSelection(),
+      }
+    )
+  }
+
+  const handleBulkChangeStatus = (status: 1 | 2 | 3 | 4 | 5 | 6) => {
+    bulkUpdateStatus.mutate(
+      {
+        order_uuids: Array.from(selectedOrderUuids),
+        status,
+      },
+      {
+        onSuccess: () => handleClearSelection(),
+      }
+    )
+  }
+
+  const handleBulkCancel = (reason?: string) => {
+    bulkCancelOrders.mutate(
+      {
+        order_uuids: Array.from(selectedOrderUuids),
+        reason,
+      },
+      {
+        onSuccess: () => handleClearSelection(),
+      }
+    )
+  }
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -193,6 +270,19 @@ export function Orders() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className='w-[40px] px-3'>
+                  <Checkbox
+                    checked={
+                      isAllSelected
+                        ? true
+                        : isSomeSelected
+                          ? 'indeterminate'
+                          : false
+                    }
+                    onCheckedChange={handleToggleSelectAll}
+                    aria-label='Select all on page'
+                  />
+                </TableHead>
                 <TableHead>Order #</TableHead>
                 <TableHead>Recipient</TableHead>
                 <TableHead>Total Amount</TableHead>
@@ -206,77 +296,101 @@ export function Orders() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className='h-32 text-center text-muted-foreground'>
+                  <TableCell colSpan={9} className='h-32 text-center text-muted-foreground'>
                     Loading orders...
                   </TableCell>
                 </TableRow>
               ) : orders.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className='h-32 text-center text-muted-foreground'>
+                  <TableCell colSpan={9} className='h-32 text-center text-muted-foreground'>
                     No orders found.
                   </TableCell>
                 </TableRow>
               ) : (
-                orders.map((order) => (
-                  <TableRow
-                    key={order.uuid}
-                    className='cursor-pointer hover:bg-muted/50 transition-colors'
-                    onClick={() => handleOpenDetails(order)}
-                  >
-                    <TableCell className='font-mono font-medium text-xs'>
-                      #{order.order_number}
-                    </TableCell>
-                    <TableCell>
-                      <div className='font-medium text-xs sm:text-sm'>
-                        {order.shipping_name}
-                      </div>
-                      <div className='text-xs text-muted-foreground'>
-                        {order.shipping_phone}
-                      </div>
-                      {order.shipping_address && (
-                        <div
-                          className='text-[11px] text-muted-foreground truncate max-w-[200px]'
-                          title={order.shipping_address}
-                        >
-                          {order.shipping_address}
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell className='font-semibold text-xs sm:text-sm'>
-                      {formatCurrency(order.total_amount)}
-                    </TableCell>
-                    <TableCell className='text-xs text-muted-foreground'>
-                      <span className='inline-flex items-center gap-1'>
-                        <ShoppingBag className='size-3.5' /> {order.items?.length || 1} items
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      {renderPaymentBadge(order.payment_method, order.payment_status)}
-                    </TableCell>
-                    <TableCell>{renderOrderStatusBadge(order.status)}</TableCell>
-                    <TableCell className='text-muted-foreground text-xs'>
-                      {formatDateTime(order.created_at)}
-                    </TableCell>
-                    <TableCell className='text-right'>
-                      <Button
-                        variant='ghost'
-                        size='icon'
-                        className='size-8'
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleOpenDetails(order)
-                        }}
-                        title='View details'
+                orders.map((order) => {
+                  const isSelected = selectedOrderUuids.has(order.uuid)
+                  return (
+                    <TableRow
+                      key={order.uuid}
+                      data-state={isSelected ? 'selected' : undefined}
+                      className='cursor-pointer hover:bg-muted/50 transition-colors'
+                      onClick={() => handleOpenDetails(order)}
+                    >
+                      <TableCell
+                        className='w-[40px] px-3'
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        <Eye className='size-4' />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => handleToggleSelectRow(order.uuid)}
+                          aria-label={`Select order #${order.order_number}`}
+                        />
+                      </TableCell>
+                      <TableCell className='font-mono font-medium text-xs'>
+                        #{order.order_number}
+                      </TableCell>
+                      <TableCell>
+                        <div className='font-medium text-xs sm:text-sm'>
+                          {order.shipping_name}
+                        </div>
+                        <div className='text-xs text-muted-foreground'>
+                          {order.shipping_phone}
+                        </div>
+                        {order.shipping_address && (
+                          <div
+                            className='text-[11px] text-muted-foreground truncate max-w-[200px]'
+                            title={order.shipping_address}
+                          >
+                            {order.shipping_address}
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className='font-semibold text-xs sm:text-sm'>
+                        {formatCurrency(order.total_amount)}
+                      </TableCell>
+                      <TableCell className='text-xs text-muted-foreground'>
+                        <span className='inline-flex items-center gap-1'>
+                          <ShoppingBag className='size-3.5' /> {order.items?.length || 1} items
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        {renderPaymentBadge(order.payment_method, order.payment_status)}
+                      </TableCell>
+                      <TableCell>{renderOrderStatusBadge(order.status)}</TableCell>
+                      <TableCell className='text-muted-foreground text-xs'>
+                        {formatDateTime(order.created_at)}
+                      </TableCell>
+                      <TableCell className='text-right'>
+                        <Button
+                          variant='ghost'
+                          size='icon'
+                          className='size-8'
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleOpenDetails(order)
+                          }}
+                          title='View details'
+                        >
+                          <Eye className='size-4' />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })
               )}
             </TableBody>
           </Table>
         </div>
+
+        {/* Floating Bulk Action Bar */}
+        <BulkActionBar
+          selectedCount={selectedOrderUuids.size}
+          isProcessing={isProcessing}
+          onBulkConfirm={handleBulkConfirm}
+          onBulkChangeStatus={handleBulkChangeStatus}
+          onBulkCancel={handleBulkCancel}
+          onClearSelection={handleClearSelection}
+        />
 
         {/* Pagination */}
         <DataTablePagination

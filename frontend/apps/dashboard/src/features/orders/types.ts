@@ -234,3 +234,26 @@ export interface AdminGetReturnsQuery {
   status?: 1 | 2 | 3 | 4 | 5
   search?: string
 }
+
+export interface BulkItemError {
+  order_uuid: string
+  error: string
+}
+
+export interface BulkOperationResult {
+  total: number
+  succeeded: number
+  failed: number
+  errors?: BulkItemError[]
+}
+
+export interface BulkUpdateStatusInput {
+  order_uuids: string[]
+  status: 1 | 2 | 3 | 4 | 5 | 6
+}
+
+export interface BulkCancelOrdersInput {
+  order_uuids: string[]
+  reason?: string
+}
+

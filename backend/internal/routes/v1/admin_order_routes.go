@@ -28,9 +28,10 @@ func (or *AdminOrderRoutes) Register(r *gin.RouterGroup) {
 		orders.POST("/:uuid/shipping", or.handler.CreateShipping)
 		orders.POST("/:uuid/shipping/cancel", or.handler.CancelShipping)
 		orders.GET("/:uuid/shipping/print-bill", or.handler.GetPrintBill)
-		orders.POST("/:uuid/refund", or.handler.AdminProcessReturnRefund) // POST /api/v1/admin/orders/:uuid/refund
 		orders.POST("/:uuid/sync-tracking", or.handler.SyncOrderTracking) // POST /api/v1/admin/orders/:uuid/sync-tracking
 		orders.POST("/sync-active-tracking", or.handler.AdminSyncActiveTracking) // POST /api/v1/admin/orders/sync-active-tracking
+		orders.POST("/bulk-status", or.handler.BulkUpdateOrderStatus)           // POST /api/v1/admin/orders/bulk-status
+		orders.POST("/bulk-cancel", or.handler.BulkCancelOrders)                // POST /api/v1/admin/orders/bulk-cancel
 	}
 
 	returns := r.Group("/returns")

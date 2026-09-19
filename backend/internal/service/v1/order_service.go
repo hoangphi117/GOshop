@@ -986,3 +986,72 @@ func (s *orderService) GetOrderInvoicePDF(ctx context.Context, userUUID uuid.UUI
 
 	return pdfBytes, fileName, nil
 }
+
+func (s *orderService) BulkUpdateStatus(ctx context.Context, input v1dto.BulkUpdateOrderStatusInput) (*v1dto.BulkOperationResultDTO, error) {
+	result := &v1dto.BulkOperationResultDTO{
+		Total:  len(input.OrderUUIDs),
+		Errors: make([]v1dto.BulkItemError, 0),
+	}
+
+	for _, rawUUID := range input.OrderUUIDs {
+		parsedUUID, err := uuid.Parse(rawUUID)
+		if err != nil {
+			result.Failed++
+			result.Errors = append(result.Errors, v1dto.BulkItemError{
+				OrderUUID: rawUUID,
+				Error:     "invalid UUID format",
+			})
+			continue
+		}
+
+		_, _, err = s.UpdateOrderStatus(ctx, sqlc.UpdateOrderStatusParams{
+			OrderUuid:   parsedUUID,
+			OrderStatus: input.Status,
+		})
+		if err != nil {
+			result.Failed++
+			result.Errors = append(result.Errors, v1dto.BulkItemError{
+				OrderUUID: rawUUID,
+				Error:     err.Error(),
+			})
+			continue
+		}
+
+		result.Succeeded++
+	}
+
+	return result, nil
+}
+
+func (s *orderService) BulkCancel(ctx context.Context, userUUID uuid.UUID, input v1dto.BulkCancelOrdersInput) (*v1dto.BulkOperationResultDTO, error) {
+	result := &v1dto.BulkOperationResultDTO{
+		Total:  len(input.OrderUUIDs),
+		Errors: make([]v1dto.BulkItemError, 0),
+	}
+
+	for _, rawUUID := range input.OrderUUIDs {
+		parsedUUID, err := uuid.Parse(rawUUID)
+		if err != nil {
+			result.Failed++
+			result.Errors = append(result.Errors, v1dto.BulkItemError{
+				OrderUUID: rawUUID,
+				Error:     "invalid UUID format",
+			})
+			continue
+		}
+
+		_, err = s.CancelOrder(ctx, userUUID, parsedUUID, input.Reason)
+		if err != nil {
+			result.Failed++
+			result.Errors = append(result.Errors, v1dto.BulkItemError{
+				OrderUUID: rawUUID,
+				Error:     err.Error(),
+			})
+			continue
+		}
+
+		result.Succeeded++
+	}
+
+	return result, nil
+}

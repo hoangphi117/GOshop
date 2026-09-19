@@ -853,6 +853,8 @@ type MockOrderService struct {
 	UpdateOrderShippingInfoFunc  func(ctx context.Context, userUUID uuid.UUID, input sqlc.UpdateOrderShippingInfoParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error)
 	UpdateOrderPaymentStatusFunc func(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.UpdateOrderPaymentStatusInput) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error)
 	GetOrderInvoicePDFFunc       func(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) ([]byte, string, error)
+	BulkUpdateStatusFunc         func(ctx context.Context, input v1dto.BulkUpdateOrderStatusInput) (*v1dto.BulkOperationResultDTO, error)
+	BulkCancelFunc               func(ctx context.Context, userUUID uuid.UUID, input v1dto.BulkCancelOrdersInput) (*v1dto.BulkOperationResultDTO, error)
 }
 
 func (m *MockOrderService) CreateOrder(ctx context.Context, userUUID uuid.UUID, input v1dto.CreateOrderInput) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
@@ -916,6 +918,20 @@ func (m *MockOrderService) GetOrderInvoicePDF(ctx context.Context, userUUID uuid
 		return m.GetOrderInvoicePDFFunc(ctx, userUUID, orderUUID)
 	}
 	return nil, "", nil
+}
+
+func (m *MockOrderService) BulkUpdateStatus(ctx context.Context, input v1dto.BulkUpdateOrderStatusInput) (*v1dto.BulkOperationResultDTO, error) {
+	if m.BulkUpdateStatusFunc != nil {
+		return m.BulkUpdateStatusFunc(ctx, input)
+	}
+	return &v1dto.BulkOperationResultDTO{Total: len(input.OrderUUIDs), Succeeded: len(input.OrderUUIDs)}, nil
+}
+
+func (m *MockOrderService) BulkCancel(ctx context.Context, userUUID uuid.UUID, input v1dto.BulkCancelOrdersInput) (*v1dto.BulkOperationResultDTO, error) {
+	if m.BulkCancelFunc != nil {
+		return m.BulkCancelFunc(ctx, userUUID, input)
+	}
+	return &v1dto.BulkOperationResultDTO{Total: len(input.OrderUUIDs), Succeeded: len(input.OrderUUIDs)}, nil
 }
 
 type MockOrderShippingService struct {

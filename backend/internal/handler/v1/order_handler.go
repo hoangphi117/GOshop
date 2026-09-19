@@ -1336,3 +1336,67 @@ func (oh *OrderHandler) AdminSyncActiveTracking(ctx *gin.Context) {
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Batch active shipping tracking synchronized successfully", stats)
 }
+
+// BulkUpdateOrderStatus godoc
+// @Summary      Bulk update order statuses
+// @Description  Update the status of multiple orders at once (Admin/Moderator)
+// @Tags         Admin - Orders
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        body body v1dto.BulkUpdateOrderStatusInput true "Bulk update payload"
+// @Success      200 {object} utils.APIResponse{data=v1dto.BulkOperationResultDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/orders/bulk-status [post]
+func (oh *OrderHandler) BulkUpdateOrderStatus(ctx *gin.Context) {
+	var input v1dto.BulkUpdateOrderStatusInput
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	result, err := oh.service.BulkUpdateStatus(ctx.Request.Context(), input)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Bulk order status updated", result)
+}
+
+// BulkCancelOrders godoc
+// @Summary      Bulk cancel orders
+// @Description  Cancel multiple orders with inventory rollback (Admin/Moderator)
+// @Tags         Admin - Orders
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        body body v1dto.BulkCancelOrdersInput true "Bulk cancel payload"
+// @Success      200 {object} utils.APIResponse{data=v1dto.BulkOperationResultDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/orders/bulk-cancel [post]
+func (oh *OrderHandler) BulkCancelOrders(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized"))
+		return
+	}
+
+	var input v1dto.BulkCancelOrdersInput
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	result, err := oh.service.BulkCancel(ctx.Request.Context(), userUUID, input)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Bulk orders cancelled", result)
+}
