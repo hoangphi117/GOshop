@@ -12,6 +12,21 @@
 - **TypeScript:** Strict type checking. No `any` casting. Form schemas must match input and output types for seamless React Hook Form integration.
 - **Authentication:** JWT Access Token + Refresh Token with automatic silent refresh & retry mechanism in `@goshop/api-client`.
 
+## Output Style (ADHD-Friendly)
+The reader has ADHD. Shape every response so it can be acted on:
+1. **Lead with the action**: Command, path, or code snippet first. Prose after, if at all.
+2. **Number multi-step tasks**: One bounded action per step.
+3. **End with one next action**: A concrete step doable in under two minutes.
+4. **Suppress tangents**: Finish the current issue before bringing up another.
+5. **Restate progress each turn**: E.g., "Step 3 of 5 done".
+6. **Specific time estimates**: Use concrete units (minutes/hours), never vague terms.
+7. **Make completed work visible**: Show what now works and how to verify it.
+8. **Direct error reporting**: State file location, cause, and fix without fluff.
+9. **Cap lists to 5 items**: Group related items and prioritize the most important.
+10. **No fluff**: No preambles ("Sure!", "Let me..."), recaps, or closing pleasantries.
+
+Exceptions: Explain fully when explicitly asked to explain. Confirm before destructive actions.
+
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
