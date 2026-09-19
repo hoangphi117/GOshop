@@ -176,8 +176,10 @@ func (s *orderService) CreateOrder(ctx context.Context, userUUID uuid.UUID, inpu
 	err = s.txManager.WithTx(ctx, func(txCtx context.Context) error {
 		tx, _ := db.GetTx(txCtx)
 
+		orderNumber := GenerateOrderNumber(user.UserID)
+
 		// 1. Lock products and deduct stock via InventoryService
-		productMap, err := s.inventoryService.LockAndDeductStock(txCtx, deductItems)
+		productMap, err := s.inventoryService.LockAndDeductStockWithRef(txCtx, deductItems, orderNumber, "order", &user.UserID, nil)
 		if err != nil {
 			return err
 		}
@@ -203,8 +205,6 @@ func (s *orderService) CreateOrder(ctx context.Context, userUUID uuid.UUID, inpu
 				return utils.WrapError(utils.ErrCodeInternal, "Failed to increment coupon usage count", err)
 			}
 		}
-
-		orderNumber := GenerateOrderNumber(user.UserID)
 
 		createOrderParams := sqlc.CreateOrderParams{
 			OrderNumber:          orderNumber,
@@ -632,7 +632,7 @@ func (s *orderService) CancelOrder(ctx context.Context, userUUID uuid.UUID, orde
 		cancelledOrder = updatedOrder
 
 		// 4.2. Hoàn tồn kho qua InventoryService
-		if err := s.inventoryService.RestoreStock(txCtx, toRestoreItems(orderItems)); err != nil {
+		if err := s.inventoryService.RestoreStockWithRef(txCtx, toRestoreItems(orderItems), orderRow.OrderNumber, "order_cancel", &user.UserID, reason); err != nil {
 			return utils.WrapError(utils.ErrCodeInternal, "failed to restore product stock", err)
 		}
 

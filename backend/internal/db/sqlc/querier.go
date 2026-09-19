@@ -41,6 +41,7 @@ type Querier interface {
 	CountReportsByReviewID(ctx context.Context, reviewID int32) (int64, error)
 	CountReturnsByUserID(ctx context.Context, arg CountReturnsByUserIDParams) (int64, error)
 	CountReviewsByUserID(ctx context.Context, reviewUserID int32) (int64, error)
+	CountStockMovements(ctx context.Context, arg CountStockMovementsParams) (int64, error)
 	CountUnreadNotificationsByUserID(ctx context.Context, notificationUserID int32) (int64, error)
 	CountUserAddresses(ctx context.Context, uaUserID int32) (int64, error)
 	CountUserCouponUsages(ctx context.Context, arg CountUserCouponUsagesParams) (int64, error)
@@ -57,6 +58,7 @@ type Querier interface {
 	CreateProduct(ctx context.Context, arg CreateProductParams) (CreateProductRow, error)
 	CreateRefundTransaction(ctx context.Context, arg CreateRefundTransactionParams) (PaymentTransaction, error)
 	CreateReview(ctx context.Context, arg CreateReviewParams) (ProductReview, error)
+	CreateStockMovement(ctx context.Context, arg CreateStockMovementParams) (StockMovement, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	CreateUserAddress(ctx context.Context, arg CreateUserAddressParams) (UserAddress, error)
 	DecrementHelpfulCount(ctx context.Context, reviewID int32) (int32, error)
@@ -140,6 +142,7 @@ type Querier interface {
 	InsertReviewReport(ctx context.Context, arg InsertReviewReportParams) error
 	InsertTrackingEvent(ctx context.Context, arg InsertTrackingEventParams) (OrderTrackingEvent, error)
 	InsertWebhookEvent(ctx context.Context, arg InsertWebhookEventParams) (WebhookEvent, error)
+	ListStockMovements(ctx context.Context, arg ListStockMovementsParams) ([]ListStockMovementsRow, error)
 	ListUserUserCreatedAtAsc(ctx context.Context, arg ListUserUserCreatedAtAscParams) ([]User, error)
 	ListUserUserCreatedAtDesc(ctx context.Context, arg ListUserUserCreatedAtDescParams) ([]User, error)
 	ListUserUserIdAsc(ctx context.Context, arg ListUserUserIdAscParams) ([]User, error)

@@ -68,8 +68,12 @@ func (m *MockOrderPricingService) CalculateOrderTotals(ctx context.Context, item
 }
 
 type MockInventoryService struct {
-	LockAndDeductStockFunc func(ctx context.Context, items []v1service.DeductItem) (map[string]sqlc.GetByUUIDsForUpdateRow, error)
-	RestoreStockFunc       func(ctx context.Context, items []v1service.RestoreItem) error
+	LockAndDeductStockFunc        func(ctx context.Context, items []v1service.DeductItem) (map[string]sqlc.GetByUUIDsForUpdateRow, error)
+	LockAndDeductStockWithRefFunc func(ctx context.Context, items []v1service.DeductItem, refID string, refType string, actorID *int32, note *string) (map[string]sqlc.GetByUUIDsForUpdateRow, error)
+	RestoreStockFunc              func(ctx context.Context, items []v1service.RestoreItem) error
+	RestoreStockWithRefFunc       func(ctx context.Context, items []v1service.RestoreItem, refID string, refType string, actorID *int32, note *string) error
+	AdjustStockFunc               func(ctx context.Context, actorUUID uuid.UUID, input v1dto.AdjustStockInput) (sqlc.StockMovement, error)
+	ListStockMovementsFunc        func(ctx context.Context, params v1dto.GetStockMovementsParam) ([]v1dto.StockMovementDTO, int64, error)
 }
 
 func (m *MockInventoryService) LockAndDeductStock(ctx context.Context, items []v1service.DeductItem) (map[string]sqlc.GetByUUIDsForUpdateRow, error) {
@@ -79,12 +83,41 @@ func (m *MockInventoryService) LockAndDeductStock(ctx context.Context, items []v
 	return nil, nil
 }
 
+func (m *MockInventoryService) LockAndDeductStockWithRef(ctx context.Context, items []v1service.DeductItem, refID string, refType string, actorID *int32, note *string) (map[string]sqlc.GetByUUIDsForUpdateRow, error) {
+	if m.LockAndDeductStockWithRefFunc != nil {
+		return m.LockAndDeductStockWithRefFunc(ctx, items, refID, refType, actorID, note)
+	}
+	return m.LockAndDeductStock(ctx, items)
+}
+
 func (m *MockInventoryService) RestoreStock(ctx context.Context, items []v1service.RestoreItem) error {
 	if m.RestoreStockFunc != nil {
 		return m.RestoreStockFunc(ctx, items)
 	}
 	return nil
 }
+
+func (m *MockInventoryService) RestoreStockWithRef(ctx context.Context, items []v1service.RestoreItem, refID string, refType string, actorID *int32, note *string) error {
+	if m.RestoreStockWithRefFunc != nil {
+		return m.RestoreStockWithRefFunc(ctx, items, refID, refType, actorID, note)
+	}
+	return m.RestoreStock(ctx, items)
+}
+
+func (m *MockInventoryService) AdjustStock(ctx context.Context, actorUUID uuid.UUID, input v1dto.AdjustStockInput) (sqlc.StockMovement, error) {
+	if m.AdjustStockFunc != nil {
+		return m.AdjustStockFunc(ctx, actorUUID, input)
+	}
+	return sqlc.StockMovement{}, nil
+}
+
+func (m *MockInventoryService) ListStockMovements(ctx context.Context, params v1dto.GetStockMovementsParam) ([]v1dto.StockMovementDTO, int64, error) {
+	if m.ListStockMovementsFunc != nil {
+		return m.ListStockMovementsFunc(ctx, params)
+	}
+	return []v1dto.StockMovementDTO{}, 0, nil
+}
+
 
 type MockNotificationService struct {
 	SendFunc                       func(ctx context.Context, input v1dto.SendNotificationInput) error

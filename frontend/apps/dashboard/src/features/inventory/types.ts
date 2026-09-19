@@ -1,0 +1,34 @@
+export interface StockMovement {
+  movement_uuid: string
+  product_uuid: string
+  product_name: string
+  product_sku?: string
+  product_image_url?: string
+  change_type: string
+  quantity_change: number
+  stock_before: number
+  stock_after: number
+  reference_id?: string
+  reference_type?: string
+  actor_uuid?: string
+  actor_name?: string
+  note?: string
+  created_at: string
+}
+
+export interface StockMovementQueryParams {
+  page?: number
+  limit?: number
+  product_uuid?: string
+  change_type?: string
+  from_date?: string
+  to_date?: string
+  search?: string
+}
+
+export interface AdjustStockPayload {
+  product_uuid: string
+  quantity_change: number
+  change_type: 'RESTOCK' | 'MANUAL_ADJUSTMENT' | 'DAMAGED_DISCARD' | 'INITIAL_STOCK'
+  note?: string
+}

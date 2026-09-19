@@ -105,11 +105,12 @@ type OrderPricingService interface {
 }
 
 type InventoryService interface {
-
-	// LockAndDeductStock locks pessimistic products by UUID order (to avoid deadlock),
-	// Checks active status and inventory quantity, then subtracts from stock.
 	LockAndDeductStock(ctx context.Context, items []DeductItem) (map[string]sqlc.GetByUUIDsForUpdateRow, error)
+	LockAndDeductStockWithRef(ctx context.Context, items []DeductItem, refID string, refType string, actorID *int32, note *string) (map[string]sqlc.GetByUUIDsForUpdateRow, error)
 	RestoreStock(ctx context.Context, items []RestoreItem) error
+	RestoreStockWithRef(ctx context.Context, items []RestoreItem, refID string, refType string, actorID *int32, note *string) error
+	AdjustStock(ctx context.Context, actorUUID uuid.UUID, input v1dto.AdjustStockInput) (sqlc.StockMovement, error)
+	ListStockMovements(ctx context.Context, params v1dto.GetStockMovementsParam) ([]v1dto.StockMovementDTO, int64, error)
 }
 
 type CartService interface {

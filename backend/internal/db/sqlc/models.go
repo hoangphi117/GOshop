@@ -256,6 +256,23 @@ type ProductReviewReport struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type StockMovement struct {
+	MovementID   int64     `json:"movement_id"`
+	MovementUuid uuid.UUID `json:"movement_uuid"`
+	ProductID    int32     `json:"product_id"`
+	// ORDER_PLACED, ORDER_CANCELLED, ORDER_RETURNED, RESTOCK, MANUAL_ADJUSTMENT, INITIAL_STOCK, DAMAGED_DISCARD
+	ChangeType     string  `json:"change_type"`
+	QuantityChange int32   `json:"quantity_change"`
+	StockBefore    int32   `json:"stock_before"`
+	StockAfter     int32   `json:"stock_after"`
+	ReferenceID    *string `json:"reference_id"`
+	// order, return, manual, product_edit
+	ReferenceType *string   `json:"reference_type"`
+	ActorID       *int32    `json:"actor_id"`
+	Note          *string   `json:"note"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
 type User struct {
 	UserID       int32     `json:"user_id"`
 	UserUuid     uuid.UUID `json:"user_uuid"`

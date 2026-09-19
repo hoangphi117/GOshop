@@ -15,6 +15,7 @@ import {
   TicketPercent,
   RotateCcw,
   MessageSquareQuote,
+  Boxes,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -59,6 +60,11 @@ export const sidebarData: SidebarData = {
           title: 'Products',
           url: '/products',
           icon: ShoppingBag,
+        },
+        {
+          title: 'Stock Movements',
+          url: '/inventory',
+          icon: Boxes,
         },
         {
           title: 'Orders',

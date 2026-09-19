@@ -68,7 +68,8 @@ func NewOrderModule(ctx *ModuleContext, wsHub ws.Hub, rabbitmqService rabbitmq.R
 	notificationService := v1service.NewNotificationService(notificationRepo, userRepo, wsHub)
 
 	pricingService := v1service.NewOrderPricingService(couponRepo)
-	inventoryService := v1service.NewInventoryService(productRepo)
+	stockMovementRepo := repository.NewSqlStockMovementRepository(ctx.DB)
+	inventoryService := v1service.NewInventoryService(productRepo, stockMovementRepo, userRepo, ctx.TxManager)
 
 	orderService := v1service.NewOrderService(
 		ctx.TxManager,
@@ -161,12 +162,13 @@ func NewOrderModule(ctx *ModuleContext, wsHub ws.Hub, rabbitmqService rabbitmq.R
 
 	orderRoutes := v1routes.NewOrderRoutes(orderHandler)
 	adminOrderRoutes := v1routes.NewAdminOrderRoutes(orderHandler)
+	adminInventoryRoutes := v1routes.NewAdminInventoryRoutes(v1handler.NewInventoryHandler(inventoryService))
 
 	shippingWebhookRoutes := v1routes.NewShippingWebhookRoutes(orderHandler)
 
 	return &OrderModule{
 		routes:      []routes.Route{orderRoutes, shippingWebhookRoutes},
-		adminRoutes: []routes.Route{adminOrderRoutes},
+		adminRoutes: []routes.Route{adminOrderRoutes, adminInventoryRoutes},
 	}
 
 }

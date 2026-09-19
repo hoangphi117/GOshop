@@ -42,7 +42,7 @@ func TestInventoryService_LockAndDeductStock(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewInventoryService(mockRepo)
+		svc := v1service.NewInventoryService(mockRepo, nil, nil, nil)
 		items := []v1service.DeductItem{
 			{ProductUUID: productUUID1.String(), Quantity: 2},
 		}
@@ -70,7 +70,7 @@ func TestInventoryService_LockAndDeductStock(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewInventoryService(mockRepo)
+		svc := v1service.NewInventoryService(mockRepo, nil, nil, nil)
 		items := []v1service.DeductItem{
 			{ProductUUID: productUUID1.String(), Quantity: 1},
 		}
@@ -97,7 +97,7 @@ func TestInventoryService_LockAndDeductStock(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewInventoryService(mockRepo)
+		svc := v1service.NewInventoryService(mockRepo, nil, nil, nil)
 		items := []v1service.DeductItem{
 			{ProductUUID: productUUID1.String(), Quantity: 5}, // Requesting 5, but only 3 available
 		}
@@ -124,7 +124,7 @@ func TestInventoryService_LockAndDeductStock(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewInventoryService(mockRepo)
+		svc := v1service.NewInventoryService(mockRepo, nil, nil, nil)
 		items := []v1service.DeductItem{
 			{ProductUUID: productUUID1.String(), Quantity: 1},
 		}
@@ -142,7 +142,7 @@ func TestInventoryService_LockAndDeductStock(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewInventoryService(mockRepo)
+		svc := v1service.NewInventoryService(mockRepo, nil, nil, nil)
 		items := []v1service.DeductItem{
 			{ProductUUID: productUUID1.String(), Quantity: 1},
 		}
@@ -154,7 +154,7 @@ func TestInventoryService_LockAndDeductStock(t *testing.T) {
 	})
 
 	t.Run("Case 6: Invalid UUID format", func(t *testing.T) {
-		svc := v1service.NewInventoryService(&testutils.MockProductRepository{})
+		svc := v1service.NewInventoryService(&testutils.MockProductRepository{}, nil, nil, nil)
 		items := []v1service.DeductItem{
 			{ProductUUID: "invalid-uuid-format", Quantity: 1},
 		}
@@ -178,7 +178,7 @@ func TestInventoryService_RestoreStock(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewInventoryService(mockRepo)
+		svc := v1service.NewInventoryService(mockRepo, nil, nil, nil)
 		items := []v1service.RestoreItem{
 			{ProductID: 101, Quantity: 2},
 			{ProductID: 102, Quantity: 3},

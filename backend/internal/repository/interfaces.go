@@ -226,3 +226,10 @@ type AnalyticsRepository interface {
 	GetLowStockProducts(ctx context.Context, threshold, limit int32) ([]sqlc.GetLowStockProductsRow, error)
 	GetPaymentMethodBreakdown(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetPaymentMethodBreakdownRow, error)
 }
+
+type StockMovementRepository interface {
+	Create(ctx context.Context, tx pgx.Tx, params sqlc.CreateStockMovementParams) (sqlc.StockMovement, error)
+	List(ctx context.Context, params sqlc.ListStockMovementsParams) ([]sqlc.ListStockMovementsRow, error)
+	Count(ctx context.Context, params sqlc.CountStockMovementsParams) (int64, error)
+}
+
