@@ -214,23 +214,28 @@ type PrintBillResponseDTO struct {
 }
 
 type AdminReturnSummaryDTO struct {
-	ReturnUUID    string    `json:"return_uuid"`
-	OrderUUID     string    `json:"order_uuid"`
-	OrderNumber   string    `json:"order_number"`
-	CustomerName  string    `json:"customer_name"`  // o.OrderShippingName
-	CustomerPhone string    `json:"customer_phone"` // o.OrderShippingPhone
-	CustomerEmail string    `json:"customer_email"` // u.UserEmail
-	TotalAmount   float64   `json:"total_amount"`
-	PaymentMethod string    `json:"payment_method"`
-	PaymentStatus string    `json:"payment_status"`
-	Reason        string    `json:"reason"`
-	Images        []string  `json:"images"`
-	VideoURL      *string   `json:"video_url,omitempty"`
-	Status        int16     `json:"status"`
-	StatusText    string    `json:"status_text"`
-	AdminNote     *string   `json:"admin_note,omitempty"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	ReturnUUID       string    `json:"return_uuid"`
+	OrderUUID        string    `json:"order_uuid"`
+	OrderNumber      string    `json:"order_number"`
+	CustomerName     string    `json:"customer_name"`  // o.OrderShippingName
+	CustomerPhone    string    `json:"customer_phone"` // o.OrderShippingPhone
+	CustomerEmail    string    `json:"customer_email"` // u.UserEmail
+	UserFullname     string    `json:"user_fullname,omitempty"`
+	TotalAmount      float64   `json:"total_amount"`
+	PaymentMethod    string    `json:"payment_method"`
+	PaymentStatus    string    `json:"payment_status"`
+	Reason           string    `json:"reason"`
+	Images           []string  `json:"images"`
+	VideoURL         *string   `json:"video_url,omitempty"`
+	Status           int16     `json:"status"`
+	StatusName       string    `json:"status_name"`
+	StatusText       string    `json:"status_text"`
+	AdminNote        *string   `json:"admin_note,omitempty"`
+	ShippingProvider *string   `json:"shipping_provider,omitempty"`
+	ShippingCode     *string   `json:"shipping_code,omitempty"`
+	ShippingNote     *string   `json:"shipping_note,omitempty"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }
 
 type UserReturnSummaryDTO struct {

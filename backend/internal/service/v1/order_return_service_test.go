@@ -591,6 +591,9 @@ func TestOrderService_AdminGetReturns(t *testing.T) {
 				return adminUser, nil
 			},
 		}
+		shippingProvider := "GHN"
+		shippingCode := "GHN123456"
+		shippingNote := "Fragile"
 		mockReturnRepo := &testutils.MockOrderReturnsRepository{
 			CountReturnsFunc: func(ctx context.Context, params sqlc.AdminCountReturnsParams) (int64, error) {
 				return 1, nil
@@ -598,16 +601,20 @@ func TestOrderService_AdminGetReturns(t *testing.T) {
 			GetReturnsFunc: func(ctx context.Context, params sqlc.AdminGetReturnsParams) ([]sqlc.AdminGetReturnsRow, error) {
 				return []sqlc.AdminGetReturnsRow{
 					{
-						ReturnID:         1,
-						ReturnUuid:       returnUUID,
-						OrderUuid:        orderUUID,
-						OrderNumber:      "ORD-2026-001",
-						OrderTotalAmount: utils.FloatToNumeric(750000),
-						UserFullname:     "Customer A",
-						UserEmail:        "customer@example.com",
-						ReturnReason:     "Wrong item received",
-						ReturnStatus:     v1service.OrderReturnStatusPending,
-						ReturnCreatedAt:  time.Now(),
+						ReturnID:               1,
+						ReturnUuid:             returnUUID,
+						OrderUuid:              orderUUID,
+						OrderNumber:            "ORD-2026-001",
+						OrderTotalAmount:       utils.FloatToNumeric(750000),
+						OrderShippingName:      "Customer A",
+						UserFullname:           "Customer A",
+						UserEmail:              "customer@example.com",
+						ReturnReason:           "Wrong item received",
+						ReturnStatus:           v1service.OrderReturnStatusApproved,
+						ReturnShippingProvider: &shippingProvider,
+						ReturnShippingCode:     &shippingCode,
+						ReturnShippingNote:     &shippingNote,
+						ReturnCreatedAt:        time.Now(),
 					},
 				}, nil
 			},
@@ -623,6 +630,14 @@ func TestOrderService_AdminGetReturns(t *testing.T) {
 		assert.Equal(t, int64(1), total)
 		assert.Len(t, items, 1)
 		assert.Equal(t, returnUUID.String(), items[0].ReturnUUID)
+		assert.Equal(t, "Customer A", items[0].CustomerName)
+		assert.Equal(t, "Approved", items[0].StatusName)
+		require.NotNil(t, items[0].ShippingProvider)
+		assert.Equal(t, "GHN", *items[0].ShippingProvider)
+		require.NotNil(t, items[0].ShippingCode)
+		assert.Equal(t, "GHN123456", *items[0].ShippingCode)
+		require.NotNil(t, items[0].ShippingNote)
+		assert.Equal(t, "Fragile", *items[0].ShippingNote)
 	})
 }
 

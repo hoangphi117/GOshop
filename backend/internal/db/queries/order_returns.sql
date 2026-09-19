@@ -34,7 +34,8 @@ WHERE return_uuid = $1;
 SELECT 
     r.return_id, r.return_uuid, r.return_order_id, r.return_user_id,
     r.return_reason, r.return_images, r.return_video_url, r.return_status,
-    r.return_admin_note, r.return_created_at, r.return_updated_at,
+    r.return_admin_note, r.return_shipping_provider, r.return_shipping_code,
+    r.return_shipping_note, r.return_created_at, r.return_updated_at,
     o.order_uuid, o.order_number, o.order_shipping_name, o.order_shipping_phone,
     o.order_total_amount, o.order_payment_method, o.order_payment_status,
     u.user_uuid, u.user_fullname, u.user_email

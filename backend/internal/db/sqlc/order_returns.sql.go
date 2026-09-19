@@ -231,7 +231,8 @@ const adminGetReturns = `-- name: AdminGetReturns :many
 SELECT 
     r.return_id, r.return_uuid, r.return_order_id, r.return_user_id,
     r.return_reason, r.return_images, r.return_video_url, r.return_status,
-    r.return_admin_note, r.return_created_at, r.return_updated_at,
+    r.return_admin_note, r.return_shipping_provider, r.return_shipping_code,
+    r.return_shipping_note, r.return_created_at, r.return_updated_at,
     o.order_uuid, o.order_number, o.order_shipping_name, o.order_shipping_phone,
     o.order_total_amount, o.order_payment_method, o.order_payment_status,
     u.user_uuid, u.user_fullname, u.user_email
@@ -257,27 +258,30 @@ type AdminGetReturnsParams struct {
 }
 
 type AdminGetReturnsRow struct {
-	ReturnID           int32          `json:"return_id"`
-	ReturnUuid         uuid.UUID      `json:"return_uuid"`
-	ReturnOrderID      int32          `json:"return_order_id"`
-	ReturnUserID       int32          `json:"return_user_id"`
-	ReturnReason       string         `json:"return_reason"`
-	ReturnImages       []string       `json:"return_images"`
-	ReturnVideoUrl     *string        `json:"return_video_url"`
-	ReturnStatus       int16          `json:"return_status"`
-	ReturnAdminNote    *string        `json:"return_admin_note"`
-	ReturnCreatedAt    time.Time      `json:"return_created_at"`
-	ReturnUpdatedAt    time.Time      `json:"return_updated_at"`
-	OrderUuid          uuid.UUID      `json:"order_uuid"`
-	OrderNumber        string         `json:"order_number"`
-	OrderShippingName  string         `json:"order_shipping_name"`
-	OrderShippingPhone string         `json:"order_shipping_phone"`
-	OrderTotalAmount   pgtype.Numeric `json:"order_total_amount"`
-	OrderPaymentMethod int32          `json:"order_payment_method"`
-	OrderPaymentStatus int32          `json:"order_payment_status"`
-	UserUuid           uuid.UUID      `json:"user_uuid"`
-	UserFullname       string         `json:"user_fullname"`
-	UserEmail          string         `json:"user_email"`
+	ReturnID               int32          `json:"return_id"`
+	ReturnUuid             uuid.UUID      `json:"return_uuid"`
+	ReturnOrderID          int32          `json:"return_order_id"`
+	ReturnUserID           int32          `json:"return_user_id"`
+	ReturnReason           string         `json:"return_reason"`
+	ReturnImages           []string       `json:"return_images"`
+	ReturnVideoUrl         *string        `json:"return_video_url"`
+	ReturnStatus           int16          `json:"return_status"`
+	ReturnAdminNote        *string        `json:"return_admin_note"`
+	ReturnShippingProvider *string        `json:"return_shipping_provider"`
+	ReturnShippingCode     *string        `json:"return_shipping_code"`
+	ReturnShippingNote     *string        `json:"return_shipping_note"`
+	ReturnCreatedAt        time.Time      `json:"return_created_at"`
+	ReturnUpdatedAt        time.Time      `json:"return_updated_at"`
+	OrderUuid              uuid.UUID      `json:"order_uuid"`
+	OrderNumber            string         `json:"order_number"`
+	OrderShippingName      string         `json:"order_shipping_name"`
+	OrderShippingPhone     string         `json:"order_shipping_phone"`
+	OrderTotalAmount       pgtype.Numeric `json:"order_total_amount"`
+	OrderPaymentMethod     int32          `json:"order_payment_method"`
+	OrderPaymentStatus     int32          `json:"order_payment_status"`
+	UserUuid               uuid.UUID      `json:"user_uuid"`
+	UserFullname           string         `json:"user_fullname"`
+	UserEmail              string         `json:"user_email"`
 }
 
 func (q *Queries) AdminGetReturns(ctx context.Context, arg AdminGetReturnsParams) ([]AdminGetReturnsRow, error) {
@@ -304,6 +308,9 @@ func (q *Queries) AdminGetReturns(ctx context.Context, arg AdminGetReturnsParams
 			&i.ReturnVideoUrl,
 			&i.ReturnStatus,
 			&i.ReturnAdminNote,
+			&i.ReturnShippingProvider,
+			&i.ReturnShippingCode,
+			&i.ReturnShippingNote,
 			&i.ReturnCreatedAt,
 			&i.ReturnUpdatedAt,
 			&i.OrderUuid,

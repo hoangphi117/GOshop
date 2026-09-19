@@ -219,11 +219,11 @@ export function Returns() {
 
                       <TableCell>
                         <div className='font-medium text-xs sm:text-sm'>
-                          {item.user_fullname || 'Customer'}
+                          {item.customer_name || item.user_fullname || 'Customer'}
                         </div>
-                        {item.user_email && (
+                        {(item.customer_email || item.user_email) && (
                           <div className='text-xs text-muted-foreground truncate max-w-[150px]'>
-                            {item.user_email}
+                            {item.customer_email || item.user_email}
                           </div>
                         )}
                       </TableCell>

@@ -206,18 +206,24 @@ export interface AdminReturnSummary {
   return_uuid: string
   order_uuid: string
   order_number: string
+  customer_name?: string
+  customer_phone?: string
+  customer_email?: string
   user_fullname?: string
   user_email?: string
   total_amount: number
+  payment_method?: string
+  payment_status?: string
   reason: string
   images: string[]
   video_url?: string | null
   status: number
-  status_name: string
+  status_name?: string
   status_text: string
   admin_note?: string | null
   shipping_provider?: string | null
   shipping_code?: string | null
+  shipping_note?: string | null
   created_at: string
   updated_at: string
 }
