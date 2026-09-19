@@ -12,8 +12,17 @@ import { formatCurrency } from '@/features/orders/order-utils'
 import { useRevenueChart, useTopProducts } from '../hooks/use-dashboard-analytics'
 import { AnalyticsChart } from './analytics-chart'
 
-export function Analytics() {
-  const { data: topProducts, isLoading: isProductsLoading } = useTopProducts({ days: 30, limit: 6 })
+interface AnalyticsProps {
+  fromDate?: string
+  toDate?: string
+}
+
+export function Analytics({ fromDate, toDate }: AnalyticsProps = {}) {
+  const { data: topProducts, isLoading: isProductsLoading } = useTopProducts(
+    fromDate && toDate
+      ? { from_date: fromDate, to_date: toDate, limit: 6 }
+      : { days: 30, limit: 6 }
+  )
   const { data: monthlyChart, isLoading: isMonthlyLoading } = useRevenueChart({ period: 'monthly', months: 12 })
 
   const totalMonthlyRevenue = (monthlyChart || []).reduce((acc, curr) => acc + (curr.revenue ?? 0), 0)
@@ -56,7 +65,7 @@ export function Analytics() {
               <div>
                 <CardTitle className='flex items-center gap-2'>
                   <TrendingUp className='h-5 w-5 text-primary' />
-                  Top Best-Selling Products (Last 30 Days)
+                  Top Best-Selling Products {fromDate && toDate ? `(${fromDate} - ${toDate})` : '(Last 30 Days)'}
                 </CardTitle>
                 <CardDescription>
                   Ranked by total quantity sold and revenue generated

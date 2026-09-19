@@ -20,7 +20,34 @@ func NewAnalyticsService(repo repository.AnalyticsRepository) AnalyticsService {
 	}
 }
 
-func (s *analyticsService) GetOverview(ctx context.Context) (v1dto.OverviewStatsDTO, error) {
+func (s *analyticsService) GetOverview(ctx context.Context, query v1dto.OverviewStatsQuery) (v1dto.OverviewStatsDTO, error) {
+	if query.FromDate != "" || query.ToDate != "" {
+		fromDate, toDate, err := resolveDateRange(query.Days, query.FromDate, query.ToDate)
+		if err != nil {
+			return v1dto.OverviewStatsDTO{}, utils.WrapError(utils.ErrCodeBadRequest, "Invalid date range", err)
+		}
+		duration := toDate.Sub(fromDate)
+		prevFromDate := fromDate.Add(-duration)
+
+		row, err := s.repo.GetOverviewCustom(ctx, fromDate, toDate, prevFromDate)
+		if err != nil {
+			return v1dto.OverviewStatsDTO{}, err
+		}
+
+		currRevenue := utils.NumericToFloat(row.Revenue)
+		prevRevenue := utils.NumericToFloat(row.PrevRevenue)
+
+		return v1dto.OverviewStatsDTO{
+			TotalRevenue:   currRevenue,
+			TotalOrders:    row.OrderCount,
+			NewCustomers:   row.NewCustomers,
+			PendingOrders:  row.PendingCount,
+			RevenueGrowth:  calculateGrowth(currRevenue, prevRevenue),
+			OrderGrowth:    calculateGrowth(float64(row.OrderCount), float64(row.PrevOrderCount)),
+			CustomerGrowth: calculateGrowth(float64(row.NewCustomers), float64(row.PrevNewCustomers)),
+		}, nil
+	}
+
 	row, err := s.repo.GetOverview(ctx)
 	if err != nil {
 		return v1dto.OverviewStatsDTO{}, err
@@ -40,8 +67,9 @@ func (s *analyticsService) GetOverview(ctx context.Context) (v1dto.OverviewStats
 	}, nil
 }
 
-func (s *analyticsService) GetRevenueChart(ctx context.Context, period string, days, months int32) ([]v1dto.RevenueChartPointDTO, error) {
-	if period == "monthly" {
+func (s *analyticsService) GetRevenueChart(ctx context.Context, query v1dto.RevenueChartQuery) ([]v1dto.RevenueChartPointDTO, error) {
+	if query.Period == "monthly" {
+		months := query.Months
 		if months <= 0 {
 			months = 12
 		}
@@ -60,6 +88,27 @@ func (s *analyticsService) GetRevenueChart(ctx context.Context, period string, d
 		return points, nil
 	}
 
+	if query.FromDate != "" || query.ToDate != "" {
+		fromDate, toDate, err := resolveDateRange(query.Days, query.FromDate, query.ToDate)
+		if err != nil {
+			return nil, utils.WrapError(utils.ErrCodeBadRequest, "Invalid date range", err)
+		}
+		rows, err := s.repo.GetRevenueDailyCustom(ctx, fromDate, toDate)
+		if err != nil {
+			return nil, err
+		}
+		points := make([]v1dto.RevenueChartPointDTO, len(rows))
+		for i, r := range rows {
+			points[i] = v1dto.RevenueChartPointDTO{
+				Date:       r.Date.Format("2006-01-02"),
+				Revenue:    utils.NumericToFloat(r.TotalRevenue),
+				OrderCount: r.TotalOrders,
+			}
+		}
+		return points, nil
+	}
+
+	days := query.Days
 	if days <= 0 {
 		days = 30
 	}
@@ -103,12 +152,40 @@ func (s *analyticsService) GetRecentOrders(ctx context.Context, limit int32) ([]
 	return orders, nil
 }
 
-func (s *analyticsService) GetTopProducts(ctx context.Context, days, limit int32) ([]v1dto.TopProductDTO, error) {
-	if days <= 0 {
-		days = 30
-	}
+func (s *analyticsService) GetTopProducts(ctx context.Context, query v1dto.TopProductsQuery) ([]v1dto.TopProductDTO, error) {
+	limit := query.Limit
 	if limit <= 0 {
 		limit = 5
+	}
+
+	if query.FromDate != "" || query.ToDate != "" {
+		fromDate, toDate, err := resolveDateRange(query.Days, query.FromDate, query.ToDate)
+		if err != nil {
+			return nil, utils.WrapError(utils.ErrCodeBadRequest, "Invalid date range", err)
+		}
+		rows, err := s.repo.GetTopSellingProductsCustom(ctx, fromDate, toDate, limit)
+		if err != nil {
+			return nil, err
+		}
+		products := make([]v1dto.TopProductDTO, len(rows))
+		for i, r := range rows {
+			products[i] = v1dto.TopProductDTO{
+				UUID:           r.ProductUuid.String(),
+				Name:           r.ProductName,
+				Slug:           r.ProductSlug,
+				Price:          utils.NumericToFloat(r.ProductPrice),
+				ImageURL:       r.ProductImageUrl,
+				CategoryName:   r.CategoryName,
+				TotalUnitsSold: r.TotalUnitsSold,
+				TotalRevenue:   utils.NumericToFloat(r.TotalSalesAmount),
+			}
+		}
+		return products, nil
+	}
+
+	days := query.Days
+	if days <= 0 {
+		days = 30
 	}
 	rows, err := s.repo.GetTopSellingProducts(ctx, days, limit)
 	if err != nil {

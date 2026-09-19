@@ -14,9 +14,18 @@ const STATUS_COLORS: Record<number, { hex: string; bg: string; text: string }> =
   6: { hex: '#f97316', bg: 'bg-orange-500/10', text: 'text-orange-600 dark:text-orange-400' },// Returned
 }
 
-export function OrderStatusChart() {
+interface OrderStatusChartProps {
+  fromDate?: string
+  toDate?: string
+}
+
+export function OrderStatusChart({ fromDate, toDate }: OrderStatusChartProps = {}) {
   const [days, setDays] = useState<number>(30)
-  const { data, isLoading, isError } = useOrderStatusDistribution({ days })
+  const queryParams = fromDate && toDate
+    ? { from_date: fromDate, to_date: toDate }
+    : { days }
+
+  const { data, isLoading, isError } = useOrderStatusDistribution(queryParams)
 
   const items = data?.items || []
   const totalOrders = data?.total_orders ?? 0
@@ -36,43 +45,47 @@ export function OrderStatusChart() {
     <div className='space-y-4'>
       <div className='flex items-center justify-between'>
         <div className='text-xs text-muted-foreground'>
-          Distribution across all fulfillment stages
+          {fromDate && toDate
+            ? `Distribution for ${fromDate} to ${toDate}`
+            : 'Distribution across all fulfillment stages'}
         </div>
-        <div className='flex items-center space-x-1 rounded-lg bg-muted p-1 text-xs'>
-          <button
-            type='button'
-            onClick={() => setDays(7)}
-            className={`rounded px-2.5 py-1 font-medium transition-colors ${
-              days === 7
-                ? 'bg-background text-foreground shadow-xs'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            7 Days
-          </button>
-          <button
-            type='button'
-            onClick={() => setDays(30)}
-            className={`rounded px-2.5 py-1 font-medium transition-colors ${
-              days === 30
-                ? 'bg-background text-foreground shadow-xs'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            30 Days
-          </button>
-          <button
-            type='button'
-            onClick={() => setDays(90)}
-            className={`rounded px-2.5 py-1 font-medium transition-colors ${
-              days === 90
-                ? 'bg-background text-foreground shadow-xs'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            90 Days
-          </button>
-        </div>
+        {!fromDate && !toDate && (
+          <div className='flex items-center space-x-1 rounded-lg bg-muted p-1 text-xs'>
+            <button
+              type='button'
+              onClick={() => setDays(7)}
+              className={`rounded px-2.5 py-1 font-medium transition-colors ${
+                days === 7
+                  ? 'bg-background text-foreground shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              7 Days
+            </button>
+            <button
+              type='button'
+              onClick={() => setDays(30)}
+              className={`rounded px-2.5 py-1 font-medium transition-colors ${
+                days === 30
+                  ? 'bg-background text-foreground shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              30 Days
+            </button>
+            <button
+              type='button'
+              onClick={() => setDays(90)}
+              className={`rounded px-2.5 py-1 font-medium transition-colors ${
+                days === 90
+                  ? 'bg-background text-foreground shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              90 Days
+            </button>
+          </div>
+        )}
       </div>
 
       {isLoading ? (

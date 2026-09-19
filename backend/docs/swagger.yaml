@@ -2065,8 +2065,22 @@ paths:
       - Admin - Analytics
   /admin/analytics/overview:
     get:
-      description: Get 30-day KPI cards (revenue, orders, new customers, pending orders)
-        with growth comparison
+      description: Get KPI cards (revenue, orders, new customers, pending orders)
+        with growth comparison for 30 days or custom date range
+      parameters:
+      - default: 30
+        description: 'Time window in days (default: 30)'
+        in: query
+        name: days
+        type: integer
+      - description: Start date (YYYY-MM-DD)
+        in: query
+        name: from_date
+        type: string
+      - description: End date (YYYY-MM-DD)
+        in: query
+        name: to_date
+        type: string
       produces:
       - application/json
       responses:
@@ -2209,6 +2223,14 @@ paths:
         in: query
         name: months
         type: integer
+      - description: Start date (YYYY-MM-DD)
+        in: query
+        name: from_date
+        type: string
+      - description: End date (YYYY-MM-DD)
+        in: query
+        name: to_date
+        type: string
       produces:
       - application/json
       responses:
@@ -2240,7 +2262,7 @@ paths:
   /admin/analytics/top-products:
     get:
       description: Get the top best-selling products by quantity and revenue over
-        the last N days
+        the last N days or custom date range
       parameters:
       - default: 30
         description: Time window in days
@@ -2252,6 +2274,14 @@ paths:
         in: query
         name: limit
         type: integer
+      - description: Start date (YYYY-MM-DD)
+        in: query
+        name: from_date
+        type: string
+      - description: End date (YYYY-MM-DD)
+        in: query
+        name: to_date
+        type: string
       produces:
       - application/json
       responses:

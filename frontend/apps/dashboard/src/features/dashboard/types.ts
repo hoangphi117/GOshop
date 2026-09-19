@@ -14,10 +14,18 @@ export type LowStockProduct = components['schemas']['goshop_internal_dto_v1.LowS
 export type PaymentMethodBreakdownResponse = components['schemas']['goshop_internal_dto_v1.PaymentMethodBreakdownResponse']
 export type PaymentMethodBreakdownItem = components['schemas']['goshop_internal_dto_v1.PaymentMethodBreakdownItemDTO']
 
+export interface OverviewStatsQueryParams {
+  days?: number
+  from_date?: string
+  to_date?: string
+}
+
 export interface RevenueChartQueryParams {
   period?: 'daily' | 'monthly'
   days?: number
   months?: number
+  from_date?: string
+  to_date?: string
 }
 
 export interface RecentOrdersQueryParams {
@@ -27,6 +35,8 @@ export interface RecentOrdersQueryParams {
 export interface TopProductsQueryParams {
   days?: number
   limit?: number
+  from_date?: string
+  to_date?: string
 }
 
 export interface OrderStatusDistributionQueryParams {

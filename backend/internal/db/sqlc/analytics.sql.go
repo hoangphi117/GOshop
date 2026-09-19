@@ -202,6 +202,96 @@ func (q *Queries) GetOverviewStats(ctx context.Context) (GetOverviewStatsRow, er
 	return i, err
 }
 
+const getOverviewStatsCustom = `-- name: GetOverviewStatsCustom :one
+WITH paid_orders AS (
+    SELECT
+        o.order_id,
+        (o.order_total_amount - o.order_refunded_amount)::numeric(14,2) AS net_revenue,
+        COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at)::timestamptz AS paid_time
+    FROM orders o
+    WHERE o.order_payment_status IN (2, 3)
+      AND COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at) >= $1::timestamptz
+      AND COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at) <= $2::timestamptz
+),
+order_stats AS (
+    SELECT
+        COALESCE(SUM(net_revenue) FILTER (
+            WHERE paid_time >= $3::timestamptz AND paid_time <= $2::timestamptz
+        ), 0)::numeric(14,2) AS revenue,
+        COUNT(order_id) FILTER (
+            WHERE paid_time >= $3::timestamptz AND paid_time <= $2::timestamptz
+        )::bigint AS order_count,
+        COALESCE(SUM(net_revenue) FILTER (
+            WHERE paid_time >= $1::timestamptz AND paid_time < $3::timestamptz
+        ), 0)::numeric(14,2) AS prev_revenue,
+        COUNT(order_id) FILTER (
+            WHERE paid_time >= $1::timestamptz AND paid_time < $3::timestamptz
+        )::bigint AS prev_order_count
+    FROM paid_orders
+),
+pending_orders AS (
+    SELECT COUNT(order_id)::bigint AS pending_count
+    FROM orders
+    WHERE order_status = 1
+),
+customer_stats AS (
+    SELECT
+        COUNT(user_id) FILTER (
+            WHERE user_created_at >= $3::timestamptz AND user_created_at <= $2::timestamptz
+        )::bigint AS new_customers,
+        COUNT(user_id) FILTER (
+            WHERE user_created_at >= $1::timestamptz AND user_created_at < $3::timestamptz
+        )::bigint AS prev_new_customers
+    FROM users
+    WHERE user_level = 3
+      AND user_deleted_at IS NULL
+      AND user_created_at >= $1::timestamptz
+      AND user_created_at <= $2::timestamptz
+)
+SELECT
+    s.revenue,
+    s.order_count,
+    s.prev_revenue,
+    s.prev_order_count,
+    po.pending_count,
+    c.new_customers,
+    c.prev_new_customers
+FROM order_stats s
+CROSS JOIN pending_orders po
+CROSS JOIN customer_stats c
+`
+
+type GetOverviewStatsCustomParams struct {
+	PrevFromDate time.Time `json:"prev_from_date"`
+	ToDate       time.Time `json:"to_date"`
+	FromDate     time.Time `json:"from_date"`
+}
+
+type GetOverviewStatsCustomRow struct {
+	Revenue          pgtype.Numeric `json:"revenue"`
+	OrderCount       int64          `json:"order_count"`
+	PrevRevenue      pgtype.Numeric `json:"prev_revenue"`
+	PrevOrderCount   int64          `json:"prev_order_count"`
+	PendingCount     int64          `json:"pending_count"`
+	NewCustomers     int64          `json:"new_customers"`
+	PrevNewCustomers int64          `json:"prev_new_customers"`
+}
+
+func (q *Queries) GetOverviewStatsCustom(ctx context.Context, arg GetOverviewStatsCustomParams) (GetOverviewStatsCustomRow, error) {
+	row := q.db.QueryRow(ctx, getOverviewStatsCustom, arg.PrevFromDate, arg.ToDate, arg.FromDate)
+	var i GetOverviewStatsCustomRow
+	err := row.Scan(
+		&i.Revenue,
+		&i.OrderCount,
+		&i.PrevRevenue,
+		&i.PrevOrderCount,
+		&i.PendingCount,
+		&i.NewCustomers,
+		&i.PrevNewCustomers,
+	)
+	return i, err
+}
+
 const getPaymentMethodBreakdown = `-- name: GetPaymentMethodBreakdown :many
 SELECT 
     order_payment_method,
@@ -358,6 +448,54 @@ func (q *Queries) GetRevenueDailyChart(ctx context.Context, days int32) ([]GetRe
 	return items, nil
 }
 
+const getRevenueDailyCustom = `-- name: GetRevenueDailyCustom :many
+SELECT
+    gs.day::timestamptz AS date,
+    COALESCE(SUM(o.order_total_amount - o.order_refunded_amount), 0)::numeric(14,2) AS total_revenue,
+    COUNT(o.order_id)::bigint AS total_orders
+FROM generate_series(
+    date_trunc('day', $1::timestamptz),
+    date_trunc('day', $2::timestamptz),
+    INTERVAL '1 day'
+) AS gs(day)
+LEFT JOIN orders o
+    ON o.order_payment_status IN (2, 3)
+   AND date_trunc('day', COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at)) = gs.day
+GROUP BY gs.day
+ORDER BY gs.day ASC
+`
+
+type GetRevenueDailyCustomParams struct {
+	FromDate time.Time `json:"from_date"`
+	ToDate   time.Time `json:"to_date"`
+}
+
+type GetRevenueDailyCustomRow struct {
+	Date         time.Time      `json:"date"`
+	TotalRevenue pgtype.Numeric `json:"total_revenue"`
+	TotalOrders  int64          `json:"total_orders"`
+}
+
+func (q *Queries) GetRevenueDailyCustom(ctx context.Context, arg GetRevenueDailyCustomParams) ([]GetRevenueDailyCustomRow, error) {
+	rows, err := q.db.Query(ctx, getRevenueDailyCustom, arg.FromDate, arg.ToDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetRevenueDailyCustomRow{}
+	for rows.Next() {
+		var i GetRevenueDailyCustomRow
+		if err := rows.Scan(&i.Date, &i.TotalRevenue, &i.TotalOrders); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getRevenueMonthlyChart = `-- name: GetRevenueMonthlyChart :many
 SELECT
     gs.month::timestamptz AS month,
@@ -450,6 +588,78 @@ func (q *Queries) GetTopSellingProducts(ctx context.Context, arg GetTopSellingPr
 	items := []GetTopSellingProductsRow{}
 	for rows.Next() {
 		var i GetTopSellingProductsRow
+		if err := rows.Scan(
+			&i.ProductID,
+			&i.ProductUuid,
+			&i.ProductName,
+			&i.ProductSlug,
+			&i.ProductPrice,
+			&i.ProductImageUrl,
+			&i.CategoryName,
+			&i.TotalUnitsSold,
+			&i.TotalSalesAmount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTopSellingProductsCustom = `-- name: GetTopSellingProductsCustom :many
+SELECT
+    p.product_id,
+    p.product_uuid,
+    p.product_name,
+    p.product_slug,
+    p.product_price,
+    p.product_image_url,
+    c.category_name,
+    COALESCE(SUM(oi.order_item_quantity), 0)::bigint AS total_units_sold,
+    COALESCE(SUM(oi.order_item_subtotal), 0)::numeric(14,2) AS total_sales_amount
+FROM order_items oi
+JOIN orders o ON o.order_id = oi.order_item_order_id
+JOIN products p ON p.product_id = oi.order_item_product_id
+JOIN categories c ON c.category_id = p.product_category_id
+WHERE o.order_payment_status IN (2, 3)
+  AND COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at) >= $1
+  AND COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at) <= $2
+  AND p.product_deleted_at IS NULL
+GROUP BY p.product_id, p.product_uuid, p.product_name, p.product_slug, p.product_price, p.product_image_url, c.category_name
+ORDER BY total_units_sold DESC, total_sales_amount DESC
+LIMIT $3::int
+`
+
+type GetTopSellingProductsCustomParams struct {
+	FromDate   pgtype.Timestamptz `json:"from_date"`
+	ToDate     pgtype.Timestamptz `json:"to_date"`
+	LimitCount int32              `json:"limit_count"`
+}
+
+type GetTopSellingProductsCustomRow struct {
+	ProductID        int32          `json:"product_id"`
+	ProductUuid      uuid.UUID      `json:"product_uuid"`
+	ProductName      string         `json:"product_name"`
+	ProductSlug      string         `json:"product_slug"`
+	ProductPrice     pgtype.Numeric `json:"product_price"`
+	ProductImageUrl  *string        `json:"product_image_url"`
+	CategoryName     string         `json:"category_name"`
+	TotalUnitsSold   int64          `json:"total_units_sold"`
+	TotalSalesAmount pgtype.Numeric `json:"total_sales_amount"`
+}
+
+func (q *Queries) GetTopSellingProductsCustom(ctx context.Context, arg GetTopSellingProductsCustomParams) ([]GetTopSellingProductsCustomRow, error) {
+	rows, err := q.db.Query(ctx, getTopSellingProductsCustom, arg.FromDate, arg.ToDate, arg.LimitCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetTopSellingProductsCustomRow{}
+	for rows.Next() {
+		var i GetTopSellingProductsCustomRow
 		if err := rows.Scan(
 			&i.ProductID,
 			&i.ProductUuid,

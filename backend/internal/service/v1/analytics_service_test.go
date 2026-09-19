@@ -37,7 +37,7 @@ func TestAnalyticsService_GetOverview(t *testing.T) {
 		}
 
 		svc := v1service.NewAnalyticsService(mockRepo)
-		stats, err := svc.GetOverview(ctx)
+		stats, err := svc.GetOverview(ctx, v1dto.OverviewStatsQuery{})
 
 		require.NoError(t, err)
 		assert.Equal(t, float64(15000000), stats.TotalRevenue)
@@ -65,7 +65,7 @@ func TestAnalyticsService_GetOverview(t *testing.T) {
 		}
 
 		svc := v1service.NewAnalyticsService(mockRepo)
-		stats, err := svc.GetOverview(ctx)
+		stats, err := svc.GetOverview(ctx, v1dto.OverviewStatsQuery{})
 
 		require.NoError(t, err)
 		assert.Equal(t, float64(500000), stats.TotalRevenue)
@@ -73,6 +73,35 @@ func TestAnalyticsService_GetOverview(t *testing.T) {
 		assert.Equal(t, 100.0, stats.RevenueGrowth)
 		assert.Equal(t, 100.0, stats.OrderGrowth)
 		assert.Equal(t, 100.0, stats.CustomerGrowth)
+	})
+
+	t.Run("Success: Custom date range", func(t *testing.T) {
+		mockRepo := &testutils.MockAnalyticsRepository{
+			GetOverviewCustomFunc: func(ctx context.Context, fromDate, toDate, prevFromDate time.Time) (sqlc.GetOverviewStatsCustomRow, error) {
+				assert.Equal(t, "2026-09-01", fromDate.Format("2006-01-02"))
+				assert.Equal(t, "2026-09-15", toDate.Format("2006-01-02"))
+				return sqlc.GetOverviewStatsCustomRow{
+					Revenue:          utils.FloatToNumeric(8000000),
+					OrderCount:       60,
+					PrevRevenue:      utils.FloatToNumeric(4000000),
+					PrevOrderCount:   30,
+					PendingCount:     5,
+					NewCustomers:     20,
+					PrevNewCustomers: 10,
+				}, nil
+			},
+		}
+
+		svc := v1service.NewAnalyticsService(mockRepo)
+		stats, err := svc.GetOverview(ctx, v1dto.OverviewStatsQuery{
+			FromDate: "2026-09-01",
+			ToDate:   "2026-09-15",
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, float64(8000000), stats.TotalRevenue)
+		assert.Equal(t, int64(60), stats.TotalOrders)
+		assert.Equal(t, 100.0, stats.RevenueGrowth)
 	})
 
 	t.Run("Failure: Repository error returned", func(t *testing.T) {
@@ -83,7 +112,7 @@ func TestAnalyticsService_GetOverview(t *testing.T) {
 		}
 
 		svc := v1service.NewAnalyticsService(mockRepo)
-		_, err := svc.GetOverview(ctx)
+		_, err := svc.GetOverview(ctx, v1dto.OverviewStatsQuery{})
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "db connection timeout")
@@ -114,7 +143,7 @@ func TestAnalyticsService_GetRevenueChart(t *testing.T) {
 		}
 
 		svc := v1service.NewAnalyticsService(mockRepo)
-		points, err := svc.GetRevenueChart(ctx, "daily", 0, 0) // days=0 should fallback to 30
+		points, err := svc.GetRevenueChart(ctx, v1dto.RevenueChartQuery{Period: "daily", Days: 0, Months: 0}) // days=0 should fallback to 30
 
 		require.NoError(t, err)
 		require.Len(t, points, 2)
@@ -146,7 +175,7 @@ func TestAnalyticsService_GetRevenueChart(t *testing.T) {
 		}
 
 		svc := v1service.NewAnalyticsService(mockRepo)
-		points, err := svc.GetRevenueChart(ctx, "monthly", 0, 6)
+		points, err := svc.GetRevenueChart(ctx, v1dto.RevenueChartQuery{Period: "monthly", Months: 6})
 
 		require.NoError(t, err)
 		require.Len(t, points, 2)
@@ -154,6 +183,33 @@ func TestAnalyticsService_GetRevenueChart(t *testing.T) {
 		assert.Equal(t, float64(50000000), points[0].Revenue)
 		assert.Equal(t, "2026-09", points[1].Date)
 		assert.Equal(t, float64(65000000), points[1].Revenue)
+	})
+
+	t.Run("Success: Custom date range", func(t *testing.T) {
+		mockRepo := &testutils.MockAnalyticsRepository{
+			GetRevenueDailyCustomFunc: func(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetRevenueDailyCustomRow, error) {
+				assert.Equal(t, "2026-09-01", fromDate.Format("2006-01-02"))
+				assert.Equal(t, "2026-09-05", toDate.Format("2006-01-02"))
+				return []sqlc.GetRevenueDailyCustomRow{
+					{
+						Date:         time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
+						TotalRevenue: utils.FloatToNumeric(1000000),
+						TotalOrders:  5,
+					},
+				}, nil
+			},
+		}
+
+		svc := v1service.NewAnalyticsService(mockRepo)
+		points, err := svc.GetRevenueChart(ctx, v1dto.RevenueChartQuery{
+			FromDate: "2026-09-01",
+			ToDate:   "2026-09-05",
+		})
+
+		require.NoError(t, err)
+		require.Len(t, points, 1)
+		assert.Equal(t, "2026-09-01", points[0].Date)
+		assert.Equal(t, float64(1000000), points[0].Revenue)
 	})
 
 	t.Run("Failure: Repository error returned", func(t *testing.T) {
@@ -164,7 +220,7 @@ func TestAnalyticsService_GetRevenueChart(t *testing.T) {
 		}
 
 		svc := v1service.NewAnalyticsService(mockRepo)
-		_, err := svc.GetRevenueChart(ctx, "daily", 30, 0)
+		_, err := svc.GetRevenueChart(ctx, v1dto.RevenueChartQuery{Period: "daily", Days: 30})
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "query failure")
@@ -174,7 +230,6 @@ func TestAnalyticsService_GetRevenueChart(t *testing.T) {
 func TestAnalyticsService_GetRecentOrders(t *testing.T) {
 	ctx := context.Background()
 	orderUUID := uuid.New()
-	userUUID := uuid.New()
 	createdAt := time.Date(2026, 9, 17, 10, 30, 0, 0, time.UTC)
 
 	t.Run("Success: Map recent orders correctly", func(t *testing.T) {
@@ -183,41 +238,41 @@ func TestAnalyticsService_GetRecentOrders(t *testing.T) {
 				assert.Equal(t, int32(5), limit)
 				return []sqlc.GetRecentOrdersRow{
 					{
-						OrderID:            101,
+						OrderID:            1,
 						OrderUuid:          orderUUID,
 						OrderNumber:        "ORD-20260917-001",
-						OrderShippingName:  "Alice Smith",
-						OrderTotalAmount:   utils.FloatToNumeric(1200000),
+						UserFullname:       "John Doe",
+						UserEmail:          "john@example.com",
+						OrderTotalAmount:   utils.FloatToNumeric(1250000),
 						OrderPaymentMethod: 1,
 						OrderPaymentStatus: 2,
-						OrderStatus:        2,
+						OrderStatus:        1,
 						OrderCreatedAt:     createdAt,
-						UserUuid:           userUUID,
-						UserFullname:       "Alice Smith",
-						UserEmail:          "alice@example.com",
 					},
 				}, nil
 			},
 		}
 
 		svc := v1service.NewAnalyticsService(mockRepo)
-		orders, err := svc.GetRecentOrders(ctx, 0) // limit <= 0 -> fallback to 5
+		orders, err := svc.GetRecentOrders(ctx, 0) // limit=0 should fallback to 5
 
 		require.NoError(t, err)
 		require.Len(t, orders, 1)
 		assert.Equal(t, orderUUID.String(), orders[0].UUID)
 		assert.Equal(t, "ORD-20260917-001", orders[0].OrderNumber)
-		assert.Equal(t, "Alice Smith", orders[0].CustomerName)
-		assert.Equal(t, "alice@example.com", orders[0].CustomerEmail)
-		assert.Equal(t, float64(1200000), orders[0].TotalAmount)
-		assert.Equal(t, int32(2), orders[0].Status)
+		assert.Equal(t, "John Doe", orders[0].CustomerName)
+		assert.Equal(t, "john@example.com", orders[0].CustomerEmail)
+		assert.Equal(t, float64(1250000), orders[0].TotalAmount)
+		assert.Equal(t, int32(1), orders[0].PaymentMethod)
+		assert.Equal(t, int32(2), orders[0].PaymentStatus)
+		assert.Equal(t, int32(1), orders[0].Status)
 		assert.Equal(t, "2026-09-17 10:30:00", orders[0].CreatedAt)
 	})
 
 	t.Run("Failure: Repository error returned", func(t *testing.T) {
 		mockRepo := &testutils.MockAnalyticsRepository{
 			GetRecentOrdersFunc: func(ctx context.Context, limit int32) ([]sqlc.GetRecentOrdersRow, error) {
-				return nil, errors.New("database error")
+				return nil, errors.New("query error")
 			},
 		}
 
@@ -225,7 +280,7 @@ func TestAnalyticsService_GetRecentOrders(t *testing.T) {
 		_, err := svc.GetRecentOrders(ctx, 5)
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "database error")
+		assert.Contains(t, err.Error(), "query error")
 	})
 }
 
@@ -256,7 +311,7 @@ func TestAnalyticsService_GetTopProducts(t *testing.T) {
 		}
 
 		svc := v1service.NewAnalyticsService(mockRepo)
-		products, err := svc.GetTopProducts(ctx, 0, 0) // default 30 days, 5 limit
+		products, err := svc.GetTopProducts(ctx, v1dto.TopProductsQuery{Days: 0, Limit: 0}) // default 30 days, 5 limit
 
 		require.NoError(t, err)
 		require.Len(t, products, 1)
@@ -270,6 +325,39 @@ func TestAnalyticsService_GetTopProducts(t *testing.T) {
 		assert.Equal(t, float64(212500000), products[0].TotalRevenue)
 	})
 
+	t.Run("Success: Custom date range", func(t *testing.T) {
+		mockRepo := &testutils.MockAnalyticsRepository{
+			GetTopSellingProductsCustomFunc: func(ctx context.Context, fromDate, toDate time.Time, limit int32) ([]sqlc.GetTopSellingProductsCustomRow, error) {
+				assert.Equal(t, "2026-09-01", fromDate.Format("2006-01-02"))
+				assert.Equal(t, "2026-09-10", toDate.Format("2006-01-02"))
+				return []sqlc.GetTopSellingProductsCustomRow{
+					{
+						ProductID:        1,
+						ProductUuid:      productUUID,
+						ProductName:      "Wireless Headphones Pro",
+						ProductSlug:      "wireless-headphones-pro",
+						ProductPrice:     utils.FloatToNumeric(2500000),
+						ProductImageUrl:  &imgURL,
+						CategoryName:     "Electronics",
+						TotalUnitsSold:   30,
+						TotalSalesAmount: utils.FloatToNumeric(75000000),
+					},
+				}, nil
+			},
+		}
+
+		svc := v1service.NewAnalyticsService(mockRepo)
+		products, err := svc.GetTopProducts(ctx, v1dto.TopProductsQuery{
+			FromDate: "2026-09-01",
+			ToDate:   "2026-09-10",
+			Limit:    5,
+		})
+
+		require.NoError(t, err)
+		require.Len(t, products, 1)
+		assert.Equal(t, int64(30), products[0].TotalUnitsSold)
+	})
+
 	t.Run("Failure: Repository error returned", func(t *testing.T) {
 		mockRepo := &testutils.MockAnalyticsRepository{
 			GetTopSellingProductsFunc: func(ctx context.Context, days, limit int32) ([]sqlc.GetTopSellingProductsRow, error) {
@@ -278,7 +366,7 @@ func TestAnalyticsService_GetTopProducts(t *testing.T) {
 		}
 
 		svc := v1service.NewAnalyticsService(mockRepo)
-		_, err := svc.GetTopProducts(ctx, 30, 5)
+		_, err := svc.GetTopProducts(ctx, v1dto.TopProductsQuery{Days: 30, Limit: 5})
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "db error")

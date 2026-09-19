@@ -23,18 +23,27 @@ func NewAnalyticsHandler(service v1service.AnalyticsService) *AnalyticsHandler {
 
 // GetOverview godoc
 // @Summary      Get analytics overview statistics
-// @Description  Get 30-day KPI cards (revenue, orders, new customers, pending orders) with growth comparison
+// @Description  Get KPI cards (revenue, orders, new customers, pending orders) with growth comparison for 30 days or custom date range
 // @Tags         Admin - Analytics
 // @Produce      json
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
+// @Param        days      query int    false "Time window in days (default: 30)" default(30)
+// @Param        from_date query string false "Start date (YYYY-MM-DD)"
+// @Param        to_date   query string false "End date (YYYY-MM-DD)"
 // @Success      200 {object} utils.APIResponse{data=v1dto.OverviewStatsDTO}
 // @Failure      401 {object} utils.ErrorResponse
 // @Failure      403 {object} utils.ErrorResponse
 // @Failure      500 {object} utils.ErrorResponse
 // @Router       /admin/analytics/overview [get]
 func (h *AnalyticsHandler) GetOverview(ctx *gin.Context) {
-	stats, err := h.service.GetOverview(ctx.Request.Context())
+	var query v1dto.OverviewStatsQuery
+	if err := ctx.ShouldBindQuery(&query); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	stats, err := h.service.GetOverview(ctx.Request.Context(), query)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -50,9 +59,11 @@ func (h *AnalyticsHandler) GetOverview(ctx *gin.Context) {
 // @Produce      json
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
-// @Param        period query string false "Aggregation period: daily or monthly" Enums(daily, monthly) default(daily)
-// @Param        days   query int    false "Number of days (for daily)" default(30)
-// @Param        months query int    false "Number of months (for monthly)" default(12)
+// @Param        period    query string false "Aggregation period: daily or monthly" Enums(daily, monthly) default(daily)
+// @Param        days      query int    false "Number of days (for daily)" default(30)
+// @Param        months    query int    false "Number of months (for monthly)" default(12)
+// @Param        from_date query string false "Start date (YYYY-MM-DD)"
+// @Param        to_date   query string false "End date (YYYY-MM-DD)"
 // @Success      200 {object} utils.APIResponse{data=[]v1dto.RevenueChartPointDTO}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      500 {object} utils.ErrorResponse
@@ -64,7 +75,7 @@ func (h *AnalyticsHandler) GetRevenueChart(ctx *gin.Context) {
 		return
 	}
 
-	data, err := h.service.GetRevenueChart(ctx.Request.Context(), query.Period, query.Days, query.Months)
+	data, err := h.service.GetRevenueChart(ctx.Request.Context(), query)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -103,13 +114,15 @@ func (h *AnalyticsHandler) GetRecentOrders(ctx *gin.Context) {
 
 // GetTopProducts godoc
 // @Summary      Get top selling products
-// @Description  Get the top best-selling products by quantity and revenue over the last N days
+// @Description  Get the top best-selling products by quantity and revenue over the last N days or custom date range
 // @Tags         Admin - Analytics
 // @Produce      json
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
-// @Param        days  query int false "Time window in days" default(30)
-// @Param        limit query int false "Max items to return (1-50)" default(5)
+// @Param        days      query int    false "Time window in days" default(30)
+// @Param        limit     query int    false "Max items to return (1-50)" default(5)
+// @Param        from_date query string false "Start date (YYYY-MM-DD)"
+// @Param        to_date   query string false "End date (YYYY-MM-DD)"
 // @Success      200 {object} utils.APIResponse{data=[]v1dto.TopProductDTO}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      500 {object} utils.ErrorResponse
@@ -121,7 +134,7 @@ func (h *AnalyticsHandler) GetTopProducts(ctx *gin.Context) {
 		return
 	}
 
-	products, err := h.service.GetTopProducts(ctx.Request.Context(), query.Days, query.Limit)
+	products, err := h.service.GetTopProducts(ctx.Request.Context(), query)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return

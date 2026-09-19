@@ -6,6 +6,7 @@ import type {
   OrderStatusDistributionQueryParams,
   OrderStatusDistributionResponse,
   OverviewStats,
+  OverviewStatsQueryParams,
   PaymentMethodBreakdownQueryParams,
   PaymentMethodBreakdownResponse,
   RecentOrder,
@@ -16,11 +17,19 @@ import type {
   TopProductsQueryParams,
 } from '../types'
 
-export function useAnalyticsOverview() {
+export function useAnalyticsOverview(params: OverviewStatsQueryParams = {}) {
   return useQuery({
-    queryKey: ['analyticsOverview'],
+    queryKey: ['analyticsOverview', params],
     queryFn: async () => {
-      const { data, error } = await api.GET('/admin/analytics/overview')
+      const { data, error } = await api.GET('/admin/analytics/overview', {
+        params: {
+          query: {
+            days: params.days,
+            from_date: params.from_date,
+            to_date: params.to_date,
+          },
+        },
+      })
       if (error) {
         throw new Error((error as { error?: string })?.error || 'Failed to fetch analytics overview')
       }
@@ -40,6 +49,8 @@ export function useRevenueChart(params: RevenueChartQueryParams = {}) {
             period: params.period,
             days: params.days,
             months: params.months,
+            from_date: params.from_date,
+            to_date: params.to_date,
           },
         },
       })
@@ -81,6 +92,8 @@ export function useTopProducts(params: TopProductsQueryParams = {}) {
           query: {
             days: params.days,
             limit: params.limit,
+            from_date: params.from_date,
+            to_date: params.to_date,
           },
         },
       })

@@ -1317,10 +1317,13 @@ func (m *MockNotificationRepository) Delete(ctx context.Context, notifUUID uuid.
 
 type MockAnalyticsRepository struct {
 	GetOverviewFunc                 func(ctx context.Context) (sqlc.GetOverviewStatsRow, error)
+	GetOverviewCustomFunc           func(ctx context.Context, fromDate, toDate, prevFromDate time.Time) (sqlc.GetOverviewStatsCustomRow, error)
 	GetRevenueDailyFunc             func(ctx context.Context, days int32) ([]sqlc.GetRevenueDailyChartRow, error)
+	GetRevenueDailyCustomFunc       func(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetRevenueDailyCustomRow, error)
 	GetRevenueMonthlyFunc           func(ctx context.Context, months int32) ([]sqlc.GetRevenueMonthlyChartRow, error)
 	GetRecentOrdersFunc             func(ctx context.Context, limit int32) ([]sqlc.GetRecentOrdersRow, error)
 	GetTopSellingProductsFunc       func(ctx context.Context, days, limit int32) ([]sqlc.GetTopSellingProductsRow, error)
+	GetTopSellingProductsCustomFunc func(ctx context.Context, fromDate, toDate time.Time, limit int32) ([]sqlc.GetTopSellingProductsCustomRow, error)
 	GetOrderStatusDistributionFunc func(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetOrderStatusDistributionRow, error)
 	GetLowStockProductsFunc         func(ctx context.Context, threshold, limit int32) ([]sqlc.GetLowStockProductsRow, error)
 	GetPaymentMethodBreakdownFunc   func(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetPaymentMethodBreakdownRow, error)
@@ -1333,9 +1336,23 @@ func (m *MockAnalyticsRepository) GetOverview(ctx context.Context) (sqlc.GetOver
 	return sqlc.GetOverviewStatsRow{}, nil
 }
 
+func (m *MockAnalyticsRepository) GetOverviewCustom(ctx context.Context, fromDate, toDate, prevFromDate time.Time) (sqlc.GetOverviewStatsCustomRow, error) {
+	if m.GetOverviewCustomFunc != nil {
+		return m.GetOverviewCustomFunc(ctx, fromDate, toDate, prevFromDate)
+	}
+	return sqlc.GetOverviewStatsCustomRow{}, nil
+}
+
 func (m *MockAnalyticsRepository) GetRevenueDaily(ctx context.Context, days int32) ([]sqlc.GetRevenueDailyChartRow, error) {
 	if m.GetRevenueDailyFunc != nil {
 		return m.GetRevenueDailyFunc(ctx, days)
+	}
+	return nil, nil
+}
+
+func (m *MockAnalyticsRepository) GetRevenueDailyCustom(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetRevenueDailyCustomRow, error) {
+	if m.GetRevenueDailyCustomFunc != nil {
+		return m.GetRevenueDailyCustomFunc(ctx, fromDate, toDate)
 	}
 	return nil, nil
 }
@@ -1357,6 +1374,13 @@ func (m *MockAnalyticsRepository) GetRecentOrders(ctx context.Context, limit int
 func (m *MockAnalyticsRepository) GetTopSellingProducts(ctx context.Context, days, limit int32) ([]sqlc.GetTopSellingProductsRow, error) {
 	if m.GetTopSellingProductsFunc != nil {
 		return m.GetTopSellingProductsFunc(ctx, days, limit)
+	}
+	return nil, nil
+}
+
+func (m *MockAnalyticsRepository) GetTopSellingProductsCustom(ctx context.Context, fromDate, toDate time.Time, limit int32) ([]sqlc.GetTopSellingProductsCustomRow, error) {
+	if m.GetTopSellingProductsCustomFunc != nil {
+		return m.GetTopSellingProductsCustomFunc(ctx, fromDate, toDate, limit)
 	}
 	return nil, nil
 }

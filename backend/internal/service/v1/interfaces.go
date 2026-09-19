@@ -189,10 +189,10 @@ type BannerService interface {
 }
 
 type AnalyticsService interface {
-	GetOverview(ctx context.Context) (v1dto.OverviewStatsDTO, error)
-	GetRevenueChart(ctx context.Context, period string, days, months int32) ([]v1dto.RevenueChartPointDTO, error)
+	GetOverview(ctx context.Context, query v1dto.OverviewStatsQuery) (v1dto.OverviewStatsDTO, error)
+	GetRevenueChart(ctx context.Context, query v1dto.RevenueChartQuery) ([]v1dto.RevenueChartPointDTO, error)
 	GetRecentOrders(ctx context.Context, limit int32) ([]v1dto.RecentOrderDTO, error)
-	GetTopProducts(ctx context.Context, days, limit int32) ([]v1dto.TopProductDTO, error)
+	GetTopProducts(ctx context.Context, query v1dto.TopProductsQuery) ([]v1dto.TopProductDTO, error)
 	GetOrderStatusDistribution(ctx context.Context, params v1dto.OrderStatusDistributionQuery) (v1dto.OrderStatusDistributionResponse, error)
 	GetLowStockProducts(ctx context.Context, params v1dto.LowStockProductsQuery) (v1dto.LowStockProductResponse, error)
 	GetPaymentMethodBreakdown(ctx context.Context, params v1dto.PaymentMethodBreakdownQuery) (v1dto.PaymentMethodBreakdownResponse, error)

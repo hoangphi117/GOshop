@@ -623,11 +623,38 @@
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "Get 30-day KPI cards (revenue, orders, new customers, pending orders) with growth comparison",
+                "description": "Get KPI cards (revenue, orders, new customers, pending orders) with growth comparison for 30 days or custom date range",
                 "tags": [
                     "Admin - Analytics"
                 ],
                 "summary": "Get analytics overview statistics",
+                "parameters": [
+                    {
+                        "description": "Time window in days (default: 30)",
+                        "name": "days",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 30
+                        }
+                    },
+                    {
+                        "description": "Start date (YYYY-MM-DD)",
+                        "name": "from_date",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "End date (YYYY-MM-DD)",
+                        "name": "to_date",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -913,6 +940,22 @@
                             "type": "integer",
                             "default": 12
                         }
+                    },
+                    {
+                        "description": "Start date (YYYY-MM-DD)",
+                        "name": "from_date",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "End date (YYYY-MM-DD)",
+                        "name": "to_date",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 ],
                 "responses": {
@@ -974,7 +1017,7 @@
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "Get the top best-selling products by quantity and revenue over the last N days",
+                "description": "Get the top best-selling products by quantity and revenue over the last N days or custom date range",
                 "tags": [
                     "Admin - Analytics"
                 ],
@@ -996,6 +1039,22 @@
                         "schema": {
                             "type": "integer",
                             "default": 5
+                        }
+                    },
+                    {
+                        "description": "Start date (YYYY-MM-DD)",
+                        "name": "from_date",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "End date (YYYY-MM-DD)",
+                        "name": "to_date",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
                         }
                     }
                 ],

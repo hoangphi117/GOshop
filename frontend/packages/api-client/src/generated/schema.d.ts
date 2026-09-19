@@ -492,11 +492,18 @@ export interface paths {
         };
         /**
          * Get analytics overview statistics
-         * @description Get 30-day KPI cards (revenue, orders, new customers, pending orders) with growth comparison
+         * @description Get KPI cards (revenue, orders, new customers, pending orders) with growth comparison for 30 days or custom date range
          */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description Time window in days (default: 30) */
+                    days?: number;
+                    /** @description Start date (YYYY-MM-DD) */
+                    from_date?: string;
+                    /** @description End date (YYYY-MM-DD) */
+                    to_date?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -717,6 +724,10 @@ export interface paths {
                     days?: number;
                     /** @description Number of months (for monthly) */
                     months?: number;
+                    /** @description Start date (YYYY-MM-DD) */
+                    from_date?: string;
+                    /** @description End date (YYYY-MM-DD) */
+                    to_date?: string;
                 };
                 header?: never;
                 path?: never;
@@ -772,7 +783,7 @@ export interface paths {
         };
         /**
          * Get top selling products
-         * @description Get the top best-selling products by quantity and revenue over the last N days
+         * @description Get the top best-selling products by quantity and revenue over the last N days or custom date range
          */
         get: {
             parameters: {
@@ -781,6 +792,10 @@ export interface paths {
                     days?: number;
                     /** @description Max items to return (1-50) */
                     limit?: number;
+                    /** @description Start date (YYYY-MM-DD) */
+                    from_date?: string;
+                    /** @description End date (YYYY-MM-DD) */
+                    to_date?: string;
                 };
                 header?: never;
                 path?: never;

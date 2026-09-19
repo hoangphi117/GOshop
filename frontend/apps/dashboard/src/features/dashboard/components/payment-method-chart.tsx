@@ -17,9 +17,18 @@ const METHOD_COLORS: Record<number, string> = {
   3: 'bg-purple-500',
 }
 
-export function PaymentMethodChart() {
+interface PaymentMethodChartProps {
+  fromDate?: string
+  toDate?: string
+}
+
+export function PaymentMethodChart({ fromDate, toDate }: PaymentMethodChartProps = {}) {
   const [days, setDays] = useState<number>(30)
-  const { data, isLoading, isError } = usePaymentMethodBreakdown({ days })
+  const queryParams = fromDate && toDate
+    ? { from_date: fromDate, to_date: toDate }
+    : { days }
+
+  const { data, isLoading, isError } = usePaymentMethodBreakdown(queryParams)
 
   const items = data?.items || []
   const totalRevenue = data?.total_revenue ?? 0
@@ -29,43 +38,47 @@ export function PaymentMethodChart() {
     <div className='space-y-4'>
       <div className='flex items-center justify-between'>
         <div className='text-xs text-muted-foreground'>
-          Net revenue & order volume by payment gateway
+          {fromDate && toDate
+            ? `Net revenue by payment gateway (${fromDate} to ${toDate})`
+            : 'Net revenue & order volume by payment gateway'}
         </div>
-        <div className='flex items-center space-x-1 rounded-lg bg-muted p-1 text-xs'>
-          <button
-            type='button'
-            onClick={() => setDays(7)}
-            className={`rounded px-2.5 py-1 font-medium transition-colors ${
-              days === 7
-                ? 'bg-background text-foreground shadow-xs'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            7 Days
-          </button>
-          <button
-            type='button'
-            onClick={() => setDays(30)}
-            className={`rounded px-2.5 py-1 font-medium transition-colors ${
-              days === 30
-                ? 'bg-background text-foreground shadow-xs'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            30 Days
-          </button>
-          <button
-            type='button'
-            onClick={() => setDays(90)}
-            className={`rounded px-2.5 py-1 font-medium transition-colors ${
-              days === 90
-                ? 'bg-background text-foreground shadow-xs'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            90 Days
-          </button>
-        </div>
+        {!fromDate && !toDate && (
+          <div className='flex items-center space-x-1 rounded-lg bg-muted p-1 text-xs'>
+            <button
+              type='button'
+              onClick={() => setDays(7)}
+              className={`rounded px-2.5 py-1 font-medium transition-colors ${
+                days === 7
+                  ? 'bg-background text-foreground shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              7 Days
+            </button>
+            <button
+              type='button'
+              onClick={() => setDays(30)}
+              className={`rounded px-2.5 py-1 font-medium transition-colors ${
+                days === 30
+                  ? 'bg-background text-foreground shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              30 Days
+            </button>
+            <button
+              type='button'
+              onClick={() => setDays(90)}
+              className={`rounded px-2.5 py-1 font-medium transition-colors ${
+                days === 90
+                  ? 'bg-background text-foreground shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              90 Days
+            </button>
+          </div>
+        )}
       </div>
 
       {isLoading ? (

@@ -12,14 +12,21 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency } from '@/features/orders/order-utils'
 import { useRevenueChart } from '../hooks/use-dashboard-analytics'
 
-export function Overview() {
+interface OverviewProps {
+  fromDate?: string
+  toDate?: string
+}
+
+export function Overview({ fromDate, toDate }: OverviewProps = {}) {
   const [range, setRange] = useState<'7d' | '30d' | '12m'>('30d')
 
-  const queryParams = {
-    period: range === '12m' ? ('monthly' as const) : ('daily' as const),
-    days: range === '7d' ? 7 : range === '30d' ? 30 : undefined,
-    months: range === '12m' ? 12 : undefined,
-  }
+  const queryParams = fromDate && toDate
+    ? { from_date: fromDate, to_date: toDate, period: 'daily' as const }
+    : {
+        period: range === '12m' ? ('monthly' as const) : ('daily' as const),
+        days: range === '7d' ? 7 : range === '30d' ? 30 : undefined,
+        months: range === '12m' ? 12 : undefined,
+      }
 
   const { data: chartData, isLoading, isError } = useRevenueChart(queryParams)
 
@@ -33,43 +40,49 @@ export function Overview() {
     <div className='space-y-4'>
       <div className='flex items-center justify-between'>
         <div className='text-xs text-muted-foreground'>
-          {range === '12m' ? 'Monthly revenue trend' : 'Daily revenue trend'}
+          {fromDate && toDate
+            ? `Daily revenue trend (${fromDate} to ${toDate})`
+            : range === '12m'
+              ? 'Monthly revenue trend'
+              : 'Daily revenue trend'}
         </div>
-        <div className='flex items-center space-x-1 rounded-lg bg-muted p-1 text-xs'>
-          <button
-            type='button'
-            onClick={() => setRange('7d')}
-            className={`rounded px-2.5 py-1 font-medium transition-colors ${
-              range === '7d'
-                ? 'bg-background text-foreground shadow-xs'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            7 Days
-          </button>
-          <button
-            type='button'
-            onClick={() => setRange('30d')}
-            className={`rounded px-2.5 py-1 font-medium transition-colors ${
-              range === '30d'
-                ? 'bg-background text-foreground shadow-xs'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            30 Days
-          </button>
-          <button
-            type='button'
-            onClick={() => setRange('12m')}
-            className={`rounded px-2.5 py-1 font-medium transition-colors ${
-              range === '12m'
-                ? 'bg-background text-foreground shadow-xs'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            12 Months
-          </button>
-        </div>
+        {!fromDate && !toDate && (
+          <div className='flex items-center space-x-1 rounded-lg bg-muted p-1 text-xs'>
+            <button
+              type='button'
+              onClick={() => setRange('7d')}
+              className={`rounded px-2.5 py-1 font-medium transition-colors ${
+                range === '7d'
+                  ? 'bg-background text-foreground shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              7 Days
+            </button>
+            <button
+              type='button'
+              onClick={() => setRange('30d')}
+              className={`rounded px-2.5 py-1 font-medium transition-colors ${
+                range === '30d'
+                  ? 'bg-background text-foreground shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              30 Days
+            </button>
+            <button
+              type='button'
+              onClick={() => setRange('12m')}
+              className={`rounded px-2.5 py-1 font-medium transition-colors ${
+                range === '12m'
+                  ? 'bg-background text-foreground shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              12 Months
+            </button>
+          </div>
+        )}
       </div>
 
       {isLoading ? (

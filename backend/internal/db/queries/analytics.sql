@@ -169,3 +169,101 @@ WHERE order_payment_status IN (2, 3)
   AND order_created_at <= sqlc.arg('to_date')
 GROUP BY order_payment_method
 ORDER BY net_revenue DESC;
+
+-- name: GetOverviewStatsCustom :one
+WITH paid_orders AS (
+    SELECT
+        o.order_id,
+        (o.order_total_amount - o.order_refunded_amount)::numeric(14,2) AS net_revenue,
+        COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at)::timestamptz AS paid_time
+    FROM orders o
+    WHERE o.order_payment_status IN (2, 3)
+      AND COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at) >= sqlc.arg('prev_from_date')::timestamptz
+      AND COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at) <= sqlc.arg('to_date')::timestamptz
+),
+order_stats AS (
+    SELECT
+        COALESCE(SUM(net_revenue) FILTER (
+            WHERE paid_time >= sqlc.arg('from_date')::timestamptz AND paid_time <= sqlc.arg('to_date')::timestamptz
+        ), 0)::numeric(14,2) AS revenue,
+        COUNT(order_id) FILTER (
+            WHERE paid_time >= sqlc.arg('from_date')::timestamptz AND paid_time <= sqlc.arg('to_date')::timestamptz
+        )::bigint AS order_count,
+        COALESCE(SUM(net_revenue) FILTER (
+            WHERE paid_time >= sqlc.arg('prev_from_date')::timestamptz AND paid_time < sqlc.arg('from_date')::timestamptz
+        ), 0)::numeric(14,2) AS prev_revenue,
+        COUNT(order_id) FILTER (
+            WHERE paid_time >= sqlc.arg('prev_from_date')::timestamptz AND paid_time < sqlc.arg('from_date')::timestamptz
+        )::bigint AS prev_order_count
+    FROM paid_orders
+),
+pending_orders AS (
+    SELECT COUNT(order_id)::bigint AS pending_count
+    FROM orders
+    WHERE order_status = 1
+),
+customer_stats AS (
+    SELECT
+        COUNT(user_id) FILTER (
+            WHERE user_created_at >= sqlc.arg('from_date')::timestamptz AND user_created_at <= sqlc.arg('to_date')::timestamptz
+        )::bigint AS new_customers,
+        COUNT(user_id) FILTER (
+            WHERE user_created_at >= sqlc.arg('prev_from_date')::timestamptz AND user_created_at < sqlc.arg('from_date')::timestamptz
+        )::bigint AS prev_new_customers
+    FROM users
+    WHERE user_level = 3
+      AND user_deleted_at IS NULL
+      AND user_created_at >= sqlc.arg('prev_from_date')::timestamptz
+      AND user_created_at <= sqlc.arg('to_date')::timestamptz
+)
+SELECT
+    s.revenue,
+    s.order_count,
+    s.prev_revenue,
+    s.prev_order_count,
+    po.pending_count,
+    c.new_customers,
+    c.prev_new_customers
+FROM order_stats s
+CROSS JOIN pending_orders po
+CROSS JOIN customer_stats c;
+
+-- name: GetRevenueDailyCustom :many
+SELECT
+    gs.day::timestamptz AS date,
+    COALESCE(SUM(o.order_total_amount - o.order_refunded_amount), 0)::numeric(14,2) AS total_revenue,
+    COUNT(o.order_id)::bigint AS total_orders
+FROM generate_series(
+    date_trunc('day', sqlc.arg('from_date')::timestamptz),
+    date_trunc('day', sqlc.arg('to_date')::timestamptz),
+    INTERVAL '1 day'
+) AS gs(day)
+LEFT JOIN orders o
+    ON o.order_payment_status IN (2, 3)
+   AND date_trunc('day', COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at)) = gs.day
+GROUP BY gs.day
+ORDER BY gs.day ASC;
+
+-- name: GetTopSellingProductsCustom :many
+SELECT
+    p.product_id,
+    p.product_uuid,
+    p.product_name,
+    p.product_slug,
+    p.product_price,
+    p.product_image_url,
+    c.category_name,
+    COALESCE(SUM(oi.order_item_quantity), 0)::bigint AS total_units_sold,
+    COALESCE(SUM(oi.order_item_subtotal), 0)::numeric(14,2) AS total_sales_amount
+FROM order_items oi
+JOIN orders o ON o.order_id = oi.order_item_order_id
+JOIN products p ON p.product_id = oi.order_item_product_id
+JOIN categories c ON c.category_id = p.product_category_id
+WHERE o.order_payment_status IN (2, 3)
+  AND COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at) >= sqlc.arg('from_date')
+  AND COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at) <= sqlc.arg('to_date')
+  AND p.product_deleted_at IS NULL
+GROUP BY p.product_id, p.product_uuid, p.product_name, p.product_slug, p.product_price, p.product_image_url, c.category_name
+ORDER BY total_units_sold DESC, total_sales_amount DESC
+LIMIT sqlc.arg('limit_count')::int;
+

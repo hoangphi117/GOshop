@@ -97,10 +97,18 @@ type PaymentMethodBreakdownResponse struct {
 // 2. REQUEST & QUERY PARAM DTOs
 // ============================================================================
 
+type OverviewStatsQuery struct {
+	Days     int32  `form:"days" binding:"omitempty,min=1,max=365"`
+	FromDate string `form:"from_date" binding:"omitempty,datetime=2006-01-02"`
+	ToDate   string `form:"to_date" binding:"omitempty,datetime=2006-01-02"`
+}
+
 type RevenueChartQuery struct {
-	Period string `form:"period" binding:"omitempty,oneof=daily monthly"` // daily | monthly (default: daily)
-	Days   int32  `form:"days" binding:"omitempty,min=1,max=90"`          // default: 30
-	Months int32  `form:"months" binding:"omitempty,min=1,max=36"`        // default: 12
+	Period   string `form:"period" binding:"omitempty,oneof=daily monthly"` // daily | monthly (default: daily)
+	Days     int32  `form:"days" binding:"omitempty,min=1,max=365"`          // default: 30
+	Months   int32  `form:"months" binding:"omitempty,min=1,max=36"`        // default: 12
+	FromDate string `form:"from_date" binding:"omitempty,datetime=2006-01-02"`
+	ToDate   string `form:"to_date" binding:"omitempty,datetime=2006-01-02"`
 }
 
 type RecentOrdersQuery struct {
@@ -108,8 +116,10 @@ type RecentOrdersQuery struct {
 }
 
 type TopProductsQuery struct {
-	Days  int32 `form:"days" binding:"omitempty,min=1,max=90"`  // default: 30
-	Limit int32 `form:"limit" binding:"omitempty,min=1,max=50"` // default: 5
+	Days     int32  `form:"days" binding:"omitempty,min=1,max=365"`          // default: 30
+	Limit    int32  `form:"limit" binding:"omitempty,min=1,max=50"`         // default: 5
+	FromDate string `form:"from_date" binding:"omitempty,datetime=2006-01-02"`
+	ToDate   string `form:"to_date" binding:"omitempty,datetime=2006-01-02"`
 }
 
 type OrderStatusDistributionQuery struct {

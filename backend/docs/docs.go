@@ -537,7 +537,7 @@ const docTemplate = `{
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "Get 30-day KPI cards (revenue, orders, new customers, pending orders) with growth comparison",
+                "description": "Get KPI cards (revenue, orders, new customers, pending orders) with growth comparison for 30 days or custom date range",
                 "produces": [
                     "application/json"
                 ],
@@ -545,6 +545,27 @@ const docTemplate = `{
                     "Admin - Analytics"
                 ],
                 "summary": "Get analytics overview statistics",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 30,
+                        "description": "Time window in days (default: 30)",
+                        "name": "days",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Start date (YYYY-MM-DD)",
+                        "name": "from_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End date (YYYY-MM-DD)",
+                        "name": "to_date",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -777,6 +798,18 @@ const docTemplate = `{
                         "description": "Number of months (for monthly)",
                         "name": "months",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Start date (YYYY-MM-DD)",
+                        "name": "from_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End date (YYYY-MM-DD)",
+                        "name": "to_date",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -826,7 +859,7 @@ const docTemplate = `{
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "Get the top best-selling products by quantity and revenue over the last N days",
+                "description": "Get the top best-selling products by quantity and revenue over the last N days or custom date range",
                 "produces": [
                     "application/json"
                 ],
@@ -847,6 +880,18 @@ const docTemplate = `{
                         "default": 5,
                         "description": "Max items to return (1-50)",
                         "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Start date (YYYY-MM-DD)",
+                        "name": "from_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End date (YYYY-MM-DD)",
+                        "name": "to_date",
                         "in": "query"
                     }
                 ],

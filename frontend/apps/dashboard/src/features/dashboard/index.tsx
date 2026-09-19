@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { endOfDay, format, startOfDay, subDays } from 'date-fns'
 import {
   Clock,
   DollarSign,
@@ -28,16 +29,53 @@ import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { formatCurrency } from '@/features/orders/order-utils'
 import { Analytics } from './components/analytics'
+import { DashboardExportMenu } from './components/dashboard-export-menu'
+import { DateRangePicker, type DateRangePickerValue } from './components/date-range-picker'
 import { LowStockAlertCard } from './components/low-stock-alert-card'
 import { OrderStatusChart } from './components/order-status-chart'
 import { Overview } from './components/overview'
 import { PaymentMethodChart } from './components/payment-method-chart'
 import { RecentSales } from './components/recent-sales'
-import { useAnalyticsOverview } from './hooks/use-dashboard-analytics'
+import {
+  useAnalyticsOverview,
+  useOrderStatusDistribution,
+  usePaymentMethodBreakdown,
+  useRevenueChart,
+  useTopProducts,
+} from './hooks/use-dashboard-analytics'
 
 export function Dashboard() {
   const queryClient = useQueryClient()
-  const { data: stats, isLoading, isFetching } = useAnalyticsOverview()
+  const [dateRange, setDateRange] = useState<DateRangePickerValue>(() => {
+    const now = new Date()
+    return {
+      from: startOfDay(subDays(now, 29)),
+      to: endOfDay(now),
+      preset: 'last30d',
+    }
+  })
+
+  const queryParams = useMemo(() => {
+    if (!dateRange.from || !dateRange.to) return {}
+    return {
+      from_date: format(dateRange.from, 'yyyy-MM-dd'),
+      to_date: format(dateRange.to, 'yyyy-MM-dd'),
+    }
+  }, [dateRange.from, dateRange.to])
+
+  const dateRangeLabel = useMemo(() => {
+    if (dateRange.from && dateRange.to) {
+      return `${format(dateRange.from, 'MMM dd, yyyy')} - ${format(dateRange.to, 'MMM dd, yyyy')}`
+    }
+    return 'Last 30 Days'
+  }, [dateRange.from, dateRange.to])
+
+  const { data: stats, isLoading, isFetching } = useAnalyticsOverview(queryParams)
+  const { data: revenuePoints } = useRevenueChart(queryParams)
+  const { data: topProducts } = useTopProducts({ ...queryParams, limit: 10 })
+  const { data: orderStatusData } = useOrderStatusDistribution(queryParams)
+  const { data: paymentMethodsData } = usePaymentMethodBreakdown(queryParams)
+
   const [lastUpdated, setLastUpdated] = useState<string>('Just now')
 
   const handleRefresh = async () => {
@@ -70,14 +108,23 @@ export function Dashboard() {
 
       {/* ===== Main ===== */}
       <Main>
-        <div className='mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+        <div className='mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between'>
           <div>
             <h1 className='text-2xl font-bold tracking-tight'>Analytics Dashboard</h1>
             <p className='text-xs text-muted-foreground'>
-              Real-time business performance & revenue metrics (rolling 30 days)
+              Real-time business performance & revenue metrics ({dateRangeLabel})
             </p>
           </div>
-          <div className='flex items-center gap-2'>
+          <div className='flex flex-wrap items-center gap-2'>
+            <DateRangePicker value={dateRange} onChange={setDateRange} />
+            <DashboardExportMenu
+              stats={stats}
+              revenuePoints={revenuePoints}
+              topProducts={topProducts}
+              orderStatus={orderStatusData?.items}
+              paymentMethods={paymentMethodsData?.items}
+              dateRangeLabel={dateRangeLabel}
+            />
             <span className='text-xs text-muted-foreground hidden sm:inline-block'>
               Last synced: <span className='font-medium text-foreground'>{lastUpdated}</span>
             </span>
@@ -126,7 +173,7 @@ export function Dashboard() {
                       </div>
                       <div className='mt-1 flex items-center gap-1.5 text-xs'>
                         {renderGrowthBadge(stats?.revenue_growth ?? 0)}
-                        <span className='text-muted-foreground'>vs previous 30d</span>
+                        <span className='text-muted-foreground'>vs previous period</span>
                       </div>
                     </>
                   )}
@@ -154,7 +201,7 @@ export function Dashboard() {
                       </div>
                       <div className='mt-1 flex items-center gap-1.5 text-xs'>
                         {renderGrowthBadge(stats?.order_growth ?? 0)}
-                        <span className='text-muted-foreground'>vs previous 30d</span>
+                        <span className='text-muted-foreground'>vs previous period</span>
                       </div>
                     </>
                   )}
@@ -182,7 +229,7 @@ export function Dashboard() {
                       </div>
                       <div className='mt-1 flex items-center gap-1.5 text-xs'>
                         {renderGrowthBadge(stats?.customer_growth ?? 0)}
-                        <span className='text-muted-foreground'>vs previous 30d</span>
+                        <span className='text-muted-foreground'>vs previous period</span>
                       </div>
                     </>
                   )}
@@ -227,7 +274,7 @@ export function Dashboard() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className='ps-2'>
-                  <Overview />
+                  <Overview fromDate={queryParams.from_date} toDate={queryParams.to_date} />
                 </CardContent>
               </Card>
 
@@ -235,7 +282,7 @@ export function Dashboard() {
                 <CardHeader>
                   <CardTitle>Recent Orders</CardTitle>
                   <CardDescription>
-                    {stats?.total_orders ? `You had ${stats.total_orders} total orders in the last 30 days.` : 'Latest customer transactions.'}
+                    {stats?.total_orders ? `You had ${stats.total_orders} total orders in this period.` : 'Latest customer transactions.'}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -254,7 +301,7 @@ export function Dashboard() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <OrderStatusChart />
+                  <OrderStatusChart fromDate={queryParams.from_date} toDate={queryParams.to_date} />
                 </CardContent>
               </Card>
 
@@ -266,7 +313,7 @@ export function Dashboard() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <PaymentMethodChart />
+                  <PaymentMethodChart fromDate={queryParams.from_date} toDate={queryParams.to_date} />
                 </CardContent>
               </Card>
             </div>
@@ -288,7 +335,7 @@ export function Dashboard() {
           </TabsContent>
 
           <TabsContent value='analytics' className='space-y-4'>
-            <Analytics />
+            <Analytics fromDate={queryParams.from_date} toDate={queryParams.to_date} />
           </TabsContent>
         </Tabs>
       </Main>
