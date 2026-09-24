@@ -118,7 +118,9 @@ type Querier interface {
 	GetProductRatingSummary(ctx context.Context, reviewProductID int32) (GetProductRatingSummaryRow, error)
 	// Operational list view, not revenue-related; unchanged.
 	GetRecentOrders(ctx context.Context, limitCount int32) ([]GetRecentOrdersRow, error)
+	GetReturnAnalyticsSummary(ctx context.Context, arg GetReturnAnalyticsSummaryParams) (GetReturnAnalyticsSummaryRow, error)
 	GetReturnByUUID(ctx context.Context, returnUuid uuid.UUID) (OrderReturn, error)
+	GetReturnReasonsBreakdown(ctx context.Context, arg GetReturnReasonsBreakdownParams) ([]GetReturnReasonsBreakdownRow, error)
 	GetReturnsByUserID(ctx context.Context, arg GetReturnsByUserIDParams) ([]GetReturnsByUserIDRow, error)
 	GetRevenueDailyChart(ctx context.Context, days int32) ([]GetRevenueDailyChartRow, error)
 	GetRevenueDailyCustom(ctx context.Context, arg GetRevenueDailyCustomParams) ([]GetRevenueDailyCustomRow, error)
@@ -126,6 +128,7 @@ type Querier interface {
 	GetReviewByUUID(ctx context.Context, reviewUuid uuid.UUID) (GetReviewByUUIDRow, error)
 	GetReviewReportsByReviewID(ctx context.Context, reviewID int32) ([]GetReviewReportsByReviewIDRow, error)
 	GetReviewsByUserID(ctx context.Context, arg GetReviewsByUserIDParams) ([]GetReviewsByUserIDRow, error)
+	GetTopReturnedProducts(ctx context.Context, arg GetTopReturnedProductsParams) ([]GetTopReturnedProductsRow, error)
 	GetTopSellingProducts(ctx context.Context, arg GetTopSellingProductsParams) ([]GetTopSellingProductsRow, error)
 	GetTopSellingProductsCustom(ctx context.Context, arg GetTopSellingProductsCustomParams) ([]GetTopSellingProductsCustomRow, error)
 	GetTrackingEventsByOrderID(ctx context.Context, eventOrderID int32) ([]OrderTrackingEvent, error)

@@ -41,6 +41,27 @@ definitions:
       ward_name:
         type: string
     type: object
+  goshop_internal_dto_v1.AdjustStockInput:
+    properties:
+      change_type:
+        enum:
+        - RESTOCK
+        - MANUAL_ADJUSTMENT
+        - DAMAGED_DISCARD
+        - INITIAL_STOCK
+        type: string
+      note:
+        maxLength: 500
+        type: string
+      product_uuid:
+        type: string
+      quantity_change:
+        type: integer
+    required:
+    - change_type
+    - product_uuid
+    - quantity_change
+    type: object
   goshop_internal_dto_v1.AdminBannerDetailDTO:
     properties:
       created_at:
@@ -139,6 +160,59 @@ definitions:
     - title
     - type
     type: object
+  goshop_internal_dto_v1.BulkCancelOrdersInput:
+    properties:
+      order_uuids:
+        items:
+          type: string
+        minItems: 1
+        type: array
+      reason:
+        maxLength: 500
+        type: string
+    required:
+    - order_uuids
+    type: object
+  goshop_internal_dto_v1.BulkItemError:
+    properties:
+      error:
+        type: string
+      order_uuid:
+        type: string
+    type: object
+  goshop_internal_dto_v1.BulkOperationResultDTO:
+    properties:
+      errors:
+        items:
+          $ref: '#/definitions/goshop_internal_dto_v1.BulkItemError'
+        type: array
+      failed:
+        type: integer
+      succeeded:
+        type: integer
+      total:
+        type: integer
+    type: object
+  goshop_internal_dto_v1.BulkUpdateOrderStatusInput:
+    properties:
+      order_uuids:
+        items:
+          type: string
+        minItems: 1
+        type: array
+      status:
+        enum:
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+        - 6
+        type: integer
+    required:
+    - order_uuids
+    - status
+    type: object
   goshop_internal_dto_v1.CalculateShippingFeeInput:
     properties:
       district_id:
@@ -215,6 +289,29 @@ definitions:
         type: integer
       uuid:
         type: string
+    type: object
+  goshop_internal_dto_v1.CartFunnelDTO:
+    properties:
+      abandoned_carts:
+        type: integer
+      abandonment_rate:
+        description: Percentage (0 - 100%)
+        type: number
+      cart_to_order_rate:
+        description: Conversion (0 - 100%)
+        type: number
+      order_to_paid_rate:
+        description: Conversion (0 - 100%)
+        type: number
+      orders_created:
+        type: integer
+      orders_paid:
+        type: integer
+      potential_lost_revenue:
+        description: Currency value
+        type: number
+      total_carts:
+        type: integer
     type: object
   goshop_internal_dto_v1.CartItemDTO:
     properties:
@@ -1178,6 +1275,36 @@ definitions:
     - new_password
     - token
     type: object
+  goshop_internal_dto_v1.ReturnAnalyticsResponse:
+    properties:
+      reasons_breakdown:
+        items:
+          $ref: '#/definitions/goshop_internal_dto_v1.ReturnReasonBreakdownDTO'
+        type: array
+      return_rate:
+        type: number
+      returned_orders_count:
+        type: integer
+      top_returned_products:
+        items:
+          $ref: '#/definitions/goshop_internal_dto_v1.TopReturnedProductDTO'
+        type: array
+      total_paid_orders:
+        type: integer
+      total_refunded_amount:
+        type: number
+      total_returns:
+        type: integer
+    type: object
+  goshop_internal_dto_v1.ReturnReasonBreakdownDTO:
+    properties:
+      count:
+        type: integer
+      percentage:
+        type: number
+      reason:
+        type: string
+    type: object
   goshop_internal_dto_v1.RevenueChartPointDTO:
     properties:
       date:
@@ -1269,6 +1396,39 @@ definitions:
       shipping_provider:
         type: string
     type: object
+  goshop_internal_dto_v1.StockMovementDTO:
+    properties:
+      actor_name:
+        type: string
+      actor_uuid:
+        type: string
+      change_type:
+        type: string
+      created_at:
+        type: string
+      movement_uuid:
+        type: string
+      note:
+        type: string
+      product_image_url:
+        type: string
+      product_name:
+        type: string
+      product_sku:
+        type: string
+      product_uuid:
+        type: string
+      quantity_change:
+        type: integer
+      reference_id:
+        type: string
+      reference_type:
+        type: string
+      stock_after:
+        type: integer
+      stock_before:
+        type: integer
+    type: object
   goshop_internal_dto_v1.SubmitReturnShippingInput:
     properties:
       note:
@@ -1348,6 +1508,25 @@ definitions:
       total_revenue:
         type: number
       total_units_sold:
+        type: integer
+      uuid:
+        type: string
+    type: object
+  goshop_internal_dto_v1.TopReturnedProductDTO:
+    properties:
+      image_url:
+        type: string
+      name:
+        type: string
+      price:
+        type: number
+      return_case_count:
+        type: integer
+      returned_value:
+        type: number
+      slug:
+        type: string
+      units_returned:
         type: integer
       uuid:
         type: string
@@ -1962,6 +2141,36 @@ paths:
       summary: Set default address
       tags:
       - Addresses
+  /admin/analytics/cart-funnel:
+    get:
+      description: Get active carts, order drop-offs, abandonment rate, and potential
+        lost revenue
+      parameters:
+      - description: Start date (YYYY-MM-DD)
+        in: query
+        name: from_date
+        type: string
+      - description: End date (YYYY-MM-DD)
+        in: query
+        name: to_date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.CartFunnelDTO'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Get cart abandonment and conversion funnel statistics
+      tags:
+      - Admin - Analytics
   /admin/analytics/low-stock-alerts:
     get:
       description: Get list of products with inventory stock below or equal to the
@@ -2198,6 +2407,57 @@ paths:
       - BearerAuth: []
       - ApiKeyAuth: []
       summary: Get recent orders for dashboard
+      tags:
+      - Admin - Analytics
+  /admin/analytics/returns:
+    get:
+      description: Get return rates, total refunded amount, reason breakdown, and
+        top returned products
+      parameters:
+      - default: 30
+        description: 'Time window in days (default: 30)'
+        in: query
+        name: days
+        type: integer
+      - description: Start date (YYYY-MM-DD)
+        in: query
+        name: from_date
+        type: string
+      - description: End date (YYYY-MM-DD)
+        in: query
+        name: to_date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.ReturnAnalyticsResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get return and refund financial analytics
       tags:
       - Admin - Analytics
   /admin/analytics/revenue-chart:
@@ -3036,6 +3296,99 @@ paths:
       summary: Permanently delete coupon
       tags:
       - Admin - Coupons
+  /admin/inventory/adjust:
+    post:
+      consumes:
+      - application/json
+      description: Manually add or deduct inventory with reason/audit note (Admin/Warehouse)
+      parameters:
+      - description: Stock adjustment payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.AdjustStockInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Adjust product stock
+      tags:
+      - Admin - Inventory
+  /admin/inventory/movements:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve paginated stock movement audit trail with filters (Admin/Warehouse)
+      parameters:
+      - in: query
+        maxLength: 30
+        name: change_type
+        type: string
+      - in: query
+        name: from_date
+        type: string
+      - in: query
+        maximum: 100
+        minimum: 1
+        name: limit
+        type: integer
+      - in: query
+        minimum: 1
+        name: page
+        type: integer
+      - in: query
+        name: product_uuid
+        type: string
+      - in: query
+        maxLength: 100
+        name: search
+        type: string
+      - in: query
+        name: to_date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/goshop_internal_dto_v1.StockMovementDTO'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get stock movement history
+      tags:
+      - Admin - Inventory
   /admin/notifications:
     post:
       consumes:
@@ -3369,6 +3722,82 @@ paths:
       - BearerAuth: []
       - ApiKeyAuth: []
       summary: Get shipping bill print URL
+      tags:
+      - Admin - Orders
+  /admin/orders/bulk-cancel:
+    post:
+      consumes:
+      - application/json
+      description: Cancel multiple orders with inventory rollback (Admin/Moderator)
+      parameters:
+      - description: Bulk cancel payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.BulkCancelOrdersInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.BulkOperationResultDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Bulk cancel orders
+      tags:
+      - Admin - Orders
+  /admin/orders/bulk-status:
+    post:
+      consumes:
+      - application/json
+      description: Update the status of multiple orders at once (Admin/Moderator)
+      parameters:
+      - description: Bulk update payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.BulkUpdateOrderStatusInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.BulkOperationResultDTO'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Bulk update order statuses
       tags:
       - Admin - Orders
   /admin/orders/sync-active-tracking:

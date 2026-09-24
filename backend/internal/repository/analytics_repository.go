@@ -88,3 +88,27 @@ func (r *SqlAnalyticsRepository) GetCartAbandonmentAndFunnelStats(ctx context.Co
 		ToDate:   toDate,
 	})
 }
+
+func (r *SqlAnalyticsRepository) GetReturnAnalyticsSummary(ctx context.Context, fromDate, toDate time.Time) (sqlc.GetReturnAnalyticsSummaryRow, error) {
+	return r.db.GetReturnAnalyticsSummary(ctx, sqlc.GetReturnAnalyticsSummaryParams{
+		FromDate: fromDate,
+		ToDate:   toDate,
+	})
+}
+
+func (r *SqlAnalyticsRepository) GetReturnReasonsBreakdown(ctx context.Context, fromDate, toDate time.Time, limit int32) ([]sqlc.GetReturnReasonsBreakdownRow, error) {
+	return r.db.GetReturnReasonsBreakdown(ctx, sqlc.GetReturnReasonsBreakdownParams{
+		FromDate:   fromDate,
+		ToDate:     toDate,
+		LimitCount: limit,
+	})
+}
+
+func (r *SqlAnalyticsRepository) GetTopReturnedProducts(ctx context.Context, fromDate, toDate time.Time, limit int32) ([]sqlc.GetTopReturnedProductsRow, error) {
+	return r.db.GetTopReturnedProducts(ctx, sqlc.GetTopReturnedProductsParams{
+		FromDate:   fromDate,
+		ToDate:     toDate,
+		LimitCount: limit,
+	})
+}
+

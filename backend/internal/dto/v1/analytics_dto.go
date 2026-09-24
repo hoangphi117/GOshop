@@ -156,9 +156,43 @@ type CartFunnelDTO struct {
 	PotentialLostRevenue float64 `json:"potential_lost_revenue"` // Currency value
 }
 
+type ReturnAnalyticsQuery struct {
+	Days     int32  `form:"days" binding:"omitempty,min=1,max=365"`
+	FromDate string `form:"from_date" binding:"omitempty,datetime=2006-01-02"`
+	ToDate   string `form:"to_date" binding:"omitempty,datetime=2006-01-02"`
+}
+
+type ReturnReasonBreakdownDTO struct {
+	Reason     string  `json:"reason"`
+	Count      int64   `json:"count"`
+	Percentage float64 `json:"percentage"`
+}
+
+type TopReturnedProductDTO struct {
+	UUID            string  `json:"uuid"`
+	Name            string  `json:"name"`
+	Slug            string  `json:"slug"`
+	Price           float64 `json:"price"`
+	ImageURL        *string `json:"image_url"`
+	ReturnCaseCount int64   `json:"return_case_count"`
+	UnitsReturned   int64   `json:"units_returned"`
+	ReturnedValue   float64 `json:"returned_value"`
+}
+
+type ReturnAnalyticsResponse struct {
+	TotalReturns        int64                      `json:"total_returns"`
+	ReturnedOrdersCount int64                      `json:"returned_orders_count"`
+	TotalPaidOrders     int64                      `json:"total_paid_orders"`
+	ReturnRate          float64                    `json:"return_rate"`
+	TotalRefundedAmount float64                    `json:"total_refunded_amount"`
+	ReasonsBreakdown    []ReturnReasonBreakdownDTO `json:"reasons_breakdown"`
+	TopReturnedProducts []TopReturnedProductDTO    `json:"top_returned_products"`
+}
+
 // Type aliases for flexible naming conventions
 type OrderStatusDistributionDTO = OrderStatusDistributionItemDTO
 type OrderStatusDistributionParamsDTO = OrderStatusDistributionQuery
 type LowStockProductsParamsDTO = LowStockProductsQuery
 type PaymentMethodBreakdownDTO = PaymentMethodBreakdownItemDTO
 type PaymentMethodBreakdownParamsDTO = PaymentMethodBreakdownQuery
+

@@ -409,3 +409,66 @@ func (s *analyticsService) GetCartFunnel(ctx context.Context, params v1dto.CartF
 
 	return dto, nil
 }
+
+func (s *analyticsService) GetReturnAnalytics(ctx context.Context, params v1dto.ReturnAnalyticsQuery) (*v1dto.ReturnAnalyticsResponse, error) {
+	fromDate, toDate, err := resolveDateRange(params.Days, params.FromDate, params.ToDate)
+	if err != nil {
+		return nil, utils.WrapError(utils.ErrCodeBadRequest, "Invalid date range", err)
+	}
+
+	summary, err := s.repo.GetReturnAnalyticsSummary(ctx, fromDate, toDate)
+	if err != nil {
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to get return summary: ", err)
+	}
+
+	reasons, err := s.repo.GetReturnReasonsBreakdown(ctx, fromDate, toDate, 5)
+	if err != nil {
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to get return reasons: ", err)
+	}
+
+	products, err := s.repo.GetTopReturnedProducts(ctx, fromDate, toDate, 5)
+	if err != nil {
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to get top returned products: ", err)
+	}
+
+	resp := &v1dto.ReturnAnalyticsResponse{
+		TotalReturns:        summary.TotalReturns,
+		ReturnedOrdersCount: summary.ReturnedOrdersCount,
+		TotalPaidOrders:     summary.TotalPaidOrders,
+		TotalRefundedAmount: utils.NumericToFloat(summary.TotalRefundedAmount),
+		ReasonsBreakdown:    make([]v1dto.ReturnReasonBreakdownDTO, 0, len(reasons)),
+		TopReturnedProducts: make([]v1dto.TopReturnedProductDTO, 0, len(products)),
+	}
+
+	if summary.TotalPaidOrders > 0 {
+		resp.ReturnRate = math.Round((float64(summary.ReturnedOrdersCount)/float64(summary.TotalPaidOrders))*1000) / 10
+	}
+
+	for _, r := range reasons {
+		pct := 0.0
+		if summary.TotalReturns > 0 {
+			pct = math.Round((float64(r.ReasonCount)/float64(summary.TotalReturns))*1000) / 10
+		}
+		resp.ReasonsBreakdown = append(resp.ReasonsBreakdown, v1dto.ReturnReasonBreakdownDTO{
+			Reason:     r.ReturnReason,
+			Count:      r.ReasonCount,
+			Percentage: pct,
+		})
+	}
+
+	for _, p := range products {
+		resp.TopReturnedProducts = append(resp.TopReturnedProducts, v1dto.TopReturnedProductDTO{
+			UUID:            p.ProductUuid.String(),
+			Name:            p.ProductName,
+			Slug:            p.ProductSlug,
+			Price:           utils.NumericToFloat(p.ProductPrice),
+			ImageURL:        p.ProductImageUrl,
+			ReturnCaseCount: p.ReturnCaseCount,
+			UnitsReturned:   p.ReturnedUnitsCount,
+			ReturnedValue:   utils.NumericToFloat(p.ReturnedValue),
+		})
+	}
+
+	return resp, nil
+}
+

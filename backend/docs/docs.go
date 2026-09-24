@@ -362,6 +362,57 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/analytics/cart-funnel": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get active carts, order drop-offs, abandonment rate, and potential lost revenue",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Analytics"
+                ],
+                "summary": "Get cart abandonment and conversion funnel statistics",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Start date (YYYY-MM-DD)",
+                        "name": "from_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End date (YYYY-MM-DD)",
+                        "name": "to_date",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/goshop_internal_dto_v1.CartFunnelDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/admin/analytics/low-stock-alerts": {
             "get": {
                 "security": [
@@ -742,6 +793,88 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/analytics/returns": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get return rates, total refunded amount, reason breakdown, and top returned products",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Analytics"
+                ],
+                "summary": "Get return and refund financial analytics",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 30,
+                        "description": "Time window in days (default: 30)",
+                        "name": "days",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Start date (YYYY-MM-DD)",
+                        "name": "from_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End date (YYYY-MM-DD)",
+                        "name": "to_date",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/goshop_internal_dto_v1.ReturnAnalyticsResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
                         }
@@ -2162,6 +2295,160 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/inventory/adjust": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Manually add or deduct inventory with reason/audit note (Admin/Warehouse)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Inventory"
+                ],
+                "summary": "Adjust product stock",
+                "parameters": [
+                    {
+                        "description": "Stock adjustment payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_dto_v1.AdjustStockInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/inventory/movements": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Retrieve paginated stock movement audit trail with filters (Admin/Warehouse)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Inventory"
+                ],
+                "summary": "Get stock movement history",
+                "parameters": [
+                    {
+                        "maxLength": 30,
+                        "type": "string",
+                        "name": "change_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "name": "from_date",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "minimum": 1,
+                        "type": "integer",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "name": "product_uuid",
+                        "in": "query"
+                    },
+                    {
+                        "maxLength": 100,
+                        "type": "string",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "name": "to_date",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/goshop_internal_dto_v1.StockMovementDTO"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/notifications": {
             "post": {
                 "security": [
@@ -2372,6 +2659,138 @@ const docTemplate = `{
                                             "items": {
                                                 "$ref": "#/definitions/goshop_internal_dto_v1.OrderDTO"
                                             }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/orders/bulk-cancel": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Cancel multiple orders with inventory rollback (Admin/Moderator)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Orders"
+                ],
+                "summary": "Bulk cancel orders",
+                "parameters": [
+                    {
+                        "description": "Bulk cancel payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_dto_v1.BulkCancelOrdersInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/goshop_internal_dto_v1.BulkOperationResultDTO"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/orders/bulk-status": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    },
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Update the status of multiple orders at once (Admin/Moderator)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Orders"
+                ],
+                "summary": "Bulk update order statuses",
+                "parameters": [
+                    {
+                        "description": "Bulk update payload",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_dto_v1.BulkUpdateOrderStatusInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/goshop_internal_dto_v1.BulkOperationResultDTO"
                                         }
                                     }
                                 }
@@ -8101,6 +8520,35 @@ const docTemplate = `{
                 }
             }
         },
+        "goshop_internal_dto_v1.AdjustStockInput": {
+            "type": "object",
+            "required": [
+                "change_type",
+                "product_uuid",
+                "quantity_change"
+            ],
+            "properties": {
+                "change_type": {
+                    "type": "string",
+                    "enum": [
+                        "RESTOCK",
+                        "MANUAL_ADJUSTMENT",
+                        "DAMAGED_DISCARD",
+                        "INITIAL_STOCK"
+                    ]
+                },
+                "note": {
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "product_uuid": {
+                    "type": "string"
+                },
+                "quantity_change": {
+                    "type": "integer"
+                }
+            }
+        },
         "goshop_internal_dto_v1.AdminBannerDetailDTO": {
             "type": "object",
             "properties": {
@@ -8243,6 +8691,83 @@ const docTemplate = `{
                 }
             }
         },
+        "goshop_internal_dto_v1.BulkCancelOrdersInput": {
+            "type": "object",
+            "required": [
+                "order_uuids"
+            ],
+            "properties": {
+                "order_uuids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "reason": {
+                    "type": "string",
+                    "maxLength": 500
+                }
+            }
+        },
+        "goshop_internal_dto_v1.BulkItemError": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "order_uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "goshop_internal_dto_v1.BulkOperationResultDTO": {
+            "type": "object",
+            "properties": {
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/goshop_internal_dto_v1.BulkItemError"
+                    }
+                },
+                "failed": {
+                    "type": "integer"
+                },
+                "succeeded": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "goshop_internal_dto_v1.BulkUpdateOrderStatusInput": {
+            "type": "object",
+            "required": [
+                "order_uuids",
+                "status"
+            ],
+            "properties": {
+                "order_uuids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "status": {
+                    "type": "integer",
+                    "enum": [
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                        6
+                    ]
+                }
+            }
+        },
         "goshop_internal_dto_v1.CalculateShippingFeeInput": {
             "type": "object",
             "required": [
@@ -8349,6 +8874,39 @@ const docTemplate = `{
                 },
                 "uuid": {
                     "type": "string"
+                }
+            }
+        },
+        "goshop_internal_dto_v1.CartFunnelDTO": {
+            "type": "object",
+            "properties": {
+                "abandoned_carts": {
+                    "type": "integer"
+                },
+                "abandonment_rate": {
+                    "description": "Percentage (0 - 100%)",
+                    "type": "number"
+                },
+                "cart_to_order_rate": {
+                    "description": "Conversion (0 - 100%)",
+                    "type": "number"
+                },
+                "order_to_paid_rate": {
+                    "description": "Conversion (0 - 100%)",
+                    "type": "number"
+                },
+                "orders_created": {
+                    "type": "integer"
+                },
+                "orders_paid": {
+                    "type": "integer"
+                },
+                "potential_lost_revenue": {
+                    "description": "Currency value",
+                    "type": "number"
+                },
+                "total_carts": {
+                    "type": "integer"
                 }
             }
         },
@@ -9737,6 +10295,52 @@ const docTemplate = `{
                 }
             }
         },
+        "goshop_internal_dto_v1.ReturnAnalyticsResponse": {
+            "type": "object",
+            "properties": {
+                "reasons_breakdown": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/goshop_internal_dto_v1.ReturnReasonBreakdownDTO"
+                    }
+                },
+                "return_rate": {
+                    "type": "number"
+                },
+                "returned_orders_count": {
+                    "type": "integer"
+                },
+                "top_returned_products": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/goshop_internal_dto_v1.TopReturnedProductDTO"
+                    }
+                },
+                "total_paid_orders": {
+                    "type": "integer"
+                },
+                "total_refunded_amount": {
+                    "type": "number"
+                },
+                "total_returns": {
+                    "type": "integer"
+                }
+            }
+        },
+        "goshop_internal_dto_v1.ReturnReasonBreakdownDTO": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "percentage": {
+                    "type": "number"
+                },
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
         "goshop_internal_dto_v1.RevenueChartPointDTO": {
             "type": "object",
             "properties": {
@@ -9875,6 +10479,56 @@ const docTemplate = `{
                 }
             }
         },
+        "goshop_internal_dto_v1.StockMovementDTO": {
+            "type": "object",
+            "properties": {
+                "actor_name": {
+                    "type": "string"
+                },
+                "actor_uuid": {
+                    "type": "string"
+                },
+                "change_type": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "movement_uuid": {
+                    "type": "string"
+                },
+                "note": {
+                    "type": "string"
+                },
+                "product_image_url": {
+                    "type": "string"
+                },
+                "product_name": {
+                    "type": "string"
+                },
+                "product_sku": {
+                    "type": "string"
+                },
+                "product_uuid": {
+                    "type": "string"
+                },
+                "quantity_change": {
+                    "type": "integer"
+                },
+                "reference_id": {
+                    "type": "string"
+                },
+                "reference_type": {
+                    "type": "string"
+                },
+                "stock_after": {
+                    "type": "integer"
+                },
+                "stock_before": {
+                    "type": "integer"
+                }
+            }
+        },
         "goshop_internal_dto_v1.SubmitReturnShippingInput": {
             "type": "object",
             "required": [
@@ -9991,6 +10645,35 @@ const docTemplate = `{
                     "type": "number"
                 },
                 "total_units_sold": {
+                    "type": "integer"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "goshop_internal_dto_v1.TopReturnedProductDTO": {
+            "type": "object",
+            "properties": {
+                "image_url": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "number"
+                },
+                "return_case_count": {
+                    "type": "integer"
+                },
+                "returned_value": {
+                    "type": "number"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "units_returned": {
                     "type": "integer"
                 },
                 "uuid": {

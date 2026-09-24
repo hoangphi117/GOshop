@@ -474,6 +474,99 @@ func (q *Queries) GetRecentOrders(ctx context.Context, limitCount int32) ([]GetR
 	return items, nil
 }
 
+const getReturnAnalyticsSummary = `-- name: GetReturnAnalyticsSummary :one
+WITH range_returns AS (
+    SELECT 
+        r.return_id,
+        r.return_order_id
+    FROM order_returns r
+    WHERE r.return_created_at >= $1::timestamptz
+      AND r.return_created_at <= $2::timestamptz
+),
+range_orders AS (
+    SELECT
+        COUNT(o.order_id)::bigint AS total_paid_orders,
+        COALESCE(SUM(o.order_refunded_amount), 0)::numeric(14,2) AS total_refunded_amount
+    FROM orders o
+    WHERE o.order_payment_status IN (2, 3, 4)
+      AND o.order_created_at >= $1::timestamptz
+      AND o.order_created_at <= $2::timestamptz
+)
+SELECT
+    COALESCE((SELECT COUNT(*) FROM range_returns), 0)::bigint AS total_returns,
+    COALESCE((SELECT COUNT(DISTINCT return_order_id) FROM range_returns), 0)::bigint AS returned_orders_count,
+    ro.total_paid_orders,
+    ro.total_refunded_amount
+FROM range_orders ro
+`
+
+type GetReturnAnalyticsSummaryParams struct {
+	FromDate time.Time `json:"from_date"`
+	ToDate   time.Time `json:"to_date"`
+}
+
+type GetReturnAnalyticsSummaryRow struct {
+	TotalReturns        int64          `json:"total_returns"`
+	ReturnedOrdersCount int64          `json:"returned_orders_count"`
+	TotalPaidOrders     int64          `json:"total_paid_orders"`
+	TotalRefundedAmount pgtype.Numeric `json:"total_refunded_amount"`
+}
+
+func (q *Queries) GetReturnAnalyticsSummary(ctx context.Context, arg GetReturnAnalyticsSummaryParams) (GetReturnAnalyticsSummaryRow, error) {
+	row := q.db.QueryRow(ctx, getReturnAnalyticsSummary, arg.FromDate, arg.ToDate)
+	var i GetReturnAnalyticsSummaryRow
+	err := row.Scan(
+		&i.TotalReturns,
+		&i.ReturnedOrdersCount,
+		&i.TotalPaidOrders,
+		&i.TotalRefundedAmount,
+	)
+	return i, err
+}
+
+const getReturnReasonsBreakdown = `-- name: GetReturnReasonsBreakdown :many
+SELECT
+    r.return_reason,
+    COUNT(r.return_id)::bigint AS reason_count
+FROM order_returns r
+WHERE r.return_created_at >= $1::timestamptz
+  AND r.return_created_at <= $2::timestamptz
+GROUP BY r.return_reason
+ORDER BY reason_count DESC
+LIMIT $3::int
+`
+
+type GetReturnReasonsBreakdownParams struct {
+	FromDate   time.Time `json:"from_date"`
+	ToDate     time.Time `json:"to_date"`
+	LimitCount int32     `json:"limit_count"`
+}
+
+type GetReturnReasonsBreakdownRow struct {
+	ReturnReason string `json:"return_reason"`
+	ReasonCount  int64  `json:"reason_count"`
+}
+
+func (q *Queries) GetReturnReasonsBreakdown(ctx context.Context, arg GetReturnReasonsBreakdownParams) ([]GetReturnReasonsBreakdownRow, error) {
+	rows, err := q.db.Query(ctx, getReturnReasonsBreakdown, arg.FromDate, arg.ToDate, arg.LimitCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetReturnReasonsBreakdownRow{}
+	for rows.Next() {
+		var i GetReturnReasonsBreakdownRow
+		if err := rows.Scan(&i.ReturnReason, &i.ReasonCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getRevenueDailyChart = `-- name: GetRevenueDailyChart :many
 SELECT
     gs.day::timestamptz AS date,
@@ -598,6 +691,76 @@ func (q *Queries) GetRevenueMonthlyChart(ctx context.Context, months int32) ([]G
 	for rows.Next() {
 		var i GetRevenueMonthlyChartRow
 		if err := rows.Scan(&i.Month, &i.TotalRevenue, &i.TotalOrders); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTopReturnedProducts = `-- name: GetTopReturnedProducts :many
+SELECT
+    p.product_id,
+    p.product_uuid,
+    p.product_name,
+    p.product_slug,
+    p.product_price,
+    p.product_image_url,
+    COUNT(DISTINCT r.return_id)::bigint AS return_case_count,
+    COALESCE(SUM(oi.order_item_quantity), 0)::bigint AS returned_units_count,
+    COALESCE(SUM(oi.order_item_subtotal), 0)::numeric(14,2) AS returned_value
+FROM order_returns r
+JOIN order_items oi ON oi.order_item_order_id = r.return_order_id
+JOIN products p ON p.product_id = oi.order_item_product_id
+WHERE r.return_created_at >= $1::timestamptz
+  AND r.return_created_at <= $2::timestamptz
+  AND p.product_deleted_at IS NULL
+GROUP BY p.product_id, p.product_uuid, p.product_name, p.product_slug, p.product_price, p.product_image_url
+ORDER BY return_case_count DESC, returned_units_count DESC
+LIMIT $3::int
+`
+
+type GetTopReturnedProductsParams struct {
+	FromDate   time.Time `json:"from_date"`
+	ToDate     time.Time `json:"to_date"`
+	LimitCount int32     `json:"limit_count"`
+}
+
+type GetTopReturnedProductsRow struct {
+	ProductID          int32          `json:"product_id"`
+	ProductUuid        uuid.UUID      `json:"product_uuid"`
+	ProductName        string         `json:"product_name"`
+	ProductSlug        string         `json:"product_slug"`
+	ProductPrice       pgtype.Numeric `json:"product_price"`
+	ProductImageUrl    *string        `json:"product_image_url"`
+	ReturnCaseCount    int64          `json:"return_case_count"`
+	ReturnedUnitsCount int64          `json:"returned_units_count"`
+	ReturnedValue      pgtype.Numeric `json:"returned_value"`
+}
+
+func (q *Queries) GetTopReturnedProducts(ctx context.Context, arg GetTopReturnedProductsParams) ([]GetTopReturnedProductsRow, error) {
+	rows, err := q.db.Query(ctx, getTopReturnedProducts, arg.FromDate, arg.ToDate, arg.LimitCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetTopReturnedProductsRow{}
+	for rows.Next() {
+		var i GetTopReturnedProductsRow
+		if err := rows.Scan(
+			&i.ProductID,
+			&i.ProductUuid,
+			&i.ProductName,
+			&i.ProductSlug,
+			&i.ProductPrice,
+			&i.ProductImageUrl,
+			&i.ReturnCaseCount,
+			&i.ReturnedUnitsCount,
+			&i.ReturnedValue,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

@@ -715,3 +715,119 @@ func TestAnalyticsService_GetCartFunnel(t *testing.T) {
 	})
 }
 
+func TestAnalyticsService_GetReturnAnalytics(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Success: Normal return rate and breakdown calculation", func(t *testing.T) {
+		prodUUID := uuid.New()
+		mockRepo := &testutils.MockAnalyticsRepository{
+			GetReturnAnalyticsSummaryFunc: func(ctx context.Context, from, to time.Time) (sqlc.GetReturnAnalyticsSummaryRow, error) {
+				return sqlc.GetReturnAnalyticsSummaryRow{
+					TotalReturns:        25,
+					ReturnedOrdersCount: 20,
+					TotalPaidOrders:     500,
+					TotalRefundedAmount: utils.FloatToNumeric(12500000),
+				}, nil
+			},
+			GetReturnReasonsBreakdownFunc: func(ctx context.Context, from, to time.Time, limit int32) ([]sqlc.GetReturnReasonsBreakdownRow, error) {
+				return []sqlc.GetReturnReasonsBreakdownRow{
+					{ReturnReason: "Defective item", ReasonCount: 15},
+					{ReturnReason: "Wrong size", ReasonCount: 10},
+				}, nil
+			},
+			GetTopReturnedProductsFunc: func(ctx context.Context, from, to time.Time, limit int32) ([]sqlc.GetTopReturnedProductsRow, error) {
+				return []sqlc.GetTopReturnedProductsRow{
+					{
+						ProductID:          1,
+						ProductUuid:        prodUUID,
+						ProductName:        "Mechanical Keyboard",
+						ProductSlug:        "mechanical-keyboard",
+						ProductPrice:       utils.FloatToNumeric(1500000),
+						ReturnCaseCount:    8,
+						ReturnedUnitsCount: 8,
+						ReturnedValue:      utils.FloatToNumeric(12000000),
+					},
+				}, nil
+			},
+		}
+
+		svc := v1service.NewAnalyticsService(mockRepo)
+		res, err := svc.GetReturnAnalytics(ctx, v1dto.ReturnAnalyticsQuery{Days: 30})
+
+		require.NoError(t, err)
+		assert.Equal(t, int64(25), res.TotalReturns)
+		assert.Equal(t, int64(20), res.ReturnedOrdersCount)
+		assert.Equal(t, int64(500), res.TotalPaidOrders)
+		assert.Equal(t, 4.0, res.ReturnRate) // 20 / 500 = 4.0%
+		assert.Equal(t, float64(12500000), res.TotalRefundedAmount)
+
+		require.Len(t, res.ReasonsBreakdown, 2)
+		assert.Equal(t, "Defective item", res.ReasonsBreakdown[0].Reason)
+		assert.Equal(t, int64(15), res.ReasonsBreakdown[0].Count)
+		assert.Equal(t, 60.0, res.ReasonsBreakdown[0].Percentage) // 15 / 25 = 60.0%
+
+		require.Len(t, res.TopReturnedProducts, 1)
+		assert.Equal(t, prodUUID.String(), res.TopReturnedProducts[0].UUID)
+		assert.Equal(t, "Mechanical Keyboard", res.TopReturnedProducts[0].Name)
+		assert.Equal(t, int64(8), res.TopReturnedProducts[0].ReturnCaseCount)
+		assert.Equal(t, float64(12000000), res.TopReturnedProducts[0].ReturnedValue)
+	})
+
+	t.Run("Success: Zero returns and zero paid orders", func(t *testing.T) {
+		mockRepo := &testutils.MockAnalyticsRepository{
+			GetReturnAnalyticsSummaryFunc: func(ctx context.Context, from, to time.Time) (sqlc.GetReturnAnalyticsSummaryRow, error) {
+				return sqlc.GetReturnAnalyticsSummaryRow{
+					TotalReturns:        0,
+					ReturnedOrdersCount: 0,
+					TotalPaidOrders:     0,
+					TotalRefundedAmount: pgtype.Numeric{Valid: false},
+				}, nil
+			},
+			GetReturnReasonsBreakdownFunc: func(ctx context.Context, from, to time.Time, limit int32) ([]sqlc.GetReturnReasonsBreakdownRow, error) {
+				return []sqlc.GetReturnReasonsBreakdownRow{}, nil
+			},
+			GetTopReturnedProductsFunc: func(ctx context.Context, from, to time.Time, limit int32) ([]sqlc.GetTopReturnedProductsRow, error) {
+				return []sqlc.GetTopReturnedProductsRow{}, nil
+			},
+		}
+
+		svc := v1service.NewAnalyticsService(mockRepo)
+		res, err := svc.GetReturnAnalytics(ctx, v1dto.ReturnAnalyticsQuery{Days: 30})
+
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), res.TotalReturns)
+		assert.Equal(t, 0.0, res.ReturnRate)
+		assert.Equal(t, float64(0), res.TotalRefundedAmount)
+		assert.Empty(t, res.ReasonsBreakdown)
+		assert.Empty(t, res.TopReturnedProducts)
+	})
+
+	t.Run("Failure: Invalid date range", func(t *testing.T) {
+		mockRepo := &testutils.MockAnalyticsRepository{}
+		svc := v1service.NewAnalyticsService(mockRepo)
+
+		_, err := svc.GetReturnAnalytics(ctx, v1dto.ReturnAnalyticsQuery{
+			FromDate: "2026-09-30",
+			ToDate:   "2026-09-01",
+		})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Invalid date range")
+	})
+
+	t.Run("Failure: Repository error returned", func(t *testing.T) {
+		mockRepo := &testutils.MockAnalyticsRepository{
+			GetReturnAnalyticsSummaryFunc: func(ctx context.Context, from, to time.Time) (sqlc.GetReturnAnalyticsSummaryRow, error) {
+				return sqlc.GetReturnAnalyticsSummaryRow{}, errors.New("db query error")
+			},
+		}
+
+		svc := v1service.NewAnalyticsService(mockRepo)
+		_, err := svc.GetReturnAnalytics(ctx, v1dto.ReturnAnalyticsQuery{Days: 30})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "db query error")
+	})
+}
+
+

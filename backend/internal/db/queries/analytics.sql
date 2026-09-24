@@ -308,3 +308,61 @@ SELECT
     COALESCE((SELECT COUNT(*) FROM abandoned), 0)::bigint AS abandoned_carts,
     COALESCE((SELECT SUM(cart_value) FROM abandoned), 0)::numeric(14,2) AS potential_lost_revenue
 FROM order_funnel of;
+
+-- name: GetReturnAnalyticsSummary :one
+WITH range_returns AS (
+    SELECT 
+        r.return_id,
+        r.return_order_id
+    FROM order_returns r
+    WHERE r.return_created_at >= sqlc.arg('from_date')::timestamptz
+      AND r.return_created_at <= sqlc.arg('to_date')::timestamptz
+),
+range_orders AS (
+    SELECT
+        COUNT(o.order_id)::bigint AS total_paid_orders,
+        COALESCE(SUM(o.order_refunded_amount), 0)::numeric(14,2) AS total_refunded_amount
+    FROM orders o
+    WHERE o.order_payment_status IN (2, 3, 4)
+      AND o.order_created_at >= sqlc.arg('from_date')::timestamptz
+      AND o.order_created_at <= sqlc.arg('to_date')::timestamptz
+)
+SELECT
+    COALESCE((SELECT COUNT(*) FROM range_returns), 0)::bigint AS total_returns,
+    COALESCE((SELECT COUNT(DISTINCT return_order_id) FROM range_returns), 0)::bigint AS returned_orders_count,
+    ro.total_paid_orders,
+    ro.total_refunded_amount
+FROM range_orders ro;
+
+-- name: GetReturnReasonsBreakdown :many
+SELECT
+    r.return_reason,
+    COUNT(r.return_id)::bigint AS reason_count
+FROM order_returns r
+WHERE r.return_created_at >= sqlc.arg('from_date')::timestamptz
+  AND r.return_created_at <= sqlc.arg('to_date')::timestamptz
+GROUP BY r.return_reason
+ORDER BY reason_count DESC
+LIMIT sqlc.arg('limit_count')::int;
+
+-- name: GetTopReturnedProducts :many
+SELECT
+    p.product_id,
+    p.product_uuid,
+    p.product_name,
+    p.product_slug,
+    p.product_price,
+    p.product_image_url,
+    COUNT(DISTINCT r.return_id)::bigint AS return_case_count,
+    COALESCE(SUM(oi.order_item_quantity), 0)::bigint AS returned_units_count,
+    COALESCE(SUM(oi.order_item_subtotal), 0)::numeric(14,2) AS returned_value
+FROM order_returns r
+JOIN order_items oi ON oi.order_item_order_id = r.return_order_id
+JOIN products p ON p.product_id = oi.order_item_product_id
+WHERE r.return_created_at >= sqlc.arg('from_date')::timestamptz
+  AND r.return_created_at <= sqlc.arg('to_date')::timestamptz
+  AND p.product_deleted_at IS NULL
+GROUP BY p.product_id, p.product_uuid, p.product_name, p.product_slug, p.product_price, p.product_image_url
+ORDER BY return_case_count DESC, returned_units_count DESC
+LIMIT sqlc.arg('limit_count')::int;
+

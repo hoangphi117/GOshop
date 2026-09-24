@@ -317,6 +317,52 @@ export interface paths {
         };
         trace?: never;
     };
+    "/admin/analytics/cart-funnel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get cart abandonment and conversion funnel statistics
+         * @description Get active carts, order drop-offs, abandonment rate, and potential lost revenue
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Start date (YYYY-MM-DD) */
+                    from_date?: string;
+                    /** @description End date (YYYY-MM-DD) */
+                    to_date?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
+                            data?: components["schemas"]["goshop_internal_dto_v1.CartFunnelDTO"];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/analytics/low-stock-alerts": {
         parameters: {
             query?: never;
@@ -678,6 +724,90 @@ export interface paths {
                 };
                 /** @description Bad Request */
                 400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/analytics/returns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get return and refund financial analytics
+         * @description Get return rates, total refunded amount, reason breakdown, and top returned products
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Time window in days (default: 30) */
+                    days?: number;
+                    /** @description Start date (YYYY-MM-DD) */
+                    from_date?: string;
+                    /** @description End date (YYYY-MM-DD) */
+                    to_date?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
+                            data?: components["schemas"]["goshop_internal_dto_v1.ReturnAnalyticsResponse"];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1969,6 +2099,135 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/inventory/adjust": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Adjust product stock
+         * @description Manually add or deduct inventory with reason/audit note (Admin/Warehouse)
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description Stock adjustment payload */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["goshop_internal_dto_v1.AdjustStockInput"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/inventory/movements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get stock movement history
+         * @description Retrieve paginated stock movement audit trail with filters (Admin/Warehouse)
+         */
+        get: {
+            parameters: {
+                query?: {
+                    change_type?: string;
+                    from_date?: string;
+                    limit?: number;
+                    page?: number;
+                    product_uuid?: string;
+                    search?: string;
+                    to_date?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
+                            data?: components["schemas"]["goshop_internal_dto_v1.StockMovementDTO"][];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/notifications": {
         parameters: {
             query?: never;
@@ -2161,6 +2420,134 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/orders/bulk-cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bulk cancel orders
+         * @description Cancel multiple orders with inventory rollback (Admin/Moderator)
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description Bulk cancel payload */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["goshop_internal_dto_v1.BulkCancelOrdersInput"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
+                            data?: components["schemas"]["goshop_internal_dto_v1.BulkOperationResultDTO"];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/orders/bulk-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bulk update order statuses
+         * @description Update the status of multiple orders at once (Admin/Moderator)
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description Bulk update payload */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["goshop_internal_dto_v1.BulkUpdateOrderStatusInput"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
+                            data?: components["schemas"]["goshop_internal_dto_v1.BulkOperationResultDTO"];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -7702,6 +8089,13 @@ export interface components {
             ward_code?: string;
             ward_name?: string;
         };
+        "goshop_internal_dto_v1.AdjustStockInput": {
+            /** @enum {string} */
+            change_type: "RESTOCK" | "MANUAL_ADJUSTMENT" | "DAMAGED_DISCARD" | "INITIAL_STOCK";
+            note?: string;
+            product_uuid: string;
+            quantity_change: number;
+        };
         "goshop_internal_dto_v1.AdminBannerDetailDTO": {
             created_at?: string;
             deleted_at?: string;
@@ -7749,6 +8143,25 @@ export interface components {
             title: string;
             type: string;
         };
+        "goshop_internal_dto_v1.BulkCancelOrdersInput": {
+            order_uuids: string[];
+            reason?: string;
+        };
+        "goshop_internal_dto_v1.BulkItemError": {
+            error?: string;
+            order_uuid?: string;
+        };
+        "goshop_internal_dto_v1.BulkOperationResultDTO": {
+            errors?: components["schemas"]["goshop_internal_dto_v1.BulkItemError"][];
+            failed?: number;
+            succeeded?: number;
+            total?: number;
+        };
+        "goshop_internal_dto_v1.BulkUpdateOrderStatusInput": {
+            order_uuids: string[];
+            /** @enum {integer} */
+            status: 1 | 2 | 3 | 4 | 5 | 6;
+        };
         "goshop_internal_dto_v1.CalculateShippingFeeInput": {
             district_id: number;
             /** @description cm */
@@ -7785,6 +8198,20 @@ export interface components {
             total_amount?: number;
             total_items?: number;
             uuid?: string;
+        };
+        "goshop_internal_dto_v1.CartFunnelDTO": {
+            abandoned_carts?: number;
+            /** @description Percentage (0 - 100%) */
+            abandonment_rate?: number;
+            /** @description Conversion (0 - 100%) */
+            cart_to_order_rate?: number;
+            /** @description Conversion (0 - 100%) */
+            order_to_paid_rate?: number;
+            orders_created?: number;
+            orders_paid?: number;
+            /** @description Currency value */
+            potential_lost_revenue?: number;
+            total_carts?: number;
         };
         "goshop_internal_dto_v1.CartItemDTO": {
             /** @description false if product is deleted/inactive/out of stock */
@@ -8212,6 +8639,20 @@ export interface components {
             new_password: string;
             token: string;
         };
+        "goshop_internal_dto_v1.ReturnAnalyticsResponse": {
+            reasons_breakdown?: components["schemas"]["goshop_internal_dto_v1.ReturnReasonBreakdownDTO"][];
+            return_rate?: number;
+            returned_orders_count?: number;
+            top_returned_products?: components["schemas"]["goshop_internal_dto_v1.TopReturnedProductDTO"][];
+            total_paid_orders?: number;
+            total_refunded_amount?: number;
+            total_returns?: number;
+        };
+        "goshop_internal_dto_v1.ReturnReasonBreakdownDTO": {
+            count?: number;
+            percentage?: number;
+            reason?: string;
+        };
         "goshop_internal_dto_v1.RevenueChartPointDTO": {
             date?: string;
             order_count?: number;
@@ -8260,6 +8701,23 @@ export interface components {
             shipping_fee?: number;
             shipping_provider?: string;
         };
+        "goshop_internal_dto_v1.StockMovementDTO": {
+            actor_name?: string;
+            actor_uuid?: string;
+            change_type?: string;
+            created_at?: string;
+            movement_uuid?: string;
+            note?: string;
+            product_image_url?: string;
+            product_name?: string;
+            product_sku?: string;
+            product_uuid?: string;
+            quantity_change?: number;
+            reference_id?: string;
+            reference_type?: string;
+            stock_after?: number;
+            stock_before?: number;
+        };
         "goshop_internal_dto_v1.SubmitReturnShippingInput": {
             note?: string;
             shipping_code: string;
@@ -8298,6 +8756,16 @@ export interface components {
             slug?: string;
             total_revenue?: number;
             total_units_sold?: number;
+            uuid?: string;
+        };
+        "goshop_internal_dto_v1.TopReturnedProductDTO": {
+            image_url?: string;
+            name?: string;
+            price?: number;
+            return_case_count?: number;
+            returned_value?: number;
+            slug?: string;
+            units_returned?: number;
             uuid?: string;
         };
         "goshop_internal_dto_v1.TrackingEventDTO": {

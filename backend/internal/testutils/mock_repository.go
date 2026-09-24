@@ -1328,6 +1328,9 @@ type MockAnalyticsRepository struct {
 	GetLowStockProductsFunc         func(ctx context.Context, threshold, limit int32) ([]sqlc.GetLowStockProductsRow, error)
 	GetPaymentMethodBreakdownFunc   func(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetPaymentMethodBreakdownRow, error)
 	GetCartAbandonmentAndFunnelStatsFunc func(ctx context.Context, from, to time.Time) (sqlc.GetCartAbandonmentAndFunnelStatsRow, error)
+	GetReturnAnalyticsSummaryFunc func(ctx context.Context, from, to time.Time) (sqlc.GetReturnAnalyticsSummaryRow, error)
+	GetReturnReasonsBreakdownFunc func(ctx context.Context, from, to time.Time, limit int32) ([]sqlc.GetReturnReasonsBreakdownRow, error)
+	GetTopReturnedProductsFunc func(ctx context.Context, from, to time.Time, limit int32) ([]sqlc.GetTopReturnedProductsRow, error)
 }
 
 func (m *MockAnalyticsRepository) GetOverview(ctx context.Context) (sqlc.GetOverviewStatsRow, error) {
@@ -1413,6 +1416,28 @@ func (m *MockAnalyticsRepository) GetCartAbandonmentAndFunnelStats(ctx context.C
 	}
 	return sqlc.GetCartAbandonmentAndFunnelStatsRow{}, nil
 }
+
+func (m *MockAnalyticsRepository) GetReturnAnalyticsSummary(ctx context.Context, from, to time.Time) (sqlc.GetReturnAnalyticsSummaryRow, error) {
+	if m.GetReturnAnalyticsSummaryFunc != nil {
+		return m.GetReturnAnalyticsSummaryFunc(ctx, from, to)
+	}
+	return sqlc.GetReturnAnalyticsSummaryRow{}, nil
+}
+
+func (m *MockAnalyticsRepository) GetReturnReasonsBreakdown(ctx context.Context, from, to time.Time, limit int32) ([]sqlc.GetReturnReasonsBreakdownRow, error) {
+	if m.GetReturnReasonsBreakdownFunc != nil {
+		return m.GetReturnReasonsBreakdownFunc(ctx, from, to, limit)
+	}
+	return nil, nil
+}
+
+func (m *MockAnalyticsRepository) GetTopReturnedProducts(ctx context.Context, from, to time.Time, limit int32) ([]sqlc.GetTopReturnedProductsRow, error) {
+	if m.GetTopReturnedProductsFunc != nil {
+		return m.GetTopReturnedProductsFunc(ctx, from, to, limit)
+	}
+	return nil, nil
+}
+
 
 
 

@@ -226,6 +226,9 @@ type AnalyticsRepository interface {
 	GetLowStockProducts(ctx context.Context, threshold, limit int32) ([]sqlc.GetLowStockProductsRow, error)
 	GetPaymentMethodBreakdown(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetPaymentMethodBreakdownRow, error)
 	GetCartAbandonmentAndFunnelStats(ctx context.Context, fromDate, toDate time.Time) (sqlc.GetCartAbandonmentAndFunnelStatsRow, error)
+	GetReturnAnalyticsSummary(ctx context.Context, fromDate, toDate time.Time) (sqlc.GetReturnAnalyticsSummaryRow, error)
+	GetReturnReasonsBreakdown(ctx context.Context, fromDate, toDate time.Time, limit int32) ([]sqlc.GetReturnReasonsBreakdownRow, error)
+	GetTopReturnedProducts(ctx context.Context, fromDate, toDate time.Time, limit int32) ([]sqlc.GetTopReturnedProductsRow, error)
 }
 
 type StockMovementRepository interface {

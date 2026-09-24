@@ -263,3 +263,35 @@ func (h *AnalyticsHandler) GetCartFunnel(ctx *gin.Context) {
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Cart funnel statistics retrieved successfully", res)
 }
+
+// GetReturnAnalytics godoc
+// @Summary      Get return and refund financial analytics
+// @Description  Get return rates, total refunded amount, reason breakdown, and top returned products
+// @Tags         Admin - Analytics
+// @Produce      json
+// @Security     BearerAuth
+// @Param        days      query int    false "Time window in days (default: 30)" default(30)
+// @Param        from_date query string false "Start date (YYYY-MM-DD)"
+// @Param        to_date   query string false "End date (YYYY-MM-DD)"
+// @Success      200 {object} utils.APIResponse{data=v1dto.ReturnAnalyticsResponse}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Failure      403 {object} utils.ErrorResponse
+// @Failure      500 {object} utils.ErrorResponse
+// @Router       /admin/analytics/returns [get]
+func (h *AnalyticsHandler) GetReturnAnalytics(ctx *gin.Context) {
+	var query v1dto.ReturnAnalyticsQuery
+	if err := ctx.ShouldBindQuery(&query); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	res, err := h.service.GetReturnAnalytics(ctx.Request.Context(), query)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Return and refund analytics retrieved successfully", res)
+}
+
