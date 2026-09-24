@@ -64,16 +64,16 @@ type LowStockProductDTO struct {
 	Name         string  `json:"name"`
 	Slug         string  `json:"slug"`
 	Price        float64 `json:"price"`
-	Stock        int32   `json:"stock"`               // Current available stock
+	Stock        int32   `json:"stock"` // Current available stock
 	ImageURL     *string `json:"image_url,omitempty"`
 	CategoryName string  `json:"category_name"`
-	AlertLevel   string  `json:"alert_level"`         // "critical" (stock <= 0), "warning" (stock <= threshold)
+	AlertLevel   string  `json:"alert_level"` // "critical" (stock <= 0), "warning" (stock <= threshold)
 }
 
 // LowStockProductResponse represents the list of depleted inventory items
 type LowStockProductResponse struct {
 	Threshold int32                `json:"threshold"` // Warning threshold used (e.g., 5)
-	TotalLow  int64                `json:"total_low"`  // Count of items below threshold
+	TotalLow  int64                `json:"total_low"` // Count of items below threshold
 	Items     []LowStockProductDTO `json:"items"`
 }
 
@@ -105,7 +105,7 @@ type OverviewStatsQuery struct {
 
 type RevenueChartQuery struct {
 	Period   string `form:"period" binding:"omitempty,oneof=daily monthly"` // daily | monthly (default: daily)
-	Days     int32  `form:"days" binding:"omitempty,min=1,max=365"`          // default: 30
+	Days     int32  `form:"days" binding:"omitempty,min=1,max=365"`         // default: 30
 	Months   int32  `form:"months" binding:"omitempty,min=1,max=36"`        // default: 12
 	FromDate string `form:"from_date" binding:"omitempty,datetime=2006-01-02"`
 	ToDate   string `form:"to_date" binding:"omitempty,datetime=2006-01-02"`
@@ -116,8 +116,8 @@ type RecentOrdersQuery struct {
 }
 
 type TopProductsQuery struct {
-	Days     int32  `form:"days" binding:"omitempty,min=1,max=365"`          // default: 30
-	Limit    int32  `form:"limit" binding:"omitempty,min=1,max=50"`         // default: 5
+	Days     int32  `form:"days" binding:"omitempty,min=1,max=365"` // default: 30
+	Limit    int32  `form:"limit" binding:"omitempty,min=1,max=50"` // default: 5
 	FromDate string `form:"from_date" binding:"omitempty,datetime=2006-01-02"`
 	ToDate   string `form:"to_date" binding:"omitempty,datetime=2006-01-02"`
 }
@@ -130,7 +130,7 @@ type OrderStatusDistributionQuery struct {
 
 type LowStockProductsQuery struct {
 	Threshold int32 `form:"threshold" binding:"omitempty,min=0,max=100"` // default: 5
-	Limit     int32 `form:"limit" binding:"omitempty,min=1,max=50"`        // default: 10
+	Limit     int32 `form:"limit" binding:"omitempty,min=1,max=50"`      // default: 10
 }
 
 type PaymentMethodBreakdownQuery struct {
@@ -139,10 +139,26 @@ type PaymentMethodBreakdownQuery struct {
 	ToDate   string `form:"to_date" binding:"omitempty,datetime=2006-01-02"`   // YYYY-MM-DD
 }
 
+type CartFunnelQuery struct {
+	Days     int    `form:"days"`
+	FromDate string `form:"from_date"`
+	ToDate   string `form:"to_date"`
+}
+
+type CartFunnelDTO struct {
+	TotalCarts           int64   `json:"total_carts"`
+	OrdersCreated        int64   `json:"orders_created"`
+	OrdersPaid           int64   `json:"orders_paid"`
+	AbandonedCarts       int64   `json:"abandoned_carts"`
+	AbandonmentRate      float64 `json:"abandonment_rate"`       // Percentage (0 - 100%)
+	CartToOrderRate      float64 `json:"cart_to_order_rate"`     // Conversion (0 - 100%)
+	OrderToPaidRate      float64 `json:"order_to_paid_rate"`     // Conversion (0 - 100%)
+	PotentialLostRevenue float64 `json:"potential_lost_revenue"` // Currency value
+}
+
 // Type aliases for flexible naming conventions
 type OrderStatusDistributionDTO = OrderStatusDistributionItemDTO
 type OrderStatusDistributionParamsDTO = OrderStatusDistributionQuery
 type LowStockProductsParamsDTO = LowStockProductsQuery
 type PaymentMethodBreakdownDTO = PaymentMethodBreakdownItemDTO
 type PaymentMethodBreakdownParamsDTO = PaymentMethodBreakdownQuery
-

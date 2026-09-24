@@ -237,3 +237,29 @@ func (h *AnalyticsHandler) GetPaymentMethodBreakdown(ctx *gin.Context) {
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Payment method breakdown retrieved successfully", res)
 }
+
+// GetCartFunnel godoc
+// @Summary      Get cart abandonment and conversion funnel statistics
+// @Description  Get active carts, order drop-offs, abandonment rate, and potential lost revenue
+// @Tags         Admin - Analytics
+// @Produce      json
+// @Security     BearerAuth
+// @Param        from_date query string false "Start date (YYYY-MM-DD)"
+// @Param        to_date   query string false "End date (YYYY-MM-DD)"
+// @Success      200 {object} utils.APIResponse{data=v1dto.CartFunnelDTO}
+// @Router       /admin/analytics/cart-funnel [get]
+func (h *AnalyticsHandler) GetCartFunnel(ctx *gin.Context) {
+	var query v1dto.CartFunnelQuery
+	if err := ctx.ShouldBindQuery(&query); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	res, err := h.service.GetCartFunnel(ctx.Request.Context(), query)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Cart funnel statistics retrieved successfully", res)
+}

@@ -81,3 +81,10 @@ func (r *SqlAnalyticsRepository) GetPaymentMethodBreakdown(ctx context.Context, 
 		ToDate:   toDate,
 	})
 }
+
+func (r *SqlAnalyticsRepository) GetCartAbandonmentAndFunnelStats(ctx context.Context, fromDate, toDate time.Time) (sqlc.GetCartAbandonmentAndFunnelStatsRow, error) {
+	return r.db.GetCartAbandonmentAndFunnelStats(ctx, sqlc.GetCartAbandonmentAndFunnelStatsParams{
+		FromDate: fromDate,
+		ToDate:   toDate,
+	})
+}

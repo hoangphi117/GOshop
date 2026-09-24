@@ -3,6 +3,7 @@ package v1service
 import (
 	"context"
 	"errors"
+	"math"
 	"time"
 
 	v1dto "goshop/internal/dto/v1"
@@ -377,4 +378,34 @@ func resolveDateRange(days int32, fromStr, toStr string) (time.Time, time.Time, 
 	}
 	fromDate := now.AddDate(0, 0, -int(days))
 	return fromDate, now, nil
+}
+
+func (s *analyticsService) GetCartFunnel(ctx context.Context, params v1dto.CartFunnelQuery) (*v1dto.CartFunnelDTO, error) {
+	fromDate, toDate, err := resolveDateRange(int32(params.Days), params.FromDate, params.ToDate)
+	if err != nil {
+		return nil, utils.WrapError(utils.ErrCodeBadRequest, "Invalid date range", err)
+	}
+
+	row, err := s.repo.GetCartAbandonmentAndFunnelStats(ctx, fromDate, toDate)
+	if err != nil {
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to fetch cart funnel stats: ", err)
+	}
+
+	dto := &v1dto.CartFunnelDTO{
+		TotalCarts:           row.TotalCarts,
+		OrdersCreated:        row.OrdersCreated,
+		OrdersPaid:           row.OrdersPaid,
+		AbandonedCarts:       row.AbandonedCarts,
+		PotentialLostRevenue: utils.NumericToFloat(row.PotentialLostRevenue),
+	}
+
+	if dto.TotalCarts > 0 {
+		dto.AbandonmentRate = math.Round((float64(dto.AbandonedCarts)/float64(dto.TotalCarts))*1000) / 10
+		dto.CartToOrderRate = math.Round((float64(dto.OrdersCreated)/float64(dto.TotalCarts))*1000) / 10
+	}
+	if dto.OrdersCreated > 0 {
+		dto.OrderToPaidRate = math.Round((float64(dto.OrdersPaid)/float64(dto.OrdersCreated))*1000) / 10
+	}
+
+	return dto, nil
 }

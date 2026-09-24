@@ -1327,6 +1327,7 @@ type MockAnalyticsRepository struct {
 	GetOrderStatusDistributionFunc func(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetOrderStatusDistributionRow, error)
 	GetLowStockProductsFunc         func(ctx context.Context, threshold, limit int32) ([]sqlc.GetLowStockProductsRow, error)
 	GetPaymentMethodBreakdownFunc   func(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetPaymentMethodBreakdownRow, error)
+	GetCartAbandonmentAndFunnelStatsFunc func(ctx context.Context, from, to time.Time) (sqlc.GetCartAbandonmentAndFunnelStatsRow, error)
 }
 
 func (m *MockAnalyticsRepository) GetOverview(ctx context.Context) (sqlc.GetOverviewStatsRow, error) {
@@ -1405,6 +1406,14 @@ func (m *MockAnalyticsRepository) GetPaymentMethodBreakdown(ctx context.Context,
 	}
 	return nil, nil
 }
+
+func (m *MockAnalyticsRepository) GetCartAbandonmentAndFunnelStats(ctx context.Context, from, to time.Time) (sqlc.GetCartAbandonmentAndFunnelStatsRow, error) {
+	if m.GetCartAbandonmentAndFunnelStatsFunc != nil {
+		return m.GetCartAbandonmentAndFunnelStatsFunc(ctx, from, to)
+	}
+	return sqlc.GetCartAbandonmentAndFunnelStatsRow{}, nil
+}
+
 
 
 

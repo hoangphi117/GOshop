@@ -13,6 +13,75 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const getCartAbandonmentAndFunnelStats = `-- name: GetCartAbandonmentAndFunnelStats :one
+WITH active_carts AS ( 
+    SELECT 
+        c.cart_id,
+        c.cart_user_id,
+        c.cart_updated_at,
+        COALESCE(SUM(ci.cart_item_quantity * p.product_price), 0)::numeric(14,2) AS cart_value
+    FROM carts c
+    JOIN cart_items ci ON ci.cart_item_cart_id = c.cart_id
+    JOIN products p ON p.product_id = ci.cart_item_product_id
+    WHERE c.cart_updated_at >= $1::timestamptz 
+      AND c.cart_updated_at <= $2::timestamptz
+    GROUP BY c.cart_id, c.cart_user_id, c.cart_updated_at
+),
+abandoned AS (
+    SELECT 
+        ac.cart_id,
+        ac.cart_value
+    FROM active_carts ac
+    WHERE ac.cart_updated_at < NOW() - INTERVAL '24 hours'
+      AND NOT EXISTS (
+          SELECT 1 FROM orders o
+          WHERE o.order_user_id = ac.cart_user_id
+            AND o.order_created_at >= ac.cart_updated_at
+      )
+),
+order_funnel AS (
+    SELECT
+        COUNT(order_id)::bigint AS orders_created,
+        COUNT(order_id) FILTER (WHERE order_payment_status IN (2, 3))::bigint AS orders_paid
+    FROM orders
+    WHERE order_created_at >= $1::timestamptz 
+      AND order_created_at <= $2::timestamptz
+)
+SELECT
+    COALESCE((SELECT COUNT(*) FROM active_carts), 0)::bigint AS total_carts,
+    COALESCE(of.orders_created, 0)::bigint AS orders_created,
+    COALESCE(of.orders_paid, 0)::bigint AS orders_paid,
+    COALESCE((SELECT COUNT(*) FROM abandoned), 0)::bigint AS abandoned_carts,
+    COALESCE((SELECT SUM(cart_value) FROM abandoned), 0)::numeric(14,2) AS potential_lost_revenue
+FROM order_funnel of
+`
+
+type GetCartAbandonmentAndFunnelStatsParams struct {
+	FromDate time.Time `json:"from_date"`
+	ToDate   time.Time `json:"to_date"`
+}
+
+type GetCartAbandonmentAndFunnelStatsRow struct {
+	TotalCarts           int64          `json:"total_carts"`
+	OrdersCreated        int64          `json:"orders_created"`
+	OrdersPaid           int64          `json:"orders_paid"`
+	AbandonedCarts       int64          `json:"abandoned_carts"`
+	PotentialLostRevenue pgtype.Numeric `json:"potential_lost_revenue"`
+}
+
+func (q *Queries) GetCartAbandonmentAndFunnelStats(ctx context.Context, arg GetCartAbandonmentAndFunnelStatsParams) (GetCartAbandonmentAndFunnelStatsRow, error) {
+	row := q.db.QueryRow(ctx, getCartAbandonmentAndFunnelStats, arg.FromDate, arg.ToDate)
+	var i GetCartAbandonmentAndFunnelStatsRow
+	err := row.Scan(
+		&i.TotalCarts,
+		&i.OrdersCreated,
+		&i.OrdersPaid,
+		&i.AbandonedCarts,
+		&i.PotentialLostRevenue,
+	)
+	return i, err
+}
+
 const getLowStockProducts = `-- name: GetLowStockProducts :many
 SELECT 
     p.product_id,

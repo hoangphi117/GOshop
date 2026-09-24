@@ -77,6 +77,7 @@ type Querier interface {
 	GetActiveShippedOrders(ctx context.Context, limit int32) ([]Order, error)
 	GetBannerByUUID(ctx context.Context, bannerUuid uuid.UUID) (Banner, error)
 	GetByUUIDsForUpdate(ctx context.Context, uuids []uuid.UUID) ([]GetByUUIDsForUpdateRow, error)
+	GetCartAbandonmentAndFunnelStats(ctx context.Context, arg GetCartAbandonmentAndFunnelStatsParams) (GetCartAbandonmentAndFunnelStatsRow, error)
 	// Khác GetOrCreateCartByUserID: KHÔNG tự tạo cart nếu chưa có. Dùng cho
 	// CleanupCartAfterOrder — nếu user chưa từng có giỏ hàng (mua thẳng, không qua
 	// cart), không cần thiết phải tạo mới 1 cart rỗng chỉ để phục vụ bước dọn dẹp.

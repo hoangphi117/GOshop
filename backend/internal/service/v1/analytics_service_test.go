@@ -632,3 +632,86 @@ func TestAnalyticsService_GetPaymentMethodBreakdown(t *testing.T) {
 		assert.Contains(t, err.Error(), "db error")
 	})
 }
+
+func TestAnalyticsService_GetCartFunnel(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Success: Normal conversion and abandonment calculation", func(t *testing.T) {
+		mockRepo := &testutils.MockAnalyticsRepository{
+			GetCartAbandonmentAndFunnelStatsFunc: func(ctx context.Context, from, to time.Time) (sqlc.GetCartAbandonmentAndFunnelStatsRow, error) {
+				return sqlc.GetCartAbandonmentAndFunnelStatsRow{
+					TotalCarts:           200,
+					OrdersCreated:        80,
+					OrdersPaid:           60,
+					AbandonedCarts:       120,
+					PotentialLostRevenue: utils.FloatToNumeric(45000000),
+				}, nil
+			},
+		}
+
+		svc := v1service.NewAnalyticsService(mockRepo)
+		res, err := svc.GetCartFunnel(ctx, v1dto.CartFunnelQuery{Days: 30})
+
+		require.NoError(t, err)
+		assert.Equal(t, int64(200), res.TotalCarts)
+		assert.Equal(t, int64(80), res.OrdersCreated)
+		assert.Equal(t, int64(60), res.OrdersPaid)
+		assert.Equal(t, int64(120), res.AbandonedCarts)
+		assert.Equal(t, float64(45000000), res.PotentialLostRevenue)
+		assert.Equal(t, 60.0, res.AbandonmentRate) // 120 / 200 = 60.0%
+		assert.Equal(t, 40.0, res.CartToOrderRate) // 80 / 200 = 40.0%
+		assert.Equal(t, 75.0, res.OrderToPaidRate) // 60 / 80 = 75.0%
+	})
+
+	t.Run("Success: Zero carts (safe division by zero)", func(t *testing.T) {
+		mockRepo := &testutils.MockAnalyticsRepository{
+			GetCartAbandonmentAndFunnelStatsFunc: func(ctx context.Context, from, to time.Time) (sqlc.GetCartAbandonmentAndFunnelStatsRow, error) {
+				return sqlc.GetCartAbandonmentAndFunnelStatsRow{
+					TotalCarts:           0,
+					OrdersCreated:        0,
+					OrdersPaid:           0,
+					AbandonedCarts:       0,
+					PotentialLostRevenue: pgtype.Numeric{Valid: false},
+				}, nil
+			},
+		}
+
+		svc := v1service.NewAnalyticsService(mockRepo)
+		res, err := svc.GetCartFunnel(ctx, v1dto.CartFunnelQuery{Days: 30})
+
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), res.TotalCarts)
+		assert.Equal(t, 0.0, res.AbandonmentRate)
+		assert.Equal(t, 0.0, res.CartToOrderRate)
+		assert.Equal(t, 0.0, res.OrderToPaidRate)
+		assert.Equal(t, 0.0, res.PotentialLostRevenue)
+	})
+
+	t.Run("Failure: Invalid date range", func(t *testing.T) {
+		mockRepo := &testutils.MockAnalyticsRepository{}
+		svc := v1service.NewAnalyticsService(mockRepo)
+
+		_, err := svc.GetCartFunnel(ctx, v1dto.CartFunnelQuery{
+			FromDate: "2026-09-30",
+			ToDate:   "2026-09-01",
+		})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Invalid date range")
+	})
+
+	t.Run("Failure: Repository error returned", func(t *testing.T) {
+		mockRepo := &testutils.MockAnalyticsRepository{
+			GetCartAbandonmentAndFunnelStatsFunc: func(ctx context.Context, from, to time.Time) (sqlc.GetCartAbandonmentAndFunnelStatsRow, error) {
+				return sqlc.GetCartAbandonmentAndFunnelStatsRow{}, errors.New("db error")
+			},
+		}
+
+		svc := v1service.NewAnalyticsService(mockRepo)
+		_, err := svc.GetCartFunnel(ctx, v1dto.CartFunnelQuery{Days: 30})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "db error")
+	})
+}
+

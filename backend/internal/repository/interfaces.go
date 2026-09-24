@@ -225,6 +225,7 @@ type AnalyticsRepository interface {
 	GetOrderStatusDistribution(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetOrderStatusDistributionRow, error)
 	GetLowStockProducts(ctx context.Context, threshold, limit int32) ([]sqlc.GetLowStockProductsRow, error)
 	GetPaymentMethodBreakdown(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetPaymentMethodBreakdownRow, error)
+	GetCartAbandonmentAndFunnelStats(ctx context.Context, fromDate, toDate time.Time) (sqlc.GetCartAbandonmentAndFunnelStatsRow, error)
 }
 
 type StockMovementRepository interface {
@@ -232,4 +233,3 @@ type StockMovementRepository interface {
 	List(ctx context.Context, params sqlc.ListStockMovementsParams) ([]sqlc.ListStockMovementsRow, error)
 	Count(ctx context.Context, params sqlc.CountStockMovementsParams) (int64, error)
 }
-
