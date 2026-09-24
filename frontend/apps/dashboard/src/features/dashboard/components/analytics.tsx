@@ -12,6 +12,7 @@ import { formatCurrency } from '@/features/orders/order-utils'
 import { useRevenueChart, useTopProducts } from '../hooks/use-dashboard-analytics'
 import { AnalyticsChart } from './analytics-chart'
 import { CartFunnelCard } from './cart-funnel-card'
+import { CategorySalesCard } from './category-sales-card'
 import { ReturnsAnalyticsCard } from './returns-analytics-card'
 
 interface AnalyticsProps {
@@ -37,6 +38,9 @@ export function Analytics({ fromDate, toDate }: AnalyticsProps = {}) {
 
       {/* ===== Return & Refund Financial Analytics ===== */}
       <ReturnsAnalyticsCard fromDate={fromDate} toDate={toDate} />
+
+      {/* ===== Category Sales Breakdown ===== */}
+      <CategorySalesCard fromDate={fromDate} toDate={toDate} />
 
       {/* ===== 12-Month Performance Chart ===== */}
       <Card>

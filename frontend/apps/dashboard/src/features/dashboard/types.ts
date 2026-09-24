@@ -74,4 +74,13 @@ export interface ReturnAnalyticsQueryParams {
   to_date?: string
 }
 
+export type CategorySalesBreakdownResponse = components['schemas']['goshop_internal_dto_v1.CategorySalesBreakdownResponse']
+export type CategorySalesItem = components['schemas']['goshop_internal_dto_v1.CategorySalesItemDTO']
+
+export interface CategorySalesQueryParams {
+  days?: number
+  from_date?: string
+  to_date?: string
+}
+
 

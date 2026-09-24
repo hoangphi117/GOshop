@@ -19,6 +19,8 @@ import type {
   CartFunnelStats,
   ReturnAnalyticsQueryParams,
   ReturnAnalyticsResponse,
+  CategorySalesQueryParams,
+  CategorySalesBreakdownResponse,
 } from '../types'
 
 
@@ -216,6 +218,28 @@ export function useReturnAnalytics(params: ReturnAnalyticsQueryParams = {}) {
       return data?.data as ReturnAnalyticsResponse
     },
     staleTime: 1000 * 60 * 2,
+  })
+}
+
+export function useCategorySales(params: CategorySalesQueryParams = {}) {
+  return useQuery({
+    queryKey: ['analyticsCategorySales', params],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/admin/analytics/category-sales', {
+        params: {
+          query: {
+            days: params.days,
+            from_date: params.from_date,
+            to_date: params.to_date,
+          },
+        },
+      })
+      if (error) {
+        throw new Error((error as { error?: string })?.error || 'Failed to fetch category sales breakdown')
+      }
+      return data?.data as CategorySalesBreakdownResponse
+    },
+    staleTime: 1000 * 60 * 5,
   })
 }
 
