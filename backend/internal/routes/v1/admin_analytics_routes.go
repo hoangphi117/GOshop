@@ -26,5 +26,6 @@ func (r *AdminAnalyticsRoutes) Register(rg *gin.RouterGroup) {
 		analytics.GET("/payment-methods", r.handler.GetPaymentMethodBreakdown)
 		analytics.GET("/cart-funnel", r.handler.GetCartFunnel)
 		analytics.GET("/returns", r.handler.GetReturnAnalytics)
+		analytics.GET("/category-sales", r.handler.GetCategorySalesBreakdown)
 	}
 }

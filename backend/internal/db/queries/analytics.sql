@@ -366,3 +366,24 @@ GROUP BY p.product_id, p.product_uuid, p.product_name, p.product_slug, p.product
 ORDER BY return_case_count DESC, returned_units_count DESC
 LIMIT sqlc.arg('limit_count')::int;
 
+-- name: GetCategorySalesBreakdown :many
+SELECT
+    c.category_id,
+    c.category_uuid,
+    c.category_name,
+    c.category_slug,
+    COALESCE(SUM(oi.order_item_quantity), 0)::bigint AS total_units_sold,
+    COALESCE(SUM(oi.order_item_subtotal), 0)::numeric(14,2) AS gross_revenue,
+    COUNT(DISTINCT o.order_id)::bigint AS order_count
+FROM categories c
+JOIN products p ON p.product_category_id = c.category_id
+JOIN order_items oi ON oi.order_item_product_id = p.product_id
+JOIN orders o ON o.order_id = oi.order_item_order_id
+WHERE o.order_payment_status IN (2, 3)
+  AND o.order_created_at >= sqlc.arg('from_date')::timestamptz
+  AND o.order_created_at <= sqlc.arg('to_date')::timestamptz
+  AND c.category_deleted_at IS NULL
+GROUP BY c.category_id, c.category_uuid, c.category_name, c.category_slug
+ORDER BY gross_revenue DESC, total_units_sold DESC;
+
+

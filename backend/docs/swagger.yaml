@@ -352,6 +352,38 @@ definitions:
       uuid:
         type: string
     type: object
+  goshop_internal_dto_v1.CategorySalesBreakdownResponse:
+    properties:
+      categories:
+        items:
+          $ref: '#/definitions/goshop_internal_dto_v1.CategorySalesItemDTO'
+        type: array
+      total_orders:
+        type: integer
+      total_revenue:
+        type: number
+      total_units_sold:
+        type: integer
+    type: object
+  goshop_internal_dto_v1.CategorySalesItemDTO:
+    properties:
+      category_id:
+        type: integer
+      category_name:
+        type: string
+      category_slug:
+        type: string
+      category_uuid:
+        type: string
+      gross_revenue:
+        type: number
+      order_count:
+        type: integer
+      percentage:
+        type: number
+      units_sold:
+        type: integer
+    type: object
   goshop_internal_dto_v1.ChangePasswordRequest:
     properties:
       confirm_password:
@@ -2169,6 +2201,57 @@ paths:
       security:
       - BearerAuth: []
       summary: Get cart abandonment and conversion funnel statistics
+      tags:
+      - Admin - Analytics
+  /admin/analytics/category-sales:
+    get:
+      description: Get sales volume, gross revenue, and revenue contribution percentages
+        by category
+      parameters:
+      - default: 30
+        description: 'Time window in days (default: 30)'
+        in: query
+        name: days
+        type: integer
+      - description: Start date (YYYY-MM-DD)
+        in: query
+        name: from_date
+        type: string
+      - description: End date (YYYY-MM-DD)
+        in: query
+        name: to_date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.CategorySalesBreakdownResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get category sales breakdown
       tags:
       - Admin - Analytics
   /admin/analytics/low-stock-alerts:

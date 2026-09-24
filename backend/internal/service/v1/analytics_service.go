@@ -472,3 +472,51 @@ func (s *analyticsService) GetReturnAnalytics(ctx context.Context, params v1dto.
 	return resp, nil
 }
 
+func (s *analyticsService) GetCategorySalesBreakdown(ctx context.Context, params v1dto.CategorySalesBreakdownQuery) (*v1dto.CategorySalesBreakdownResponse, error) {
+	fromDate, toDate, err := resolveDateRange(params.Days, params.FromDate, params.ToDate)
+	if err != nil {
+		return nil, utils.WrapError(utils.ErrCodeBadRequest, "Invalid date range", err)
+	}
+
+	rows, err := s.repo.GetCategorySalesBreakdown(ctx, fromDate, toDate)
+	if err != nil {
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to get category sales breakdown: ", err)
+	}
+
+	var totalRevenue float64
+	var totalUnitsSold int64
+	var totalOrders int64
+
+	categories := make([]v1dto.CategorySalesItemDTO, len(rows))
+	for i, r := range rows {
+		rev := utils.NumericToFloat(r.GrossRevenue)
+		totalRevenue += rev
+		totalUnitsSold += r.TotalUnitsSold
+		totalOrders += r.OrderCount
+
+		categories[i] = v1dto.CategorySalesItemDTO{
+			CategoryID:   r.CategoryID,
+			CategoryUUID: r.CategoryUuid.String(),
+			CategoryName: r.CategoryName,
+			CategorySlug: r.CategorySlug,
+			UnitsSold:    r.TotalUnitsSold,
+			GrossRevenue: rev,
+			OrderCount:   r.OrderCount,
+		}
+	}
+
+	if totalRevenue > 0 {
+		for i := range categories {
+			categories[i].Percentage = math.Round((categories[i].GrossRevenue/totalRevenue)*1000) / 10
+		}
+	}
+
+	return &v1dto.CategorySalesBreakdownResponse{
+		TotalRevenue:   utils.RoundFloat(totalRevenue, 2),
+		TotalUnitsSold: totalUnitsSold,
+		TotalOrders:    totalOrders,
+		Categories:     categories,
+	}, nil
+}
+
+

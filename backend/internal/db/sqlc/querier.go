@@ -89,6 +89,7 @@ type Querier interface {
 	GetCartItemsWithProductDetails(ctx context.Context, cartID int32) ([]GetCartItemsWithProductDetailsRow, error)
 	GetCategoryBySlug(ctx context.Context, categorySlug string) (Category, error)
 	GetCategoryByUuid(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
+	GetCategorySalesBreakdown(ctx context.Context, arg GetCategorySalesBreakdownParams) ([]GetCategorySalesBreakdownRow, error)
 	GetCouponByCode(ctx context.Context, couponCode string) (Coupon, error)
 	GetCouponByUUID(ctx context.Context, couponUuid uuid.UUID) (Coupon, error)
 	GetLatestOrderNumber(ctx context.Context, orderNumber string) (string, error)

@@ -189,10 +189,35 @@ type ReturnAnalyticsResponse struct {
 	TopReturnedProducts []TopReturnedProductDTO    `json:"top_returned_products"`
 }
 
+type CategorySalesBreakdownQuery struct {
+	Days     int32  `form:"days" binding:"omitempty,min=1,max=365"`
+	FromDate string `form:"from_date" binding:"omitempty,datetime=2006-01-02"`
+	ToDate   string `form:"to_date" binding:"omitempty,datetime=2006-01-02"`
+}
+
+type CategorySalesItemDTO struct {
+	CategoryID   int32   `json:"category_id"`
+	CategoryUUID string  `json:"category_uuid"`
+	CategoryName string  `json:"category_name"`
+	CategorySlug string  `json:"category_slug"`
+	UnitsSold    int64   `json:"units_sold"`
+	GrossRevenue float64 `json:"gross_revenue"`
+	OrderCount   int64   `json:"order_count"`
+	Percentage   float64 `json:"percentage"`
+}
+
+type CategorySalesBreakdownResponse struct {
+	TotalRevenue   float64                `json:"total_revenue"`
+	TotalUnitsSold int64                  `json:"total_units_sold"`
+	TotalOrders    int64                  `json:"total_orders"`
+	Categories     []CategorySalesItemDTO `json:"categories"`
+}
+
 // Type aliases for flexible naming conventions
 type OrderStatusDistributionDTO = OrderStatusDistributionItemDTO
 type OrderStatusDistributionParamsDTO = OrderStatusDistributionQuery
 type LowStockProductsParamsDTO = LowStockProductsQuery
 type PaymentMethodBreakdownDTO = PaymentMethodBreakdownItemDTO
 type PaymentMethodBreakdownParamsDTO = PaymentMethodBreakdownQuery
+
 

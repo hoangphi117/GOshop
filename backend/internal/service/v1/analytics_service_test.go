@@ -830,4 +830,100 @@ func TestAnalyticsService_GetReturnAnalytics(t *testing.T) {
 	})
 }
 
+func TestAnalyticsService_GetCategorySalesBreakdown(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Success: Normal category sales with revenue share calculation", func(t *testing.T) {
+		catUUID1 := uuid.New()
+		catUUID2 := uuid.New()
+		mockRepo := &testutils.MockAnalyticsRepository{
+			GetCategorySalesBreakdownFunc: func(ctx context.Context, from, to time.Time) ([]sqlc.GetCategorySalesBreakdownRow, error) {
+				return []sqlc.GetCategorySalesBreakdownRow{
+					{
+						CategoryID:     1,
+						CategoryUuid:   catUUID1,
+						CategoryName:   "Keyboards",
+						CategorySlug:   "keyboards",
+						TotalUnitsSold: 120,
+						GrossRevenue:   utils.FloatToNumeric(60000000),
+						OrderCount:     80,
+					},
+					{
+						CategoryID:     2,
+						CategoryUuid:   catUUID2,
+						CategoryName:   "Mice",
+						CategorySlug:   "mice",
+						TotalUnitsSold: 80,
+						GrossRevenue:   utils.FloatToNumeric(40000000),
+						OrderCount:     50,
+					},
+				}, nil
+			},
+		}
+
+		svc := v1service.NewAnalyticsService(mockRepo)
+		res, err := svc.GetCategorySalesBreakdown(ctx, v1dto.CategorySalesBreakdownQuery{Days: 30})
+
+		require.NoError(t, err)
+		assert.Equal(t, float64(100000000), res.TotalRevenue)
+		assert.Equal(t, int64(200), res.TotalUnitsSold)
+		assert.Equal(t, int64(130), res.TotalOrders)
+		require.Len(t, res.Categories, 2)
+
+		// Item 1
+		assert.Equal(t, "Keyboards", res.Categories[0].CategoryName)
+		assert.Equal(t, float64(60000000), res.Categories[0].GrossRevenue)
+		assert.Equal(t, 60.0, res.Categories[0].Percentage) // 60M / 100M = 60.0%
+
+		// Item 2
+		assert.Equal(t, "Mice", res.Categories[1].CategoryName)
+		assert.Equal(t, float64(40000000), res.Categories[1].GrossRevenue)
+		assert.Equal(t, 40.0, res.Categories[1].Percentage) // 40M / 100M = 40.0%
+	})
+
+	t.Run("Success: Zero sales across categories", func(t *testing.T) {
+		mockRepo := &testutils.MockAnalyticsRepository{
+			GetCategorySalesBreakdownFunc: func(ctx context.Context, from, to time.Time) ([]sqlc.GetCategorySalesBreakdownRow, error) {
+				return []sqlc.GetCategorySalesBreakdownRow{}, nil
+			},
+		}
+
+		svc := v1service.NewAnalyticsService(mockRepo)
+		res, err := svc.GetCategorySalesBreakdown(ctx, v1dto.CategorySalesBreakdownQuery{Days: 30})
+
+		require.NoError(t, err)
+		assert.Equal(t, float64(0), res.TotalRevenue)
+		assert.Equal(t, int64(0), res.TotalUnitsSold)
+		assert.Empty(t, res.Categories)
+	})
+
+	t.Run("Failure: Invalid date range", func(t *testing.T) {
+		mockRepo := &testutils.MockAnalyticsRepository{}
+		svc := v1service.NewAnalyticsService(mockRepo)
+
+		_, err := svc.GetCategorySalesBreakdown(ctx, v1dto.CategorySalesBreakdownQuery{
+			FromDate: "2026-09-30",
+			ToDate:   "2026-09-01",
+		})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Invalid date range")
+	})
+
+	t.Run("Failure: Repository error returned", func(t *testing.T) {
+		mockRepo := &testutils.MockAnalyticsRepository{
+			GetCategorySalesBreakdownFunc: func(ctx context.Context, from, to time.Time) ([]sqlc.GetCategorySalesBreakdownRow, error) {
+				return nil, errors.New("database connection failed")
+			},
+		}
+
+		svc := v1service.NewAnalyticsService(mockRepo)
+		_, err := svc.GetCategorySalesBreakdown(ctx, v1dto.CategorySalesBreakdownQuery{Days: 30})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "database connection failed")
+	})
+}
+
+
 

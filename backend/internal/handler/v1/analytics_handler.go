@@ -295,3 +295,35 @@ func (h *AnalyticsHandler) GetReturnAnalytics(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Return and refund analytics retrieved successfully", res)
 }
 
+// GetCategorySalesBreakdown godoc
+// @Summary      Get category sales breakdown
+// @Description  Get sales volume, gross revenue, and revenue contribution percentages by category
+// @Tags         Admin - Analytics
+// @Produce      json
+// @Security     BearerAuth
+// @Param        days      query int    false "Time window in days (default: 30)" default(30)
+// @Param        from_date query string false "Start date (YYYY-MM-DD)"
+// @Param        to_date   query string false "End date (YYYY-MM-DD)"
+// @Success      200 {object} utils.APIResponse{data=v1dto.CategorySalesBreakdownResponse}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Failure      403 {object} utils.ErrorResponse
+// @Failure      500 {object} utils.ErrorResponse
+// @Router       /admin/analytics/category-sales [get]
+func (h *AnalyticsHandler) GetCategorySalesBreakdown(ctx *gin.Context) {
+	var query v1dto.CategorySalesBreakdownQuery
+	if err := ctx.ShouldBindQuery(&query); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	res, err := h.service.GetCategorySalesBreakdown(ctx.Request.Context(), query)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Category sales breakdown retrieved successfully", res)
+}
+
+

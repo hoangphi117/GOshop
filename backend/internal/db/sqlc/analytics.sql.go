@@ -82,6 +82,70 @@ func (q *Queries) GetCartAbandonmentAndFunnelStats(ctx context.Context, arg GetC
 	return i, err
 }
 
+const getCategorySalesBreakdown = `-- name: GetCategorySalesBreakdown :many
+SELECT
+    c.category_id,
+    c.category_uuid,
+    c.category_name,
+    c.category_slug,
+    COALESCE(SUM(oi.order_item_quantity), 0)::bigint AS total_units_sold,
+    COALESCE(SUM(oi.order_item_subtotal), 0)::numeric(14,2) AS gross_revenue,
+    COUNT(DISTINCT o.order_id)::bigint AS order_count
+FROM categories c
+JOIN products p ON p.product_category_id = c.category_id
+JOIN order_items oi ON oi.order_item_product_id = p.product_id
+JOIN orders o ON o.order_id = oi.order_item_order_id
+WHERE o.order_payment_status IN (2, 3)
+  AND o.order_created_at >= $1::timestamptz
+  AND o.order_created_at <= $2::timestamptz
+  AND c.category_deleted_at IS NULL
+GROUP BY c.category_id, c.category_uuid, c.category_name, c.category_slug
+ORDER BY gross_revenue DESC, total_units_sold DESC
+`
+
+type GetCategorySalesBreakdownParams struct {
+	FromDate time.Time `json:"from_date"`
+	ToDate   time.Time `json:"to_date"`
+}
+
+type GetCategorySalesBreakdownRow struct {
+	CategoryID     int32          `json:"category_id"`
+	CategoryUuid   uuid.UUID      `json:"category_uuid"`
+	CategoryName   string         `json:"category_name"`
+	CategorySlug   string         `json:"category_slug"`
+	TotalUnitsSold int64          `json:"total_units_sold"`
+	GrossRevenue   pgtype.Numeric `json:"gross_revenue"`
+	OrderCount     int64          `json:"order_count"`
+}
+
+func (q *Queries) GetCategorySalesBreakdown(ctx context.Context, arg GetCategorySalesBreakdownParams) ([]GetCategorySalesBreakdownRow, error) {
+	rows, err := q.db.Query(ctx, getCategorySalesBreakdown, arg.FromDate, arg.ToDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetCategorySalesBreakdownRow{}
+	for rows.Next() {
+		var i GetCategorySalesBreakdownRow
+		if err := rows.Scan(
+			&i.CategoryID,
+			&i.CategoryUuid,
+			&i.CategoryName,
+			&i.CategorySlug,
+			&i.TotalUnitsSold,
+			&i.GrossRevenue,
+			&i.OrderCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getLowStockProducts = `-- name: GetLowStockProducts :many
 SELECT 
     p.product_id,

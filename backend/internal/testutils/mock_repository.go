@@ -1331,6 +1331,7 @@ type MockAnalyticsRepository struct {
 	GetReturnAnalyticsSummaryFunc func(ctx context.Context, from, to time.Time) (sqlc.GetReturnAnalyticsSummaryRow, error)
 	GetReturnReasonsBreakdownFunc func(ctx context.Context, from, to time.Time, limit int32) ([]sqlc.GetReturnReasonsBreakdownRow, error)
 	GetTopReturnedProductsFunc func(ctx context.Context, from, to time.Time, limit int32) ([]sqlc.GetTopReturnedProductsRow, error)
+	GetCategorySalesBreakdownFunc func(ctx context.Context, from, to time.Time) ([]sqlc.GetCategorySalesBreakdownRow, error)
 }
 
 func (m *MockAnalyticsRepository) GetOverview(ctx context.Context) (sqlc.GetOverviewStatsRow, error) {
@@ -1437,6 +1438,14 @@ func (m *MockAnalyticsRepository) GetTopReturnedProducts(ctx context.Context, fr
 	}
 	return nil, nil
 }
+
+func (m *MockAnalyticsRepository) GetCategorySalesBreakdown(ctx context.Context, from, to time.Time) ([]sqlc.GetCategorySalesBreakdownRow, error) {
+	if m.GetCategorySalesBreakdownFunc != nil {
+		return m.GetCategorySalesBreakdownFunc(ctx, from, to)
+	}
+	return nil, nil
+}
+
 
 
 

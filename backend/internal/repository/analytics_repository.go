@@ -112,3 +112,11 @@ func (r *SqlAnalyticsRepository) GetTopReturnedProducts(ctx context.Context, fro
 	})
 }
 
+func (r *SqlAnalyticsRepository) GetCategorySalesBreakdown(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetCategorySalesBreakdownRow, error) {
+	return r.db.GetCategorySalesBreakdown(ctx, sqlc.GetCategorySalesBreakdownParams{
+		FromDate: fromDate,
+		ToDate:   toDate,
+	})
+}
+
+

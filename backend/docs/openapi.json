@@ -460,6 +460,111 @@
                 }
             }
         },
+        "/admin/analytics/category-sales": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get sales volume, gross revenue, and revenue contribution percentages by category",
+                "tags": [
+                    "Admin - Analytics"
+                ],
+                "summary": "Get category sales breakdown",
+                "parameters": [
+                    {
+                        "description": "Time window in days (default: 30)",
+                        "name": "days",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 30
+                        }
+                    },
+                    {
+                        "description": "Start date (YYYY-MM-DD)",
+                        "name": "from_date",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "End date (YYYY-MM-DD)",
+                        "name": "to_date",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "allOf": [
+                                        {
+                                            "$ref": "#/components/schemas/goshop_internal_utils.APIResponse"
+                                        },
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/goshop_internal_dto_v1.CategorySalesBreakdownResponse"
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/admin/analytics/low-stock-alerts": {
             "get": {
                 "security": [
@@ -10393,6 +10498,55 @@
                     },
                     "uuid": {
                         "type": "string"
+                    }
+                }
+            },
+            "goshop_internal_dto_v1.CategorySalesBreakdownResponse": {
+                "type": "object",
+                "properties": {
+                    "categories": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/goshop_internal_dto_v1.CategorySalesItemDTO"
+                        }
+                    },
+                    "total_orders": {
+                        "type": "integer"
+                    },
+                    "total_revenue": {
+                        "type": "number"
+                    },
+                    "total_units_sold": {
+                        "type": "integer"
+                    }
+                }
+            },
+            "goshop_internal_dto_v1.CategorySalesItemDTO": {
+                "type": "object",
+                "properties": {
+                    "category_id": {
+                        "type": "integer"
+                    },
+                    "category_name": {
+                        "type": "string"
+                    },
+                    "category_slug": {
+                        "type": "string"
+                    },
+                    "category_uuid": {
+                        "type": "string"
+                    },
+                    "gross_revenue": {
+                        "type": "number"
+                    },
+                    "order_count": {
+                        "type": "integer"
+                    },
+                    "percentage": {
+                        "type": "number"
+                    },
+                    "units_sold": {
+                        "type": "integer"
                     }
                 }
             },
