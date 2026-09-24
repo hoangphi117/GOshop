@@ -363,6 +363,176 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/analytics/category-sales": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get category sales breakdown
+         * @description Get sales volume, gross revenue, and revenue contribution percentages by category
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Time window in days (default: 30) */
+                    days?: number;
+                    /** @description Start date (YYYY-MM-DD) */
+                    from_date?: string;
+                    /** @description End date (YYYY-MM-DD) */
+                    to_date?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
+                            data?: components["schemas"]["goshop_internal_dto_v1.CategorySalesBreakdownResponse"];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/analytics/coupons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get coupon ROI and campaign performance analytics
+         * @description Get coupon usage statistics, total discounts given, revenue generated, and ROI multipliers by campaign
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Time window in days (default: 30) */
+                    days?: number;
+                    /** @description Start date (YYYY-MM-DD) */
+                    from_date?: string;
+                    /** @description End date (YYYY-MM-DD) */
+                    to_date?: string;
+                    /** @description Maximum number of campaigns to return (default: 20) */
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
+                            data?: components["schemas"]["goshop_internal_dto_v1.CouponPerformanceResponse"];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/analytics/low-stock-alerts": {
         parameters: {
             query?: never;
@@ -8234,10 +8404,38 @@ export interface components {
             status?: string;
             uuid?: string;
         };
+        "goshop_internal_dto_v1.CategorySalesBreakdownResponse": {
+            categories?: components["schemas"]["goshop_internal_dto_v1.CategorySalesItemDTO"][];
+            total_orders?: number;
+            total_revenue?: number;
+            total_units_sold?: number;
+        };
+        "goshop_internal_dto_v1.CategorySalesItemDTO": {
+            category_id?: number;
+            category_name?: string;
+            category_slug?: string;
+            category_uuid?: string;
+            gross_revenue?: number;
+            order_count?: number;
+            percentage?: number;
+            units_sold?: number;
+        };
         "goshop_internal_dto_v1.ChangePasswordRequest": {
             confirm_password: string;
             new_password: string;
             old_password: string;
+        };
+        "goshop_internal_dto_v1.CouponCampaignItemDTO": {
+            coupon_code?: string;
+            coupon_id?: number;
+            coupon_name?: string;
+            coupon_type?: number;
+            coupon_uuid?: string;
+            discount_value?: number;
+            roi_multiplier?: number;
+            total_discount?: number;
+            total_revenue?: number;
+            usage_count?: number;
         };
         "goshop_internal_dto_v1.CouponDTO": {
             code?: string;
@@ -8256,6 +8454,13 @@ export interface components {
             used_count?: number;
             user_usage_limit?: number;
             uuid?: string;
+        };
+        "goshop_internal_dto_v1.CouponPerformanceResponse": {
+            campaigns?: components["schemas"]["goshop_internal_dto_v1.CouponCampaignItemDTO"][];
+            overall_roi_multiplier?: number;
+            total_coupons_used?: number;
+            total_discount_given?: number;
+            total_revenue_generated?: number;
         };
         "goshop_internal_dto_v1.CreateAddressInput": {
             address: string;

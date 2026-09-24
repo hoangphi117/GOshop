@@ -56,3 +56,12 @@ export interface PaymentMethodBreakdownQueryParams {
   to_date?: string
 }
 
+export type CartFunnelStats = components['schemas']['goshop_internal_dto_v1.CartFunnelDTO']
+
+export interface CartFunnelQueryParams {
+  days?: number
+  from_date?: string
+  to_date?: string
+}
+
+

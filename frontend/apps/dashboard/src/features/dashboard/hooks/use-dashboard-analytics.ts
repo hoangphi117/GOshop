@@ -15,7 +15,10 @@ import type {
   RevenueChartQueryParams,
   TopProduct,
   TopProductsQueryParams,
+  CartFunnelQueryParams,
+  CartFunnelStats,
 } from '../types'
+
 
 export function useAnalyticsOverview(params: OverviewStatsQueryParams = {}) {
   return useQuery({
@@ -170,4 +173,26 @@ export function usePaymentMethodBreakdown(params: PaymentMethodBreakdownQueryPar
     staleTime: 1000 * 60 * 5,
   })
 }
+
+export function useCartFunnel(params: CartFunnelQueryParams = {}) {
+  return useQuery({
+    queryKey: ['analyticsCartFunnel', params],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/admin/analytics/cart-funnel', {
+        params: {
+          query: {
+            from_date: params.from_date,
+            to_date: params.to_date,
+          },
+        },
+      })
+      if (error) {
+        throw new Error((error as { error?: string })?.error || 'Failed to fetch cart funnel')
+      }
+      return data?.data as CartFunnelStats
+    },
+    staleTime: 1000 * 60 * 2,
+  })
+}
+
 

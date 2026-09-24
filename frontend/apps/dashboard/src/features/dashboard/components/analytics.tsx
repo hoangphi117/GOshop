@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency } from '@/features/orders/order-utils'
 import { useRevenueChart, useTopProducts } from '../hooks/use-dashboard-analytics'
 import { AnalyticsChart } from './analytics-chart'
+import { CartFunnelCard } from './cart-funnel-card'
 
 interface AnalyticsProps {
   fromDate?: string
@@ -30,8 +31,12 @@ export function Analytics({ fromDate, toDate }: AnalyticsProps = {}) {
 
   return (
     <div className='space-y-4'>
+      {/* ===== Cart Abandonment & Conversion Funnel ===== */}
+      <CartFunnelCard fromDate={fromDate} toDate={toDate} />
+
       {/* ===== 12-Month Performance Chart ===== */}
       <Card>
+
         <CardHeader className='flex flex-row items-center justify-between pb-2'>
           <div>
             <CardTitle>Revenue & Traffic Performance</CardTitle>
