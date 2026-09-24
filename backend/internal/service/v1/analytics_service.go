@@ -519,4 +519,65 @@ func (s *analyticsService) GetCategorySalesBreakdown(ctx context.Context, params
 	}, nil
 }
 
+func (s *analyticsService) GetCouponPerformance(ctx context.Context, params v1dto.CouponPerformanceQuery) (*v1dto.CouponPerformanceResponse, error) {
+	fromDate, toDate, err := resolveDateRange(params.Days, params.FromDate, params.ToDate)
+	if err != nil {
+		return nil, utils.WrapError(utils.ErrCodeBadRequest, "Invalid date range", err)
+	}
+
+	limit := params.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+
+	summary, err := s.repo.GetCouponPerformanceSummary(ctx, fromDate, toDate)
+	if err != nil {
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to get coupon performance summary: ", err)
+	}
+
+	rows, err := s.repo.GetCouponCampaignBreakdown(ctx, fromDate, toDate, limit)
+	if err != nil {
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to get coupon campaign breakdown: ", err)
+	}
+
+	totalDiscountGiven := utils.NumericToFloat(summary.TotalDiscountAmount)
+	totalRevenueGenerated := utils.NumericToFloat(summary.TotalRevenueGenerated)
+	overallROI := 0.0
+	if totalDiscountGiven > 0 {
+		overallROI = math.Round((totalRevenueGenerated/totalDiscountGiven)*10) / 10
+	}
+
+	campaigns := make([]v1dto.CouponCampaignItemDTO, len(rows))
+	for i, r := range rows {
+		itemDiscount := utils.NumericToFloat(r.TotalDiscountAmount)
+		itemRevenue := utils.NumericToFloat(r.TotalRevenueGenerated)
+		itemROI := 0.0
+		if itemDiscount > 0 {
+			itemROI = math.Round((itemRevenue/itemDiscount)*10) / 10
+		}
+
+		campaigns[i] = v1dto.CouponCampaignItemDTO{
+			CouponID:      r.CouponID,
+			CouponUUID:    r.CouponUuid.String(),
+			CouponCode:    r.CouponCode,
+			CouponName:    r.CouponName,
+			CouponType:    r.CouponType,
+			DiscountValue: utils.NumericToFloat(r.CouponDiscountValue),
+			UsageCount:    r.UsageCount,
+			TotalDiscount: itemDiscount,
+			TotalRevenue:  itemRevenue,
+			ROIMultiplier: itemROI,
+		}
+	}
+
+	return &v1dto.CouponPerformanceResponse{
+		TotalCouponsUsed:      summary.TotalOrdersWithCoupon,
+		TotalDiscountGiven:    totalDiscountGiven,
+		TotalRevenueGenerated: totalRevenueGenerated,
+		OverallROIMultiplier:  overallROI,
+		Campaigns:             campaigns,
+	}, nil
+}
+
+
 

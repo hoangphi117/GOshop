@@ -326,4 +326,37 @@ func (h *AnalyticsHandler) GetCategorySalesBreakdown(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Category sales breakdown retrieved successfully", res)
 }
 
+// GetCouponPerformance godoc
+// @Summary      Get coupon ROI and campaign performance analytics
+// @Description  Get coupon usage statistics, total discounts given, revenue generated, and ROI multipliers by campaign
+// @Tags         Admin - Analytics
+// @Produce      json
+// @Security     BearerAuth
+// @Param        days      query int    false "Time window in days (default: 30)" default(30)
+// @Param        from_date query string false "Start date (YYYY-MM-DD)"
+// @Param        to_date   query string false "End date (YYYY-MM-DD)"
+// @Param        limit     query int    false "Maximum number of campaigns to return (default: 20)" default(20)
+// @Success      200 {object} utils.APIResponse{data=v1dto.CouponPerformanceResponse}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Failure      403 {object} utils.ErrorResponse
+// @Failure      500 {object} utils.ErrorResponse
+// @Router       /admin/analytics/coupons [get]
+func (h *AnalyticsHandler) GetCouponPerformance(ctx *gin.Context) {
+	var query v1dto.CouponPerformanceQuery
+	if err := ctx.ShouldBindQuery(&query); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	res, err := h.service.GetCouponPerformance(ctx.Request.Context(), query)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Coupon performance analytics retrieved successfully", res)
+}
+
+
 

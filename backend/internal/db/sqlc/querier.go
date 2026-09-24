@@ -92,6 +92,8 @@ type Querier interface {
 	GetCategorySalesBreakdown(ctx context.Context, arg GetCategorySalesBreakdownParams) ([]GetCategorySalesBreakdownRow, error)
 	GetCouponByCode(ctx context.Context, couponCode string) (Coupon, error)
 	GetCouponByUUID(ctx context.Context, couponUuid uuid.UUID) (Coupon, error)
+	GetCouponCampaignBreakdown(ctx context.Context, arg GetCouponCampaignBreakdownParams) ([]GetCouponCampaignBreakdownRow, error)
+	GetCouponPerformanceSummary(ctx context.Context, arg GetCouponPerformanceSummaryParams) (GetCouponPerformanceSummaryRow, error)
 	GetLatestOrderNumber(ctx context.Context, orderNumber string) (string, error)
 	GetLatestReturnByOrderID(ctx context.Context, returnOrderID int32) (OrderReturn, error)
 	GetLowStockProducts(ctx context.Context, arg GetLowStockProductsParams) ([]GetLowStockProductsRow, error)

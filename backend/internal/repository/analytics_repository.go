@@ -119,4 +119,20 @@ func (r *SqlAnalyticsRepository) GetCategorySalesBreakdown(ctx context.Context, 
 	})
 }
 
+func (r *SqlAnalyticsRepository) GetCouponPerformanceSummary(ctx context.Context, fromDate, toDate time.Time) (sqlc.GetCouponPerformanceSummaryRow, error) {
+	return r.db.GetCouponPerformanceSummary(ctx, sqlc.GetCouponPerformanceSummaryParams{
+		FromDate: fromDate,
+		ToDate:   toDate,
+	})
+}
+
+func (r *SqlAnalyticsRepository) GetCouponCampaignBreakdown(ctx context.Context, fromDate, toDate time.Time, limit int32) ([]sqlc.GetCouponCampaignBreakdownRow, error) {
+	return r.db.GetCouponCampaignBreakdown(ctx, sqlc.GetCouponCampaignBreakdownParams{
+		FromDate:   fromDate,
+		ToDate:     toDate,
+		LimitCount: limit,
+	})
+}
+
+
 

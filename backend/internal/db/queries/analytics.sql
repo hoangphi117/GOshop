@@ -386,4 +386,36 @@ WHERE o.order_payment_status IN (2, 3)
 GROUP BY c.category_id, c.category_uuid, c.category_name, c.category_slug
 ORDER BY gross_revenue DESC, total_units_sold DESC;
 
+-- name: GetCouponPerformanceSummary :one
+SELECT
+    COUNT(o.order_id)::bigint AS total_orders_with_coupon,
+    COALESCE(SUM(o.order_discount_amount), 0)::numeric(14,2) AS total_discount_amount,
+    COALESCE(SUM(o.order_total_amount - o.order_refunded_amount), 0)::numeric(14,2) AS total_revenue_generated
+FROM orders o
+WHERE o.order_coupon_id IS NOT NULL
+  AND o.order_payment_status IN (2, 3)
+  AND o.order_created_at >= sqlc.arg('from_date')::timestamptz
+  AND o.order_created_at <= sqlc.arg('to_date')::timestamptz;
+
+-- name: GetCouponCampaignBreakdown :many
+SELECT
+    c.coupon_id,
+    c.coupon_uuid,
+    c.coupon_code,
+    c.coupon_name,
+    c.coupon_type,
+    c.coupon_discount_value,
+    COUNT(o.order_id)::bigint AS usage_count,
+    COALESCE(SUM(o.order_discount_amount), 0)::numeric(14,2) AS total_discount_amount,
+    COALESCE(SUM(o.order_total_amount - o.order_refunded_amount), 0)::numeric(14,2) AS total_revenue_generated
+FROM coupons c
+JOIN orders o ON o.order_coupon_id = c.coupon_id
+WHERE o.order_payment_status IN (2, 3)
+  AND o.order_created_at >= sqlc.arg('from_date')::timestamptz
+  AND o.order_created_at <= sqlc.arg('to_date')::timestamptz
+GROUP BY c.coupon_id, c.coupon_uuid, c.coupon_code, c.coupon_name, c.coupon_type, c.coupon_discount_value
+ORDER BY usage_count DESC, total_revenue_generated DESC
+LIMIT sqlc.arg('limit_count')::int;
+
+
 

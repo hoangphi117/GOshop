@@ -146,6 +146,105 @@ func (q *Queries) GetCategorySalesBreakdown(ctx context.Context, arg GetCategory
 	return items, nil
 }
 
+const getCouponCampaignBreakdown = `-- name: GetCouponCampaignBreakdown :many
+SELECT
+    c.coupon_id,
+    c.coupon_uuid,
+    c.coupon_code,
+    c.coupon_name,
+    c.coupon_type,
+    c.coupon_discount_value,
+    COUNT(o.order_id)::bigint AS usage_count,
+    COALESCE(SUM(o.order_discount_amount), 0)::numeric(14,2) AS total_discount_amount,
+    COALESCE(SUM(o.order_total_amount - o.order_refunded_amount), 0)::numeric(14,2) AS total_revenue_generated
+FROM coupons c
+JOIN orders o ON o.order_coupon_id = c.coupon_id
+WHERE o.order_payment_status IN (2, 3)
+  AND o.order_created_at >= $1::timestamptz
+  AND o.order_created_at <= $2::timestamptz
+GROUP BY c.coupon_id, c.coupon_uuid, c.coupon_code, c.coupon_name, c.coupon_type, c.coupon_discount_value
+ORDER BY usage_count DESC, total_revenue_generated DESC
+LIMIT $3::int
+`
+
+type GetCouponCampaignBreakdownParams struct {
+	FromDate   time.Time `json:"from_date"`
+	ToDate     time.Time `json:"to_date"`
+	LimitCount int32     `json:"limit_count"`
+}
+
+type GetCouponCampaignBreakdownRow struct {
+	CouponID              int32          `json:"coupon_id"`
+	CouponUuid            uuid.UUID      `json:"coupon_uuid"`
+	CouponCode            string         `json:"coupon_code"`
+	CouponName            string         `json:"coupon_name"`
+	CouponType            int32          `json:"coupon_type"`
+	CouponDiscountValue   pgtype.Numeric `json:"coupon_discount_value"`
+	UsageCount            int64          `json:"usage_count"`
+	TotalDiscountAmount   pgtype.Numeric `json:"total_discount_amount"`
+	TotalRevenueGenerated pgtype.Numeric `json:"total_revenue_generated"`
+}
+
+func (q *Queries) GetCouponCampaignBreakdown(ctx context.Context, arg GetCouponCampaignBreakdownParams) ([]GetCouponCampaignBreakdownRow, error) {
+	rows, err := q.db.Query(ctx, getCouponCampaignBreakdown, arg.FromDate, arg.ToDate, arg.LimitCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetCouponCampaignBreakdownRow{}
+	for rows.Next() {
+		var i GetCouponCampaignBreakdownRow
+		if err := rows.Scan(
+			&i.CouponID,
+			&i.CouponUuid,
+			&i.CouponCode,
+			&i.CouponName,
+			&i.CouponType,
+			&i.CouponDiscountValue,
+			&i.UsageCount,
+			&i.TotalDiscountAmount,
+			&i.TotalRevenueGenerated,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getCouponPerformanceSummary = `-- name: GetCouponPerformanceSummary :one
+SELECT
+    COUNT(o.order_id)::bigint AS total_orders_with_coupon,
+    COALESCE(SUM(o.order_discount_amount), 0)::numeric(14,2) AS total_discount_amount,
+    COALESCE(SUM(o.order_total_amount - o.order_refunded_amount), 0)::numeric(14,2) AS total_revenue_generated
+FROM orders o
+WHERE o.order_coupon_id IS NOT NULL
+  AND o.order_payment_status IN (2, 3)
+  AND o.order_created_at >= $1::timestamptz
+  AND o.order_created_at <= $2::timestamptz
+`
+
+type GetCouponPerformanceSummaryParams struct {
+	FromDate time.Time `json:"from_date"`
+	ToDate   time.Time `json:"to_date"`
+}
+
+type GetCouponPerformanceSummaryRow struct {
+	TotalOrdersWithCoupon int64          `json:"total_orders_with_coupon"`
+	TotalDiscountAmount   pgtype.Numeric `json:"total_discount_amount"`
+	TotalRevenueGenerated pgtype.Numeric `json:"total_revenue_generated"`
+}
+
+func (q *Queries) GetCouponPerformanceSummary(ctx context.Context, arg GetCouponPerformanceSummaryParams) (GetCouponPerformanceSummaryRow, error) {
+	row := q.db.QueryRow(ctx, getCouponPerformanceSummary, arg.FromDate, arg.ToDate)
+	var i GetCouponPerformanceSummaryRow
+	err := row.Scan(&i.TotalOrdersWithCoupon, &i.TotalDiscountAmount, &i.TotalRevenueGenerated)
+	return i, err
+}
+
 const getLowStockProducts = `-- name: GetLowStockProducts :many
 SELECT 
     p.product_id,

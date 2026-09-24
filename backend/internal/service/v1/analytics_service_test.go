@@ -925,5 +925,148 @@ func TestAnalyticsService_GetCategorySalesBreakdown(t *testing.T) {
 	})
 }
 
+func TestAnalyticsService_GetCouponPerformance(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Success: Normal coupon performance with ROI multiplier calculation", func(t *testing.T) {
+		cUUID1 := uuid.New()
+		cUUID2 := uuid.New()
+		mockRepo := &testutils.MockAnalyticsRepository{
+			GetCouponPerformanceSummaryFunc: func(ctx context.Context, from, to time.Time) (sqlc.GetCouponPerformanceSummaryRow, error) {
+				return sqlc.GetCouponPerformanceSummaryRow{
+					TotalOrdersWithCoupon: 150,
+					TotalDiscountAmount:   utils.FloatToNumeric(10000000), // 10M
+					TotalRevenueGenerated: utils.FloatToNumeric(50000000), // 50M -> ROI = 5.0
+				}, nil
+			},
+			GetCouponCampaignBreakdownFunc: func(ctx context.Context, from, to time.Time, limit int32) ([]sqlc.GetCouponCampaignBreakdownRow, error) {
+				assert.Equal(t, int32(20), limit)
+				return []sqlc.GetCouponCampaignBreakdownRow{
+					{
+						CouponID:              1,
+						CouponUuid:            cUUID1,
+						CouponCode:            "SUMMER20",
+						CouponName:            "Summer Sale 20%",
+						CouponType:            1,
+						CouponDiscountValue:   utils.FloatToNumeric(20),
+						UsageCount:            100,
+						TotalDiscountAmount:   utils.FloatToNumeric(8000000),  // 8M
+						TotalRevenueGenerated: utils.FloatToNumeric(44000000), // 44M -> ROI = 5.5
+					},
+					{
+						CouponID:              2,
+						CouponUuid:            cUUID2,
+						CouponCode:            "WELCOME50K",
+						CouponName:            "Welcome Voucher",
+						CouponType:            2,
+						CouponDiscountValue:   utils.FloatToNumeric(50000),
+						UsageCount:            50,
+						TotalDiscountAmount:   utils.FloatToNumeric(2000000), // 2M
+						TotalRevenueGenerated: utils.FloatToNumeric(6000000), // 6M -> ROI = 3.0
+					},
+				}, nil
+			},
+		}
+
+		svc := v1service.NewAnalyticsService(mockRepo)
+		res, err := svc.GetCouponPerformance(ctx, v1dto.CouponPerformanceQuery{Days: 30})
+
+		require.NoError(t, err)
+		assert.Equal(t, int64(150), res.TotalCouponsUsed)
+		assert.Equal(t, float64(10000000), res.TotalDiscountGiven)
+		assert.Equal(t, float64(50000000), res.TotalRevenueGenerated)
+		assert.Equal(t, 5.0, res.OverallROIMultiplier) // 50M / 10M = 5.0
+
+		require.Len(t, res.Campaigns, 2)
+		// Item 1
+		assert.Equal(t, int32(1), res.Campaigns[0].CouponID)
+		assert.Equal(t, cUUID1.String(), res.Campaigns[0].CouponUUID)
+		assert.Equal(t, "SUMMER20", res.Campaigns[0].CouponCode)
+		assert.Equal(t, int64(100), res.Campaigns[0].UsageCount)
+		assert.Equal(t, float64(8000000), res.Campaigns[0].TotalDiscount)
+		assert.Equal(t, float64(44000000), res.Campaigns[0].TotalRevenue)
+		assert.Equal(t, 5.5, res.Campaigns[0].ROIMultiplier) // 44M / 8M = 5.5
+
+		// Item 2
+		assert.Equal(t, int32(2), res.Campaigns[1].CouponID)
+		assert.Equal(t, cUUID2.String(), res.Campaigns[1].CouponUUID)
+		assert.Equal(t, "WELCOME50K", res.Campaigns[1].CouponCode)
+		assert.Equal(t, int64(50), res.Campaigns[1].UsageCount)
+		assert.Equal(t, float64(2000000), res.Campaigns[1].TotalDiscount)
+		assert.Equal(t, float64(6000000), res.Campaigns[1].TotalRevenue)
+		assert.Equal(t, 3.0, res.Campaigns[1].ROIMultiplier) // 6M / 2M = 3.0
+	})
+
+	t.Run("Success: Zero discount given handles ROI safely", func(t *testing.T) {
+		mockRepo := &testutils.MockAnalyticsRepository{
+			GetCouponPerformanceSummaryFunc: func(ctx context.Context, from, to time.Time) (sqlc.GetCouponPerformanceSummaryRow, error) {
+				return sqlc.GetCouponPerformanceSummaryRow{
+					TotalOrdersWithCoupon: 0,
+					TotalDiscountAmount:   utils.FloatToNumeric(0),
+					TotalRevenueGenerated: utils.FloatToNumeric(0),
+				}, nil
+			},
+			GetCouponCampaignBreakdownFunc: func(ctx context.Context, from, to time.Time, limit int32) ([]sqlc.GetCouponCampaignBreakdownRow, error) {
+				return []sqlc.GetCouponCampaignBreakdownRow{}, nil
+			},
+		}
+
+		svc := v1service.NewAnalyticsService(mockRepo)
+		res, err := svc.GetCouponPerformance(ctx, v1dto.CouponPerformanceQuery{Days: 30})
+
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), res.TotalCouponsUsed)
+		assert.Equal(t, float64(0), res.TotalDiscountGiven)
+		assert.Equal(t, float64(0), res.TotalRevenueGenerated)
+		assert.Equal(t, 0.0, res.OverallROIMultiplier)
+		assert.Empty(t, res.Campaigns)
+	})
+
+	t.Run("Failure: Invalid date range", func(t *testing.T) {
+		mockRepo := &testutils.MockAnalyticsRepository{}
+		svc := v1service.NewAnalyticsService(mockRepo)
+
+		_, err := svc.GetCouponPerformance(ctx, v1dto.CouponPerformanceQuery{
+			FromDate: "2026-09-30",
+			ToDate:   "2026-09-01",
+		})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Invalid date range")
+	})
+
+	t.Run("Failure: Repository summary error", func(t *testing.T) {
+		mockRepo := &testutils.MockAnalyticsRepository{
+			GetCouponPerformanceSummaryFunc: func(ctx context.Context, from, to time.Time) (sqlc.GetCouponPerformanceSummaryRow, error) {
+				return sqlc.GetCouponPerformanceSummaryRow{}, errors.New("summary db error")
+			},
+		}
+
+		svc := v1service.NewAnalyticsService(mockRepo)
+		_, err := svc.GetCouponPerformance(ctx, v1dto.CouponPerformanceQuery{Days: 30})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "summary db error")
+	})
+
+	t.Run("Failure: Repository breakdown error", func(t *testing.T) {
+		mockRepo := &testutils.MockAnalyticsRepository{
+			GetCouponPerformanceSummaryFunc: func(ctx context.Context, from, to time.Time) (sqlc.GetCouponPerformanceSummaryRow, error) {
+				return sqlc.GetCouponPerformanceSummaryRow{}, nil
+			},
+			GetCouponCampaignBreakdownFunc: func(ctx context.Context, from, to time.Time, limit int32) ([]sqlc.GetCouponCampaignBreakdownRow, error) {
+				return nil, errors.New("breakdown db error")
+			},
+		}
+
+		svc := v1service.NewAnalyticsService(mockRepo)
+		_, err := svc.GetCouponPerformance(ctx, v1dto.CouponPerformanceQuery{Days: 30})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "breakdown db error")
+	})
+}
+
+
 
 

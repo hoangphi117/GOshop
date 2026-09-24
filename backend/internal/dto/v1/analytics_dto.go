@@ -213,11 +213,40 @@ type CategorySalesBreakdownResponse struct {
 	Categories     []CategorySalesItemDTO `json:"categories"`
 }
 
+type CouponPerformanceQuery struct {
+	Days     int32  `form:"days" binding:"omitempty,min=1,max=365"`
+	FromDate string `form:"from_date" binding:"omitempty,datetime=2006-01-02"`
+	ToDate   string `form:"to_date" binding:"omitempty,datetime=2006-01-02"`
+	Limit    int32  `form:"limit" binding:"omitempty,min=1,max=100"`
+}
+
+type CouponCampaignItemDTO struct {
+	CouponID      int32   `json:"coupon_id"`
+	CouponUUID    string  `json:"coupon_uuid"`
+	CouponCode    string  `json:"coupon_code"`
+	CouponName    string  `json:"coupon_name"`
+	CouponType    int32   `json:"coupon_type"`
+	DiscountValue float64 `json:"discount_value"`
+	UsageCount    int64   `json:"usage_count"`
+	TotalDiscount float64 `json:"total_discount"`
+	TotalRevenue  float64 `json:"total_revenue"`
+	ROIMultiplier float64 `json:"roi_multiplier"`
+}
+
+type CouponPerformanceResponse struct {
+	TotalCouponsUsed      int64                   `json:"total_coupons_used"`
+	TotalDiscountGiven    float64                 `json:"total_discount_given"`
+	TotalRevenueGenerated float64                 `json:"total_revenue_generated"`
+	OverallROIMultiplier  float64                 `json:"overall_roi_multiplier"`
+	Campaigns             []CouponCampaignItemDTO `json:"campaigns"`
+}
+
 // Type aliases for flexible naming conventions
 type OrderStatusDistributionDTO = OrderStatusDistributionItemDTO
 type OrderStatusDistributionParamsDTO = OrderStatusDistributionQuery
 type LowStockProductsParamsDTO = LowStockProductsQuery
 type PaymentMethodBreakdownDTO = PaymentMethodBreakdownItemDTO
 type PaymentMethodBreakdownParamsDTO = PaymentMethodBreakdownQuery
+
 
 

@@ -495,6 +495,95 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/analytics/coupons": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get coupon usage statistics, total discounts given, revenue generated, and ROI multipliers by campaign",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin - Analytics"
+                ],
+                "summary": "Get coupon ROI and campaign performance analytics",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 30,
+                        "description": "Time window in days (default: 30)",
+                        "name": "days",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Start date (YYYY-MM-DD)",
+                        "name": "from_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End date (YYYY-MM-DD)",
+                        "name": "to_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Maximum number of campaigns to return (default: 20)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/goshop_internal_dto_v1.CouponPerformanceResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/analytics/low-stock-alerts": {
             "get": {
                 "security": [
@@ -9123,6 +9212,41 @@ const docTemplate = `{
                 }
             }
         },
+        "goshop_internal_dto_v1.CouponCampaignItemDTO": {
+            "type": "object",
+            "properties": {
+                "coupon_code": {
+                    "type": "string"
+                },
+                "coupon_id": {
+                    "type": "integer"
+                },
+                "coupon_name": {
+                    "type": "string"
+                },
+                "coupon_type": {
+                    "type": "integer"
+                },
+                "coupon_uuid": {
+                    "type": "string"
+                },
+                "discount_value": {
+                    "type": "number"
+                },
+                "roi_multiplier": {
+                    "type": "number"
+                },
+                "total_discount": {
+                    "type": "number"
+                },
+                "total_revenue": {
+                    "type": "number"
+                },
+                "usage_count": {
+                    "type": "integer"
+                }
+            }
+        },
         "goshop_internal_dto_v1.CouponDTO": {
             "type": "object",
             "properties": {
@@ -9173,6 +9297,29 @@ const docTemplate = `{
                 },
                 "uuid": {
                     "type": "string"
+                }
+            }
+        },
+        "goshop_internal_dto_v1.CouponPerformanceResponse": {
+            "type": "object",
+            "properties": {
+                "campaigns": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/goshop_internal_dto_v1.CouponCampaignItemDTO"
+                    }
+                },
+                "overall_roi_multiplier": {
+                    "type": "number"
+                },
+                "total_coupons_used": {
+                    "type": "integer"
+                },
+                "total_discount_given": {
+                    "type": "number"
+                },
+                "total_revenue_generated": {
+                    "type": "number"
                 }
             }
         },

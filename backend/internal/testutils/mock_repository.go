@@ -1332,7 +1332,10 @@ type MockAnalyticsRepository struct {
 	GetReturnReasonsBreakdownFunc func(ctx context.Context, from, to time.Time, limit int32) ([]sqlc.GetReturnReasonsBreakdownRow, error)
 	GetTopReturnedProductsFunc func(ctx context.Context, from, to time.Time, limit int32) ([]sqlc.GetTopReturnedProductsRow, error)
 	GetCategorySalesBreakdownFunc func(ctx context.Context, from, to time.Time) ([]sqlc.GetCategorySalesBreakdownRow, error)
+	GetCouponPerformanceSummaryFunc func(ctx context.Context, from, to time.Time) (sqlc.GetCouponPerformanceSummaryRow, error)
+	GetCouponCampaignBreakdownFunc func(ctx context.Context, from, to time.Time, limit int32) ([]sqlc.GetCouponCampaignBreakdownRow, error)
 }
+
 
 func (m *MockAnalyticsRepository) GetOverview(ctx context.Context) (sqlc.GetOverviewStatsRow, error) {
 	if m.GetOverviewFunc != nil {
@@ -1445,6 +1448,21 @@ func (m *MockAnalyticsRepository) GetCategorySalesBreakdown(ctx context.Context,
 	}
 	return nil, nil
 }
+
+func (m *MockAnalyticsRepository) GetCouponPerformanceSummary(ctx context.Context, from, to time.Time) (sqlc.GetCouponPerformanceSummaryRow, error) {
+	if m.GetCouponPerformanceSummaryFunc != nil {
+		return m.GetCouponPerformanceSummaryFunc(ctx, from, to)
+	}
+	return sqlc.GetCouponPerformanceSummaryRow{}, nil
+}
+
+func (m *MockAnalyticsRepository) GetCouponCampaignBreakdown(ctx context.Context, from, to time.Time, limit int32) ([]sqlc.GetCouponCampaignBreakdownRow, error) {
+	if m.GetCouponCampaignBreakdownFunc != nil {
+		return m.GetCouponCampaignBreakdownFunc(ctx, from, to, limit)
+	}
+	return nil, nil
+}
+
 
 
 
