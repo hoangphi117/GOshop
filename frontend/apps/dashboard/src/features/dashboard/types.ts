@@ -64,4 +64,14 @@ export interface CartFunnelQueryParams {
   to_date?: string
 }
 
+export type ReturnAnalyticsResponse = components['schemas']['goshop_internal_dto_v1.ReturnAnalyticsResponse']
+export type ReturnReasonBreakdown = components['schemas']['goshop_internal_dto_v1.ReturnReasonBreakdownDTO']
+export type TopReturnedProduct = components['schemas']['goshop_internal_dto_v1.TopReturnedProductDTO']
+
+export interface ReturnAnalyticsQueryParams {
+  days?: number
+  from_date?: string
+  to_date?: string
+}
+
 

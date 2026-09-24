@@ -17,6 +17,8 @@ import type {
   TopProductsQueryParams,
   CartFunnelQueryParams,
   CartFunnelStats,
+  ReturnAnalyticsQueryParams,
+  ReturnAnalyticsResponse,
 } from '../types'
 
 
@@ -190,6 +192,28 @@ export function useCartFunnel(params: CartFunnelQueryParams = {}) {
         throw new Error((error as { error?: string })?.error || 'Failed to fetch cart funnel')
       }
       return data?.data as CartFunnelStats
+    },
+    staleTime: 1000 * 60 * 2,
+  })
+}
+
+export function useReturnAnalytics(params: ReturnAnalyticsQueryParams = {}) {
+  return useQuery({
+    queryKey: ['analyticsReturns', params],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/admin/analytics/returns', {
+        params: {
+          query: {
+            days: params.days,
+            from_date: params.from_date,
+            to_date: params.to_date,
+          },
+        },
+      })
+      if (error) {
+        throw new Error((error as { error?: string })?.error || 'Failed to fetch return analytics')
+      }
+      return data?.data as ReturnAnalyticsResponse
     },
     staleTime: 1000 * 60 * 2,
   })

@@ -12,6 +12,7 @@ import { formatCurrency } from '@/features/orders/order-utils'
 import { useRevenueChart, useTopProducts } from '../hooks/use-dashboard-analytics'
 import { AnalyticsChart } from './analytics-chart'
 import { CartFunnelCard } from './cart-funnel-card'
+import { ReturnsAnalyticsCard } from './returns-analytics-card'
 
 interface AnalyticsProps {
   fromDate?: string
@@ -33,6 +34,9 @@ export function Analytics({ fromDate, toDate }: AnalyticsProps = {}) {
     <div className='space-y-4'>
       {/* ===== Cart Abandonment & Conversion Funnel ===== */}
       <CartFunnelCard fromDate={fromDate} toDate={toDate} />
+
+      {/* ===== Return & Refund Financial Analytics ===== */}
+      <ReturnsAnalyticsCard fromDate={fromDate} toDate={toDate} />
 
       {/* ===== 12-Month Performance Chart ===== */}
       <Card>
