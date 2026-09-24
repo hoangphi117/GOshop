@@ -83,4 +83,14 @@ export interface CategorySalesQueryParams {
   to_date?: string
 }
 
+export type CouponPerformanceResponse = components['schemas']['goshop_internal_dto_v1.CouponPerformanceResponse']
+export type CouponCampaignItem = components['schemas']['goshop_internal_dto_v1.CouponCampaignItemDTO']
+
+export interface CouponPerformanceQueryParams {
+  days?: number
+  from_date?: string
+  to_date?: string
+  limit?: number
+}
+
 

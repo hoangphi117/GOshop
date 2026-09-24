@@ -21,6 +21,8 @@ import type {
   ReturnAnalyticsResponse,
   CategorySalesQueryParams,
   CategorySalesBreakdownResponse,
+  CouponPerformanceQueryParams,
+  CouponPerformanceResponse,
 } from '../types'
 
 
@@ -238,6 +240,29 @@ export function useCategorySales(params: CategorySalesQueryParams = {}) {
         throw new Error((error as { error?: string })?.error || 'Failed to fetch category sales breakdown')
       }
       return data?.data as CategorySalesBreakdownResponse
+    },
+    staleTime: 1000 * 60 * 5,
+  })
+}
+
+export function useCouponPerformance(params: CouponPerformanceQueryParams = {}) {
+  return useQuery({
+    queryKey: ['analyticsCouponPerformance', params],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/admin/analytics/coupons', {
+        params: {
+          query: {
+            days: params.days,
+            from_date: params.from_date,
+            to_date: params.to_date,
+            limit: params.limit,
+          },
+        },
+      })
+      if (error) {
+        throw new Error((error as { error?: string })?.error || 'Failed to fetch coupon performance')
+      }
+      return data?.data as CouponPerformanceResponse
     },
     staleTime: 1000 * 60 * 5,
   })

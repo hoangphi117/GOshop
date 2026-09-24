@@ -13,6 +13,7 @@ import { useRevenueChart, useTopProducts } from '../hooks/use-dashboard-analytic
 import { AnalyticsChart } from './analytics-chart'
 import { CartFunnelCard } from './cart-funnel-card'
 import { CategorySalesCard } from './category-sales-card'
+import { CouponPerformanceCard } from './coupon-performance-card'
 import { ReturnsAnalyticsCard } from './returns-analytics-card'
 
 interface AnalyticsProps {
@@ -41,6 +42,9 @@ export function Analytics({ fromDate, toDate }: AnalyticsProps = {}) {
 
       {/* ===== Category Sales Breakdown ===== */}
       <CategorySalesCard fromDate={fromDate} toDate={toDate} />
+
+      {/* ===== Coupon ROI & Campaign Performance ===== */}
+      <CouponPerformanceCard fromDate={fromDate} toDate={toDate} />
 
       {/* ===== 12-Month Performance Chart ===== */}
       <Card>
