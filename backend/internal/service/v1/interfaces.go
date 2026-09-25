@@ -4,6 +4,7 @@ import (
 	"context"
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
+	"io"
 	"time"
 
 	"github.com/google/uuid"
@@ -51,6 +52,7 @@ type ProductService interface {
 	SoftDeleteProduct(ctx context.Context, productUUID uuid.UUID) (sqlc.Product, error)
 	RestoreProduct(ctx context.Context, productUUID uuid.UUID) (sqlc.Product, error)
 	TrashProduct(ctx context.Context, productUUID uuid.UUID) error
+	ImportProductsCSV(ctx context.Context, file io.Reader) (*v1dto.ProductCSVImportResponse, error)
 }
 
 type OrderService interface {
@@ -204,6 +206,3 @@ type AnalyticsService interface {
 	GetCategorySalesBreakdown(ctx context.Context, params v1dto.CategorySalesBreakdownQuery) (*v1dto.CategorySalesBreakdownResponse, error)
 	GetCouponPerformance(ctx context.Context, params v1dto.CouponPerformanceQuery) (*v1dto.CouponPerformanceResponse, error)
 }
-
-
-

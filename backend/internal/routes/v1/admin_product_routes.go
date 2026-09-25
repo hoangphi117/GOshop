@@ -20,6 +20,7 @@ func (pr *AdminProductRoutes) Register(r *gin.RouterGroup) {
 	products := r.Group("/products")
 	{
 		products.POST("", pr.handler.CreateProduct)
+		products.POST("/import-csv", pr.handler.ImportCSV)
 		products.PUT("/:uuid", pr.handler.UpdateProduct)
 		products.DELETE("/:uuid/soft-delete", pr.handler.SoftDeleteProduct)
 		products.PUT("/:uuid/restore", pr.handler.RestoreProduct)

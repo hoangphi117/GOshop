@@ -1,23 +1,30 @@
 package v1service
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/csv"
 	"errors"
 	"fmt"
+	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/repository"
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
+	"io"
+	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/redis/go-redis/v9"
+	"golang.org/x/text/encoding/charmap"
 )
 
 const (
@@ -324,4 +331,366 @@ func (ps *productService) generateCacheKey(search, categoryUUID string, minPrice
 		sort = "desc"
 	}
 	return fmt.Sprintf("products:%s:%s:%s:%s:%s:%s:%s:%d:%d:%t", search, categoryUUID, minPriceStr, maxPriceStr, statusStr, orderBy, sort, page, limit, deleted)
+}
+
+type ParsedProductRow struct {
+	RowNum      int
+	Name        string
+	Price       float64
+	Description *string
+	ImageURL    *string
+	CategoryID  int32
+	Stock       int32
+	SKU         string
+}
+
+func (ps *productService) ImportProductsCSV(ctx context.Context, file io.Reader) (*v1dto.ProductCSVImportResponse, error) {
+	rawBytes, err := io.ReadAll(file)
+	if err != nil {
+		return nil, utils.NewError(utils.ErrCodeBadRequest, "Failed to read CSV file")
+	}
+
+	var utf8Reader io.Reader
+	if utf8.Valid(rawBytes) {
+		utf8Reader = bytes.NewReader(rawBytes)
+	} else {
+		// Attempt to auto-decode Windows-1258 (Excel on Windows in Vietnamese locale)
+		decoded1258, err1258 := charmap.Windows1258.NewDecoder().Bytes(rawBytes)
+		if err1258 == nil && utf8.Valid(decoded1258) {
+			utf8Reader = bytes.NewReader(decoded1258)
+		} else {
+			// Attempt to auto-decode Windows-1252 (Western European ANSI)
+			decoded1252, err1252 := charmap.Windows1252.NewDecoder().Bytes(rawBytes)
+			if err1252 == nil && utf8.Valid(decoded1252) {
+				utf8Reader = bytes.NewReader(decoded1252)
+			} else {
+				return nil, utils.NewError(utils.ErrCodeBadRequest, "File encoding is not valid UTF-8. Please re-save the CSV file in Excel as 'CSV UTF-8 (Comma delimited)'")
+			}
+		}
+	}
+
+	reader := csv.NewReader(utf8Reader)
+	reader.FieldsPerRecord = -1 // Allow variable fields check manually
+	reader.LazyQuotes = false   // Strict RFC 4180 compliance
+	reader.TrimLeadingSpace = true
+
+	// Validate header
+	headers, err := reader.Read()
+	if err != nil {
+		return nil, utils.NewError(utils.ErrCodeBadRequest, "Empty or invalid csv file")
+	}
+
+	if err := ps.validateCSVHeaders(headers); err != nil {
+		return nil, err
+	}
+
+	// Parse rows
+	parsedRow, syntaxErrors := ps.parseCSVRow(reader)
+
+	// In-file duplicate checks
+	duplicateErrors := ps.validateInFileConstraints(parsedRow)
+	allErrors := append(syntaxErrors, duplicateErrors...)
+
+	// ALL-OR-NOTHING: If there are any errors, stop processing and return errors
+	if len(allErrors) > 0 {
+		return &v1dto.ProductCSVImportResponse{
+			SuccessCount: 0,
+			ErrorCount:   len(allErrors),
+			Errors:       allErrors,
+		}, nil
+	}
+
+	// Validate foreign key constraints (category existence)
+	catErrors, err := ps.validateCategoryExistence(ctx, parsedRow)
+	if err != nil {
+		return nil, err
+	}
+	if len(catErrors) > 0 {
+		return &v1dto.ProductCSVImportResponse{
+			SuccessCount: 0,
+			ErrorCount:   len(catErrors),
+			Errors:       catErrors,
+		}, nil
+	}
+
+	// Execute atomic batch insert
+	insertErr := ps.executeAtomicBatchInsert(ctx, parsedRow)
+	if insertErr != nil {
+		return &v1dto.ProductCSVImportResponse{
+			SuccessCount: 0,
+			ErrorCount:   1,
+			Errors: []v1dto.CSVRowError{
+				{
+					Row:    insertErr.Row,
+					Field:  insertErr.Field,
+					Reason: insertErr.Reason,
+				},
+			},
+		}, nil
+	}
+
+	if ps.cache != nil {
+		_ = ps.cache.Clear("products:*")
+	}
+
+	return &v1dto.ProductCSVImportResponse{
+		SuccessCount: len(parsedRow),
+		ErrorCount:   0,
+		Errors:       []v1dto.CSVRowError{},
+	}, nil
+}
+
+func (ps *productService) validateCSVHeaders(headers []string) error {
+	expected := []string{"name", "price", "description", "imageUrl", "category_id", "stock", "sku"}
+	if len(headers) != len(expected) {
+		return utils.NewError(utils.ErrCodeBadRequest, "Missing or extra columns in CSV header")
+	}
+
+	for i, col := range expected {
+		val := strings.TrimSpace(headers[i])
+		if i == 0 {
+			val = strings.TrimPrefix(val, "\ufeff")
+		}
+		if !strings.EqualFold(val, col) {
+			return utils.NewError(utils.ErrCodeBadRequest, fmt.Sprintf("Expected column '%s' at position %d, but got '%s'", col, i+1, headers[i]))
+		}
+	}
+	return nil
+}
+
+func (ps *productService) parseCSVRow(reader *csv.Reader) ([]ParsedProductRow, []v1dto.CSVRowError) {
+	var rows []ParsedProductRow
+	var rowErrors []v1dto.CSVRowError
+	lineNum := 1 // Header is line 1
+
+	for {
+		record, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		lineNum++
+
+		if err != nil {
+			rowErrors = append(rowErrors, v1dto.CSVRowError{
+				Row: lineNum, Reason: fmt.Sprintf("RFC 4180 syntax error: %v", err),
+			})
+			continue
+		}
+
+		if len(record) != 7 {
+			rowErrors = append(rowErrors, v1dto.CSVRowError{
+				Row: lineNum, Reason: "Incorrect number of columns. Expected 7, got " + fmt.Sprintf("%d", len(record)),
+			})
+			continue
+		}
+
+		fieldNames := []string{"name", "price", "description", "imageUrl", "category_id", "stock", "sku"}
+		hasEncodingError := false
+		for idx, fieldName := range fieldNames {
+			if !utf8.ValidString(record[idx]) {
+				rowErrors = append(rowErrors, v1dto.CSVRowError{
+					Row: lineNum, Field: fieldName, Reason: "Invalid UTF-8 character encoding",
+				})
+				hasEncodingError = true
+			}
+		}
+		if hasEncodingError {
+			continue
+		}
+
+		name := strings.TrimSpace(record[0])
+		if name == "" {
+			rowErrors = append(rowErrors, v1dto.CSVRowError{
+				Row: lineNum, Field: "name", Reason: "Name is required",
+			})
+		} else if len(name) < 2 || len(name) > 200 {
+			rowErrors = append(rowErrors, v1dto.CSVRowError{
+				Row: lineNum, Field: "name", Reason: "Name must be between 2 and 200 characters",
+			})
+		}
+
+		price, err := strconv.ParseFloat(strings.TrimSpace(record[1]), 64)
+		if err != nil || price <= 0 {
+			rowErrors = append(rowErrors, v1dto.CSVRowError{
+				Row: lineNum, Field: "price", Reason: "Invalid price",
+			})
+		}
+
+		var descPtr *string
+		if desc := strings.TrimSpace(record[2]); desc != "" {
+			descPtr = &desc
+		}
+
+		var imgPtr *string
+		if img := strings.TrimSpace(record[3]); img != "" {
+			imgPtr = &img
+		}
+
+		categoryID, err := strconv.Atoi(strings.TrimSpace(record[4]))
+		if err != nil || categoryID <= 0 {
+			rowErrors = append(rowErrors, v1dto.CSVRowError{
+				Row: lineNum, Field: "category_id", Reason: "Invalid category_id",
+			})
+		}
+
+		stock := int32(0)
+		stockStr := strings.TrimSpace(record[5])
+		if stockStr != "" {
+			parsedStock, err := strconv.Atoi(stockStr)
+			if err != nil || parsedStock < 0 {
+				rowErrors = append(rowErrors, v1dto.CSVRowError{
+					Row: lineNum, Field: "stock", Reason: "Invalid stock value",
+				})
+			} else {
+				stock = int32(parsedStock)
+			}
+		}
+
+		sku := strings.TrimSpace(record[6])
+		if sku == "" {
+			sku = fmt.Sprintf("SKU-%s", strings.ToUpper(uuid.New().String()[:8]))
+		} else if len(sku) > 50 {
+			rowErrors = append(rowErrors, v1dto.CSVRowError{
+				Row: lineNum, Field: "sku", Reason: "SKU must be no more than 50 characters",
+			})
+		}
+
+		rows = append(rows, ParsedProductRow{
+			RowNum:      lineNum,
+			Name:        name,
+			Price:       price,
+			Description: descPtr,
+			ImageURL:    imgPtr,
+			CategoryID:  int32(categoryID),
+			Stock:       stock,
+			SKU:         sku,
+		})
+	}
+
+	return rows, rowErrors
+}
+
+// In-File duplicate checks for name-category_id and SKU
+func (ps *productService) validateInFileConstraints(rows []ParsedProductRow) []v1dto.CSVRowError {
+	var errors []v1dto.CSVRowError
+	seenNameCategory := make(map[string]int) // key: name|categoryID, value: rowNum
+	seenSKU := make(map[string]int)          // key: sku, value: rowNum
+
+	for _, row := range rows {
+		if row.Name == "" || row.CategoryID <= 0 {
+			continue // Skip rows that already have errors
+		}
+
+		nameCatKey := fmt.Sprintf("%s|%d", strings.ToLower(row.Name), row.CategoryID)
+		if prevRow, exists := seenNameCategory[nameCatKey]; exists {
+			errors = append(errors, v1dto.CSVRowError{
+				Row:    row.RowNum,
+				Field:  "name",
+				Reason: fmt.Sprintf("Duplicate name and category_id combination found in row %d", prevRow),
+			})
+		} else {
+			seenNameCategory[nameCatKey] = row.RowNum
+		}
+
+		if row.SKU != "" {
+			if prevRow, exists := seenSKU[row.SKU]; exists {
+				errors = append(errors, v1dto.CSVRowError{
+					Row:    row.RowNum,
+					Field:  "sku",
+					Reason: fmt.Sprintf("Duplicate SKU found in row %d", prevRow),
+				})
+			} else {
+				seenSKU[row.SKU] = row.RowNum
+			}
+		}
+	}
+	return errors
+}
+
+func (ps *productService) validateCategoryExistence(ctx context.Context, rows []ParsedProductRow) ([]v1dto.CSVRowError, error) {
+	uniqueCatIDs := make(map[int32]struct{})
+	for _, r := range rows {
+		if r.CategoryID > 0 {
+			uniqueCatIDs[r.CategoryID] = struct{}{}
+		}
+	}
+	categories, err := ps.categoryRepo.GetAll(ctx, "", "", "asc", 500, 0, false)
+	if err != nil {
+		return nil, utils.WrapError(utils.ErrCodeInternal, "Không thể tải danh sách danh mục", err)
+	}
+	validMap := make(map[int32]bool)
+	for _, c := range categories {
+		validMap[c.CategoryID] = true
+	}
+	var errors []v1dto.CSVRowError
+	for _, row := range rows {
+		if !validMap[row.CategoryID] {
+			errors = append(errors, v1dto.CSVRowError{
+				Row:    row.RowNum,
+				Field:  "category_id",
+				Reason: fmt.Sprintf("Danh mục có ID = %d không tồn tại trên hệ thống", row.CategoryID),
+			})
+		}
+	}
+	return errors, nil
+}
+
+type DBInsertError struct {
+	Row    int
+	Field  string
+	Reason string
+}
+
+func (ps *productService) executeAtomicBatchInsert(ctx context.Context, rows []ParsedProductRow) *DBInsertError {
+	tx, err := db.BeginTx(ctx)
+	if err != nil {
+		return &DBInsertError{Row: 0, Reason: fmt.Sprintf("Failed to begin transaction: %v", err)}
+	}
+	defer tx.Rollback(ctx)
+
+	qtx := sqlc.New(tx)
+	for _, row := range rows {
+		slug := fmt.Sprintf("%s-%s", utils.Slugify(row.Name), uuid.New().String()[:8])
+		skuCopy := row.SKU
+
+		_, err := qtx.CreateProduct(ctx, sqlc.CreateProductParams{
+			ProductName:        row.Name,
+			ProductSlug:        slug,
+			ProductPrice:       utils.FloatToNumeric(row.Price),
+			ProductDescription: row.Description,
+			ProductImageUrl:    row.ImageURL,
+			ProductCategoryID:  row.CategoryID,
+			ProductStock:       &row.Stock,
+			ProductSku:         &skuCopy,
+			ProductStatus:      ProductStatusActive,
+		})
+
+		if err != nil {
+			var reason string
+			var field string
+			var pgErr *pgconn.PgError
+
+			// Catch unique constraint violations
+			if errors.As(err, &pgErr) {
+				switch pgErr.ConstraintName {
+				case "idx_products_name_category_unique":
+					field = "name"
+					reason = fmt.Sprintf("Duplicate name and category_id combination found: %s", row.Name)
+				case "products_product_sku_key":
+					field = "sku"
+					reason = fmt.Sprintf("Duplicate SKU found: %s", row.SKU)
+				default:
+					reason = fmt.Sprintf("Database error: %v", err)
+				}
+			} else {
+				reason = err.Error()
+			}
+			return &DBInsertError{Row: row.RowNum, Field: field, Reason: reason}
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return &DBInsertError{Row: 0, Reason: fmt.Sprintf("Failed to commit transaction: %v", err)}
+	}
+
+	return nil
 }

@@ -7,6 +7,7 @@ import (
 )
 
 type CategoryDTO struct {
+	ID          int32  `json:"category_id"`
 	UUID        string `json:"uuid"`
 	Name        string `json:"category_name"`
 	Slug        string `json:"slug"`
@@ -58,6 +59,7 @@ func (input *UpdateCategoryInput) MapUpdateInputToModel(categoryUuid uuid.UUID) 
 
 func MapCategoryToDTO(category sqlc.Category) *CategoryDTO {
 	dto := &CategoryDTO{
+		ID:        category.CategoryID,
 		UUID:      category.CategoryUuid.String(),
 		Name:      category.CategoryName,
 		Slug:      category.CategorySlug,

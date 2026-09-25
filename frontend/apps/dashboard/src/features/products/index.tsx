@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Search as SearchIcon, Edit2, Trash2, Package } from 'lucide-react'
+import { Plus, Search as SearchIcon, Edit2, Trash2, Package, FileSpreadsheet } from 'lucide-react'
 import { toast } from 'sonner'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
@@ -29,6 +29,7 @@ import { ConfirmDialog } from '@/components/confirm-dialog'
 import { useCategories } from '@/features/categories/hooks/use-categories'
 import { useProducts, useProductMutations } from './hooks/use-products'
 import { ProductDialog } from './components/product-dialog'
+import { CSVImportDialog } from './components/csv-import-dialog'
 import type { Product } from './types'
 
 export function Products() {
@@ -38,6 +39,7 @@ export function Products() {
   const [selectedCategoryUuid, setSelectedCategoryUuid] = useState<string>('all')
 
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [importDialogOpen, setImportDialogOpen] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [productToDelete, setProductToDelete] = useState<Product | null>(null)
@@ -112,9 +114,18 @@ export function Products() {
               Manage your product catalog, pricing, inventory and images.
             </p>
           </div>
-          <Button onClick={handleOpenCreate} className='gap-2'>
-            <Plus className='size-4' /> Add Product
-          </Button>
+          <div className='flex items-center gap-2'>
+            <Button
+              variant='outline'
+              onClick={() => setImportDialogOpen(true)}
+              className='gap-2'
+            >
+              <FileSpreadsheet className='size-4' /> Import CSV
+            </Button>
+            <Button onClick={handleOpenCreate} className='gap-2'>
+              <Plus className='size-4' /> Add Product
+            </Button>
+          </div>
         </div>
 
         {/* Filter Bar */}
@@ -340,6 +351,11 @@ export function Products() {
         destructive
         isLoading={deleteProduct.isPending}
         handleConfirm={handleConfirmDelete}
+      />
+
+      <CSVImportDialog
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
       />
     </>
   )

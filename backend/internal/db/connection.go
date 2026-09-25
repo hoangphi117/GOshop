@@ -62,5 +62,8 @@ func InitDB() error {
 }
 
 func BeginTx(ctx context.Context) (pgxv5.Tx, error) {
+	if DBPool == nil {
+		return nil, fmt.Errorf("database connection pool is not initialized")
+	}
 	return DBPool.Begin(ctx)
 }

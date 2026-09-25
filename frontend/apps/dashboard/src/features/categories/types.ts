@@ -1,4 +1,5 @@
 export interface Category {
+  category_id?: number
   uuid?: string
   category_name?: string
   slug?: string

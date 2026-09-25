@@ -1,9 +1,11 @@
 package v1service_test
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -650,3 +652,139 @@ func TestProductService_TrashProduct(t *testing.T) {
 		require.NoError(t, err)
 	})
 }
+
+func TestProductService_ImportProductsCSV(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Case 1: Empty or Invalid Header - Returns 400 Bad Request", func(t *testing.T) {
+		mockRepo := &testutils.MockProductRepository{}
+		mockCatRepo := &testutils.MockCategoryRepository{}
+		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil)
+
+		invalidCSV := "wrong,headers\nvalue1,value2"
+		res, err := svc.ImportProductsCSV(ctx, strings.NewReader(invalidCSV))
+		require.Error(t, err)
+		assertAppErrorCode(t, err, utils.ErrCodeBadRequest)
+		assert.Nil(t, res)
+	})
+
+	t.Run("Case 2: Row-level Validation Errors - Returns 0 success and detailed error report", func(t *testing.T) {
+		mockRepo := &testutils.MockProductRepository{}
+		mockCatRepo := &testutils.MockCategoryRepository{}
+		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil)
+
+		csvContent := "name,price,description,imageUrl,category_id,stock,sku\n" +
+			",-10,Good product,http://img.com,0,-5,SKU-1\n" +
+			"Valid Name,0,Good product,http://img.com,abc,10,SKU-2\n"
+
+		res, err := svc.ImportProductsCSV(ctx, strings.NewReader(csvContent))
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		assert.Equal(t, 0, res.SuccessCount)
+		assert.GreaterOrEqual(t, res.ErrorCount, 4)
+		// Check that specific fields were flagged
+		fields := make(map[string]bool)
+		for _, e := range res.Errors {
+			fields[e.Field] = true
+		}
+		assert.True(t, fields["name"])
+		assert.True(t, fields["price"])
+		assert.True(t, fields["category_id"])
+		assert.True(t, fields["stock"])
+	})
+
+	t.Run("Case 3: In-File Duplicate Name within Same Category and Duplicate SKU", func(t *testing.T) {
+		mockRepo := &testutils.MockProductRepository{}
+		mockCatRepo := &testutils.MockCategoryRepository{}
+		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil)
+
+		csvContent := "name,price,description,imageUrl,category_id,stock,sku\n" +
+			"T-Shirt,100,Desc,http://img.com,1,10,SKU-DUPE\n" +
+			"t-shirt,120,Desc 2,http://img.com,1,5,SKU-DUPE\n"
+
+		res, err := svc.ImportProductsCSV(ctx, strings.NewReader(csvContent))
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		assert.Equal(t, 0, res.SuccessCount)
+		assert.GreaterOrEqual(t, res.ErrorCount, 2)
+		reasons := ""
+		for _, e := range res.Errors {
+			reasons += e.Reason + " "
+		}
+		assert.Contains(t, reasons, "Duplicate name and category_id")
+		assert.Contains(t, reasons, "Duplicate SKU")
+	})
+
+	t.Run("Case 4: Category Does Not Exist in Database", func(t *testing.T) {
+		mockRepo := &testutils.MockProductRepository{}
+		mockCatRepo := &testutils.MockCategoryRepository{
+			GetAllFunc: func(ctx context.Context, search, orderBy, sort string, limit, offset int32, deleted bool) ([]sqlc.Category, error) {
+				return []sqlc.Category{
+					{CategoryID: 1, CategoryName: "Clothing"},
+				}, nil
+			},
+		}
+		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil)
+
+		csvContent := "name,price,description,imageUrl,category_id,stock,sku\n" +
+			"Shoes,250,Running shoes,http://img.com,999,10,SKU-SHOES\n"
+
+		res, err := svc.ImportProductsCSV(ctx, strings.NewReader(csvContent))
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		assert.Equal(t, 0, res.SuccessCount)
+		assert.Equal(t, 1, res.ErrorCount)
+		assert.Equal(t, "category_id", res.Errors[0].Field)
+		assert.Contains(t, res.Errors[0].Reason, "999")
+	})
+
+	t.Run("Case 5: RFC 4180 Quotes and Comma Handling with UTF-8 BOM", func(t *testing.T) {
+		mockRepo := &testutils.MockProductRepository{}
+		mockCatRepo := &testutils.MockCategoryRepository{
+			GetAllFunc: func(ctx context.Context, search, orderBy, sort string, limit, offset int32, deleted bool) ([]sqlc.Category, error) {
+				return []sqlc.Category{
+					{CategoryID: 2, CategoryName: "Electronics"},
+				}, nil
+			},
+		}
+		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil)
+
+		// UTF-8 BOM + Comma in quotes
+		csvContent := "\ufeffname,price,description,imageUrl,category_id,stock,sku\n" +
+			"\"Wireless Mouse, Ergonomic\",49.99,\"Smooth, silent clicks\",http://img.com,2,100,\n"
+
+		// Parsing should pass syntax check and category existence check without errors
+		// It will reach executeAtomicBatchInsert (which needs DB pool in full integration)
+		// Here we verify it passes all validation phases
+		res, err := svc.ImportProductsCSV(ctx, strings.NewReader(csvContent))
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		// Should have 0 syntax/category errors before DB step
+		if res.ErrorCount > 0 {
+			// Only DB connection error is acceptable since DB pool isn't mocked here
+			assert.Contains(t, res.Errors[0].Reason, "transaction")
+		}
+	})
+
+	t.Run("Case 6: Non-UTF8 Windows-1258 Encoding Auto-Conversion", func(t *testing.T) {
+		mockRepo := &testutils.MockProductRepository{}
+		mockCatRepo := &testutils.MockCategoryRepository{
+			GetAllFunc: func(ctx context.Context, search, orderBy, sort string, limit, offset int32, deleted bool) ([]sqlc.Category, error) {
+				return []sqlc.Category{
+					{CategoryID: 1, CategoryName: "Tech"},
+				}, nil
+			},
+		}
+		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil)
+
+		// 0xed 0x6e 0x68 in Windows-1258 is "ính"
+		win1258Bytes := []byte("name,price,description,imageUrl,category_id,stock,sku\nM\xednh,100,Desc,http://img.com,1,10,SKU-WIN\n")
+		res, err := svc.ImportProductsCSV(ctx, bytes.NewReader(win1258Bytes))
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		if res.ErrorCount > 0 {
+			assert.Contains(t, res.Errors[0].Reason, "transaction")
+		}
+	})
+}
+

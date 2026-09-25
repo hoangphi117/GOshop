@@ -1,11 +1,14 @@
 package v1handler
 
 import (
+	"fmt"
+	"net/http"
+	"strings"
+
 	v1dto "goshop/internal/dto/v1"
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/utils"
 	"goshop/internal/validation"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -297,3 +300,56 @@ func (ph *ProductHandler) TrashProduct(ctx *gin.Context) {
 
 	utils.ResponseStatusCode(ctx, http.StatusNoContent)
 }
+
+// ImportCSV godoc
+// @Summary      Import products from CSV
+// @Description  Admin endpoint to batch import products from a CSV file (RFC 4180 compliant, atomic all-or-nothing transaction)
+// @Tags         Admin - Products
+// @Accept       multipart/form-data
+// @Produce      json
+// @Security     ApiKeyAuth
+// @Security     BearerAuth
+// @Param        file formData file true "CSV file (name,price,description,imageUrl,category_id,stock,sku)"
+// @Success      200 {object} utils.APIResponse{data=v1dto.ProductCSVImportResponse} "CSV import result report"
+// @Failure      400 {object} utils.ErrorResponse "Bad request or validation error"
+// @Failure      401 {object} utils.ErrorResponse "Unauthorized"
+// @Failure      500 {object} utils.ErrorResponse "Internal server error"
+// @Router       /api/v1/admin/products/import-csv [post]
+func (ph *ProductHandler) ImportCSV(ctx *gin.Context) {
+	fileHeader, err := ctx.FormFile("file")
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "File is required (form field: 'file')"))
+		return
+	}
+
+	if !strings.HasSuffix(strings.ToLower(fileHeader.Filename), ".csv") {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Only .csv files are supported"))
+		return
+	}
+
+	if fileHeader.Size > 5*1024*1024 {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "File size must not exceed 5MB"))
+		return
+	}
+
+	file, err := fileHeader.Open()
+	if err != nil {
+		utils.ResponseError(ctx, utils.WrapError(utils.ErrCodeInternal, "Failed to read uploaded file", err))
+		return
+	}
+	defer file.Close()
+
+	result, err := ph.service.ImportProductsCSV(ctx.Request.Context(), file)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	if result.ErrorCount > 0 {
+		utils.ResponseSuccess(ctx, http.StatusOK, "CSV import completed with validation errors (no records were saved)", result)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, fmt.Sprintf("Successfully imported %d products", result.SuccessCount), result)
+}
+

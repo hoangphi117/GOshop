@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api } from '@/lib/api'
+import { api, fetchWithAuth } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
-import type { ProductFormData } from '../types'
+import type { ProductCSVImportResponse, ProductFormData } from '../types'
 
 export interface ProductQueryParams {
   page?: number
@@ -166,20 +166,12 @@ export function useProductMutations() {
 export function useUploadImage() {
   return useMutation({
     mutationFn: async ({ file, folder = 'products' }: { file: File; folder?: string }) => {
-      const token = useAuthStore.getState().auth.accessToken
       const formData = new FormData()
       formData.append('file', file)
       formData.append('folder', folder)
 
-      const rawBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
-      const cleanBase = rawBase.replace(/\/+$/, '')
-      const uploadUrl = cleanBase.endsWith('/api/v1') ? `${cleanBase}/upload` : `${cleanBase}/api/v1/upload`
-      const res = await fetch(uploadUrl, {
+      const res = await fetchWithAuth('/api/v1/upload', {
         method: 'POST',
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          'X-API-KEY': import.meta.env.VITE_API_KEY || 'abcd-1234-1111',
-        },
         body: formData,
       })
 
@@ -193,3 +185,37 @@ export function useUploadImage() {
     },
   })
 }
+
+export function useImportProductsCSV() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const { accessToken, refreshToken } = useAuthStore.getState().auth
+      if (!accessToken && !refreshToken) {
+        throw new Error('Authentication required. Please sign in to import products.')
+      }
+
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const res = await fetchWithAuth('/api/v1/admin/products/import-csv', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(json.error || json.detail || 'Failed to upload CSV')
+      }
+
+      return json.data as ProductCSVImportResponse
+    },
+    onSuccess: (data) => {
+      if (data && data.success_count > 0) {
+        queryClient.invalidateQueries({ queryKey: ['products'] })
+      }
+    },
+  })
+}
+

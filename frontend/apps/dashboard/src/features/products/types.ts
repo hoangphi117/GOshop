@@ -23,3 +23,16 @@ export interface ProductFormData {
   description?: string
   status: 1 | 2
 }
+
+export interface CSVRowError {
+  row: number
+  field?: string
+  reason: string
+}
+
+export interface ProductCSVImportResponse {
+  success_count: number
+  error_count: number
+  errors: CSVRowError[]
+}
+

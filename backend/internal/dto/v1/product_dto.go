@@ -32,6 +32,18 @@ type ProductDTO struct {
 	ReviewsCount int32   `json:"reviews_count"`
 }
 
+type CSVRowError struct {
+	Row    int    `json:"row"`
+	Field  string `json:"field,omitempty"`
+	Reason string `json:"reason"`
+}
+
+type ProductCSVImportResponse struct {
+	SuccessCount int           `json:"success_count"`
+	ErrorCount   int           `json:"error_count"`
+	Errors       []CSVRowError `json:"errors"`
+}
+
 // ============================================================================
 // 2. REQUEST & QUERY PARAM DTOs
 // ============================================================================
