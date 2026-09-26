@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
+import { useNotificationSettingsStore } from '../stores/notification-settings-store'
 import { notificationKeys } from './use-notifications'
 import type { NotificationDTO } from '../types'
 
@@ -73,15 +74,46 @@ export function useNotificationSocket() {
             const payload = JSON.parse(event.data)
             if (payload?.type === 'notification' && payload?.data) {
               const notif = payload.data as NotificationDTO
+              const notifType = (notif.type || '').toLowerCase()
+              const { soundEnabled, desktopPushEnabled, mutedTypes } =
+                useNotificationSettingsStore.getState()
 
-              // Play subtle audio alert
-              playChimeSound()
+              const isMuted = mutedTypes.some((t) => notifType.includes(t))
 
-              // Show toast notification
-              toast.info(notif.title || 'New Notification', {
-                description: notif.body,
-                duration: 5000,
-              })
+              if (!isMuted) {
+                // Play audio chime if enabled
+                if (soundEnabled) {
+                  playChimeSound()
+                }
+
+                // Show in-app toast
+                toast.info(notif.title || 'New Notification', {
+                  description: notif.body,
+                  duration: 5000,
+                })
+
+                // Show native OS desktop notification when window/tab is in background
+                if (
+                  desktopPushEnabled &&
+                  document.visibilityState === 'hidden' &&
+                  'Notification' in window &&
+                  Notification.permission === 'granted'
+                ) {
+                  try {
+                    const nativeNotif = new Notification(notif.title || 'GOshop Notification', {
+                      body: notif.body || '',
+                      icon: '/favicon.ico',
+                      tag: notif.uuid || notif.notification_uuid,
+                    })
+                    nativeNotif.onclick = () => {
+                      window.focus()
+                      nativeNotif.close()
+                    }
+                  } catch {
+                    // Safe fallback if browser blocks
+                  }
+                }
+              }
 
               // Invalidate notifications queries so UI updates instantly
               queryClient.invalidateQueries({ queryKey: notificationKeys.all })

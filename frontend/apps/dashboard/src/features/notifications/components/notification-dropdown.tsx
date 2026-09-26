@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { Bell, CheckCheck, ExternalLink, RefreshCw, X } from 'lucide-react'
+import { Bell, CheckCheck, ExternalLink, RefreshCw, Settings, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   useAdminNotifications,
@@ -12,6 +12,7 @@ import type {
   NotificationFilterTab,
 } from '../types'
 import { NotificationItem } from './notification-item'
+import { NotificationSettingsDialog } from './notification-settings-dialog'
 
 interface NotificationDropdownProps {
   onClose: () => void
@@ -28,6 +29,7 @@ const TABS: { id: NotificationFilterTab; label: string }[] = [
 
 export function NotificationDropdown({ onClose }: NotificationDropdownProps) {
   const [activeTab, setActiveTab] = useState<NotificationFilterTab>('all')
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const navigate = useNavigate()
   const markAllAsRead = useMarkAllAsRead()
 
@@ -143,6 +145,15 @@ export function NotificationDropdown({ onClose }: NotificationDropdownProps) {
 
           <button
             type='button'
+            onClick={() => setSettingsOpen(true)}
+            className='cursor-pointer rounded-xl p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground'
+            title='Notification preferences'
+          >
+            <Settings className='size-3.5' />
+          </button>
+
+          <button
+            type='button'
             onClick={onClose}
             className='cursor-pointer rounded-xl p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground'
             title='Close'
@@ -227,6 +238,11 @@ export function NotificationDropdown({ onClose }: NotificationDropdownProps) {
           <ExternalLink className='size-3' />
         </button>
       </div>
+
+      <NotificationSettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+      />
     </div>
   )
 }
