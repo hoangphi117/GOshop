@@ -14,6 +14,7 @@ import (
 	"goshop/pkg/logger"
 	"goshop/pkg/mail"
 	"goshop/pkg/rabbitmq"
+	"goshop/pkg/ws"
 	"os/signal"
 	"path/filepath"
 	"sync"
@@ -33,6 +34,7 @@ type Worker struct {
 	cfg                  *config.Config
 	logger               *zerolog.Logger
 	notificationConsumer *worker.NotificationConsumer
+	redisBridge          ws.RedisBridge
 }
 
 func NewWorker(cfg *config.Config) *Worker {
@@ -78,6 +80,10 @@ func NewWorker(cfg *config.Config) *Worker {
 	notificationRepo := repository.NewSqlNotificationRepository(db.DB)
 	userRepo := repository.NewSqlUserRepository(db.DB)
 	notificationService := v1service.NewNotificationService(notificationRepo, userRepo, nil)
+	redisBridge := ws.NewRedisBridge(redisClient, nil)
+	if svc, ok := notificationService.(interface{ SetRedisBridge(ws.RedisBridge) }); ok {
+		svc.SetRedisBridge(redisBridge)
+	}
 	notificationConsumer := worker.NewNotificationConsumer(notificationService, log)
 
 	return &Worker{
@@ -87,6 +93,7 @@ func NewWorker(cfg *config.Config) *Worker {
 		cfg:                  cfg,
 		logger:               log,
 		notificationConsumer: notificationConsumer,
+		redisBridge:          redisBridge,
 	}
 }
 
@@ -170,6 +177,10 @@ func (w *Worker) withIdempotency(queue string, next func(amqp.Table, []byte) err
 
 func (w *Worker) Shutdown(ctx context.Context) error {
 	w.logger.Info().Msg("Shutting down worker...")
+
+	if w.redisBridge != nil {
+		w.redisBridge.Stop()
+	}
 
 	if err := w.rabbitMQ.Close(); err != nil {
 		w.logger.Error().Err(err).Msg("Failed to close RabbitMQ connection")

@@ -12,6 +12,7 @@ import (
 type Hub interface {
 	Register(client *Client)
 	Unregister(client *Client)
+	BroadCastToAdmins(msg WSMessage)
 	BroadcastToUser(userID int32, msg WSMessage)
 	BroadcastToAll(msg WSMessage)
 	IsUserOnline(userID int32) bool
@@ -20,14 +21,16 @@ type Hub interface {
 
 type hub struct {
 	// Registered clients mapped by UserID: map[UserID]map[*Client]bool
-	clients map[int32]map[*Client]bool
-	mu      sync.RWMutex
+	clients      map[int32]map[*Client]bool
+	adminClients map[*Client]bool
+	mu           sync.RWMutex
 }
 
 func NewHub() Hub {
 	return &hub{
-		clients: make(map[int32]map[*Client]bool),
-		mu:      sync.RWMutex{},
+		clients:      make(map[int32]map[*Client]bool),
+		adminClients: make(map[*Client]bool),
+		mu:           sync.RWMutex{},
 	}
 }
 
@@ -40,6 +43,10 @@ func (h *hub) Register(client *Client) {
 	}
 	h.clients[client.UserID][client] = true
 
+	if client.IsAdmin {
+		h.adminClients[client] = true
+	}
+
 	logger.Log.Info().
 		Int32("user_id", client.UserID).
 		Int("active_connections_for_user", len(h.clients[client.UserID])).
@@ -51,14 +58,14 @@ func (h *hub) Unregister(client *Client) {
 	defer h.mu.Unlock()
 
 	if userClients, exists := h.clients[client.UserID]; exists {
-		if _, ok := userClients[client]; ok {
-			delete(userClients, client)
-			client.Close()
-
-			if len(userClients) == 0 {
-				delete(h.clients, client.UserID)
-			}
+		delete(userClients, client)
+		client.Close()
+		if len(userClients) == 0 {
+			delete(h.clients, client.UserID)
 		}
+	}
+	if client.IsAdmin {
+		delete(h.adminClients, client)
 	}
 
 	logger.Log.Info().
@@ -178,6 +185,36 @@ func (h *hub) BroadcastToAll(msg WSMessage) {
 		case client.Send <- payload:
 		default:
 			// Buffer full, unregister problematic client
+			h.Unregister(client)
+		}
+	}
+}
+
+func (h *hub) BroadCastToAdmins(msg WSMessage) {
+	h.mu.RLock()
+	if len(h.adminClients) == 0 {
+		h.mu.RUnlock()
+		return
+	}
+
+	targets := make([]*Client, 0, len(h.adminClients))
+	for client := range h.adminClients {
+		targets = append(targets, client)
+	}
+	h.mu.RUnlock()
+
+	payload, err := json.Marshal(msg)
+	if err != nil {
+		logger.Log.Error().
+			Err(err).
+			Msg("Failed to marshal WebSocket message for broadcast to admins")
+		return
+	}
+
+	for _, client := range targets {
+		select {
+		case client.Send <- payload:
+		default:
 			h.Unregister(client)
 		}
 	}

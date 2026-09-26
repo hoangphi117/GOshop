@@ -13,6 +13,11 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	UserLevelAdmin     = 1
+	UserLevelModerator = 2
+)
+
 type WSHandler struct {
 	hub          ws.Hub
 	jwtService   auth.TokenService
@@ -91,6 +96,8 @@ func (h *WSHandler) HandleWS(ctx *gin.Context) {
 		return
 	}
 
+	isAdmin := user.UserLevel == UserLevelAdmin || user.UserLevel == UserLevelModerator
+
 	// Upgrade the HTTP connection to a WebSocket connection
 	conn, err := ws.Upgrader.Upgrade(ctx.Writer, ctx.Request, nil)
 	if err != nil {
@@ -99,7 +106,7 @@ func (h *WSHandler) HandleWS(ctx *gin.Context) {
 	}
 
 	// Create a new WebSocket client and register it with the hub
-	client := ws.NewClient(h.hub, conn, user.UserID)
+	client := ws.NewClient(h.hub, conn, user.UserID, isAdmin)
 	h.hub.Register(client)
 
 	// Start client pumps in separate goroutines

@@ -24,6 +24,7 @@ type notificationService struct {
 	userRepo         repository.UserRepository
 	wsHub            ws.Hub
 	rabbitMQ         rabbitmq.RabbitMQService
+	redisBridge      ws.RedisBridge
 }
 
 // NewNotificationService creates a new instance of NotificationService.
@@ -252,27 +253,76 @@ func (s *notificationService) marshalData(data any) ([]byte, error) {
 }
 
 func (s *notificationService) broadcastToUser(userID int32, created sqlc.Notification) {
-	if s.wsHub != nil {
-		go s.wsHub.BroadcastToUser(userID, ws.WSMessage{
-			Type: ws.EventTypeNotification,
-			Data: v1dto.MapToNotificationDTO(created),
+	wsMsg := ws.WSMessage{
+		Type: ws.EventTypeNotification,
+		Data: v1dto.MapToNotificationDTO(created),
+	}
+	if s.redisBridge != nil {
+		_ = s.redisBridge.Publish(context.Background(), ws.RedisNotificationEnvelope{
+			UserID:  &userID,
+			IsAdmin: false,
+			Message: wsMsg,
 		})
+		return
+	}
+	// Local fallback
+	if s.wsHub != nil {
+		go s.wsHub.BroadcastToUser(userID, wsMsg)
 	}
 }
 
 func (s *notificationService) broadcastToAll(input v1dto.BroadcastNotificationInput) {
-	if s.wsHub != nil {
-		go s.wsHub.BroadcastToAll(ws.WSMessage{
-			Type: ws.EventTypeNotification,
-			Data: map[string]any{
-				"type":       input.Type,
-				"title":      input.Title,
-				"body":       input.Body,
-				"data":       input.Data,
-				"is_read":    false,
-				"created_at": time.Now().UTC(),
-			},
+	wsMsg := ws.WSMessage{
+		Type: ws.EventTypeNotification,
+		Data: map[string]any{
+			"type":       input.Type,
+			"title":      input.Title,
+			"body":       input.Body,
+			"data":       input.Data,
+			"is_read":    false,
+			"created_at": time.Now().UTC(),
+		},
+	}
+
+	if s.redisBridge != nil {
+		_ = s.redisBridge.Publish(context.Background(), ws.RedisNotificationEnvelope{
+			IsAll:   true,
+			Message: wsMsg,
 		})
+		return
+	}
+
+	if s.wsHub != nil {
+		go s.wsHub.BroadcastToAll(wsMsg)
+	}
+}
+
+func (s *notificationService) broadCastToAdmins(input v1dto.AdminNotifyInput) {
+	wsMsg := ws.WSMessage{
+		Type: ws.EventTypeNotification,
+		Data: map[string]any{
+			"type":       input.Type,
+			"title":      input.Title,
+			"body":       input.Body,
+			"data":       input.Data,
+			"is_read":    false,
+			"created_at": time.Now().UTC(),
+		},
+	}
+	if s.redisBridge != nil {
+		err := s.redisBridge.Publish(context.Background(), ws.RedisNotificationEnvelope{
+			IsAdmin: true,
+			Message: wsMsg,
+		})
+		if err != nil {
+			logger.Log.Error().Err(err).Msg("Failed to publish notification to Redis")
+		}
+		return
+	}
+
+	// Local fallback
+	if s.wsHub != nil {
+		go s.wsHub.BroadCastToAdmins(wsMsg)
 	}
 }
 
@@ -304,35 +354,41 @@ func (s *notificationService) NotifyAdmins(ctx context.Context, input v1dto.Admi
 		return utils.NewError(utils.ErrCodeInternal, "Failed to create admin notification")
 	}
 
-	// Real-time broadcast to all connected admin sockets
-	adminIDs, err := s.userRepo.GetActiveAdminUserIDs(ctx)
-	if err != nil {
-		logger.Log.Error().Err(err).Msg("failed to retrieve active admin user IDs")
+	wsMsg := ws.WSMessage{
+		Type: ws.EventTypeNotification,
+		Data: map[string]any{
+			"type":       input.Type,
+			"title":      input.Title,
+			"body":       input.Body,
+			"data":       input.Data,
+			"is_read":    false,
+			"created_at": time.Now().UTC(),
+		},
+	}
+
+	if s.redisBridge != nil {
+		if err := s.redisBridge.Publish(context.Background(), ws.RedisNotificationEnvelope{
+			IsAdmin: true,
+			Message: wsMsg,
+		}); err != nil {
+			logger.Log.Error().Err(err).Msg("failed to publish admin notification to Redis bridge")
+		}
 		return nil
 	}
 
+	// Local fallback if Redis bridge is not configured
 	if s.wsHub != nil {
-		wsMsg := ws.WSMessage{
-			Type: ws.EventTypeNotification,
-			Data: map[string]any{
-				"type":       input.Type,
-				"title":      input.Title,
-				"body":       input.Body,
-				"data":       input.Data,
-				"is_read":    false,
-				"created_at": time.Now().UTC(),
-			},
-		}
-
-		for _, adminID := range adminIDs {
-			go s.wsHub.BroadcastToUser(adminID, wsMsg)
-		}
+		s.wsHub.BroadCastToAdmins(wsMsg)
 	}
 	return nil
 }
 
 func (s *notificationService) SetRabbitMQ(rabbitMQ rabbitmq.RabbitMQService) {
 	s.rabbitMQ = rabbitMQ
+}
+
+func (s *notificationService) SetRedisBridge(redisBridge ws.RedisBridge) {
+	s.redisBridge = redisBridge
 }
 
 func (s *notificationService) NotifyAdminsAsync(ctx context.Context, input v1dto.AdminNotifyInput) error {

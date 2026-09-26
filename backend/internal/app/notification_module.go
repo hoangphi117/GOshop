@@ -17,7 +17,7 @@ type NotificationModule struct {
 	adminRoutes []routes.Route
 }
 
-func NewNotificationModule(ctx *ModuleContext, wsHub ws.Hub, tokenService auth.TokenService, cacheService cache.RedisCacheService, rabbitmqService rabbitmq.RabbitMQService) *NotificationModule {
+func NewNotificationModule(ctx *ModuleContext, wsHub ws.Hub, tokenService auth.TokenService, cacheService cache.RedisCacheService, rabbitmqService rabbitmq.RabbitMQService, redisBridge ws.RedisBridge) *NotificationModule {
 
 	notificationRepo := repository.NewSqlNotificationRepository(ctx.DB)
 	userRepo := repository.NewSqlUserRepository(ctx.DB)
@@ -25,6 +25,9 @@ func NewNotificationModule(ctx *ModuleContext, wsHub ws.Hub, tokenService auth.T
 	notificationService := v1service.NewNotificationService(notificationRepo, userRepo, wsHub)
 	if svc, ok := notificationService.(interface{ SetRabbitMQ(rabbitmq.RabbitMQService) }); ok {
 		svc.SetRabbitMQ(rabbitmqService)
+	}
+	if svc, ok := notificationService.(interface{ SetRedisBridge(ws.RedisBridge) }); ok {
+		svc.SetRedisBridge(redisBridge)
 	}
 
 	notificationHandler := v1handler.NewNotificationHandler(notificationService)

@@ -34,10 +34,11 @@ type AdminModule interface {
 }
 
 type Application struct {
-	config  *config.Config
-	router  *gin.Engine
-	modules []Module
-	wsHub   ws.Hub
+	config      *config.Config
+	router      *gin.Engine
+	modules     []Module
+	wsHub       ws.Hub
+	redisBridge ws.RedisBridge
 }
 
 type ModuleContext struct {
@@ -93,6 +94,9 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	}
 
 	wsHub := ws.NewHub()
+	redisBridge := ws.NewRedisBridge(redisClient, wsHub)
+	go redisBridge.StartSubscriber(context.Background())
+
 	txManager := db.NewTxManager(db.DBPool)
 
 	ctx := &ModuleContext{
@@ -110,7 +114,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		NewPaymentModule(ctx, cacheRedisService, rabbitmqService, wsHub),
 		NewAddressModule(ctx),
 		NewReviewModule(ctx, wsHub),
-		NewNotificationModule(ctx, wsHub, tokenService, cacheRedisService, rabbitmqService),
+		NewNotificationModule(ctx, wsHub, tokenService, cacheRedisService, rabbitmqService, redisBridge),
 		NewAuthModule(ctx, tokenService, cacheRedisService, mailService, rabbitmqService, cfg.StorefrontURL),
 		NewUploadModule(ctx),
 		NewBannerModule(ctx, cacheRedisService),
@@ -120,10 +124,11 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	routes.RegisterRoutes(r, tokenService, cacheRedisService, getModuleRoutes(modules), getAdminModuleRoutes(modules))
 
 	return &Application{
-		config:  cfg,
-		router:  r,
-		modules: modules,
-		wsHub:   wsHub,
+		config:      cfg,
+		router:      r,
+		modules:     modules,
+		wsHub:       wsHub,
+		redisBridge: redisBridge,
 	}, nil
 }
 
@@ -146,6 +151,10 @@ func (a *Application) Run() error {
 
 	<-quit
 	logger.Log.Warn().Msg("Shutdown signal received...")
+
+	if a.redisBridge != nil {
+		a.redisBridge.Stop()
+	}
 
 	if a.wsHub != nil {
 		a.wsHub.Shutdown()

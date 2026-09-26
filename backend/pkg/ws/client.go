@@ -29,15 +29,17 @@ type Client struct {
 	Conn      *websocket.Conn
 	Send      chan []byte
 	UserID    int32
+	IsAdmin   bool
 	closeOnce sync.Once
 }
 
-func NewClient(hub Hub, conn *websocket.Conn, userID int32) *Client {
+func NewClient(hub Hub, conn *websocket.Conn, userID int32, isAdmin bool) *Client {
 	return &Client{
-		Hub:    hub,
-		Conn:   conn,
-		Send:   make(chan []byte, 256),
-		UserID: userID,
+		Hub:     hub,
+		Conn:    conn,
+		Send:    make(chan []byte, 256),
+		UserID:  userID,
+		IsAdmin: isAdmin,
 	}
 }
 
@@ -45,7 +47,9 @@ func NewClient(hub Hub, conn *websocket.Conn, userID int32) *Client {
 func (c *Client) Close() {
 	c.closeOnce.Do(func() {
 		close(c.Send)
-		_ = c.Conn.Close()
+		if c.Conn != nil {
+			_ = c.Conn.Close()
+		}
 	})
 }
 
