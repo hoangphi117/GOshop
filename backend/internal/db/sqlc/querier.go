@@ -6,6 +6,7 @@ package sqlc
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -71,6 +72,7 @@ type Querier interface {
 	DeleteCartItemsByProductIDs(ctx context.Context, arg DeleteCartItemsByProductIDsParams) error
 	DeleteHelpfulVote(ctx context.Context, arg DeleteHelpfulVoteParams) error
 	DeleteNotification(ctx context.Context, arg DeleteNotificationParams) error
+	DeleteOldNotifications(ctx context.Context, notificationCreatedAt time.Time) (int64, error)
 	DeleteReview(ctx context.Context, reviewID int32) error
 	DeleteReviewReportsByReviewID(ctx context.Context, reviewID int32) error
 	DeleteUserAddress(ctx context.Context, arg DeleteUserAddressParams) (bool, error)

@@ -87,3 +87,8 @@ SELECT COUNT(*) FROM notifications
 WHERE notification_user_id = sqlc.arg(user_id)
   AND (sqlc.narg(type)::TEXT IS NULL OR notification_type = sqlc.narg(type)::TEXT)
   AND (sqlc.narg(is_read)::BOOLEAN IS NULL OR notification_is_read = sqlc.narg(is_read)::BOOLEAN);
+
+-- name: DeleteOldNotifications :execrows
+DELETE FROM notifications
+WHERE notification_is_read = TRUE
+  AND notification_created_at < $1;

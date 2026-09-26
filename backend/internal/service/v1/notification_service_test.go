@@ -748,4 +748,37 @@ func TestNotificationService_SendAsync(t *testing.T) {
 	})
 }
 
+func TestNotificationService_PurgeStaleNotifications(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("successfully purges stale read notifications", func(t *testing.T) {
+		mockNotifRepo := &testutils.MockNotificationRepository{
+			DeleteOldReadNotificationsFunc: func(ctx context.Context, cutoff time.Time) (int64, error) {
+				return 42, nil
+			},
+		}
+
+		svc := v1service.NewNotificationService(mockNotifRepo, &testutils.MockUserRepository{}, nil)
+		deleted, err := svc.PurgeStaleNotifications(ctx, 30)
+
+		require.NoError(t, err)
+		assert.Equal(t, int64(42), deleted)
+	})
+
+	t.Run("returns internal error when repository fails", func(t *testing.T) {
+		mockNotifRepo := &testutils.MockNotificationRepository{
+			DeleteOldReadNotificationsFunc: func(ctx context.Context, cutoff time.Time) (int64, error) {
+				return 0, errors.New("database timeout")
+			},
+		}
+
+		svc := v1service.NewNotificationService(mockNotifRepo, &testutils.MockUserRepository{}, nil)
+		deleted, err := svc.PurgeStaleNotifications(ctx, 30)
+
+		require.Error(t, err)
+		assert.Equal(t, int64(0), deleted)
+	})
+}
+
+
 

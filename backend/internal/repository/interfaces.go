@@ -202,6 +202,7 @@ type NotificationRepository interface {
 	MarkAsRead(ctx context.Context, notifUUID uuid.UUID, userID int32) (sqlc.Notification, error)
 	MarkAllAsRead(ctx context.Context, userID int32) error
 	Delete(ctx context.Context, notifUUID uuid.UUID, userID int32) error
+	DeleteOldReadNotifications(ctx context.Context, cutoff time.Time) (int64, error)
 }
 
 type BannerRepository interface {

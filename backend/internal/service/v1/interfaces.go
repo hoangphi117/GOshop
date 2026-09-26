@@ -183,6 +183,7 @@ type NotificationService interface {
 	MarkNotificationAsRead(ctx context.Context, userUUID uuid.UUID, notificationUUID uuid.UUID) (v1dto.NotificationDTO, error)
 	MarkAllNotificationsAsRead(ctx context.Context, userUUID uuid.UUID) error
 	DeleteNotification(ctx context.Context, userUUID uuid.UUID, notificationUUID uuid.UUID) error
+	PurgeStaleNotifications(ctx context.Context, retentionDays int) (int64, error)
 }
 
 type BannerService interface {

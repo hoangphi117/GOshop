@@ -132,6 +132,7 @@ type MockNotificationService struct {
 	NotifyAdminsFunc               func(ctx context.Context, input v1dto.AdminNotifyInput) error
 	NotifyAdminsAsyncFunc          func(ctx context.Context, input v1dto.AdminNotifyInput) error
 	GetAdminNotificationsFunc      func(ctx context.Context, userUUID uuid.UUID, query v1dto.AdminGetNotificationsQuery) ([]v1dto.NotificationDTO, int32, error)
+	PurgeStaleNotificationsFunc    func(ctx context.Context, retentionDays int) (int64, error)
 }
 
 func (m *MockNotificationService) Send(ctx context.Context, input v1dto.SendNotificationInput) error {
@@ -222,6 +223,13 @@ func (m *MockNotificationService) GetAdminNotifications(ctx context.Context, use
 		return m.GetAdminNotificationsFunc(ctx, userUUID, query)
 	}
 	return nil, 0, nil
+}
+
+func (m *MockNotificationService) PurgeStaleNotifications(ctx context.Context, retentionDays int) (int64, error) {
+	if m.PurgeStaleNotificationsFunc != nil {
+		return m.PurgeStaleNotificationsFunc(ctx, retentionDays)
+	}
+	return 0, nil
 }
 
 type MockCartService struct {

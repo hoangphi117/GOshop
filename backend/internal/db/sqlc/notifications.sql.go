@@ -7,6 +7,7 @@ package sqlc
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -178,6 +179,20 @@ type DeleteNotificationParams struct {
 func (q *Queries) DeleteNotification(ctx context.Context, arg DeleteNotificationParams) error {
 	_, err := q.db.Exec(ctx, deleteNotification, arg.NotificationUuid, arg.UserID)
 	return err
+}
+
+const deleteOldNotifications = `-- name: DeleteOldNotifications :execrows
+DELETE FROM notifications
+WHERE notification_is_read = TRUE
+  AND notification_created_at < $1
+`
+
+func (q *Queries) DeleteOldNotifications(ctx context.Context, notificationCreatedAt time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteOldNotifications, notificationCreatedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const getAdminNotifications = `-- name: GetAdminNotifications :many

@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"goshop/internal/db/sqlc"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -101,4 +102,8 @@ func (r *SqlNotificationRepository) CountAdminNotifications(ctx context.Context,
 		return 0, err
 	}
 	return count, nil
+}
+
+func (r *SqlNotificationRepository) DeleteOldReadNotifications(ctx context.Context, cutoff time.Time) (int64, error) {
+	return r.db.DeleteOldNotifications(ctx, cutoff)
 }

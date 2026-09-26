@@ -1268,6 +1268,7 @@ type MockNotificationRepository struct {
 	CreateForAdminsFunc         func(ctx context.Context, nType, title, body string, data []byte) error
 	GetAdminNotificationsFunc   func(ctx context.Context, userID int32, nType *string, isRead *bool, limit, offset int32) ([]sqlc.Notification, error)
 	CountAdminNotificationsFunc func(ctx context.Context, userID int32, nType *string, isRead *bool) (int64, error)
+	DeleteOldReadNotificationsFunc func(ctx context.Context, cutoff time.Time) (int64, error)
 }
 
 func (m *MockNotificationRepository) Create(ctx context.Context, params sqlc.CreateNotificationParams) (sqlc.Notification, error) {
@@ -1343,6 +1344,13 @@ func (m *MockNotificationRepository) GetAdminNotifications(ctx context.Context, 
 func (m *MockNotificationRepository) CountAdminNotifications(ctx context.Context, userID int32, nType *string, isRead *bool) (int64, error) {
 	if m.CountAdminNotificationsFunc != nil {
 		return m.CountAdminNotificationsFunc(ctx, userID, nType, isRead)
+	}
+	return 0, nil
+}
+
+func (m *MockNotificationRepository) DeleteOldReadNotifications(ctx context.Context, cutoff time.Time) (int64, error) {
+	if m.DeleteOldReadNotificationsFunc != nil {
+		return m.DeleteOldReadNotificationsFunc(ctx, cutoff)
 	}
 	return 0, nil
 }

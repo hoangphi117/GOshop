@@ -341,6 +341,20 @@ func (s *notificationService) normalizePagination(query v1dto.GetNotificationsQu
 	return limit, offset
 }
 
+func (s *notificationService) PurgeStaleNotifications(ctx context.Context, retentionDays int) (int64, error) {
+	if retentionDays <= 0 {
+		retentionDays = 30 // Default to 30 days if not specified
+	}
+
+	cutoff := time.Now().UTC().AddDate(0, 0, -retentionDays)
+	count, err := s.notificationRepo.DeleteOldReadNotifications(ctx, cutoff)
+	if err != nil {
+		logger.Log.Error().Err(err).Int("retention_days", retentionDays).Msg("Failed to purge stale notifications")
+		return 0, utils.NewError(utils.ErrCodeInternal, "Failed to purge stale notifications")
+	}
+	return count, nil
+}
+
 // ── Admin ────────────────────────────────────
 
 func (s *notificationService) NotifyAdmins(ctx context.Context, input v1dto.AdminNotifyInput) error {
