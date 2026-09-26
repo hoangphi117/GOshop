@@ -15,11 +15,8 @@ import {
   MoreHorizontal,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { Header } from '@/components/layout/header'
+import { DashboardHeader } from '@/components/layout/dashboard-header'
 import { Main } from '@/components/layout/main'
-import { ProfileDropdown } from '@/components/profile-dropdown'
-import { Search } from '@/components/search'
-import { ThemeSwitch } from '@/components/theme-switch'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -187,13 +184,7 @@ export function Reviews() {
 
   return (
     <>
-      <Header fixed>
-        <Search />
-        <div className="ml-auto flex items-center space-x-4">
-          <ThemeSwitch />
-          <ProfileDropdown />
-        </div>
-      </Header>
+      <DashboardHeader fixed />
 
       <Main className="space-y-6">
         {/* Page Title */}

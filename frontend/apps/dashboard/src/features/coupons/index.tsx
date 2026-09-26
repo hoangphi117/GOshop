@@ -1,11 +1,8 @@
 import { useState } from 'react'
 import { Plus, Search as SearchIcon, Edit2, Trash2, Tag, Calendar } from 'lucide-react'
 import { toast } from 'sonner'
-import { Header } from '@/components/layout/header'
+import { DashboardHeader } from '@/components/layout/dashboard-header'
 import { Main } from '@/components/layout/main'
-import { ProfileDropdown } from '@/components/profile-dropdown'
-import { Search } from '@/components/search'
-import { ThemeSwitch } from '@/components/theme-switch'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -101,11 +98,7 @@ export function Coupons() {
 
   return (
     <>
-      <Header fixed>
-        <Search className='me-auto' />
-        <ThemeSwitch />
-        <ProfileDropdown />
-      </Header>
+      <DashboardHeader fixed />
 
       <Main className='flex flex-1 flex-col gap-4 sm:gap-6'>
         <div className='flex flex-wrap items-end justify-between gap-2'>

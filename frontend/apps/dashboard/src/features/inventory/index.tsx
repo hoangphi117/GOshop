@@ -8,11 +8,8 @@ import {
   TrendingUp,
   TrendingDown,
 } from 'lucide-react'
-import { Header } from '@/components/layout/header'
+import { DashboardHeader } from '@/components/layout/dashboard-header'
 import { Main } from '@/components/layout/main'
-import { ProfileDropdown } from '@/components/profile-dropdown'
-import { Search } from '@/components/search'
-import { ThemeSwitch } from '@/components/theme-switch'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -74,11 +71,7 @@ export function Inventory() {
 
   return (
     <>
-      <Header fixed>
-        <Search className='me-auto' />
-        <ThemeSwitch />
-        <ProfileDropdown />
-      </Header>
+      <DashboardHeader fixed />
 
       <Main className='flex flex-1 flex-col gap-4 sm:gap-6'>
         {/* Title and Adjust Action */}

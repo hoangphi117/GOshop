@@ -27,11 +27,8 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Header } from '@/components/layout/header'
+import { DashboardHeader } from '@/components/layout/dashboard-header'
 import { Main } from '@/components/layout/main'
-import { ProfileDropdown } from '@/components/profile-dropdown'
-import { Search } from '@/components/search'
-import { ThemeSwitch } from '@/components/theme-switch'
 import { useOrderDetails, useOrderMutations } from '../hooks/use-orders'
 import { ShippingTab } from './shipping-tab'
 import { ReturnsTab } from './returns-tab'
@@ -118,11 +115,7 @@ export function OrderDetail({ uuid }: { uuid: string }) {
   if (isLoading) {
     return (
       <>
-        <Header fixed>
-          <Search className='me-auto' />
-          <ThemeSwitch />
-          <ProfileDropdown />
-        </Header>
+        <DashboardHeader fixed />
         <Main className='flex flex-1 flex-col gap-6'>
           <div className='flex items-center gap-3'>
             <Skeleton className='h-9 w-9' />
@@ -141,11 +134,7 @@ export function OrderDetail({ uuid }: { uuid: string }) {
   if (!order) {
     return (
       <>
-        <Header fixed>
-          <Search className='me-auto' />
-          <ThemeSwitch />
-          <ProfileDropdown />
-        </Header>
+        <DashboardHeader fixed />
         <Main className='flex flex-1 flex-col items-center justify-center gap-4'>
           <Package className='size-12 text-muted-foreground' />
           <p className='text-muted-foreground'>Order not found</p>
@@ -159,11 +148,7 @@ export function OrderDetail({ uuid }: { uuid: string }) {
 
   return (
     <>
-      <Header fixed>
-        <Search className='me-auto' />
-        <ThemeSwitch />
-        <ProfileDropdown />
-      </Header>
+      <DashboardHeader fixed />
 
       <Main className='flex flex-1 flex-col gap-4 sm:gap-6'>
         {/* Page Header */}
