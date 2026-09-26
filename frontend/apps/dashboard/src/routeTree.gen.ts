@@ -30,6 +30,7 @@ import { Route as AuthenticatedCouponsIndexRouteImport } from './routes/_authent
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
 import { Route as AuthenticatedHelpCenterIndexRouteImport } from './routes/_authenticated/help-center/index'
 import { Route as AuthenticatedInventoryIndexRouteImport } from './routes/_authenticated/inventory/index'
+import { Route as AuthenticatedNotificationsIndexRouteImport } from './routes/_authenticated/notifications/index'
 import { Route as AuthenticatedOrdersIndexRouteImport } from './routes/_authenticated/orders/index'
 import { Route as AuthenticatedOrdersUuidRouteImport } from './routes/_authenticated/orders/$uuid'
 import { Route as AuthenticatedProductsIndexRouteImport } from './routes/_authenticated/products/index'
@@ -154,6 +155,12 @@ const AuthenticatedInventoryIndexRoute =
     path: '/inventory/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedNotificationsIndexRoute =
+  AuthenticatedNotificationsIndexRouteImport.update({
+    id: '/notifications/',
+    path: '/notifications/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedOrdersIndexRoute =
   AuthenticatedOrdersIndexRouteImport.update({
     id: '/orders/',
@@ -250,6 +257,7 @@ export interface FileRoutesByFullPath {
   '/coupons/': typeof AuthenticatedCouponsIndexRoute
   '/help-center/': typeof AuthenticatedHelpCenterIndexRoute
   '/inventory/': typeof AuthenticatedInventoryIndexRoute
+  '/notifications/': typeof AuthenticatedNotificationsIndexRoute
   '/orders/': typeof AuthenticatedOrdersIndexRoute
   '/products/': typeof AuthenticatedProductsIndexRoute
   '/returns/': typeof AuthenticatedReturnsIndexRoute
@@ -283,6 +291,7 @@ export interface FileRoutesByTo {
   '/coupons': typeof AuthenticatedCouponsIndexRoute
   '/help-center': typeof AuthenticatedHelpCenterIndexRoute
   '/inventory': typeof AuthenticatedInventoryIndexRoute
+  '/notifications': typeof AuthenticatedNotificationsIndexRoute
   '/orders': typeof AuthenticatedOrdersIndexRoute
   '/products': typeof AuthenticatedProductsIndexRoute
   '/returns': typeof AuthenticatedReturnsIndexRoute
@@ -319,6 +328,7 @@ export interface FileRoutesById {
   '/_authenticated/coupons/': typeof AuthenticatedCouponsIndexRoute
   '/_authenticated/help-center/': typeof AuthenticatedHelpCenterIndexRoute
   '/_authenticated/inventory/': typeof AuthenticatedInventoryIndexRoute
+  '/_authenticated/notifications/': typeof AuthenticatedNotificationsIndexRoute
   '/_authenticated/orders/': typeof AuthenticatedOrdersIndexRoute
   '/_authenticated/products/': typeof AuthenticatedProductsIndexRoute
   '/_authenticated/returns/': typeof AuthenticatedReturnsIndexRoute
@@ -355,6 +365,7 @@ export interface FileRouteTypes {
     | '/coupons/'
     | '/help-center/'
     | '/inventory/'
+    | '/notifications/'
     | '/orders/'
     | '/products/'
     | '/returns/'
@@ -388,6 +399,7 @@ export interface FileRouteTypes {
     | '/coupons'
     | '/help-center'
     | '/inventory'
+    | '/notifications'
     | '/orders'
     | '/products'
     | '/returns'
@@ -423,6 +435,7 @@ export interface FileRouteTypes {
     | '/_authenticated/coupons/'
     | '/_authenticated/help-center/'
     | '/_authenticated/inventory/'
+    | '/_authenticated/notifications/'
     | '/_authenticated/orders/'
     | '/_authenticated/products/'
     | '/_authenticated/returns/'
@@ -595,6 +608,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedInventoryIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/notifications/': {
+      id: '/_authenticated/notifications/'
+      path: '/notifications'
+      fullPath: '/notifications/'
+      preLoaderRoute: typeof AuthenticatedNotificationsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/orders/': {
       id: '/_authenticated/orders/'
       path: '/orders'
@@ -717,6 +737,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedCouponsIndexRoute: typeof AuthenticatedCouponsIndexRoute
   AuthenticatedHelpCenterIndexRoute: typeof AuthenticatedHelpCenterIndexRoute
   AuthenticatedInventoryIndexRoute: typeof AuthenticatedInventoryIndexRoute
+  AuthenticatedNotificationsIndexRoute: typeof AuthenticatedNotificationsIndexRoute
   AuthenticatedOrdersIndexRoute: typeof AuthenticatedOrdersIndexRoute
   AuthenticatedProductsIndexRoute: typeof AuthenticatedProductsIndexRoute
   AuthenticatedReturnsIndexRoute: typeof AuthenticatedReturnsIndexRoute
@@ -737,6 +758,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCouponsIndexRoute: AuthenticatedCouponsIndexRoute,
   AuthenticatedHelpCenterIndexRoute: AuthenticatedHelpCenterIndexRoute,
   AuthenticatedInventoryIndexRoute: AuthenticatedInventoryIndexRoute,
+  AuthenticatedNotificationsIndexRoute: AuthenticatedNotificationsIndexRoute,
   AuthenticatedOrdersIndexRoute: AuthenticatedOrdersIndexRoute,
   AuthenticatedProductsIndexRoute: AuthenticatedProductsIndexRoute,
   AuthenticatedReturnsIndexRoute: AuthenticatedReturnsIndexRoute,

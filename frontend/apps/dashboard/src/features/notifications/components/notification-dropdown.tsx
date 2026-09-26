@@ -230,11 +230,11 @@ export function NotificationDropdown({ onClose }: NotificationDropdownProps) {
           type='button'
           onClick={() => {
             onClose()
-            navigate({ to: '/orders' })
+            navigate({ to: '/notifications' })
           }}
           className='inline-flex cursor-pointer items-center gap-1.5 text-xs font-bold text-primary transition-colors hover:underline'
         >
-          <span>View Order Activity</span>
+          <span>View All Notifications</span>
           <ExternalLink className='size-3' />
         </button>
       </div>
