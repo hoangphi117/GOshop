@@ -110,7 +110,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		NewPaymentModule(ctx, cacheRedisService, rabbitmqService, wsHub),
 		NewAddressModule(ctx),
 		NewReviewModule(ctx, wsHub),
-		NewNotificationModule(ctx, wsHub, tokenService, cacheRedisService),
+		NewNotificationModule(ctx, wsHub, tokenService, cacheRedisService, rabbitmqService),
 		NewAuthModule(ctx, tokenService, cacheRedisService, mailService, rabbitmqService, cfg.StorefrontURL),
 		NewUploadModule(ctx),
 		NewBannerModule(ctx, cacheRedisService),

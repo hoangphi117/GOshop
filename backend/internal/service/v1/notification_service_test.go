@@ -12,6 +12,7 @@ import (
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/testutils"
 	"goshop/internal/utils"
+	"goshop/pkg/rabbitmq"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -631,4 +632,120 @@ func TestNotificationService_GetAdminNotifications(t *testing.T) {
 		assert.Equal(t, "New Order Received", dtos[0].Title)
 	})
 }
+
+func TestNotificationService_NotifyAdminsAsync(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Case 1: RabbitMQ Present -> Publishes Event to Queue", func(t *testing.T) {
+		published := false
+		mockRabbit := &testutils.MockRabbitMQService{
+			PublishFunc: func(ctx context.Context, queue string, message any) error {
+				assert.Equal(t, rabbitmq.QueueNotificationEvents, queue)
+				event, ok := message.(rabbitmq.NotificationEvent)
+				assert.True(t, ok)
+				assert.Nil(t, event.UserID)
+				assert.Equal(t, "order", event.Type)
+				assert.Equal(t, "New Order", event.Title)
+				published = true
+				return nil
+			},
+		}
+
+		svc := v1service.NewNotificationService(nil, nil, nil)
+		if s, ok := svc.(interface{ SetRabbitMQ(rabbitmq.RabbitMQService) }); ok {
+			s.SetRabbitMQ(mockRabbit)
+		}
+
+		err := svc.NotifyAdminsAsync(ctx, v1dto.AdminNotifyInput{
+			Type:  "order",
+			Title: "New Order",
+			Body:  "Order placed",
+		})
+
+		require.NoError(t, err)
+		assert.True(t, published)
+	})
+
+	t.Run("Case 2: RabbitMQ Nil -> Fallback to Synchronous NotifyAdmins", func(t *testing.T) {
+		synced := false
+		mockNotifRepo := &testutils.MockNotificationRepository{
+			CreateForAdminsFunc: func(ctx context.Context, nType, title, body string, data []byte) error {
+				synced = true
+				return nil
+			},
+		}
+		mockUserRepo := &testutils.MockUserRepository{
+			GetActiveAdminUserIDsFunc: func(ctx context.Context) ([]int32, error) {
+				return []int32{1}, nil
+			},
+		}
+
+		svc := v1service.NewNotificationService(mockNotifRepo, mockUserRepo, nil)
+		err := svc.NotifyAdminsAsync(ctx, v1dto.AdminNotifyInput{
+			Type:  "order",
+			Title: "New Order",
+			Body:  "Order placed",
+		})
+
+		require.NoError(t, err)
+		assert.True(t, synced)
+	})
+}
+
+func TestNotificationService_SendAsync(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Case 1: RabbitMQ Present -> Publishes Customer Event to Queue", func(t *testing.T) {
+		published := false
+		mockRabbit := &testutils.MockRabbitMQService{
+			PublishFunc: func(ctx context.Context, queue string, message any) error {
+				assert.Equal(t, rabbitmq.QueueNotificationEvents, queue)
+				event, ok := message.(rabbitmq.NotificationEvent)
+				assert.True(t, ok)
+				require.NotNil(t, event.UserID)
+				assert.Equal(t, int32(10), *event.UserID)
+				assert.Equal(t, "order_created", event.Type)
+				published = true
+				return nil
+			},
+		}
+
+		svc := v1service.NewNotificationService(nil, nil, nil)
+		if s, ok := svc.(interface{ SetRabbitMQ(rabbitmq.RabbitMQService) }); ok {
+			s.SetRabbitMQ(mockRabbit)
+		}
+
+		err := svc.SendAsync(ctx, v1dto.SendNotificationInput{
+			UserID: 10,
+			Type:   "order_created",
+			Title:  "Order Confirmed",
+			Body:   "Order confirmed",
+		})
+
+		require.NoError(t, err)
+		assert.True(t, published)
+	})
+
+	t.Run("Case 2: RabbitMQ Nil -> Fallback to Synchronous Send", func(t *testing.T) {
+		synced := false
+		mockNotifRepo := &testutils.MockNotificationRepository{
+			CreateFunc: func(ctx context.Context, params sqlc.CreateNotificationParams) (sqlc.Notification, error) {
+				synced = true
+				return sqlc.Notification{NotificationID: 1}, nil
+			},
+		}
+
+		svc := v1service.NewNotificationService(mockNotifRepo, nil, nil)
+		err := svc.SendAsync(ctx, v1dto.SendNotificationInput{
+			UserID: 10,
+			Type:   "order_created",
+			Title:  "Order Confirmed",
+			Body:   "Order confirmed",
+		})
+
+		require.NoError(t, err)
+		assert.True(t, synced)
+	})
+}
+
 

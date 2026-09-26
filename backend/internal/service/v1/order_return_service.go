@@ -170,7 +170,7 @@ func (s *orderReturnService) RequestOrderReturn(ctx context.Context, userUUID uu
 
 	if s.notificationService != nil {
 		go func() {
-			_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
+			_ = s.notificationService.SendAsync(context.Background(), v1dto.SendNotificationInput{
 				UserID: order.OrderUserID,
 				Type:   "return_requested",
 				Title:  "Return Request Received",
@@ -178,6 +178,17 @@ func (s *orderReturnService) RequestOrderReturn(ctx context.Context, userUUID uu
 				Data: map[string]any{
 					"order_uuid":  orderUUID.String(),
 					"return_uuid": createdReturn.ReturnUuid.String(),
+				},
+			})
+
+			_ = s.notificationService.NotifyAdminsAsync(context.Background(), v1dto.AdminNotifyInput{
+				Type:  "order_return",
+				Title: "New Return Requested",
+				Body:  fmt.Sprintf("Return requested for order #%s: %s", order.OrderNumber, createdReturn.ReturnReason),
+				Data: map[string]any{
+					"order_uuid":  orderUUID.String(),
+					"return_uuid": createdReturn.ReturnUuid.String(),
+					"link":        "/returns",
 				},
 			})
 		}()

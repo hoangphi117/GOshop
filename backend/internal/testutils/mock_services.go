@@ -121,6 +121,7 @@ func (m *MockInventoryService) ListStockMovements(ctx context.Context, params v1
 
 type MockNotificationService struct {
 	SendFunc                       func(ctx context.Context, input v1dto.SendNotificationInput) error
+	SendAsyncFunc                  func(ctx context.Context, input v1dto.SendNotificationInput) error
 	CreateNotificationFunc         func(ctx context.Context, input v1dto.CreateNotificationInput) (v1dto.NotificationDTO, error)
 	BroadcastNotificationFunc      func(ctx context.Context, input v1dto.BroadcastNotificationInput) error
 	GetMyNotificationsFunc         func(ctx context.Context, userUUID uuid.UUID, query v1dto.GetNotificationsQuery) ([]v1dto.NotificationDTO, int32, error)
@@ -129,10 +130,21 @@ type MockNotificationService struct {
 	MarkAllNotificationsAsReadFunc func(ctx context.Context, userUUID uuid.UUID) error
 	DeleteNotificationFunc         func(ctx context.Context, userUUID uuid.UUID, notificationUUID uuid.UUID) error
 	NotifyAdminsFunc               func(ctx context.Context, input v1dto.AdminNotifyInput) error
+	NotifyAdminsAsyncFunc          func(ctx context.Context, input v1dto.AdminNotifyInput) error
 	GetAdminNotificationsFunc      func(ctx context.Context, userUUID uuid.UUID, query v1dto.AdminGetNotificationsQuery) ([]v1dto.NotificationDTO, int32, error)
 }
 
 func (m *MockNotificationService) Send(ctx context.Context, input v1dto.SendNotificationInput) error {
+	if m.SendFunc != nil {
+		return m.SendFunc(ctx, input)
+	}
+	return nil
+}
+
+func (m *MockNotificationService) SendAsync(ctx context.Context, input v1dto.SendNotificationInput) error {
+	if m.SendAsyncFunc != nil {
+		return m.SendAsyncFunc(ctx, input)
+	}
 	if m.SendFunc != nil {
 		return m.SendFunc(ctx, input)
 	}
@@ -189,6 +201,16 @@ func (m *MockNotificationService) DeleteNotification(ctx context.Context, userUU
 }
 
 func (m *MockNotificationService) NotifyAdmins(ctx context.Context, input v1dto.AdminNotifyInput) error {
+	if m.NotifyAdminsFunc != nil {
+		return m.NotifyAdminsFunc(ctx, input)
+	}
+	return nil
+}
+
+func (m *MockNotificationService) NotifyAdminsAsync(ctx context.Context, input v1dto.AdminNotifyInput) error {
+	if m.NotifyAdminsAsyncFunc != nil {
+		return m.NotifyAdminsAsyncFunc(ctx, input)
+	}
 	if m.NotifyAdminsFunc != nil {
 		return m.NotifyAdminsFunc(ctx, input)
 	}

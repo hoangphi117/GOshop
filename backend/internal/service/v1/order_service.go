@@ -297,8 +297,8 @@ func (s *orderService) CreateOrder(ctx context.Context, userUUID uuid.UUID, inpu
 	// Clear related caches
 	s.InvalidateOrderCaches(user.UserUuid)
 
-	// Send order creation notification asynchronously
-	notifyErr := s.notificationService.Send(ctx, v1dto.SendNotificationInput{
+	// Send customer notification asynchronously via event queue
+	notifyErr := s.notificationService.SendAsync(ctx, v1dto.SendNotificationInput{
 		UserID: order.OrderUserID,
 		Type:   "order_created",
 		Title:  "Order Placed Successfully",
@@ -312,6 +312,20 @@ func (s *orderService) CreateOrder(ctx context.Context, userUUID uuid.UUID, inpu
 			Int32("user_id", order.OrderUserID).
 			Str("order_number", order.OrderNumber).
 			Msg("Failed to send order creation notification")
+	}
+
+	// Notify admins asynchronously via RabbitMQ
+	if s.notificationService != nil {
+		_ = s.notificationService.NotifyAdminsAsync(ctx, v1dto.AdminNotifyInput{
+			Type:  "order",
+			Title: "New Order Received",
+			Body:  fmt.Sprintf("Order #%s placed for $%.2f", order.OrderNumber, utils.NumericToFloat(order.OrderTotalAmount)),
+			Data: map[string]any{
+				"order_uuid":   order.OrderUuid.String(),
+				"order_number": order.OrderNumber,
+				"link":         fmt.Sprintf("/orders/%s", order.OrderUuid),
+			},
+		})
 	}
 
 	return order, orderItemsWithDetails, nil

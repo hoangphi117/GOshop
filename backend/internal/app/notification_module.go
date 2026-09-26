@@ -8,6 +8,7 @@ import (
 	v1service "goshop/internal/service/v1"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
+	"goshop/pkg/rabbitmq"
 	"goshop/pkg/ws"
 )
 
@@ -16,12 +17,15 @@ type NotificationModule struct {
 	adminRoutes []routes.Route
 }
 
-func NewNotificationModule(ctx *ModuleContext, wsHub ws.Hub, tokenService auth.TokenService, cacheService cache.RedisCacheService) *NotificationModule {
+func NewNotificationModule(ctx *ModuleContext, wsHub ws.Hub, tokenService auth.TokenService, cacheService cache.RedisCacheService, rabbitmqService rabbitmq.RabbitMQService) *NotificationModule {
 
 	notificationRepo := repository.NewSqlNotificationRepository(ctx.DB)
 	userRepo := repository.NewSqlUserRepository(ctx.DB)
 
 	notificationService := v1service.NewNotificationService(notificationRepo, userRepo, wsHub)
+	if svc, ok := notificationService.(interface{ SetRabbitMQ(rabbitmq.RabbitMQService) }); ok {
+		svc.SetRabbitMQ(rabbitmqService)
+	}
 
 	notificationHandler := v1handler.NewNotificationHandler(notificationService)
 

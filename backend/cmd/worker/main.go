@@ -5,7 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"goshop/internal/config"
+	"goshop/internal/db"
+	"goshop/internal/repository"
+	v1service "goshop/internal/service/v1"
 	"goshop/internal/utils"
+	"goshop/internal/worker"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 	"goshop/pkg/mail"
@@ -23,11 +27,12 @@ import (
 )
 
 type Worker struct {
-	rabbitMQ    rabbitmq.RabbitMQService
-	mailService mail.EmailProviderService
-	cache       cache.RedisCacheService
-	cfg         *config.Config
-	logger      *zerolog.Logger
+	rabbitMQ             rabbitmq.RabbitMQService
+	mailService          mail.EmailProviderService
+	cache                cache.RedisCacheService
+	cfg                  *config.Config
+	logger               *zerolog.Logger
+	notificationConsumer *worker.NotificationConsumer
 }
 
 func NewWorker(cfg *config.Config) *Worker {
@@ -65,12 +70,23 @@ func NewWorker(cfg *config.Config) *Worker {
 		return nil
 	}
 
+	// Add DB & NotificationConsumer initialization into worker
+	if err := db.InitDB(); err != nil {
+		log.Fatal().Err(err).Msg("Failed to initialize database for worker")
+	}
+
+	notificationRepo := repository.NewSqlNotificationRepository(db.DB)
+	userRepo := repository.NewSqlUserRepository(db.DB)
+	notificationService := v1service.NewNotificationService(notificationRepo, userRepo, nil)
+	notificationConsumer := worker.NewNotificationConsumer(notificationService, log)
+
 	return &Worker{
-		rabbitMQ:    rabbitMQ,
-		mailService: mailService,
-		cache:       cacheService,
-		cfg:         cfg,
-		logger:      log,
+		rabbitMQ:             rabbitMQ,
+		mailService:          mailService,
+		cache:                cacheService,
+		cfg:                  cfg,
+		logger:               log,
+		notificationConsumer: notificationConsumer,
 	}
 }
 
@@ -108,6 +124,14 @@ func (w *Worker) Start(ctx context.Context) error {
 	}
 
 	w.logger.Info().Msgf("Worker started and consuming email queue: %s", emailQueueName)
+
+	// Consume Unified Notification Events (Customer & Admin)
+	notifHandler := w.withIdempotency(rabbitmq.QueueNotificationEvents, w.notificationConsumer.Handle)
+	if err := w.rabbitMQ.Consume(ctx, rabbitmq.QueueNotificationEvents, notifHandler); err != nil {
+		w.logger.Error().Err(err).Msg("Failed to consume notification events")
+		return err
+	}
+	w.logger.Info().Msgf("Worker consuming queue: %s", rabbitmq.QueueNotificationEvents)
 
 	<-ctx.Done()
 

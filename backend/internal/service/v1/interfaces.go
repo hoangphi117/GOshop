@@ -172,8 +172,10 @@ type ReviewService interface {
 
 type NotificationService interface {
 	Send(ctx context.Context, input v1dto.SendNotificationInput) error
+	SendAsync(ctx context.Context, input v1dto.SendNotificationInput) error
 	CreateNotification(ctx context.Context, input v1dto.CreateNotificationInput) (v1dto.NotificationDTO, error)
 	NotifyAdmins(ctx context.Context, input v1dto.AdminNotifyInput) error
+	NotifyAdminsAsync(ctx context.Context, input v1dto.AdminNotifyInput) error
 	BroadcastNotification(ctx context.Context, input v1dto.BroadcastNotificationInput) error
 	GetMyNotifications(ctx context.Context, userUUID uuid.UUID, query v1dto.GetNotificationsQuery) ([]v1dto.NotificationDTO, int32, error)
 	GetAdminNotifications(ctx context.Context, userUUID uuid.UUID, query v1dto.AdminGetNotificationsQuery) ([]v1dto.NotificationDTO, int32, error)

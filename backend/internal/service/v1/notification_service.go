@@ -12,6 +12,7 @@ import (
 	"goshop/internal/repository"
 	"goshop/internal/utils"
 	"goshop/pkg/logger"
+	"goshop/pkg/rabbitmq"
 	"goshop/pkg/ws"
 
 	"github.com/google/uuid"
@@ -22,6 +23,7 @@ type notificationService struct {
 	notificationRepo repository.NotificationRepository
 	userRepo         repository.UserRepository
 	wsHub            ws.Hub
+	rabbitMQ         rabbitmq.RabbitMQService
 }
 
 // NewNotificationService creates a new instance of NotificationService.
@@ -61,6 +63,23 @@ func (s *notificationService) Send(ctx context.Context, input v1dto.SendNotifica
 
 	s.broadcastToUser(input.UserID, created)
 	return nil
+}
+
+func (s *notificationService) SendAsync(ctx context.Context, input v1dto.SendNotificationInput) error {
+	if s.rabbitMQ != nil {
+		event := rabbitmq.NewCustomerNotificationEvent(
+			uuid.New().String(),
+			input.UserID,
+			input.Type,
+			"send",
+			input.Title,
+			input.Body,
+			input.Data,
+		)
+		return s.rabbitMQ.Publish(ctx, rabbitmq.QueueNotificationEvents, event)
+	}
+
+	return s.Send(ctx, input)
 }
 
 func (s *notificationService) CreateNotification(ctx context.Context, input v1dto.CreateNotificationInput) (v1dto.NotificationDTO, error) {
@@ -310,6 +329,26 @@ func (s *notificationService) NotifyAdmins(ctx context.Context, input v1dto.Admi
 		}
 	}
 	return nil
+}
+
+func (s *notificationService) SetRabbitMQ(rabbitMQ rabbitmq.RabbitMQService) {
+	s.rabbitMQ = rabbitMQ
+}
+
+func (s *notificationService) NotifyAdminsAsync(ctx context.Context, input v1dto.AdminNotifyInput) error {
+	if s.rabbitMQ != nil {
+		event := rabbitmq.NewAdminNotificationEvent(
+			uuid.New().String(),
+			input.Type,
+			"notify",
+			input.Title,
+			input.Body,
+			input.Data,
+		)
+		return s.rabbitMQ.Publish(ctx, rabbitmq.QueueNotificationEvents, event)
+	}
+
+	return s.NotifyAdmins(ctx, input)
 }
 
 func (s *notificationService) GetAdminNotifications(ctx context.Context, userUUID uuid.UUID, query v1dto.AdminGetNotificationsQuery) ([]v1dto.NotificationDTO, int32, error) {
