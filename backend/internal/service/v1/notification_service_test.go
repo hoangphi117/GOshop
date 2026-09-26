@@ -520,3 +520,115 @@ func TestNotificationService_DeleteNotification(t *testing.T) {
 		assert.True(t, deleted)
 	})
 }
+
+func TestNotificationService_NotifyAdmins(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Case 1: Happy Path -> Persists For Admins & Dispatches via WebSocket", func(t *testing.T) {
+		persisted := false
+		mockNotifRepo := &testutils.MockNotificationRepository{
+			CreateForAdminsFunc: func(ctx context.Context, nType, title, body string, data []byte) error {
+				persisted = true
+				assert.Equal(t, "order", nType)
+				assert.Equal(t, "New Order", title)
+				return nil
+			},
+		}
+		mockUserRepo := &testutils.MockUserRepository{
+			GetActiveAdminUserIDsFunc: func(ctx context.Context) ([]int32, error) {
+				return []int32{1, 2}, nil
+			},
+		}
+
+		svc := v1service.NewNotificationService(mockNotifRepo, mockUserRepo, nil)
+		err := svc.NotifyAdmins(ctx, v1dto.AdminNotifyInput{
+			Type:  "order",
+			Title: "New Order",
+			Body:  "Order #123 has been placed",
+			Data:  map[string]any{"order_id": 123},
+		})
+
+		require.NoError(t, err)
+		assert.True(t, persisted)
+	})
+
+	t.Run("Case 2: Repo Error -> Returns Internal Error", func(t *testing.T) {
+		mockNotifRepo := &testutils.MockNotificationRepository{
+			CreateForAdminsFunc: func(ctx context.Context, nType, title, body string, data []byte) error {
+				return errors.New("db connection failure")
+			},
+		}
+
+		svc := v1service.NewNotificationService(mockNotifRepo, nil, nil)
+		err := svc.NotifyAdmins(ctx, v1dto.AdminNotifyInput{
+			Type:  "system",
+			Title: "Alert",
+			Body:  "Server load high",
+		})
+
+		require.Error(t, err)
+		assertAppErrorCode(t, err, utils.ErrCodeInternal)
+	})
+}
+
+func TestNotificationService_GetAdminNotifications(t *testing.T) {
+	ctx := context.Background()
+	adminUUID := uuid.New()
+
+	t.Run("Case 1: Admin User Not Found -> Returns 404", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return sqlc.User{}, pgx.ErrNoRows
+			},
+		}
+
+		svc := v1service.NewNotificationService(nil, mockUserRepo, nil)
+		_, _, err := svc.GetAdminNotifications(ctx, adminUUID, v1dto.AdminGetNotificationsQuery{})
+
+		require.Error(t, err)
+		assertAppErrorCode(t, err, utils.ErrCodeNotFound)
+	})
+
+	t.Run("Case 2: Happy Path -> Retrieves Filtered Admin Notifications & Total", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return sqlc.User{UserID: 10, UserUuid: adminUUID}, nil
+			},
+		}
+		notifUUID := uuid.New()
+		mockNotifRepo := &testutils.MockNotificationRepository{
+			GetAdminNotificationsFunc: func(ctx context.Context, userID int32, nType *string, isRead *bool, limit, offset int32) ([]sqlc.Notification, error) {
+				assert.Equal(t, int32(10), userID)
+				assert.Equal(t, int32(10), limit)
+				assert.Equal(t, int32(0), offset)
+				return []sqlc.Notification{
+					{
+						NotificationID:        1,
+						NotificationUuid:      notifUUID,
+						NotificationUserID:    10,
+						NotificationType:      "order",
+						NotificationTitle:     "New Order Received",
+						NotificationBody:      "Order #555",
+						NotificationCreatedAt: time.Now(),
+					},
+				}, nil
+			},
+			CountAdminNotificationsFunc: func(ctx context.Context, userID int32, nType *string, isRead *bool) (int64, error) {
+				return 1, nil
+			},
+		}
+
+		svc := v1service.NewNotificationService(mockNotifRepo, mockUserRepo, nil)
+		dtos, total, err := svc.GetAdminNotifications(ctx, adminUUID, v1dto.AdminGetNotificationsQuery{
+			Page:  1,
+			Limit: 10,
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, int32(1), total)
+		require.Len(t, dtos, 1)
+		assert.Equal(t, notifUUID, dtos[0].UUID)
+		assert.Equal(t, "New Order Received", dtos[0].Title)
+	})
+}
+

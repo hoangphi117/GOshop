@@ -16,6 +16,7 @@ type UserRepository interface {
 	CountUsers(ctx context.Context, search string, deleted bool) (int64, error)
 	Create(ctx context.Context, input sqlc.CreateUserParams) (sqlc.User, error)
 	GetByUUID(ctx context.Context, uuid uuid.UUID) (sqlc.User, error)
+	GetActiveAdminUserIDs(ctx context.Context) ([]int32, error)
 	Update(ctx context.Context, input sqlc.UpdateUserParams) (sqlc.User, error)
 	SoftDelete(ctx context.Context, uuid uuid.UUID) (sqlc.User, error)
 	Restore(ctx context.Context, uuid uuid.UUID) (sqlc.User, error)
@@ -191,6 +192,9 @@ type ReviewRepository interface {
 
 type NotificationRepository interface {
 	Create(ctx context.Context, params sqlc.CreateNotificationParams) (sqlc.Notification, error)
+	CreateForAdmins(ctx context.Context, nType, title, body string, data []byte) error
+	GetAdminNotifications(ctx context.Context, userID int32, nType *string, isRead *bool, limit, offset int32) ([]sqlc.Notification, error)
+	CountAdminNotifications(ctx context.Context, userID int32, nType *string, isRead *bool) (int64, error)
 	CreateForAllUsers(ctx context.Context, nType, title, body string, data []byte) error
 	GetByUserID(ctx context.Context, userID int32, limit, offset int32) ([]sqlc.Notification, error)
 	CountByUserID(ctx context.Context, userID int32) (int64, error)
@@ -233,7 +237,6 @@ type AnalyticsRepository interface {
 	GetCouponPerformanceSummary(ctx context.Context, fromDate, toDate time.Time) (sqlc.GetCouponPerformanceSummaryRow, error)
 	GetCouponCampaignBreakdown(ctx context.Context, fromDate, toDate time.Time, limit int32) ([]sqlc.GetCouponCampaignBreakdownRow, error)
 }
-
 
 type StockMovementRepository interface {
 	Create(ctx context.Context, tx pgx.Tx, params sqlc.CreateStockMovementParams) (sqlc.StockMovement, error)

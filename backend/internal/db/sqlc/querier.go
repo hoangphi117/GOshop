@@ -32,6 +32,7 @@ type Querier interface {
 	CheckUserVotedHelpful(ctx context.Context, arg CheckUserVotedHelpfulParams) (bool, error)
 	ClearCartByCartID(ctx context.Context, cartID int32) error
 	ClearDefaultAddress(ctx context.Context, uaUserID int32) error
+	CountAdminNotifications(ctx context.Context, arg CountAdminNotificationsParams) (int64, error)
 	CountCartItems(ctx context.Context, cartID int32) (int64, error)
 	CountCategories(ctx context.Context, arg CountCategoriesParams) (int64, error)
 	CountCoupons(ctx context.Context, arg CountCouponsParams) (int64, error)
@@ -50,6 +51,7 @@ type Querier interface {
 	CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error)
 	CreateCoupon(ctx context.Context, arg CreateCouponParams) (Coupon, error)
 	CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error)
+	CreateNotificationForAdmins(ctx context.Context, arg CreateNotificationForAdminsParams) error
 	CreateNotificationForAllUsers(ctx context.Context, arg CreateNotificationForAllUsersParams) error
 	CreateOrder(ctx context.Context, arg CreateOrderParams) (Order, error)
 	CreateOrderItem(ctx context.Context, arg CreateOrderItemParams) (OrderItem, error)
@@ -72,9 +74,11 @@ type Querier interface {
 	DeleteReview(ctx context.Context, reviewID int32) error
 	DeleteReviewReportsByReviewID(ctx context.Context, reviewID int32) error
 	DeleteUserAddress(ctx context.Context, arg DeleteUserAddressParams) (bool, error)
+	GetActiveAdminUserIDs(ctx context.Context) ([]int32, error)
 	GetActiveBannersByPosition(ctx context.Context, bannerPosition string) ([]GetActiveBannersByPositionRow, error)
 	GetActiveReturnByOrderID(ctx context.Context, returnOrderID int32) (OrderReturn, error)
 	GetActiveShippedOrders(ctx context.Context, limit int32) ([]Order, error)
+	GetAdminNotifications(ctx context.Context, arg GetAdminNotificationsParams) ([]Notification, error)
 	GetBannerByUUID(ctx context.Context, bannerUuid uuid.UUID) (Banner, error)
 	GetByUUIDsForUpdate(ctx context.Context, uuids []uuid.UUID) ([]GetByUUIDsForUpdateRow, error)
 	GetCartAbandonmentAndFunnelStats(ctx context.Context, arg GetCartAbandonmentAndFunnelStatsParams) (GetCartAbandonmentAndFunnelStatsRow, error)

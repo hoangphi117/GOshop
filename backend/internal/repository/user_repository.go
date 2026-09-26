@@ -162,6 +162,14 @@ func (ur *SqlUserRepository) GetByEmail(ctx context.Context, email string) (sqlc
 	return user, nil
 }
 
+func (ur *SqlUserRepository) GetActiveAdminUserIDs(ctx context.Context) ([]int32, error) {
+	userIDs, err := ur.db.GetActiveAdminUserIDs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return userIDs, nil
+}
+
 func (ur *SqlUserRepository) Update(ctx context.Context, input sqlc.UpdateUserParams) (sqlc.User, error) {
 	user, err := ur.db.UpdateUser(ctx, input)
 	if err != nil {

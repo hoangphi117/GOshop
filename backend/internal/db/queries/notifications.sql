@@ -58,3 +58,32 @@ WHERE notification_user_id = $1
 DELETE FROM notifications
 WHERE notification_uuid    = sqlc.arg(notification_uuid)
   AND notification_user_id = sqlc.arg(user_id);
+
+-- name: CreateNotificationForAdmins :exec
+INSERT INTO notifications (
+    notification_user_id,
+    notification_type,
+    notification_title,
+    notification_body,
+    notification_data
+)
+SELECT
+    users.user_id, $1, $2, $3, $4
+FROM users
+WHERE user_deleted_at IS NULL
+    AND user_status = 1
+    AND user_level IN (1, 2);
+
+-- name: GetAdminNotifications :many
+SELECT * FROM notifications
+WHERE notification_user_id = sqlc.arg(user_id)
+  AND (sqlc.narg(type)::TEXT IS NULL OR notification_type = sqlc.narg(type)::TEXT)
+  AND (sqlc.narg(is_read)::BOOLEAN IS NULL OR notification_is_read = sqlc.narg(is_read)::BOOLEAN)
+ORDER BY notification_created_at DESC
+LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');
+
+-- name: CountAdminNotifications :one
+SELECT COUNT(*) FROM notifications
+WHERE notification_user_id = sqlc.arg(user_id)
+  AND (sqlc.narg(type)::TEXT IS NULL OR notification_type = sqlc.narg(type)::TEXT)
+  AND (sqlc.narg(is_read)::BOOLEAN IS NULL OR notification_is_read = sqlc.narg(is_read)::BOOLEAN);

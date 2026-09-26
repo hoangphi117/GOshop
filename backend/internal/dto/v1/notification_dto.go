@@ -50,9 +50,25 @@ type BroadcastNotificationInput struct {
 	Data  map[string]interface{} `json:"data,omitempty"`
 }
 
+type AdminNotifyInput struct {
+	Type  string         `json:"type" binding:"required,max=50"`
+	Title string         `json:"title" binding:"required,max=255"`
+	Body  string         `json:"body" binding:"required"`
+	Data  map[string]any `json:"data,omitempty"`
+}
+
+// ── Query ───────────────────────────────────────────────
+
 type GetNotificationsQuery struct {
 	Page  int32 `form:"page" binding:"omitempty,min=1"`
 	Limit int32 `form:"limit" binding:"omitempty,min=1,max=100"`
+}
+
+type AdminGetNotificationsQuery struct {
+	Page   int32   `form:"page" binding:"omitempty,min=1"`
+	Limit  int32   `form:"limit" binding:"omitempty,min=1,max=100"`
+	Type   *string `form:"type" binding:"omitempty,max=50"`
+	IsRead *bool   `form:"is_read" binding:"omitempty"`
 }
 
 type NotificationUUID struct {

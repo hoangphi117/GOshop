@@ -85,6 +85,33 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
+const getActiveAdminUserIDs = `-- name: GetActiveAdminUserIDs :many
+SELECT user_id FROM users
+WHERE user_deleted_at IS NULL
+    AND user_status = 1
+    AND user_level IN (1, 2)
+`
+
+func (q *Queries) GetActiveAdminUserIDs(ctx context.Context) ([]int32, error) {
+	rows, err := q.db.Query(ctx, getActiveAdminUserIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int32{}
+	for rows.Next() {
+		var user_id int32
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUserByEmail = `-- name: GetUserByEmail :one
 SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at
 FROM users

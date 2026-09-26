@@ -121,6 +121,35 @@ func (h *NotificationHandler) GetMyNotifications(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Notifications retrieved successfully", paginationResponse)
 }
 
+func (h *NotificationHandler) GetAdminNotifications(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	var query v1dto.AdminGetNotificationsQuery
+	if err := ctx.ShouldBindQuery(&query); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	dtos, total, err := h.notificationService.GetAdminNotifications(ctx.Request.Context(), userUUID, query)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	page := max(query.Page, 1)
+	limit := query.Limit
+	if limit < 1 {
+		limit = 10
+	}
+
+	paginationResponse := utils.NewPaginationResponse(dtos, page, limit, total)
+	utils.ResponseSuccess(ctx, http.StatusOK, "Notifications retrieved successfully", paginationResponse)
+}
+
 // GetUnreadCount godoc
 // @Summary      Get unread notification count
 // @Description  Get number of unread notifications for current user

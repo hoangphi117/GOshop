@@ -83,6 +83,12 @@ FROM users
 WHERE user_email = $1
 AND user_deleted_at IS NULL;
 
+-- name: GetActiveAdminUserIDs :many
+SELECT user_id FROM users
+WHERE user_deleted_at IS NULL
+    AND user_status = 1
+    AND user_level IN (1, 2);
+
 -- name: UpdateUser :one
 UPDATE users
 SET

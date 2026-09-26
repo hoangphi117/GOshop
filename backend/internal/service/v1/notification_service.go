@@ -208,7 +208,7 @@ func (s *notificationService) DeleteNotification(ctx context.Context, userUUID u
 	return nil
 }
 
-// ── Private SRP Helper Methods ────────────────────────────────────
+// ── Methods ────────────────────────────────────
 
 func (s *notificationService) getUser(ctx context.Context, userUUID uuid.UUID) (sqlc.User, error) {
 	user, err := s.userRepo.GetByUUID(ctx, userUUID)
@@ -270,4 +270,75 @@ func (s *notificationService) normalizePagination(query v1dto.GetNotificationsQu
 
 	offset = (page - 1) * limit
 	return limit, offset
+}
+
+// ── Admin ────────────────────────────────────
+
+func (s *notificationService) NotifyAdmins(ctx context.Context, input v1dto.AdminNotifyInput) error {
+	dataBytes, err := s.marshalData(input.Data)
+	if err != nil {
+		return utils.NewError(utils.ErrCodeInternal, "Failed to marshal notification data payload")
+	}
+
+	if err := s.notificationRepo.CreateForAdmins(ctx, input.Type, input.Title, input.Body, dataBytes); err != nil {
+		logger.Log.Error().Err(err).Msg("failed to persist admin notification")
+		return utils.NewError(utils.ErrCodeInternal, "Failed to create admin notification")
+	}
+
+	// Real-time broadcast to all connected admin sockets
+	adminIDs, err := s.userRepo.GetActiveAdminUserIDs(ctx)
+	if err != nil {
+		logger.Log.Error().Err(err).Msg("failed to retrieve active admin user IDs")
+		return nil
+	}
+
+	if s.wsHub != nil {
+		wsMsg := ws.WSMessage{
+			Type: ws.EventTypeNotification,
+			Data: map[string]any{
+				"type":       input.Type,
+				"title":      input.Title,
+				"body":       input.Body,
+				"data":       input.Data,
+				"is_read":    false,
+				"created_at": time.Now().UTC(),
+			},
+		}
+
+		for _, adminID := range adminIDs {
+			go s.wsHub.BroadcastToUser(adminID, wsMsg)
+		}
+	}
+	return nil
+}
+
+func (s *notificationService) GetAdminNotifications(ctx context.Context, userUUID uuid.UUID, query v1dto.AdminGetNotificationsQuery) ([]v1dto.NotificationDTO, int32, error) {
+	user, err := s.getUser(ctx, userUUID)
+	if err != nil {
+		return nil, 0, err
+	}
+	page := query.Page
+	if page <= 0 {
+		page = 1
+	}
+	limit := query.Limit
+	if limit < 1 {
+		limit = 10
+	}
+	offset := (page - 1) * limit
+	notifications, err := s.notificationRepo.GetAdminNotifications(ctx, user.UserID, query.Type, query.IsRead, limit, offset)
+	if err != nil {
+		logger.Log.Error().Err(err).Int32("admin_id", user.UserID).Msg("Failed to fetch admin notifications")
+		return nil, 0, utils.NewError(utils.ErrCodeInternal, "Failed to retrieve admin notifications")
+	}
+	total, err := s.notificationRepo.CountAdminNotifications(ctx, user.UserID, query.Type, query.IsRead)
+	if err != nil {
+		logger.Log.Error().Err(err).Int32("admin_id", user.UserID).Msg("Failed to count admin notifications")
+		return nil, 0, utils.NewError(utils.ErrCodeInternal, "Failed to count admin notifications")
+	}
+	dtos := make([]v1dto.NotificationDTO, 0, len(notifications))
+	for _, n := range notifications {
+		dtos = append(dtos, v1dto.MapToNotificationDTO(n))
+	}
+	return dtos, int32(total), nil
 }

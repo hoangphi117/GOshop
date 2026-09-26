@@ -519,8 +519,9 @@ type MockUserRepository struct {
 	SoftDeleteFunc     func(ctx context.Context, uuid uuid.UUID) (sqlc.User, error)
 	RestoreFunc        func(ctx context.Context, uuid uuid.UUID) (sqlc.User, error)
 	TrashFunc          func(ctx context.Context, uuid uuid.UUID) (sqlc.User, error)
-	GetByEmailFunc     func(ctx context.Context, email string) (sqlc.User, error)
-	UpdatePasswordFunc func(ctx context.Context, input sqlc.UpdatePasswordParams) (sqlc.User, error)
+	GetByEmailFunc            func(ctx context.Context, email string) (sqlc.User, error)
+	GetActiveAdminUserIDsFunc func(ctx context.Context) ([]int32, error)
+	UpdatePasswordFunc        func(ctx context.Context, input sqlc.UpdatePasswordParams) (sqlc.User, error)
 }
 
 func (m *MockUserRepository) GetAll(ctx context.Context, search, orderBy, sort string, limit, offset int32) ([]sqlc.User, error) {
@@ -591,6 +592,13 @@ func (m *MockUserRepository) GetByEmail(ctx context.Context, email string) (sqlc
 		return m.GetByEmailFunc(ctx, email)
 	}
 	return sqlc.User{}, nil
+}
+
+func (m *MockUserRepository) GetActiveAdminUserIDs(ctx context.Context) ([]int32, error) {
+	if m.GetActiveAdminUserIDsFunc != nil {
+		return m.GetActiveAdminUserIDsFunc(ctx)
+	}
+	return nil, nil
 }
 
 func (m *MockUserRepository) UpdatePassword(ctx context.Context, input sqlc.UpdatePasswordParams) (sqlc.User, error) {
@@ -1255,8 +1263,11 @@ type MockNotificationRepository struct {
 	CountByUserIDFunc     func(ctx context.Context, userID int32) (int64, error)
 	CountUnreadByUserIDFunc func(ctx context.Context, userID int32) (int64, error)
 	MarkAsReadFunc        func(ctx context.Context, notifUUID uuid.UUID, userID int32) (sqlc.Notification, error)
-	MarkAllAsReadFunc     func(ctx context.Context, userID int32) error
-	DeleteFunc            func(ctx context.Context, notifUUID uuid.UUID, userID int32) error
+	MarkAllAsReadFunc           func(ctx context.Context, userID int32) error
+	DeleteFunc                  func(ctx context.Context, notifUUID uuid.UUID, userID int32) error
+	CreateForAdminsFunc         func(ctx context.Context, nType, title, body string, data []byte) error
+	GetAdminNotificationsFunc   func(ctx context.Context, userID int32, nType *string, isRead *bool, limit, offset int32) ([]sqlc.Notification, error)
+	CountAdminNotificationsFunc func(ctx context.Context, userID int32, nType *string, isRead *bool) (int64, error)
 }
 
 func (m *MockNotificationRepository) Create(ctx context.Context, params sqlc.CreateNotificationParams) (sqlc.Notification, error) {
@@ -1313,6 +1324,27 @@ func (m *MockNotificationRepository) Delete(ctx context.Context, notifUUID uuid.
 		return m.DeleteFunc(ctx, notifUUID, userID)
 	}
 	return nil
+}
+
+func (m *MockNotificationRepository) CreateForAdmins(ctx context.Context, nType, title, body string, data []byte) error {
+	if m.CreateForAdminsFunc != nil {
+		return m.CreateForAdminsFunc(ctx, nType, title, body, data)
+	}
+	return nil
+}
+
+func (m *MockNotificationRepository) GetAdminNotifications(ctx context.Context, userID int32, nType *string, isRead *bool, limit, offset int32) ([]sqlc.Notification, error) {
+	if m.GetAdminNotificationsFunc != nil {
+		return m.GetAdminNotificationsFunc(ctx, userID, nType, isRead, limit, offset)
+	}
+	return nil, nil
+}
+
+func (m *MockNotificationRepository) CountAdminNotifications(ctx context.Context, userID int32, nType *string, isRead *bool) (int64, error) {
+	if m.CountAdminNotificationsFunc != nil {
+		return m.CountAdminNotificationsFunc(ctx, userID, nType, isRead)
+	}
+	return 0, nil
 }
 
 type MockAnalyticsRepository struct {

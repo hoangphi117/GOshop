@@ -69,3 +69,36 @@ func (r *SqlNotificationRepository) Delete(ctx context.Context, notifUUID uuid.U
 		UserID:           userID,
 	})
 }
+
+// ── Admin ───────────────────────────────────────────────
+
+func (r *SqlNotificationRepository) CreateForAdmins(ctx context.Context, nType, title, body string, data []byte) error {
+	return r.db.CreateNotificationForAdmins(ctx, sqlc.CreateNotificationForAdminsParams{
+		NotificationType:  nType,
+		NotificationTitle: title,
+		NotificationBody:  body,
+		NotificationData:  data,
+	})
+}
+
+func (r *SqlNotificationRepository) GetAdminNotifications(ctx context.Context, userID int32, nType *string, isRead *bool, limit, offset int32) ([]sqlc.Notification, error) {
+	return r.db.GetAdminNotifications(ctx, sqlc.GetAdminNotificationsParams{
+		UserID: userID,
+		Type:   nType,
+		IsRead: isRead,
+		Limit:  limit,
+		Offset: offset,
+	})
+}
+
+func (r *SqlNotificationRepository) CountAdminNotifications(ctx context.Context, userID int32, nType *string, isRead *bool) (int64, error) {
+	count, err := r.db.CountAdminNotifications(ctx, sqlc.CountAdminNotificationsParams{
+		UserID: userID,
+		Type:   nType,
+		IsRead: isRead,
+	})
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}

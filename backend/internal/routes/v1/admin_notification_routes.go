@@ -17,7 +17,16 @@ func NewAdminNotificationRoutes(handler *v1handler.NotificationHandler) *AdminNo
 func (r *AdminNotificationRoutes) Register(rg *gin.RouterGroup) {
 	adminGroup := rg.Group("/notifications")
 	{
-		// POST /api/v1/admin/notifications
+		// Query & counts
+		adminGroup.GET("", r.handler.GetAdminNotifications)
+		adminGroup.GET("/unread", r.handler.GetUnreadCount)
+
+		// Mark as read & delete
+		adminGroup.PATCH("/read-all", r.handler.MarkAllNotificationsAsRead)
+		adminGroup.PATCH("/:uuid/read", r.handler.MarkNotificationAsRead)
+		adminGroup.DELETE("/:uuid", r.handler.DeleteNotification)
+
+		// Manual triggers (existing)
 		adminGroup.POST("", r.handler.CreateNotification)
 		adminGroup.POST("/broadcast", r.handler.BroadcastNotification)
 	}

@@ -11,6 +11,26 @@ import (
 	"github.com/google/uuid"
 )
 
+const countAdminNotifications = `-- name: CountAdminNotifications :one
+SELECT COUNT(*) FROM notifications
+WHERE notification_user_id = $1
+  AND ($2::TEXT IS NULL OR notification_type = $2::TEXT)
+  AND ($3::BOOLEAN IS NULL OR notification_is_read = $3::BOOLEAN)
+`
+
+type CountAdminNotificationsParams struct {
+	UserID int32   `json:"user_id"`
+	Type   *string `json:"type"`
+	IsRead *bool   `json:"is_read"`
+}
+
+func (q *Queries) CountAdminNotifications(ctx context.Context, arg CountAdminNotificationsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countAdminNotifications, arg.UserID, arg.Type, arg.IsRead)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countNotificationsByUserID = `-- name: CountNotificationsByUserID :one
 SELECT COUNT(*) FROM notifications
 WHERE notification_user_id = $1
@@ -80,6 +100,39 @@ func (q *Queries) CreateNotification(ctx context.Context, arg CreateNotification
 	return i, err
 }
 
+const createNotificationForAdmins = `-- name: CreateNotificationForAdmins :exec
+INSERT INTO notifications (
+    notification_user_id,
+    notification_type,
+    notification_title,
+    notification_body,
+    notification_data
+)
+SELECT
+    users.user_id, $1, $2, $3, $4
+FROM users
+WHERE user_deleted_at IS NULL
+    AND user_status = 1
+    AND user_level IN (1, 2)
+`
+
+type CreateNotificationForAdminsParams struct {
+	NotificationType  string `json:"notification_type"`
+	NotificationTitle string `json:"notification_title"`
+	NotificationBody  string `json:"notification_body"`
+	NotificationData  []byte `json:"notification_data"`
+}
+
+func (q *Queries) CreateNotificationForAdmins(ctx context.Context, arg CreateNotificationForAdminsParams) error {
+	_, err := q.db.Exec(ctx, createNotificationForAdmins,
+		arg.NotificationType,
+		arg.NotificationTitle,
+		arg.NotificationBody,
+		arg.NotificationData,
+	)
+	return err
+}
+
 const createNotificationForAllUsers = `-- name: CreateNotificationForAllUsers :exec
 INSERT INTO notifications (
     notification_user_id,
@@ -125,6 +178,60 @@ type DeleteNotificationParams struct {
 func (q *Queries) DeleteNotification(ctx context.Context, arg DeleteNotificationParams) error {
 	_, err := q.db.Exec(ctx, deleteNotification, arg.NotificationUuid, arg.UserID)
 	return err
+}
+
+const getAdminNotifications = `-- name: GetAdminNotifications :many
+SELECT notification_id, notification_uuid, notification_user_id, notification_type, notification_title, notification_body, notification_data, notification_is_read, notification_read_at, notification_created_at FROM notifications
+WHERE notification_user_id = $1
+  AND ($2::TEXT IS NULL OR notification_type = $2::TEXT)
+  AND ($3::BOOLEAN IS NULL OR notification_is_read = $3::BOOLEAN)
+ORDER BY notification_created_at DESC
+LIMIT $5 OFFSET $4
+`
+
+type GetAdminNotificationsParams struct {
+	UserID int32   `json:"user_id"`
+	Type   *string `json:"type"`
+	IsRead *bool   `json:"is_read"`
+	Offset int32   `json:"offset"`
+	Limit  int32   `json:"limit"`
+}
+
+func (q *Queries) GetAdminNotifications(ctx context.Context, arg GetAdminNotificationsParams) ([]Notification, error) {
+	rows, err := q.db.Query(ctx, getAdminNotifications,
+		arg.UserID,
+		arg.Type,
+		arg.IsRead,
+		arg.Offset,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Notification{}
+	for rows.Next() {
+		var i Notification
+		if err := rows.Scan(
+			&i.NotificationID,
+			&i.NotificationUuid,
+			&i.NotificationUserID,
+			&i.NotificationType,
+			&i.NotificationTitle,
+			&i.NotificationBody,
+			&i.NotificationData,
+			&i.NotificationIsRead,
+			&i.NotificationReadAt,
+			&i.NotificationCreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getNotificationsByUserId = `-- name: GetNotificationsByUserId :many

@@ -128,6 +128,8 @@ type MockNotificationService struct {
 	MarkNotificationAsReadFunc     func(ctx context.Context, userUUID uuid.UUID, notificationUUID uuid.UUID) (v1dto.NotificationDTO, error)
 	MarkAllNotificationsAsReadFunc func(ctx context.Context, userUUID uuid.UUID) error
 	DeleteNotificationFunc         func(ctx context.Context, userUUID uuid.UUID, notificationUUID uuid.UUID) error
+	NotifyAdminsFunc               func(ctx context.Context, input v1dto.AdminNotifyInput) error
+	GetAdminNotificationsFunc      func(ctx context.Context, userUUID uuid.UUID, query v1dto.AdminGetNotificationsQuery) ([]v1dto.NotificationDTO, int32, error)
 }
 
 func (m *MockNotificationService) Send(ctx context.Context, input v1dto.SendNotificationInput) error {
@@ -184,6 +186,20 @@ func (m *MockNotificationService) DeleteNotification(ctx context.Context, userUU
 		return m.DeleteNotificationFunc(ctx, userUUID, notificationUUID)
 	}
 	return nil
+}
+
+func (m *MockNotificationService) NotifyAdmins(ctx context.Context, input v1dto.AdminNotifyInput) error {
+	if m.NotifyAdminsFunc != nil {
+		return m.NotifyAdminsFunc(ctx, input)
+	}
+	return nil
+}
+
+func (m *MockNotificationService) GetAdminNotifications(ctx context.Context, userUUID uuid.UUID, query v1dto.AdminGetNotificationsQuery) ([]v1dto.NotificationDTO, int32, error) {
+	if m.GetAdminNotificationsFunc != nil {
+		return m.GetAdminNotificationsFunc(ctx, userUUID, query)
+	}
+	return nil, 0, nil
 }
 
 type MockCartService struct {
