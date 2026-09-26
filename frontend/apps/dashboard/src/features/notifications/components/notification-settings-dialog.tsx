@@ -21,6 +21,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
 import { useNotificationSettingsStore } from '../stores/notification-settings-store'
+import { useWebPush } from '../hooks/use-web-push'
 
 interface NotificationSettingsDialogProps {
   open: boolean
@@ -72,17 +73,15 @@ export function NotificationSettingsDialog({
     resetSettings,
   } = useNotificationSettingsStore()
 
+  const { requestPermission, isSupported } = useWebPush()
+
   const handlePushToggle = async (checked: boolean) => {
-    if (checked && 'Notification' in window) {
-      if (Notification.permission !== 'granted') {
-        const res = await Notification.requestPermission()
-        if (res !== 'granted') {
-          setDesktopPushEnabled(false)
-          return
-        }
-      }
+    if (checked) {
+      const granted = await requestPermission()
+      if (!granted) return
+    } else {
+      setDesktopPushEnabled(false)
     }
-    setDesktopPushEnabled(checked)
   }
 
   return (
@@ -142,12 +141,15 @@ export function NotificationSettingsDialog({
                   Desktop Push Notifications
                 </p>
                 <p className='text-[11px] text-muted-foreground'>
-                  Display OS native banners when the dashboard tab is in the background.
+                  {isSupported
+                    ? 'Display OS native banners when the dashboard tab is in the background.'
+                    : 'Desktop notifications are not supported in this browser.'}
                 </p>
               </div>
             </div>
             <Switch
-              checked={desktopPushEnabled}
+              checked={desktopPushEnabled && isSupported}
+              disabled={!isSupported}
               onCheckedChange={handlePushToggle}
               aria-label='Toggle desktop push'
             />

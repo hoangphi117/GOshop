@@ -21,6 +21,7 @@ describe('Admin Notifications API', () => {
   it('fetchAdminNotifications builds query string and returns data from backend array', async () => {
     const mockItems = [
       {
+        uuid: 'notif-1',
         notification_uuid: 'notif-1',
         user_uuid: 'user-1',
         type: 'order',
