@@ -34,6 +34,7 @@ type Worker struct {
 	cfg                  *config.Config
 	logger               *zerolog.Logger
 	notificationConsumer *worker.NotificationConsumer
+	retentionJob         *worker.NotificationRetentionJob
 	redisBridge          ws.RedisBridge
 }
 
@@ -86,6 +87,11 @@ func NewWorker(cfg *config.Config) *Worker {
 	}
 	notificationConsumer := worker.NewNotificationConsumer(notificationService, log)
 
+	retentionJob := worker.NewNotificationRetentionJob(notificationService,
+		log,
+		24*time.Hour,
+		utils.GetIntEnv("NOTIFICATION_RETENTION_DAYS", 30))
+
 	return &Worker{
 		rabbitMQ:             rabbitMQ,
 		mailService:          mailService,
@@ -93,6 +99,7 @@ func NewWorker(cfg *config.Config) *Worker {
 		cfg:                  cfg,
 		logger:               log,
 		notificationConsumer: notificationConsumer,
+		retentionJob:         retentionJob,
 		redisBridge:          redisBridge,
 	}
 }
@@ -139,6 +146,11 @@ func (w *Worker) Start(ctx context.Context) error {
 		return err
 	}
 	w.logger.Info().Msgf("Worker consuming queue: %s", rabbitmq.QueueNotificationEvents)
+
+	if w.retentionJob != nil {
+		go w.retentionJob.Start(ctx)
+		w.logger.Info().Msg("Notification retention job started (interval: 24h, retention: 30d)")
+	}
 
 	<-ctx.Done()
 
@@ -233,14 +245,12 @@ func main() {
 	defer cancel()
 
 	var wg sync.WaitGroup
-	wg.Add(1)
 
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		if err := worker.Start(ctx); err != nil && err != context.Canceled {
 			logger.Log.Error().Err(err).Msg("Failed to start worker")
 		}
-	}()
+	})
 
 	<-ctx.Done()
 	logger.Log.Info().Msg("Shutdown signal received...")
