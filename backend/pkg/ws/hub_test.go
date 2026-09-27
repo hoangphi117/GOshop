@@ -227,13 +227,14 @@ func TestHub_ConversationBroadcast(t *testing.T) {
 		}
 	})
 
-	t.Run("BroadcastToConversation on empty room does not panic", func(t *testing.T) {
+	t.Run("BroadcastToConversation on empty room with no clients does not panic", func(t *testing.T) {
+		emptyHub := ws.NewHub()
 		msg := ws.WSMessage{
 			Type: ws.EventChatMessage,
 			Data: "empty room message",
 		}
 		assert.NotPanics(t, func() {
-			hub.BroadcastToConversation(9999, msg)
+			emptyHub.BroadcastToConversation(9999, msg)
 		})
 	})
 

@@ -246,16 +246,26 @@ func (h *hub) BroadCastToAdmins(msg WSMessage) {
 	}
 }
 
-// BroadcastToConversation sends a message to all active connections in a specific conversation room
+// BroadcastToConversation sends a message to all active connections in a specific conversation room and all online admins
 func (h *hub) BroadcastToConversation(conversationID int32, msg WSMessage) {
 	h.mu.RLock()
-	convClients, exists := h.conversationClients[conversationID]
-	if !exists || len(convClients) == 0 {
+	convClients := h.conversationClients[conversationID]
+
+	// Collect unique targets: clients in the conversation room + all admin clients
+	targetMap := make(map[*Client]bool)
+	for client := range convClients {
+		targetMap[client] = true
+	}
+	for admin := range h.adminClients {
+		targetMap[admin] = true
+	}
+
+	if len(targetMap) == 0 {
 		h.mu.RUnlock()
-		logger.Log.Warn().
+		logger.Log.Debug().
 			Int32("conversation_id", conversationID).
 			Str("event_type", string(msg.Type)).
-			Msg("WebSocket BroadcastToConversation: no active clients in room")
+			Msg("WebSocket BroadcastToConversation: no active clients or admins")
 		return
 	}
 
@@ -270,8 +280,8 @@ func (h *hub) BroadcastToConversation(conversationID int32, msg WSMessage) {
 	}
 
 	// Copy clients slice to minimize lock holding time
-	targets := make([]*Client, 0, len(convClients))
-	for client := range convClients {
+	targets := make([]*Client, 0, len(targetMap))
+	for client := range targetMap {
 		targets = append(targets, client)
 	}
 	h.mu.RUnlock()
@@ -280,7 +290,7 @@ func (h *hub) BroadcastToConversation(conversationID int32, msg WSMessage) {
 		Int32("conversation_id", conversationID).
 		Int("target_connections", len(targets)).
 		Str("event_type", string(msg.Type)).
-		Msg("WebSocket broadcasting to conversation room")
+		Msg("WebSocket broadcasting to conversation room and admins")
 
 	for _, client := range targets {
 		select {

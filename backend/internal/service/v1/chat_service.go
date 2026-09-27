@@ -509,3 +509,37 @@ func (s *chatService) GetTotalUnreadCount(
 
 	return count, nil
 }
+
+func (s *chatService) SendTyping(
+	ctx context.Context,
+	conversationUUID uuid.UUID,
+	callerUUID uuid.UUID,
+	isTyping bool,
+) error {
+	caller, err := s.getActiveUser(ctx, callerUUID)
+	if err != nil {
+		return err
+	}
+
+	conv, err := s.getConversation(ctx, conversationUUID)
+	if err != nil {
+		return err
+	}
+
+	role := s.determineSenderRole(caller)
+	if role == "user" && conv.UserID != caller.UserID {
+		return utils.NewError(utils.ErrCodeForbidden, "you cannot send typing in this conversation")
+	}
+
+	s.publishToConversation(conv.ConversationID, ws.WSMessage{
+		Type: ws.EventChatTyping,
+		Data: ws.ChatTypingPayload{
+			ConversationUUID: conv.ConversationUuid.String(),
+			UserID:           caller.UserID,
+			SenderRole:       role,
+			IsTyping:         isTyping,
+		},
+	})
+
+	return nil
+}

@@ -250,4 +250,5 @@ type ChatService interface {
 	GetConversationDetails(ctx context.Context, conversationUUID uuid.UUID, callerUUID uuid.UUID) (v1dto.ConversationResponse, error)
 	CloseConversation(ctx context.Context, conversationUUID uuid.UUID) (sqlc.ChatConversation, error)
 	GetTotalUnreadCount(ctx context.Context, callerUUID uuid.UUID) (int64, error)
+	SendTyping(ctx context.Context, conversationUUID uuid.UUID, callerUUID uuid.UUID, isTyping bool) error
 }

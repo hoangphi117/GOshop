@@ -470,3 +470,59 @@ func (h *ChatHandler) AdminGetUnreadCount(ctx *gin.Context) {
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Admin total unread count retrieved successfully", gin.H{"unread_count": count})
 }
+
+// SendTyping handles customer typing status update
+func (h *ChatHandler) SendTyping(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	var req v1dto.SendTypingRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	conv, err := h.chatService.GetOrCreateConversation(ctx.Request.Context(), userUUID)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	if err := h.chatService.SendTyping(ctx.Request.Context(), conv.ConversationUuid, userUUID, req.IsTyping); err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Typing event sent", nil)
+}
+
+// AdminSendTyping handles admin typing status update for a conversation
+func (h *ChatHandler) AdminSendTyping(ctx *gin.Context) {
+	adminUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	convUUID, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid conversation UUID"))
+		return
+	}
+
+	var req v1dto.SendTypingRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	if err := h.chatService.SendTyping(ctx.Request.Context(), convUUID, adminUUID, req.IsTyping); err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Typing event sent", nil)
+}

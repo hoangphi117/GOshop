@@ -26,6 +26,10 @@ type ListConversationsRequest struct {
 	Limit  int32  `form:"limit"  binding:"omitempty,min=1,max=100"`
 }
 
+type SendTypingRequest struct {
+	IsTyping bool `json:"is_typing"`
+}
+
 // --- Responses ---
 
 type ConversationResponse struct {

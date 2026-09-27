@@ -24,5 +24,6 @@ func (r *AdminChatRoutes) Register(rg *gin.RouterGroup) {
 		adminChat.PATCH("/conversations/:id/read", r.handler.AdminMarkAsRead)
 		adminChat.PATCH("/conversations/:id/close", r.handler.AdminCloseConversation)
 		adminChat.GET("/unread-count", r.handler.AdminGetUnreadCount)
+		adminChat.POST("/conversations/:id/typing", r.handler.AdminSendTyping)
 	}
 }

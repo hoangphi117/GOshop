@@ -1,7 +1,7 @@
 package ws
 
 import (
-	"bytes"
+	"encoding/json"
 	"goshop/pkg/logger"
 	"sync"
 	"time"
@@ -77,10 +77,46 @@ func (c *Client) ReadPump() {
 			}
 			break
 		}
-		message = bytes.TrimSpace(bytes.ReplaceAll(message, newline, space))
+		var inbound struct {
+			Type EventType       `json:"type"`
+			Data json.RawMessage `json:"data"`
+		}
+		if err := json.Unmarshal(message, &inbound); err == nil {
+			switch inbound.Type {
+			case EventPing:
+				pongMsg, _ := json.Marshal(WSMessage{Type: EventPong})
+				select {
+				case c.Send <- pongMsg:
+				default:
+				}
+			case EventChatTyping:
+				var typingData struct {
+					ConversationUUID string `json:"conversation_uuid"`
+					IsTyping         bool   `json:"is_typing"`
+				}
+				if err := json.Unmarshal(inbound.Data, &typingData); err == nil {
+					senderRole := "user"
+					if c.IsAdmin {
+						senderRole = "admin"
+					}
+					outMsg := WSMessage{
+						Type: EventChatTyping,
+						Data: ChatTypingPayload{
+							ConversationUUID: typingData.ConversationUUID,
+							UserID:           c.UserID,
+							SenderRole:       senderRole,
+							IsTyping:         typingData.IsTyping,
+						},
+					}
 
-		// Handle incoming messages if needed (e.g. client ping or chat)
-		_ = message
+					if c.ConversationID != nil {
+						c.Hub.BroadcastToConversation(*c.ConversationID, outMsg)
+					} else {
+						c.Hub.BroadCastToAdmins(outMsg)
+					}
+				}
+			}
+		}
 	}
 }
 
