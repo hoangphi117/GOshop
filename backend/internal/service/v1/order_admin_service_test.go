@@ -66,4 +66,35 @@ func TestOrderAdminService_BulkOperations(t *testing.T) {
 		assert.Equal(t, 1, result.Succeeded)
 		assert.Equal(t, 1, result.Failed)
 	})
+
+	t.Run("GetAllOrders: DelegatesToOrderService", func(t *testing.T) {
+		mockOrderService := &testutils.MockOrderService{
+			GetAllOrdersFunc: func(ctx context.Context, input v1dto.GetOrdersParam) ([]v1dto.OrderSummaryDTO, int32, error) {
+				return []v1dto.OrderSummaryDTO{{UUID: orderUUID1.String()}}, 1, nil
+			},
+		}
+
+		adminSvc := v1service.NewOrderAdminService(mockOrderService)
+		orders, total, err := adminSvc.GetAllOrders(ctx, v1dto.GetOrdersParam{})
+
+		require.NoError(t, err)
+		assert.Equal(t, int32(1), total)
+		require.Len(t, orders, 1)
+		assert.Equal(t, orderUUID1.String(), orders[0].UUID)
+	})
+
+	t.Run("UpdateOrderStatus: DelegatesToOrderService", func(t *testing.T) {
+		mockOrderService := &testutils.MockOrderService{
+			UpdateOrderStatusFunc: func(ctx context.Context, input sqlc.UpdateOrderStatusParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
+				return sqlc.Order{OrderUuid: orderUUID1, OrderStatus: v1service.OrderStatusDelivered}, nil, nil
+			},
+		}
+
+		adminSvc := v1service.NewOrderAdminService(mockOrderService)
+		order, _, err := adminSvc.UpdateOrderStatus(ctx, sqlc.UpdateOrderStatusParams{OrderUuid: orderUUID1, OrderStatus: v1service.OrderStatusDelivered})
+
+		require.NoError(t, err)
+		assert.Equal(t, orderUUID1, order.OrderUuid)
+		assert.Equal(t, v1service.OrderStatusDelivered, order.OrderStatus)
+	})
 }

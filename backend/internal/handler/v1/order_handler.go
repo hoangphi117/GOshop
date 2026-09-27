@@ -18,6 +18,7 @@ import (
 
 type OrderHandler struct {
 	service         v1service.OrderService
+	customerService v1service.CustomerOrderService
 	shippingService v1service.OrderShippingService
 	locationService v1service.LocationService
 	returnService   v1service.OrderReturnService
@@ -33,7 +34,9 @@ func NewOrderHandler(
 	var invSvc v1service.OrderInvoiceService
 	var admSvc v1service.OrderAdminService
 	var locSvc v1service.LocationService
+	var custSvc v1service.CustomerOrderService
 	if service != nil {
+		custSvc = service
 		invSvc = service
 		admSvc = service
 	}
@@ -42,12 +45,20 @@ func NewOrderHandler(
 	}
 	return &OrderHandler{
 		service:         service,
+		customerService: custSvc,
 		shippingService: shippingService,
 		locationService: locSvc,
 		returnService:   returnService,
 		invoiceService:  invSvc,
 		adminService:    admSvc,
 	}
+}
+
+func (oh *OrderHandler) WithCustomerService(customerService v1service.CustomerOrderService) *OrderHandler {
+	if customerService != nil {
+		oh.customerService = customerService
+	}
+	return oh
 }
 
 func (oh *OrderHandler) WithInvoiceService(invoiceService v1service.OrderInvoiceService) *OrderHandler {
@@ -69,6 +80,20 @@ func (oh *OrderHandler) WithLocationService(locationService v1service.LocationSe
 		oh.locationService = locationService
 	}
 	return oh
+}
+
+func (oh *OrderHandler) getCustomerService() v1service.CustomerOrderService {
+	if oh.customerService != nil {
+		return oh.customerService
+	}
+	return oh.service
+}
+
+func (oh *OrderHandler) getAdminService() v1service.OrderAdminService {
+	if oh.adminService != nil {
+		return oh.adminService
+	}
+	return oh.service
 }
 
 // CreateOrder godoc
@@ -98,7 +123,7 @@ func (oh *OrderHandler) CreateOrder(ctx *gin.Context) {
 		return
 	}
 
-	order, orderItems, err := oh.service.CreateOrder(ctx.Request.Context(), userUUID, input)
+	order, orderItems, err := oh.getCustomerService().CreateOrder(ctx.Request.Context(), userUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -139,7 +164,7 @@ func (oh *OrderHandler) GetMyOrders(ctx *gin.Context) {
 		return
 	}
 
-	orders, totalOrders, err := oh.service.GetMyOrders(ctx.Request.Context(), userUUID, input)
+	orders, totalOrders, err := oh.getCustomerService().GetMyOrders(ctx.Request.Context(), userUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -182,7 +207,7 @@ func (oh *OrderHandler) GetOrderByUUID(ctx *gin.Context) {
 		return
 	}
 
-	order, orderItems, err := oh.service.GetOrderByUUID(ctx.Request.Context(), userUUID, orderUUID)
+	order, orderItems, err := oh.getCustomerService().GetOrderByUUID(ctx.Request.Context(), userUUID, orderUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -216,7 +241,7 @@ func (oh *OrderHandler) GetAllOrders(ctx *gin.Context) {
 		return
 	}
 
-	orders, totalOrders, err := oh.service.GetAllOrders(ctx.Request.Context(), input)
+	orders, totalOrders, err := oh.getAdminService().GetAllOrders(ctx.Request.Context(), input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -262,7 +287,7 @@ func (oh *OrderHandler) UpdateOrderStatus(ctx *gin.Context) {
 
 	order := input.MapUpdateStatusInputToModel(orderUUID)
 
-	updatedOrder, orderItems, err := oh.service.UpdateOrderStatus(ctx.Request.Context(), order)
+	updatedOrder, orderItems, err := oh.getAdminService().UpdateOrderStatus(ctx.Request.Context(), order)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -308,7 +333,7 @@ func (oh *OrderHandler) CancelOrder(ctx *gin.Context) {
 	}
 	_ = ctx.ShouldBindJSON(&body)
 
-	cancelledOrder, err := oh.service.CancelOrder(ctx.Request.Context(), userUUID, orderUUID, body.Reason)
+	cancelledOrder, err := oh.getCustomerService().CancelOrder(ctx.Request.Context(), userUUID, orderUUID, body.Reason)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -358,7 +383,7 @@ func (oh *OrderHandler) UpdateOrderShippingInfo(ctx *gin.Context) {
 
 	order := input.MapUpdateShippingInputToModel(orderUUID)
 
-	updatedOrder, updatedOrderItems, err := oh.service.UpdateOrderShippingInfo(ctx.Request.Context(), userUUID, order)
+	updatedOrder, updatedOrderItems, err := oh.getCustomerService().UpdateOrderShippingInfo(ctx.Request.Context(), userUUID, order)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -408,7 +433,7 @@ func (oh *OrderHandler) UpdateOrderPaymentStatus(ctx *gin.Context) {
 		return
 	}
 
-	updatedOrder, updatedOrderItems, err := oh.service.UpdateOrderPaymentStatus(ctx.Request.Context(), userUUID, orderUUID, input)
+	updatedOrder, updatedOrderItems, err := oh.getCustomerService().UpdateOrderPaymentStatus(ctx.Request.Context(), userUUID, orderUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return

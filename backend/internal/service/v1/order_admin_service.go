@@ -19,6 +19,14 @@ func NewOrderAdminService(orderService OrderService) OrderAdminService {
 	}
 }
 
+func (s *orderAdminService) GetAllOrders(ctx context.Context, input v1dto.GetOrdersParam) ([]v1dto.OrderSummaryDTO, int32, error) {
+	return s.orderService.GetAllOrders(ctx, input)
+}
+
+func (s *orderAdminService) UpdateOrderStatus(ctx context.Context, input sqlc.UpdateOrderStatusParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
+	return s.orderService.UpdateOrderStatus(ctx, input)
+}
+
 func (s *orderAdminService) BulkUpdateStatus(ctx context.Context, input v1dto.BulkUpdateOrderStatusInput) (*v1dto.BulkOperationResultDTO, error) {
 	result := &v1dto.BulkOperationResultDTO{
 		Total:  len(input.OrderUUIDs),

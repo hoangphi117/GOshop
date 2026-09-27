@@ -15,13 +15,45 @@ import (
 )
 
 type ProductHandler struct {
-	service v1service.ProductService
+	service      v1service.ProductService
+	queryService v1service.ProductQueryService
+	adminService v1service.AdminProductService
 }
 
 func NewProductHandler(service v1service.ProductService) *ProductHandler {
 	return &ProductHandler{
-		service: service,
+		service:      service,
+		queryService: service,
+		adminService: service,
 	}
+}
+
+func (ph *ProductHandler) WithQueryService(queryService v1service.ProductQueryService) *ProductHandler {
+	if queryService != nil {
+		ph.queryService = queryService
+	}
+	return ph
+}
+
+func (ph *ProductHandler) WithAdminService(adminService v1service.AdminProductService) *ProductHandler {
+	if adminService != nil {
+		ph.adminService = adminService
+	}
+	return ph
+}
+
+func (ph *ProductHandler) getQueryService() v1service.ProductQueryService {
+	if ph.queryService != nil {
+		return ph.queryService
+	}
+	return ph.service
+}
+
+func (ph *ProductHandler) getAdminService() v1service.AdminProductService {
+	if ph.adminService != nil {
+		return ph.adminService
+	}
+	return ph.service
 }
 
 // CreateProduct godoc
@@ -48,7 +80,7 @@ func (ph *ProductHandler) CreateProduct(ctx *gin.Context) {
 
 	mappedInput := input.MapCreateToServiceInput()
 
-	product, err := ph.service.CreateProduct(ctx.Request.Context(), mappedInput)
+	product, err := ph.getAdminService().CreateProduct(ctx.Request.Context(), mappedInput)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -85,7 +117,7 @@ func (ph *ProductHandler) GetAllProducts(ctx *gin.Context) {
 		return
 	}
 
-	listProducts, total, err := ph.service.GetAllProducts(ctx.Request.Context(), params.Search, params.CategoryUUID, params.MinPrice, params.MaxPrice, params.Status, params.OrderBy, params.Sort, params.Page, params.Limit, false)
+	listProducts, total, err := ph.getQueryService().GetAllProducts(ctx.Request.Context(), params.Search, params.CategoryUUID, params.MinPrice, params.MaxPrice, params.Status, params.OrderBy, params.Sort, params.Page, params.Limit, false)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -119,7 +151,7 @@ func (ph *ProductHandler) GetProductByUUID(ctx *gin.Context) {
 
 	productUuid, err := uuid.Parse(params.Uuid)
 	if err == nil {
-		product, err := ph.service.GetProductByUUID(ctx.Request.Context(), productUuid)
+		product, err := ph.getQueryService().GetProductByUUID(ctx.Request.Context(), productUuid)
 		if err != nil {
 			utils.ResponseError(ctx, err)
 			return
@@ -130,7 +162,7 @@ func (ph *ProductHandler) GetProductByUUID(ctx *gin.Context) {
 	}
 
 	// Fallback to query by slug when identifier is not a valid UUID
-	product, err := ph.service.GetProductBySlug(ctx.Request.Context(), params.Uuid)
+	product, err := ph.getQueryService().GetProductBySlug(ctx.Request.Context(), params.Uuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -178,7 +210,7 @@ func (ph *ProductHandler) UpdateProduct(ctx *gin.Context) {
 
 	mappedInput := input.MapUpdateToServiceInput(productUuid)
 
-	updatedProduct, err := ph.service.UpdateProduct(ctx.Request.Context(), mappedInput)
+	updatedProduct, err := ph.getAdminService().UpdateProduct(ctx.Request.Context(), mappedInput)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -216,7 +248,7 @@ func (ph *ProductHandler) SoftDeleteProduct(ctx *gin.Context) {
 		return
 	}
 
-	softDeletedProduct, err := ph.service.SoftDeleteProduct(ctx.Request.Context(), productUuid)
+	softDeletedProduct, err := ph.getAdminService().SoftDeleteProduct(ctx.Request.Context(), productUuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -254,7 +286,7 @@ func (ph *ProductHandler) RestoreProduct(ctx *gin.Context) {
 		return
 	}
 
-	restoredProduct, err := ph.service.RestoreProduct(ctx.Request.Context(), productUuid)
+	restoredProduct, err := ph.getAdminService().RestoreProduct(ctx.Request.Context(), productUuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -292,7 +324,7 @@ func (ph *ProductHandler) TrashProduct(ctx *gin.Context) {
 		return
 	}
 
-	err = ph.service.TrashProduct(ctx.Request.Context(), productUuid)
+	err = ph.getAdminService().TrashProduct(ctx.Request.Context(), productUuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -339,7 +371,7 @@ func (ph *ProductHandler) ImportCSV(ctx *gin.Context) {
 	}
 	defer file.Close()
 
-	result, err := ph.service.ImportProductsCSV(ctx.Request.Context(), file)
+	result, err := ph.getAdminService().ImportProductsCSV(ctx.Request.Context(), file)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return

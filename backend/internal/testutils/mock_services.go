@@ -2,6 +2,7 @@ package testutils
 
 import (
 	"context"
+	"io"
 	"time"
 
 	"goshop/internal/db/sqlc"
@@ -30,9 +31,15 @@ var (
 	_ v1service.AddressService       = (*MockAddressService)(nil)
 	_ v1service.PaymentService       = (*MockPaymentService)(nil)
 	_ v1service.OrderService         = (*MockOrderService)(nil)
+	_ v1service.CustomerOrderService = (*MockOrderService)(nil)
+	_ v1service.OrderAdminService    = (*MockOrderService)(nil)
+	_ v1service.OrderInvoiceService  = (*MockOrderService)(nil)
 	_ v1service.OrderShippingService = (*MockOrderShippingService)(nil)
 	_ v1service.OrderReturnService   = (*MockOrderReturnService)(nil)
 	_ v1service.LocationService      = (*MockLocationService)(nil)
+	_ v1service.ProductService       = (*MockProductService)(nil)
+	_ v1service.ProductQueryService  = (*MockProductService)(nil)
+	_ v1service.AdminProductService  = (*MockProductService)(nil)
 	_ rabbitmq.RabbitMQService       = (*MockRabbitMQService)(nil)
 	_ shipping.ShippingProvider      = (*MockShippingProvider)(nil)
 	_ payment.PaymentProvider        = (*MockPaymentProvider)(nil)
@@ -1267,6 +1274,81 @@ func (m *MockLocationService) GetWards(ctx context.Context, districtID int) ([]v
 		return m.GetWardsFunc(ctx, districtID)
 	}
 	return nil, nil
+}
+
+type MockProductService struct {
+	CreateProductFunc     func(ctx context.Context, input v1dto.CreateProductInput) (sqlc.CreateProductRow, error)
+	GetAllProductsFunc    func(ctx context.Context, search, categoryUUID string, minPrice, maxPrice float64, status int32, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.GetProductByUUIDRow, int32, error)
+	GetProductByUUIDFunc  func(ctx context.Context, productUUID uuid.UUID) (sqlc.GetProductByUUIDRow, error)
+	GetProductBySlugFunc  func(ctx context.Context, slug string) (sqlc.GetProductBySlugRow, error)
+	UpdateProductFunc     func(ctx context.Context, input v1dto.UpdateProductInput) (sqlc.UpdateProductRow, error)
+	SoftDeleteProductFunc func(ctx context.Context, productUUID uuid.UUID) (sqlc.Product, error)
+	RestoreProductFunc    func(ctx context.Context, productUUID uuid.UUID) (sqlc.Product, error)
+	TrashProductFunc      func(ctx context.Context, productUUID uuid.UUID) error
+	ImportProductsCSVFunc func(ctx context.Context, file io.Reader) (*v1dto.ProductCSVImportResponse, error)
+}
+
+func (m *MockProductService) CreateProduct(ctx context.Context, input v1dto.CreateProductInput) (sqlc.CreateProductRow, error) {
+	if m.CreateProductFunc != nil {
+		return m.CreateProductFunc(ctx, input)
+	}
+	return sqlc.CreateProductRow{}, nil
+}
+
+func (m *MockProductService) GetAllProducts(ctx context.Context, search, categoryUUID string, minPrice, maxPrice float64, status int32, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.GetProductByUUIDRow, int32, error) {
+	if m.GetAllProductsFunc != nil {
+		return m.GetAllProductsFunc(ctx, search, categoryUUID, minPrice, maxPrice, status, orderBy, sort, page, limit, deleted)
+	}
+	return nil, 0, nil
+}
+
+func (m *MockProductService) GetProductByUUID(ctx context.Context, productUUID uuid.UUID) (sqlc.GetProductByUUIDRow, error) {
+	if m.GetProductByUUIDFunc != nil {
+		return m.GetProductByUUIDFunc(ctx, productUUID)
+	}
+	return sqlc.GetProductByUUIDRow{}, nil
+}
+
+func (m *MockProductService) GetProductBySlug(ctx context.Context, slug string) (sqlc.GetProductBySlugRow, error) {
+	if m.GetProductBySlugFunc != nil {
+		return m.GetProductBySlugFunc(ctx, slug)
+	}
+	return sqlc.GetProductBySlugRow{}, nil
+}
+
+func (m *MockProductService) UpdateProduct(ctx context.Context, input v1dto.UpdateProductInput) (sqlc.UpdateProductRow, error) {
+	if m.UpdateProductFunc != nil {
+		return m.UpdateProductFunc(ctx, input)
+	}
+	return sqlc.UpdateProductRow{}, nil
+}
+
+func (m *MockProductService) SoftDeleteProduct(ctx context.Context, productUUID uuid.UUID) (sqlc.Product, error) {
+	if m.SoftDeleteProductFunc != nil {
+		return m.SoftDeleteProductFunc(ctx, productUUID)
+	}
+	return sqlc.Product{}, nil
+}
+
+func (m *MockProductService) RestoreProduct(ctx context.Context, productUUID uuid.UUID) (sqlc.Product, error) {
+	if m.RestoreProductFunc != nil {
+		return m.RestoreProductFunc(ctx, productUUID)
+	}
+	return sqlc.Product{}, nil
+}
+
+func (m *MockProductService) TrashProduct(ctx context.Context, productUUID uuid.UUID) error {
+	if m.TrashProductFunc != nil {
+		return m.TrashProductFunc(ctx, productUUID)
+	}
+	return nil
+}
+
+func (m *MockProductService) ImportProductsCSV(ctx context.Context, file io.Reader) (*v1dto.ProductCSVImportResponse, error) {
+	if m.ImportProductsCSVFunc != nil {
+		return m.ImportProductsCSVFunc(ctx, file)
+	}
+	return &v1dto.ProductCSVImportResponse{}, nil
 }
 
 
