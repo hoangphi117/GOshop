@@ -9,6 +9,7 @@ import {
   CreditCard,
   Receipt,
   FileText,
+  FileDown,
   Clock,
   Loader2,
   Truck,
@@ -29,7 +30,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { DashboardHeader } from '@/components/layout/dashboard-header'
 import { Main } from '@/components/layout/main'
-import { useOrderDetails, useOrderMutations } from '../hooks/use-orders'
+import { useOrderDetails, useOrderMutations, downloadOrderInvoice } from '../hooks/use-orders'
 import { ShippingTab } from './shipping-tab'
 import { ReturnsTab } from './returns-tab'
 import type { Order } from '../types'
@@ -50,6 +51,22 @@ export function OrderDetail({ uuid }: { uuid: string }) {
 
   const [selectedStatus, setSelectedStatus] = useState<string>('')
   const [selectedPaymentStatus, setSelectedPaymentStatus] = useState<string>('')
+  const [isDownloadingInvoice, setIsDownloadingInvoice] = useState(false)
+
+  const handleDownloadInvoice = async () => {
+    if (!order) return
+    setIsDownloadingInvoice(true)
+    try {
+      await downloadOrderInvoice(uuid, order.order_number as string)
+      toast.success('Invoice downloaded successfully')
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to download invoice'
+      )
+    } finally {
+      setIsDownloadingInvoice(false)
+    }
+  }
 
   // Sync selects when order loads
   const currentStatus = (order?.status as string)?.toLowerCase()
@@ -176,6 +193,20 @@ export function OrderDetail({ uuid }: { uuid: string }) {
           <div className='flex items-center gap-2'>
             {renderOrderStatusBadge(order.status as string)}
             {renderPaymentStatusBadge(order.payment_status as string)}
+            <Button
+              variant='outline'
+              size='sm'
+              className='h-8 gap-1.5 text-xs'
+              onClick={handleDownloadInvoice}
+              disabled={isDownloadingInvoice}
+            >
+              {isDownloadingInvoice ? (
+                <Loader2 className='size-3.5 animate-spin' />
+              ) : (
+                <FileDown className='size-3.5' />
+              )}
+              Invoice PDF
+            </Button>
           </div>
         </div>
 

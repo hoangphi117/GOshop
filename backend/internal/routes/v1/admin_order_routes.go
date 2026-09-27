@@ -21,6 +21,7 @@ func (or *AdminOrderRoutes) Register(r *gin.RouterGroup) {
 	{
 		orders.GET("", or.handler.GetAllOrders)
 		orders.GET("/:uuid", or.handler.GetOrderByUUID)
+		orders.GET("/:uuid/invoice", or.handler.DownloadInvoice)
 		orders.PATCH("/:uuid", or.handler.UpdateOrderStatus)
 		orders.PATCH("/:uuid/payment-status", or.handler.UpdateOrderPaymentStatus)
 

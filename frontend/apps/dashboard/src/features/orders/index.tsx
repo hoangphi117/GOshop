@@ -6,7 +6,9 @@ import {
   ShoppingBag,
   Filter,
   CreditCard,
+  FileDown,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { DashboardHeader } from '@/components/layout/dashboard-header'
 import { Main } from '@/components/layout/main'
 import { Button } from '@/components/ui/button'
@@ -31,7 +33,7 @@ import { DataTablePagination } from '@/components/data-table'
 import { Checkbox } from '@/components/ui/checkbox'
 import { BulkActionBar } from './components/bulk-action-bar'
 import { useBulkOrderActions } from './hooks/use-bulk-order-actions'
-import { useOrders } from './hooks/use-orders'
+import { useOrders, downloadOrderInvoice } from './hooks/use-orders'
 import {
   formatCurrency,
   formatDateTime,
@@ -150,6 +152,22 @@ export function Orders() {
     setActiveSearch('')
     setStatusFilter('all')
     setPage(1)
+  }
+
+  const [downloadingUuid, setDownloadingUuid] = useState<string | null>(null)
+
+  const handleDownloadRowInvoice = async (uuid: string, orderNumber: string) => {
+    setDownloadingUuid(uuid)
+    try {
+      await downloadOrderInvoice(uuid, orderNumber)
+      toast.success('Invoice downloaded successfully')
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to download invoice'
+      )
+    } finally {
+      setDownloadingUuid(null)
+    }
   }
 
   const handleOpenDetails = (order: Order) => {
@@ -354,18 +372,33 @@ export function Orders() {
                         {formatDateTime(order.created_at)}
                       </TableCell>
                       <TableCell className='text-right'>
-                        <Button
-                          variant='ghost'
-                          size='icon'
-                          className='size-8'
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleOpenDetails(order)
-                          }}
-                          title='View details'
-                        >
-                          <Eye className='size-4' />
-                        </Button>
+                        <div className='flex items-center justify-end gap-1'>
+                          <Button
+                            variant='ghost'
+                            size='icon'
+                            className='size-8'
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDownloadRowInvoice(order.uuid, order.order_number)
+                            }}
+                            disabled={downloadingUuid === order.uuid}
+                            title='Download invoice'
+                          >
+                            <FileDown className='size-4' />
+                          </Button>
+                          <Button
+                            variant='ghost'
+                            size='icon'
+                            className='size-8'
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleOpenDetails(order)
+                            }}
+                            title='View details'
+                          >
+                            <Eye className='size-4' />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   )

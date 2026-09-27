@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api } from '@/lib/api'
+import { api, fetchWithAuth } from '@/lib/api'
 import type { OrderQueryParams } from '../types'
 
 export function useOrders(params: OrderQueryParams = {}) {
@@ -109,4 +109,27 @@ export function useOrderMutations() {
     updateOrderStatus,
     updateOrderPaymentStatus,
   }
+}
+
+export async function downloadOrderInvoice(uuid: string, orderNumber?: string): Promise<void> {
+  const res = await fetchWithAuth(`/api/v1/orders/${uuid}/invoice?action=download`)
+  if (!res.ok) {
+    let errMsg = 'Failed to download invoice'
+    try {
+      const errJson = await res.json()
+      if (errJson?.error) errMsg = errJson.error
+    } catch {
+      // Non-JSON error
+    }
+    throw new Error(errMsg)
+  }
+  const blob = await res.blob()
+  const blobUrl = window.URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = blobUrl
+  a.download = `invoice-${orderNumber || uuid}.pdf`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  window.URL.revokeObjectURL(blobUrl)
 }
