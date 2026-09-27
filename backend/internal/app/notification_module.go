@@ -36,6 +36,8 @@ func NewNotificationModule(ctx *ModuleContext, wsHub ws.Hub, tokenService auth.T
 	adminNotificationRoutes := v1routes.NewAdminNotificationRoutes(notificationHandler)
 
 	wsHandler := v1handler.NewWSHandler(wsHub, tokenService, cacheService, userRepo)
+	chatRepo := repository.NewSqlChatRepository(ctx.DB)
+	wsHandler.SetChatRepo(chatRepo)
 	wsRoutes := v1routes.NewWSRoutes(wsHandler)
 
 	return &NotificationModule{

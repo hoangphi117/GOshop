@@ -15,22 +15,25 @@ type Hub interface {
 	BroadCastToAdmins(msg WSMessage)
 	BroadcastToUser(userID int32, msg WSMessage)
 	BroadcastToAll(msg WSMessage)
+	BroadcastToConversation(conversationID int32, msg WSMessage)
 	IsUserOnline(userID int32) bool
 	Shutdown()
 }
 
 type hub struct {
 	// Registered clients mapped by UserID: map[UserID]map[*Client]bool
-	clients      map[int32]map[*Client]bool
-	adminClients map[*Client]bool
-	mu           sync.RWMutex
+	clients             map[int32]map[*Client]bool
+	adminClients        map[*Client]bool
+	conversationClients map[int32]map[*Client]bool // map[ConversationID]map[*Client]bool
+	mu                  sync.RWMutex
 }
 
 func NewHub() Hub {
 	return &hub{
-		clients:      make(map[int32]map[*Client]bool),
-		adminClients: make(map[*Client]bool),
-		mu:           sync.RWMutex{},
+		clients:             make(map[int32]map[*Client]bool),
+		adminClients:        make(map[*Client]bool),
+		conversationClients: make(map[int32]map[*Client]bool),
+		mu:                  sync.RWMutex{},
 	}
 }
 
@@ -45,6 +48,15 @@ func (h *hub) Register(client *Client) {
 
 	if client.IsAdmin {
 		h.adminClients[client] = true
+	}
+
+	// If client joins a specific conversation room
+	if client.ConversationID != nil {
+		convID := *client.ConversationID
+		if _, ok := h.conversationClients[convID]; !ok {
+			h.conversationClients[convID] = make(map[*Client]bool)
+		}
+		h.conversationClients[convID][client] = true
 	}
 
 	logger.Log.Info().
@@ -66,6 +78,16 @@ func (h *hub) Unregister(client *Client) {
 	}
 	if client.IsAdmin {
 		delete(h.adminClients, client)
+	}
+
+	if client.ConversationID != nil {
+		convID := *client.ConversationID
+		if convClients, ok := h.conversationClients[convID]; ok {
+			delete(convClients, client)
+			if len(convClients) == 0 {
+				delete(h.conversationClients, convID)
+			}
+		}
 	}
 
 	logger.Log.Info().
@@ -92,6 +114,10 @@ func (h *hub) Shutdown() {
 		}
 		delete(h.clients, userID)
 	}
+
+	// Clean all room mappings
+	h.conversationClients = make(map[int32]map[*Client]bool)
+	h.adminClients = make(map[*Client]bool)
 
 	logger.Log.Info().Msg("WebSocket Hub shut down successfully")
 }
@@ -215,6 +241,52 @@ func (h *hub) BroadCastToAdmins(msg WSMessage) {
 		select {
 		case client.Send <- payload:
 		default:
+			h.Unregister(client)
+		}
+	}
+}
+
+// BroadcastToConversation sends a message to all active connections in a specific conversation room
+func (h *hub) BroadcastToConversation(conversationID int32, msg WSMessage) {
+	h.mu.RLock()
+	convClients, exists := h.conversationClients[conversationID]
+	if !exists || len(convClients) == 0 {
+		h.mu.RUnlock()
+		logger.Log.Warn().
+			Int32("conversation_id", conversationID).
+			Str("event_type", string(msg.Type)).
+			Msg("WebSocket BroadcastToConversation: no active clients in room")
+		return
+	}
+
+	payload, err := json.Marshal(msg)
+	if err != nil {
+		h.mu.RUnlock()
+		logger.Log.Error().
+			Err(err).
+			Int32("conversation_id", conversationID).
+			Msg("Failed to marshal WebSocket message for broadcast to conversation")
+		return
+	}
+
+	// Copy clients slice to minimize lock holding time
+	targets := make([]*Client, 0, len(convClients))
+	for client := range convClients {
+		targets = append(targets, client)
+	}
+	h.mu.RUnlock()
+
+	logger.Log.Info().
+		Int32("conversation_id", conversationID).
+		Int("target_connections", len(targets)).
+		Str("event_type", string(msg.Type)).
+		Msg("WebSocket broadcasting to conversation room")
+
+	for _, client := range targets {
+		select {
+		case client.Send <- payload:
+		default:
+			// Buffer full, unregister problematic client
 			h.Unregister(client)
 		}
 	}

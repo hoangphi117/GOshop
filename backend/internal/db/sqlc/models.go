@@ -58,6 +58,30 @@ type Category struct {
 	CategoryUpdatedAt time.Time          `json:"category_updated_at"`
 }
 
+type ChatConversation struct {
+	ConversationID   int32              `json:"conversation_id"`
+	ConversationUuid uuid.UUID          `json:"conversation_uuid"`
+	UserID           int32              `json:"user_id"`
+	AdminID          *int32             `json:"admin_id"`
+	Status           string             `json:"status"`
+	LastMessageAt    pgtype.Timestamptz `json:"last_message_at"`
+	CreatedAt        time.Time          `json:"created_at"`
+	UpdatedAt        time.Time          `json:"updated_at"`
+}
+
+type ChatMessage struct {
+	MessageID      int32              `json:"message_id"`
+	MessageUuid    uuid.UUID          `json:"message_uuid"`
+	ConversationID int32              `json:"conversation_id"`
+	SenderID       int32              `json:"sender_id"`
+	SenderRole     string             `json:"sender_role"`
+	Content        string             `json:"content"`
+	ContentType    string             `json:"content_type"`
+	IsRead         bool               `json:"is_read"`
+	ReadAt         pgtype.Timestamptz `json:"read_at"`
+	CreatedAt      time.Time          `json:"created_at"`
+}
+
 type Coupon struct {
 	CouponID                int32              `json:"coupon_id"`
 	CouponUuid              uuid.UUID          `json:"coupon_uuid"`
@@ -289,6 +313,7 @@ type User struct {
 	UserDeletedAt pgtype.Timestamptz `json:"user_deleted_at"`
 	UserCreatedAt time.Time          `json:"user_created_at"`
 	UserUpdatedAt time.Time          `json:"user_updated_at"`
+	UserAvatar    string             `json:"user_avatar"`
 }
 
 type UserAddress struct {

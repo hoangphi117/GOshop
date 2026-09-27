@@ -3,24 +3,30 @@ package ws
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"goshop/pkg/logger"
 	"sync"
 
 	"github.com/redis/go-redis/v9"
 )
 
-const NotificationRedisChannel = "channel:ws:notifications"
+const (
+	NotificationRedisChannel = "channel:ws:notifications"
+	ChatRedisChannelPrefix   = "channel:ws:chat:" // Format: channel:ws:chat:<conversation_id>
+)
 
 // RedisNotificationEnvelop is the cross-node payload for horizontal delivery
 type RedisNotificationEnvelope struct {
-	UserID  *int32    `json:"user_id,omitempty"`
-	IsAdmin bool      `json:"is_admin,omitempty"`
-	IsAll   bool      `json:"is_all,omitempty"`
-	Message WSMessage `json:"message"`
+	UserID         *int32    `json:"user_id,omitempty"`
+	IsAdmin        bool      `json:"is_admin,omitempty"`
+	IsAll          bool      `json:"is_all,omitempty"`
+	ConversationID *int32    `json:"conversation_id,omitempty"`
+	Message        WSMessage `json:"message"`
 }
 
 type RedisBridge interface {
 	Publish(ctx context.Context, envelope RedisNotificationEnvelope) error
+	PublishToConversation(ctx context.Context, conversationID int32, msg WSMessage) error
 	StartSubscriber(ctx context.Context)
 	Stop()
 }
@@ -54,13 +60,33 @@ func (rb *redisBridge) Publish(ctx context.Context, envelope RedisNotificationEn
 	return rb.rdb.Publish(ctx, NotificationRedisChannel, data).Err()
 }
 
+func (rb *redisBridge) PublishToConversation(ctx context.Context, conversationID int32, msg WSMessage) error {
+	if rb.rdb == nil {
+		return nil // Redis not configured, fallback gracefully
+	}
+
+	envelope := RedisNotificationEnvelope{
+		ConversationID: &conversationID,
+		Message:        msg,
+	}
+
+	data, err := json.Marshal(envelope)
+	if err != nil {
+		return err
+	}
+
+	channel := fmt.Sprintf("%s%d", ChatRedisChannelPrefix, conversationID)
+	return rb.rdb.Publish(ctx, channel, data).Err()
+}
+
 func (rb *redisBridge) StartSubscriber(ctx context.Context) {
 	if rb.rdb == nil || rb.hub == nil {
 		return // Redis or Hub not configured, skip subscribing
 	}
 
 	rb.mu.Lock()
-	rb.pubsub = rb.rdb.Subscribe(ctx, NotificationRedisChannel)
+	// PSubscribe to both the notification channel and all chat channels using a wildcard
+	rb.pubsub = rb.rdb.PSubscribe(ctx, NotificationRedisChannel, ChatRedisChannelPrefix+"*")
 	rb.mu.Unlock()
 
 	ch := rb.pubsub.Channel()
@@ -81,6 +107,11 @@ func (rb *redisBridge) StartSubscriber(ctx context.Context) {
 			var envelope RedisNotificationEnvelope
 			if err := json.Unmarshal([]byte(msg.Payload), &envelope); err != nil {
 				logger.Log.Error().Err(err).Msg("Failed to unmarshal Redis Pub/Sub notification envelope")
+				continue
+			}
+
+			if envelope.ConversationID != nil {
+				rb.hub.BroadcastToConversation(*envelope.ConversationID, envelope.Message)
 				continue
 			}
 

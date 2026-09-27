@@ -240,3 +240,14 @@ type AnalyticsService interface {
 	GetCategorySalesBreakdown(ctx context.Context, params v1dto.CategorySalesBreakdownQuery) (*v1dto.CategorySalesBreakdownResponse, error)
 	GetCouponPerformance(ctx context.Context, params v1dto.CouponPerformanceQuery) (*v1dto.CouponPerformanceResponse, error)
 }
+
+type ChatService interface {
+	GetOrCreateConversation(ctx context.Context, userUUID uuid.UUID) (sqlc.ChatConversation, error)
+	SendMessage(ctx context.Context, conversationUUID uuid.UUID, senderUUID uuid.UUID, senderRole string, req v1dto.SendMessageRequest) (v1dto.MessageResponse, error)
+	ListMessages(ctx context.Context, conversationUUID uuid.UUID, callerUUID uuid.UUID, req v1dto.ListMessagesRequest) ([]v1dto.MessageResponse, int64, error)
+	MarkRead(ctx context.Context, conversationUUID uuid.UUID, callerUUID uuid.UUID) error
+	ListConversations(ctx context.Context, callerUUID uuid.UUID, req v1dto.ListConversationsRequest) ([]v1dto.ConversationResponse, int64, error)
+	GetConversationDetails(ctx context.Context, conversationUUID uuid.UUID, callerUUID uuid.UUID) (v1dto.ConversationResponse, error)
+	CloseConversation(ctx context.Context, conversationUUID uuid.UUID) (sqlc.ChatConversation, error)
+	GetTotalUnreadCount(ctx context.Context, callerUUID uuid.UUID) (int64, error)
+}

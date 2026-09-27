@@ -1,16 +1,20 @@
 package v1handler
 
 import (
+	"database/sql"
+	"errors"
+	"strings"
+
 	"goshop/internal/repository"
 	"goshop/internal/utils"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 	"goshop/pkg/ws"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 const (
@@ -23,6 +27,7 @@ type WSHandler struct {
 	jwtService   auth.TokenService
 	cacheService cache.RedisCacheService
 	userRepo     repository.UserRepository
+	chatRepo     repository.ChatRepository
 }
 
 func NewWSHandler(
@@ -39,13 +44,22 @@ func NewWSHandler(
 	}
 }
 
+// SetChatRepo helps DI injection for ChatRepository without causing breaking changes in the constructor
+func (h *WSHandler) SetChatRepo(chatRepo repository.ChatRepository) {
+	h.chatRepo = chatRepo
+}
+
 // HandleWS godoc
 // @Summary      WebSocket connection
-// @Description  Establish persistent bidirectional WebSocket connection for real-time order and notification events
+// @Description  Establish persistent bidirectional WebSocket connection for real-time order, notifications, and chat rooms
 // @Tags         WebSocket
-// @Param        token query string false "JWT Access Token"
+// @Param        token             query string false "JWT Access Token"
+// @Param        conversation_uuid query string false "Conversation UUID to join chat room"
 // @Success      101 "Switching Protocols"
+// @Failure      400 {object} utils.ErrorResponse
 // @Failure      401 {object} utils.ErrorResponse
+// @Failure      403 {object} utils.ErrorResponse
+// @Failure      404 {object} utils.ErrorResponse
 // @Router       /ws [get]
 func (h *WSHandler) HandleWS(ctx *gin.Context) {
 	tokenString := ctx.Query("token")
@@ -53,7 +67,6 @@ func (h *WSHandler) HandleWS(ctx *gin.Context) {
 		authHeader := ctx.GetHeader("Authorization")
 		if authHeader != "" && strings.HasPrefix(authHeader, "Bearer ") {
 			tokenString = strings.TrimPrefix(authHeader, "Bearer ")
-
 		}
 	}
 
@@ -98,6 +111,37 @@ func (h *WSHandler) HandleWS(ctx *gin.Context) {
 
 	isAdmin := user.UserLevel == UserLevelAdmin || user.UserLevel == UserLevelModerator
 
+	// Resolve Chat Room if conversation_uuid query parameter is provided
+	var targetConvID *int32
+	convUUIDStr := strings.TrimSpace(ctx.Query("conversation_uuid"))
+	if convUUIDStr != "" {
+		convUUID, parseErr := uuid.Parse(convUUIDStr)
+		if parseErr != nil {
+			utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid conversation UUID"))
+			return
+		}
+
+		if h.chatRepo != nil {
+			conv, convErr := h.chatRepo.GetConversationByUUID(ctx, convUUID)
+			if convErr != nil {
+				if errors.Is(convErr, sql.ErrNoRows) || errors.Is(convErr, pgx.ErrNoRows) {
+					utils.ResponseError(ctx, utils.NewError(utils.ErrCodeNotFound, "Conversation not found"))
+					return
+				}
+				utils.ResponseError(ctx, utils.WrapError(utils.ErrCodeInternal, "Failed to resolve conversation", convErr))
+				return
+			}
+
+			// Authorization check: Admin can join any conversation room, regular user can only join their own
+			if !isAdmin && conv.UserID != user.UserID {
+				utils.ResponseError(ctx, utils.NewError(utils.ErrCodeForbidden, "You are not authorized to join this conversation room"))
+				return
+			}
+
+			targetConvID = &conv.ConversationID
+		}
+	}
+
 	// Upgrade the HTTP connection to a WebSocket connection
 	conn, err := ws.Upgrader.Upgrade(ctx.Writer, ctx.Request, nil)
 	if err != nil {
@@ -107,6 +151,7 @@ func (h *WSHandler) HandleWS(ctx *gin.Context) {
 
 	// Create a new WebSocket client and register it with the hub
 	client := ws.NewClient(h.hub, conn, user.UserID, isAdmin)
+	client.ConversationID = targetConvID
 	h.hub.Register(client)
 
 	// Start client pumps in separate goroutines

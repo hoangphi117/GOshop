@@ -28,6 +28,7 @@ var (
 	_ repository.ReviewRepository       = (*MockReviewRepository)(nil)
 	_ repository.AddressRepository      = (*MockAddressRepository)(nil)
 	_ repository.NotificationRepository = (*MockNotificationRepository)(nil)
+	_ repository.ChatRepository         = (*MockChatRepository)(nil)
 )
 
 // =========================================================================
@@ -1502,6 +1503,141 @@ func (m *MockAnalyticsRepository) GetCouponCampaignBreakdown(ctx context.Context
 	}
 	return nil, nil
 }
+
+// =========================================================================
+// MockChatRepository
+// =========================================================================
+type MockChatRepository struct {
+	CreateConversationFunc            func(ctx context.Context, userID int32) (sqlc.ChatConversation, error)
+	GetConversationByUUIDFunc         func(ctx context.Context, conversationUUID uuid.UUID) (sqlc.ChatConversation, error)
+	GetConversationByIDFunc           func(ctx context.Context, conversationID int32) (sqlc.ChatConversation, error)
+	GetConversationByUserIDFunc       func(ctx context.Context, userID int32) (sqlc.ChatConversation, error)
+	UpdateConversationStatusFunc      func(ctx context.Context, conversationID int32, status string) (sqlc.ChatConversation, error)
+	UpdateLastMessageAtFunc           func(ctx context.Context, conversationID int32) error
+	ListConversationsFunc             func(ctx context.Context, params sqlc.ListConversationsParams) ([]sqlc.ListConversationsRow, error)
+	CountConversationsFunc            func(ctx context.Context, params sqlc.CountConversationsParams) (int64, error)
+	CreateMessageFunc                 func(ctx context.Context, params sqlc.CreateMessageParams) (sqlc.ChatMessage, error)
+	ListMessagesFunc                  func(ctx context.Context, params sqlc.ListMessagesParams) ([]sqlc.ChatMessage, error)
+	ListMessagesCursorFunc            func(ctx context.Context, params sqlc.ListMessagesCursorParams) ([]sqlc.ChatMessage, error)
+	CountMessagesByConversationIDFunc func(ctx context.Context, conversationID int32) (int64, error)
+	MarkMessagesReadFunc              func(ctx context.Context, conversationID int32, readerID int32) error
+	CountUnreadMessagesFunc           func(ctx context.Context, conversationID int32, readerID int32) (int64, error)
+	GetTotalUnreadMessagesForUserFunc  func(ctx context.Context, userID int32) (int64, error)
+	GetTotalUnreadMessagesForAdminFunc func(ctx context.Context) (int64, error)
+}
+
+func (m *MockChatRepository) CreateConversation(ctx context.Context, userID int32) (sqlc.ChatConversation, error) {
+	if m.CreateConversationFunc != nil {
+		return m.CreateConversationFunc(ctx, userID)
+	}
+	return sqlc.ChatConversation{}, nil
+}
+
+func (m *MockChatRepository) GetConversationByUUID(ctx context.Context, conversationUUID uuid.UUID) (sqlc.ChatConversation, error) {
+	if m.GetConversationByUUIDFunc != nil {
+		return m.GetConversationByUUIDFunc(ctx, conversationUUID)
+	}
+	return sqlc.ChatConversation{}, nil
+}
+
+func (m *MockChatRepository) GetConversationByID(ctx context.Context, conversationID int32) (sqlc.ChatConversation, error) {
+	if m.GetConversationByIDFunc != nil {
+		return m.GetConversationByIDFunc(ctx, conversationID)
+	}
+	return sqlc.ChatConversation{}, nil
+}
+
+func (m *MockChatRepository) GetConversationByUserID(ctx context.Context, userID int32) (sqlc.ChatConversation, error) {
+	if m.GetConversationByUserIDFunc != nil {
+		return m.GetConversationByUserIDFunc(ctx, userID)
+	}
+	return sqlc.ChatConversation{}, nil
+}
+
+func (m *MockChatRepository) UpdateConversationStatus(ctx context.Context, conversationID int32, status string) (sqlc.ChatConversation, error) {
+	if m.UpdateConversationStatusFunc != nil {
+		return m.UpdateConversationStatusFunc(ctx, conversationID, status)
+	}
+	return sqlc.ChatConversation{}, nil
+}
+
+func (m *MockChatRepository) UpdateLastMessageAt(ctx context.Context, conversationID int32) error {
+	if m.UpdateLastMessageAtFunc != nil {
+		return m.UpdateLastMessageAtFunc(ctx, conversationID)
+	}
+	return nil
+}
+
+func (m *MockChatRepository) ListConversations(ctx context.Context, params sqlc.ListConversationsParams) ([]sqlc.ListConversationsRow, error) {
+	if m.ListConversationsFunc != nil {
+		return m.ListConversationsFunc(ctx, params)
+	}
+	return nil, nil
+}
+
+func (m *MockChatRepository) CountConversations(ctx context.Context, params sqlc.CountConversationsParams) (int64, error) {
+	if m.CountConversationsFunc != nil {
+		return m.CountConversationsFunc(ctx, params)
+	}
+	return 0, nil
+}
+
+func (m *MockChatRepository) CreateMessage(ctx context.Context, params sqlc.CreateMessageParams) (sqlc.ChatMessage, error) {
+	if m.CreateMessageFunc != nil {
+		return m.CreateMessageFunc(ctx, params)
+	}
+	return sqlc.ChatMessage{}, nil
+}
+
+func (m *MockChatRepository) ListMessages(ctx context.Context, params sqlc.ListMessagesParams) ([]sqlc.ChatMessage, error) {
+	if m.ListMessagesFunc != nil {
+		return m.ListMessagesFunc(ctx, params)
+	}
+	return nil, nil
+}
+
+func (m *MockChatRepository) ListMessagesCursor(ctx context.Context, params sqlc.ListMessagesCursorParams) ([]sqlc.ChatMessage, error) {
+	if m.ListMessagesCursorFunc != nil {
+		return m.ListMessagesCursorFunc(ctx, params)
+	}
+	return nil, nil
+}
+
+func (m *MockChatRepository) CountMessagesByConversationID(ctx context.Context, conversationID int32) (int64, error) {
+	if m.CountMessagesByConversationIDFunc != nil {
+		return m.CountMessagesByConversationIDFunc(ctx, conversationID)
+	}
+	return 0, nil
+}
+
+func (m *MockChatRepository) MarkMessagesRead(ctx context.Context, conversationID int32, readerID int32) error {
+	if m.MarkMessagesReadFunc != nil {
+		return m.MarkMessagesReadFunc(ctx, conversationID, readerID)
+	}
+	return nil
+}
+
+func (m *MockChatRepository) CountUnreadMessages(ctx context.Context, conversationID int32, readerID int32) (int64, error) {
+	if m.CountUnreadMessagesFunc != nil {
+		return m.CountUnreadMessagesFunc(ctx, conversationID, readerID)
+	}
+	return 0, nil
+}
+
+func (m *MockChatRepository) GetTotalUnreadMessagesForUser(ctx context.Context, userID int32) (int64, error) {
+	if m.GetTotalUnreadMessagesForUserFunc != nil {
+		return m.GetTotalUnreadMessagesForUserFunc(ctx, userID)
+	}
+	return 0, nil
+}
+
+func (m *MockChatRepository) GetTotalUnreadMessagesForAdmin(ctx context.Context) (int64, error) {
+	if m.GetTotalUnreadMessagesForAdminFunc != nil {
+		return m.GetTotalUnreadMessagesForAdminFunc(ctx)
+	}
+	return 0, nil
+}
+
 
 
 

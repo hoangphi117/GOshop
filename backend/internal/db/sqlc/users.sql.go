@@ -47,7 +47,7 @@ INSERT INTO users (
     user_level
 )
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at
+RETURNING user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar
 `
 
 type CreateUserParams struct {
@@ -81,6 +81,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.UserDeletedAt,
 		&i.UserCreatedAt,
 		&i.UserUpdatedAt,
+		&i.UserAvatar,
 	)
 	return i, err
 }
@@ -113,7 +114,7 @@ func (q *Queries) GetActiveAdminUserIDs(ctx context.Context) ([]int32, error) {
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at
+SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar
 FROM users
 WHERE user_email = $1
 AND user_deleted_at IS NULL
@@ -134,12 +135,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, userEmail string) (User, e
 		&i.UserDeletedAt,
 		&i.UserCreatedAt,
 		&i.UserUpdatedAt,
+		&i.UserAvatar,
 	)
 	return i, err
 }
 
 const getUserByUUID = `-- name: GetUserByUUID :one
-SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at
+SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar
 FROM users
 WHERE user_uuid = $1
 AND user_deleted_at IS NULL
@@ -160,12 +162,13 @@ func (q *Queries) GetUserByUUID(ctx context.Context, userUuid uuid.UUID) (User, 
 		&i.UserDeletedAt,
 		&i.UserCreatedAt,
 		&i.UserUpdatedAt,
+		&i.UserAvatar,
 	)
 	return i, err
 }
 
 const listUserUserCreatedAtAsc = `-- name: ListUserUserCreatedAtAsc :many
-SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at
+SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar
 FROM users
 WHERE user_deleted_at IS NULL
 AND (
@@ -204,6 +207,7 @@ func (q *Queries) ListUserUserCreatedAtAsc(ctx context.Context, arg ListUserUser
 			&i.UserDeletedAt,
 			&i.UserCreatedAt,
 			&i.UserUpdatedAt,
+			&i.UserAvatar,
 		); err != nil {
 			return nil, err
 		}
@@ -216,7 +220,7 @@ func (q *Queries) ListUserUserCreatedAtAsc(ctx context.Context, arg ListUserUser
 }
 
 const listUserUserCreatedAtDesc = `-- name: ListUserUserCreatedAtDesc :many
-SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at
+SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar
 FROM users
 WHERE user_deleted_at IS NULL
 AND (
@@ -255,6 +259,7 @@ func (q *Queries) ListUserUserCreatedAtDesc(ctx context.Context, arg ListUserUse
 			&i.UserDeletedAt,
 			&i.UserCreatedAt,
 			&i.UserUpdatedAt,
+			&i.UserAvatar,
 		); err != nil {
 			return nil, err
 		}
@@ -267,7 +272,7 @@ func (q *Queries) ListUserUserCreatedAtDesc(ctx context.Context, arg ListUserUse
 }
 
 const listUserUserIdAsc = `-- name: ListUserUserIdAsc :many
-SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at
+SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar
 FROM users
 WHERE user_deleted_at IS NULL
 AND (
@@ -306,6 +311,7 @@ func (q *Queries) ListUserUserIdAsc(ctx context.Context, arg ListUserUserIdAscPa
 			&i.UserDeletedAt,
 			&i.UserCreatedAt,
 			&i.UserUpdatedAt,
+			&i.UserAvatar,
 		); err != nil {
 			return nil, err
 		}
@@ -318,7 +324,7 @@ func (q *Queries) ListUserUserIdAsc(ctx context.Context, arg ListUserUserIdAscPa
 }
 
 const listUserUserIdDesc = `-- name: ListUserUserIdDesc :many
-SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at
+SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar
 FROM users
 WHERE user_deleted_at IS NULL
 AND (
@@ -357,6 +363,7 @@ func (q *Queries) ListUserUserIdDesc(ctx context.Context, arg ListUserUserIdDesc
 			&i.UserDeletedAt,
 			&i.UserCreatedAt,
 			&i.UserUpdatedAt,
+			&i.UserAvatar,
 		); err != nil {
 			return nil, err
 		}
@@ -375,7 +382,7 @@ SET
 WHERE 
     user_uuid = $1::uuid
     AND user_deleted_at IS NOT NULL
-RETURNING user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at
+RETURNING user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar
 `
 
 func (q *Queries) RestoreUser(ctx context.Context, userUuid uuid.UUID) (User, error) {
@@ -393,6 +400,7 @@ func (q *Queries) RestoreUser(ctx context.Context, userUuid uuid.UUID) (User, er
 		&i.UserDeletedAt,
 		&i.UserCreatedAt,
 		&i.UserUpdatedAt,
+		&i.UserAvatar,
 	)
 	return i, err
 }
@@ -404,7 +412,7 @@ SET
 WHERE 
     user_uuid = $1::uuid
     AND user_deleted_at IS NULL
-RETURNING user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at
+RETURNING user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar
 `
 
 func (q *Queries) SoftDeleteUser(ctx context.Context, userUuid uuid.UUID) (User, error) {
@@ -422,6 +430,7 @@ func (q *Queries) SoftDeleteUser(ctx context.Context, userUuid uuid.UUID) (User,
 		&i.UserDeletedAt,
 		&i.UserCreatedAt,
 		&i.UserUpdatedAt,
+		&i.UserAvatar,
 	)
 	return i, err
 }
@@ -431,7 +440,7 @@ DELETE FROM users
 WHERE 
     user_uuid = $1::uuid
     AND user_deleted_at IS NOT NULL 
-RETURNING user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at
+RETURNING user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar
 `
 
 func (q *Queries) TrashUser(ctx context.Context, userUuid uuid.UUID) (User, error) {
@@ -449,6 +458,7 @@ func (q *Queries) TrashUser(ctx context.Context, userUuid uuid.UUID) (User, erro
 		&i.UserDeletedAt,
 		&i.UserCreatedAt,
 		&i.UserUpdatedAt,
+		&i.UserAvatar,
 	)
 	return i, err
 }
@@ -459,7 +469,7 @@ SET user_password = $1
 WHERE 
     user_uuid = $2::uuid
     AND user_deleted_at IS NULL
-RETURNING user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at
+RETURNING user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar
 `
 
 type UpdatePasswordParams struct {
@@ -482,6 +492,7 @@ func (q *Queries) UpdatePassword(ctx context.Context, arg UpdatePasswordParams) 
 		&i.UserDeletedAt,
 		&i.UserCreatedAt,
 		&i.UserUpdatedAt,
+		&i.UserAvatar,
 	)
 	return i, err
 }
@@ -497,7 +508,7 @@ SET
 WHERE 
     user_uuid = $6
     AND user_deleted_at IS NULL
-RETURNING user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at
+RETURNING user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar
 `
 
 type UpdateUserParams struct {
@@ -531,6 +542,7 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.UserDeletedAt,
 		&i.UserCreatedAt,
 		&i.UserUpdatedAt,
+		&i.UserAvatar,
 	)
 	return i, err
 }

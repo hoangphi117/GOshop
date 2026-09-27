@@ -119,6 +119,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		NewUploadModule(ctx),
 		NewBannerModule(ctx, cacheRedisService),
 		NewAnalyticsModule(ctx),
+		NewChatModule(ctx, wsHub, redisBridge),
 	}
 
 	routes.RegisterRoutes(r, tokenService, cacheRedisService, getModuleRoutes(modules), getAdminModuleRoutes(modules))

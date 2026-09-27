@@ -25,12 +25,13 @@ var (
 )
 
 type Client struct {
-	Hub       Hub
-	Conn      *websocket.Conn
-	Send      chan []byte
-	UserID    int32
-	IsAdmin   bool
-	closeOnce sync.Once
+	Hub            Hub
+	Conn           *websocket.Conn
+	Send           chan []byte
+	UserID         int32
+	IsAdmin        bool
+	ConversationID *int32 // nil: general listener | non-nil: active in conversation room
+	closeOnce      sync.Once
 }
 
 func NewClient(hub Hub, conn *websocket.Conn, userID int32, isAdmin bool) *Client {
@@ -110,7 +111,7 @@ func (c *Client) WritePump() {
 			_, _ = w.Write(message)
 
 			n := len(c.Send)
-			for i := 0; i < n; i++ {
+			for range n {
 				_, _ = w.Write(newline)
 				_, _ = w.Write(<-c.Send)
 			}
