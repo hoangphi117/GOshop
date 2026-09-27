@@ -1,6 +1,4 @@
-'use client'
-
-import { useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { authFetch, API_BASE_URL } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
@@ -36,6 +34,9 @@ export function useChat() {
   const user = useAuthStore((state) => state.user)
   const accessToken = useAuthStore((state) => state.accessToken)
   const isAuthenticated = Boolean(user && accessToken)
+
+  const [isAdminTyping, setIsAdminTyping] = useState(false)
+  const adminTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -185,6 +186,22 @@ export function useChat() {
                 ['chat', 'messages', conversation.uuid],
                 (old = []) => old.map((m) => ({ ...m, is_read: true }))
               )
+            } else if (payload?.type === 'chat.typing' && payload?.data) {
+              if (payload.data.sender_role === 'admin') {
+                if (adminTypingTimeoutRef.current) {
+                  clearTimeout(adminTypingTimeoutRef.current)
+                }
+
+                if (payload.data.is_typing) {
+                  setIsAdminTyping(true)
+                  // Auto clear typing state after 3.5s in case stop event is lost
+                  adminTypingTimeoutRef.current = setTimeout(() => {
+                    setIsAdminTyping(false)
+                  }, 3500)
+                } else {
+                  setIsAdminTyping(false)
+                }
+              }
             }
           } catch {
             // Safe ignore non-JSON frame
@@ -207,6 +224,9 @@ export function useChat() {
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current)
       }
+      if (adminTypingTimeoutRef.current) {
+        clearTimeout(adminTypingTimeoutRef.current)
+      }
       if (wsRef.current) {
         const socket = wsRef.current
         wsRef.current = null
@@ -216,11 +236,46 @@ export function useChat() {
     }
   }, [isAuthenticated, accessToken, conversation?.uuid, queryClient])
 
+  // Send typing status to server via WS and HTTP fallback
+  const sendTyping = useCallback(
+    (isTyping: boolean) => {
+      if (!conversation?.uuid || !isAuthenticated) return
+
+      // Try WebSocket first
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        try {
+          wsRef.current.send(
+            JSON.stringify({
+              type: 'chat.typing',
+              data: {
+                conversation_uuid: conversation.uuid,
+                is_typing: isTyping,
+              },
+            })
+          )
+          return
+        } catch {
+          // Fall through to HTTP
+        }
+      }
+
+      // HTTP fallback
+      authFetch('/api/v1/chat/typing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_typing: isTyping }),
+      }).catch(() => {})
+    },
+    [conversation?.uuid, isAuthenticated]
+  )
+
   return {
     isAuthenticated,
     conversation,
     messages,
     unreadCount,
+    isAdminTyping,
+    sendTyping,
     isLoading: isConversationLoading || isMessagesLoading,
     sendMessage: sendMessageMutation.mutateAsync,
     isSending: sendMessageMutation.isPending,
