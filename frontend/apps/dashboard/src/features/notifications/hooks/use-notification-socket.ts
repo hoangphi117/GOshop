@@ -117,6 +117,30 @@ export function useNotificationSocket() {
 
               // Invalidate notifications queries so UI updates instantly
               queryClient.invalidateQueries({ queryKey: notificationKeys.all })
+
+              // Real-time table invalidation based on notification category
+              if (notifType.includes('order')) {
+                queryClient.invalidateQueries({ queryKey: ['adminOrders'] })
+                queryClient.invalidateQueries({ queryKey: ['orders'] })
+                queryClient.invalidateQueries({ queryKey: ['orderDetails'] })
+                queryClient.invalidateQueries({ queryKey: ['analyticsOverview'] })
+                queryClient.invalidateQueries({ queryKey: ['analyticsRecentOrders'] })
+              } else if (
+                notifType.includes('stock') ||
+                notifType.includes('inventory') ||
+                notifType.includes('product')
+              ) {
+                queryClient.invalidateQueries({ queryKey: ['stockMovements'] })
+                queryClient.invalidateQueries({ queryKey: ['products'] })
+                queryClient.invalidateQueries({ queryKey: ['adminProducts'] })
+                queryClient.invalidateQueries({ queryKey: ['analyticsLowStockAlerts'] })
+              } else if (notifType.includes('review')) {
+                queryClient.invalidateQueries({ queryKey: ['adminReviews'] })
+                queryClient.invalidateQueries({ queryKey: ['adminReviewReports'] })
+              } else if (notifType.includes('return')) {
+                queryClient.invalidateQueries({ queryKey: ['adminReturns'] })
+                queryClient.invalidateQueries({ queryKey: ['analyticsReturns'] })
+              }
             }
           } catch {
             // Non-JSON or heartbeat frame
