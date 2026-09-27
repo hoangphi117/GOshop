@@ -6,6 +6,12 @@ function escapeCSV(val: string | number | undefined | null): string {
   return `"${str}"`
 }
 
+function escapePhone(phone?: string | null): string {
+  if (!phone) return '""'
+  const clean = phone.trim()
+  return `="${clean}"`
+}
+
 /**
  * Exports an array of orders to a downloadable CSV file.
  * Includes UTF-8 BOM (\uFEFF) for native Excel compatibility with accented characters.
@@ -28,16 +34,21 @@ export function exportOrdersToCSV(orders: Order[], filename?: string): void {
   const rows = orders.map((order) => [
     escapeCSV(order.order_number),
     escapeCSV(order.shipping_name || order.user_name || 'N/A'),
-    escapeCSV(order.shipping_phone || 'N/A'),
+    escapePhone(order.shipping_phone),
     escapeCSV(order.shipping_address || 'N/A'),
     escapeCSV(order.total_amount ?? 0),
     escapeCSV(order.payment_method || 'COD'),
     escapeCSV(order.payment_status || 'Pending'),
     escapeCSV(order.status || 'Pending'),
-    escapeCSV(order.created_at ? new Date(order.created_at).toLocaleString('en-US') : 'N/A'),
+    escapeCSV(
+      order.created_at
+        ? new Date(order.created_at).toLocaleString('en-US')
+        : 'N/A'
+    ),
   ])
 
-  const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n')
+  const csvContent =
+    '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n')
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
 
