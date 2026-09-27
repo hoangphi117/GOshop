@@ -1,0 +1,229 @@
+'use client'
+
+import { useEffect, useRef } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { authFetch, API_BASE_URL } from '@/lib/api'
+import { useAuthStore } from '@/stores/auth-store'
+
+export interface MessageItem {
+  uuid: string
+  sender_id: number
+  sender_role: 'user' | 'admin'
+  content: string
+  content_type: string
+  is_read: boolean
+  created_at: string
+}
+
+export interface ConversationData {
+  conversation_id: number
+  uuid: string
+  status: string
+  user_id: number
+  admin_id?: number | null
+  user_email: string
+  user_fullname: string
+  user_avatar?: string
+  unread_count: number
+  last_message_content?: string
+  last_message_at?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export function useChat() {
+  const queryClient = useQueryClient()
+  const user = useAuthStore((state) => state.user)
+  const accessToken = useAuthStore((state) => state.accessToken)
+  const isAuthenticated = Boolean(user && accessToken)
+
+  const wsRef = useRef<WebSocket | null>(null)
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // 1. Fetch active conversation
+  const {
+    data: conversation,
+    isLoading: isConversationLoading,
+  } = useQuery({
+    queryKey: ['chat', 'conversation'],
+    queryFn: async () => {
+      const res = await authFetch('/api/v1/chat/conversation')
+      if (!res.ok) throw new Error('Failed to fetch conversation')
+      const json = await res.json()
+      return json.data as ConversationData
+    },
+    enabled: isAuthenticated,
+    staleTime: 1000 * 60 * 5,
+  })
+
+  // 2. Fetch conversation messages
+  const {
+    data: messages = [],
+    isLoading: isMessagesLoading,
+  } = useQuery({
+    queryKey: ['chat', 'messages', conversation?.uuid],
+    queryFn: async () => {
+      if (!conversation?.uuid) return []
+      const res = await authFetch('/api/v1/chat/messages?limit=50')
+      if (!res.ok) throw new Error('Failed to fetch messages')
+      const json = await res.json()
+      // Return chronologically ordered messages (API returns desc)
+      const items = (json.data?.data || json.data?.items || json.data || []) as MessageItem[]
+      return [...items].reverse()
+    },
+    enabled: isAuthenticated && Boolean(conversation?.uuid),
+    staleTime: 1000 * 60,
+  })
+
+  // 3. Fetch unread count
+  const { data: unreadCount = 0 } = useQuery({
+    queryKey: ['chat', 'unread-count'],
+    queryFn: async () => {
+      const res = await authFetch('/api/v1/chat/unread-count')
+      if (!res.ok) return 0
+      const json = await res.json()
+      return (json.data?.unread_count as number) || 0
+    },
+    enabled: isAuthenticated,
+    refetchInterval: 30000,
+  })
+
+  // 4. Send message mutation
+  const sendMessageMutation = useMutation({
+    mutationFn: async (content: string) => {
+      const res = await authFetch('/api/v1/chat/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content,
+          content_type: 'text',
+        }),
+      })
+      if (!res.ok) throw new Error('Failed to send message')
+      const json = await res.json()
+      return json.data?.message as MessageItem
+    },
+    onSuccess: (newMsg) => {
+      if (newMsg && conversation?.uuid) {
+        queryClient.setQueryData<MessageItem[]>(
+          ['chat', 'messages', conversation.uuid],
+          (old = []) => {
+            if (old.some((m) => m.uuid === newMsg.uuid)) return old
+            return [...old, newMsg]
+          }
+        )
+      }
+    },
+  })
+
+  // 5. Mark as read mutation
+  const markReadMutation = useMutation({
+    mutationFn: async () => {
+      const res = await authFetch('/api/v1/chat/messages/read', {
+        method: 'PATCH',
+      })
+      if (!res.ok) throw new Error('Failed to mark messages as read')
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.setQueryData(['chat', 'unread-count'], 0)
+    },
+  })
+
+  // 6. Real-time WebSocket connection to the chat room
+  useEffect(() => {
+    if (!isAuthenticated || !accessToken || !conversation?.uuid) {
+      if (wsRef.current) {
+        wsRef.current.close()
+        wsRef.current = null
+      }
+      return
+    }
+
+    let isCleanedUp = false
+
+    const connect = () => {
+      if (isCleanedUp) return
+
+      try {
+        const wsBaseUrl = API_BASE_URL.replace(/^http/, 'ws')
+        const socketUrl = `${wsBaseUrl}/api/v1/ws?token=${encodeURIComponent(accessToken)}&conversation_uuid=${encodeURIComponent(conversation.uuid)}`
+
+        const ws = new WebSocket(socketUrl)
+        wsRef.current = ws
+
+        ws.onmessage = (event) => {
+          try {
+            const payload = JSON.parse(event.data)
+            if (payload?.type === 'chat.message' && payload?.data) {
+              const msgData = payload.data
+              const newMsg: MessageItem = {
+                uuid: msgData.message_uuid,
+                sender_id: msgData.sender_id,
+                sender_role: msgData.sender_role,
+                content: msgData.content,
+                content_type: msgData.content_type || 'text',
+                is_read: false,
+                created_at: msgData.created_at || new Date().toISOString(),
+              }
+
+              queryClient.setQueryData<MessageItem[]>(
+                ['chat', 'messages', conversation.uuid],
+                (old = []) => {
+                  if (old.some((m) => m.uuid === newMsg.uuid)) return old
+                  return [...old, newMsg]
+                }
+              )
+
+              // If message came from admin, increment unread count or mark read if open
+              if (newMsg.sender_role === 'admin') {
+                queryClient.invalidateQueries({ queryKey: ['chat', 'unread-count'] })
+              }
+            } else if (payload?.type === 'chat.read') {
+              // Mark all messages as read
+              queryClient.setQueryData<MessageItem[]>(
+                ['chat', 'messages', conversation.uuid],
+                (old = []) => old.map((m) => ({ ...m, is_read: true }))
+              )
+            }
+          } catch {
+            // Safe ignore non-JSON frame
+          }
+        }
+
+        ws.onclose = () => {
+          if (isCleanedUp) return
+          reconnectTimeoutRef.current = setTimeout(connect, 3000)
+        }
+      } catch {
+        // Fallback on connection error
+      }
+    }
+
+    connect()
+
+    return () => {
+      isCleanedUp = true
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current)
+      }
+      if (wsRef.current) {
+        const socket = wsRef.current
+        wsRef.current = null
+        socket.onclose = null
+        socket.close(1000, 'Normal closure')
+      }
+    }
+  }, [isAuthenticated, accessToken, conversation?.uuid, queryClient])
+
+  return {
+    isAuthenticated,
+    conversation,
+    messages,
+    unreadCount,
+    isLoading: isConversationLoading || isMessagesLoading,
+    sendMessage: sendMessageMutation.mutateAsync,
+    isSending: sendMessageMutation.isPending,
+    markAsRead: markReadMutation.mutate,
+  }
+}

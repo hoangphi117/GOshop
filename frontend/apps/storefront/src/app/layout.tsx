@@ -7,6 +7,7 @@ import { Navbar } from '@/components/layout/navbar'
 import { Footer } from '@/components/layout/footer'
 import { CartDrawer } from '@/components/cart/cart-drawer'
 import { ScrollToTop } from '@/components/layout/scroll-to-top'
+import { ChatWidget } from '@/components/chat/chat-widget'
 import { MainContainer } from '@/components/layout/main-container'
 import { Toaster } from 'sonner'
 
@@ -37,6 +38,7 @@ export default function RootLayout({
             <MainContainer>{children}</MainContainer>
             <Footer />
             <ScrollToTop />
+            <ChatWidget />
             <Toaster richColors position="top-right" />
           </QueryProvider>
         </ThemeProvider>

@@ -141,6 +141,11 @@ export function useNotificationSocket() {
                 queryClient.invalidateQueries({ queryKey: ['adminReturns'] })
                 queryClient.invalidateQueries({ queryKey: ['analyticsReturns'] })
               }
+            } else if (payload?.type === 'chat.message') {
+              // Real-time chat message invalidation
+              queryClient.invalidateQueries({ queryKey: ['admin-chats'] })
+            } else if (payload?.type === 'chat.read') {
+              queryClient.invalidateQueries({ queryKey: ['admin-chats'] })
             }
           } catch {
             // Non-JSON or heartbeat frame
