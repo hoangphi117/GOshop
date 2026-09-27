@@ -19,6 +19,7 @@ import (
 type OrderHandler struct {
 	service         v1service.OrderService
 	shippingService v1service.OrderShippingService
+	locationService v1service.LocationService
 	returnService   v1service.OrderReturnService
 	invoiceService  v1service.OrderInvoiceService
 	adminService    v1service.OrderAdminService
@@ -31,13 +32,18 @@ func NewOrderHandler(
 ) *OrderHandler {
 	var invSvc v1service.OrderInvoiceService
 	var admSvc v1service.OrderAdminService
+	var locSvc v1service.LocationService
 	if service != nil {
 		invSvc = service
 		admSvc = service
 	}
+	if shippingService != nil {
+		locSvc = shippingService
+	}
 	return &OrderHandler{
 		service:         service,
 		shippingService: shippingService,
+		locationService: locSvc,
 		returnService:   returnService,
 		invoiceService:  invSvc,
 		adminService:    admSvc,
@@ -54,6 +60,13 @@ func (oh *OrderHandler) WithInvoiceService(invoiceService v1service.OrderInvoice
 func (oh *OrderHandler) WithAdminService(adminService v1service.OrderAdminService) *OrderHandler {
 	if adminService != nil {
 		oh.adminService = adminService
+	}
+	return oh
+}
+
+func (oh *OrderHandler) WithLocationService(locationService v1service.LocationService) *OrderHandler {
+	if locationService != nil {
+		oh.locationService = locationService
 	}
 	return oh
 }
@@ -686,7 +699,19 @@ func (oh *OrderHandler) GetPrintBill(ctx *gin.Context) {
 // @Failure      400 {object} utils.ErrorResponse
 // @Router       /shipping/provinces [get]
 func (oh *OrderHandler) GetProvinces(ctx *gin.Context) {
-	provinces, err := oh.shippingService.GetProvinces(ctx.Request.Context())
+	if oh.locationService == nil && oh.shippingService == nil {
+		utils.ResponseError(ctx, fmt.Errorf("location service unavailable"))
+		return
+	}
+	var (
+		provinces []v1dto.ProvinceDTO
+		err       error
+	)
+	if oh.locationService != nil {
+		provinces, err = oh.locationService.GetProvinces(ctx.Request.Context())
+	} else {
+		provinces, err = oh.shippingService.GetProvinces(ctx.Request.Context())
+	}
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -710,7 +735,19 @@ func (oh *OrderHandler) GetDistricts(ctx *gin.Context) {
 		return
 	}
 
-	districts, err := oh.shippingService.GetDistricts(ctx.Request.Context(), query.ProvinceID)
+	if oh.locationService == nil && oh.shippingService == nil {
+		utils.ResponseError(ctx, fmt.Errorf("location service unavailable"))
+		return
+	}
+	var (
+		districts []v1dto.DistrictDTO
+		err       error
+	)
+	if oh.locationService != nil {
+		districts, err = oh.locationService.GetDistricts(ctx.Request.Context(), query.ProvinceID)
+	} else {
+		districts, err = oh.shippingService.GetDistricts(ctx.Request.Context(), query.ProvinceID)
+	}
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -734,7 +771,19 @@ func (oh *OrderHandler) GetWards(ctx *gin.Context) {
 		return
 	}
 
-	wards, err := oh.shippingService.GetWards(ctx.Request.Context(), query.DistrictID)
+	if oh.locationService == nil && oh.shippingService == nil {
+		utils.ResponseError(ctx, fmt.Errorf("location service unavailable"))
+		return
+	}
+	var (
+		wards []v1dto.WardDTO
+		err   error
+	)
+	if oh.locationService != nil {
+		wards, err = oh.locationService.GetWards(ctx.Request.Context(), query.DistrictID)
+	} else {
+		wards, err = oh.shippingService.GetWards(ctx.Request.Context(), query.DistrictID)
+	}
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return

@@ -38,6 +38,7 @@ type orderShippingService struct {
 	userRepo            repository.UserRepository
 	cache               cache.RedisCacheService
 	rabbitmq            rabbitmq.RabbitMQService
+	locationService     LocationService
 }
 
 func NewOrderShippingService(
@@ -69,6 +70,7 @@ func NewOrderShippingService(
 		userRepo:            userRepo,
 		cache:               cacheService,
 		rabbitmq:            rabbitmq,
+		locationService:     NewLocationService(shippingFactory, cacheService),
 	}
 }
 
@@ -893,94 +895,24 @@ func (s *orderShippingService) GetPrintBill(ctx context.Context, orderUUID uuid.
 }
 
 func (s *orderShippingService) GetProvinces(ctx context.Context) ([]v1dto.ProvinceDTO, error) {
-	cacheKey := "shipping:ghn:provinces"
-	var cached []v1dto.ProvinceDTO
-	if s.cache != nil {
-		if err := s.cache.Get(cacheKey, &cached); err == nil && len(cached) > 0 {
-			return cached, nil
-		}
+	if s.locationService != nil {
+		return s.locationService.GetProvinces(ctx)
 	}
-
-	provider, err := s.shippingFactory.GetProvider("ghn")
-	if err != nil {
-		return nil, utils.NewError(utils.ErrCodeInternal, "GHN provider not configured")
-	}
-
-	ghnAdapter, ok := provider.(*shipping.GHNAdapter)
-	if !ok {
-		return nil, utils.NewError(utils.ErrCodeInternal, "Invalid GHN provider adapter")
-	}
-
-	provinces, err := ghnAdapter.GetProvinces(ctx)
-	if err != nil {
-		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to get provinces from GHN", err)
-	}
-
-	if s.cache != nil {
-		_ = s.cache.Set(cacheKey, provinces, 24*time.Hour)
-	}
-
-	return provinces, nil
+	return NewLocationService(s.shippingFactory, s.cache).GetProvinces(ctx)
 }
 
 func (s *orderShippingService) GetDistricts(ctx context.Context, provinceID int) ([]v1dto.DistrictDTO, error) {
-	cacheKey := fmt.Sprintf("shipping:ghn:districts:%d", provinceID)
-	var cached []v1dto.DistrictDTO
-	if s.cache != nil {
-		if err := s.cache.Get(cacheKey, &cached); err == nil && len(cached) > 0 {
-			return cached, nil
-		}
+	if s.locationService != nil {
+		return s.locationService.GetDistricts(ctx, provinceID)
 	}
-
-	provider, err := s.shippingFactory.GetProvider("ghn")
-	if err != nil {
-		return nil, utils.NewError(utils.ErrCodeInternal, "GHN provider not configured")
-	}
-
-	ghnAdapter, ok := provider.(*shipping.GHNAdapter)
-	if !ok {
-		return nil, utils.NewError(utils.ErrCodeInternal, "Invalid GHN provider adapter")
-	}
-
-	districts, err := ghnAdapter.GetDistricts(ctx, provinceID)
-	if err != nil {
-		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to fetch districts from GHN", err)
-	}
-	if s.cache != nil {
-		_ = s.cache.Set(cacheKey, districts, addressCacheTTL)
-	}
-
-	return districts, nil
+	return NewLocationService(s.shippingFactory, s.cache).GetDistricts(ctx, provinceID)
 }
 
 func (s *orderShippingService) GetWards(ctx context.Context, districtID int) ([]v1dto.WardDTO, error) {
-	cacheKey := fmt.Sprintf("shipping:ghn:wards:%d", districtID)
-	var cached []v1dto.WardDTO
-	if s.cache != nil {
-		if err := s.cache.Get(cacheKey, &cached); err == nil && len(cached) > 0 {
-			return cached, nil
-		}
+	if s.locationService != nil {
+		return s.locationService.GetWards(ctx, districtID)
 	}
-
-	provider, err := s.shippingFactory.GetProvider("ghn")
-	if err != nil {
-		return nil, utils.NewError(utils.ErrCodeInternal, "GHN provider not configured")
-	}
-
-	ghnAdapter, ok := provider.(*shipping.GHNAdapter)
-	if !ok {
-		return nil, utils.NewError(utils.ErrCodeInternal, "Invalid GHN provider adapter")
-	}
-
-	wards, err := ghnAdapter.GetWards(ctx, districtID)
-	if err != nil {
-		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to fetch wards from GHN", err)
-	}
-	if s.cache != nil {
-		_ = s.cache.Set(cacheKey, wards, addressCacheTTL)
-	}
-
-	return wards, nil
+	return NewLocationService(s.shippingFactory, s.cache).GetWards(ctx, districtID)
 }
 
 func (s *orderShippingService) SyncOrderTracking(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (v1dto.SyncTrackingResponseDTO, error) {

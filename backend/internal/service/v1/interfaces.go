@@ -95,6 +95,12 @@ type OrderShippingService interface {
 	AdminSyncActiveShippingOrders(ctx context.Context, userUUID uuid.UUID) (v1dto.SyncActiveShippingStatsDTO, error)
 }
 
+type LocationService interface {
+	GetProvinces(ctx context.Context) ([]v1dto.ProvinceDTO, error)
+	GetDistricts(ctx context.Context, provinceID int) ([]v1dto.DistrictDTO, error)
+	GetWards(ctx context.Context, districtID int) ([]v1dto.WardDTO, error)
+}
+
 type OrderReturnService interface {
 	RequestOrderReturn(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.CreateOrderReturnInput, imageURLs []string, videoURL *string) (v1dto.OrderReturnDTO, error)
 	GetOrderReturnDetails(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (v1dto.OrderReturnDetailDTO, error)

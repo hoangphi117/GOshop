@@ -160,10 +160,12 @@ func NewOrderModule(ctx *ModuleContext, wsHub ws.Hub, rabbitmqService rabbitmq.R
 
 	invoiceService := v1service.NewOrderInvoiceService(orderRepo, orderItemRepo, userRepo, cacheService)
 	orderAdminService := v1service.NewOrderAdminService(orderService)
+	locationService := v1service.NewLocationService(shippingFactory, cacheService)
 
 	orderHandler := v1handler.NewOrderHandler(orderService, shippingService, returnService).
 		WithInvoiceService(invoiceService).
-		WithAdminService(orderAdminService)
+		WithAdminService(orderAdminService).
+		WithLocationService(locationService)
 
 	orderRoutes := v1routes.NewOrderRoutes(orderHandler)
 	adminOrderRoutes := v1routes.NewAdminOrderRoutes(orderHandler)
