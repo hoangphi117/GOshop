@@ -30,6 +30,8 @@ var (
 	_ v1service.ReviewService        = (*MockReviewService)(nil)
 	_ v1service.AddressService       = (*MockAddressService)(nil)
 	_ v1service.PaymentService       = (*MockPaymentService)(nil)
+	_ v1service.PaymentRefundService = (*MockPaymentService)(nil)
+	_ v1service.PaymentRefundService = (*MockPaymentRefundService)(nil)
 	_ v1service.OrderService         = (*MockOrderService)(nil)
 	_ v1service.CustomerOrderService = (*MockOrderService)(nil)
 	_ v1service.OrderAdminService    = (*MockOrderService)(nil)
@@ -936,6 +938,18 @@ func (m *MockPaymentService) ReconcilePendingPayments(ctx context.Context) error
 		return m.ReconcilePendingPaymentsFunc(ctx)
 	}
 	return nil
+}
+
+// MockPaymentRefundService
+type MockPaymentRefundService struct {
+	RefundPaymentFunc func(ctx context.Context, idempotencyKey string, input v1dto.RefundPaymentInput) (v1dto.PaymentTransactionDTO, error)
+}
+
+func (m *MockPaymentRefundService) RefundPayment(ctx context.Context, idempotencyKey string, input v1dto.RefundPaymentInput) (v1dto.PaymentTransactionDTO, error) {
+	if m.RefundPaymentFunc != nil {
+		return m.RefundPaymentFunc(ctx, idempotencyKey, input)
+	}
+	return v1dto.PaymentTransactionDTO{}, nil
 }
 
 type MockOrderService struct {

@@ -159,13 +159,17 @@ type CouponService interface {
 	PreviewCoupon(ctx context.Context, userUUID uuid.UUID, input v1dto.PreviewCouponInput) (v1dto.PreviewCouponDTO, error)
 }
 
+type PaymentRefundService interface {
+	RefundPayment(ctx context.Context, idempotencyKey string, input v1dto.RefundPaymentInput) (v1dto.PaymentTransactionDTO, error)
+}
+
 type PaymentService interface {
+	PaymentRefundService
 	CreatePaymentIntent(ctx context.Context, userUUID uuid.UUID, clientIP, idempotencyKey string, input v1dto.CreatePaymentIntentInput) (v1dto.PaymentIntentDTO, error)
 	HandleWebhook(ctx context.Context, provider string, rawPayload []byte, headers map[string]string) error
 	ProcessWebhook(ctx context.Context, msg v1dto.PaymentWebhookMessage) error
 	GetPaymentHistory(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) ([]v1dto.PaymentTransactionDTO, error)
 	ConfirmCODPayment(ctx context.Context, orderUUID uuid.UUID) error
-	RefundPayment(ctx context.Context, idempotencyKey string, input v1dto.RefundPaymentInput) (v1dto.PaymentTransactionDTO, error)
 	ReconcilePendingPayments(ctx context.Context) error
 }
 
