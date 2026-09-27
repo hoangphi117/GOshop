@@ -15,6 +15,7 @@ import {
   TicketPercent,
   RotateCcw,
   MessageSquareQuote,
+  MessageSquare,
   Boxes,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
@@ -40,6 +41,11 @@ export const sidebarData: SidebarData = {
           title: 'Dashboard',
           url: '/',
           icon: LayoutDashboard,
+        },
+        {
+          title: 'Chats',
+          url: '/chats',
+          icon: MessageSquare,
         },
         {
           title: 'Users',

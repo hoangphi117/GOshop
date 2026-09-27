@@ -136,3 +136,39 @@ export function useAdminCloseConversation() {
     },
   })
 }
+
+export function useAdminChatUnreadCount() {
+  return useQuery({
+    queryKey: ['admin-chats', 'unread-count'],
+    queryFn: async () => {
+      const res = await fetchWithAuth('/api/v1/admin/chat/unread-count')
+      if (!res.ok) return 0
+      const json = await res.json()
+      return (json.data?.unread_count as number) || 0
+    },
+    refetchInterval: 30000,
+  })
+}
+
+export function useAdminSendTyping() {
+  return useMutation({
+    mutationFn: async ({
+      conversationUUID,
+      isTyping,
+    }: {
+      conversationUUID: string
+      isTyping: boolean
+    }) => {
+      const res = await fetchWithAuth(
+        `/api/v1/admin/chat/conversations/${conversationUUID}/typing`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_typing: isTyping }),
+        }
+      )
+      if (!res.ok) throw new Error('Failed to send typing status')
+      return res.json()
+    },
+  })
+}

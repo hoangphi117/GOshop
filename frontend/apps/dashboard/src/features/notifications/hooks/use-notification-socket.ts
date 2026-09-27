@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { useNotificationSettingsStore } from '../stores/notification-settings-store'
+import { useChatTypingStore } from '@/features/chats/stores/chat-typing-store'
 import { notificationKeys } from './use-notifications'
 import type { NotificationDTO } from '../types'
 
@@ -146,6 +147,11 @@ export function useNotificationSocket() {
               queryClient.invalidateQueries({ queryKey: ['admin-chats'] })
             } else if (payload?.type === 'chat.read') {
               queryClient.invalidateQueries({ queryKey: ['admin-chats'] })
+            } else if (payload?.type === 'chat.typing' && payload?.data) {
+              const { conversation_uuid, sender_role, is_typing } = payload.data
+              if (sender_role === 'user' && conversation_uuid) {
+                useChatTypingStore.getState().setTyping(conversation_uuid, Boolean(is_typing))
+              }
             }
           } catch {
             // Non-JSON or heartbeat frame
