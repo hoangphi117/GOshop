@@ -282,6 +282,28 @@ func (rs *reviewService) CreateReview(ctx context.Context, userUUID uuid.UUID, i
 
 	rs.invalidateProductReviewCache(input.ProductUUID)
 
+	// Notify admins asynchronously of new customer review
+	if rs.notificationService != nil {
+		commentSnippet := ""
+		if input.Comment != nil {
+			commentSnippet = *input.Comment
+			if len(commentSnippet) > 80 {
+				commentSnippet = commentSnippet[:77] + "..."
+			}
+		}
+		_ = rs.notificationService.NotifyAdminsAsync(ctx, v1dto.AdminNotifyInput{
+			Type:  "review",
+			Title: "New Product Review",
+			Body:  fmt.Sprintf("Rating %d/5 on \"%s\": %s", input.Rating, product.ProductName, commentSnippet),
+			Data: map[string]any{
+				"review_uuid":  review.ReviewUuid.String(),
+				"product_uuid": product.ProductUuid.String(),
+				"rating":       input.Rating,
+				"link":         "/reviews",
+			},
+		})
+	}
+
 	return v1dto.MapCreatedReviewToDTO(review, user.UserFullname, product.ProductUuid.String(), order.OrderUuid.String()), nil
 }
 

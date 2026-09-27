@@ -26,10 +26,11 @@ type RestoreItem struct {
 }
 
 type inventoryService struct {
-	productRepo       repository.ProductRepository
-	stockMovementRepo repository.StockMovementRepository
-	userRepo          repository.UserRepository
-	txManager         db.TxManager
+	productRepo         repository.ProductRepository
+	stockMovementRepo   repository.StockMovementRepository
+	userRepo            repository.UserRepository
+	txManager           db.TxManager
+	notificationService NotificationService
 }
 
 func NewInventoryService(
@@ -37,12 +38,18 @@ func NewInventoryService(
 	stockMovementRepo repository.StockMovementRepository,
 	userRepo repository.UserRepository,
 	txManager db.TxManager,
+	notificationService ...NotificationService,
 ) InventoryService {
+	var notifSvc NotificationService
+	if len(notificationService) > 0 {
+		notifSvc = notificationService[0]
+	}
 	return &inventoryService{
-		productRepo:       productRepo,
-		stockMovementRepo: stockMovementRepo,
-		userRepo:          userRepo,
-		txManager:         txManager,
+		productRepo:         productRepo,
+		stockMovementRepo:   stockMovementRepo,
+		userRepo:            userRepo,
+		txManager:           txManager,
+		notificationService: notifSvc,
 	}
 }
 
@@ -124,6 +131,8 @@ func (s *inventoryService) LockAndDeductStockWithRef(
 			return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to deduct stock for product: "+item.ProductUUID, err)
 		}
 
+		newStock := currentStock - item.Quantity
+
 		// Record stock movement if repository is available
 		if s.stockMovementRepo != nil {
 			_, _ = s.stockMovementRepo.Create(ctx, tx, sqlc.CreateStockMovementParams{
@@ -131,11 +140,26 @@ func (s *inventoryService) LockAndDeductStockWithRef(
 				ChangeType:     "ORDER_PLACED",
 				QuantityChange: -item.Quantity,
 				StockBefore:    currentStock,
-				StockAfter:     currentStock - item.Quantity,
+				StockAfter:     newStock,
 				ReferenceID:    defaultRefID,
 				ReferenceType:  defaultRefType,
 				ActorID:        actorID,
 				Note:           note,
+			})
+		}
+
+		// Trigger low stock alert if inventory drops to or below threshold
+		if s.notificationService != nil && newStock <= 5 {
+			_ = s.notificationService.NotifyAdminsAsync(ctx, v1dto.AdminNotifyInput{
+				Type:  "stock",
+				Title: "Low Stock Alert",
+				Body:  fmt.Sprintf("Product \"%s\" is low on stock (%d units remaining)", product.ProductName, newStock),
+				Data: map[string]any{
+					"product_uuid": product.ProductUuid.String(),
+					"product_name": product.ProductName,
+					"stock":        newStock,
+					"link":         "/inventory",
+				},
 			})
 		}
 	}
@@ -275,6 +299,21 @@ func (s *inventoryService) AdjustStock(ctx context.Context, actorUUID uuid.UUID,
 		if err != nil {
 			return sqlc.StockMovement{}, err
 		}
+	}
+
+	// Trigger low stock alert if inventory drops to or below threshold
+	if s.notificationService != nil && newStock <= 5 {
+		_ = s.notificationService.NotifyAdminsAsync(ctx, v1dto.AdminNotifyInput{
+			Type:  "stock",
+			Title: "Low Stock Alert",
+			Body:  fmt.Sprintf("Product \"%s\" is low on stock (%d units remaining)", product.ProductName, newStock),
+			Data: map[string]any{
+				"product_uuid": product.ProductUuid.String(),
+				"product_name": product.ProductName,
+				"stock":        newStock,
+				"link":         "/inventory",
+			},
+		})
 	}
 
 	return movement, nil

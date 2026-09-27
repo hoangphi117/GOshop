@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"goshop/internal/db/sqlc"
+	v1dto "goshop/internal/dto/v1"
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/testutils"
 	"goshop/internal/utils"
@@ -163,6 +164,45 @@ func TestInventoryService_LockAndDeductStock(t *testing.T) {
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "Invalid product UUID format")
+	})
+
+	t.Run("Case 7: Low Stock (<= 5) Triggers Admin Notification", func(t *testing.T) {
+		mockRepo := &testutils.MockProductRepository{
+			GetByUUIDsFunc: func(ctx context.Context, tx pgx.Tx, uuids []uuid.UUID) ([]sqlc.GetByUUIDsForUpdateRow, error) {
+				return []sqlc.GetByUUIDsForUpdateRow{
+					{
+						ProductID:     105,
+						ProductUuid:   productUUID1,
+						ProductName:   "Keychron Q1",
+						ProductStock:  utils.ConvertToInt32Pointer(6),
+						ProductStatus: v1service.ProductStatusActive,
+					},
+				}, nil
+			},
+			DeductStockFunc: func(ctx context.Context, tx pgx.Tx, productID int32, quantity int32) error {
+				return nil
+			},
+		}
+
+		notified := false
+		mockNotif := &testutils.MockNotificationService{
+			NotifyAdminsAsyncFunc: func(ctx context.Context, input v1dto.AdminNotifyInput) error {
+				assert.Equal(t, "stock", input.Type)
+				assert.Equal(t, "Low Stock Alert", input.Title)
+				assert.Equal(t, int32(4), input.Data["stock"])
+				notified = true
+				return nil
+			},
+		}
+
+		svc := v1service.NewInventoryService(mockRepo, nil, nil, nil, mockNotif)
+		items := []v1service.DeductItem{
+			{ProductUUID: productUUID1.String(), Quantity: 2}, // 6 - 2 = 4 (<= 5)
+		}
+
+		_, err := svc.LockAndDeductStock(ctx, items)
+		require.NoError(t, err)
+		assert.True(t, notified, "Expected admin low stock notification to be sent")
 	})
 }
 
