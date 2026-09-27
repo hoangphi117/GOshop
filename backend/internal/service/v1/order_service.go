@@ -13,7 +13,6 @@ import (
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
-	"goshop/pkg/pdf"
 	"math/big"
 	"slices"
 	"strings"
@@ -74,6 +73,8 @@ type orderService struct {
 	paymentRepo         repository.PaymentRepository
 	notificationService NotificationService
 	cache               cache.RedisCacheService
+	invoiceService      OrderInvoiceService
+	adminService        OrderAdminService
 }
 
 func NewOrderService(
@@ -96,7 +97,7 @@ func NewOrderService(
 	if redisClient != nil {
 		cacheService = cache.NewRedisCacheService(redisClient)
 	}
-	return &orderService{
+	svc := &orderService{
 		txManager:           txManager,
 		pricingService:      pricingService,
 		inventoryService:    inventoryService,
@@ -112,6 +113,9 @@ func NewOrderService(
 		notificationService: notificationService,
 		cache:               cacheService,
 	}
+	svc.invoiceService = NewOrderInvoiceService(orderRepo, orderItemRepo, userRepo, cacheService)
+	svc.adminService = NewOrderAdminService(svc)
+	return svc
 }
 
 const base32Alphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
@@ -897,175 +901,23 @@ func (s *orderService) UpdateOrderPaymentStatus(ctx context.Context, userUUID uu
 	return updatedOrder, orderItems, nil
 }
 
-type cachedInvoicePDF struct {
-	Bytes    []byte `json:"bytes"`
-	FileName string `json:"file_name"`
-}
-
 func (s *orderService) GetOrderInvoicePDF(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) ([]byte, string, error) {
-	user, err := s.userRepo.GetByUUID(ctx, userUUID)
-	if err != nil {
-		return nil, "", s.handleUserNotFoundError(err)
+	if s.invoiceService != nil {
+		return s.invoiceService.GetOrderInvoicePDF(ctx, userUUID, orderUUID)
 	}
-
-	order, err := s.orderRepo.GetByUUID(ctx, orderUUID)
-	if err != nil {
-		return nil, "", s.handleOrderNotFoundError(err)
-	}
-
-	if order.OrderPaymentStatus == OrderPaymentStatusUnpaid {
-		return nil, "", utils.NewError(utils.ErrCodeBadRequest, "Invoice is not available until payment is confirmed")
-	}
-
-	if order.OrderUserID != user.UserID && user.UserLevel != RoleAdmin && user.UserLevel != RoleModerator {
-		return nil, "", utils.NewError(utils.ErrCodeForbidden, "Access denied")
-	}
-
-	// 1. Check Redis Cache
-	cacheKey := fmt.Sprintf("invoice:pdf:%s", orderUUID.String())
-	var cached cachedInvoicePDF
-	if s.cache != nil {
-		if err := s.cache.Get(cacheKey, &cached); err == nil && len(cached.Bytes) > 0 {
-			return cached.Bytes, cached.FileName, nil
-		}
-	}
-
-	orderItems, err := s.orderItemRepo.GetByOrderID(ctx, order.OrderID)
-	if err != nil {
-		return nil, "", utils.WrapError(utils.ErrCodeInternal, "Failed to get order items", err)
-	}
-
-	items := make([]pdf.InvoiceItem, len(orderItems))
-	for i, item := range orderItems {
-		items[i] = pdf.InvoiceItem{
-			ProductName: item.OrderItemProductName,
-			Quantity:    int(item.OrderItemQuantity),
-			UnitPrice:   utils.NumericToFloat(item.OrderItemPrice),
-			Subtotal:    utils.NumericToFloat(item.OrderItemSubtotal),
-		}
-	}
-
-	paymentMethod := "COD (Cash on Delivery)"
-	switch order.OrderPaymentMethod {
-	case OrderPaymentMethodOnline:
-		paymentMethod = "Bank Transfer / Online Payment"
-	case OrderPaymentMethodEWallet:
-		paymentMethod = "E-Wallet Payment"
-	}
-
-	paymentStatus := "UNPAID"
-	switch order.OrderPaymentStatus {
-	case OrderPaymentStatusPaid:
-		paymentStatus = "PAID"
-	case OrderPaymentStatusPartiallyRefunded:
-		paymentStatus = "PARTIALLY REFUNDED"
-	case OrderPaymentStatusFullyRefunded:
-		paymentStatus = "FULLY REFUNDED"
-	}
-
-	couponCode := ""
-	if order.OrderCouponCode != nil {
-		couponCode = *order.OrderCouponCode
-	}
-
-	invoiceData := pdf.InvoiceData{
-		OrderNumber:     order.OrderNumber,
-		OrderDate:       order.OrderCreatedAt,
-		CustomerName:    order.OrderShippingName,
-		CustomerPhone:   order.OrderShippingPhone,
-		CustomerAddress: order.OrderShippingAddress,
-		PaymentMethod:   paymentMethod,
-		PaymentStatus:   paymentStatus,
-		Items:           items,
-		SubtotalAmount:  utils.NumericToFloat(order.OrderSubtotalAmount),
-		DiscountAmount:  utils.NumericToFloat(order.OrderDiscountAmount),
-		CouponCode:      couponCode,
-		TotalAmount:     utils.NumericToFloat(order.OrderTotalAmount),
-	}
-
-	pdfBytes, err := pdf.GenerateInvoicePDF(invoiceData)
-	if err != nil {
-		return nil, "", utils.WrapError(utils.ErrCodeInternal, "Failed to generate invoice PDF", err)
-	}
-
-	fileName := fmt.Sprintf("Invoice_%s.pdf", order.OrderNumber)
-
-	// 2. Save to Redis Cache (TTL 24h)
-	if s.cache != nil {
-		_ = s.cache.Set(cacheKey, cachedInvoicePDF{
-			Bytes:    pdfBytes,
-			FileName: fileName,
-		}, 24*time.Hour)
-	}
-
-	return pdfBytes, fileName, nil
+	return NewOrderInvoiceService(s.orderRepo, s.orderItemRepo, s.userRepo, s.cache).GetOrderInvoicePDF(ctx, userUUID, orderUUID)
 }
 
 func (s *orderService) BulkUpdateStatus(ctx context.Context, input v1dto.BulkUpdateOrderStatusInput) (*v1dto.BulkOperationResultDTO, error) {
-	result := &v1dto.BulkOperationResultDTO{
-		Total:  len(input.OrderUUIDs),
-		Errors: make([]v1dto.BulkItemError, 0),
+	if s.adminService != nil {
+		return s.adminService.BulkUpdateStatus(ctx, input)
 	}
-
-	for _, rawUUID := range input.OrderUUIDs {
-		parsedUUID, err := uuid.Parse(rawUUID)
-		if err != nil {
-			result.Failed++
-			result.Errors = append(result.Errors, v1dto.BulkItemError{
-				OrderUUID: rawUUID,
-				Error:     "invalid UUID format",
-			})
-			continue
-		}
-
-		_, _, err = s.UpdateOrderStatus(ctx, sqlc.UpdateOrderStatusParams{
-			OrderUuid:   parsedUUID,
-			OrderStatus: input.Status,
-		})
-		if err != nil {
-			result.Failed++
-			result.Errors = append(result.Errors, v1dto.BulkItemError{
-				OrderUUID: rawUUID,
-				Error:     err.Error(),
-			})
-			continue
-		}
-
-		result.Succeeded++
-	}
-
-	return result, nil
+	return NewOrderAdminService(s).BulkUpdateStatus(ctx, input)
 }
 
 func (s *orderService) BulkCancel(ctx context.Context, userUUID uuid.UUID, input v1dto.BulkCancelOrdersInput) (*v1dto.BulkOperationResultDTO, error) {
-	result := &v1dto.BulkOperationResultDTO{
-		Total:  len(input.OrderUUIDs),
-		Errors: make([]v1dto.BulkItemError, 0),
+	if s.adminService != nil {
+		return s.adminService.BulkCancel(ctx, userUUID, input)
 	}
-
-	for _, rawUUID := range input.OrderUUIDs {
-		parsedUUID, err := uuid.Parse(rawUUID)
-		if err != nil {
-			result.Failed++
-			result.Errors = append(result.Errors, v1dto.BulkItemError{
-				OrderUUID: rawUUID,
-				Error:     "invalid UUID format",
-			})
-			continue
-		}
-
-		_, err = s.CancelOrder(ctx, userUUID, parsedUUID, input.Reason)
-		if err != nil {
-			result.Failed++
-			result.Errors = append(result.Errors, v1dto.BulkItemError{
-				OrderUUID: rawUUID,
-				Error:     err.Error(),
-			})
-			continue
-		}
-
-		result.Succeeded++
-	}
-
-	return result, nil
+	return NewOrderAdminService(s).BulkCancel(ctx, userUUID, input)
 }

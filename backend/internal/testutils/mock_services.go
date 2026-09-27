@@ -1013,6 +1013,36 @@ func (m *MockOrderService) BulkCancel(ctx context.Context, userUUID uuid.UUID, i
 	return &v1dto.BulkOperationResultDTO{Total: len(input.OrderUUIDs), Succeeded: len(input.OrderUUIDs)}, nil
 }
 
+type MockOrderInvoiceService struct {
+	GetOrderInvoicePDFFunc func(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) ([]byte, string, error)
+}
+
+func (m *MockOrderInvoiceService) GetOrderInvoicePDF(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) ([]byte, string, error) {
+	if m.GetOrderInvoicePDFFunc != nil {
+		return m.GetOrderInvoicePDFFunc(ctx, userUUID, orderUUID)
+	}
+	return nil, "", nil
+}
+
+type MockOrderAdminService struct {
+	BulkUpdateStatusFunc func(ctx context.Context, input v1dto.BulkUpdateOrderStatusInput) (*v1dto.BulkOperationResultDTO, error)
+	BulkCancelFunc       func(ctx context.Context, userUUID uuid.UUID, input v1dto.BulkCancelOrdersInput) (*v1dto.BulkOperationResultDTO, error)
+}
+
+func (m *MockOrderAdminService) BulkUpdateStatus(ctx context.Context, input v1dto.BulkUpdateOrderStatusInput) (*v1dto.BulkOperationResultDTO, error) {
+	if m.BulkUpdateStatusFunc != nil {
+		return m.BulkUpdateStatusFunc(ctx, input)
+	}
+	return &v1dto.BulkOperationResultDTO{Total: len(input.OrderUUIDs), Succeeded: len(input.OrderUUIDs)}, nil
+}
+
+func (m *MockOrderAdminService) BulkCancel(ctx context.Context, userUUID uuid.UUID, input v1dto.BulkCancelOrdersInput) (*v1dto.BulkOperationResultDTO, error) {
+	if m.BulkCancelFunc != nil {
+		return m.BulkCancelFunc(ctx, userUUID, input)
+	}
+	return &v1dto.BulkOperationResultDTO{Total: len(input.OrderUUIDs), Succeeded: len(input.OrderUUIDs)}, nil
+}
+
 type MockOrderShippingService struct {
 	CreateShippingFunc                func(ctx context.Context, orderUUID uuid.UUID, input v1dto.CreateShippingInput) (v1dto.AsyncShippingResponseDTO, error)
 	ProcessShippingOrderMessageFunc   func(headers amqp.Table, body []byte) error

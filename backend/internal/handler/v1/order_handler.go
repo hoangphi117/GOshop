@@ -20,6 +20,8 @@ type OrderHandler struct {
 	service         v1service.OrderService
 	shippingService v1service.OrderShippingService
 	returnService   v1service.OrderReturnService
+	invoiceService  v1service.OrderInvoiceService
+	adminService    v1service.OrderAdminService
 }
 
 func NewOrderHandler(
@@ -27,11 +29,33 @@ func NewOrderHandler(
 	shippingService v1service.OrderShippingService,
 	returnService v1service.OrderReturnService,
 ) *OrderHandler {
+	var invSvc v1service.OrderInvoiceService
+	var admSvc v1service.OrderAdminService
+	if service != nil {
+		invSvc = service
+		admSvc = service
+	}
 	return &OrderHandler{
 		service:         service,
 		shippingService: shippingService,
 		returnService:   returnService,
+		invoiceService:  invSvc,
+		adminService:    admSvc,
 	}
+}
+
+func (oh *OrderHandler) WithInvoiceService(invoiceService v1service.OrderInvoiceService) *OrderHandler {
+	if invoiceService != nil {
+		oh.invoiceService = invoiceService
+	}
+	return oh
+}
+
+func (oh *OrderHandler) WithAdminService(adminService v1service.OrderAdminService) *OrderHandler {
+	if adminService != nil {
+		oh.adminService = adminService
+	}
+	return oh
 }
 
 // CreateOrder godoc
@@ -413,7 +437,7 @@ func (oh *OrderHandler) DownloadInvoice(ctx *gin.Context) {
 		return
 	}
 
-	pdfBytes, fileName, err := oh.service.GetOrderInvoicePDF(ctx.Request.Context(), userUUID, orderUUID)
+	pdfBytes, fileName, err := oh.invoiceService.GetOrderInvoicePDF(ctx.Request.Context(), userUUID, orderUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -1357,7 +1381,7 @@ func (oh *OrderHandler) BulkUpdateOrderStatus(ctx *gin.Context) {
 		return
 	}
 
-	result, err := oh.service.BulkUpdateStatus(ctx.Request.Context(), input)
+	result, err := oh.adminService.BulkUpdateStatus(ctx.Request.Context(), input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -1392,7 +1416,7 @@ func (oh *OrderHandler) BulkCancelOrders(ctx *gin.Context) {
 		return
 	}
 
-	result, err := oh.service.BulkCancel(ctx.Request.Context(), userUUID, input)
+	result, err := oh.adminService.BulkCancel(ctx.Request.Context(), userUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
