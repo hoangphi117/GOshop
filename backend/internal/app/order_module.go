@@ -8,6 +8,7 @@ import (
 	v1routes "goshop/internal/routes/v1"
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/utils"
+	"goshop/internal/worker"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 	"goshop/pkg/payment"
@@ -129,8 +130,9 @@ func NewOrderModule(ctx *ModuleContext, wsHub ws.Hub, rabbitmqService rabbitmq.R
 		ctx.Redis,
 	)
 
+	shippingConsumer := worker.NewShippingConsumer(shippingService, logger.Log)
 	go func() {
-		err := rabbitmqService.Consume(context.Background(), v1service.QueueShippingCreate, shippingService.ProcessShippingOrderMessage)
+		err := rabbitmqService.Consume(context.Background(), v1service.QueueShippingCreate, shippingConsumer.Handle)
 		if err != nil {
 			logger.Log.Error().Err(err).Msg("Failed to start RabbitMQ consumer for shipping.order.create")
 		}

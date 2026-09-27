@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type UserService interface {
@@ -91,7 +90,7 @@ type OrderService interface {
 
 type OrderShippingService interface {
 	CreateShipping(ctx context.Context, orderUUID uuid.UUID, input v1dto.CreateShippingInput) (v1dto.AsyncShippingResponseDTO, error)
-	ProcessShippingOrderMessage(headers amqp.Table, body []byte) error
+	ProcessShippingOrder(ctx context.Context, msg v1dto.CreateShippingQueueMessage) error
 	GetOrderTimeline(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (v1dto.OrderTimelineResponseDTO, error)
 	HandleShippingWebhook(ctx context.Context, rawBody []byte, payload v1dto.GHNWebhookPayload) error
 	CalculateShippingFee(ctx context.Context, input v1dto.CalculateShippingFeeInput) (v1dto.ShippingFeeResponseDTO, error)
@@ -163,7 +162,7 @@ type CouponService interface {
 type PaymentService interface {
 	CreatePaymentIntent(ctx context.Context, userUUID uuid.UUID, clientIP, idempotencyKey string, input v1dto.CreatePaymentIntentInput) (v1dto.PaymentIntentDTO, error)
 	HandleWebhook(ctx context.Context, provider string, rawPayload []byte, headers map[string]string) error
-	ProcessWebhookMessage(headers amqp.Table, body []byte) error
+	ProcessWebhook(ctx context.Context, msg v1dto.PaymentWebhookMessage) error
 	GetPaymentHistory(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) ([]v1dto.PaymentTransactionDTO, error)
 	ConfirmCODPayment(ctx context.Context, orderUUID uuid.UUID) error
 	RefundPayment(ctx context.Context, idempotencyKey string, input v1dto.RefundPaymentInput) (v1dto.PaymentTransactionDTO, error)

@@ -874,6 +874,7 @@ func (m *MockAddressService) DeleteUserAddress(ctx context.Context, userUUID uui
 type MockPaymentService struct {
 	CreatePaymentIntentFunc      func(ctx context.Context, userUUID uuid.UUID, clientIP, idempotencyKey string, input v1dto.CreatePaymentIntentInput) (v1dto.PaymentIntentDTO, error)
 	HandleWebhookFunc            func(ctx context.Context, provider string, rawPayload []byte, headers map[string]string) error
+	ProcessWebhookFunc           func(ctx context.Context, msg v1dto.PaymentWebhookMessage) error
 	ProcessWebhookMessageFunc    func(headers amqp.Table, body []byte) error
 	GetPaymentHistoryFunc        func(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) ([]v1dto.PaymentTransactionDTO, error)
 	ConfirmCODPaymentFunc        func(ctx context.Context, orderUUID uuid.UUID) error
@@ -891,6 +892,13 @@ func (m *MockPaymentService) CreatePaymentIntent(ctx context.Context, userUUID u
 func (m *MockPaymentService) HandleWebhook(ctx context.Context, provider string, rawPayload []byte, headers map[string]string) error {
 	if m.HandleWebhookFunc != nil {
 		return m.HandleWebhookFunc(ctx, provider, rawPayload, headers)
+	}
+	return nil
+}
+
+func (m *MockPaymentService) ProcessWebhook(ctx context.Context, msg v1dto.PaymentWebhookMessage) error {
+	if m.ProcessWebhookFunc != nil {
+		return m.ProcessWebhookFunc(ctx, msg)
 	}
 	return nil
 }
@@ -1053,6 +1061,7 @@ func (m *MockOrderAdminService) BulkCancel(ctx context.Context, userUUID uuid.UU
 
 type MockOrderShippingService struct {
 	CreateShippingFunc                func(ctx context.Context, orderUUID uuid.UUID, input v1dto.CreateShippingInput) (v1dto.AsyncShippingResponseDTO, error)
+	ProcessShippingOrderFunc          func(ctx context.Context, msg v1dto.CreateShippingQueueMessage) error
 	ProcessShippingOrderMessageFunc   func(headers amqp.Table, body []byte) error
 	GetOrderTimelineFunc              func(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (v1dto.OrderTimelineResponseDTO, error)
 	HandleShippingWebhookFunc         func(ctx context.Context, rawBody []byte, payload v1dto.GHNWebhookPayload) error
@@ -1073,6 +1082,13 @@ func (m *MockOrderShippingService) CreateShipping(ctx context.Context, orderUUID
 		return m.CreateShippingFunc(ctx, orderUUID, input)
 	}
 	return v1dto.AsyncShippingResponseDTO{}, nil
+}
+
+func (m *MockOrderShippingService) ProcessShippingOrder(ctx context.Context, msg v1dto.CreateShippingQueueMessage) error {
+	if m.ProcessShippingOrderFunc != nil {
+		return m.ProcessShippingOrderFunc(ctx, msg)
+	}
+	return nil
 }
 
 func (m *MockOrderShippingService) ProcessShippingOrderMessage(headers amqp.Table, body []byte) error {

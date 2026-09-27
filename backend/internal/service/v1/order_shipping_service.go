@@ -122,13 +122,20 @@ func (s *orderShippingService) CreateShipping(ctx context.Context, orderUUID uui
 	}, nil
 }
 
+// ProcessShippingOrderMessage adapts raw AMQP messages for backward compatibility.
 func (s *orderShippingService) ProcessShippingOrderMessage(headers amqp.Table, body []byte) error {
-	ctx := context.Background()
-
 	var msg v1dto.CreateShippingQueueMessage
 	if err := json.Unmarshal(body, &msg); err != nil {
 		logger.Log.Error().Err(err).Msg("Failed to unmarshal shipping creation message")
 		return err
+	}
+	return s.ProcessShippingOrder(context.Background(), msg)
+}
+
+// ProcessShippingOrder processes asynchronous shipping creation using pure domain DTOs.
+func (s *orderShippingService) ProcessShippingOrder(ctx context.Context, msg v1dto.CreateShippingQueueMessage) error {
+	if ctx == nil {
+		ctx = context.Background()
 	}
 
 	orderUUID, err := uuid.Parse(msg.OrderUUID)

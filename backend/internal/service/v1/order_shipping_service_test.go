@@ -2,7 +2,6 @@ package v1service_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -258,13 +257,11 @@ func TestOrderService_ProcessShippingOrderMessage(t *testing.T) {
 		},
 		EnqueuedAt: time.Now(),
 	}
-	body, err := json.Marshal(msg)
-	require.NoError(t, err)
 
-	t.Run("Case 1: Invalid JSON Message - Returns Error", func(t *testing.T) {
+	t.Run("Case 1: Invalid Order UUID in Message - Returns Error", func(t *testing.T) {
 		svc := newTestShippingService(testShippingServiceDeps{})
 
-		err := svc.ProcessShippingOrderMessage(nil, []byte("invalid json"))
+		err := svc.ProcessShippingOrder(context.Background(), v1dto.CreateShippingQueueMessage{OrderUUID: "invalid-uuid"})
 		require.Error(t, err)
 	})
 
@@ -279,7 +276,7 @@ func TestOrderService_ProcessShippingOrderMessage(t *testing.T) {
 			orderRepo: mockOrderRepo,
 		})
 
-		err := svc.ProcessShippingOrderMessage(nil, body)
+		err := svc.ProcessShippingOrder(context.Background(), msg)
 		require.Error(t, err)
 	})
 
@@ -313,12 +310,12 @@ func TestOrderService_ProcessShippingOrderMessage(t *testing.T) {
 		factory := shipping.NewShippingFactory(mockProvider)
 
 		svc := newTestShippingService(testShippingServiceDeps{
-			orderRepo: mockOrderRepo,
-			orderItemRepo: mockOrderItemRepo,
+			orderRepo:       mockOrderRepo,
+			orderItemRepo:   mockOrderItemRepo,
 			shippingFactory: factory,
 		})
 
-		err := svc.ProcessShippingOrderMessage(nil, body)
+		err := svc.ProcessShippingOrder(context.Background(), msg)
 		require.Error(t, err)
 	})
 
@@ -391,7 +388,7 @@ func TestOrderService_ProcessShippingOrderMessage(t *testing.T) {
 			notificationService: mockNotification,
 		})
 
-		err := svc.ProcessShippingOrderMessage(nil, body)
+		err := svc.ProcessShippingOrder(context.Background(), msg)
 		require.NoError(t, err)
 		time.Sleep(25 * time.Millisecond)
 		assert.True(t, eventInserted)

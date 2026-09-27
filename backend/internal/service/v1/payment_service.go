@@ -290,14 +290,19 @@ func (s *paymentService) HandleWebhook(ctx context.Context, providerName string,
 
 // 3. CONSUMER XỬ LÝ MESSAGE CẬP NHẬT TRẠNG THÁI TRONG DB
 func (s *paymentService) ProcessWebhookMessage(headers amqp.Table, body []byte) error {
-	ctx := context.Background()
-	startTime := time.Now()
-
 	var msg v1dto.PaymentWebhookMessage
 	if err := json.Unmarshal(body, &msg); err != nil {
 		logger.Log.Error().Err(err).Msg("Failed to unmarshal payment webhook message")
 		return err
 	}
+	return s.ProcessWebhook(context.Background(), msg)
+}
+
+func (s *paymentService) ProcessWebhook(ctx context.Context, msg v1dto.PaymentWebhookMessage) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	startTime := time.Now()
 
 	var newPaymentStatus int32 = PaymentStatusFailed
 	if msg.Status == "success" {
