@@ -7,8 +7,10 @@ import {
   Filter,
   CreditCard,
   FileDown,
+  Download,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { exportOrdersToCSV } from './export-csv'
 import { DashboardHeader } from '@/components/layout/dashboard-header'
 import { Main } from '@/components/layout/main'
 import { Button } from '@/components/ui/button'
@@ -170,6 +172,23 @@ export function Orders() {
     }
   }
 
+  const handleExportCSV = () => {
+    const targetOrders =
+      selectedOrderUuids.size > 0
+        ? orders.filter((o) => selectedOrderUuids.has(o.uuid))
+        : orders
+
+    if (targetOrders.length === 0) {
+      toast.error('No orders available to export')
+      return
+    }
+
+    exportOrdersToCSV(targetOrders)
+    toast.success(
+      `Exported ${targetOrders.length} ${targetOrders.length === 1 ? 'order' : 'orders'} to CSV`
+    )
+  }
+
   const handleOpenDetails = (order: Order) => {
     navigate({ to: '/orders/$uuid', params: { uuid: order.uuid } })
   }
@@ -212,13 +231,25 @@ export function Orders() {
       <DashboardHeader fixed />
 
       <Main className='flex flex-1 flex-col gap-4 sm:gap-6'>
-        <div className='flex flex-wrap items-end justify-between gap-2'>
+        <div className='flex flex-wrap items-center justify-between gap-2'>
           <div>
             <h2 className='text-2xl font-bold tracking-tight'>Orders</h2>
             <p className='text-muted-foreground'>
               Track and manage customer purchases, delivery statuses, and payment records.
             </p>
           </div>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={handleExportCSV}
+            disabled={orders.length === 0}
+            className='gap-1.5'
+          >
+            <Download className='size-4' />
+            {selectedOrderUuids.size > 0
+              ? `Export (${selectedOrderUuids.size}) CSV`
+              : 'Export CSV'}
+          </Button>
         </div>
 
         {/* Filters Bar */}
