@@ -18,6 +18,8 @@ import { WriteReviewModal } from "@/components/review/write-review-modal";
 import { RequestReturnModal } from "@/components/order/request-return-modal";
 import { ReturnDetailModal } from "@/components/order/return-detail-modal";
 import { OrderTrackingModal } from "@/components/order/order-tracking-modal";
+import { useChatUIStore } from "@/stores/chat-ui-store";
+import type { OrderRef } from "@/hooks/use-chat";
 import {
   ShoppingBag,
   Clock,
@@ -51,6 +53,7 @@ import {
   ChevronsRight,
   Download,
   Loader2,
+  MessageSquare,
 } from "lucide-react";
 
 interface OrderItem {
@@ -97,12 +100,33 @@ interface Order {
 
 function MyOrdersPageContent() {
   const { accessToken } = useAuthStore();
+  const { openChatWithOrder } = useChatUIStore();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("ALL");
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [isSearching, setIsSearching] = useState(false);
+
+  const handleChatAboutOrder = (order: Order) => {
+    const orderRef: OrderRef = {
+      uuid: order.uuid,
+      order_number: order.order_number,
+      status: order.status,
+      total_amount: order.total_amount,
+      created_at: order.created_at,
+      items: order.items?.map((it) => ({
+        uuid: it.uuid,
+        product_uuid: it.product_uuid,
+        product_name: it.product_name,
+        image_url: it.image_url ? getImageUrl(it.image_url) : undefined,
+        price: it.price,
+        quantity: it.quantity,
+        subtotal: it.subtotal,
+      })),
+    };
+    openChatWithOrder(orderRef);
+  };
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -1244,6 +1268,16 @@ function MyOrdersPageContent() {
             <span className="text-slate-300">|</span>
             {getPaymentStatusBadge(selectedOrder.payment_status)}
             {getOrderStatusBadge(selectedOrder.status)}
+
+            <button
+              type="button"
+              onClick={() => handleChatAboutOrder(selectedOrder)}
+              className="ml-auto sm:ml-2 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+              title="Chat with support about this order"
+            >
+              <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Chat about this order</span>
+            </button>
           </div>
         </div>
 
@@ -1791,6 +1825,16 @@ function MyOrdersPageContent() {
           </button>
 
           <div className="flex items-center gap-2.5 flex-wrap justify-end">
+            <button
+              type="button"
+              onClick={() => handleChatAboutOrder(selectedOrder)}
+              className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+              title="Chat with support about this order"
+            >
+              <MessageSquare className="w-4 h-4 text-emerald-400" />
+              <span>Chat about this order</span>
+            </button>
+
             {(isPaid || isDelivered) && (
               <button
                 type="button"
@@ -2079,6 +2123,20 @@ function MyOrdersPageContent() {
 
                     {/* Action Buttons */}
                     <div className="flex items-center gap-2 flex-wrap sm:justify-end">
+                      {/* Chat about order */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleChatAboutOrder(order);
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer"
+                        title="Chat with support about this order"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5 text-slate-600" />
+                        <span>Chat</span>
+                      </button>
+
                       {/* Confirm Delivery Button (if Shipped) */}
                       {isShipped && (
                         <button
