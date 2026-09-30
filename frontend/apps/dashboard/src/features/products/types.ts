@@ -11,6 +11,8 @@ export interface Product {
   description?: string
   status?: string
   created_at?: string
+  rating?: number
+  reviews_count?: number
 }
 
 export interface ProductFormData {

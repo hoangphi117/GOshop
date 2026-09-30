@@ -34,6 +34,7 @@ import { Route as AuthenticatedNotificationsIndexRouteImport } from './routes/_a
 import { Route as AuthenticatedOrdersIndexRouteImport } from './routes/_authenticated/orders/index'
 import { Route as AuthenticatedOrdersUuidRouteImport } from './routes/_authenticated/orders/$uuid'
 import { Route as AuthenticatedProductsIndexRouteImport } from './routes/_authenticated/products/index'
+import { Route as AuthenticatedProductsUuidRouteImport } from './routes/_authenticated/products/$uuid'
 import { Route as AuthenticatedReturnsIndexRouteImport } from './routes/_authenticated/returns/index'
 import { Route as AuthenticatedReviewsIndexRouteImport } from './routes/_authenticated/reviews/index'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
@@ -178,6 +179,12 @@ const AuthenticatedProductsIndexRoute =
     path: '/products/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedProductsUuidRoute =
+  AuthenticatedProductsUuidRouteImport.update({
+    id: '/products/$uuid',
+    path: '/products/$uuid',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedReturnsIndexRoute =
   AuthenticatedReturnsIndexRouteImport.update({
     id: '/returns/',
@@ -246,6 +253,7 @@ export interface FileRoutesByFullPath {
   '/503': typeof errors503Route
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/orders/$uuid': typeof AuthenticatedOrdersUuidRoute
+  '/products/$uuid': typeof AuthenticatedProductsUuidRoute
   '/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
@@ -280,6 +288,7 @@ export interface FileRoutesByTo {
   '/': typeof AuthenticatedIndexRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/orders/$uuid': typeof AuthenticatedOrdersUuidRoute
+  '/products/$uuid': typeof AuthenticatedProductsUuidRoute
   '/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/settings/display': typeof AuthenticatedSettingsDisplayRoute
@@ -317,6 +326,7 @@ export interface FileRoutesById {
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/_authenticated/orders/$uuid': typeof AuthenticatedOrdersUuidRoute
+  '/_authenticated/products/$uuid': typeof AuthenticatedProductsUuidRoute
   '/_authenticated/settings/account': typeof AuthenticatedSettingsAccountRoute
   '/_authenticated/settings/appearance': typeof AuthenticatedSettingsAppearanceRoute
   '/_authenticated/settings/display': typeof AuthenticatedSettingsDisplayRoute
@@ -354,6 +364,7 @@ export interface FileRouteTypes {
     | '/503'
     | '/errors/$error'
     | '/orders/$uuid'
+    | '/products/$uuid'
     | '/settings/account'
     | '/settings/appearance'
     | '/settings/display'
@@ -388,6 +399,7 @@ export interface FileRouteTypes {
     | '/'
     | '/errors/$error'
     | '/orders/$uuid'
+    | '/products/$uuid'
     | '/settings/account'
     | '/settings/appearance'
     | '/settings/display'
@@ -424,6 +436,7 @@ export interface FileRouteTypes {
     | '/_authenticated/'
     | '/_authenticated/errors/$error'
     | '/_authenticated/orders/$uuid'
+    | '/_authenticated/products/$uuid'
     | '/_authenticated/settings/account'
     | '/_authenticated/settings/appearance'
     | '/_authenticated/settings/display'
@@ -636,6 +649,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProductsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/products/$uuid': {
+      id: '/_authenticated/products/$uuid'
+      path: '/products/$uuid'
+      fullPath: '/products/$uuid'
+      preLoaderRoute: typeof AuthenticatedProductsUuidRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/returns/': {
       id: '/_authenticated/returns/'
       path: '/returns'
@@ -730,6 +750,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedOrdersUuidRoute: typeof AuthenticatedOrdersUuidRoute
+  AuthenticatedProductsUuidRoute: typeof AuthenticatedProductsUuidRoute
   AuthenticatedAppsIndexRoute: typeof AuthenticatedAppsIndexRoute
   AuthenticatedBannersIndexRoute: typeof AuthenticatedBannersIndexRoute
   AuthenticatedCategoriesIndexRoute: typeof AuthenticatedCategoriesIndexRoute
@@ -751,6 +772,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedOrdersUuidRoute: AuthenticatedOrdersUuidRoute,
+  AuthenticatedProductsUuidRoute: AuthenticatedProductsUuidRoute,
   AuthenticatedAppsIndexRoute: AuthenticatedAppsIndexRoute,
   AuthenticatedBannersIndexRoute: AuthenticatedBannersIndexRoute,
   AuthenticatedCategoriesIndexRoute: AuthenticatedCategoriesIndexRoute,

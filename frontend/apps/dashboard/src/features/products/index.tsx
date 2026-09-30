@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Plus, Search as SearchIcon, Edit2, Trash2, Package, FileSpreadsheet } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import { Plus, Search as SearchIcon, Eye, Trash2, Package, FileSpreadsheet } from 'lucide-react'
 import { toast } from 'sonner'
 import { DashboardHeader } from '@/components/layout/dashboard-header'
 import { Main } from '@/components/layout/main'
@@ -37,7 +38,6 @@ export function Products() {
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [importDialogOpen, setImportDialogOpen] = useState(false)
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [productToDelete, setProductToDelete] = useState<Product | null>(null)
 
@@ -63,12 +63,6 @@ export function Products() {
   }
 
   const handleOpenCreate = () => {
-    setSelectedProduct(null)
-    setDialogOpen(true)
-  }
-
-  const handleOpenEdit = (p: Product) => {
-    setSelectedProduct(p)
     setDialogOpen(true)
   }
 
@@ -207,24 +201,38 @@ export function Products() {
                 products.map((p) => (
                   <TableRow key={p.uuid}>
                     <TableCell>
-                      {p.image_url ? (
-                        <img
-                          src={getImageUrl(p.image_url)}
-                          alt={p.name}
-                          className='size-12 rounded object-cover border'
-                          onError={(e) => {
-                            ;(e.currentTarget as HTMLImageElement).src =
-                              'https://placehold.co/48x48?text=Product'
-                          }}
-                        />
-                      ) : (
-                        <div className='size-12 rounded border bg-muted flex items-center justify-center text-muted-foreground'>
-                          <Package className='size-5' />
-                        </div>
-                      )}
+                      <Link
+                        to='/products/$uuid'
+                        params={{ uuid: p.uuid! }}
+                        preload='intent'
+                        className='block shrink-0 transition-opacity hover:opacity-80'
+                      >
+                        {p.image_url ? (
+                          <img
+                            src={getImageUrl(p.image_url)}
+                            alt={p.name}
+                            className='size-12 rounded object-cover border'
+                            onError={(e) => {
+                              ;(e.currentTarget as HTMLImageElement).src =
+                                'https://placehold.co/48x48?text=Product'
+                            }}
+                          />
+                        ) : (
+                          <div className='size-12 rounded border bg-muted flex items-center justify-center text-muted-foreground'>
+                            <Package className='size-5' />
+                          </div>
+                        )}
+                      </Link>
                     </TableCell>
                     <TableCell className='font-medium max-w-[240px] truncate'>
-                      {p.name}
+                      <Link
+                        to='/products/$uuid'
+                        params={{ uuid: p.uuid! }}
+                        preload='intent'
+                        className='hover:underline hover:text-primary transition-colors'
+                      >
+                        {p.name}
+                      </Link>
                     </TableCell>
                     <TableCell className='text-muted-foreground text-sm'>
                       {p.category_name || '—'}
@@ -278,10 +286,16 @@ export function Products() {
                           variant='ghost'
                           size='icon'
                           className='size-8'
-                          onClick={() => handleOpenEdit(p)}
-                          title='Edit'
+                          asChild
+                          title='View details'
                         >
-                          <Edit2 className='size-4' />
+                          <Link
+                            to='/products/$uuid'
+                            params={{ uuid: p.uuid! }}
+                            preload='intent'
+                          >
+                            <Eye className='size-4' />
+                          </Link>
                         </Button>
                         <Button
                           variant='ghost'
@@ -332,7 +346,6 @@ export function Products() {
       <ProductDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        product={selectedProduct}
       />
 
       <ConfirmDialog

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, fetchWithAuth } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
-import type { ProductCSVImportResponse, ProductFormData } from '../types'
+import type { Product, ProductCSVImportResponse, ProductFormData } from '../types'
 
 export interface ProductQueryParams {
   page?: number
@@ -53,9 +53,11 @@ export function useProduct(uuid?: string) {
       if (error) {
         throw new Error((error as { error?: string })?.error || 'Failed to fetch product')
       }
-      return data
+      return (data?.data ?? null) as Product | null
     },
     enabled: Boolean(uuid),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   })
 }
 
@@ -82,6 +84,7 @@ export function useProductMutations() {
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['products'] })
+    queryClient.invalidateQueries({ queryKey: ['product'] })
   }
 
   const createProduct = useMutation({
