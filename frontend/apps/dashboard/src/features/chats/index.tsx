@@ -15,6 +15,7 @@ import {
   ChevronRight,
   Download,
   ZoomIn,
+  Tag,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth-store'
 import { cn, getDisplayNameInitials } from '@/lib/utils'
@@ -62,6 +63,9 @@ function formatLastMessage(content?: string) {
     )
   ) {
     return 'Sent an order'
+  }
+  if (trimmed === '[Product]') {
+    return 'Sent a product'
   }
   return trimmed
 }
@@ -370,6 +374,105 @@ function MessageContent({
           </div>
         )}
       </Link>
+    )
+  }
+  if (content_type === 'product_ref') {
+    const parts = (attachment_name || '').split('|')
+    const productName = parts[0] || content
+    const price = parts[1] ? Number(parts[1]) : null
+    const stock = parts[2] ? Number(parts[2]) : null
+    const isOutOfStock =
+      parts[5] === 'out_of_stock' || (stock !== null && stock <= 0)
+    const imageUrl = attachment_url || ''
+    const productUuid =
+      content &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        content
+      )
+        ? content
+        : parts[6] || ''
+
+    const cardContent = (
+      <>
+        <div className='flex items-center justify-between gap-2 border-b border-current/10 pb-1'>
+          <div className='flex items-center gap-1 font-mono text-[10.5px] opacity-75'>
+            <Tag className='h-3 w-3 shrink-0' />
+            <span>Product</span>
+          </div>
+          <div className='flex items-center gap-1'>
+            {isOutOfStock ? (
+              <span className='rounded bg-red-500/20 px-1 py-0.5 text-[9px] font-semibold text-red-500'>
+                Out of stock
+              </span>
+            ) : (
+              <span className='rounded bg-emerald-500/20 px-1 py-0.5 text-[9px] font-medium text-emerald-600'>
+                In stock
+              </span>
+            )}
+            {productUuid && (
+              <ChevronRight className='h-3 w-3 opacity-60 transition-all group-hover:translate-x-0.5 group-hover:opacity-100' />
+            )}
+          </div>
+        </div>
+
+        <div className='flex items-center gap-2 py-0.5'>
+          <div className='relative h-10 w-10 shrink-0 overflow-hidden rounded-md border border-current/10 bg-black/5'>
+            {imageUrl ? (
+              <img
+                src={imageUrl}
+                alt={productName || 'product'}
+                className='h-full w-full object-cover'
+              />
+            ) : (
+              <div className='flex h-full w-full items-center justify-center opacity-60'>
+                <Package className='h-5 w-5 stroke-[1.5]' />
+              </div>
+            )}
+            {isOutOfStock && (
+              <div className='absolute inset-0 flex items-center justify-center bg-black/60 p-0.5 text-center'>
+                <span className='text-[7px] font-bold uppercase tracking-wider text-white leading-tight'>
+                  Out of stock
+                </span>
+              </div>
+            )}
+          </div>
+          <div className='min-w-0 flex-1'>
+            <p
+              className='truncate text-xs leading-tight font-medium group-hover:underline'
+              title={productName}
+            >
+              {productName}
+            </p>
+            {price !== null && (
+              <p className='mt-0.5 text-xs font-semibold'>
+                {new Intl.NumberFormat('vi-VN', {
+                  style: 'currency',
+                  currency: 'VND',
+                }).format(price)}
+              </p>
+            )}
+          </div>
+        </div>
+      </>
+    )
+
+    if (productUuid) {
+      return (
+        <Link
+          to='/products/$uuid'
+          params={{ uuid: productUuid }}
+          preload='intent'
+          className='group flex max-w-[250px] min-w-[200px] cursor-pointer flex-col gap-1.5 p-0.5 text-inherit hover:opacity-95'
+        >
+          {cardContent}
+        </Link>
+      )
+    }
+
+    return (
+      <div className='flex max-w-[250px] min-w-[200px] flex-col gap-1.5 p-0.5 text-inherit'>
+        {cardContent}
+      </div>
     )
   }
   return <>{content}</>

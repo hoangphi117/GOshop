@@ -20,6 +20,7 @@ export interface SendMessagePayload {
   attachment_name?: string
   attachment_size?: number
   order_uuid?: string
+  product_uuid?: string
 }
 
 export async function uploadChatFile(
@@ -127,6 +128,7 @@ export function useAdminSendMessage() {
         attachment_name,
         attachment_size,
         order_uuid,
+        product_uuid,
       } = payload
       const body: Record<string, unknown> = {
         content,
@@ -136,6 +138,7 @@ export function useAdminSendMessage() {
       if (attachment_name) body['attachment_name'] = attachment_name
       if (attachment_size) body['attachment_size'] = attachment_size
       if (order_uuid) body['order_uuid'] = order_uuid
+      if (product_uuid) body['product_uuid'] = product_uuid
       const res = await fetchWithAuth(
         `/api/v1/admin/chat/conversations/${conversationUUID}/messages`,
         {
