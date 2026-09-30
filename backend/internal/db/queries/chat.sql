@@ -47,7 +47,14 @@ SELECT
           AND m.sender_role = 'user'
     ), 0)::bigint AS unread_count,
     COALESCE((
-        SELECT m.content 
+        SELECT 
+            CASE 
+                WHEN m.content_type = 'image' THEN '[Image]'
+                WHEN m.content_type = 'media_group' THEN '[Images]'
+                WHEN m.content_type = 'video' THEN '[Video]'
+                WHEN m.content_type = 'order_ref' THEN '[Order]'
+                ELSE m.content 
+            END
         FROM chat_messages m 
         WHERE m.conversation_id = c.conversation_id 
         ORDER BY m.message_id DESC 
@@ -76,8 +83,12 @@ WHERE (@status::text = '' OR c.status = @status)
   );
 
 -- name: CreateMessage :one
-INSERT INTO chat_messages (conversation_id, sender_id, sender_role, content, content_type)
-VALUES (@conversation_id, @sender_id, @sender_role, @content, @content_type)
+INSERT INTO chat_messages (
+  conversation_id, sender_id, sender_role, 
+  content, content_type,
+  attachment_url, attachment_name, attachment_size
+  )
+VALUES (@conversation_id, @sender_id, @sender_role, @content, @content_type, @attachment_url, @attachment_name, @attachment_size)
 RETURNING *;
 
 -- name: ListMessages :many

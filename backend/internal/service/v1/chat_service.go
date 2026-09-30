@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 type chatService struct {
 	chatRepo    repository.ChatRepository
 	userRepo    repository.UserRepository
+	orderRepo   repository.OrderRepository
 	rdb         *redis.Client
 	redisBridge ws.RedisBridge
 	wsHub       ws.Hub // Fallback local mode if Redis is not available
@@ -34,12 +36,14 @@ type chatService struct {
 func NewChatService(
 	chatRepo repository.ChatRepository,
 	userRepo repository.UserRepository,
+	orderRepo repository.OrderRepository,
 	txManager db.TxManager,
 	rdb *redis.Client,
 ) ChatService {
 	return &chatService{
 		chatRepo:  chatRepo,
 		userRepo:  userRepo,
+		orderRepo: orderRepo,
 		txManager: txManager,
 		rdb:       rdb,
 		logger:    *logger.Log,
@@ -165,7 +169,62 @@ func (s *chatService) SendMessage(
 
 	contentType := strings.TrimSpace(req.ContentType)
 	if contentType == "" {
-		contentType = "text"
+		if req.AttachmentURL != "" {
+			// Infer from URL extension
+			ext := strings.ToLower(filepath.Ext(req.AttachmentURL))
+			if ext == ".mp4" || ext == ".mov" || ext == ".avi" || ext == ".webm" {
+				contentType = "video"
+			} else {
+				contentType = "image"
+			}
+		} else if req.OrderUUID != "" {
+			contentType = "order_ref"
+		} else {
+			contentType = "text"
+		}
+	}
+
+	content := strings.TrimSpace(req.Content)
+	if contentType == "order_ref" {
+		if req.OrderUUID == "" {
+			return v1dto.MessageResponse{}, utils.NewError(utils.ErrCodeBadRequest, "order_uuid is required for order_ref messages")
+		}
+		if computedRole == "user" {
+			orderUUID, err := uuid.Parse(req.OrderUUID)
+			if err != nil {
+				return v1dto.MessageResponse{}, utils.WrapError(utils.ErrCodeBadRequest, "invalid order UUID", err)
+			}
+			if s.orderRepo == nil {
+				return v1dto.MessageResponse{}, utils.NewError(utils.ErrCodeInternal, "order repository not configured")
+			}
+			order, err := s.orderRepo.GetByUUID(ctx, orderUUID)
+			if err != nil {
+				if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+					return v1dto.MessageResponse{}, utils.NewError(utils.ErrCodeNotFound, "order not found")
+				}
+				return v1dto.MessageResponse{}, utils.WrapError(utils.ErrCodeInternal, "failed to get order", err)
+			}
+			if order.OrderUserID != sender.UserID {
+				return v1dto.MessageResponse{}, utils.NewError(utils.ErrCodeForbidden, "user is not authorized to reference this order")
+			}
+		}
+		content = req.OrderUUID
+	}
+
+	if contentType != "order_ref" && content == "" && req.AttachmentURL == "" {
+		return v1dto.MessageResponse{}, utils.NewError(utils.ErrCodeBadRequest, "content or attachment is required for non-order_ref messages")
+	}
+
+	var attachURL, attachName *string
+	var attachSize *int64
+	if req.AttachmentURL != "" {
+		attachURL = &req.AttachmentURL
+	}
+	if req.AttachmentName != "" {
+		attachName = &req.AttachmentName
+	}
+	if req.AttachmentSize > 0 {
+		attachSize = &req.AttachmentSize
 	}
 
 	var msg sqlc.ChatMessage
@@ -176,8 +235,11 @@ func (s *chatService) SendMessage(
 				ConversationID: conv.ConversationID,
 				SenderID:       sender.UserID,
 				SenderRole:     computedRole,
-				Content:        strings.TrimSpace(req.Content),
+				Content:        content,
 				ContentType:    contentType,
+				AttachmentUrl:  attachURL,
+				AttachmentName: attachName,
+				AttachmentSize: attachSize,
 			})
 			if txErr != nil {
 				return utils.WrapError(utils.ErrCodeInternal, "failed to save chat message", txErr)
@@ -193,8 +255,11 @@ func (s *chatService) SendMessage(
 			ConversationID: conv.ConversationID,
 			SenderID:       sender.UserID,
 			SenderRole:     computedRole,
-			Content:        strings.TrimSpace(req.Content),
+			Content:        content,
 			ContentType:    contentType,
+			AttachmentUrl:  attachURL,
+			AttachmentName: attachName,
+			AttachmentSize: attachSize,
 		})
 		if err == nil {
 			_ = s.chatRepo.UpdateLastMessageAt(ctx, conv.ConversationID)
@@ -215,19 +280,14 @@ func (s *chatService) SendMessage(
 			SenderRole:       msg.SenderRole,
 			Content:          msg.Content,
 			ContentType:      msg.ContentType,
+			AttachmentURL:    msg.AttachmentUrl,
+			AttachmentName:   msg.AttachmentName,
+			AttachmentSize:   msg.AttachmentSize,
 			CreatedAt:        msg.CreatedAt,
 		},
 	})
 
-	return v1dto.MessageResponse{
-		UUID:        msg.MessageUuid,
-		SenderID:    msg.SenderID,
-		SenderRole:  msg.SenderRole,
-		Content:     msg.Content,
-		ContentType: msg.ContentType,
-		IsRead:      msg.IsRead,
-		CreatedAt:   msg.CreatedAt,
-	}, nil
+	return v1dto.MapChatMessageToResponse(msg), nil
 }
 
 func (s *chatService) ListMessages(
@@ -289,15 +349,8 @@ func (s *chatService) ListMessages(
 
 	res := make([]v1dto.MessageResponse, len(messages))
 	for i, m := range messages {
-		res[i] = v1dto.MessageResponse{
-			UUID:        m.MessageUuid,
-			SenderID:    m.SenderID,
-			SenderRole:  m.SenderRole,
-			Content:     m.Content,
-			ContentType: m.ContentType,
-			IsRead:      m.IsRead,
-			CreatedAt:   m.CreatedAt,
-		}
+
+		res[i] = v1dto.MapChatMessageToResponse(m)
 	}
 
 	return res, total, nil

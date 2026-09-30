@@ -63,6 +63,7 @@ func (uh *UploadHandler) UploadSingleFile(ctx *gin.Context) {
 		"banners":    true,
 		"avatars":    true,
 		"common":     true,
+		"chat":       true,
 	}
 
 	if !allowedFolders[folder] {

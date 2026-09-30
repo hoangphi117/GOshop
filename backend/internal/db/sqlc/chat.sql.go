@@ -91,17 +91,24 @@ func (q *Queries) CreateConversation(ctx context.Context, userID int32) (ChatCon
 }
 
 const createMessage = `-- name: CreateMessage :one
-INSERT INTO chat_messages (conversation_id, sender_id, sender_role, content, content_type)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING message_id, message_uuid, conversation_id, sender_id, sender_role, content, content_type, is_read, read_at, created_at
+INSERT INTO chat_messages (
+  conversation_id, sender_id, sender_role, 
+  content, content_type,
+  attachment_url, attachment_name, attachment_size
+  )
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING message_id, message_uuid, conversation_id, sender_id, sender_role, content, content_type, attachment_url, attachment_name, attachment_size, is_read, read_at, created_at
 `
 
 type CreateMessageParams struct {
-	ConversationID int32  `json:"conversation_id"`
-	SenderID       int32  `json:"sender_id"`
-	SenderRole     string `json:"sender_role"`
-	Content        string `json:"content"`
-	ContentType    string `json:"content_type"`
+	ConversationID int32   `json:"conversation_id"`
+	SenderID       int32   `json:"sender_id"`
+	SenderRole     string  `json:"sender_role"`
+	Content        string  `json:"content"`
+	ContentType    string  `json:"content_type"`
+	AttachmentUrl  *string `json:"attachment_url"`
+	AttachmentName *string `json:"attachment_name"`
+	AttachmentSize *int64  `json:"attachment_size"`
 }
 
 func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (ChatMessage, error) {
@@ -111,6 +118,9 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (C
 		arg.SenderRole,
 		arg.Content,
 		arg.ContentType,
+		arg.AttachmentUrl,
+		arg.AttachmentName,
+		arg.AttachmentSize,
 	)
 	var i ChatMessage
 	err := row.Scan(
@@ -121,6 +131,9 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (C
 		&i.SenderRole,
 		&i.Content,
 		&i.ContentType,
+		&i.AttachmentUrl,
+		&i.AttachmentName,
+		&i.AttachmentSize,
 		&i.IsRead,
 		&i.ReadAt,
 		&i.CreatedAt,
@@ -240,7 +253,14 @@ SELECT
           AND m.sender_role = 'user'
     ), 0)::bigint AS unread_count,
     COALESCE((
-        SELECT m.content 
+        SELECT 
+            CASE 
+                WHEN m.content_type = 'image' THEN '[Image]'
+                WHEN m.content_type = 'media_group' THEN '[Images]'
+                WHEN m.content_type = 'video' THEN '[Video]'
+                WHEN m.content_type = 'order_ref' THEN '[Order]'
+                ELSE m.content 
+            END
         FROM chat_messages m 
         WHERE m.conversation_id = c.conversation_id 
         ORDER BY m.message_id DESC 
@@ -321,7 +341,7 @@ func (q *Queries) ListConversations(ctx context.Context, arg ListConversationsPa
 }
 
 const listMessages = `-- name: ListMessages :many
-SELECT message_id, message_uuid, conversation_id, sender_id, sender_role, content, content_type, is_read, read_at, created_at FROM chat_messages
+SELECT message_id, message_uuid, conversation_id, sender_id, sender_role, content, content_type, attachment_url, attachment_name, attachment_size, is_read, read_at, created_at FROM chat_messages
 WHERE conversation_id = $1
 ORDER BY created_at DESC
 LIMIT $3 OFFSET $2
@@ -350,6 +370,9 @@ func (q *Queries) ListMessages(ctx context.Context, arg ListMessagesParams) ([]C
 			&i.SenderRole,
 			&i.Content,
 			&i.ContentType,
+			&i.AttachmentUrl,
+			&i.AttachmentName,
+			&i.AttachmentSize,
 			&i.IsRead,
 			&i.ReadAt,
 			&i.CreatedAt,
@@ -365,7 +388,7 @@ func (q *Queries) ListMessages(ctx context.Context, arg ListMessagesParams) ([]C
 }
 
 const listMessagesCursor = `-- name: ListMessagesCursor :many
-SELECT message_id, message_uuid, conversation_id, sender_id, sender_role, content, content_type, is_read, read_at, created_at FROM chat_messages
+SELECT message_id, message_uuid, conversation_id, sender_id, sender_role, content, content_type, attachment_url, attachment_name, attachment_size, is_read, read_at, created_at FROM chat_messages
 WHERE conversation_id = $1
   AND ($2::int = 0 OR message_id < $2)
 ORDER BY message_id DESC
@@ -395,6 +418,9 @@ func (q *Queries) ListMessagesCursor(ctx context.Context, arg ListMessagesCursor
 			&i.SenderRole,
 			&i.Content,
 			&i.ContentType,
+			&i.AttachmentUrl,
+			&i.AttachmentName,
+			&i.AttachmentSize,
 			&i.IsRead,
 			&i.ReadAt,
 			&i.CreatedAt,

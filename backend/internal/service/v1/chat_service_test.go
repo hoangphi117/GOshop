@@ -47,7 +47,7 @@ func TestChatService_GetOrCreateConversation(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil)
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil, nil)
 		res, err := svc.GetOrCreateConversation(ctx, userUUID)
 
 		assert.NoError(t, err)
@@ -69,7 +69,7 @@ func TestChatService_GetOrCreateConversation(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil)
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil, nil)
 		res, err := svc.GetOrCreateConversation(ctx, userUUID)
 
 		assert.NoError(t, err)
@@ -84,7 +84,7 @@ func TestChatService_GetOrCreateConversation(t *testing.T) {
 		}
 		mockChatRepo := &testutils.MockChatRepository{}
 
-		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil)
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil, nil)
 		_, err := svc.GetOrCreateConversation(ctx, userUUID)
 
 		assert.Error(t, err)
@@ -102,7 +102,7 @@ func TestChatService_GetOrCreateConversation(t *testing.T) {
 		}
 		mockChatRepo := &testutils.MockChatRepository{}
 
-		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil)
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil, nil)
 		_, err := svc.GetOrCreateConversation(ctx, userUUID)
 
 		assert.Error(t, err)
@@ -167,7 +167,7 @@ func TestChatService_SendMessage(t *testing.T) {
 		}
 
 		txMgr := testutils.NewNoopTxManager()
-		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, txMgr, nil)
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, txMgr, nil)
 		res, err := svc.SendMessage(ctx, convUUID, userUUID, "user", req)
 
 		assert.NoError(t, err)
@@ -199,7 +199,7 @@ func TestChatService_SendMessage(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil)
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil, nil)
 		res, err := svc.SendMessage(ctx, convUUID, adminUUID, "admin", req)
 
 		assert.NoError(t, err)
@@ -218,7 +218,7 @@ func TestChatService_SendMessage(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil)
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil, nil)
 		_, err := svc.SendMessage(ctx, convUUID, strangerUUID, "user", req)
 
 		assert.Error(t, err)
@@ -239,8 +239,234 @@ func TestChatService_SendMessage(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil)
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil, nil)
 		_, err := svc.SendMessage(ctx, convUUID, userUUID, "user", req)
+
+		assert.Error(t, err)
+		var appErr *utils.AppError
+		assert.True(t, errors.As(err, &appErr))
+		assert.Equal(t, utils.ErrCodeBadRequest, appErr.Code)
+	})
+
+	t.Run("Success - Customer sends image attachment", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return mockCustomer, nil
+			},
+		}
+		imgURL := "https://cdn.example.com/uploads/chat/photo.jpg"
+		imgName := "photo.jpg"
+		imgSize := int64(102400)
+		mockChatRepo := &testutils.MockChatRepository{
+			GetConversationByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.ChatConversation, error) {
+				return mockOpenConv, nil
+			},
+			CreateMessageFunc: func(ctx context.Context, params sqlc.CreateMessageParams) (sqlc.ChatMessage, error) {
+				assert.Equal(t, "image", params.ContentType)
+				assert.Equal(t, &imgURL, params.AttachmentUrl)
+				assert.Equal(t, &imgName, params.AttachmentName)
+				assert.Equal(t, &imgSize, params.AttachmentSize)
+				return sqlc.ChatMessage{
+					MessageUuid:    uuid.New(),
+					SenderID:       params.SenderID,
+					SenderRole:     params.SenderRole,
+					Content:        params.Content,
+					ContentType:    params.ContentType,
+					AttachmentUrl:  params.AttachmentUrl,
+					AttachmentName: params.AttachmentName,
+					AttachmentSize: params.AttachmentSize,
+				}, nil
+			},
+			UpdateLastMessageAtFunc: func(ctx context.Context, id int32) error {
+				return nil
+			},
+		}
+
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil, nil)
+		attachReq := v1dto.SendMessageRequest{
+			AttachmentURL:  imgURL,
+			AttachmentName: imgName,
+			AttachmentSize: imgSize,
+		}
+		res, err := svc.SendMessage(ctx, convUUID, userUUID, "user", attachReq)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "image", res.ContentType)
+		assert.Equal(t, imgURL, res.AttachmentURL)
+		assert.Equal(t, imgName, res.AttachmentName)
+		assert.Equal(t, imgSize, res.AttachmentSize)
+	})
+
+	t.Run("Success - Customer sends video attachment", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return mockCustomer, nil
+			},
+		}
+		videoURL := "https://cdn.example.com/uploads/chat/demo.mp4"
+		mockChatRepo := &testutils.MockChatRepository{
+			GetConversationByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.ChatConversation, error) {
+				return mockOpenConv, nil
+			},
+			CreateMessageFunc: func(ctx context.Context, params sqlc.CreateMessageParams) (sqlc.ChatMessage, error) {
+				assert.Equal(t, "video", params.ContentType)
+				return sqlc.ChatMessage{
+					MessageUuid:   uuid.New(),
+					SenderID:      params.SenderID,
+					SenderRole:    params.SenderRole,
+					Content:       params.Content,
+					ContentType:   params.ContentType,
+					AttachmentUrl: params.AttachmentUrl,
+				}, nil
+			},
+			UpdateLastMessageAtFunc: func(ctx context.Context, id int32) error {
+				return nil
+			},
+		}
+
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil, nil)
+		attachReq := v1dto.SendMessageRequest{
+			AttachmentURL: videoURL,
+		}
+		res, err := svc.SendMessage(ctx, convUUID, userUUID, "user", attachReq)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "video", res.ContentType)
+		assert.Equal(t, videoURL, res.AttachmentURL)
+	})
+
+	t.Run("Success - Customer references valid own order (order_ref)", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return mockCustomer, nil
+			},
+		}
+		orderUUID := uuid.New()
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				assert.Equal(t, orderUUID, u)
+				return sqlc.GetOrderByUUIDRow{
+					OrderID:     123,
+					OrderUuid:   orderUUID,
+					OrderUserID: mockCustomer.UserID,
+				}, nil
+			},
+		}
+		mockChatRepo := &testutils.MockChatRepository{
+			GetConversationByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.ChatConversation, error) {
+				return mockOpenConv, nil
+			},
+			CreateMessageFunc: func(ctx context.Context, params sqlc.CreateMessageParams) (sqlc.ChatMessage, error) {
+				assert.Equal(t, "order_ref", params.ContentType)
+				assert.Equal(t, orderUUID.String(), params.Content)
+				return sqlc.ChatMessage{
+					MessageUuid: uuid.New(),
+					SenderID:    params.SenderID,
+					SenderRole:  params.SenderRole,
+					Content:     params.Content,
+					ContentType: params.ContentType,
+				}, nil
+			},
+			UpdateLastMessageAtFunc: func(ctx context.Context, id int32) error {
+				return nil
+			},
+		}
+
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, mockOrderRepo, nil, nil)
+		orderReq := v1dto.SendMessageRequest{
+			ContentType: "order_ref",
+			OrderUUID:   orderUUID.String(),
+		}
+		res, err := svc.SendMessage(ctx, convUUID, userUUID, "user", orderReq)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "order_ref", res.ContentType)
+		assert.Equal(t, orderUUID.String(), res.Content)
+	})
+
+	t.Run("Forbidden - Customer references another user's order", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return mockCustomer, nil
+			},
+		}
+		orderUUID := uuid.New()
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return sqlc.GetOrderByUUIDRow{
+					OrderID:     123,
+					OrderUuid:   orderUUID,
+					OrderUserID: 9999, // different user
+				}, nil
+			},
+		}
+		mockChatRepo := &testutils.MockChatRepository{
+			GetConversationByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.ChatConversation, error) {
+				return mockOpenConv, nil
+			},
+		}
+
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, mockOrderRepo, nil, nil)
+		orderReq := v1dto.SendMessageRequest{
+			ContentType: "order_ref",
+			OrderUUID:   orderUUID.String(),
+		}
+		_, err := svc.SendMessage(ctx, convUUID, userUUID, "user", orderReq)
+
+		assert.Error(t, err)
+		var appErr *utils.AppError
+		assert.True(t, errors.As(err, &appErr))
+		assert.Equal(t, utils.ErrCodeForbidden, appErr.Code)
+	})
+
+	t.Run("NotFound - Customer references non-existent order", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return mockCustomer, nil
+			},
+		}
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return sqlc.GetOrderByUUIDRow{}, pgx.ErrNoRows
+			},
+		}
+		mockChatRepo := &testutils.MockChatRepository{
+			GetConversationByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.ChatConversation, error) {
+				return mockOpenConv, nil
+			},
+		}
+
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, mockOrderRepo, nil, nil)
+		orderReq := v1dto.SendMessageRequest{
+			ContentType: "order_ref",
+			OrderUUID:   uuid.New().String(),
+		}
+		_, err := svc.SendMessage(ctx, convUUID, userUUID, "user", orderReq)
+
+		assert.Error(t, err)
+		var appErr *utils.AppError
+		assert.True(t, errors.As(err, &appErr))
+		assert.Equal(t, utils.ErrCodeNotFound, appErr.Code)
+	})
+
+	t.Run("BadRequest - Empty content and empty attachment", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return mockCustomer, nil
+			},
+		}
+		mockChatRepo := &testutils.MockChatRepository{
+			GetConversationByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.ChatConversation, error) {
+				return mockOpenConv, nil
+			},
+		}
+
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil, nil)
+		emptyReq := v1dto.SendMessageRequest{
+			Content:     "",
+			ContentType: "text",
+		}
+		_, err := svc.SendMessage(ctx, convUUID, userUUID, "user", emptyReq)
 
 		assert.Error(t, err)
 		var appErr *utils.AppError
@@ -275,7 +501,7 @@ func TestChatService_ListMessages(t *testing.T) {
 			CountMessagesByConversationIDFunc: func(ctx context.Context, id int32) (int64, error) { return 1, nil },
 		}
 
-		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil)
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil, nil)
 		res, total, err := svc.ListMessages(ctx, convUUID, userUUID, v1dto.ListMessagesRequest{Limit: 20})
 
 		assert.NoError(t, err)
@@ -299,7 +525,7 @@ func TestChatService_ListMessages(t *testing.T) {
 			CountMessagesByConversationIDFunc: func(ctx context.Context, id int32) (int64, error) { return 10, nil },
 		}
 
-		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil)
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil, nil)
 		res, total, err := svc.ListMessages(ctx, convUUID, adminUUID, v1dto.ListMessagesRequest{BeforeID: 50, Limit: 10})
 
 		assert.NoError(t, err)
@@ -316,13 +542,58 @@ func TestChatService_ListMessages(t *testing.T) {
 			GetConversationByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.ChatConversation, error) { return mockConv, nil },
 		}
 
-		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil)
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil, nil)
 		_, _, err := svc.ListMessages(ctx, convUUID, strangerUUID, v1dto.ListMessagesRequest{})
 
 		assert.Error(t, err)
 		var appErr *utils.AppError
 		assert.True(t, errors.As(err, &appErr))
 		assert.Equal(t, utils.ErrCodeForbidden, appErr.Code)
+	})
+
+	t.Run("Success - List messages maps attachments properly", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) { return mockUser, nil },
+		}
+		imgURL := "https://cdn.example.com/uploads/chat/image.png"
+		imgName := "image.png"
+		imgSize := int64(2048)
+		mockChatRepo := &testutils.MockChatRepository{
+			GetConversationByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.ChatConversation, error) { return mockConv, nil },
+			ListMessagesFunc: func(ctx context.Context, params sqlc.ListMessagesParams) ([]sqlc.ChatMessage, error) {
+				return []sqlc.ChatMessage{
+					{
+						MessageID:      101,
+						Content:        "Photo sent",
+						ContentType:    "image",
+						AttachmentUrl:  &imgURL,
+						AttachmentName: &imgName,
+						AttachmentSize: &imgSize,
+						SenderID:       1,
+						SenderRole:     "user",
+					},
+					{
+						MessageID:   102,
+						Content:     "Text message",
+						ContentType: "text",
+						SenderID:    1,
+						SenderRole:  "user",
+					},
+				}, nil
+			},
+			CountMessagesByConversationIDFunc: func(ctx context.Context, id int32) (int64, error) { return 2, nil },
+		}
+
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil, nil)
+		res, total, err := svc.ListMessages(ctx, convUUID, userUUID, v1dto.ListMessagesRequest{})
+
+		assert.NoError(t, err)
+		assert.Equal(t, int64(2), total)
+		assert.Len(t, res, 2)
+		assert.Equal(t, imgURL, res[0].AttachmentURL)
+		assert.Equal(t, imgName, res[0].AttachmentName)
+		assert.Equal(t, imgSize, res[0].AttachmentSize)
+		assert.Equal(t, "", res[1].AttachmentURL)
 	})
 }
 
@@ -351,7 +622,7 @@ func TestChatService_MarkRead(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil)
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil, nil)
 		err := svc.MarkRead(ctx, convUUID, userUUID)
 
 		assert.NoError(t, err)
@@ -366,7 +637,7 @@ func TestChatService_MarkRead(t *testing.T) {
 			GetConversationByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.ChatConversation, error) { return mockConv, nil },
 		}
 
-		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil)
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil, nil)
 		err := svc.MarkRead(ctx, convUUID, strangerUUID)
 
 		assert.Error(t, err)
@@ -407,7 +678,7 @@ func TestChatService_ListConversations(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil)
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil, nil)
 		res, total, err := svc.ListConversations(ctx, adminUUID, v1dto.ListConversationsRequest{Page: 1, Limit: 20})
 
 		assert.NoError(t, err)
@@ -423,7 +694,7 @@ func TestChatService_ListConversations(t *testing.T) {
 		}
 		mockChatRepo := &testutils.MockChatRepository{}
 
-		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil)
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil, nil)
 		_, _, err := svc.ListConversations(ctx, customerUUID, v1dto.ListConversationsRequest{})
 
 		assert.Error(t, err)
@@ -462,7 +733,7 @@ func TestChatService_GetConversationDetails(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil)
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil, nil)
 		res, err := svc.GetConversationDetails(ctx, convUUID, userUUID)
 
 		assert.NoError(t, err)
@@ -481,7 +752,7 @@ func TestChatService_GetConversationDetails(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil)
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil, nil)
 		res, err := svc.GetConversationDetails(ctx, convUUID, adminUUID)
 
 		assert.NoError(t, err)
@@ -497,7 +768,7 @@ func TestChatService_GetConversationDetails(t *testing.T) {
 			GetConversationByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.ChatConversation, error) { return mockConv, nil },
 		}
 
-		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil)
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil, nil)
 		_, err := svc.GetConversationDetails(ctx, convUUID, strangerUUID)
 
 		assert.Error(t, err)
@@ -524,7 +795,7 @@ func TestChatService_CloseConversation(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil)
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil, nil)
 		res, err := svc.CloseConversation(ctx, convUUID)
 
 		assert.NoError(t, err)
@@ -542,7 +813,7 @@ func TestChatService_CloseConversation(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil)
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil, nil)
 		res, err := svc.CloseConversation(ctx, convUUID)
 
 		assert.NoError(t, err)
@@ -569,7 +840,7 @@ func TestChatService_GetTotalUnreadCount(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil)
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil, nil)
 		count, err := svc.GetTotalUnreadCount(ctx, adminUUID)
 
 		assert.NoError(t, err)
@@ -586,7 +857,7 @@ func TestChatService_GetTotalUnreadCount(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil)
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil, nil)
 		count, err := svc.GetTotalUnreadCount(ctx, userUUID)
 
 		assert.NoError(t, err)

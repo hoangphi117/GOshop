@@ -47,8 +47,10 @@ var allowVideoMimeTypes = map[string]bool{
 }
 
 const (
-	MaxImageSize = 5 << 20
-	MaxVideoSize = 30 << 20
+	MaxImageSize     = 5 << 20
+	MaxVideoSize     = 30 << 20
+	MaxChatImageSize = 10 << 20
+	MaxChatVideoSize = 50 << 20
 )
 
 func ValidateAndSaveFile(fileHeader *multipart.FileHeader, uploadDir string) (string, MediaType, error) {

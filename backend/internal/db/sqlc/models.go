@@ -77,6 +77,9 @@ type ChatMessage struct {
 	SenderRole     string             `json:"sender_role"`
 	Content        string             `json:"content"`
 	ContentType    string             `json:"content_type"`
+	AttachmentUrl  *string            `json:"attachment_url"`
+	AttachmentName *string            `json:"attachment_name"`
+	AttachmentSize *int64             `json:"attachment_size"`
 	IsRead         bool               `json:"is_read"`
 	ReadAt         pgtype.Timestamptz `json:"read_at"`
 	CreatedAt      time.Time          `json:"created_at"`

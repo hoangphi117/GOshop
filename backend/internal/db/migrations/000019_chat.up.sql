@@ -21,6 +21,9 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     sender_role         VARCHAR(10) NOT NULL,
     content             TEXT NOT NULL,
     content_type        VARCHAR(20) NOT NULL DEFAULT 'text',
+    attachment_url       TEXT,
+    attachment_name      TEXT,
+    attachment_size      BIGINT,
     is_read             BOOLEAN NOT NULL DEFAULT FALSE,
     read_at             TIMESTAMPTZ,
     created_at          TIMESTAMPTZ DEFAULT now() NOT NULL
