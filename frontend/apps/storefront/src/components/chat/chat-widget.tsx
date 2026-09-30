@@ -11,6 +11,7 @@ import {
   CheckCheck,
   Paperclip,
   ShoppingBag,
+  Tag,
   Search,
   Loader2,
   Package,
@@ -18,9 +19,15 @@ import {
   ChevronLeft,
   Download,
   ZoomIn,
+  ClipboardMinus,
 } from "lucide-react";
-import { useChat, uploadChatFile, useRecentOrders } from "@/hooks/use-chat";
-import type { OrderRef } from "@/hooks/use-chat";
+import {
+  useChat,
+  uploadChatFile,
+  useRecentOrders,
+  useChatProducts,
+} from "@/hooks/use-chat";
+import type { OrderRef, ProductRef } from "@/hooks/use-chat";
 import { useChatUIStore } from "@/stores/chat-ui-store";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -387,6 +394,75 @@ function MessageContent({
       </Link>
     );
   }
+  if (content_type === "product_ref") {
+    // Packed format: "product_name|price|stock|slug|category_name|stock_status"
+    const parts = (attachment_name || "").split("|");
+    const productName = parts[0] || content;
+    const price = parts[1] ? Number(parts[1]) : null;
+    const stock = parts[2] ? Number(parts[2]) : null;
+    const slug = parts[3] || content;
+    const isOutOfStock =
+      parts[5] === "out_of_stock" || (stock !== null && stock <= 0);
+    const imageUrl = attachment_url || "";
+
+    return (
+      <Link
+        href={`/products/${slug}`}
+        className="group flex flex-col gap-1.5 min-w-[200px] max-w-[250px] p-0.5 cursor-pointer text-inherit hover:opacity-95"
+      >
+        {/* Header: Tag + Product Inquiry */}
+        <div className="flex items-center justify-between gap-2 border-b border-current/10 pb-1.5">
+          <div className="flex items-center gap-1 text-[10.5px] font-medium opacity-75 truncate">
+            <span>Product </span>
+          </div>
+          <ChevronRight className="w-3 h-3 opacity-60 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+        </div>
+
+        {/* Product preview */}
+        <div className="flex items-center gap-2 py-0.5">
+          <div className="relative w-11 h-11 rounded-md overflow-hidden shrink-0 bg-black/5 border border-current/10">
+            {imageUrl ? (
+              <img
+                src={imageUrl}
+                alt={productName}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center opacity-60">
+                <Package className="w-5 h-5 stroke-[1.5]" />
+              </div>
+            )}
+            {isOutOfStock && (
+              <div className="absolute inset-0 bg-black/65 backdrop-blur-[0.5px] flex items-center justify-center p-0.5 text-center">
+                <span className="text-[7px] font-bold uppercase tracking-wider text-white leading-tight">
+                  Out of stock
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <p
+              className="text-xs font-semibold truncate leading-tight group-hover:underline"
+              title={productName}
+            >
+              {productName}
+            </p>
+            {price !== null && (
+              <p className="text-xs font-bold mt-0.5">{fmtCurrency(price)}</p>
+            )}
+            <div className="flex items-center gap-1.5 mt-0.5 text-[10px] opacity-70">
+              {isOutOfStock ? (
+                <span className="text-red-500 font-medium">Out of stock</span>
+              ) : (
+                <span>In stock {stock !== null ? `(${stock})` : ""}</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </Link>
+    );
+  }
   return <>{content}</>;
 }
 
@@ -633,7 +709,7 @@ function OrderPickerModal({
         <div className="px-3.5 py-2.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80 shrink-0">
           <div className="flex items-center gap-2">
             <div className="p-1.5 rounded-lg bg-slate-900 text-white shadow-xs">
-              <ShoppingBag className="w-3.5 h-3.5" />
+              <ClipboardMinus className="w-3.5 h-3.5" />
             </div>
             <div>
               <h4 className="text-xs font-semibold text-slate-900 leading-tight">
@@ -773,14 +849,212 @@ function OrderPickerModal({
   );
 }
 
+/** Modal dialog for selecting a product to consult about */
+function ProductPickerModal({
+  isOpen,
+  onSelect,
+  onClose,
+}: {
+  isOpen: boolean;
+  onSelect: (p: ProductRef) => void;
+  onClose: () => void;
+}) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const { data: products = [], isLoading } = useChatProducts(
+    isOpen,
+    debouncedSearch,
+  );
+
+  const filteredProducts = products.filter((p) => {
+    if (!searchTerm.trim()) return true;
+    const query = searchTerm.toLowerCase().trim();
+    return (
+      p.name?.toLowerCase().includes(query) ||
+      p.category_name?.toLowerCase().includes(query) ||
+      p.slug?.toLowerCase().includes(query)
+    );
+  });
+
+  const modalRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="absolute inset-0 z-30 bg-slate-900/50 backdrop-blur-[2px] flex items-center justify-center p-3 animate-in fade-in duration-150">
+      <div
+        ref={modalRef}
+        className="w-full h-[430px] max-h-[430px] bg-white rounded-xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
+      >
+        {/* Fixed Header */}
+        <div className="px-3.5 py-2.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80 shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-lg bg-slate-900 text-white shadow-xs">
+              <ClipboardMinus className="w-3.5 h-3.5" />
+            </div>
+            <div>
+              <h4 className="text-xs font-semibold text-slate-900 leading-tight">
+                Select Product
+              </h4>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-full transition-colors"
+            aria-label="Close"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Fixed Search Bar with Debounce */}
+        <div className="p-2.5 border-b border-slate-100 bg-white shrink-0">
+          <div className="relative flex items-center">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 pointer-events-none" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search products by name or category..."
+              className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-slate-900 focus:bg-white transition-all placeholder:text-slate-400"
+              autoFocus
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm("")}
+                className="absolute right-2 text-slate-400 hover:text-slate-600 p-0.5"
+                aria-label="Clear search"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Scrollable Products List */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-2.5 space-y-2">
+          {isLoading ? (
+            <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-2 py-8">
+              <Loader2 className="w-5 h-5 animate-spin text-slate-500" />
+              <p className="text-xs">Loading products...</p>
+            </div>
+          ) : filteredProducts.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center text-center p-4 space-y-1.5 text-slate-400 py-8">
+              <Package className="w-7 h-7 text-slate-300 stroke-[1.5]" />
+              <p className="text-xs font-medium text-slate-600">
+                {searchTerm
+                  ? "No matching products found"
+                  : "No products available"}
+              </p>
+              <p className="text-[11px] text-slate-400 max-w-[200px]">
+                {searchTerm
+                  ? "Try searching with a different keyword."
+                  : "Products catalog is currently empty."}
+              </p>
+            </div>
+          ) : (
+            filteredProducts.map((p) => {
+              const isOutOfStock =
+                (p.stock ?? 0) <= 0 ||
+                p.status === "out_of_stock" ||
+                p.status === "inactive";
+
+              return (
+                <button
+                  key={p.uuid}
+                  type="button"
+                  onClick={() => onSelect(p)}
+                  className="w-full group flex items-center gap-2.5 p-2 bg-white hover:bg-slate-50/90 active:bg-slate-100 border border-slate-200/90 hover:border-slate-300 rounded-lg transition-all text-left shadow-2xs cursor-pointer"
+                >
+                  {/* Product Thumbnail with Out of stock overlay */}
+                  <div className="relative w-12 h-12 rounded-md overflow-hidden shrink-0 border border-slate-200 bg-slate-100">
+                    {p.image_url ? (
+                      <img
+                        src={p.image_url}
+                        alt={p.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-slate-400">
+                        <Package className="w-5 h-5 stroke-[1.5]" />
+                      </div>
+                    )}
+                    {isOutOfStock && (
+                      <div className="absolute inset-0 bg-black/60 backdrop-blur-[0.5px] flex items-center justify-center p-0.5 text-center">
+                        <span className="text-[8px] font-bold uppercase tracking-wider text-white leading-tight">
+                          Out of stock
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Product Details: Name, Category/Stock, Price */}
+                  <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+                    <p
+                      className="text-xs font-semibold text-slate-800 truncate leading-snug group-hover:text-slate-900"
+                      title={p.name}
+                    >
+                      {p.name}
+                    </p>
+
+                    <div className="flex items-center justify-between text-[11px] mt-1">
+                      <span className="font-bold text-slate-900">
+                        {fmtCurrency(p.price)}
+                      </span>
+                      {isOutOfStock ? (
+                        <span className="text-[9.5px] font-medium text-red-600 bg-red-50 border border-red-200/80 px-1.5 py-0.2 rounded">
+                          Out of stock
+                        </span>
+                      ) : (
+                        <span className="text-[9.5px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-1.5 py-0.2 rounded">
+                          In stock ({p.stock})
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function ChatWidget() {
-  const { isOpen, setIsOpen, pendingOrder, setPendingOrder } = useChatUIStore();
+  const {
+    isOpen,
+    setIsOpen,
+    pendingOrder,
+    setPendingOrder,
+    pendingProduct,
+    setPendingProduct,
+  } = useChatUIStore();
   const [inputValue, setInputValue] = useState("");
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [showOrderPicker, setShowOrderPicker] = useState(false);
+  const [showProductPicker, setShowProductPicker] = useState(false);
   const [previewMediaGroup, setPreviewMediaGroup] = useState<{
     items: MediaItem[];
     initialIndex: number;
@@ -873,6 +1147,30 @@ export function ChatWidget() {
     [sendMessage],
   );
 
+  const handleProductSelect = useCallback(
+    async (product: ProductRef) => {
+      setShowProductPicker(false);
+      try {
+        const isOutOfStock =
+          (product.stock ?? 0) <= 0 ||
+          product.status === "out_of_stock" ||
+          product.status === "inactive";
+
+        // Pack display info into attachment_name: "product_name|price|stock|slug|category_name|stock_status"
+        await sendMessage({
+          content: product.uuid || product.name,
+          content_type: "product_ref",
+          product_uuid: product.uuid,
+          attachment_url: product.image_url || "",
+          attachment_name: `${product.name}|${product.price}|${product.stock}|${product.slug}|${product.category_name || ""}|${isOutOfStock ? "out_of_stock" : "in_stock"}|${product.uuid || ""}`,
+        });
+      } catch {
+        // silent
+      }
+    },
+    [sendMessage],
+  );
+
   // Auto-send order when opened via "Chat about this order" from order details page
   useEffect(() => {
     if (pendingOrder && isAuthenticated) {
@@ -880,6 +1178,14 @@ export function ChatWidget() {
       setPendingOrder(null);
     }
   }, [pendingOrder, isAuthenticated, handleOrderSelect, setPendingOrder]);
+
+  // Auto-send product when opened via "Chat for consultation" from product detail page
+  useEffect(() => {
+    if (pendingProduct && isAuthenticated) {
+      handleProductSelect(pendingProduct);
+      setPendingProduct(null);
+    }
+  }, [pendingProduct, isAuthenticated, handleProductSelect, setPendingProduct]);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1131,6 +1437,13 @@ export function ChatWidget() {
             onClose={() => setShowOrderPicker(false)}
           />
 
+          {/* Product Selection Modal (Centered Overlay with fixed frame) */}
+          <ProductPickerModal
+            isOpen={showProductPicker}
+            onSelect={handleProductSelect}
+            onClose={() => setShowProductPicker(false)}
+          />
+
           {/* Footer Input */}
           {isAuthenticated && (
             <div className="bg-white border-t border-slate-200">
@@ -1176,10 +1489,7 @@ export function ChatWidget() {
                 </div>
               )}
 
-              <form
-                onSubmit={handleSend}
-                className="p-3 flex items-center gap-2"
-              >
+              <form onSubmit={handleSend} className="p-3 flex items-center ">
                 {/* Hidden file input supporting multiple files */}
                 <input
                   ref={fileInputRef}
@@ -1197,23 +1507,47 @@ export function ChatWidget() {
                   disabled={isSending || isUploading}
                   className="p-2 text-slate-400 hover:text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                   aria-label="Attach file"
+                  title="Attach file"
                 >
                   <Paperclip className="w-4 h-4" />
+                </button>
+
+                {/* Product attach button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowProductPicker((v) => !v);
+                    setShowOrderPicker(false);
+                  }}
+                  disabled={isSending || isUploading}
+                  className={`p-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                    showProductPicker
+                      ? "text-slate-900 bg-slate-100 rounded"
+                      : "text-slate-400 hover:text-slate-700"
+                  }`}
+                  aria-label="Product"
+                  title="Product"
+                >
+                  <ShoppingBag className="w-4 h-4" />
                 </button>
 
                 {/* Order attach button */}
                 <button
                   type="button"
-                  onClick={() => setShowOrderPicker((v) => !v)}
+                  onClick={() => {
+                    setShowOrderPicker((v) => !v);
+                    setShowProductPicker(false);
+                  }}
                   disabled={isSending || isUploading}
                   className={`p-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                     showOrderPicker
                       ? "text-slate-900 bg-slate-100 rounded"
                       : "text-slate-400 hover:text-slate-700"
                   }`}
-                  aria-label="Attach order"
+                  aria-label="Order"
+                  title="Order"
                 >
-                  <ShoppingBag className="w-4 h-4" />
+                  <ClipboardMinus className="w-4 h-4" />
                 </button>
 
                 <input

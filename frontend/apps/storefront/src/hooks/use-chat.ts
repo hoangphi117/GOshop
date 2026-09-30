@@ -39,6 +39,7 @@ export interface SendMessageParams {
   attachment_name?: string;
   attachment_size?: number;
   order_uuid?: string;
+  product_uuid?: string;
 }
 
 export interface OrderItemRef {
@@ -59,6 +60,17 @@ export interface OrderRef {
   total_amount: number;
   created_at: string;
   items?: OrderItemRef[];
+}
+
+export interface ProductRef {
+  uuid: string;
+  name: string;
+  slug: string;
+  price: number;
+  stock: number;
+  image_url?: string;
+  category_name?: string;
+  status?: string;
 }
 
 // Uploads a file to /api/v1/upload?folder=chat, returns the served URL
@@ -108,6 +120,33 @@ export function useRecentOrders(enabled: boolean, search?: string) {
     },
     enabled,
     staleTime: 1000 * 30,
+  });
+}
+
+// Fetch products for product consultation picker (supports search query)
+export function useChatProducts(enabled: boolean, search?: string) {
+  return useQuery({
+    queryKey: ["chat", "products", search || ""],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.set("limit", "30");
+      params.set("page", "1");
+      if (search && search.trim().length >= 1) {
+        params.set("search", search.trim());
+      }
+      const res = await authFetch(
+        `${API_BASE_URL}/api/v1/products?${params.toString()}`,
+      );
+      if (!res.ok) return [];
+      const json = await res.json();
+      const items = (json?.data?.items ||
+        json?.data?.data ||
+        json?.data ||
+        []) as ProductRef[];
+      return items;
+    },
+    enabled,
+    staleTime: 1000 * 60,
   });
 }
 
@@ -185,6 +224,7 @@ export function useChat() {
       if (params.attachment_size)
         body["attachment_size"] = params.attachment_size;
       if (params.order_uuid) body["order_uuid"] = params.order_uuid;
+      if (params.product_uuid) body["product_uuid"] = params.product_uuid;
       const res = await authFetch("/api/v1/chat/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

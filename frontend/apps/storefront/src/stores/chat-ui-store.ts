@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { OrderRef } from "@/hooks/use-chat";
+import type { OrderRef, ProductRef } from "@/hooks/use-chat";
 
 interface ChatUIState {
   isOpen: boolean;
@@ -9,6 +9,9 @@ interface ChatUIState {
   pendingOrder: OrderRef | null;
   setPendingOrder: (order: OrderRef | null) => void;
   openChatWithOrder: (order: OrderRef) => void;
+  pendingProduct: ProductRef | null;
+  setPendingProduct: (product: ProductRef | null) => void;
+  openChatWithProduct: (product: ProductRef) => void;
 }
 
 export const useChatUIStore = create<ChatUIState>((set) => ({
@@ -19,4 +22,7 @@ export const useChatUIStore = create<ChatUIState>((set) => ({
   pendingOrder: null,
   setPendingOrder: (pendingOrder) => set({ pendingOrder }),
   openChatWithOrder: (order) => set({ isOpen: true, pendingOrder: order }),
+  pendingProduct: null,
+  setPendingProduct: (pendingProduct) => set({ pendingProduct }),
+  openChatWithProduct: (product) => set({ isOpen: true, pendingProduct: product }),
 }));
