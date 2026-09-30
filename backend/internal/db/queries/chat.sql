@@ -53,6 +53,7 @@ SELECT
                 WHEN m.content_type = 'media_group' THEN '[Images]'
                 WHEN m.content_type = 'video' THEN '[Video]'
                 WHEN m.content_type = 'order_ref' THEN '[Order]'
+                WHEN m.content_type = 'product_ref' THEN '[Product]'
                 ELSE m.content 
             END
         FROM chat_messages m 

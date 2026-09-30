@@ -11,15 +11,16 @@ import (
 
 type SendMessageRequest struct {
 	Content     string `json:"content"      binding:"required,max=4000"`
-	ContentType string `json:"content_type" binding:"omitempty,oneof=text image video order_ref media_group"`
+	ContentType string `json:"content_type" binding:"omitempty,oneof=text image video order_ref product_ref media_group"`
 
 	// Attachment fields (optional, set by FE after upload)
 	AttachmentURL  string `json:"attachment_url"  binding:"omitempty,max=8000"`
 	AttachmentName string `json:"attachment_name" binding:"omitempty,max=2000"`
 	AttachmentSize int64  `json:"attachment_size" binding:"omitempty,min=0"`
 
-	// Order reference (optional, used when content_type = 'order_ref')
-	OrderUUID string `json:"order_uuid" binding:"omitempty,uuid"`
+	// References (optional, used when content_type = 'order_ref' or 'product_ref')
+	OrderUUID   string `json:"order_uuid"   binding:"omitempty,uuid"`
+	ProductUUID string `json:"product_uuid" binding:"omitempty,uuid"`
 }
 
 type ListMessagesRequest struct {

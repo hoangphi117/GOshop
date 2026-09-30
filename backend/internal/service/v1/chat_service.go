@@ -179,6 +179,8 @@ func (s *chatService) SendMessage(
 			}
 		} else if req.OrderUUID != "" {
 			contentType = "order_ref"
+		} else if req.ProductUUID != "" {
+			contentType = "product_ref"
 		} else {
 			contentType = "text"
 		}
@@ -209,10 +211,14 @@ func (s *chatService) SendMessage(
 			}
 		}
 		content = req.OrderUUID
+	} else if contentType == "product_ref" {
+		if req.ProductUUID != "" {
+			content = req.ProductUUID
+		}
 	}
 
-	if contentType != "order_ref" && content == "" && req.AttachmentURL == "" {
-		return v1dto.MessageResponse{}, utils.NewError(utils.ErrCodeBadRequest, "content or attachment is required for non-order_ref messages")
+	if contentType != "order_ref" && contentType != "product_ref" && content == "" && req.AttachmentURL == "" {
+		return v1dto.MessageResponse{}, utils.NewError(utils.ErrCodeBadRequest, "content or attachment is required for non-reference messages")
 	}
 
 	var attachURL, attachName *string
