@@ -2,16 +2,19 @@ import { useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
-import { useNotificationSettingsStore } from '../stores/notification-settings-store'
+import { adminChatKeys } from '@/features/chats/hooks/use-admin-chats'
 import { useChatTypingStore } from '@/features/chats/stores/chat-typing-store'
-import { notificationKeys } from './use-notifications'
+import type { ChatMessage, ConversationItem } from '@/features/chats/types'
+import { useNotificationSettingsStore } from '../stores/notification-settings-store'
 import type { NotificationDTO } from '../types'
+import { notificationKeys } from './use-notifications'
 
 function playChimeSound() {
   try {
     const AudioCtx =
       window.AudioContext ||
-      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+      (window as unknown as { webkitAudioContext: typeof AudioContext })
+        .webkitAudioContext
     if (!AudioCtx) return
     const ctx = new AudioCtx()
     const osc = ctx.createOscillator()
@@ -59,7 +62,8 @@ export function useNotificationSocket() {
       if (isCleanedUp) return
 
       try {
-        const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+        const rawBaseUrl =
+          import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
         const wsBaseUrl = rawBaseUrl.replace(/^http/, 'ws')
         const socketUrl = `${wsBaseUrl}/api/v1/ws?token=${encodeURIComponent(accessToken)}`
 
@@ -101,11 +105,14 @@ export function useNotificationSocket() {
                   Notification.permission === 'granted'
                 ) {
                   try {
-                    const nativeNotif = new Notification(notif.title || 'GOshop Notification', {
-                      body: notif.body || '',
-                      icon: '/favicon.ico',
-                      tag: notif.uuid || notif.notification_uuid,
-                    })
+                    const nativeNotif = new Notification(
+                      notif.title || 'GOshop Notification',
+                      {
+                        body: notif.body || '',
+                        icon: '/favicon.ico',
+                        tag: notif.uuid || notif.notification_uuid,
+                      }
+                    )
                     nativeNotif.onclick = () => {
                       window.focus()
                       nativeNotif.close()
@@ -124,8 +131,12 @@ export function useNotificationSocket() {
                 queryClient.invalidateQueries({ queryKey: ['adminOrders'] })
                 queryClient.invalidateQueries({ queryKey: ['orders'] })
                 queryClient.invalidateQueries({ queryKey: ['orderDetails'] })
-                queryClient.invalidateQueries({ queryKey: ['analyticsOverview'] })
-                queryClient.invalidateQueries({ queryKey: ['analyticsRecentOrders'] })
+                queryClient.invalidateQueries({
+                  queryKey: ['analyticsOverview'],
+                })
+                queryClient.invalidateQueries({
+                  queryKey: ['analyticsRecentOrders'],
+                })
               } else if (
                 notifType.includes('stock') ||
                 notifType.includes('inventory') ||
@@ -134,23 +145,86 @@ export function useNotificationSocket() {
                 queryClient.invalidateQueries({ queryKey: ['stockMovements'] })
                 queryClient.invalidateQueries({ queryKey: ['products'] })
                 queryClient.invalidateQueries({ queryKey: ['adminProducts'] })
-                queryClient.invalidateQueries({ queryKey: ['analyticsLowStockAlerts'] })
+                queryClient.invalidateQueries({
+                  queryKey: ['analyticsLowStockAlerts'],
+                })
               } else if (notifType.includes('review')) {
                 queryClient.invalidateQueries({ queryKey: ['adminReviews'] })
-                queryClient.invalidateQueries({ queryKey: ['adminReviewReports'] })
+                queryClient.invalidateQueries({
+                  queryKey: ['adminReviewReports'],
+                })
               } else if (notifType.includes('return')) {
                 queryClient.invalidateQueries({ queryKey: ['adminReturns'] })
-                queryClient.invalidateQueries({ queryKey: ['analyticsReturns'] })
+                queryClient.invalidateQueries({
+                  queryKey: ['analyticsReturns'],
+                })
               }
             } else if (payload?.type === 'chat.message') {
-              // Real-time chat message invalidation
+              const msgData = payload.data
+              if (msgData?.conversation_uuid) {
+                const newMsg: ChatMessage = {
+                  uuid: msgData.message_uuid,
+                  sender_id: msgData.sender_id,
+                  sender_role: msgData.sender_role,
+                  content: msgData.content,
+                  content_type: msgData.content_type || 'text',
+                  attachment_url: msgData.attachment_url,
+                  attachment_name: msgData.attachment_name,
+                  attachment_size: msgData.attachment_size,
+                  is_read: false,
+                  created_at: msgData.created_at || new Date().toISOString(),
+                }
+
+                // 1. Instantly append message to active conversation cache
+                queryClient.setQueryData<ChatMessage[]>(
+                  adminChatKeys.messages(msgData.conversation_uuid),
+                  (old = []) => {
+                    if (old.some((m) => m.uuid === newMsg.uuid)) return old
+                    return [...old, newMsg]
+                  }
+                )
+
+                // 2. Instantly update conversation preview in sidebar
+                queryClient.setQueriesData<ConversationItem[]>(
+                  { queryKey: ['admin-chats', 'conversations'] },
+                  (old) => {
+                    if (!old || !Array.isArray(old)) return old
+                    return old.map((c) => {
+                      if (c.uuid === msgData.conversation_uuid) {
+                        return {
+                          ...c,
+                          last_message_content: msgData.content,
+                          last_message_at:
+                            msgData.created_at || new Date().toISOString(),
+                          unread_count:
+                            msgData.sender_role === 'user'
+                              ? (c.unread_count || 0) + 1
+                              : c.unread_count,
+                        }
+                      }
+                      return c
+                    })
+                  }
+                )
+              }
+
+              // 3. Invalidate admin-chats queries for background sync
               queryClient.invalidateQueries({ queryKey: ['admin-chats'] })
             } else if (payload?.type === 'chat.read') {
+              const readData = payload.data
+              if (readData?.conversation_uuid) {
+                queryClient.setQueryData<ChatMessage[]>(
+                  adminChatKeys.messages(readData.conversation_uuid),
+                  (old = []) => old.map((m) => ({ ...m, is_read: true }))
+                )
+              }
               queryClient.invalidateQueries({ queryKey: ['admin-chats'] })
             } else if (payload?.type === 'chat.typing' && payload?.data) {
               const { conversation_uuid, sender_role, is_typing } = payload.data
               if (sender_role === 'user' && conversation_uuid) {
-                useChatTypingStore.getState().setTyping(conversation_uuid, Boolean(is_typing))
+                useChatTypingStore
+                  .getState()
+                  .setTyping(conversation_uuid, Boolean(is_typing))
               }
             }
           } catch {
@@ -166,7 +240,10 @@ export function useNotificationSocket() {
           if (isCleanedUp) return
 
           // Exponential backoff reconnect: 1s, 2s, 4s, 8s, up to 30s
-          const delay = Math.min(1000 * Math.pow(2, retryCountRef.current), 30000)
+          const delay = Math.min(
+            1000 * Math.pow(2, retryCountRef.current),
+            30000
+          )
           retryCountRef.current += 1
 
           reconnectTimeoutRef.current = setTimeout(() => {

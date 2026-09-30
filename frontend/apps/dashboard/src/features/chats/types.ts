@@ -3,7 +3,10 @@ export interface ChatMessage {
   sender_id: number
   sender_role: 'user' | 'admin'
   content: string
-  content_type: string
+  content_type: 'text' | 'image' | 'video' | 'order_ref' | string
+  attachment_url?: string
+  attachment_name?: string
+  attachment_size?: number
   is_read: boolean
   created_at: string
 }

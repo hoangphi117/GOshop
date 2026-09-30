@@ -1,12 +1,22 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { format, isToday } from 'date-fns'
+import { Link } from '@tanstack/react-router'
 import {
   Search as SearchIcon,
   Send,
   MessagesSquare,
   Check,
   CheckCheck,
+  Paperclip,
+  X,
+  ShoppingBag,
+  Package,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  ZoomIn,
 } from 'lucide-react'
+import { useAuthStore } from '@/stores/auth-store'
 import { cn, getDisplayNameInitials } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -20,18 +30,548 @@ import {
   useAdminMessages,
   useAdminSendMessage,
   useAdminMarkRead,
-  useAdminSendTyping,
+  useAdminChatRoom,
+  uploadChatFile,
 } from './hooks/use-admin-chats'
 import { useChatTypingStore } from './stores/chat-typing-store'
 import type { ConversationItem } from './types'
+
+function formatLastMessage(content?: string) {
+  if (!content) return 'No messages yet'
+  const trimmed = content.trim()
+  if (
+    trimmed === '[Images]' ||
+    /^\d+\s+(attachments|photos|files)$/i.test(trimmed)
+  ) {
+    return 'Sent attachments'
+  }
+  if (
+    trimmed === '[Image]' ||
+    /\.(jpg|jpeg|png|webp|gif|svg)$/i.test(trimmed) ||
+    (trimmed.includes('/uploads/chat/') && !trimmed.includes('.mp4'))
+  ) {
+    return 'Sent an image'
+  }
+  if (trimmed === '[Video]' || /\.(mp4|webm|mov|avi)$/i.test(trimmed)) {
+    return 'Sent a video'
+  }
+  if (
+    trimmed === '[Order]' ||
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      trimmed
+    )
+  ) {
+    return 'Sent an order'
+  }
+  return trimmed
+}
+
+function resolveMediaUrl(url?: string) {
+  if (!url) return ''
+  if (
+    url.startsWith('http://') ||
+    url.startsWith('https://') ||
+    url.startsWith('blob:') ||
+    url.startsWith('data:')
+  ) {
+    return url
+  }
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+  return `${baseUrl.replace(/\/$/, '')}${url.startsWith('/') ? '' : '/'}${url}`
+}
+
+interface MediaItem {
+  url: string
+  name?: string
+  type?: string
+}
+
+function parseMediaItems(
+  contentType: string,
+  attachmentUrl?: string,
+  attachmentName?: string
+): MediaItem[] {
+  if (!attachmentUrl) return []
+  if (contentType === 'media_group') {
+    try {
+      const parsed = JSON.parse(attachmentUrl)
+      if (Array.isArray(parsed)) {
+        return parsed.map((it) => ({
+          url: resolveMediaUrl(it.url),
+          name: it.name,
+          type: it.type || 'image',
+        }))
+      }
+    } catch {
+      // fallback
+    }
+  }
+  return [
+    {
+      url: resolveMediaUrl(attachmentUrl),
+      name: attachmentName,
+      type: contentType === 'video' ? 'video' : 'image',
+    },
+  ]
+}
+
+/** Messenger-style cluster grid for 1, 2, 3, 4, 5+ media items */
+function MediaGroupGrid({
+  items,
+  onImageClick,
+}: {
+  items: MediaItem[]
+  onImageClick?: (items: MediaItem[], index: number) => void
+}) {
+  if (items.length === 0) return null
+
+  if (items.length === 1) {
+    const it = items[0]
+    if (it.type === 'video') {
+      return (
+        // eslint-disable-next-line jsx-a11y/media-has-caption
+        <video
+          src={it.url}
+          controls
+          className='max-h-56 max-w-full rounded-xl shadow-xs'
+        />
+      )
+    }
+    return (
+      <button
+        type='button'
+        onClick={() => onImageClick?.(items, 0)}
+        className='group relative block cursor-zoom-in overflow-hidden rounded-xl text-left focus:outline-hidden'
+      >
+        <img
+          src={it.url}
+          alt={it.name || 'Shared image'}
+          className='max-h-56 max-w-full rounded-xl object-cover shadow-xs transition-transform duration-200 group-hover:scale-[1.02]'
+        />
+        <div className='absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/20'>
+          <div className='rounded-full bg-black/60 p-1.5 text-white opacity-0 shadow-md backdrop-blur-xs transition-opacity group-hover:opacity-100'>
+            <ZoomIn className='h-4 w-4' />
+          </div>
+        </div>
+      </button>
+    )
+  }
+
+  const displayItems = items.slice(0, 4)
+  const remainingCount = items.length - 4
+
+  if (items.length === 2) {
+    return (
+      <div className='grid w-[240px] grid-cols-2 gap-1 overflow-hidden rounded-xl shadow-2xs sm:w-[270px]'>
+        {displayItems.map((it, idx) => (
+          <button
+            key={idx}
+            type='button'
+            onClick={() => onImageClick?.(items, idx)}
+            className='group relative aspect-square cursor-zoom-in overflow-hidden bg-black/5'
+          >
+            {it.type === 'video' ? (
+              <video src={it.url} className='h-full w-full object-cover' />
+            ) : (
+              <img
+                src={it.url}
+                alt={it.name || 'Attachment'}
+                className='h-full w-full object-cover transition-transform duration-200 group-hover:scale-105'
+              />
+            )}
+          </button>
+        ))}
+      </div>
+    )
+  }
+
+  if (items.length === 3) {
+    return (
+      <div className='grid w-[240px] grid-cols-2 gap-1 overflow-hidden rounded-xl shadow-2xs sm:w-[270px]'>
+        <button
+          type='button'
+          onClick={() => onImageClick?.(items, 0)}
+          className='group relative col-span-2 h-28 cursor-zoom-in overflow-hidden bg-black/5'
+        >
+          {items[0].type === 'video' ? (
+            <video src={items[0].url} className='h-full w-full object-cover' />
+          ) : (
+            <img
+              src={items[0].url}
+              alt={items[0].name || 'Attachment'}
+              className='h-full w-full object-cover transition-transform duration-200 group-hover:scale-105'
+            />
+          )}
+        </button>
+        {items.slice(1).map((it, idx) => (
+          <button
+            key={idx + 1}
+            type='button'
+            onClick={() => onImageClick?.(items, idx + 1)}
+            className='group relative aspect-square cursor-zoom-in overflow-hidden bg-black/5'
+          >
+            {it.type === 'video' ? (
+              <video src={it.url} className='h-full w-full object-cover' />
+            ) : (
+              <img
+                src={it.url}
+                alt={it.name || 'Attachment'}
+                className='h-full w-full object-cover transition-transform duration-200 group-hover:scale-105'
+              />
+            )}
+          </button>
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <div className='grid w-[240px] grid-cols-2 gap-1 overflow-hidden rounded-xl shadow-2xs sm:w-[270px]'>
+      {displayItems.map((it, idx) => {
+        const isLastAndMore = idx === 3 && remainingCount > 0
+        return (
+          <button
+            key={idx}
+            type='button'
+            onClick={() => onImageClick?.(items, idx)}
+            className='group relative aspect-square cursor-zoom-in overflow-hidden bg-black/5'
+          >
+            {it.type === 'video' ? (
+              <video src={it.url} className='h-full w-full object-cover' />
+            ) : (
+              <img
+                src={it.url}
+                alt={it.name || 'Attachment'}
+                className='h-full w-full object-cover transition-transform duration-200 group-hover:scale-105'
+              />
+            )}
+            {isLastAndMore && (
+              <div className='absolute inset-0 flex items-center justify-center bg-black/65 text-base font-extrabold tracking-wide text-white backdrop-blur-[1px]'>
+                +{remainingCount + 1}
+              </div>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// Render attachment or order_ref message bubble content
+function MessageContent({
+  content,
+  content_type,
+  attachment_url,
+  attachment_name,
+  onImageClick,
+}: {
+  content: string
+  content_type: string
+  attachment_url?: string
+  attachment_name?: string
+  attachment_size?: number
+  onImageClick?: (items: MediaItem[], index: number) => void
+}) {
+  if (
+    content_type === 'image' ||
+    content_type === 'video' ||
+    content_type === 'media_group'
+  ) {
+    const items = parseMediaItems(content_type, attachment_url, attachment_name)
+    const isSpecialTag =
+      content === '[Images]' ||
+      content === '[Image]' ||
+      content === '[Video]' ||
+      /^\d+\s+(attachments|photos|files)$/i.test(content.trim())
+
+    return (
+      <div className='flex flex-col gap-1.5'>
+        <MediaGroupGrid items={items} onImageClick={onImageClick} />
+        {content && !isSpecialTag && (
+          <p className='px-1 pt-0.5 text-xs leading-relaxed'>{content}</p>
+        )}
+      </div>
+    )
+  }
+  if (content_type === 'order_ref') {
+    const parts = (attachment_name || '').split('|')
+    const orderNumber = parts[0] || content.slice(0, 8)
+    const status = parts[1] || ''
+    const total = parts[2] ? Number(parts[2]) : null
+    const productName = parts[3] || ''
+    const imageUrl = parts[4] || ''
+    const itemCount = parts[5] ? Number(parts[5]) : null
+    const orderUuid = content
+
+    return (
+      <Link
+        to='/orders/$uuid'
+        params={{ uuid: orderUuid }}
+        className='group flex max-w-[250px] min-w-[200px] cursor-pointer flex-col gap-1.5 p-0.5 text-inherit hover:opacity-95'
+      >
+        <div className='flex items-center justify-between gap-2 border-b border-current/10 pb-1'>
+          <div className='flex items-center gap-1 font-mono text-[10.5px] opacity-75'>
+            <ShoppingBag className='h-3 w-3 shrink-0' />
+            <span>#{orderNumber}</span>
+          </div>
+          <div className='flex items-center gap-1'>
+            {status && (
+              <span className='text-[10px] font-medium capitalize opacity-80'>
+                {status}
+              </span>
+            )}
+            <ChevronRight className='h-3 w-3 opacity-60 transition-all group-hover:translate-x-0.5 group-hover:opacity-100' />
+          </div>
+        </div>
+
+        {(productName || imageUrl) && (
+          <div className='flex items-center gap-2 py-0.5'>
+            {imageUrl ? (
+              <img
+                src={imageUrl}
+                alt={productName || 'product'}
+                className='h-10 w-10 shrink-0 rounded-md border border-current/10 bg-black/5 object-cover'
+              />
+            ) : (
+              <div className='flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-current/10 bg-black/5 opacity-60'>
+                <Package className='h-5 w-5 stroke-[1.5]' />
+              </div>
+            )}
+            <div className='min-w-0 flex-1'>
+              <p
+                className='truncate text-xs leading-tight font-medium group-hover:underline'
+                title={productName}
+              >
+                {productName}
+              </p>
+              {itemCount && itemCount > 1 && (
+                <p className='mt-0.5 text-[10px] opacity-70'>
+                  +{itemCount - 1} other{' '}
+                  {itemCount - 1 === 1 ? 'item' : 'items'}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {total !== null && (
+          <div className='flex items-center justify-between border-t border-current/10 pt-1 text-[11px] opacity-90'>
+            <span className='opacity-75'>
+              {itemCount
+                ? `${itemCount} ${itemCount === 1 ? 'item' : 'items'}`
+                : 'Total:'}
+            </span>
+            <span className='font-semibold'>
+              {new Intl.NumberFormat('vi-VN', {
+                style: 'currency',
+                currency: 'VND',
+              }).format(total)}
+            </span>
+          </div>
+        )}
+      </Link>
+    )
+  }
+  return <>{content}</>
+}
+
+/** Fullscreen Gallery Lightbox Modal with Next / Prev Navigation and Thumbnails */
+function MediaLightbox({
+  mediaGroup,
+  onClose,
+}: {
+  mediaGroup: { items: MediaItem[]; initialIndex: number } | null
+  onClose: () => void
+}) {
+  const [currentIndex, setCurrentIndex] = useState(0)
+
+  useEffect(() => {
+    if (mediaGroup) {
+      setCurrentIndex(mediaGroup.initialIndex || 0)
+    }
+  }, [mediaGroup])
+
+  const items = mediaGroup?.items || []
+  const currentItem = items[currentIndex]
+
+  const handlePrev = useCallback(() => {
+    if (items.length <= 1) return
+    setCurrentIndex((prev) => (prev - 1 + items.length) % items.length)
+  }, [items.length])
+
+  const handleNext = useCallback(() => {
+    if (items.length <= 1) return
+    setCurrentIndex((prev) => (prev + 1) % items.length)
+  }, [items.length])
+
+  useEffect(() => {
+    if (!mediaGroup) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+      if (e.key === 'ArrowLeft') handlePrev()
+      if (e.key === 'ArrowRight') handleNext()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [mediaGroup, onClose, handlePrev, handleNext])
+
+  if (!mediaGroup || !currentItem) return null
+
+  return (
+    <div
+      className='fixed inset-0 z-50 flex animate-in flex-col items-center justify-between bg-slate-950/92 p-4 backdrop-blur-sm duration-150 select-none fade-in sm:p-6'
+      onClick={onClose}
+    >
+      {/* Top action toolbar */}
+      <div
+        className='z-20 flex w-full shrink-0 items-center justify-between text-white'
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className='flex items-center gap-2'>
+          {items.length > 1 && (
+            <span className='rounded-full bg-white/15 px-2.5 py-1 font-mono text-xs font-medium backdrop-blur-xs'>
+              {currentIndex + 1} / {items.length}
+            </span>
+          )}
+          {currentItem.name && (
+            <span className='max-w-[180px] truncate text-xs text-slate-300 sm:max-w-md'>
+              {currentItem.name}
+            </span>
+          )}
+        </div>
+
+        <div className='flex items-center gap-2'>
+          <a
+            href={currentItem.url}
+            target='_blank'
+            rel='noopener noreferrer'
+            download={currentItem.name || 'media'}
+            className='cursor-pointer rounded-full bg-white/10 p-2.5 text-white shadow-md transition-colors hover:bg-white/20 active:bg-white/30'
+            title='Download / Open original'
+          >
+            <Download className='h-4 w-4' />
+          </a>
+          <button
+            type='button'
+            onClick={onClose}
+            className='cursor-pointer rounded-full bg-white/10 p-2.5 text-white shadow-md transition-colors hover:bg-white/20 active:bg-white/30'
+            title='Close (Esc)'
+            aria-label='Close image preview'
+          >
+            <X className='h-4 w-4' />
+          </button>
+        </div>
+      </div>
+
+      {/* Main Preview with Navigation Arrows */}
+      <div className='relative my-2 flex min-h-0 w-full flex-1 items-center justify-center'>
+        {/* Left Arrow Button */}
+        {items.length > 1 && (
+          <button
+            type='button'
+            onClick={(e) => {
+              e.stopPropagation()
+              handlePrev()
+            }}
+            className='absolute left-2 z-20 cursor-pointer rounded-full border border-white/10 bg-black/50 p-3 text-white shadow-xl backdrop-blur-xs transition-all hover:bg-black/80 active:scale-95 sm:left-6'
+            title='Previous (Left Arrow)'
+            aria-label='Previous image'
+          >
+            <ChevronLeft className='h-6 w-6' />
+          </button>
+        )}
+
+        {/* Media Content */}
+        <div
+          className='relative z-10 flex max-h-full max-w-5xl cursor-default items-center justify-center'
+          onClick={(e) => e.stopPropagation()}
+        >
+          {currentItem.type === 'video' ? (
+            // eslint-disable-next-line jsx-a11y/media-has-caption
+            <video
+              key={currentItem.url}
+              src={currentItem.url}
+              controls
+              autoPlay
+              className='max-h-[75vh] max-w-[85vw] rounded-xl object-contain shadow-2xl'
+            />
+          ) : (
+            <img
+              key={currentItem.url}
+              src={currentItem.url}
+              alt={currentItem.name || 'Preview'}
+              className='max-h-[75vh] max-w-[85vw] animate-in rounded-xl object-contain shadow-2xl duration-150 select-none zoom-in-95'
+            />
+          )}
+        </div>
+
+        {/* Right Arrow Button */}
+        {items.length > 1 && (
+          <button
+            type='button'
+            onClick={(e) => {
+              e.stopPropagation()
+              handleNext()
+            }}
+            className='absolute right-2 z-20 cursor-pointer rounded-full border border-white/10 bg-black/50 p-3 text-white shadow-xl backdrop-blur-xs transition-all hover:bg-black/80 active:scale-95 sm:right-6'
+            title='Next (Right Arrow)'
+            aria-label='Next image'
+          >
+            <ChevronRight className='h-6 w-6' />
+          </button>
+        )}
+      </div>
+
+      {/* Bottom Thumbnail Navigation Strip (if > 1 item) */}
+      {items.length > 1 && (
+        <div
+          className='z-20 flex max-w-xl shrink-0 items-center gap-1.5 overflow-x-auto rounded-xl bg-black/45 px-2.5 py-1.5 backdrop-blur-xs'
+          onClick={(e) => e.stopPropagation()}
+        >
+          {items.map((it, idx) => (
+            <button
+              key={idx}
+              type='button'
+              onClick={() => setCurrentIndex(idx)}
+              className={`relative h-11 w-11 shrink-0 cursor-pointer overflow-hidden rounded-lg border-2 transition-all ${
+                idx === currentIndex
+                  ? 'scale-105 border-primary opacity-100 shadow-md ring-1 ring-primary/50'
+                  : 'border-transparent opacity-50 hover:opacity-80'
+              }`}
+            >
+              {it.type === 'video' ? (
+                <div className='flex h-full w-full items-center justify-center bg-slate-800 text-[9px] font-bold text-white'>
+                  VID
+                </div>
+              ) : (
+                <img
+                  src={it.url}
+                  alt={it.name || 'thumb'}
+                  className='h-full w-full object-cover'
+                />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export function Chats() {
   const [search, setSearch] = useState('')
   const [selectedConvUUID, setSelectedConvUUID] = useState<string | null>(null)
   const [inputText, setInputText] = useState('')
+  const [pendingFiles, setPendingFiles] = useState<File[]>([])
+  const [isUploading, setIsUploading] = useState(false)
+  const [previewMediaGroup, setPreviewMediaGroup] = useState<{
+    items: MediaItem[]
+    initialIndex: number
+  } | null>(null)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isAtBottomRef = useRef(true)
   const prevMessagesLengthRef = useRef(0)
@@ -52,11 +592,13 @@ export function Chats() {
   const { data: messages = [], isLoading: isMessagesLoading } =
     useAdminMessages(selectedConvUUID || undefined)
 
-  // 4. Mutations & Typing state
+  // 4. Real-time WebSocket connection for active chat room & typing
+  const { sendTyping } = useAdminChatRoom(selectedConvUUID)
+
+  // 5. Mutations & Typing state
   const { mutateAsync: sendMessage, isPending: isSending } =
     useAdminSendMessage()
   const { mutate: markRead } = useAdminMarkRead()
-  const { mutate: sendAdminTyping } = useAdminSendTyping()
 
   const typingConversations = useChatTypingStore((s) => s.typingConversations)
   const isCustomerTyping = selectedConvUUID
@@ -150,39 +692,101 @@ export function Chats() {
     if (!selectedConvUUID) return
 
     if (val.trim()) {
-      sendAdminTyping({ conversationUUID: selectedConvUUID, isTyping: true })
+      sendTyping(true)
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current)
       }
       typingTimeoutRef.current = setTimeout(() => {
-        sendAdminTyping({ conversationUUID: selectedConvUUID, isTyping: false })
+        sendTyping(false)
       }, 2000)
     } else {
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current)
       }
-      sendAdminTyping({ conversationUUID: selectedConvUUID, isTyping: false })
+      sendTyping(false)
     }
+  }
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files ? Array.from(e.target.files) : []
+    if (files.length > 0) {
+      setPendingFiles((prev) => [...prev, ...files].slice(0, 10))
+    }
+    // Reset so same files can be selected again
+    e.target.value = ''
+  }
+
+  const handleRemoveFile = (index: number) => {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== index))
   }
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault()
     const content = inputText.trim()
-    if (!content || !selectedConvUUID || isSending) return
+    if (
+      (!content && pendingFiles.length === 0) ||
+      !selectedConvUUID ||
+      isSending ||
+      isUploading
+    )
+      return
 
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current)
     }
-    sendAdminTyping({ conversationUUID: selectedConvUUID, isTyping: false })
+    sendTyping(false)
 
     setInputText('')
+    const filesToSend = [...pendingFiles]
+    setPendingFiles([])
+
     try {
-      await sendMessage({
-        conversationUUID: selectedConvUUID,
-        content,
-      })
+      if (filesToSend.length > 0) {
+        setIsUploading(true)
+        const getToken = () => useAuthStore.getState().auth.accessToken
+
+        if (filesToSend.length === 1) {
+          const file = filesToSend[0]
+          const uploaded = await uploadChatFile(file, getToken)
+          const isVideo = file.type.startsWith('video/')
+          await sendMessage({
+            conversationUUID: selectedConvUUID,
+            content: content || uploaded.name || file.name,
+            content_type: isVideo ? 'video' : 'image',
+            attachment_url: uploaded.url,
+            attachment_name: uploaded.name,
+            attachment_size: uploaded.size,
+          })
+        } else {
+          // Parallel upload for multiple files
+          const uploadPromises = filesToSend.map((file) =>
+            uploadChatFile(file, getToken).then((uploaded) => ({
+              url: uploaded.url,
+              name: uploaded.name || file.name,
+              type: file.type.startsWith('video/') ? 'video' : 'image',
+              size: uploaded.size,
+            }))
+          )
+          const uploadedItems = await Promise.all(uploadPromises)
+
+          await sendMessage({
+            conversationUUID: selectedConvUUID,
+            content: content || `${filesToSend.length} attachments`,
+            content_type: 'media_group',
+            attachment_url: JSON.stringify(uploadedItems),
+          })
+        }
+        setIsUploading(false)
+      } else if (content) {
+        await sendMessage({
+          conversationUUID: selectedConvUUID,
+          content,
+        })
+      }
     } catch {
       setInputText(content)
+      setPendingFiles(filesToSend)
+      setIsUploading(false)
     }
   }
 
@@ -318,11 +922,11 @@ export function Chats() {
                           <div className='flex items-center justify-between gap-2'>
                             <p className='truncate text-xs text-muted-foreground'>
                               {typingConversations[conv.uuid] ? (
-                                <span className='font-medium italic text-emerald-600 dark:text-emerald-400'>
+                                <span className='font-medium text-emerald-600 italic dark:text-emerald-400'>
                                   Customer is typing...
                                 </span>
                               ) : (
-                                conv.last_message_content || 'No messages yet'
+                                formatLastMessage(conv.last_message_content)
                               )}
                             </p>
                             {conv.unread_count > 0 && (
@@ -386,7 +990,7 @@ export function Chats() {
                 <div
                   ref={scrollContainerRef}
                   onScroll={handleMessagesScroll}
-                  className='flex-1 min-h-0 overflow-y-auto bg-muted/20 p-4'
+                  className='min-h-0 flex-1 overflow-y-auto bg-muted/20 p-4'
                 >
                   {isMessagesLoading ? (
                     <div className='p-8 text-center text-xs text-muted-foreground'>
@@ -399,7 +1003,8 @@ export function Chats() {
                   ) : (
                     <div className='w-full space-y-3'>
                       {messages.map((msg, index) => {
-                        const prevMsg = index > 0 ? messages[index - 1] : undefined
+                        const prevMsg =
+                          index > 0 ? messages[index - 1] : undefined
                         const showDivider = shouldShowTimeDivider(
                           msg.created_at,
                           prevMsg?.created_at
@@ -408,8 +1013,8 @@ export function Chats() {
                         return (
                           <div key={msg.uuid} className='flex flex-col'>
                             {showDivider && (
-                              <div className='flex items-center justify-center my-2'>
-                                <span className='rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground border shadow-xs'>
+                              <div className='my-2 flex items-center justify-center'>
+                                <span className='rounded-full border bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground shadow-xs'>
                                   {formatDividerTime(msg.created_at)}
                                 </span>
                               </div>
@@ -420,16 +1025,38 @@ export function Chats() {
                                 isAdmin ? 'items-end' : 'items-start'
                               )}
                             >
-                              <div
-                                className={cn(
-                                  'max-w-[75%] rounded-lg px-3.5 py-2 text-xs break-words shadow-sm',
-                                  isAdmin
-                                    ? 'rounded-br-none bg-primary text-primary-foreground'
-                                    : 'rounded-bl-none border bg-card text-card-foreground'
-                                )}
-                              >
-                                {msg.content}
-                              </div>
+                              {(() => {
+                                const isMedia =
+                                  msg.content_type === 'image' ||
+                                  msg.content_type === 'video' ||
+                                  msg.content_type === 'media_group'
+                                return (
+                                  <div
+                                    className={cn(
+                                      'max-w-[75%] text-xs break-words',
+                                      isMedia
+                                        ? 'overflow-hidden border-0 bg-transparent p-0 shadow-none'
+                                        : isAdmin
+                                          ? 'rounded-lg rounded-br-none bg-primary px-3.5 py-2 text-primary-foreground shadow-sm'
+                                          : 'rounded-lg rounded-bl-none border bg-card px-3.5 py-2 text-card-foreground shadow-sm'
+                                    )}
+                                  >
+                                    <MessageContent
+                                      content={msg.content}
+                                      content_type={msg.content_type}
+                                      attachment_url={msg.attachment_url}
+                                      attachment_name={msg.attachment_name}
+                                      attachment_size={msg.attachment_size}
+                                      onImageClick={(items, idx) =>
+                                        setPreviewMediaGroup({
+                                          items,
+                                          initialIndex: idx,
+                                        })
+                                      }
+                                    />
+                                  </div>
+                                )
+                              })()}
                               <div className='mt-1 flex items-center gap-1 px-1 text-[10px] text-muted-foreground'>
                                 <span>{formatMessageTime(msg.created_at)}</span>
                                 {isAdmin &&
@@ -450,9 +1077,6 @@ export function Chats() {
                             <span className='h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.15s]' />
                             <span className='h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/60' />
                           </div>
-                          <span className='mt-0.5 px-1 text-[10px] text-muted-foreground'>
-                            Customer is typing...
-                          </span>
                         </div>
                       )}
                       <div ref={messagesEndRef} />
@@ -462,27 +1086,98 @@ export function Chats() {
 
                 {/* Message Input Bar */}
                 <div className='shrink-0 border-t bg-card p-3'>
+                  {/* Pending files preview strip */}
+                  {pendingFiles.length > 0 && (
+                    <div className='mb-2 flex items-center gap-2 overflow-x-auto rounded-lg border bg-muted/40 p-2'>
+                      {pendingFiles.map((file, idx) => {
+                        const isImg = file.type.startsWith('image/')
+                        const isVid = file.type.startsWith('video/')
+                        return (
+                          <div
+                            key={idx}
+                            className='group relative flex h-13 w-13 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-card text-muted-foreground shadow-2xs'
+                          >
+                            {isImg ? (
+                              <img
+                                src={URL.createObjectURL(file)}
+                                alt={file.name}
+                                className='h-full w-full object-cover'
+                              />
+                            ) : isVid ? (
+                              <span className='rounded bg-muted px-1 py-0.5 text-[9px] font-bold text-foreground'>
+                                VIDEO
+                              </span>
+                            ) : (
+                              <Paperclip className='h-4 w-4 text-muted-foreground' />
+                            )}
+                            <button
+                              type='button'
+                              onClick={() => handleRemoveFile(idx)}
+                              className='absolute top-0.5 right-0.5 cursor-pointer rounded-full bg-slate-900/80 p-0.5 text-white transition-colors hover:bg-slate-900'
+                              title='Remove file'
+                            >
+                              <X className='h-3 w-3' />
+                            </button>
+                          </div>
+                        )
+                      })}
+                      <div className='shrink-0 px-1 text-[11px] font-medium text-muted-foreground'>
+                        {pendingFiles.length}{' '}
+                        {pendingFiles.length === 1 ? 'file' : 'files'}
+                      </div>
+                    </div>
+                  )}
                   <form
                     onSubmit={handleSend}
                     className='flex items-center gap-2'
                   >
+                    {/* Hidden file input */}
+                    <input
+                      ref={fileInputRef}
+                      type='file'
+                      multiple
+                      accept='image/*,video/*'
+                      className='hidden'
+                      onChange={handleFileSelect}
+                    />
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      size='icon'
+                      className='h-9 w-9 shrink-0'
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isSending || isUploading}
+                      title='Attach image or video'
+                    >
+                      <Paperclip className='h-4 w-4' />
+                    </Button>
                     <Input
                       ref={inputRef}
                       type='text'
-                      placeholder='Type your reply to customer...'
+                      placeholder={
+                        pendingFiles.length > 0
+                          ? `Add a caption for ${pendingFiles.length} ${
+                              pendingFiles.length === 1 ? 'file' : 'files'
+                            }...`
+                          : 'Type your reply to customer...'
+                      }
                       value={inputText}
                       onChange={handleInputChange}
-                      disabled={isSending}
+                      disabled={isSending || isUploading}
                       className='h-9 flex-1 text-xs'
                     />
                     <Button
                       type='submit'
                       size='sm'
-                      disabled={!inputText.trim() || isSending}
+                      disabled={
+                        (!inputText.trim() && pendingFiles.length === 0) ||
+                        isSending ||
+                        isUploading
+                      }
                       className='h-9 gap-1.5 px-3 text-xs'
                     >
                       <Send className='h-3.5 w-3.5' />
-                      Send
+                      {isUploading ? 'Uploading...' : 'Send'}
                     </Button>
                   </form>
                 </div>
@@ -491,6 +1186,12 @@ export function Chats() {
           </div>
         </div>
       </Main>
+
+      {/* Media Lightbox Gallery Modal */}
+      <MediaLightbox
+        mediaGroup={previewMediaGroup}
+        onClose={() => setPreviewMediaGroup(null)}
+      />
     </>
   )
 }
