@@ -29,6 +29,7 @@ import {
 } from "@/hooks/use-chat";
 import type { OrderRef, ProductRef } from "@/hooks/use-chat";
 import { useChatUIStore } from "@/stores/chat-ui-store";
+import { requestNotificationPermission } from "@/lib/chat-notifications";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -1586,7 +1587,13 @@ export function ChatWidget() {
 
       {/* Floating Toggle Button */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          const next = !isOpen;
+          setIsOpen(next);
+          if (next) {
+            requestNotificationPermission().catch(() => {});
+          }
+        }}
         className="relative flex items-center justify-center w-12 h-12 rounded-full bg-slate-900 text-white shadow-lg hover:bg-slate-800 focus:outline-none transition-colors"
         aria-label={isOpen ? "Close chat" : "Open chat"}
       >

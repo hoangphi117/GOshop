@@ -16,6 +16,8 @@ import {
   Download,
   ZoomIn,
   Tag,
+  Bell,
+  BellOff,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth-store'
 import { cn, getDisplayNameInitials } from '@/lib/utils'
@@ -34,6 +36,10 @@ import {
   useAdminChatRoom,
   uploadChatFile,
 } from './hooks/use-admin-chats'
+import {
+  playNotificationSound,
+  requestNotificationPermission,
+} from './lib/chat-notifications'
 import { useChatTypingStore } from './stores/chat-typing-store'
 import type { ConversationItem } from './types'
 
@@ -680,6 +686,32 @@ export function Chats() {
   const prevMessagesLengthRef = useRef(0)
   const prevConvUUIDRef = useRef<string | null>(null)
 
+  const [notifPermission, setNotifPermission] =
+    useState<NotificationPermission>(() => {
+      if (typeof window !== 'undefined' && 'Notification' in window) {
+        return Notification.permission
+      }
+      return 'default'
+    })
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setNotifPermission(Notification.permission)
+    }
+  }, [])
+
+  const handleToggleNotification = async () => {
+    if (notifPermission !== 'granted') {
+      const res = await requestNotificationPermission()
+      setNotifPermission(res)
+      if (res === 'granted') {
+        playNotificationSound()
+      }
+    } else {
+      playNotificationSound()
+    }
+  }
+
   // 1. Fetch conversations list
   const { data: conversations = [], isLoading: isConversationsLoading } =
     useAdminConversations({
@@ -958,9 +990,9 @@ export function Chats() {
         <div className='flex h-full w-full flex-1 overflow-hidden border-t'>
           {/* Left Pane: Conversation List */}
           <div className='flex w-80 shrink-0 flex-col border-r bg-card sm:w-96'>
-            {/* Search */}
-            <div className='border-b p-3'>
-              <div className='relative'>
+            {/* Search & Notification Permission Toggle */}
+            <div className='flex items-center gap-2 border-b p-3'>
+              <div className='relative flex-1'>
                 <SearchIcon className='absolute top-2.5 left-2.5 h-4 w-4 text-muted-foreground' />
                 <Input
                   placeholder='Search customer name or email...'
@@ -969,6 +1001,24 @@ export function Chats() {
                   className='h-9 pl-8 text-xs'
                 />
               </div>
+              <Button
+                variant={notifPermission === 'granted' ? 'ghost' : 'outline'}
+                size='icon'
+                className='h-9 w-9 shrink-0'
+                onClick={handleToggleNotification}
+                title={
+                  notifPermission === 'granted'
+                    ? 'Notifications enabled (Click to test sound)'
+                    : 'Click to enable audio chime & browser notifications'
+                }
+                aria-label='Toggle chat notifications'
+              >
+                {notifPermission === 'granted' ? (
+                  <Bell className='h-4 w-4 text-primary' />
+                ) : (
+                  <BellOff className='h-4 w-4 text-muted-foreground' />
+                )}
+              </Button>
             </div>
 
             {/* Conversation Items */}

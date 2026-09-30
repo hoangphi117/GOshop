@@ -8,6 +8,11 @@ import type {
   ChatMessage,
   ListConversationsParams,
 } from '../types'
+import {
+  playNotificationSound,
+  showChatWebNotification,
+  formatAdminNotificationSnippet,
+} from '../lib/chat-notifications'
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
@@ -361,6 +366,42 @@ export function useAdminChatRoom(conversationUUID?: string | null) {
                     method: 'PATCH',
                   }
                 ).catch(() => {})
+              }
+
+              // 4. Audio chime & Web notification for incoming customer messages
+              if (msgData.sender_role === 'user') {
+                const isHidden =
+                  typeof document !== 'undefined' && document.hidden
+                const isDifferentConv = targetConvUUID !== conversationUUID
+
+                // Play audio chime if admin is in background tab or viewing a different conversation
+                if (isHidden || isDifferentConv) {
+                  playNotificationSound()
+                }
+
+                // Show desktop web notification if admin tab is in background
+                if (isHidden) {
+                  const convs = queryClient.getQueryData<ConversationItem[]>([
+                    'admin-chats',
+                    'conversations',
+                  ])
+                  const conv = convs?.find((c) => c.uuid === targetConvUUID)
+                  const senderName =
+                    conv?.user_fullname || conv?.user_email || 'Customer'
+
+                  showChatWebNotification({
+                    title: `New message from ${senderName}`,
+                    body: formatAdminNotificationSnippet(
+                      msgData.content_type || 'text',
+                      msgData.content,
+                      msgData.attachment_name
+                    ),
+                    tag: `admin-chat-${targetConvUUID}`,
+                    onClick: () => {
+                      window.focus()
+                    },
+                  })
+                }
               }
             } else if (payload?.type === 'chat.read') {
               const readConvUUID =

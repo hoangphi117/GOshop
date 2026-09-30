@@ -2,6 +2,12 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { authFetch, API_BASE_URL } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
+import { useChatUIStore } from "@/stores/chat-ui-store";
+import {
+  playNotificationSound,
+  showChatWebNotification,
+  formatMessageNotificationSnippet,
+} from "@/lib/chat-notifications";
 
 export interface MessageItem {
   uuid: string;
@@ -309,11 +315,36 @@ export function useChat() {
                 },
               );
 
-              // If message came from admin, increment unread count or mark read if open
+              // If message came from admin, increment unread count, play chime, and notify
               if (newMsg.sender_role === "admin") {
                 queryClient.invalidateQueries({
                   queryKey: ["chat", "unread-count"],
                 });
+
+                const isHidden =
+                  typeof document !== "undefined" && document.hidden;
+                const isWidgetClosed = !useChatUIStore.getState().isOpen;
+
+                // Play audio chime if user is in background tab or widget is minimized
+                if (isHidden || isWidgetClosed) {
+                  playNotificationSound();
+                }
+
+                // Show desktop web notification if user is currently on another tab
+                if (isHidden) {
+                  showChatWebNotification({
+                    title: "GOshop Support",
+                    body: formatMessageNotificationSnippet(
+                      newMsg.content_type,
+                      newMsg.content,
+                      newMsg.attachment_name,
+                    ),
+                    tag: `storefront-chat-${conversation.uuid}`,
+                    onClick: () => {
+                      useChatUIStore.getState().openChat();
+                    },
+                  });
+                }
               }
             } else if (payload?.type === "chat.read") {
               // Mark all messages as read
