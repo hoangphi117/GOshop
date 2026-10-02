@@ -159,7 +159,7 @@ func (s *chatService) SendMessage(
 	}
 
 	if conv.Status == "closed" {
-		return v1dto.MessageResponse{}, utils.NewError(utils.ErrCodeBadRequest, "cannot send message to a closed conversation")
+		_, _ = s.chatRepo.UpdateConversationStatus(ctx, conv.ConversationID, "open")
 	}
 
 	computedRole := s.determineSenderRole(sender)
@@ -426,9 +426,15 @@ func (s *chatService) ListConversations(
 	offset := (page - 1) * limit
 
 	search := strings.TrimSpace(req.Search)
+	status := strings.TrimSpace(req.Status)
+	if status == "active" {
+		status = "open"
+	} else if status == "archived" {
+		status = "closed"
+	}
 
 	rows, err := s.chatRepo.ListConversations(ctx, sqlc.ListConversationsParams{
-		Status:      req.Status,
+		Status:      status,
 		Search:      search,
 		LimitCount:  limit,
 		OffsetCount: offset,
@@ -438,7 +444,7 @@ func (s *chatService) ListConversations(
 	}
 
 	total, err := s.chatRepo.CountConversations(ctx, sqlc.CountConversationsParams{
-		Status: req.Status,
+		Status: status,
 		Search: search,
 	})
 	if err != nil {
@@ -508,6 +514,22 @@ func (s *chatService) CloseConversation(
 	})
 
 	return updatedConv, nil
+}
+
+func (s *chatService) ReopenConversation(
+	ctx context.Context,
+	conversationUUID uuid.UUID,
+) (sqlc.ChatConversation, error) {
+	conv, err := s.getConversation(ctx, conversationUUID)
+	if err != nil {
+		return sqlc.ChatConversation{}, err
+	}
+
+	if conv.Status == "open" {
+		return conv, nil
+	}
+
+	return s.chatRepo.UpdateConversationStatus(ctx, conv.ConversationID, "open")
 }
 
 func (s *chatService) GetConversationDetails(
@@ -619,6 +641,58 @@ func (s *chatService) SendTyping(
 	})
 
 	return nil
+}
+
+func (s *chatService) RecallMessage(
+	ctx context.Context,
+	messageUUID uuid.UUID,
+	callerUUID uuid.UUID,
+) (v1dto.MessageResponse, error) {
+	caller, err := s.getActiveUser(ctx, callerUUID)
+	if err != nil {
+		return v1dto.MessageResponse{}, err
+	}
+
+	msg, err := s.chatRepo.GetMessageByUUID(ctx, messageUUID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+			return v1dto.MessageResponse{}, utils.NewError(utils.ErrCodeNotFound, "message not found")
+		}
+		return v1dto.MessageResponse{}, utils.WrapError(utils.ErrCodeInternal, "failed to get message", err)
+	}
+
+	callerRole := s.determineSenderRole(caller)
+	// Only the message sender or an admin can recall the message
+	if msg.SenderID != caller.UserID && callerRole != "admin" {
+		return v1dto.MessageResponse{}, utils.NewError(utils.ErrCodeForbidden, "you can only recall your own messages")
+	}
+
+	// 60-minute time window check
+	if time.Since(msg.CreatedAt) > 60*time.Minute {
+		return v1dto.MessageResponse{}, utils.NewError(utils.ErrCodeBadRequest, "messages can only be recalled within 60 minutes of sending")
+	}
+
+	if msg.ContentType == "recalled" {
+		return v1dto.MapChatMessageToResponse(msg), nil
+	}
+
+	recalledMsg, err := s.chatRepo.RecallMessage(ctx, msg.MessageID)
+	if err != nil {
+		return v1dto.MessageResponse{}, utils.WrapError(utils.ErrCodeInternal, "failed to recall message", err)
+	}
+
+	conv, err := s.chatRepo.GetConversationByID(ctx, msg.ConversationID)
+	if err == nil {
+		s.publishToConversation(conv.ConversationID, ws.WSMessage{
+			Type: ws.EventChatMessageRecalled,
+			Data: map[string]any{
+				"conversation_uuid": conv.ConversationUuid.String(),
+				"message_uuid":      msg.MessageUuid.String(),
+			},
+		})
+	}
+
+	return v1dto.MapChatMessageToResponse(recalledMsg), nil
 }
 
 func (s *chatService) GetShopStatus(ctx context.Context) (v1dto.ShopStatusResponse, error) {

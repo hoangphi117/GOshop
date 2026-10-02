@@ -21,6 +21,7 @@ func (r *ChatRoutes) Register(rg *gin.RouterGroup) {
 		chat.GET("/messages", r.handler.GetMyMessages)
 		chat.POST("/messages", r.handler.SendMessage)
 		chat.PATCH("/messages/read", r.handler.MarkAsRead)
+		chat.PATCH("/messages/:id/recall", r.handler.RecallMessage)
 		chat.GET("/unread-count", r.handler.GetUnreadCount)
 		chat.POST("/typing", r.handler.SendTyping)
 		chat.GET("/shop-status", r.handler.GetShopStatus)

@@ -18,9 +18,21 @@ import {
   Download,
   ZoomIn,
   Tag,
+  Archive,
+  ArchiveRestore,
+  Undo2,
+  MoreHorizontal,
+  Reply,
+  Copy,
   Bell,
   BellOff,
 } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu'
 import { useAuthStore } from '@/stores/auth-store'
 import { cn, getDisplayNameInitials } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -36,6 +48,9 @@ import {
   useAdminMessages,
   useAdminSendMessage,
   useAdminMarkRead,
+  useAdminCloseConversation,
+  useAdminReopenConversation,
+  useAdminRecallMessage,
   useAdminChatRoom,
   useAdminGetOrCreateConversation,
   uploadChatFile,
@@ -77,7 +92,34 @@ function formatLastMessage(content?: string) {
   if (trimmed === '[Product]') {
     return 'Sent a product'
   }
+  if (trimmed.startsWith('> ')) {
+    const parts = trimmed.split('\n\n')
+    return parts.length > 1 ? parts.slice(1).join(' ') : trimmed
+  }
   return trimmed
+}
+
+function parseReplyContent(content: string): {
+  replyQuote: string | null
+  body: string
+} {
+  if (content && content.startsWith('> ')) {
+    const doubleNewlineIdx = content.indexOf('\n\n')
+    if (doubleNewlineIdx !== -1) {
+      return {
+        replyQuote: content.slice(2, doubleNewlineIdx).trim(),
+        body: content.slice(doubleNewlineIdx + 2).trim(),
+      }
+    }
+    const singleNewlineIdx = content.indexOf('\n')
+    if (singleNewlineIdx !== -1) {
+      return {
+        replyQuote: content.slice(2, singleNewlineIdx).trim(),
+        body: content.slice(singleNewlineIdx + 1).trim(),
+      }
+    }
+  }
+  return { replyQuote: null, body: content }
 }
 
 function resolveMediaUrl(url?: string) {
@@ -286,6 +328,14 @@ function MessageContent({
   attachment_size?: number
   onImageClick?: (items: MediaItem[], index: number) => void
 }) {
+  if (content_type === 'recalled') {
+    return (
+      <div className='flex items-center gap-1.5 py-0.5 text-xs italic opacity-75 select-none'>
+        <Undo2 className='h-3.5 w-3.5 shrink-0' />
+        <span>This message was unsent</span>
+      </div>
+    )
+  }
   if (
     content_type === 'image' ||
     content_type === 'video' ||
@@ -728,9 +778,12 @@ export function Chats() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // 1. Fetch conversations list with debounced search
+  const [statusFilter, setStatusFilter] = useState<'open' | 'closed'>('open')
+
+  // 1. Fetch conversations list with debounced search and status filter
   const { data: conversations = [], isLoading: isConversationsLoading } =
     useAdminConversations({
+      status: statusFilter,
       search: debouncedSearch || undefined,
     })
 
@@ -757,6 +810,11 @@ export function Chats() {
   )
 
   const [inputText, setInputText] = useState('')
+  const [replyingTo, setReplyingTo] = useState<{
+    uuid: string
+    sender: string
+    content: string
+  } | null>(null)
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
   const [isUploading, setIsUploading] = useState(false)
   const [previewMediaGroup, setPreviewMediaGroup] = useState<{
@@ -780,6 +838,7 @@ export function Chats() {
       const conv = await getOrCreateConversation(userUuid)
       if (conv?.uuid) {
         setSelectedConvUUID(conv.uuid)
+        setStatusFilter('open')
         setIsSearchOpen(false)
         setSearch('')
       }
@@ -806,6 +865,12 @@ export function Chats() {
   const { mutateAsync: sendMessage, isPending: isSending } =
     useAdminSendMessage()
   const { mutate: markRead } = useAdminMarkRead()
+  const { mutateAsync: closeConversation, isPending: isClosing } =
+    useAdminCloseConversation()
+  const { mutateAsync: reopenConversation, isPending: isReopening } =
+    useAdminReopenConversation()
+  const { mutateAsync: recallMessage, isPending: isRecalling } =
+    useAdminRecallMessage()
 
   const typingConversations = useChatTypingStore((s) => s.typingConversations)
   const isCustomerTyping = selectedConvUUID
@@ -985,10 +1050,19 @@ export function Chats() {
         }
         setIsUploading(false)
       } else if (content) {
+        let textToSend = content
+        if (replyingTo) {
+          const quoteSnippet =
+            replyingTo.content.length > 80
+              ? replyingTo.content.slice(0, 80) + '...'
+              : replyingTo.content
+          textToSend = `> ${quoteSnippet}\n\n${content}`
+        }
         await sendMessage({
           conversationUUID: selectedConvUUID,
-          content,
+          content: textToSend,
         })
+        setReplyingTo(null)
       }
     } catch {
       setInputText(content)
@@ -1182,6 +1256,34 @@ export function Chats() {
               </Button>
             </div>
 
+            {/* Status Filter Tabs (Active / Archived) */}
+            <div className='flex border-b bg-muted/30 p-1.5 gap-1'>
+              <button
+                type='button'
+                onClick={() => setStatusFilter('open')}
+                className={cn(
+                  'flex-1 rounded py-1 text-xs font-medium transition-all text-center',
+                  statusFilter === 'open'
+                    ? 'bg-background text-foreground shadow-xs font-semibold'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                Active
+              </button>
+              <button
+                type='button'
+                onClick={() => setStatusFilter('closed')}
+                className={cn(
+                  'flex-1 rounded py-1 text-xs font-medium transition-all text-center',
+                  statusFilter === 'closed'
+                    ? 'bg-background text-foreground shadow-xs font-semibold'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                Archived
+              </button>
+            </div>
+
             {/* Conversation Items */}
             <ScrollArea className='flex-1'>
               {isConversationsLoading ? (
@@ -1327,6 +1429,46 @@ export function Chats() {
                       </p>
                     </div>
                   </div>
+
+                  {/* Header Actions: Archive / Reopen */}
+                  <div className='flex items-center gap-2'>
+                    {activeConversation.status === 'closed' ? (
+                      <Button
+                        variant='outline'
+                        size='sm'
+                        disabled={isReopening}
+                        onClick={() =>
+                          reopenConversation(activeConversation.uuid)
+                        }
+                        className='h-8 gap-1.5 text-xs text-emerald-600 hover:text-emerald-700 dark:text-emerald-400'
+                      >
+                        {isReopening ? (
+                          <Loader2 className='h-3.5 w-3.5 animate-spin' />
+                        ) : (
+                          <ArchiveRestore className='h-3.5 w-3.5' />
+                        )}
+                        Reopen Chat
+                      </Button>
+                    ) : (
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        disabled={isClosing}
+                        onClick={() =>
+                          closeConversation(activeConversation.uuid)
+                        }
+                        className='h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground'
+                        title='Archive this conversation'
+                      >
+                        {isClosing ? (
+                          <Loader2 className='h-3.5 w-3.5 animate-spin' />
+                        ) : (
+                          <Archive className='h-3.5 w-3.5' />
+                        )}
+                        Archive
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Messages Stream */}
@@ -1364,7 +1506,7 @@ export function Chats() {
                             )}
                             <div
                               className={cn(
-                                'flex flex-col',
+                                'flex flex-col w-full',
                                 isAdmin ? 'items-end' : 'items-start'
                               )}
                             >
@@ -1373,34 +1515,204 @@ export function Chats() {
                                   msg.content_type === 'image' ||
                                   msg.content_type === 'video' ||
                                   msg.content_type === 'media_group'
+                                const isRecalled =
+                                  msg.content_type === 'recalled'
+                                const canRecall =
+                                  isAdmin &&
+                                  !isRecalled &&
+                                  new Date().getTime() -
+                                    new Date(msg.created_at).getTime() <=
+                                    60 * 60 * 1000
+                                const { replyQuote, body: cleanContent } =
+                                  !isRecalled
+                                    ? parseReplyContent(msg.content)
+                                    : { replyQuote: null, body: msg.content }
+
                                 return (
                                   <div
                                     className={cn(
-                                      'max-w-[75%] text-xs break-words',
-                                      isMedia
-                                        ? 'overflow-hidden border-0 bg-transparent p-0 shadow-none'
-                                        : isAdmin
-                                          ? 'rounded-lg rounded-br-none bg-primary px-3.5 py-2 text-primary-foreground shadow-sm'
-                                          : 'rounded-lg rounded-bl-none border bg-card px-3.5 py-2 text-card-foreground shadow-sm'
+                                      'group/msg relative flex items-center gap-1',
+                                      isAdmin ? 'self-end justify-end' : 'self-start justify-start'
                                     )}
                                   >
-                                    <MessageContent
-                                      content={msg.content}
-                                      content_type={msg.content_type}
-                                      attachment_url={msg.attachment_url}
-                                      attachment_name={msg.attachment_name}
-                                      attachment_size={msg.attachment_size}
-                                      onImageClick={(items, idx) =>
-                                        setPreviewMediaGroup({
-                                          items,
-                                          initialIndex: idx,
-                                        })
-                                      }
-                                    />
+                                    {isAdmin && (
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                          <button
+                                            type='button'
+                                            className='flex h-6 w-6 cursor-pointer items-center justify-center rounded-full text-muted-foreground opacity-0 shadow-2xs transition-opacity group-hover/msg:opacity-100 hover:bg-muted hover:text-foreground'
+                                            title='More actions'
+                                            aria-label='More actions'
+                                          >
+                                            <MoreHorizontal className='h-3.5 w-3.5' />
+                                          </button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align='end' className='w-36 text-xs'>
+                                          <DropdownMenuItem
+                                            onClick={() => {
+                                              setReplyingTo({
+                                                uuid: msg.uuid,
+                                                sender: 'You',
+                                                content:
+                                                  msg.content_type === 'image'
+                                                    ? '[Image]'
+                                                    : msg.content_type === 'video'
+                                                      ? '[Video]'
+                                                      : msg.content_type === 'order_ref'
+                                                        ? '[Order]'
+                                                        : msg.content_type === 'product_ref'
+                                                          ? '[Product]'
+                                                          : cleanContent,
+                                              })
+                                              inputRef.current?.focus()
+                                            }}
+                                            className='cursor-pointer gap-2'
+                                          >
+                                            <Reply className='h-3.5 w-3.5' />
+                                            <span>Reply</span>
+                                          </DropdownMenuItem>
+
+                                          {!isRecalled && msg.content && (
+                                            <DropdownMenuItem
+                                              onClick={() => {
+                                                navigator.clipboard.writeText(cleanContent)
+                                              }}
+                                              className='cursor-pointer gap-2'
+                                            >
+                                              <Copy className='h-3.5 w-3.5' />
+                                              <span>Copy text</span>
+                                            </DropdownMenuItem>
+                                          )}
+
+                                          {canRecall && (
+                                            <DropdownMenuItem
+                                              disabled={isRecalling}
+                                              onClick={() =>
+                                                recallMessage({
+                                                  messageUUID: msg.uuid,
+                                                  conversationUUID:
+                                                    selectedConvUUID || undefined,
+                                                })
+                                              }
+                                              variant='destructive'
+                                              className='cursor-pointer gap-2 text-destructive'
+                                            >
+                                              <Undo2 className='h-3.5 w-3.5' />
+                                              <span>Recall</span>
+                                            </DropdownMenuItem>
+                                          )}
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
+                                    )}
+
+                                    <div
+                                      className={cn(
+                                        'relative flex flex-col max-w-[75%] text-xs break-words shadow-sm overflow-hidden',
+                                        isRecalled
+                                          ? isAdmin
+                                            ? 'rounded-lg rounded-br-none border border-dashed bg-muted/40 px-3.5 py-2 text-muted-foreground shadow-none'
+                                            : 'rounded-lg rounded-bl-none border border-dashed bg-muted/40 px-3.5 py-2 text-muted-foreground shadow-none'
+                                          : isMedia
+                                            ? 'overflow-hidden border-0 bg-transparent p-0 shadow-none'
+                                            : isAdmin
+                                              ? 'rounded-lg rounded-br-none bg-primary text-primary-foreground'
+                                              : 'rounded-lg rounded-bl-none border bg-card text-card-foreground'
+                                      )}
+                                    >
+                                      {/* Darker attached top sub-bubble for reply */}
+                                      {replyQuote && (
+                                        <div
+                                          className={cn(
+                                            'flex items-center gap-1.5 px-3 py-1 text-[11px] border-b select-none',
+                                            isAdmin
+                                              ? 'bg-black/25 text-primary-foreground/90 border-white/15'
+                                              : 'bg-muted/90 text-muted-foreground border-border/50'
+                                          )}
+                                        >
+                                          <Reply className='h-3 w-3 shrink-0 opacity-75' />
+                                          <span className='truncate italic'>{replyQuote}</span>
+                                        </div>
+                                      )}
+
+                                      <div className={cn(!isRecalled && !isMedia && 'px-3.5 py-2')}>
+                                        <MessageContent
+                                          content={cleanContent}
+                                          content_type={msg.content_type}
+                                          attachment_url={msg.attachment_url}
+                                          attachment_name={msg.attachment_name}
+                                          attachment_size={msg.attachment_size}
+                                          onImageClick={(items, idx) =>
+                                            setPreviewMediaGroup({
+                                              items,
+                                              initialIndex: idx,
+                                            })
+                                          }
+                                        />
+                                      </div>
+                                    </div>
+
+                                    {!isAdmin && (
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                          <button
+                                            type='button'
+                                            className='flex h-6 w-6 cursor-pointer items-center justify-center rounded-full text-muted-foreground opacity-0 shadow-2xs transition-opacity group-hover/msg:opacity-100 hover:bg-muted hover:text-foreground'
+                                            title='More actions'
+                                            aria-label='More actions'
+                                          >
+                                            <MoreHorizontal className='h-3.5 w-3.5' />
+                                          </button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align='start' className='w-36 text-xs'>
+                                          <DropdownMenuItem
+                                            onClick={() => {
+                                              setReplyingTo({
+                                                uuid: msg.uuid,
+                                                sender:
+                                                  activeConversation?.user_fullname ||
+                                                  'Customer',
+                                                content:
+                                                  msg.content_type === 'image'
+                                                    ? '[Image]'
+                                                    : msg.content_type === 'video'
+                                                      ? '[Video]'
+                                                      : msg.content_type === 'order_ref'
+                                                        ? '[Order]'
+                                                        : msg.content_type === 'product_ref'
+                                                          ? '[Product]'
+                                                          : cleanContent,
+                                              })
+                                              inputRef.current?.focus()
+                                            }}
+                                            className='cursor-pointer gap-2'
+                                          >
+                                            <Reply className='h-3.5 w-3.5' />
+                                            <span>Reply</span>
+                                          </DropdownMenuItem>
+
+                                          {!isRecalled && msg.content && (
+                                            <DropdownMenuItem
+                                              onClick={() => {
+                                                navigator.clipboard.writeText(cleanContent)
+                                              }}
+                                              className='cursor-pointer gap-2'
+                                            >
+                                              <Copy className='h-3.5 w-3.5' />
+                                              <span>Copy text</span>
+                                            </DropdownMenuItem>
+                                          )}
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
+                                    )}
                                   </div>
                                 )
                               })()}
-                              <div className='mt-1 flex items-center gap-1 px-1 text-[10px] text-muted-foreground'>
+                              <div
+                                className={cn(
+                                  'mt-1 flex items-center gap-1 px-1 text-[10px] text-muted-foreground',
+                                  isAdmin ? 'justify-end' : 'justify-start'
+                                )}
+                              >
                                 <span>{formatMessageTime(msg.created_at)}</span>
                                 {isAdmin &&
                                   (msg.is_read ? (
@@ -1429,6 +1741,31 @@ export function Chats() {
 
                 {/* Message Input Bar */}
                 <div className='shrink-0 border-t bg-card p-3'>
+                  {/* Reply banner */}
+                  {replyingTo && (
+                    <div className='mb-2 flex items-center justify-between rounded-md border-l-2 border-l-primary bg-muted/60 px-3 py-1.5 text-xs text-foreground'>
+                      <div className='flex min-w-0 items-center gap-2'>
+                        <Reply className='h-3.5 w-3.5 shrink-0 text-primary' />
+                        <div className='min-w-0'>
+                          <span className='block text-[11px] font-semibold'>
+                            {replyingTo.sender}
+                          </span>
+                          <span className='block max-w-md truncate text-[11px] text-muted-foreground'>
+                            {replyingTo.content}
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        type='button'
+                        onClick={() => setReplyingTo(null)}
+                        className='cursor-pointer rounded p-0.5 text-muted-foreground hover:text-foreground'
+                        aria-label='Cancel reply'
+                      >
+                        <X className='h-3.5 w-3.5' />
+                      </button>
+                    </div>
+                  )}
+
                   {/* Pending files preview strip */}
                   {pendingFiles.length > 0 && (
                     <div className='mb-2 flex items-center gap-2 overflow-x-auto rounded-lg border bg-muted/40 p-2'>

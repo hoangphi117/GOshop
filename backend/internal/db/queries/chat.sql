@@ -133,3 +133,17 @@ WHERE c.user_id = @user_id
 SELECT COUNT(*) FROM chat_messages
 WHERE sender_role = 'user' 
   AND is_read = FALSE;
+
+-- name: GetMessageByUUID :one
+SELECT * FROM chat_messages
+WHERE message_uuid = @message_uuid;
+
+-- name: RecallMessage :one
+UPDATE chat_messages
+SET content = 'This message was unsent',
+    content_type = 'recalled',
+    attachment_url = NULL,
+    attachment_name = NULL,
+    attachment_size = NULL
+WHERE message_id = @message_id
+RETURNING *;

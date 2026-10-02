@@ -292,6 +292,40 @@ export function useChat() {
     },
   });
 
+  // 5b. Recall message mutation
+  const recallMessageMutation = useMutation({
+    mutationFn: async (messageUUID: string) => {
+      const res = await authFetch(`/api/v1/chat/messages/${messageUUID}/recall`, {
+        method: "PATCH",
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.message || "Failed to recall message");
+      }
+      return res.json();
+    },
+    onSuccess: (_, messageUUID) => {
+      if (conversation?.uuid) {
+        queryClient.setQueryData<MessageItem[]>(
+          ["chat", "messages", conversation.uuid],
+          (old = []) =>
+            old.map((m) =>
+              m.uuid === messageUUID
+                ? {
+                    ...m,
+                    content: "This message was unsent",
+                    content_type: "recalled",
+                    attachment_url: undefined,
+                    attachment_name: undefined,
+                    attachment_size: undefined,
+                  }
+                : m,
+            ),
+        );
+      }
+    },
+  });
+
   // 6. Real-time WebSocket connection to the chat room
   useEffect(() => {
     if (!isAuthenticated || !accessToken || !conversation?.uuid) {
@@ -371,6 +405,27 @@ export function useChat() {
                   });
                 }
               }
+            } else if (
+              payload?.type === "chat.message_recalled" &&
+              payload?.data
+            ) {
+              const { message_uuid } = payload.data;
+              queryClient.setQueryData<MessageItem[]>(
+                ["chat", "messages", conversation.uuid],
+                (old = []) =>
+                  old.map((m) =>
+                    m.uuid === message_uuid
+                      ? {
+                          ...m,
+                          content: "This message was unsent",
+                          content_type: "recalled",
+                          attachment_url: undefined,
+                          attachment_name: undefined,
+                          attachment_size: undefined,
+                        }
+                      : m,
+                  ),
+              );
             } else if (payload?.type === "chat.read") {
               // Mark all messages as read
               queryClient.setQueryData<MessageItem[]>(
@@ -476,6 +531,8 @@ export function useChat() {
     isLoading: isConversationLoading || isMessagesLoading,
     sendMessage: sendMessageMutation.mutateAsync,
     isSending: sendMessageMutation.isPending,
+    recallMessage: recallMessageMutation.mutateAsync,
+    isRecalling: recallMessageMutation.isPending,
     markAsRead: markReadMutation.mutate,
   };
 }

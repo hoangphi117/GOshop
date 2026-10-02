@@ -227,7 +227,8 @@ func TestChatService_SendMessage(t *testing.T) {
 		assert.Equal(t, utils.ErrCodeForbidden, appErr.Code)
 	})
 
-	t.Run("BadRequest - Attempt to send message to closed conversation", func(t *testing.T) {
+	t.Run("Success - Sending message to closed conversation auto-reopens it", func(t *testing.T) {
+		statusUpdated := false
 		mockUserRepo := &testutils.MockUserRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
 				return mockCustomer, nil
@@ -237,15 +238,32 @@ func TestChatService_SendMessage(t *testing.T) {
 			GetConversationByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.ChatConversation, error) {
 				return mockClosedConv, nil
 			},
+			UpdateConversationStatusFunc: func(ctx context.Context, conversationID int32, status string) (sqlc.ChatConversation, error) {
+				if status == "open" {
+					statusUpdated = true
+				}
+				return mockOpenConv, nil
+			},
+			CreateMessageFunc: func(ctx context.Context, params sqlc.CreateMessageParams) (sqlc.ChatMessage, error) {
+				return sqlc.ChatMessage{
+					MessageUuid: uuid.New(),
+					SenderID:    params.SenderID,
+					SenderRole:  params.SenderRole,
+					Content:     params.Content,
+					ContentType: params.ContentType,
+				}, nil
+			},
+			UpdateLastMessageAtFunc: func(ctx context.Context, conversationID int32) error {
+				return nil
+			},
 		}
 
 		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, nil, nil, nil)
-		_, err := svc.SendMessage(ctx, convUUID, userUUID, "user", req)
+		resp, err := svc.SendMessage(ctx, convUUID, userUUID, "user", req)
 
-		assert.Error(t, err)
-		var appErr *utils.AppError
-		assert.True(t, errors.As(err, &appErr))
-		assert.Equal(t, utils.ErrCodeBadRequest, appErr.Code)
+		assert.NoError(t, err)
+		assert.Equal(t, req.Content, resp.Content)
+		assert.True(t, statusUpdated)
 	})
 
 	t.Run("Success - Customer sends image attachment", func(t *testing.T) {

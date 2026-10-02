@@ -177,6 +177,42 @@ func (h *ChatHandler) MarkAsRead(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Messages marked as read", nil)
 }
 
+// RecallMessage godoc
+// @Summary      Recall message
+// @Description  Recall a sent message within 60 minutes
+// @Tags         Chat
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id  path string true "Message UUID"
+// @Success      200 {object} utils.APIResponse{data=v1dto.MessageResponse}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Failure      403 {object} utils.ErrorResponse
+// @Failure      404 {object} utils.ErrorResponse
+// @Failure      500 {object} utils.ErrorResponse
+// @Router       /chat/messages/{id}/recall [patch]
+func (h *ChatHandler) RecallMessage(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	msgUUID, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid message UUID"))
+		return
+	}
+
+	msg, err := h.chatService.RecallMessage(ctx.Request.Context(), msgUUID, userUUID)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Message recalled successfully", msg)
+}
+
 // GetUnreadCount godoc
 // @Summary      Get customer unread message count
 // @Description  Get the number of unread messages for the customer
@@ -442,6 +478,71 @@ func (h *ChatHandler) AdminCloseConversation(ctx *gin.Context) {
 	}
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Conversation closed successfully", conv)
+}
+
+// AdminReopenConversation godoc
+// @Summary      Reopen conversation
+// @Description  Mark conversation status as active
+// @Tags         Admin - Chat
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id  path string true "Conversation UUID"
+// @Success      200 {object} utils.APIResponse
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Failure      403 {object} utils.ErrorResponse
+// @Failure      500 {object} utils.ErrorResponse
+// @Router       /admin/chat/conversations/{id}/reopen [patch]
+func (h *ChatHandler) AdminReopenConversation(ctx *gin.Context) {
+	convUUID, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid conversation UUID"))
+		return
+	}
+
+	conv, err := h.chatService.ReopenConversation(ctx.Request.Context(), convUUID)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Conversation reopened successfully", conv)
+}
+
+// AdminRecallMessage godoc
+// @Summary      Admin recall message
+// @Description  Admin recall a message within 60 minutes
+// @Tags         Admin - Chat
+// @Produce      json
+// @Security     BearerAuth
+// @Param        id  path string true "Message UUID"
+// @Success      200 {object} utils.APIResponse{data=v1dto.MessageResponse}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Failure      403 {object} utils.ErrorResponse
+// @Failure      404 {object} utils.ErrorResponse
+// @Failure      500 {object} utils.ErrorResponse
+// @Router       /admin/chat/messages/{id}/recall [patch]
+func (h *ChatHandler) AdminRecallMessage(ctx *gin.Context) {
+	adminUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	msgUUID, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid message UUID"))
+		return
+	}
+
+	msg, err := h.chatService.RecallMessage(ctx.Request.Context(), msgUUID, adminUUID)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Message recalled successfully", msg)
 }
 
 // AdminGetUnreadCount godoc

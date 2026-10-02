@@ -94,3 +94,11 @@ func (cr *SqlChatRepository) GetTotalUnreadMessagesForUser(ctx context.Context, 
 func (cr *SqlChatRepository) GetTotalUnreadMessagesForAdmin(ctx context.Context) (int64, error) {
 	return cr.getQuerier(ctx).GetTotalUnreadMessagesForAdmin(ctx)
 }
+
+func (cr *SqlChatRepository) GetMessageByUUID(ctx context.Context, messageUUID uuid.UUID) (sqlc.ChatMessage, error) {
+	return cr.getQuerier(ctx).GetMessageByUUID(ctx, messageUUID)
+}
+
+func (cr *SqlChatRepository) RecallMessage(ctx context.Context, messageID int32) (sqlc.ChatMessage, error) {
+	return cr.getQuerier(ctx).RecallMessage(ctx, messageID)
+}

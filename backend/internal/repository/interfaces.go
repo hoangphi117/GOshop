@@ -262,6 +262,8 @@ type ChatRepository interface {
 	CountUnreadMessages(ctx context.Context, conversationID int32, readerID int32) (int64, error)
 	GetTotalUnreadMessagesForUser(ctx context.Context, userID int32) (int64, error)
 	GetTotalUnreadMessagesForAdmin(ctx context.Context) (int64, error)
+	GetMessageByUUID(ctx context.Context, messageUUID uuid.UUID) (sqlc.ChatMessage, error)
+	RecallMessage(ctx context.Context, messageID int32) (sqlc.ChatMessage, error)
 }
 
 

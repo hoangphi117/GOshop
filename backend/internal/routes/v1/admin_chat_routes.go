@@ -23,6 +23,8 @@ func (r *AdminChatRoutes) Register(rg *gin.RouterGroup) {
 		adminChat.POST("/conversations/:id/messages", r.handler.AdminSendMessage)
 		adminChat.PATCH("/conversations/:id/read", r.handler.AdminMarkAsRead)
 		adminChat.PATCH("/conversations/:id/close", r.handler.AdminCloseConversation)
+		adminChat.PATCH("/conversations/:id/reopen", r.handler.AdminReopenConversation)
+		adminChat.PATCH("/messages/:id/recall", r.handler.AdminRecallMessage)
 		adminChat.GET("/unread-count", r.handler.AdminGetUnreadCount)
 		adminChat.POST("/conversations/:id/typing", r.handler.AdminSendTyping)
 		adminChat.POST("/users/:user_uuid/conversation", r.handler.AdminGetOrCreateUserConversation)

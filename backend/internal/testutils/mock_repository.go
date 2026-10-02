@@ -1524,6 +1524,8 @@ type MockChatRepository struct {
 	CountUnreadMessagesFunc           func(ctx context.Context, conversationID int32, readerID int32) (int64, error)
 	GetTotalUnreadMessagesForUserFunc  func(ctx context.Context, userID int32) (int64, error)
 	GetTotalUnreadMessagesForAdminFunc func(ctx context.Context) (int64, error)
+	GetMessageByUUIDFunc               func(ctx context.Context, messageUUID uuid.UUID) (sqlc.ChatMessage, error)
+	RecallMessageFunc                  func(ctx context.Context, messageID int32) (sqlc.ChatMessage, error)
 }
 
 func (m *MockChatRepository) CreateConversation(ctx context.Context, userID int32) (sqlc.ChatConversation, error) {
@@ -1636,6 +1638,20 @@ func (m *MockChatRepository) GetTotalUnreadMessagesForAdmin(ctx context.Context)
 		return m.GetTotalUnreadMessagesForAdminFunc(ctx)
 	}
 	return 0, nil
+}
+
+func (m *MockChatRepository) GetMessageByUUID(ctx context.Context, messageUUID uuid.UUID) (sqlc.ChatMessage, error) {
+	if m.GetMessageByUUIDFunc != nil {
+		return m.GetMessageByUUIDFunc(ctx, messageUUID)
+	}
+	return sqlc.ChatMessage{}, nil
+}
+
+func (m *MockChatRepository) RecallMessage(ctx context.Context, messageID int32) (sqlc.ChatMessage, error) {
+	if m.RecallMessageFunc != nil {
+		return m.RecallMessageFunc(ctx, messageID)
+	}
+	return sqlc.ChatMessage{}, nil
 }
 
 

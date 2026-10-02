@@ -111,6 +111,7 @@ type Querier interface {
 	GetLatestOrderNumber(ctx context.Context, orderNumber string) (string, error)
 	GetLatestReturnByOrderID(ctx context.Context, returnOrderID int32) (OrderReturn, error)
 	GetLowStockProducts(ctx context.Context, arg GetLowStockProductsParams) ([]GetLowStockProductsRow, error)
+	GetMessageByUUID(ctx context.Context, messageUuid uuid.UUID) (ChatMessage, error)
 	GetNotificationsByUserId(ctx context.Context, arg GetNotificationsByUserIdParams) ([]Notification, error)
 	// Upsert "no-op": if cart already exists for user, return it; otherwise create a new cart and return it.
 	// Atomic, safe for concurrent requests, and avoids race conditions by using INSERT ... ON CONFLICT.
@@ -180,6 +181,7 @@ type Querier interface {
 	MarkOrderDeliveredByUUID(ctx context.Context, orderUuid uuid.UUID) (Order, error)
 	MarkWebhookEventProcessed(ctx context.Context, weID int32) error
 	RecalcProductRating(ctx context.Context, reviewProductID int32) error
+	RecallMessage(ctx context.Context, messageID int32) (ChatMessage, error)
 	RecordCouponUsage(ctx context.Context, arg RecordCouponUsageParams) (CouponUsage, error)
 	ReplyReview(ctx context.Context, arg ReplyReviewParams) (ProductReview, error)
 	RestoreBanner(ctx context.Context, bannerUuid uuid.UUID) (Banner, error)

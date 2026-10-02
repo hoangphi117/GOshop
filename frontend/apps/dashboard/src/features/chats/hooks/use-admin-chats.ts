@@ -101,6 +101,18 @@ export function useAdminGetOrCreateConversation() {
     onSuccess: (data) => {
       if (data?.uuid) {
         queryClient.setQueryData(adminChatKeys.conversation(data.uuid), data)
+        queryClient.setQueriesData<ConversationItem[]>(
+          { queryKey: ['admin-chats', 'conversations'] },
+          (old = []) => {
+            if (!Array.isArray(old)) return [data]
+            if (old.some((c) => c.uuid === data.uuid)) {
+              return old.map((c) =>
+                c.uuid === data.uuid ? { ...c, ...data } : c
+              )
+            }
+            return [data, ...old]
+          }
+        )
       }
       queryClient.invalidateQueries({
         queryKey: ['admin-chats', 'conversations'],
@@ -247,6 +259,79 @@ export function useAdminCloseConversation() {
       queryClient.invalidateQueries({
         queryKey: adminChatKeys.conversation(conversationUUID),
       })
+      queryClient.invalidateQueries({
+        queryKey: ['admin-chats', 'conversations'],
+      })
+    },
+  })
+}
+
+export function useAdminReopenConversation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (conversationUUID: string) => {
+      const res = await fetchWithAuth(
+        `/api/v1/admin/chat/conversations/${conversationUUID}/reopen`,
+        {
+          method: 'PATCH',
+        }
+      )
+      if (!res.ok) throw new Error('Failed to reopen conversation')
+      return res.json()
+    },
+    onSuccess: (_, conversationUUID) => {
+      queryClient.invalidateQueries({
+        queryKey: adminChatKeys.conversation(conversationUUID),
+      })
+      queryClient.invalidateQueries({
+        queryKey: ['admin-chats', 'conversations'],
+      })
+    },
+  })
+}
+
+export function useAdminRecallMessage() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      messageUUID,
+    }: {
+      messageUUID: string
+      conversationUUID?: string
+    }) => {
+      const res = await fetchWithAuth(
+        `/api/v1/admin/chat/messages/${messageUUID}/recall`,
+        {
+          method: 'PATCH',
+        }
+      )
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json.message || 'Failed to recall message')
+      }
+      return res.json()
+    },
+    onSuccess: (_, variables) => {
+      if (variables.conversationUUID) {
+        queryClient.setQueryData<ChatMessage[]>(
+          adminChatKeys.messages(variables.conversationUUID),
+          (old = []) =>
+            old.map((m) =>
+              m.uuid === variables.messageUUID
+                ? {
+                    ...m,
+                    content: 'This message was unsent',
+                    content_type: 'recalled',
+                    attachment_url: undefined,
+                    attachment_name: undefined,
+                    attachment_size: undefined,
+                  }
+                : m
+            )
+        )
+      }
       queryClient.invalidateQueries({
         queryKey: ['admin-chats', 'conversations'],
       })
@@ -430,6 +515,28 @@ export function useAdminChatRoom(conversationUUID?: string | null) {
                   })
                 }
               }
+            } else if (
+              payload?.type === 'chat.message_recalled' &&
+              payload?.data
+            ) {
+              const { conversation_uuid, message_uuid } = payload.data
+              const targetConv = conversation_uuid || conversationUUID
+              queryClient.setQueryData<ChatMessage[]>(
+                adminChatKeys.messages(targetConv),
+                (old = []) =>
+                  old.map((m) =>
+                    m.uuid === message_uuid
+                      ? {
+                          ...m,
+                          content: 'This message was unsent',
+                          content_type: 'recalled',
+                          attachment_url: undefined,
+                          attachment_name: undefined,
+                          attachment_size: undefined,
+                        }
+                      : m
+                  )
+              )
             } else if (payload?.type === 'chat.read') {
               const readConvUUID =
                 payload?.data?.conversation_uuid || conversationUUID

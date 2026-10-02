@@ -204,6 +204,32 @@ func (q *Queries) GetConversationByUserID(ctx context.Context, userID int32) (Ch
 	return i, err
 }
 
+const getMessageByUUID = `-- name: GetMessageByUUID :one
+SELECT message_id, message_uuid, conversation_id, sender_id, sender_role, content, content_type, attachment_url, attachment_name, attachment_size, is_read, read_at, created_at FROM chat_messages
+WHERE message_uuid = $1
+`
+
+func (q *Queries) GetMessageByUUID(ctx context.Context, messageUuid uuid.UUID) (ChatMessage, error) {
+	row := q.db.QueryRow(ctx, getMessageByUUID, messageUuid)
+	var i ChatMessage
+	err := row.Scan(
+		&i.MessageID,
+		&i.MessageUuid,
+		&i.ConversationID,
+		&i.SenderID,
+		&i.SenderRole,
+		&i.Content,
+		&i.ContentType,
+		&i.AttachmentUrl,
+		&i.AttachmentName,
+		&i.AttachmentSize,
+		&i.IsRead,
+		&i.ReadAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getTotalUnreadMessagesForAdmin = `-- name: GetTotalUnreadMessagesForAdmin :one
 SELECT COUNT(*) FROM chat_messages
 WHERE sender_role = 'user' 
@@ -452,6 +478,38 @@ type MarkMessagesReadParams struct {
 func (q *Queries) MarkMessagesRead(ctx context.Context, arg MarkMessagesReadParams) error {
 	_, err := q.db.Exec(ctx, markMessagesRead, arg.ConversationID, arg.ReaderID)
 	return err
+}
+
+const recallMessage = `-- name: RecallMessage :one
+UPDATE chat_messages
+SET content = 'This message was unsent',
+    content_type = 'recalled',
+    attachment_url = NULL,
+    attachment_name = NULL,
+    attachment_size = NULL
+WHERE message_id = $1
+RETURNING message_id, message_uuid, conversation_id, sender_id, sender_role, content, content_type, attachment_url, attachment_name, attachment_size, is_read, read_at, created_at
+`
+
+func (q *Queries) RecallMessage(ctx context.Context, messageID int32) (ChatMessage, error) {
+	row := q.db.QueryRow(ctx, recallMessage, messageID)
+	var i ChatMessage
+	err := row.Scan(
+		&i.MessageID,
+		&i.MessageUuid,
+		&i.ConversationID,
+		&i.SenderID,
+		&i.SenderRole,
+		&i.Content,
+		&i.ContentType,
+		&i.AttachmentUrl,
+		&i.AttachmentName,
+		&i.AttachmentSize,
+		&i.IsRead,
+		&i.ReadAt,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 const updateConversationStatus = `-- name: UpdateConversationStatus :one

@@ -10,11 +10,12 @@ const (
 	EventPong             EventType = "pong"
 
 	// Chat room events
-	EventChatMessage    EventType = "chat.message"
-	EventChatRead       EventType = "chat.read"
-	EventChatConvClosed EventType = "chat.conv_closed"
-	EventChatTyping     EventType = "chat.typing"
-	EventChatPresence   EventType = "chat.presence"
+	EventChatMessage         EventType = "chat.message"
+	EventChatMessageRecalled EventType = "chat.message_recalled"
+	EventChatRead            EventType = "chat.read"
+	EventChatConvClosed      EventType = "chat.conv_closed"
+	EventChatTyping          EventType = "chat.typing"
+	EventChatPresence        EventType = "chat.presence"
 )
 
 type WSMessage struct {
