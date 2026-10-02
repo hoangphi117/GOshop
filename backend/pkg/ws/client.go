@@ -60,6 +60,16 @@ func (c *Client) ReadPump() {
 	defer func() {
 		c.Hub.Unregister(c)
 		c.Close()
+
+		if c.IsAdmin {
+			if !c.Hub.HasOnlineAdmin() {
+				c.Hub.BroadcastAdminPresence(false)
+			}
+		} else {
+			if !c.Hub.IsUserOnline(c.UserID) {
+				c.Hub.BroadcastUserPresence(c.UserID, c.ConversationID, false)
+			}
+		}
 	}()
 
 	c.Conn.SetReadLimit(maxMessageSize)

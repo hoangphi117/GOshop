@@ -1072,6 +1072,7 @@ export function ChatWidget() {
     conversation,
     messages,
     unreadCount,
+    isShopOnline,
     isAdminTyping,
     sendTyping,
     sendMessage,
@@ -1299,13 +1300,22 @@ export function ChatWidget() {
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 bg-slate-900 text-white">
             <div className="flex items-center gap-2.5">
-              <div className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+              {isShopOnline ? (
+                <div className="relative flex items-center justify-center w-2.5 h-2.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+                </div>
+              ) : (
+                <div className="flex items-center justify-center w-2.5 h-2.5">
+                  <span className="inline-flex h-2 w-2 rounded-full bg-amber-400/80" />
+                </div>
+              )}
               <div>
                 <h3 className="text-sm font-semibold leading-tight">
                   Customer Support
                 </h3>
                 <p className="text-xs text-slate-400">
-                  We typically reply in minutes
+                  {isShopOnline ? "Active now" : "Replies in a few minutes"}
                 </p>
               </div>
             </div>

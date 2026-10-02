@@ -1048,17 +1048,25 @@ export function Chats() {
                           isSelected && 'border-l-2 border-l-primary bg-muted'
                         )}
                       >
-                        <Avatar className='h-10 w-10 shrink-0 border'>
-                          <AvatarImage
-                            src={conv.user_avatar}
-                            alt={conv.user_fullname}
-                          />
-                          <AvatarFallback className='text-xs font-semibold'>
-                            {getDisplayNameInitials(
-                              conv.user_fullname || conv.user_email
-                            )}
-                          </AvatarFallback>
-                        </Avatar>
+                        <div className='relative shrink-0'>
+                          <Avatar className='h-10 w-10 border'>
+                            <AvatarImage
+                              src={conv.user_avatar}
+                              alt={conv.user_fullname}
+                            />
+                            <AvatarFallback className='text-xs font-semibold'>
+                              {getDisplayNameInitials(
+                                conv.user_fullname || conv.user_email
+                              )}
+                            </AvatarFallback>
+                          </Avatar>
+                          {conv.is_online && (
+                            <span
+                              className='absolute right-0 bottom-0 h-3 w-3 rounded-full border-2 border-card bg-emerald-500 shadow-xs'
+                              title='Active now'
+                            />
+                          )}
+                        </div>
 
                         <div className='min-w-0 flex-1'>
                           <div className='mb-0.5 flex items-center justify-between gap-1'>
@@ -1115,23 +1123,44 @@ export function Chats() {
                 {/* Chat Header */}
                 <div className='flex h-14 shrink-0 items-center justify-between border-b bg-card px-4'>
                   <div className='flex items-center gap-3'>
-                    <Avatar className='h-8 w-8 border'>
-                      <AvatarImage
-                        src={activeConversation.user_avatar}
-                        alt={activeConversation.user_fullname}
-                      />
-                      <AvatarFallback className='text-xs'>
-                        {getDisplayNameInitials(
-                          activeConversation.user_fullname ||
-                            activeConversation.user_email
-                        )}
-                      </AvatarFallback>
-                    </Avatar>
+                    <div className='relative shrink-0'>
+                      <Avatar className='h-8 w-8 border'>
+                        <AvatarImage
+                          src={activeConversation.user_avatar}
+                          alt={activeConversation.user_fullname}
+                        />
+                        <AvatarFallback className='text-xs'>
+                          {getDisplayNameInitials(
+                            activeConversation.user_fullname ||
+                              activeConversation.user_email
+                          )}
+                        </AvatarFallback>
+                      </Avatar>
+                      {activeConversation.is_online && (
+                        <span
+                          className='absolute right-0 bottom-0 h-2.5 w-2.5 rounded-full border-2 border-card bg-emerald-500 shadow-xs'
+                          title='Active now'
+                        />
+                      )}
+                    </div>
                     <div>
-                      <h4 className='text-xs leading-tight font-semibold text-foreground'>
-                        {activeConversation.user_fullname ||
-                          activeConversation.user_email}
-                      </h4>
+                      <div className='flex items-center gap-2'>
+                        <h4 className='text-xs leading-tight font-semibold text-foreground'>
+                          {activeConversation.user_fullname ||
+                            activeConversation.user_email}
+                        </h4>
+                        {activeConversation.is_online ? (
+                          <span className='inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400'>
+                            <span className='h-1.5 w-1.5 rounded-full bg-emerald-500' />
+                            Active now
+                          </span>
+                        ) : (
+                          <span className='inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground'>
+                            <span className='h-1.5 w-1.5 rounded-full bg-muted-foreground/50' />
+                            Offline
+                          </span>
+                        )}
+                      </div>
                       <p className='text-[11px] text-muted-foreground'>
                         {activeConversation.user_email}
                       </p>

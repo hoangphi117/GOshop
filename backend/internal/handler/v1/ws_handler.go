@@ -1,7 +1,9 @@
 package v1handler
 
 import (
+	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"strings"
 
@@ -153,6 +155,51 @@ func (h *WSHandler) HandleWS(ctx *gin.Context) {
 	client := ws.NewClient(h.hub, conn, user.UserID, isAdmin)
 	client.ConversationID = targetConvID
 	h.hub.Register(client)
+
+	// Broadcast online presence to other active connections
+	if isAdmin {
+		h.hub.BroadcastAdminPresence(true)
+	} else {
+		h.hub.BroadcastUserPresence(user.UserID, targetConvID, true)
+	}
+
+	// Send initial presence directly to this client so they don't have to wait for an event
+	go func() {
+		// 1. Send shop admin online status
+		hasAdmin := h.hub.HasOnlineAdmin()
+		shopPresence, _ := json.Marshal(ws.WSMessage{
+			Type: ws.EventChatPresence,
+			Data: ws.ChatPresencePayload{
+				Role:     "admin",
+				IsOnline: hasAdmin,
+			},
+		})
+		select {
+		case client.Send <- shopPresence:
+		default:
+		}
+
+		// 2. If client is admin and target conversation is set, send customer presence
+		if isAdmin && targetConvID != nil && h.chatRepo != nil {
+			conv, convErr := h.chatRepo.GetConversationByID(context.Background(), *targetConvID)
+			if convErr == nil {
+				custOnline := h.hub.IsUserOnline(conv.UserID)
+				custPresence, _ := json.Marshal(ws.WSMessage{
+					Type: ws.EventChatPresence,
+					Data: ws.ChatPresencePayload{
+						ConversationUUID: conv.ConversationUuid.String(),
+						UserID:           conv.UserID,
+						Role:             "user",
+						IsOnline:         custOnline,
+					},
+				})
+				select {
+				case client.Send <- custPresence:
+				default:
+				}
+			}
+		}
+	}()
 
 	// Start client pumps in separate goroutines
 	go client.ReadPump()

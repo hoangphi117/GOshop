@@ -452,6 +452,13 @@ func (s *chatService) ListConversations(
 			lastMsgAt = &r.LastMessageAt.Time
 		}
 
+		isCustomerOnline := false
+		isShopOnline := false
+		if s.wsHub != nil {
+			isCustomerOnline = s.wsHub.IsUserOnline(r.UserID)
+			isShopOnline = s.wsHub.HasOnlineAdmin()
+		}
+
 		res[i] = v1dto.ConversationResponse{
 			ConversationID:     r.ConversationID,
 			UUID:               r.ConversationUuid,
@@ -466,6 +473,8 @@ func (s *chatService) ListConversations(
 			LastMessageAt:      lastMsgAt,
 			CreatedAt:          r.CreatedAt,
 			UpdatedAt:          r.UpdatedAt,
+			IsOnline:           isCustomerOnline,
+			IsShopOnline:       isShopOnline,
 		}
 	}
 
@@ -529,6 +538,13 @@ func (s *chatService) GetConversationDetails(
 		lastMsgAt = &conv.LastMessageAt.Time
 	}
 
+	isCustOnline := false
+	isShopOnline := false
+	if s.wsHub != nil {
+		isCustOnline = s.wsHub.IsUserOnline(conv.UserID)
+		isShopOnline = s.wsHub.HasOnlineAdmin()
+	}
+
 	return v1dto.ConversationResponse{
 		ConversationID: conv.ConversationID,
 		UUID:           conv.ConversationUuid,
@@ -542,6 +558,8 @@ func (s *chatService) GetConversationDetails(
 		LastMessageAt:  lastMsgAt,
 		CreatedAt:      conv.CreatedAt,
 		UpdatedAt:      conv.UpdatedAt,
+		IsOnline:       isCustOnline,
+		IsShopOnline:   isShopOnline,
 	}, nil
 }
 
@@ -601,4 +619,14 @@ func (s *chatService) SendTyping(
 	})
 
 	return nil
+}
+
+func (s *chatService) GetShopStatus(ctx context.Context) (v1dto.ShopStatusResponse, error) {
+	isOnline := false
+	if s.wsHub != nil {
+		isOnline = s.wsHub.HasOnlineAdmin()
+	}
+	return v1dto.ShopStatusResponse{
+		IsOnline: isOnline,
+	}, nil
 }

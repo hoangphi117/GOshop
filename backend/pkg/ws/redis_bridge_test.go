@@ -32,8 +32,11 @@ func (m *mockHub) BroadcastToAll(msg ws.WSMessage) {
 func (m *mockHub) BroadcastToConversation(conversationID int32, msg ws.WSMessage) {
 	m.broadcastToConversationCalls = append(m.broadcastToConversationCalls, struct{ ConvID int32; Msg ws.WSMessage }{conversationID, msg})
 }
-func (m *mockHub) IsUserOnline(userID int32) bool { return false }
-func (m *mockHub) Shutdown()                      {}
+func (m *mockHub) BroadcastAdminPresence(isOnline bool)                            {}
+func (m *mockHub) BroadcastUserPresence(userID int32, convID *int32, isOnline bool) {}
+func (m *mockHub) IsUserOnline(userID int32) bool                                   { return false }
+func (m *mockHub) HasOnlineAdmin() bool                                             { return false }
+func (m *mockHub) Shutdown()                                                        {}
 
 func TestRedisNotificationEnvelope_Serialization(t *testing.T) {
 	userID := int32(42)

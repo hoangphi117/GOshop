@@ -26,6 +26,8 @@ export interface ConversationItem {
   last_message_at?: string | null
   created_at: string
   updated_at: string
+  is_online?: boolean
+  is_shop_online?: boolean
 }
 
 export interface ListConversationsParams {

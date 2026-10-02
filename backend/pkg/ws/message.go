@@ -14,6 +14,7 @@ const (
 	EventChatRead       EventType = "chat.read"
 	EventChatConvClosed EventType = "chat.conv_closed"
 	EventChatTyping     EventType = "chat.typing"
+	EventChatPresence   EventType = "chat.presence"
 )
 
 type WSMessage struct {
@@ -50,4 +51,12 @@ type ChatTypingPayload struct {
 	UserID           int32  `json:"user_id"`
 	SenderRole       string `json:"sender_role"`
 	IsTyping         bool   `json:"is_typing"`
+}
+
+// ChatPresencePayload là data field khi EventType = chat.presence
+type ChatPresencePayload struct {
+	ConversationUUID string `json:"conversation_uuid,omitempty"`
+	UserID           int32  `json:"user_id,omitempty"`
+	Role             string `json:"role"` // "admin" or "user"
+	IsOnline         bool   `json:"is_online"`
 }

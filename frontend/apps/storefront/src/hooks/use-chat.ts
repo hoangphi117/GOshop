@@ -36,6 +36,8 @@ export interface ConversationData {
   last_message_at?: string | null;
   created_at: string;
   updated_at: string;
+  is_online?: boolean;
+  is_shop_online?: boolean;
 }
 
 export interface SendMessageParams {
@@ -217,7 +219,30 @@ export function useChat() {
     refetchInterval: 30000,
   });
 
-  // 4. Send message mutation
+  // 4. Fetch shop online status
+  const { data: shopStatus } = useQuery({
+    queryKey: ["chat", "shop-status"],
+    queryFn: async () => {
+      const res = await authFetch("/api/v1/chat/shop-status");
+      if (!res.ok) return { is_online: false };
+      const json = await res.json();
+      return (json.data || { is_online: false }) as { is_online: boolean };
+    },
+    enabled: isAuthenticated,
+    refetchInterval: 30000,
+  });
+
+  const [isShopOnline, setIsShopOnline] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (shopStatus?.is_online !== undefined) {
+      setIsShopOnline(shopStatus.is_online);
+    } else if (conversation?.is_shop_online !== undefined) {
+      setIsShopOnline(conversation.is_shop_online);
+    }
+  }, [shopStatus, conversation]);
+
+  // 5. Send message mutation
   const sendMessageMutation = useMutation({
     mutationFn: async (params: SendMessageParams) => {
       const body: Record<string, unknown> = {
@@ -368,6 +393,10 @@ export function useChat() {
                   setIsAdminTyping(false);
                 }
               }
+            } else if (payload?.type === "chat.presence" && payload?.data) {
+              if (payload.data.role === "admin") {
+                setIsShopOnline(Boolean(payload.data.is_online));
+              }
             }
           } catch {
             // Safe ignore non-JSON frame
@@ -441,6 +470,7 @@ export function useChat() {
     conversation,
     messages,
     unreadCount,
+    isShopOnline,
     isAdminTyping,
     sendTyping,
     isLoading: isConversationLoading || isMessagesLoading,

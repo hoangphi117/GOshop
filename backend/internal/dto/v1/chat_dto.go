@@ -56,6 +56,12 @@ type ConversationResponse struct {
 	LastMessageAt      *time.Time `json:"last_message_at"`
 	CreatedAt          time.Time  `json:"created_at"`
 	UpdatedAt          time.Time  `json:"updated_at"`
+	IsOnline           bool       `json:"is_online"`
+	IsShopOnline       bool       `json:"is_shop_online"`
+}
+
+type ShopStatusResponse struct {
+	IsOnline bool `json:"is_online"`
 }
 
 type MessageResponse struct {

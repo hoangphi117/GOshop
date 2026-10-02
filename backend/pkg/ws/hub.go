@@ -16,7 +16,10 @@ type Hub interface {
 	BroadcastToUser(userID int32, msg WSMessage)
 	BroadcastToAll(msg WSMessage)
 	BroadcastToConversation(conversationID int32, msg WSMessage)
+	BroadcastAdminPresence(isOnline bool)
+	BroadcastUserPresence(userID int32, convID *int32, isOnline bool)
 	IsUserOnline(userID int32) bool
+	HasOnlineAdmin() bool
 	Shutdown()
 }
 
@@ -34,6 +37,38 @@ func NewHub() Hub {
 		adminClients:        make(map[*Client]bool),
 		conversationClients: make(map[int32]map[*Client]bool),
 		mu:                  sync.RWMutex{},
+	}
+}
+
+func (h *hub) HasOnlineAdmin() bool {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return len(h.adminClients) > 0
+}
+
+func (h *hub) BroadcastAdminPresence(isOnline bool) {
+	h.BroadcastToAll(WSMessage{
+		Type: EventChatPresence,
+		Data: ChatPresencePayload{
+			Role:     "admin",
+			IsOnline: isOnline,
+		},
+	})
+}
+
+func (h *hub) BroadcastUserPresence(userID int32, convID *int32, isOnline bool) {
+	msg := WSMessage{
+		Type: EventChatPresence,
+		Data: ChatPresencePayload{
+			UserID:   userID,
+			Role:     "user",
+			IsOnline: isOnline,
+		},
+	}
+	if convID != nil {
+		h.BroadcastToConversation(*convID, msg)
+	} else {
+		h.BroadCastToAdmins(msg)
 	}
 }
 

@@ -417,6 +417,42 @@ export function useAdminChatRoom(conversationUUID?: string | null) {
                   .getState()
                   .setTyping(conversation_uuid, Boolean(is_typing))
               }
+            } else if (payload?.type === 'chat.presence' && payload?.data) {
+              const { conversation_uuid, user_id, role, is_online } =
+                payload.data
+              if (role === 'user') {
+                queryClient.setQueriesData<ConversationItem[]>(
+                  { queryKey: ['admin-chats', 'conversations'] },
+                  (old) => {
+                    if (!old || !Array.isArray(old)) return old
+                    return old.map((c) => {
+                      if (
+                        (conversation_uuid && c.uuid === conversation_uuid) ||
+                        (user_id && c.user_id === user_id)
+                      ) {
+                        return { ...c, is_online: Boolean(is_online) }
+                      }
+                      return c
+                    })
+                  }
+                )
+
+                if (conversationUUID) {
+                  queryClient.setQueryData<ConversationItem>(
+                    adminChatKeys.conversation(conversationUUID),
+                    (old) => {
+                      if (!old) return old
+                      if (
+                        (conversation_uuid && old.uuid === conversation_uuid) ||
+                        (user_id && old.user_id === user_id)
+                      ) {
+                        return { ...old, is_online: Boolean(is_online) }
+                      }
+                      return old
+                    }
+                  )
+                }
+              }
             }
           } catch {
             // Safe ignore non-JSON frame

@@ -526,3 +526,20 @@ func (h *ChatHandler) AdminSendTyping(ctx *gin.Context) {
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Typing event sent", nil)
 }
+
+// GetShopStatus godoc
+// @Summary      Get shop online status
+// @Description  Check whether any shop admin is currently online
+// @Tags         Chat
+// @Produce      json
+// @Success      200 {object} utils.APIResponse{data=v1dto.ShopStatusResponse}
+// @Failure      500 {object} utils.ErrorResponse
+// @Router       /chat/shop-status [get]
+func (h *ChatHandler) GetShopStatus(ctx *gin.Context) {
+	status, err := h.chatService.GetShopStatus(ctx.Request.Context())
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+	utils.ResponseSuccess(ctx, http.StatusOK, "Shop status retrieved successfully", status)
+}

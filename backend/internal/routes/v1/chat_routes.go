@@ -23,5 +23,6 @@ func (r *ChatRoutes) Register(rg *gin.RouterGroup) {
 		chat.PATCH("/messages/read", r.handler.MarkAsRead)
 		chat.GET("/unread-count", r.handler.GetUnreadCount)
 		chat.POST("/typing", r.handler.SendTyping)
+		chat.GET("/shop-status", r.handler.GetShopStatus)
 	}
 }
