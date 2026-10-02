@@ -1,6 +1,8 @@
 import { DotsHorizontalIcon } from '@radix-ui/react-icons'
 import { type Row } from '@tanstack/react-table'
-import { Trash2, UserPen } from 'lucide-react'
+import { MessageSquare, Trash2, UserPen } from 'lucide-react'
+import { useNavigate } from '@tanstack/react-router'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -10,6 +12,7 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { useAdminGetOrCreateConversation } from '@/features/chats/hooks/use-admin-chats'
 import { type User } from '../data/schema'
 import { useUsers } from './users-provider'
 
@@ -19,6 +22,30 @@ type DataTableRowActionsProps = {
 
 export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const { setOpen, setCurrentRow } = useUsers()
+  const navigate = useNavigate()
+  const getOrCreateConversation = useAdminGetOrCreateConversation()
+
+  const handleChat = async () => {
+    if (!row.original.id) {
+      toast.error('User ID is missing')
+      return
+    }
+
+    try {
+      const conv = await getOrCreateConversation.mutateAsync(row.original.id)
+      if (conv?.uuid) {
+        navigate({
+          to: '/chats',
+          search: { id: conv.uuid },
+        })
+      }
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : 'Failed to start chat conversation'
+      toast.error(msg)
+    }
+  }
+
   return (
     <>
       <DropdownMenu modal={false}>
@@ -32,6 +59,12 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end' className='w-40'>
+          <DropdownMenuItem onClick={handleChat}>
+            Chat
+            <DropdownMenuShortcut>
+              <MessageSquare size={16} />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => {
               setCurrentRow(row.original)
@@ -61,3 +94,4 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
     </>
   )
 }
+

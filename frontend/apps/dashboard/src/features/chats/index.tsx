@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { format, isToday } from 'date-fns'
-import { Link } from '@tanstack/react-router'
+import { Link, getRouteApi } from '@tanstack/react-router'
 import {
   Search as SearchIcon,
   Send,
   MessagesSquare,
+  MessageSquarePlus,
+  Loader2,
   Check,
   CheckCheck,
   Paperclip,
@@ -27,6 +29,7 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { DashboardHeader } from '@/components/layout/dashboard-header'
 import { Main } from '@/components/layout/main'
+import { useAdminUsers } from '@/features/users/hooks/use-users'
 import {
   useAdminConversations,
   useAdminConversationDetails,
@@ -34,6 +37,7 @@ import {
   useAdminSendMessage,
   useAdminMarkRead,
   useAdminChatRoom,
+  useAdminGetOrCreateConversation,
   uploadChatFile,
 } from './hooks/use-admin-chats'
 import {
@@ -667,24 +671,14 @@ function MediaLightbox({
   )
 }
 
+const route = getRouteApi('/_authenticated/chats/')
+
 export function Chats() {
+  const routeSearch = route.useSearch()
   const [search, setSearch] = useState('')
-  const [selectedConvUUID, setSelectedConvUUID] = useState<string | null>(null)
-  const [inputText, setInputText] = useState('')
-  const [pendingFiles, setPendingFiles] = useState<File[]>([])
-  const [isUploading, setIsUploading] = useState(false)
-  const [previewMediaGroup, setPreviewMediaGroup] = useState<{
-    items: MediaItem[]
-    initialIndex: number
-  } | null>(null)
-  const messagesEndRef = useRef<HTMLDivElement | null>(null)
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
-  const inputRef = useRef<HTMLInputElement | null>(null)
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const isAtBottomRef = useRef(true)
-  const prevMessagesLengthRef = useRef(0)
-  const prevConvUUIDRef = useRef<string | null>(null)
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const searchContainerRef = useRef<HTMLDivElement | null>(null)
 
   const [notifPermission, setNotifPermission] =
     useState<NotificationPermission>(() => {
@@ -694,29 +688,107 @@ export function Chats() {
       return 'default'
     })
 
-  useEffect(() => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      setNotifPermission(Notification.permission)
-    }
-  }, [])
-
   const handleToggleNotification = async () => {
-    if (notifPermission !== 'granted') {
-      const res = await requestNotificationPermission()
-      setNotifPermission(res)
-      if (res === 'granted') {
-        playNotificationSound()
-      }
-    } else {
+    const perm = await requestNotificationPermission()
+    setNotifPermission(perm)
+    if (perm === 'granted') {
       playNotificationSound()
     }
   }
 
-  // 1. Fetch conversations list
+  const [selectedConvUUID, setSelectedConvUUID] = useState<string | null>(
+    () => routeSearch?.id || null
+  )
+
+  useEffect(() => {
+    if (routeSearch?.id) {
+      setSelectedConvUUID(routeSearch.id)
+    }
+  }, [routeSearch?.id])
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search.trim())
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [search])
+
+  // Close search dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        searchContainerRef.current &&
+        !searchContainerRef.current.contains(e.target as Node)
+      ) {
+        setIsSearchOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // 1. Fetch conversations list with debounced search
   const { data: conversations = [], isLoading: isConversationsLoading } =
     useAdminConversations({
-      search: search.trim() || undefined,
+      search: debouncedSearch || undefined,
     })
+
+  // 1b. Search across all system users when searching
+  const { data: usersData, isLoading: isSearchingUsers } = useAdminUsers({
+    search: debouncedSearch || undefined,
+    limit: 6,
+  })
+
+  const searchResultsUsers = (usersData?.data as Array<{
+    uuid?: string
+    full_name?: string
+    email?: string
+    status?: string
+    level?: string
+    created_at?: string
+  }>) || []
+
+  // 1c. Get or create conversation mutation
+  const { mutateAsync: getOrCreateConversation } =
+    useAdminGetOrCreateConversation()
+  const [selectedUserLoading, setSelectedUserLoading] = useState<string | null>(
+    null
+  )
+
+  const [inputText, setInputText] = useState('')
+  const [pendingFiles, setPendingFiles] = useState<File[]>([])
+  const [isUploading, setIsUploading] = useState(false)
+  const [previewMediaGroup, setPreviewMediaGroup] = useState<{
+    items: MediaItem[]
+    initialIndex: number
+  } | null>(null)
+
+  const messagesEndRef = useRef<HTMLDivElement | null>(null)
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const prevConvUUIDRef = useRef<string | null>(null)
+  const prevMessagesLengthRef = useRef(0)
+  const isAtBottomRef = useRef(true)
+
+  const handleSelectUser = async (userUuid?: string) => {
+    if (!userUuid) return
+    try {
+      setSelectedUserLoading(userUuid)
+      const conv = await getOrCreateConversation(userUuid)
+      if (conv?.uuid) {
+        setSelectedConvUUID(conv.uuid)
+        setIsSearchOpen(false)
+        setSearch('')
+      }
+    } catch {
+      // Ignored
+    } finally {
+      setSelectedUserLoading(null)
+    }
+  }
 
   // 2. Fetch active conversation details
   const { data: activeConversation } = useAdminConversationDetails(
@@ -992,14 +1064,103 @@ export function Chats() {
           <div className='flex w-80 shrink-0 flex-col border-r bg-card sm:w-96'>
             {/* Search & Notification Permission Toggle */}
             <div className='flex items-center gap-2 border-b p-3'>
-              <div className='relative flex-1'>
+              <div ref={searchContainerRef} className='relative flex-1'>
                 <SearchIcon className='absolute top-2.5 left-2.5 h-4 w-4 text-muted-foreground' />
                 <Input
-                  placeholder='Search customer name or email...'
+                  placeholder='Search user, email or customer...'
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className='h-9 pl-8 text-xs'
+                  onFocus={() => {
+                    if (search.trim()) setIsSearchOpen(true)
+                  }}
+                  onChange={(e) => {
+                    setSearch(e.target.value)
+                    setIsSearchOpen(true)
+                  }}
+                  className='h-9 pr-7 pl-8 text-xs'
                 />
+                {search && (
+                  <button
+                    type='button'
+                    onClick={() => {
+                      setSearch('')
+                      setIsSearchOpen(false)
+                    }}
+                    className='absolute top-2.5 right-2 rounded p-0.5 text-muted-foreground hover:text-foreground'
+                    title='Clear search'
+                  >
+                    <X className='h-3.5 w-3.5' />
+                  </button>
+                )}
+
+                {/* Debounced User Search Dropdown */}
+                {isSearchOpen && debouncedSearch && (
+                  <div className='absolute top-full left-0 right-0 z-50 mt-1.5 overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-xl animate-in fade-in-50 zoom-in-95'>
+                    <div className='flex items-center justify-between border-b bg-muted/40 px-3 py-1.5'>
+                      <span className='text-[11px] font-medium text-muted-foreground'>
+                        Global User Search
+                      </span>
+                      {isSearchingUsers && (
+                        <Loader2 className='h-3 w-3 animate-spin text-muted-foreground' />
+                      )}
+                    </div>
+
+                    <div className='max-h-60 overflow-y-auto p-1'>
+                      {isSearchingUsers ? (
+                        <div className='flex items-center justify-center gap-2 py-4 text-xs text-muted-foreground'>
+                          <Loader2 className='h-3.5 w-3.5 animate-spin' />
+                          Searching users...
+                        </div>
+                      ) : searchResultsUsers.length === 0 ? (
+                        <div className='py-4 text-center text-xs text-muted-foreground'>
+                          No users found matching &ldquo;{debouncedSearch}&rdquo;
+                        </div>
+                      ) : (
+                        <div className='flex flex-col gap-0.5'>
+                          {searchResultsUsers.map((u) => {
+                            const isSelectedLoading =
+                              selectedUserLoading === u.uuid
+                            const initials = getDisplayNameInitials(
+                              u.full_name || u.email || 'User'
+                            )
+                            return (
+                              <button
+                                key={u.uuid}
+                                type='button'
+                                disabled={isSelectedLoading}
+                                onClick={() => handleSelectUser(u.uuid)}
+                                className='flex w-full items-center justify-between gap-2 rounded-md p-2 text-left transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50'
+                              >
+                                <div className='flex min-w-0 items-center gap-2'>
+                                  <Avatar className='h-7 w-7 shrink-0 text-[10px]'>
+                                    <AvatarFallback>{initials}</AvatarFallback>
+                                  </Avatar>
+                                  <div className='min-w-0 flex-1'>
+                                    <div className='truncate text-xs font-medium'>
+                                      {u.full_name || 'Unnamed User'}
+                                    </div>
+                                    <div className='truncate text-[11px] text-muted-foreground'>
+                                      {u.email}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className='shrink-0'>
+                                  {isSelectedLoading ? (
+                                    <Loader2 className='h-3.5 w-3.5 animate-spin text-primary' />
+                                  ) : (
+                                    <span className='inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary hover:bg-primary/20'>
+                                      <MessageSquarePlus className='h-3 w-3' />
+                                      Chat
+                                    </span>
+                                  )}
+                                </div>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
               <Button
                 variant={notifPermission === 'granted' ? 'ghost' : 'outline'}

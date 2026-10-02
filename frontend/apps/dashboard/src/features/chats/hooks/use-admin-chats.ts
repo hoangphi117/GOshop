@@ -83,6 +83,33 @@ export function useAdminConversations(params: ListConversationsParams = {}) {
   })
 }
 
+export function useAdminGetOrCreateConversation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (userUUID: string) => {
+      const res = await fetchWithAuth(
+        `/api/v1/admin/chat/users/${userUUID}/conversation`,
+        {
+          method: 'POST',
+        }
+      )
+      if (!res.ok) throw new Error('Failed to start conversation with user')
+      const json = await res.json()
+      return json.data as ConversationItem
+    },
+    onSuccess: (data) => {
+      if (data?.uuid) {
+        queryClient.setQueryData(adminChatKeys.conversation(data.uuid), data)
+      }
+      queryClient.invalidateQueries({
+        queryKey: ['admin-chats', 'conversations'],
+      })
+    },
+  })
+}
+
+
 export function useAdminConversationDetails(conversationUUID?: string) {
   return useQuery({
     queryKey: adminChatKeys.conversation(conversationUUID),

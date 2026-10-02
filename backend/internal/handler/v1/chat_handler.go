@@ -543,3 +543,45 @@ func (h *ChatHandler) GetShopStatus(ctx *gin.Context) {
 	}
 	utils.ResponseSuccess(ctx, http.StatusOK, "Shop status retrieved successfully", status)
 }
+
+// AdminGetOrCreateUserConversation godoc
+// @Summary      Get or create conversation for a customer
+// @Description  Admin get existing conversation with a user or create a new one
+// @Tags         Admin - Chat
+// @Produce      json
+// @Security     BearerAuth
+// @Param        user_uuid path string true "User UUID"
+// @Success      200 {object} utils.APIResponse{data=v1dto.ConversationResponse}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Failure      403 {object} utils.ErrorResponse
+// @Failure      500 {object} utils.ErrorResponse
+// @Router       /admin/chat/users/{user_uuid}/conversation [post]
+func (h *ChatHandler) AdminGetOrCreateUserConversation(ctx *gin.Context) {
+	adminUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	userUUID, err := uuid.Parse(ctx.Param("user_uuid"))
+	if err != nil {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Invalid user UUID"))
+		return
+	}
+
+	conv, err := h.chatService.GetOrCreateConversation(ctx.Request.Context(), userUUID)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	details, err := h.chatService.GetConversationDetails(ctx.Request.Context(), conv.ConversationUuid, adminUUID)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Conversation retrieved successfully", details)
+}
+
