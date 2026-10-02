@@ -62,7 +62,7 @@ func (ur *SqlUserRepository) GetAll(ctx context.Context, search, orderBy, sort s
 }
 
 func (ur *SqlUserRepository) GetAllV2(ctx context.Context, search, orderBy, sort string, limit, offset int32, deleted bool) ([]sqlc.User, error) {
-	query := `SELECT *
+	query := `SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar
 			FROM users
 			WHERE (
 				$1::TEXT IS NULL
@@ -111,6 +111,7 @@ func (ur *SqlUserRepository) GetAllV2(ctx context.Context, search, orderBy, sort
 			&i.UserDeletedAt,
 			&i.UserCreatedAt,
 			&i.UserUpdatedAt,
+			&i.UserAvatar,
 		); err != nil {
 			return nil, err
 		}

@@ -5,7 +5,6 @@ import { UsersDialogs } from './components/users-dialogs'
 import { UsersPrimaryButtons } from './components/users-primary-buttons'
 import { UsersProvider } from './components/users-provider'
 import { UsersTable } from './components/users-table'
-import { users as mockUsers } from './data/users'
 import { useAdminUsers } from './hooks/use-users'
 import type { User } from './data/schema'
 
@@ -15,9 +14,10 @@ export function Users() {
   const search = route.useSearch()
   const navigate = route.useNavigate()
 
-  const { data: apiData } = useAdminUsers({
+  const { data: apiData, isLoading } = useAdminUsers({
     page: search.page,
     limit: search.pageSize,
+    search: search.username || undefined,
   })
 
   const rawUsers = (apiData?.data as Array<{
@@ -29,41 +29,38 @@ export function Users() {
     created_at?: string
   }>) || []
 
-  const users: User[] =
-    rawUsers.length > 0
-      ? rawUsers.map((u) => {
-          const names = (u.full_name || 'User').split(' ')
-          const firstName = names[0] || 'User'
-          const lastName = names.slice(1).join(' ') || ''
-          const statusLower = u.status?.toLowerCase()
-          const status =
-            statusLower === 'active' || statusLower === 'show' || statusLower === '1'
-              ? ('active' as const)
-              : statusLower === 'banned' || statusLower === 'suspended' || statusLower === '3'
-              ? ('suspended' as const)
-              : ('inactive' as const)
-          const levelLower = u.level?.toLowerCase()
-          const role =
-            levelLower === 'admin'
-              ? ('admin' as const)
-              : levelLower === 'superadmin'
-              ? ('superadmin' as const)
-              : ('cashier' as const)
+  const users: User[] = rawUsers.map((u) => {
+    const names = (u.full_name || 'User').split(' ')
+    const firstName = names[0] || 'User'
+    const lastName = names.slice(1).join(' ') || ''
+    const statusLower = u.status?.toLowerCase()
+    const status =
+      statusLower === 'active' || statusLower === 'show' || statusLower === '1'
+        ? ('active' as const)
+        : statusLower === 'banned' || statusLower === 'suspended' || statusLower === '3'
+        ? ('suspended' as const)
+        : ('inactive' as const)
+    const levelLower = u.level?.toLowerCase()
+    const role =
+      levelLower === 'admin'
+        ? ('admin' as const)
+        : levelLower === 'superadmin'
+        ? ('superadmin' as const)
+        : ('cashier' as const)
 
-          return {
-            id: u.uuid || '',
-            firstName,
-            lastName,
-            username: u.email ? u.email.split('@')[0] : 'user',
-            email: u.email || '',
-            phoneNumber: '',
-            status,
-            role,
-            createdAt: u.created_at ? new Date(u.created_at) : new Date(),
-            updatedAt: new Date(),
-          }
-        })
-      : mockUsers
+    return {
+      id: u.uuid || '',
+      firstName,
+      lastName,
+      username: u.email ? u.email.split('@')[0] : 'user',
+      email: u.email || '',
+      phoneNumber: '',
+      status,
+      role,
+      createdAt: u.created_at ? new Date(u.created_at) : new Date(),
+      updatedAt: new Date(),
+    }
+  })
 
   return (
     <UsersProvider>
@@ -79,7 +76,7 @@ export function Users() {
           </div>
           <UsersPrimaryButtons />
         </div>
-        <UsersTable data={users} search={search} navigate={navigate} />
+        <UsersTable data={users} search={search} navigate={navigate} isLoading={isLoading} />
       </Main>
 
       <UsersDialogs />
