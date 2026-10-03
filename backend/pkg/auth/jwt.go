@@ -23,6 +23,7 @@ type EncryptedPayload struct {
 	UserUUID string `json:"user_uuid"`
 	Email    string `json:"email"`
 	Role     int32  `json:"role"`
+	FamilyID string `json:"family_id,omitempty"`
 }
 
 type RefreshToken struct {
@@ -52,10 +53,15 @@ func NewJWTService(cache cache.RedisCacheService) TokenService {
 /***************** Access Token (JWT) *****************/
 
 func (js *JWTService) GenerateAccessToken(user sqlc.User) (string, error) {
+	return js.GenerateAccessTokenWithFamily(user, "")
+}
+
+func (js *JWTService) GenerateAccessTokenWithFamily(user sqlc.User, familyID string) (string, error) {
 	payload := &EncryptedPayload{
 		UserUUID: user.UserUuid.String(),
 		Email:    user.UserEmail,
 		Role:     user.UserLevel,
+		FamilyID: familyID,
 	}
 
 	rawData, err := json.Marshal(payload)
@@ -71,6 +77,7 @@ func (js *JWTService) GenerateAccessToken(user sqlc.User) (string, error) {
 	claims := jwt.MapClaims{
 		"data": encryptedData,
 		"jti":  uuid.NewString(),
+		"fid":  familyID,
 		"exp":  time.Now().Add(AccessTokenTTL).Unix(),
 		"iat":  time.Now().Unix(),
 		"iss":  "goshop",
@@ -187,4 +194,18 @@ func (js *JWTService) RotateRefreshToken(oldToken string) (string, string, error
 		return js.rotator.RotateToken(oldToken)
 	}
 	return "", "", utils.NewError(utils.ErrCodeInternal, "Token rotator not initialized")
+}
+
+func (js *JWTService) RevokeTokenFamily(familyID string) error {
+	if js.rotator != nil {
+		return js.rotator.RevokeFamily(familyID)
+	}
+	return nil
+}
+
+func (js *JWTService) GetTokenFamilyID(rawToken string) (string, error) {
+	if js.rotator != nil {
+		return js.rotator.GetFamilyID(rawToken)
+	}
+	return "", nil
 }

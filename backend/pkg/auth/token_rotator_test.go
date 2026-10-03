@@ -62,6 +62,18 @@ func (m *mockMemoryCache) Del(key string) error {
 	return nil
 }
 
+func (m *mockMemoryCache) Incr(key string) (int64, error) {
+	return 1, nil
+}
+
+func (m *mockMemoryCache) Expire(key string, ttl time.Duration) error {
+	return nil
+}
+
+func (m *mockMemoryCache) TTL(key string) (time.Duration, error) {
+	return time.Hour, nil
+}
+
 func TestRefreshTokenRotator(t *testing.T) {
 	cache := newMockMemoryCache()
 	rotator := auth.NewRefreshTokenRotator(cache)

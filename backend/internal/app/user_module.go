@@ -6,6 +6,7 @@ import (
 	"goshop/internal/routes"
 	v1routes "goshop/internal/routes/v1"
 	v1service "goshop/internal/service/v1"
+	"goshop/pkg/auth"
 )
 
 type UserModule struct {
@@ -13,19 +14,22 @@ type UserModule struct {
 	adminRoutes []routes.Route
 }
 
-func NewUserModule(ctx *ModuleContext) *UserModule {
+func NewUserModule(ctx *ModuleContext, tokenService auth.TokenService) *UserModule {
 
 	// Initialize repository
 	userRepo := repository.NewSqlUserRepository(ctx.DB)
+	sessionRepo := repository.NewSqlSessionRepository(ctx.DB)
 
 	// Initialize service
 	userService := v1service.NewUserService(userRepo, ctx.Redis)
+	sessionService := v1service.NewSessionService(sessionRepo, userRepo, tokenService)
 
 	// Initialize handler
 	userHandler := v1handler.NewUserHandler(userService)
+	sessionHandler := v1handler.NewSessionHandler(sessionService)
 
 	// Initialize routes
-	userRoutes := v1routes.NewUserRoutes(userHandler)
+	userRoutes := v1routes.NewUserRoutes(userHandler, sessionHandler)
 	adminUserRoutes := v1routes.NewAdminUserRoutes(userHandler)
 
 	return &UserModule{

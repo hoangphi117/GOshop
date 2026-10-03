@@ -1670,6 +1670,76 @@ func (m *MockChatRepository) RecallMessage(ctx context.Context, messageID int32)
 	return sqlc.ChatMessage{}, nil
 }
 
+// =========================================================================
+// 16. MockSessionRepository
+// =========================================================================
+type MockSessionRepository struct {
+	CreateFunc          func(ctx context.Context, params sqlc.CreateSessionParams) (sqlc.UserSession, error)
+	ListByUserIDFunc    func(ctx context.Context, userID int32) ([]sqlc.UserSession, error)
+	GetByUUIDFunc       func(ctx context.Context, sessionUUID uuid.UUID) (sqlc.UserSession, error)
+	GetByFamilyIDFunc   func(ctx context.Context, familyID string) (sqlc.UserSession, error)
+	DeleteByUUIDFunc    func(ctx context.Context, sessionUUID uuid.UUID, userID int32) error
+	DeleteAllOtherFunc  func(ctx context.Context, userID int32, currentFamilyID string) error
+	DeleteByFamilyIDFunc func(ctx context.Context, familyID string) error
+	UpdateActivityFunc  func(ctx context.Context, familyID string) error
+}
+
+func (m *MockSessionRepository) Create(ctx context.Context, params sqlc.CreateSessionParams) (sqlc.UserSession, error) {
+	if m.CreateFunc != nil {
+		return m.CreateFunc(ctx, params)
+	}
+	return sqlc.UserSession{SessionUuid: uuid.New(), UserID: params.UserID, FamilyID: params.FamilyID, CreatedAt: time.Now(), LastActiveAt: time.Now()}, nil
+}
+
+func (m *MockSessionRepository) ListByUserID(ctx context.Context, userID int32) ([]sqlc.UserSession, error) {
+	if m.ListByUserIDFunc != nil {
+		return m.ListByUserIDFunc(ctx, userID)
+	}
+	return nil, nil
+}
+
+func (m *MockSessionRepository) GetByUUID(ctx context.Context, sessionUUID uuid.UUID) (sqlc.UserSession, error) {
+	if m.GetByUUIDFunc != nil {
+		return m.GetByUUIDFunc(ctx, sessionUUID)
+	}
+	return sqlc.UserSession{SessionUuid: sessionUUID, CreatedAt: time.Now(), LastActiveAt: time.Now()}, nil
+}
+
+func (m *MockSessionRepository) GetByFamilyID(ctx context.Context, familyID string) (sqlc.UserSession, error) {
+	if m.GetByFamilyIDFunc != nil {
+		return m.GetByFamilyIDFunc(ctx, familyID)
+	}
+	return sqlc.UserSession{FamilyID: familyID, CreatedAt: time.Now(), LastActiveAt: time.Now()}, nil
+}
+
+func (m *MockSessionRepository) DeleteByUUID(ctx context.Context, sessionUUID uuid.UUID, userID int32) error {
+	if m.DeleteByUUIDFunc != nil {
+		return m.DeleteByUUIDFunc(ctx, sessionUUID, userID)
+	}
+	return nil
+}
+
+func (m *MockSessionRepository) DeleteAllOther(ctx context.Context, userID int32, currentFamilyID string) error {
+	if m.DeleteAllOtherFunc != nil {
+		return m.DeleteAllOtherFunc(ctx, userID, currentFamilyID)
+	}
+	return nil
+}
+
+func (m *MockSessionRepository) DeleteByFamilyID(ctx context.Context, familyID string) error {
+	if m.DeleteByFamilyIDFunc != nil {
+		return m.DeleteByFamilyIDFunc(ctx, familyID)
+	}
+	return nil
+}
+
+func (m *MockSessionRepository) UpdateActivity(ctx context.Context, familyID string) error {
+	if m.UpdateActivityFunc != nil {
+		return m.UpdateActivityFunc(ctx, familyID)
+	}
+	return nil
+}
+
 
 
 

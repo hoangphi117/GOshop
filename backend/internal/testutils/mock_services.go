@@ -495,17 +495,30 @@ func (m *MockPaymentProvider) Refund(ctx context.Context, req payment.RefundRequ
 
 // MockTokenService
 type MockTokenService struct {
-	GenerateAccessTokenFunc       func(user sqlc.User) (string, error)
-	GenerateRefreshTokenFunc      func(user sqlc.User) (auth.RefreshToken, error)
-	ParseTokenFunc                func(tokenString string) (*jwt.Token, jwt.MapClaims, error)
-	DecryptAccessTokenPayloadFunc func(tokenString string) (*auth.EncryptedPayload, error)
-	StoreRefreshTokenFunc         func(token auth.RefreshToken) error
-	ValidateRefreshTokenFunc      func(token string) (auth.RefreshToken, error)
-	RevokeRefreshTokenFunc        func(token string) error
-	RotateRefreshTokenFunc        func(oldToken string) (string, string, error)
+	GenerateAccessTokenFunc           func(user sqlc.User) (string, error)
+	GenerateAccessTokenWithFamilyFunc func(user sqlc.User, familyID string) (string, error)
+	GenerateRefreshTokenFunc          func(user sqlc.User) (auth.RefreshToken, error)
+	ParseTokenFunc                    func(tokenString string) (*jwt.Token, jwt.MapClaims, error)
+	DecryptAccessTokenPayloadFunc     func(tokenString string) (*auth.EncryptedPayload, error)
+	StoreRefreshTokenFunc             func(token auth.RefreshToken) error
+	ValidateRefreshTokenFunc          func(token string) (auth.RefreshToken, error)
+	RevokeRefreshTokenFunc            func(token string) error
+	RotateRefreshTokenFunc            func(oldToken string) (string, string, error)
+	RevokeTokenFamilyFunc             func(familyID string) error
+	GetTokenFamilyIDFunc              func(rawToken string) (string, error)
 }
 
 func (m *MockTokenService) GenerateAccessToken(user sqlc.User) (string, error) {
+	if m.GenerateAccessTokenFunc != nil {
+		return m.GenerateAccessTokenFunc(user)
+	}
+	return "mock-access-token", nil
+}
+
+func (m *MockTokenService) GenerateAccessTokenWithFamily(user sqlc.User, familyID string) (string, error) {
+	if m.GenerateAccessTokenWithFamilyFunc != nil {
+		return m.GenerateAccessTokenWithFamilyFunc(user, familyID)
+	}
 	if m.GenerateAccessTokenFunc != nil {
 		return m.GenerateAccessTokenFunc(user)
 	}
@@ -559,6 +572,20 @@ func (m *MockTokenService) RotateRefreshToken(oldToken string) (string, string, 
 		return m.RotateRefreshTokenFunc(oldToken)
 	}
 	return uuid.New().String(), "mock-new-refresh-token", nil
+}
+
+func (m *MockTokenService) RevokeTokenFamily(familyID string) error {
+	if m.RevokeTokenFamilyFunc != nil {
+		return m.RevokeTokenFamilyFunc(familyID)
+	}
+	return nil
+}
+
+func (m *MockTokenService) GetTokenFamilyID(rawToken string) (string, error) {
+	if m.GetTokenFamilyIDFunc != nil {
+		return m.GetTokenFamilyIDFunc(rawToken)
+	}
+	return "mock-family-id", nil
 }
 
 // MockEmailProviderService

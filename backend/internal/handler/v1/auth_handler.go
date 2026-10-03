@@ -74,7 +74,8 @@ func (ah *AuthHandler) Login(ctx *gin.Context) {
 		ip = ctx.Request.RemoteAddr
 	}
 
-	accessToken, refreshToken, expiresIn, err := ah.service.Login(ctx.Request.Context(), ip, input.Email, input.Password)
+	userAgent := ctx.GetHeader("User-Agent")
+	accessToken, refreshToken, expiresIn, err := ah.service.Login(ctx.Request.Context(), ip, userAgent, input.Email, input.Password)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -82,7 +83,7 @@ func (ah *AuthHandler) Login(ctx *gin.Context) {
 
 	cookieSecure := os.Getenv("APP_ENV") == "production"
 	ctx.SetSameSite(http.SameSiteLaxMode)
-	ctx.SetCookie("refresh_token", refreshToken, 86400, "/api/v1/auth", "", cookieSecure, true)
+	ctx.SetCookie("refresh_token", refreshToken, int(auth.RefreshTokenTTL.Seconds()), "/", "", cookieSecure, true)
 
 	response := v1dto.LoginResponse{
 		AccessToken:  accessToken,
@@ -117,6 +118,7 @@ func (ah *AuthHandler) Logout(ctx *gin.Context) {
 
 	cookieSecure := os.Getenv("APP_ENV") == "production"
 	ctx.SetSameSite(http.SameSiteLaxMode)
+	ctx.SetCookie("refresh_token", "", -1, "/", "", cookieSecure, true)
 	ctx.SetCookie("refresh_token", "", -1, "/api/v1/auth", "", cookieSecure, true)
 
 	authHeader := ctx.GetHeader("Authorization")
@@ -168,7 +170,7 @@ func (ah *AuthHandler) RefreshToken(ctx *gin.Context) {
 
 	cookieSecure := os.Getenv("APP_ENV") == "production"
 	ctx.SetSameSite(http.SameSiteLaxMode)
-	ctx.SetCookie("refresh_token", newRefreshToken, 86400, "/api/v1/auth", "", cookieSecure, true)
+	ctx.SetCookie("refresh_token", newRefreshToken, int(auth.RefreshTokenTTL.Seconds()), "/", "", cookieSecure, true)
 
 	response := v1dto.LoginResponse{
 		AccessToken:  accessToken,
@@ -241,21 +243,26 @@ func (ah *AuthHandler) GoogleLogin(ctx *gin.Context) {
 	}
 
 	ip := ctx.ClientIP()
-	accessToken, refreshToken, expiresIn, err := ah.service.GoogleLogin(ctx.Request.Context(), ip, input.IDToken)
+	if ip == "" {
+		ip = ctx.Request.RemoteAddr
+	}
+	userAgent := ctx.GetHeader("User-Agent")
+	accessToken, refreshToken, expiresIn, err := ah.service.GoogleLogin(ctx.Request.Context(), ip, userAgent, input.IDToken)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
 
-	// Set HTTP-Only Cookie for Refresh Token
+	cookieSecure := os.Getenv("APP_ENV") == "production"
+	ctx.SetSameSite(http.SameSiteLaxMode)
 	ctx.SetCookie(
 		"refresh_token",
 		refreshToken,
 		int(auth.RefreshTokenTTL.Seconds()),
 		"/",
 		"",
-		false, // true if in production, false for development
-		true,  // httpOnly
+		cookieSecure,
+		true,
 	)
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Login with Google successful", gin.H{

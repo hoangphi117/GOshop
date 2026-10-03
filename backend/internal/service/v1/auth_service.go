@@ -39,6 +39,7 @@ const (
 
 type authService struct {
 	userRepo      repository.UserRepository
+	sessionRepo   repository.SessionRepository
 	tokenService  auth.TokenService
 	cacheService  cache.RedisCacheService
 	mailService   mail.EmailProviderService
@@ -48,6 +49,7 @@ type authService struct {
 
 func NewAuthService(
 	userRepo repository.UserRepository,
+	sessionRepo repository.SessionRepository,
 	tokenService auth.TokenService,
 	cacheService cache.RedisCacheService,
 	mailService mail.EmailProviderService,
@@ -56,6 +58,7 @@ func NewAuthService(
 ) AuthService {
 	return &authService{
 		userRepo:      userRepo,
+		sessionRepo:   sessionRepo,
 		tokenService:  tokenService,
 		cacheService:  cacheService,
 		mailService:   mailService,
@@ -102,7 +105,7 @@ func (as *authService) resetLoginRateLimit(ip string) {
 
 // ----------------- Core Auth Methods -----------------
 
-func (as *authService) Login(ctx context.Context, ip string, email, password string) (string, string, int, error) {
+func (as *authService) Login(ctx context.Context, ip, userAgent string, email, password string) (string, string, int, error) {
 	if err := as.checkLoginRateLimit(ip); err != nil {
 		return "", "", 0, err
 	}
@@ -125,11 +128,6 @@ func (as *authService) Login(ctx context.Context, ip string, email, password str
 		return "", "", 0, utils.NewError(utils.ErrCodeUnauthorized, "Invalid email or password")
 	}
 
-	accessToken, err := as.tokenService.GenerateAccessToken(user)
-	if err != nil {
-		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "Failed to generate access token", err)
-	}
-
 	refreshToken, err := as.tokenService.GenerateRefreshToken(user)
 	if err != nil {
 		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "Failed to generate refresh token", err)
@@ -137,6 +135,27 @@ func (as *authService) Login(ctx context.Context, ip string, email, password str
 
 	if err := as.tokenService.StoreRefreshToken(refreshToken); err != nil {
 		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "Failed to store refresh token", err)
+	}
+
+	familyID := ""
+	if as.tokenService != nil {
+		familyID, _ = as.tokenService.GetTokenFamilyID(refreshToken.Token)
+	}
+
+	if as.sessionRepo != nil && familyID != "" {
+		deviceName := utils.ParseDeviceName(userAgent)
+		_, _ = as.sessionRepo.Create(ctx, sqlc.CreateSessionParams{
+			UserID:     user.UserID,
+			FamilyID:   familyID,
+			IpAddress:  &ip,
+			UserAgent:  &userAgent,
+			DeviceName: &deviceName,
+		})
+	}
+
+	accessToken, err := as.tokenService.GenerateAccessTokenWithFamily(user, familyID)
+	if err != nil {
+		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "Failed to generate access token", err)
 	}
 
 	as.resetLoginRateLimit(ip)
@@ -166,6 +185,12 @@ func (as *authService) Logout(ctx context.Context, accessToken string, refreshTo
 			return utils.NewError(utils.ErrCodeUnauthorized, "Refresh token is invalid or revoked")
 		}
 
+		if as.sessionRepo != nil {
+			if familyID, err := as.tokenService.GetTokenFamilyID(refreshToken); err == nil && familyID != "" {
+				_ = as.sessionRepo.DeleteByFamilyID(ctx, familyID)
+			}
+		}
+
 		if err := as.tokenService.RevokeRefreshToken(refreshToken); err != nil {
 			return utils.WrapError(utils.ErrCodeInternal, "Failed to revoke old refresh token", err)
 		}
@@ -190,9 +215,18 @@ func (as *authService) RefreshToken(ctx context.Context, refreshToken string) (s
 		return "", "", 0, utils.NewError(utils.ErrCodeNotFound, "User not found")
 	}
 
-	accessToken, err := as.tokenService.GenerateAccessToken(user)
+	familyID := ""
+	if as.tokenService != nil {
+		familyID, _ = as.tokenService.GetTokenFamilyID(newRefreshToken)
+	}
+
+	accessToken, err := as.tokenService.GenerateAccessTokenWithFamily(user, familyID)
 	if err != nil {
 		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "Failed to generate access token", err)
+	}
+
+	if as.sessionRepo != nil && familyID != "" {
+		_ = as.sessionRepo.UpdateActivity(ctx, familyID)
 	}
 
 	return accessToken, newRefreshToken, int(auth.AccessTokenTTL.Seconds()), nil
@@ -419,7 +453,7 @@ func (as *authService) findOrCreateGoogleUser(ctx context.Context, payload *v1dt
 	return newUser, nil
 }
 
-func (as *authService) GoogleLogin(ctx context.Context, ip, idToken string) (string, string, int, error) {
+func (as *authService) GoogleLogin(ctx context.Context, ip, userAgent, idToken string) (string, string, int, error) {
 	if err := as.checkLoginRateLimit(ip); err != nil {
 		return "", "", 0, err
 	}
@@ -441,11 +475,6 @@ func (as *authService) GoogleLogin(ctx context.Context, ip, idToken string) (str
 	}
 
 	// Generate access and refresh tokens
-	accessToken, err := as.tokenService.GenerateAccessToken(user)
-	if err != nil {
-		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "Failed to generate access token", err)
-	}
-
 	refreshToken, err := as.tokenService.GenerateRefreshToken(user)
 	if err != nil {
 		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "Failed to generate refresh token", err)
@@ -455,9 +484,29 @@ func (as *authService) GoogleLogin(ctx context.Context, ip, idToken string) (str
 		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "Failed to store refresh token", err)
 	}
 
+	familyID := ""
+	if as.tokenService != nil {
+		familyID, _ = as.tokenService.GetTokenFamilyID(refreshToken.Token)
+	}
+
+	if as.sessionRepo != nil && familyID != "" {
+		deviceName := utils.ParseDeviceName(userAgent)
+		_, _ = as.sessionRepo.Create(ctx, sqlc.CreateSessionParams{
+			UserID:     user.UserID,
+			FamilyID:   familyID,
+			IpAddress:  &ip,
+			UserAgent:  &userAgent,
+			DeviceName: &deviceName,
+		})
+	}
+
+	accessToken, err := as.tokenService.GenerateAccessTokenWithFamily(user, familyID)
+	if err != nil {
+		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "Failed to generate access token", err)
+	}
+
 	// Reset rate limit after successful login
 	as.resetLoginRateLimit(ip)
 
 	return accessToken, refreshToken.Token, int(auth.AccessTokenTTL.Seconds()), nil
-
 }

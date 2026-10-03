@@ -341,6 +341,18 @@ type UserAddress struct {
 	UaWardName     *string   `json:"ua_ward_name"`
 }
 
+type UserSession struct {
+	SessionID    int32     `json:"session_id"`
+	SessionUuid  uuid.UUID `json:"session_uuid"`
+	UserID       int32     `json:"user_id"`
+	FamilyID     string    `json:"family_id"`
+	IpAddress    *string   `json:"ip_address"`
+	UserAgent    *string   `json:"user_agent"`
+	DeviceName   *string   `json:"device_name"`
+	LastActiveAt time.Time `json:"last_active_at"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
 type WebhookEvent struct {
 	WeID              int32     `json:"we_id"`
 	WeProvider        string    `json:"we_provider"`

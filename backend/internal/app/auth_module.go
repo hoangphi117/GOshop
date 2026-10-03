@@ -20,9 +20,10 @@ func NewAuthModule(ctx *ModuleContext, tokenService auth.TokenService, cacheServ
 
 	// Initialize repository
 	userRepo := repository.NewSqlUserRepository(ctx.DB)
+	sessionRepo := repository.NewSqlSessionRepository(ctx.DB)
 
 	// Initialize service
-	authService := v1service.NewAuthService(userRepo, tokenService, cacheService, mailService, rabbitmqService, storefrontURL)
+	authService := v1service.NewAuthService(userRepo, sessionRepo, tokenService, cacheService, mailService, rabbitmqService, storefrontURL)
 
 	// Initialize handler
 	authHandler := v1handler.NewAuthHandler(authService)

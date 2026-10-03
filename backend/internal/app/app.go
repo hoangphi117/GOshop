@@ -106,7 +106,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	}
 
 	modules := []Module{
-		NewUserModule(ctx),
+		NewUserModule(ctx, tokenService),
 		NewProductModule(ctx),
 		NewOrderModule(ctx, wsHub, rabbitmqService),
 		NewCartModule(ctx),

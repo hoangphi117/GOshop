@@ -67,11 +67,13 @@ type Querier interface {
 	CreateProduct(ctx context.Context, arg CreateProductParams) (CreateProductRow, error)
 	CreateRefundTransaction(ctx context.Context, arg CreateRefundTransactionParams) (PaymentTransaction, error)
 	CreateReview(ctx context.Context, arg CreateReviewParams) (ProductReview, error)
+	CreateSession(ctx context.Context, arg CreateSessionParams) (UserSession, error)
 	CreateStockMovement(ctx context.Context, arg CreateStockMovementParams) (StockMovement, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	CreateUserAddress(ctx context.Context, arg CreateUserAddressParams) (UserAddress, error)
 	DecrementHelpfulCount(ctx context.Context, reviewID int32) (int32, error)
 	DeductStock(ctx context.Context, arg DeductStockParams) (int64, error)
+	DeleteAllOtherSessions(ctx context.Context, arg DeleteAllOtherSessionsParams) error
 	DeleteCartItemByUUID(ctx context.Context, arg DeleteCartItemByUUIDParams) (CartItem, error)
 	// Dùng cho bước "dọn giỏ hàng sau khi đặt" — xóa CHỌN
 	// LỌC theo danh sách product_id có trong đơn vừa tạo, không xóa sạch toàn bộ giỏ.
@@ -81,6 +83,8 @@ type Querier interface {
 	DeleteOldNotifications(ctx context.Context, notificationCreatedAt time.Time) (int64, error)
 	DeleteReview(ctx context.Context, reviewID int32) error
 	DeleteReviewReportsByReviewID(ctx context.Context, reviewID int32) error
+	DeleteSessionByFamilyID(ctx context.Context, familyID string) error
+	DeleteSessionByUUID(ctx context.Context, arg DeleteSessionByUUIDParams) error
 	DeleteUserAddress(ctx context.Context, arg DeleteUserAddressParams) (bool, error)
 	GetActiveAdminUserIDs(ctx context.Context) ([]int32, error)
 	GetActiveBannersByPosition(ctx context.Context, bannerPosition string) ([]GetActiveBannersByPositionRow, error)
@@ -147,6 +151,8 @@ type Querier interface {
 	GetReviewByUUID(ctx context.Context, reviewUuid uuid.UUID) (GetReviewByUUIDRow, error)
 	GetReviewReportsByReviewID(ctx context.Context, reviewID int32) ([]GetReviewReportsByReviewIDRow, error)
 	GetReviewsByUserID(ctx context.Context, arg GetReviewsByUserIDParams) ([]GetReviewsByUserIDRow, error)
+	GetSessionByFamilyID(ctx context.Context, familyID string) (UserSession, error)
+	GetSessionByUUID(ctx context.Context, sessionUuid uuid.UUID) (UserSession, error)
 	GetTopReturnedProducts(ctx context.Context, arg GetTopReturnedProductsParams) ([]GetTopReturnedProductsRow, error)
 	GetTopSellingProducts(ctx context.Context, arg GetTopSellingProductsParams) ([]GetTopSellingProductsRow, error)
 	GetTopSellingProductsCustom(ctx context.Context, arg GetTopSellingProductsCustomParams) ([]GetTopSellingProductsCustomRow, error)
@@ -171,6 +177,7 @@ type Querier interface {
 	ListConversations(ctx context.Context, arg ListConversationsParams) ([]ListConversationsRow, error)
 	ListMessages(ctx context.Context, arg ListMessagesParams) ([]ChatMessage, error)
 	ListMessagesCursor(ctx context.Context, arg ListMessagesCursorParams) ([]ChatMessage, error)
+	ListSessionsByUserID(ctx context.Context, userID int32) ([]UserSession, error)
 	ListStockMovements(ctx context.Context, arg ListStockMovementsParams) ([]ListStockMovementsRow, error)
 	ListUserUserCreatedAtAsc(ctx context.Context, arg ListUserUserCreatedAtAscParams) ([]User, error)
 	ListUserUserCreatedAtDesc(ctx context.Context, arg ListUserUserCreatedAtDescParams) ([]User, error)
@@ -224,6 +231,7 @@ type Querier interface {
 	UpdateReturnStatus(ctx context.Context, arg UpdateReturnStatusParams) (OrderReturn, error)
 	UpdateReview(ctx context.Context, arg UpdateReviewParams) (ProductReview, error)
 	UpdateReviewStatus(ctx context.Context, arg UpdateReviewStatusParams) (ProductReview, error)
+	UpdateSessionActivity(ctx context.Context, familyID string) error
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 	UpdateUserAddress(ctx context.Context, arg UpdateUserAddressParams) (UserAddress, error)
 	UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarParams) (User, error)

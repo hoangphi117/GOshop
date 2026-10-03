@@ -42,6 +42,7 @@ type RefreshTokenRotator interface {
 	RotateToken(oldRawToken string) (userUUID string, newRawToken string, err error)
 	RevokeToken(rawToken string) error
 	RevokeFamily(familyID string) error
+	GetFamilyID(rawToken string) (string, error)
 }
 
 type redisRefreshTokenRotator struct {
@@ -176,6 +177,7 @@ func (r *redisRefreshTokenRotator) RevokeToken(rawToken string) error {
 	var rtData RefreshTokenData
 	if err := r.cache.Get(tokenKey, &rtData); err == nil && rtData.FamilyID != "" {
 		_ = r.cache.Del("rt:family:" + rtData.FamilyID)
+		_ = r.cache.Set("blacklist:family:"+rtData.FamilyID, "revoked", 15*time.Minute)
 	}
 	return r.cache.Del(tokenKey)
 }
@@ -184,5 +186,18 @@ func (r *redisRefreshTokenRotator) RevokeFamily(familyID string) error {
 	if familyID == "" || r.cache == nil {
 		return nil
 	}
-	return r.cache.Del("rt:family:" + familyID)
+	_ = r.cache.Del("rt:family:" + familyID)
+	return r.cache.Set("blacklist:family:"+familyID, "revoked", 15*time.Minute)
+}
+
+func (r *redisRefreshTokenRotator) GetFamilyID(rawToken string) (string, error) {
+	if rawToken == "" || r.cache == nil {
+		return "", nil
+	}
+	tokenHash := HashToken(rawToken)
+	var rtData RefreshTokenData
+	if err := r.cache.Get("rt:"+tokenHash, &rtData); err != nil {
+		return "", err
+	}
+	return rtData.FamilyID, nil
 }
