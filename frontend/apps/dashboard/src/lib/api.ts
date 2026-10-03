@@ -1,11 +1,14 @@
 import { createApiClient } from '@goshop/api-client'
 import { useAuthStore } from '@/stores/auth-store'
 
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/+$/, '')
+export const API_KEY = import.meta.env.VITE_API_KEY || ''
+
 export const api = createApiClient({
-  baseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080',
+  baseUrl: API_BASE_URL,
   getToken: () => useAuthStore.getState().auth.accessToken,
   getRefreshToken: () => useAuthStore.getState().auth.refreshToken,
-  getApiKey: () => import.meta.env.VITE_API_KEY || 'abcd-1234-1111',
+  getApiKey: () => API_KEY,
   onTokenRefreshed: (tokens) => {
     useAuthStore.getState().auth.setTokens(tokens.accessToken, tokens.refreshToken)
   },
@@ -17,8 +20,8 @@ export const api = createApiClient({
 export type ApiInstance = typeof api
 
 export async function fetchWithAuth(path: string, options: RequestInit = {}): Promise<Response> {
-  const baseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/+$/, '')
-  const apiKey = import.meta.env.VITE_API_KEY || 'abcd-1234-1111'
+  const baseUrl = API_BASE_URL
+  const apiKey = API_KEY
   let token = useAuthStore.getState().auth.accessToken
 
   const getHeaders = (currToken: string) => {

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { useAuthStore } from '@/stores/auth-store'
-import { authFetch } from '@/lib/api'
+import { authFetch, API_BASE_URL, API_KEY } from '@/lib/api'
 import { extractErrorMessage } from '@/lib/utils'
 import { MapPin, Plus, Trash2, CheckCircle2, Home, Building2, Tag, Loader2, X } from 'lucide-react'
 import { toast } from 'sonner'
@@ -73,13 +73,10 @@ export default function AddressesPage() {
   const [isLoadingDistricts, setIsLoadingDistricts] = useState(false)
   const [isLoadingWards, setIsLoadingWards] = useState(false)
 
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
-  const apiKey = process.env.NEXT_PUBLIC_API_KEY || 'abcd-1234-1111'
-
   const fetchAddresses = useCallback(async () => {
     if (!accessToken) return
     try {
-      const res = await authFetch(`${baseUrl}/api/v1/addresses`)
+      const res = await authFetch('/api/v1/addresses')
       if (res.ok) {
         const json = await res.json()
         if (json?.data && Array.isArray(json.data)) {
@@ -93,7 +90,7 @@ export default function AddressesPage() {
     } finally {
       setLoading(false)
     }
-  }, [accessToken, baseUrl])
+  }, [accessToken])
 
   useEffect(() => {
     fetchAddresses()
@@ -102,8 +99,8 @@ export default function AddressesPage() {
   // Load provinces on mount
   useEffect(() => {
     setIsLoadingProvinces(true)
-    fetch(`${baseUrl}/api/v1/shipping/provinces`, {
-      headers: { 'x-api-key': apiKey },
+    fetch(`${API_BASE_URL}/api/v1/shipping/provinces`, {
+      headers: { 'x-api-key': API_KEY },
     })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
@@ -116,7 +113,7 @@ export default function AddressesPage() {
       })
       .catch(() => {})
       .finally(() => setIsLoadingProvinces(false))
-  }, [baseUrl, apiKey])
+  }, [])
 
   const loadDistricts = async (pId: number) => {
     setIsLoadingDistricts(true)
@@ -128,8 +125,8 @@ export default function AddressesPage() {
     setWardName('')
 
     try {
-      const res = await fetch(`${baseUrl}/api/v1/shipping/districts?province_id=${pId}`, {
-        headers: { 'x-api-key': apiKey },
+      const res = await fetch(`${API_BASE_URL}/api/v1/shipping/districts?province_id=${pId}`, {
+        headers: { 'x-api-key': API_KEY },
       })
       if (res.ok) {
         const json = await res.json()
@@ -154,8 +151,8 @@ export default function AddressesPage() {
     setWardName('')
 
     try {
-      const res = await fetch(`${baseUrl}/api/v1/shipping/wards?district_id=${dId}`, {
-        headers: { 'x-api-key': apiKey },
+      const res = await fetch(`${API_BASE_URL}/api/v1/shipping/wards?district_id=${dId}`, {
+        headers: { 'x-api-key': API_KEY },
       })
       if (res.ok) {
         const json = await res.json()
@@ -279,7 +276,7 @@ export default function AddressesPage() {
     }
 
     try {
-      const res = await authFetch(`${baseUrl}/api/v1/addresses`, {
+      const res = await authFetch('/api/v1/addresses', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -324,7 +321,7 @@ export default function AddressesPage() {
 
     setDeletingUuid(uuid)
     try {
-      const res = await authFetch(`${baseUrl}/api/v1/addresses/${uuid}`, {
+      const res = await authFetch(`/api/v1/addresses/${uuid}`, {
         method: 'DELETE',
       })
 
@@ -345,7 +342,7 @@ export default function AddressesPage() {
 
   const handleSetDefault = async (uuid: string) => {
     try {
-      const res = await authFetch(`${baseUrl}/api/v1/addresses/${uuid}/default`, {
+      const res = await authFetch(`/api/v1/addresses/${uuid}/default`, {
         method: 'PATCH',
       })
 

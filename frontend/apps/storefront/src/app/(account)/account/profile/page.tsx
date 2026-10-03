@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { useAuthStore } from '@/stores/auth-store'
+import { authFetch } from '@/lib/api'
 import { User, Mail, Phone, Shield, Save, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -17,12 +18,7 @@ export default function ProfilePage() {
   useEffect(() => {
     if (!accessToken) return
 
-    fetch('http://localhost:8080/api/v1/users/me', {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'X-API-KEY': 'abcd-1234-1111',
-      },
-    })
+    authFetch('/api/v1/users/me')
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.data) {
@@ -51,12 +47,10 @@ export default function ProfilePage() {
     setLoading(true)
 
     try {
-      const res = await fetch('http://localhost:8080/api/v1/users/me', {
+      const res = await authFetch('/api/v1/users/me', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-          'X-API-KEY': 'abcd-1234-1111',
         },
         body: JSON.stringify({
           full_name: fullName,

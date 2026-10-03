@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Store, Lock, Mail, User, ArrowRight, ShieldCheck, AlertCircle } from 'lucide-react'
 import { GoogleLoginButton } from '@/components/auth/google-login-button'
+import { API_BASE_URL, API_KEY } from '@/lib/api'
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -56,12 +57,11 @@ export default function RegisterPage() {
     setLoading(true)
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
-      const res = await fetch(`${baseUrl}/api/v1/auth/register`, {
+      const res = await fetch(`${API_BASE_URL}/api/v1/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-API-KEY': process.env.NEXT_PUBLIC_API_KEY || 'abcd-1234-1111',
+          'X-API-KEY': API_KEY,
         },
         body: JSON.stringify({
           email: email.trim(),

@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react'
 import { useAuthStore } from '@/stores/auth-store'
+import { authFetch } from '@/lib/api'
 import { Shield, Lock, CheckCircle2, KeyRound } from 'lucide-react'
 import { toast } from 'sonner'
 import { SessionDeviceManager } from '@/components/account/session-device-manager'
@@ -30,12 +31,10 @@ export default function SecurityPage() {
     setLoading(true)
 
     try {
-      const res = await fetch('http://localhost:8080/api/v1/users/me/change-password', {
+      const res = await authFetch('/api/v1/users/me/change-password', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-          'X-API-KEY': 'abcd-1234-1111',
         },
         body: JSON.stringify({
           current_password: currentPassword,

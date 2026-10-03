@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react'
 import Script from 'next/script'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth-store'
+import { API_BASE_URL, API_KEY } from '@/lib/api'
 
 interface GoogleLoginButtonProps {
   text?: 'signin_with' | 'signup_with' | 'continue_with'
@@ -63,12 +64,11 @@ export function GoogleLoginButton({
 
       setLoading(true)
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
-        const res = await fetch(`${baseUrl}/api/v1/auth/google-login`, {
+        const res = await fetch(`${API_BASE_URL}/api/v1/auth/google-login`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-API-KEY': process.env.NEXT_PUBLIC_API_KEY || 'abcd-1234-1111',
+            'X-API-KEY': API_KEY,
           },
           credentials: 'include',
           body: JSON.stringify({ id_token: idToken }),
@@ -86,10 +86,10 @@ export function GoogleLoginButton({
 
         // Fetch user profile
         try {
-          const profileRes = await fetch(`${baseUrl}/api/v1/users/me`, {
+          const profileRes = await fetch(`${API_BASE_URL}/api/v1/users/me`, {
             headers: {
               Authorization: `Bearer ${accessToken}`,
-              'X-API-KEY': process.env.NEXT_PUBLIC_API_KEY || 'abcd-1234-1111',
+              'X-API-KEY': API_KEY,
             },
           })
           if (profileRes.ok) {

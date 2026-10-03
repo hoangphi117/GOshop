@@ -11,7 +11,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCartStore } from "@/stores/cart-store";
 import { useAuthStore } from "@/stores/auth-store";
-import { authFetch } from "@/lib/api";
+import { authFetch, API_BASE_URL, API_KEY } from "@/lib/api";
 import { formatCurrency } from "@/lib/format";
 import { getImageUrl, extractErrorMessage } from "@/lib/utils";
 import {
@@ -209,16 +209,10 @@ function CheckoutContent() {
     setIsApplyingCoupon(true);
 
     try {
-      const baseUrl =
-        process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-      const apiKey = process.env.NEXT_PUBLIC_API_KEY || "abcd-1234-1111";
-
-      const res = await fetch(`${baseUrl}/api/v1/coupons/preview`, {
+      const res = await authFetch('/api/v1/coupons/preview', {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-API-KEY": apiKey,
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
         body: JSON.stringify({
           code,
@@ -277,13 +271,9 @@ function CheckoutContent() {
       }
 
       try {
-        const baseUrl =
-          process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-        const apiKey = process.env.NEXT_PUBLIC_API_KEY || "abcd-1234-1111";
-
         const res = await fetch(
-          `${baseUrl}/api/v1/shipping/wards?district_id=${districtId}`,
-          { headers: { "x-api-key": apiKey } },
+          `${API_BASE_URL}/api/v1/shipping/wards?district_id=${districtId}`,
+          { headers: { "x-api-key": API_KEY } },
         );
         if (res.ok) {
           const json = await res.json();
@@ -328,13 +318,9 @@ function CheckoutContent() {
       }
 
       try {
-        const baseUrl =
-          process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-        const apiKey = process.env.NEXT_PUBLIC_API_KEY || "abcd-1234-1111";
-
         const res = await fetch(
-          `${baseUrl}/api/v1/shipping/districts?province_id=${provinceId}`,
-          { headers: { "x-api-key": apiKey } },
+          `${API_BASE_URL}/api/v1/shipping/districts?province_id=${provinceId}`,
+          { headers: { "x-api-key": API_KEY } },
         );
         if (res.ok) {
           const json = await res.json();
@@ -396,13 +382,10 @@ function CheckoutContent() {
   useEffect(() => {
     if (!mounted) return;
 
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-    const apiKey = process.env.NEXT_PUBLIC_API_KEY || "abcd-1234-1111";
-
     // Fetch Provinces
     setIsLoadingProvinces(true);
-    fetch(`${baseUrl}/api/v1/shipping/provinces`, {
-      headers: { "x-api-key": apiKey },
+    fetch(`${API_BASE_URL}/api/v1/shipping/provinces`, {
+      headers: { "x-api-key": API_KEY },
     })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
@@ -419,7 +402,7 @@ function CheckoutContent() {
 
     // Fetch Saved Addresses if logged in
     if (accessToken) {
-      authFetch(`${baseUrl}/api/v1/addresses`)
+      authFetch('/api/v1/addresses')
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
           if (data?.data && Array.isArray(data.data) && data.data.length > 0) {
@@ -449,13 +432,9 @@ function CheckoutContent() {
       setIsLoadingModalWards(true);
       setModalWards([]);
       try {
-        const baseUrl =
-          process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-        const apiKey = process.env.NEXT_PUBLIC_API_KEY || "abcd-1234-1111";
-
         const res = await fetch(
-          `${baseUrl}/api/v1/shipping/wards?district_id=${districtId}`,
-          { headers: { "x-api-key": apiKey } },
+          `${API_BASE_URL}/api/v1/shipping/wards?district_id=${districtId}`,
+          { headers: { "x-api-key": API_KEY } },
         );
         if (res.ok) {
           const json = await res.json();
@@ -492,13 +471,9 @@ function CheckoutContent() {
       setModalDistricts([]);
       setModalWards([]);
       try {
-        const baseUrl =
-          process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-        const apiKey = process.env.NEXT_PUBLIC_API_KEY || "abcd-1234-1111";
-
         const res = await fetch(
-          `${baseUrl}/api/v1/shipping/districts?province_id=${provinceId}`,
-          { headers: { "x-api-key": apiKey } },
+          `${API_BASE_URL}/api/v1/shipping/districts?province_id=${provinceId}`,
+          { headers: { "x-api-key": API_KEY } },
         );
         if (res.ok) {
           const json = await res.json();
@@ -854,15 +829,11 @@ function CheckoutContent() {
       setShippingError(null);
 
       try {
-        const baseUrl =
-          process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-        const apiKey = process.env.NEXT_PUBLIC_API_KEY || "abcd-1234-1111";
-
-        const res = await fetch(`${baseUrl}/api/v1/shipping/calculate-fee`, {
+        const res = await fetch(`${API_BASE_URL}/api/v1/shipping/calculate-fee`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-api-key": apiKey,
+            "x-api-key": API_KEY,
           },
           body: JSON.stringify({
             provider: "ghn",
@@ -953,14 +924,6 @@ function CheckoutContent() {
     setIsSubmitting(true);
 
     try {
-      const baseUrl =
-        process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        "X-API-KEY": process.env.NEXT_PUBLIC_API_KEY || "abcd-1234-1111",
-        Authorization: `Bearer ${accessToken}`,
-      };
-
       const fullShippingAddress = `${address.trim()}, ${selectedWardName}, ${selectedDistrictName}, ${selectedProvinceName}`;
 
       const orderPayload = {
@@ -977,7 +940,7 @@ function CheckoutContent() {
         })),
       };
 
-      const res = await authFetch(`${baseUrl}/api/v1/orders`, {
+      const res = await authFetch('/api/v1/orders', {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1011,7 +974,7 @@ function CheckoutContent() {
       if (paymentMethod === "MOMO" && createdOrderUuid) {
         try {
           const paymentRes = await authFetch(
-            `${baseUrl}/api/v1/payments/create-intent`,
+            '/api/v1/payments/create-intent',
             {
               method: "POST",
               headers: {

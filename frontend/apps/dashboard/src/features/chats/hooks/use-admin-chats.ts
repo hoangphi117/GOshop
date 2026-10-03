@@ -1,7 +1,7 @@
 import { useRef, useCallback, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/auth-store'
-import { fetchWithAuth } from '@/lib/api'
+import { fetchWithAuth, API_BASE_URL, API_KEY } from '@/lib/api'
 import { useChatTypingStore } from '../stores/chat-typing-store'
 import type {
   ConversationItem,
@@ -13,9 +13,6 @@ import {
   showChatWebNotification,
   formatAdminNotificationSnippet,
 } from '../lib/chat-notifications'
-
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
 
 export interface SendMessagePayload {
   conversationUUID: string
@@ -36,8 +33,7 @@ export async function uploadChatFile(
   form.append('file', file)
   form.append('folder', 'chat')
   const token = getToken()
-  const apiKey = import.meta.env.VITE_API_KEY || 'abcd-1234-1111'
-  const headers: Record<string, string> = { 'X-API-KEY': apiKey }
+  const headers: Record<string, string> = { 'X-API-KEY': API_KEY }
   if (token) headers['Authorization'] = `Bearer ${token}`
   const res = await fetch(`${API_BASE_URL}/api/v1/upload`, {
     method: 'POST',

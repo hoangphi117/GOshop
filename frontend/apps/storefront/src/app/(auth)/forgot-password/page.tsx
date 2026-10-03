@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import Link from 'next/link'
 import { Store, Mail, ArrowRight, ArrowLeft, ShieldCheck, CheckCircle2, AlertCircle } from 'lucide-react'
 import { extractErrorMessage } from '@/lib/utils'
+import { API_BASE_URL, API_KEY } from '@/lib/api'
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
@@ -35,14 +36,11 @@ export default function ForgotPasswordPage() {
     setLoading(true)
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
-      const apiKey = process.env.NEXT_PUBLIC_API_KEY || 'abcd-1234-1111'
-
-      const res = await fetch(`${baseUrl}/api/v1/auth/forgot-password`, {
+      const res = await fetch(`${API_BASE_URL}/api/v1/auth/forgot-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-API-KEY': apiKey,
+          'X-API-KEY': API_KEY,
         },
         body: JSON.stringify({ email: email.trim().toLowerCase() }),
       })

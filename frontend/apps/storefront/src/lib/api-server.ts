@@ -73,7 +73,7 @@ const SERVER_API_BASE = RAW_SERVER_API_BASE.endsWith('/api/v1')
 const API_KEY =
   process.env.API_KEY ||
   process.env.NEXT_PUBLIC_API_KEY ||
-  'abcd-1234-1111'
+  ''
 
 export async function fetchServer<T>(
   path: string,

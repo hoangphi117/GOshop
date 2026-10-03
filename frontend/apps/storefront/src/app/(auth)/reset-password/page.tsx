@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Store, Lock, KeyRound, ArrowRight, ArrowLeft, ShieldCheck, CheckCircle2, AlertCircle, Eye, EyeOff, RefreshCw } from 'lucide-react'
 import { extractErrorMessage } from '@/lib/utils'
+import { API_BASE_URL, API_KEY } from '@/lib/api'
 
 function ResetPasswordForm() {
   const router = useRouter()
@@ -62,14 +63,11 @@ function ResetPasswordForm() {
     setLoading(true)
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
-      const apiKey = process.env.NEXT_PUBLIC_API_KEY || 'abcd-1234-1111'
-
-      const res = await fetch(`${baseUrl}/api/v1/auth/reset-password`, {
+      const res = await fetch(`${API_BASE_URL}/api/v1/auth/reset-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-API-KEY': apiKey,
+          'X-API-KEY': API_KEY,
         },
         body: JSON.stringify({
           token: token.trim(),

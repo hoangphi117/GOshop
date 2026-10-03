@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth-store'
 import { Store, Lock, Mail, ArrowRight, ShieldCheck, AlertCircle } from 'lucide-react'
 import { GoogleLoginButton } from '@/components/auth/google-login-button'
+import { API_BASE_URL, API_KEY } from '@/lib/api'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -44,12 +45,11 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
-      const res = await fetch(`${baseUrl}/api/v1/auth/login`, {
+      const res = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-API-KEY': process.env.NEXT_PUBLIC_API_KEY || 'abcd-1234-1111',
+          'X-API-KEY': API_KEY,
         },
         credentials: 'include',
         body: JSON.stringify({ email: email.trim(), password }),

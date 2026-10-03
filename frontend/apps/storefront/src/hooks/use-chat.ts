@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { authFetch, API_BASE_URL } from "@/lib/api";
+import { authFetch, API_BASE_URL, API_KEY } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 import { useChatUIStore } from "@/stores/chat-ui-store";
 import {
@@ -89,8 +89,7 @@ export async function uploadChatFile(
   const form = new FormData();
   form.append("file", file);
   form.append("folder", "chat");
-  const apiKey = process.env.NEXT_PUBLIC_API_KEY || "abcd-1234-1111";
-  const headers: Record<string, string> = { "X-API-KEY": apiKey };
+  const headers: Record<string, string> = { "X-API-KEY": API_KEY };
   if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
   const res = await fetch(`${API_BASE_URL}/api/v1/upload`, {
     method: "POST",

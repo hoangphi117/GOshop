@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next'
+import { API_BASE_URL, API_KEY } from '@/lib/api'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3001'
@@ -28,10 +29,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // Attempt to fetch dynamic products list for sitemap if available
   try {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
-    const apiKey = process.env.NEXT_PUBLIC_API_KEY || 'abcd-1234-1111'
-    const res = await fetch(`${apiUrl}/api/v1/products?page=1&limit=50`, {
-      headers: { 'X-API-KEY': apiKey },
+    const res = await fetch(`${API_BASE_URL}/api/v1/products?page=1&limit=50`, {
+      headers: { 'X-API-KEY': API_KEY },
       next: { revalidate: 3600 },
     })
 

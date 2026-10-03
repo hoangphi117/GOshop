@@ -1,11 +1,12 @@
-'use client'
+"use client";
 
-import React, { useState } from 'react'
-import Link from 'next/link'
-import { useCartStore } from '@/stores/cart-store'
-import { useAuthStore } from '@/stores/auth-store'
-import { formatCurrency } from '@/lib/format'
-import { getImageUrl } from '@/lib/utils'
+import React, { useState } from "react";
+import Link from "next/link";
+import { useCartStore } from "@/stores/cart-store";
+import { useAuthStore } from "@/stores/auth-store";
+import { formatCurrency } from "@/lib/format";
+import { getImageUrl } from "@/lib/utils";
+import { authFetch } from "@/lib/api";
 import {
   ShoppingCart,
   Trash2,
@@ -20,9 +21,9 @@ import {
   AlertTriangle,
   CheckCircle2,
   Sparkles,
-} from 'lucide-react'
-import { toast } from 'sonner'
-import { useMounted } from '@/hooks/use-mounted'
+} from "lucide-react";
+import { toast } from "sonner";
+import { useMounted } from "@/hooks/use-mounted";
 
 export default function CartPage() {
   const {
@@ -38,20 +39,20 @@ export default function CartPage() {
     removeUnavailableItems,
     appliedCoupon,
     setAppliedCoupon,
-  } = useCartStore()
-  const { user, accessToken } = useAuthStore()
+  } = useCartStore();
+  const { user, accessToken } = useAuthStore();
 
-  const mounted = useMounted()
-  const [couponCode, setCouponCode] = useState('')
-  const [isApplyingCoupon, setIsApplyingCoupon] = useState(false)
-  const [showClearConfirm, setShowClearConfirm] = useState(false)
+  const mounted = useMounted();
+  const [couponCode, setCouponCode] = useState("");
+  const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   if (!mounted) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="w-8 h-8 rounded-full border-2 border-[#2196F3] border-t-transparent animate-spin" />
       </div>
-    )
+    );
   }
 
   if (!user || !accessToken) {
@@ -65,7 +66,8 @@ export default function CartPage() {
             Sign In Required
           </h1>
           <p className="text-sm text-slate-500 leading-relaxed">
-            Please sign in to your GOshop account to view and manage your shopping cart.
+            Please sign in to your GOshop account to view and manage your
+            shopping cart.
           </p>
           <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link
@@ -83,95 +85,99 @@ export default function CartPage() {
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   const availableItems = items.filter(
-    (item) => item.isAvailable !== false && item.stockQuantity > 0
-  )
+    (item) => item.isAvailable !== false && item.stockQuantity > 0,
+  );
   const unavailableItems = items.filter(
-    (item) => item.isAvailable === false || item.stockQuantity <= 0
-  )
+    (item) => item.isAvailable === false || item.stockQuantity <= 0,
+  );
 
-  const selectedItems = availableItems.filter((item) => item.selected !== false)
-  const selectedCount = selectedItems.length
+  const selectedItems = availableItems.filter(
+    (item) => item.selected !== false,
+  );
+  const selectedCount = selectedItems.length;
   const allSelected =
-    availableItems.length > 0 && selectedCount === availableItems.length
+    availableItems.length > 0 && selectedCount === availableItems.length;
 
   const subtotal = selectedItems.reduce(
     (total, item) => total + item.price * item.quantity,
-    0
-  )
-  const discountAmount = appliedCoupon ? appliedCoupon.discountAmount : 0
-  const grandTotal = Math.max(0, subtotal - discountAmount)
+    0,
+  );
+  const discountAmount = appliedCoupon ? appliedCoupon.discountAmount : 0;
+  const grandTotal = Math.max(0, subtotal - discountAmount);
 
   const handleApplyCoupon = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!couponCode.trim()) return
+    e.preventDefault();
+    if (!couponCode.trim()) return;
 
-    const code = couponCode.trim().toUpperCase()
+    const code = couponCode.trim().toUpperCase();
 
     if (!accessToken) {
-      toast.error('Please sign in to apply coupon codes.')
-      return
+      toast.error("Please sign in to apply coupon codes.");
+      return;
     }
 
     if (subtotal <= 0) {
-      toast.error('Please select valid in-stock items before applying a coupon.')
-      return
+      toast.error(
+        "Please select valid in-stock items before applying a coupon.",
+      );
+      return;
     }
 
-    setIsApplyingCoupon(true)
+    setIsApplyingCoupon(true);
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
-      const res = await fetch(`${baseUrl}/api/v1/coupons/preview`, {
-        method: 'POST',
+      const res = await authFetch('/api/v1/coupons/preview', {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'X-API-KEY': process.env.NEXT_PUBLIC_API_KEY || 'abcd-1234-1111',
-          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           code,
           subtotal_amount: subtotal,
         }),
-      })
+      });
 
-      const data = await res.json().catch(() => null)
+      const data = await res.json().catch(() => null);
 
       if (res.ok && data?.data) {
         setAppliedCoupon({
           code: data.data.coupon_code,
           name: data.data.coupon_name,
           discountAmount: data.data.discount_amount,
-        })
+        });
         toast.success(
-          `Coupon ${data.data.coupon_code} applied! Saved ${formatCurrency(data.data.discount_amount)}.`
-        )
-        setCouponCode('')
+          `Coupon ${data.data.coupon_code} applied! Saved ${formatCurrency(data.data.discount_amount)}.`,
+        );
+        setCouponCode("");
       } else {
         const errMsg =
-          data?.detail || data?.error || data?.message || 'Invalid or expired coupon code.'
-        toast.error(errMsg)
+          data?.detail ||
+          data?.error ||
+          data?.message ||
+          "Invalid or expired coupon code.";
+        toast.error(errMsg);
       }
     } catch {
-      toast.error('Network error while verifying coupon.')
+      toast.error("Network error while verifying coupon.");
     } finally {
-      setIsApplyingCoupon(false)
+      setIsApplyingCoupon(false);
     }
-  }
+  };
 
   const handleRemoveCoupon = () => {
-    setAppliedCoupon(null)
-    setCouponCode('')
-    toast.info('Coupon removed.')
-  }
+    setAppliedCoupon(null);
+    setCouponCode("");
+    toast.info("Coupon removed.");
+  };
 
   const handleClearCart = async () => {
-    await clearCart()
-    setShowClearConfirm(false)
-    toast.info('Your cart has been cleared.')
-  }
+    await clearCart();
+    setShowClearConfirm(false);
+    toast.info("Your cart has been cleared.");
+  };
 
   if (items.length === 0) {
     return (
@@ -184,8 +190,8 @@ export default function CartPage() {
             Your Cart is Empty
           </h1>
           <p className="text-sm text-slate-500 leading-relaxed">
-            You don&apos;t have any products in your cart yet. Explore our latest arrivals
-            and best selling items now!
+            You don&apos;t have any products in your cart yet. Explore our
+            latest arrivals and best selling items now!
           </p>
           <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link
@@ -200,13 +206,15 @@ export default function CartPage() {
               disabled={isSyncing}
               className="inline-flex items-center gap-1.5 px-4 py-3 rounded-2xl border border-slate-200 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-all cursor-pointer"
             >
-              <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin text-[#2196F3]' : ''}`} />
+              <RefreshCw
+                className={`w-4 h-4 ${isSyncing ? "animate-spin text-[#2196F3]" : ""}`}
+              />
               <span>Sync Cart</span>
             </button>
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -220,11 +228,12 @@ export default function CartPage() {
                 Shopping Cart
               </h1>
               <span className="bg-[#E3F2FD] text-[#0D47A1] text-xs font-bold px-2.5 py-1 rounded-full">
-                {items.length} {items.length === 1 ? 'item' : 'items'}
+                {items.length} {items.length === 1 ? "item" : "items"}
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Review your items, apply vouchers, and proceed to checkout securely.
+              Review your items, apply vouchers, and proceed to checkout
+              securely.
             </p>
           </div>
 
@@ -235,13 +244,17 @@ export default function CartPage() {
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-xs cursor-pointer disabled:opacity-60"
               title="Sync cart items with latest server stock"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-[#2196F3]' : ''}`} />
-              <span>{isSyncing ? 'Syncing...' : 'Sync Stock'}</span>
+              <RefreshCw
+                className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin text-[#2196F3]" : ""}`}
+              />
+              <span>{isSyncing ? "Syncing..." : "Sync Stock"}</span>
             </button>
 
             {showClearConfirm ? (
               <div className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 p-1 rounded-xl">
-                <span className="text-[11px] font-semibold text-rose-700 px-2">Clear all?</span>
+                <span className="text-[11px] font-semibold text-rose-700 px-2">
+                  Clear all?
+                </span>
                 <button
                   onClick={handleClearCart}
                   className="px-2.5 py-1 rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition-colors cursor-pointer"
@@ -273,10 +286,13 @@ export default function CartPage() {
               <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
               <div>
                 <p className="text-xs font-bold text-amber-900">
-                  {unavailableItems.length} {unavailableItems.length === 1 ? 'item is' : 'items are'} currently unavailable or out of stock
+                  {unavailableItems.length}{" "}
+                  {unavailableItems.length === 1 ? "item is" : "items are"}{" "}
+                  currently unavailable or out of stock
                 </p>
                 <p className="text-[11px] text-amber-700">
-                  Unavailable items are excluded from checkout. You can remove them or keep them for later.
+                  Unavailable items are excluded from checkout. You can remove
+                  them or keep them for later.
                 </p>
               </div>
             </div>
@@ -304,7 +320,8 @@ export default function CartPage() {
                     className="w-4 h-4 rounded text-[#2196F3] focus:ring-[#2196F3] border-slate-300 accent-[#2196F3] cursor-pointer disabled:opacity-40"
                   />
                   <span>
-                    Select All ({selectedCount}/{availableItems.length} available items)
+                    Select All ({selectedCount}/{availableItems.length}{" "}
+                    available items)
                   </span>
                 </label>
 
@@ -313,11 +330,11 @@ export default function CartPage() {
                     onClick={() => {
                       if (
                         window.confirm(
-                          `Remove ${selectedCount} selected items from your cart?`
+                          `Remove ${selectedCount} selected items from your cart?`,
                         )
                       ) {
-                        removeSelectedItems()
-                        toast.info('Selected items removed.')
+                        removeSelectedItems();
+                        toast.info("Selected items removed.");
                       }
                     }}
                     className="text-xs font-semibold text-rose-500 hover:text-rose-700 transition-colors flex items-center gap-1 cursor-pointer"
@@ -330,20 +347,22 @@ export default function CartPage() {
 
               {items.map((item) => {
                 const isOutOfStock =
-                  item.isAvailable === false || item.stockQuantity <= 0
+                  item.isAvailable === false || item.stockQuantity <= 0;
                 const isLowStock =
-                  !isOutOfStock && item.stockQuantity > 0 && item.stockQuantity <= 5
-                const isSelected = item.selected !== false && !isOutOfStock
+                  !isOutOfStock &&
+                  item.stockQuantity > 0 &&
+                  item.stockQuantity <= 5;
+                const isSelected = item.selected !== false && !isOutOfStock;
 
                 return (
                   <div
                     key={item.id}
                     className={`p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-colors ${
                       isOutOfStock
-                        ? 'bg-slate-50/70 opacity-60'
+                        ? "bg-slate-50/70 opacity-60"
                         : !isSelected
-                          ? 'bg-slate-50/40 opacity-75'
-                          : 'hover:bg-slate-50/50'
+                          ? "bg-slate-50/40 opacity-75"
+                          : "hover:bg-slate-50/50"
                     }`}
                   >
                     {/* Checkbox, Thumbnail & Info */}
@@ -398,8 +417,9 @@ export default function CartPage() {
                         {(item.selectedSize || item.selectedColor) && (
                           <p className="text-xs text-slate-500 mt-0.5">
                             {item.selectedSize && `Size: ${item.selectedSize}`}
-                            {item.selectedSize && item.selectedColor && ' • '}
-                            {item.selectedColor && `Color: ${item.selectedColor}`}
+                            {item.selectedSize && item.selectedColor && " • "}
+                            {item.selectedColor &&
+                              `Color: ${item.selectedColor}`}
                           </p>
                         )}
                         <p className="text-xs text-[#0D47A1] font-bold mt-1">
@@ -412,7 +432,9 @@ export default function CartPage() {
                     <div className="flex items-center justify-between w-full sm:w-auto gap-4 self-end sm:self-center">
                       <div className="flex items-center border border-slate-200 rounded-xl bg-slate-50 overflow-hidden">
                         <button
-                          onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                          onClick={() =>
+                            updateQuantity(item.id, item.quantity - 1)
+                          }
                           disabled={isOutOfStock || item.quantity <= 1}
                           className="p-1.5 hover:bg-slate-200 transition-colors text-slate-600 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                           aria-label="Decrease quantity"
@@ -423,7 +445,9 @@ export default function CartPage() {
                           {item.quantity}
                         </span>
                         <button
-                          onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                          onClick={() =>
+                            updateQuantity(item.id, item.quantity + 1)
+                          }
                           disabled={
                             isOutOfStock ||
                             (item.stockQuantity > 0 &&
@@ -449,7 +473,7 @@ export default function CartPage() {
                       </button>
                     </div>
                   </div>
-                )
+                );
               })}
             </div>
 
@@ -467,7 +491,9 @@ export default function CartPage() {
           {/* Order Summary Card (4 cols) */}
           <div className="lg:col-span-4 space-y-4">
             <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-5">
-              <h2 className="text-base font-bold text-[#0D1B2A]">Order Summary</h2>
+              <h2 className="text-base font-bold text-[#0D1B2A]">
+                Order Summary
+              </h2>
 
               {/* Coupon Form */}
               <div className="space-y-2">
@@ -488,14 +514,16 @@ export default function CartPage() {
                     disabled={isApplyingCoupon || !couponCode.trim()}
                     className="px-3.5 py-2 rounded-xl bg-[#0D47A1] text-white text-xs font-semibold hover:bg-[#2196F3] transition-colors cursor-pointer disabled:opacity-60"
                   >
-                    {isApplyingCoupon ? 'Verifying...' : 'Apply'}
+                    {isApplyingCoupon ? "Verifying..." : "Apply"}
                   </button>
                 </form>
 
                 {appliedCoupon && (
                   <div className="flex items-center justify-between text-xs px-3 py-2 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
                     <div className="flex flex-col">
-                      <span className="font-bold">Code: {appliedCoupon.code}</span>
+                      <span className="font-bold">
+                        Code: {appliedCoupon.code}
+                      </span>
                       {appliedCoupon.name && (
                         <span className="text-[11px] text-emerald-600 font-normal">
                           {appliedCoupon.name}
@@ -517,7 +545,8 @@ export default function CartPage() {
               <div className="space-y-2.5 text-xs text-slate-600 pt-2 border-t border-slate-100">
                 <div className="flex justify-between">
                   <span>
-                    Subtotal ({selectedCount} {selectedCount === 1 ? 'item' : 'items'})
+                    Subtotal ({selectedCount}{" "}
+                    {selectedCount === 1 ? "item" : "items"})
                   </span>
                   <span className="font-semibold text-[#0D1B2A]">
                     {formatCurrency(subtotal)}
@@ -534,10 +563,12 @@ export default function CartPage() {
                 <div className="flex justify-between items-baseline">
                   <div>
                     <span>Shipping</span>
-                    <p className="text-[10px] text-slate-400">GHN Express live rate</p>
+                    <p className="text-[10px] text-slate-400">
+                      GHN Express live rate
+                    </p>
                   </div>
                   <span className="font-semibold text-slate-500 text-xs">
-                    {selectedCount === 0 ? '—' : 'Calculated at checkout'}
+                    {selectedCount === 0 ? "—" : "Calculated at checkout"}
                   </span>
                 </div>
 
@@ -578,5 +609,5 @@ export default function CartPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }

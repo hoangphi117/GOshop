@@ -4,11 +4,13 @@ import { useAuthStore } from '@/stores/auth-store'
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
 
+export const API_KEY = process.env.NEXT_PUBLIC_API_KEY || ''
+
 export const api = createApiClient({
   baseUrl: API_BASE_URL,
   getToken: () => useAuthStore.getState().accessToken,
   getRefreshToken: () => useAuthStore.getState().refreshToken,
-  getApiKey: () => process.env.NEXT_PUBLIC_API_KEY || 'abcd-1234-1111',
+  getApiKey: () => API_KEY,
   onTokenRefreshed: (tokens) => {
     useAuthStore.getState().setTokens(tokens.accessToken, tokens.refreshToken)
   },
@@ -25,7 +27,7 @@ async function refreshAccessToken(): Promise<string | null> {
   const refreshToken = useAuthStore.getState().refreshToken
 
   try {
-    const apiKey = process.env.NEXT_PUBLIC_API_KEY || 'abcd-1234-1111'
+    const apiKey = API_KEY
     const res = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
       method: 'POST',
       headers: {
@@ -60,7 +62,7 @@ export async function authFetch(
   input: string | URL | Request,
   init?: RequestInit
 ): Promise<Response> {
-  const apiKey = process.env.NEXT_PUBLIC_API_KEY || 'abcd-1234-1111'
+  const apiKey = API_KEY
   const token = useAuthStore.getState().accessToken
 
   let targetUrl = input
