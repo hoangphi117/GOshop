@@ -123,10 +123,11 @@ func TestUserService_CreateUsers(t *testing.T) {
 
 		svc := v1service.NewUserService(mockRepo, nil)
 
+		pass123 := "password123"
 		_, err := svc.CreateUsers(ctx, sqlc.CreateUserParams{
 			UserFullname: "Alice",
 			UserEmail:    "alice@example.com",
-			UserPassword: "password123",
+			UserPassword: &pass123,
 		})
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeConflict)
@@ -142,10 +143,11 @@ func TestUserService_CreateUsers(t *testing.T) {
 
 		svc := v1service.NewUserService(mockRepo, nil)
 
+		pass123 := "password123"
 		_, err := svc.CreateUsers(ctx, sqlc.CreateUserParams{
 			UserFullname: "Alice",
 			UserEmail:    "alice@example.com",
-			UserPassword: "password123",
+			UserPassword: &pass123,
 		})
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeInternal)
@@ -170,15 +172,17 @@ func TestUserService_CreateUsers(t *testing.T) {
 
 		svc := v1service.NewUserService(mockRepo, nil)
 
+		plainPass := "plainpassword"
 		res, err := svc.CreateUsers(ctx, sqlc.CreateUserParams{
 			UserFullname: "Alice",
 			UserEmail:    "  ALICE@example.com  ",
-			UserPassword: "plainpassword",
+			UserPassword: &plainPass,
 		})
 		require.NoError(t, err)
 		assert.Equal(t, userUUID, res.UserUuid)
 		assert.Equal(t, "alice@example.com", capturedParams.UserEmail)
-		assert.NoError(t, bcrypt.CompareHashAndPassword([]byte(capturedParams.UserPassword), []byte("plainpassword")))
+		require.NotNil(t, capturedParams.UserPassword)
+		assert.NoError(t, bcrypt.CompareHashAndPassword([]byte(*capturedParams.UserPassword), []byte("plainpassword")))
 	})
 }
 
@@ -398,6 +402,7 @@ func TestUserService_ChangePassword(t *testing.T) {
 	userUUID := uuid.New()
 	oldPass := "oldpassword123"
 	hashedOldPass, _ := bcrypt.GenerateFromPassword([]byte(oldPass), bcrypt.DefaultCost)
+	hashedOldStr := string(hashedOldPass)
 
 	t.Run("Case 1: User Not Found - Returns 404", func(t *testing.T) {
 		mockRepo := &testutils.MockUserRepository{
@@ -422,7 +427,7 @@ func TestUserService_ChangePassword(t *testing.T) {
 				return sqlc.User{
 					UserID:       1,
 					UserUuid:     userUUID,
-					UserPassword: string(hashedOldPass),
+					UserPassword: &hashedOldStr,
 				}, nil
 			},
 		}
@@ -444,7 +449,7 @@ func TestUserService_ChangePassword(t *testing.T) {
 				return sqlc.User{
 					UserID:       1,
 					UserUuid:     userUUID,
-					UserPassword: string(hashedOldPass),
+					UserPassword: &hashedOldStr,
 				}, nil
 			},
 		}
@@ -468,7 +473,7 @@ func TestUserService_ChangePassword(t *testing.T) {
 				return sqlc.User{
 					UserID:       1,
 					UserUuid:     userUUID,
-					UserPassword: string(hashedOldPass),
+					UserPassword: &hashedOldStr,
 				}, nil
 			},
 			UpdatePasswordFunc: func(ctx context.Context, input sqlc.UpdatePasswordParams) (sqlc.User, error) {
@@ -488,7 +493,8 @@ func TestUserService_ChangePassword(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.Equal(t, userUUID, capturedParams.UserUuid)
-		assert.NoError(t, bcrypt.CompareHashAndPassword([]byte(capturedParams.NewPassword), []byte("newbrandpassword456")))
+		require.NotNil(t, capturedParams.NewPassword)
+		assert.NoError(t, bcrypt.CompareHashAndPassword([]byte(*capturedParams.NewPassword), []byte("newbrandpassword456")))
 	})
 }
 

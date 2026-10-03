@@ -23,6 +23,8 @@ type UserRepository interface {
 	Trash(ctx context.Context, uuid uuid.UUID) (sqlc.User, error)
 	GetByEmail(ctx context.Context, email string) (sqlc.User, error)
 	UpdatePassword(ctx context.Context, input sqlc.UpdatePasswordParams) (sqlc.User, error)
+	GetByOAuth(ctx context.Context, provider, oauthID string) (sqlc.User, error)
+	CreateOAuthUser(ctx context.Context, params sqlc.CreateOAuthUserParams) (sqlc.User, error)
 }
 
 type CategoryRepository interface {
@@ -265,5 +267,3 @@ type ChatRepository interface {
 	GetMessageByUUID(ctx context.Context, messageUUID uuid.UUID) (sqlc.ChatMessage, error)
 	RecallMessage(ctx context.Context, messageID int32) (sqlc.ChatMessage, error)
 }
-
-

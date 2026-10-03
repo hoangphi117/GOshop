@@ -5,6 +5,7 @@ import (
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/utils"
 	"goshop/internal/validation"
+	"goshop/pkg/auth"
 	"net/http"
 	"os"
 	"strings"
@@ -230,4 +231,35 @@ func (ah *AuthHandler) ResetPassword(ctx *gin.Context) {
 	}
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Password reset successfully")
+}
+
+func (ah *AuthHandler) GoogleLogin(ctx *gin.Context) {
+	var input v1dto.GoogleLoginInput
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	ip := ctx.ClientIP()
+	accessToken, refreshToken, expiresIn, err := ah.service.GoogleLogin(ctx.Request.Context(), ip, input.IDToken)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	// Set HTTP-Only Cookie for Refresh Token
+	ctx.SetCookie(
+		"refresh_token",
+		refreshToken,
+		int(auth.RefreshTokenTTL.Seconds()),
+		"/",
+		"",
+		false, // true if in production, false for development
+		true,  // httpOnly
+	)
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Login with Google successful", gin.H{
+		"access_token": accessToken,
+		"expires_in":   expiresIn,
+	})
 }

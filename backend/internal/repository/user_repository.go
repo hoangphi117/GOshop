@@ -214,3 +214,22 @@ func (ur *SqlUserRepository) UpdatePassword(ctx context.Context, input sqlc.Upda
 
 	return user, nil
 }
+
+func (ur *SqlUserRepository) GetByOAuth(ctx context.Context, provider, oauthID string) (sqlc.User, error) {
+	user, err := ur.db.GetUserByOAuth(ctx, sqlc.GetUserByOAuthParams{
+		Provider: &provider,
+		OauthID:  &oauthID,
+	})
+	if err != nil {
+		return sqlc.User{}, err
+	}
+	return user, nil
+}
+
+func (ur *SqlUserRepository) CreateOAuthUser(ctx context.Context, params sqlc.CreateOAuthUserParams) (sqlc.User, error) {
+	user, err := ur.db.CreateOAuthUser(ctx, params)
+	if err != nil {
+		return sqlc.User{}, err
+	}
+	return user, nil
+}

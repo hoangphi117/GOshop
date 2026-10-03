@@ -21,6 +21,7 @@ func (ar *AuthRoutes) Register(r *gin.RouterGroup) {
 	{
 		auth.POST("/register", ar.handler.Register)
 		auth.POST("/login", ar.handler.Login)
+		auth.POST("/google-login", ar.handler.GoogleLogin)
 		auth.POST("/logout", ar.handler.Logout)
 		auth.POST("/refresh", ar.handler.RefreshToken)
 		auth.POST("/forgot-password", ar.handler.RequestForgotPassword)

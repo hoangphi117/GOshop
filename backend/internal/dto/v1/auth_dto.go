@@ -30,3 +30,16 @@ type LoginResponse struct {
 	RefreshToken string `json:"refresh_token"`
 	ExpiresIn    int    `json:"expires_in"`
 }
+
+type GoogleTokenInfo struct {
+	Iss           string `json:"iss"`
+	Sub           string `json:"sub"` // Google User ID unique
+	Azp           string `json:"azp"`
+	Aud           string `json:"aud"` // Client ID
+	Email         string `json:"email"`
+	EmailVerified string `json:"email_verified"` // "true" or "false"
+	Name          string `json:"name"`
+	Picture       string `json:"picture"`
+	GivenName     string `json:"given_name"`
+	FamilyName    string `json:"family_name"`
+}

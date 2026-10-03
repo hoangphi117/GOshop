@@ -59,6 +59,7 @@ type Querier interface {
 	CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error)
 	CreateNotificationForAdmins(ctx context.Context, arg CreateNotificationForAdminsParams) error
 	CreateNotificationForAllUsers(ctx context.Context, arg CreateNotificationForAllUsersParams) error
+	CreateOAuthUser(ctx context.Context, arg CreateOAuthUserParams) (User, error)
 	CreateOrder(ctx context.Context, arg CreateOrderParams) (Order, error)
 	CreateOrderItem(ctx context.Context, arg CreateOrderItemParams) (OrderItem, error)
 	CreateOrderReturn(ctx context.Context, arg CreateOrderReturnParams) (OrderReturn, error)
@@ -155,6 +156,7 @@ type Querier interface {
 	GetUserAddressByUUID(ctx context.Context, arg GetUserAddressByUUIDParams) (UserAddress, error)
 	GetUserAddressesByUserID(ctx context.Context, uaUserID int32) ([]UserAddress, error)
 	GetUserByEmail(ctx context.Context, userEmail string) (User, error)
+	GetUserByOAuth(ctx context.Context, arg GetUserByOAuthParams) (User, error)
 	GetUserByUUID(ctx context.Context, userUuid uuid.UUID) (User, error)
 	// Atomic, có điều kiện chặn ngay trong WHERE — KHÔNG tách rời check-rồi-ghi
 	// như bản v1. Nếu không còn row trả về (sql.ErrNoRows), nghĩa là mã đã hết
@@ -224,6 +226,7 @@ type Querier interface {
 	UpdateReviewStatus(ctx context.Context, arg UpdateReviewStatusParams) (ProductReview, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 	UpdateUserAddress(ctx context.Context, arg UpdateUserAddressParams) (UserAddress, error)
+	UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarParams) (User, error)
 }
 
 var _ Querier = (*Queries)(nil)

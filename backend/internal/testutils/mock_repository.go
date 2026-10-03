@@ -523,6 +523,8 @@ type MockUserRepository struct {
 	GetByEmailFunc            func(ctx context.Context, email string) (sqlc.User, error)
 	GetActiveAdminUserIDsFunc func(ctx context.Context) ([]int32, error)
 	UpdatePasswordFunc        func(ctx context.Context, input sqlc.UpdatePasswordParams) (sqlc.User, error)
+	GetByOAuthFunc            func(ctx context.Context, provider, oauthID string) (sqlc.User, error)
+	CreateOAuthUserFunc       func(ctx context.Context, params sqlc.CreateOAuthUserParams) (sqlc.User, error)
 }
 
 func (m *MockUserRepository) GetAll(ctx context.Context, search, orderBy, sort string, limit, offset int32) ([]sqlc.User, error) {
@@ -605,6 +607,20 @@ func (m *MockUserRepository) GetActiveAdminUserIDs(ctx context.Context) ([]int32
 func (m *MockUserRepository) UpdatePassword(ctx context.Context, input sqlc.UpdatePasswordParams) (sqlc.User, error) {
 	if m.UpdatePasswordFunc != nil {
 		return m.UpdatePasswordFunc(ctx, input)
+	}
+	return sqlc.User{}, nil
+}
+
+func (m *MockUserRepository) GetByOAuth(ctx context.Context, provider, oauthID string) (sqlc.User, error) {
+	if m.GetByOAuthFunc != nil {
+		return m.GetByOAuthFunc(ctx, provider, oauthID)
+	}
+	return sqlc.User{}, nil
+}
+
+func (m *MockUserRepository) CreateOAuthUser(ctx context.Context, params sqlc.CreateOAuthUserParams) (sqlc.User, error) {
+	if m.CreateOAuthUserFunc != nil {
+		return m.CreateOAuthUserFunc(ctx, params)
 	}
 	return sqlc.User{}, nil
 }

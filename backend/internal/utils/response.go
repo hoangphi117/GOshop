@@ -37,6 +37,7 @@ const (
 	ErrCodeTooManyRequests ErrorCode = "TOO_MANY_REQUESTS"
 	ErrCodeForbidden       ErrorCode = "FORBIDDEN"
 	ErrCodeBadGateway      ErrorCode = "BAD_GATEWAY"
+	ErrCodeExternalService ErrorCode = "EXTERNAL_SERVICE_ERROR"
 )
 
 func (ae *AppError) Error() string {
@@ -137,6 +138,8 @@ func httpStatusFromCode(code ErrorCode) int {
 	case ErrCodeForbidden:
 		return http.StatusForbidden
 	case ErrCodeBadGateway:
+		return http.StatusBadGateway
+	case ErrCodeExternalService:
 		return http.StatusBadGateway
 	default:
 		return http.StatusInternalServerError

@@ -96,11 +96,14 @@ func (us *userService) GetAllUsers(ctx context.Context, search, orderBy, sort st
 func (us *userService) CreateUsers(ctx context.Context, input sqlc.CreateUserParams) (sqlc.User, error) {
 	input.UserEmail = utils.NormalizeString(input.UserEmail)
 
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.UserPassword), bcrypt.DefaultCost)
-	if err != nil {
-		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to hash password", err)
+	if input.UserPassword != nil && *input.UserPassword != "" {
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(*input.UserPassword), bcrypt.DefaultCost)
+		if err != nil {
+			return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to hash password", err)
+		}
+		hashed := string(hashedPassword)
+		input.UserPassword = &hashed
 	}
-	input.UserPassword = string(hashedPassword)
 
 	user, err := us.repo.Create(ctx, input)
 	if err != nil {
@@ -218,7 +221,11 @@ func (us *userService) ChangePassword(ctx context.Context, userUUID uuid.UUID, i
 		return utils.WrapError(utils.ErrCodeInternal, "failed to get user", err)
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.UserPassword), []byte(input.OldPassword)); err != nil {
+	if user.UserPassword == nil || *user.UserPassword == "" {
+		return utils.NewError(utils.ErrCodeBadRequest, "user has no password set (e.g. social login)")
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(*user.UserPassword), []byte(input.OldPassword)); err != nil {
 		return utils.NewError(utils.ErrCodeUnauthorized, "old password is incorrect")
 	}
 
@@ -231,9 +238,10 @@ func (us *userService) ChangePassword(ctx context.Context, userUUID uuid.UUID, i
 		return utils.WrapError(utils.ErrCodeInternal, "failed to hash new password", err)
 	}
 
+	hashed := string(hashedPassword)
 	updateParams := sqlc.UpdatePasswordParams{
 		UserUuid:    user.UserUuid,
-		NewPassword: string(hashedPassword),
+		NewPassword: &hashed,
 	}
 	if _, err := us.repo.UpdatePassword(ctx, updateParams); err != nil {
 		return utils.WrapError(utils.ErrCodeInternal, "failed to update password", err)

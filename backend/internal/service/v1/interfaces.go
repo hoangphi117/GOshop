@@ -26,6 +26,7 @@ type UserService interface {
 type AuthService interface {
 	Register(ctx context.Context, input v1dto.RegisterInput) error
 	Login(ctx context.Context, ip string, email, password string) (string, string, int, error)
+	GoogleLogin(ctx context.Context, ip, idToken string) (string, string, int, error)
 	Logout(ctx context.Context, accessToken string, refreshToken string) error
 	RefreshToken(ctx context.Context, refreshToken string) (string, string, int, error)
 	RequestForgotPassword(ctx context.Context, email string) error

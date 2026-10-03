@@ -37,6 +37,49 @@ func (q *Queries) CountUsers(ctx context.Context, arg CountUsersParams) (int64, 
 	return count, err
 }
 
+const createOAuthUser = `-- name: CreateOAuthUser :one
+INSERT INTO users (user_fullname, user_email, user_oauth_provider, user_oauth_id, user_avatar_url, user_password)
+VALUES ($1, $2, $3, $4, $5, NULL)
+RETURNING user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar, user_oauth_provider, user_oauth_id, user_avatar_url
+`
+
+type CreateOAuthUserParams struct {
+	Fullname  string  `json:"fullname"`
+	Email     string  `json:"email"`
+	Provider  *string `json:"provider"`
+	OauthID   *string `json:"oauth_id"`
+	AvatarUrl *string `json:"avatar_url"`
+}
+
+func (q *Queries) CreateOAuthUser(ctx context.Context, arg CreateOAuthUserParams) (User, error) {
+	row := q.db.QueryRow(ctx, createOAuthUser,
+		arg.Fullname,
+		arg.Email,
+		arg.Provider,
+		arg.OauthID,
+		arg.AvatarUrl,
+	)
+	var i User
+	err := row.Scan(
+		&i.UserID,
+		&i.UserUuid,
+		&i.UserFullname,
+		&i.UserEmail,
+		&i.UserPassword,
+		&i.UserAge,
+		&i.UserStatus,
+		&i.UserLevel,
+		&i.UserDeletedAt,
+		&i.UserCreatedAt,
+		&i.UserUpdatedAt,
+		&i.UserAvatar,
+		&i.UserOauthProvider,
+		&i.UserOauthID,
+		&i.UserAvatarUrl,
+	)
+	return i, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (
     user_fullname,
@@ -47,16 +90,16 @@ INSERT INTO users (
     user_level
 )
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar
+RETURNING user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar, user_oauth_provider, user_oauth_id, user_avatar_url
 `
 
 type CreateUserParams struct {
-	UserFullname string `json:"user_fullname"`
-	UserEmail    string `json:"user_email"`
-	UserPassword string `json:"user_password"`
-	UserAge      *int32 `json:"user_age"`
-	UserStatus   int32  `json:"user_status"`
-	UserLevel    int32  `json:"user_level"`
+	UserFullname string  `json:"user_fullname"`
+	UserEmail    string  `json:"user_email"`
+	UserPassword *string `json:"user_password"`
+	UserAge      *int32  `json:"user_age"`
+	UserStatus   int32   `json:"user_status"`
+	UserLevel    int32   `json:"user_level"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
@@ -82,6 +125,9 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.UserCreatedAt,
 		&i.UserUpdatedAt,
 		&i.UserAvatar,
+		&i.UserOauthProvider,
+		&i.UserOauthID,
+		&i.UserAvatarUrl,
 	)
 	return i, err
 }
@@ -114,7 +160,7 @@ func (q *Queries) GetActiveAdminUserIDs(ctx context.Context) ([]int32, error) {
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar
+SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar, user_oauth_provider, user_oauth_id, user_avatar_url
 FROM users
 WHERE user_email = $1
 AND user_deleted_at IS NULL
@@ -136,12 +182,50 @@ func (q *Queries) GetUserByEmail(ctx context.Context, userEmail string) (User, e
 		&i.UserCreatedAt,
 		&i.UserUpdatedAt,
 		&i.UserAvatar,
+		&i.UserOauthProvider,
+		&i.UserOauthID,
+		&i.UserAvatarUrl,
+	)
+	return i, err
+}
+
+const getUserByOAuth = `-- name: GetUserByOAuth :one
+SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar, user_oauth_provider, user_oauth_id, user_avatar_url FROM users
+WHERE user_oauth_provider = $1 AND user_oauth_id = $2
+  AND user_deleted_at IS NULL
+LIMIT 1
+`
+
+type GetUserByOAuthParams struct {
+	Provider *string `json:"provider"`
+	OauthID  *string `json:"oauth_id"`
+}
+
+func (q *Queries) GetUserByOAuth(ctx context.Context, arg GetUserByOAuthParams) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByOAuth, arg.Provider, arg.OauthID)
+	var i User
+	err := row.Scan(
+		&i.UserID,
+		&i.UserUuid,
+		&i.UserFullname,
+		&i.UserEmail,
+		&i.UserPassword,
+		&i.UserAge,
+		&i.UserStatus,
+		&i.UserLevel,
+		&i.UserDeletedAt,
+		&i.UserCreatedAt,
+		&i.UserUpdatedAt,
+		&i.UserAvatar,
+		&i.UserOauthProvider,
+		&i.UserOauthID,
+		&i.UserAvatarUrl,
 	)
 	return i, err
 }
 
 const getUserByUUID = `-- name: GetUserByUUID :one
-SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar
+SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar, user_oauth_provider, user_oauth_id, user_avatar_url
 FROM users
 WHERE user_uuid = $1
 AND user_deleted_at IS NULL
@@ -163,12 +247,15 @@ func (q *Queries) GetUserByUUID(ctx context.Context, userUuid uuid.UUID) (User, 
 		&i.UserCreatedAt,
 		&i.UserUpdatedAt,
 		&i.UserAvatar,
+		&i.UserOauthProvider,
+		&i.UserOauthID,
+		&i.UserAvatarUrl,
 	)
 	return i, err
 }
 
 const listUserUserCreatedAtAsc = `-- name: ListUserUserCreatedAtAsc :many
-SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar
+SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar, user_oauth_provider, user_oauth_id, user_avatar_url
 FROM users
 WHERE user_deleted_at IS NULL
 AND (
@@ -208,6 +295,9 @@ func (q *Queries) ListUserUserCreatedAtAsc(ctx context.Context, arg ListUserUser
 			&i.UserCreatedAt,
 			&i.UserUpdatedAt,
 			&i.UserAvatar,
+			&i.UserOauthProvider,
+			&i.UserOauthID,
+			&i.UserAvatarUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -220,7 +310,7 @@ func (q *Queries) ListUserUserCreatedAtAsc(ctx context.Context, arg ListUserUser
 }
 
 const listUserUserCreatedAtDesc = `-- name: ListUserUserCreatedAtDesc :many
-SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar
+SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar, user_oauth_provider, user_oauth_id, user_avatar_url
 FROM users
 WHERE user_deleted_at IS NULL
 AND (
@@ -260,6 +350,9 @@ func (q *Queries) ListUserUserCreatedAtDesc(ctx context.Context, arg ListUserUse
 			&i.UserCreatedAt,
 			&i.UserUpdatedAt,
 			&i.UserAvatar,
+			&i.UserOauthProvider,
+			&i.UserOauthID,
+			&i.UserAvatarUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -272,7 +365,7 @@ func (q *Queries) ListUserUserCreatedAtDesc(ctx context.Context, arg ListUserUse
 }
 
 const listUserUserIdAsc = `-- name: ListUserUserIdAsc :many
-SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar
+SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar, user_oauth_provider, user_oauth_id, user_avatar_url
 FROM users
 WHERE user_deleted_at IS NULL
 AND (
@@ -312,6 +405,9 @@ func (q *Queries) ListUserUserIdAsc(ctx context.Context, arg ListUserUserIdAscPa
 			&i.UserCreatedAt,
 			&i.UserUpdatedAt,
 			&i.UserAvatar,
+			&i.UserOauthProvider,
+			&i.UserOauthID,
+			&i.UserAvatarUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -324,7 +420,7 @@ func (q *Queries) ListUserUserIdAsc(ctx context.Context, arg ListUserUserIdAscPa
 }
 
 const listUserUserIdDesc = `-- name: ListUserUserIdDesc :many
-SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar
+SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar, user_oauth_provider, user_oauth_id, user_avatar_url
 FROM users
 WHERE user_deleted_at IS NULL
 AND (
@@ -364,6 +460,9 @@ func (q *Queries) ListUserUserIdDesc(ctx context.Context, arg ListUserUserIdDesc
 			&i.UserCreatedAt,
 			&i.UserUpdatedAt,
 			&i.UserAvatar,
+			&i.UserOauthProvider,
+			&i.UserOauthID,
+			&i.UserAvatarUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -382,7 +481,7 @@ SET
 WHERE 
     user_uuid = $1::uuid
     AND user_deleted_at IS NOT NULL
-RETURNING user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar
+RETURNING user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar, user_oauth_provider, user_oauth_id, user_avatar_url
 `
 
 func (q *Queries) RestoreUser(ctx context.Context, userUuid uuid.UUID) (User, error) {
@@ -401,6 +500,9 @@ func (q *Queries) RestoreUser(ctx context.Context, userUuid uuid.UUID) (User, er
 		&i.UserCreatedAt,
 		&i.UserUpdatedAt,
 		&i.UserAvatar,
+		&i.UserOauthProvider,
+		&i.UserOauthID,
+		&i.UserAvatarUrl,
 	)
 	return i, err
 }
@@ -412,7 +514,7 @@ SET
 WHERE 
     user_uuid = $1::uuid
     AND user_deleted_at IS NULL
-RETURNING user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar
+RETURNING user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar, user_oauth_provider, user_oauth_id, user_avatar_url
 `
 
 func (q *Queries) SoftDeleteUser(ctx context.Context, userUuid uuid.UUID) (User, error) {
@@ -431,6 +533,9 @@ func (q *Queries) SoftDeleteUser(ctx context.Context, userUuid uuid.UUID) (User,
 		&i.UserCreatedAt,
 		&i.UserUpdatedAt,
 		&i.UserAvatar,
+		&i.UserOauthProvider,
+		&i.UserOauthID,
+		&i.UserAvatarUrl,
 	)
 	return i, err
 }
@@ -440,7 +545,7 @@ DELETE FROM users
 WHERE 
     user_uuid = $1::uuid
     AND user_deleted_at IS NOT NULL 
-RETURNING user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar
+RETURNING user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar, user_oauth_provider, user_oauth_id, user_avatar_url
 `
 
 func (q *Queries) TrashUser(ctx context.Context, userUuid uuid.UUID) (User, error) {
@@ -459,6 +564,9 @@ func (q *Queries) TrashUser(ctx context.Context, userUuid uuid.UUID) (User, erro
 		&i.UserCreatedAt,
 		&i.UserUpdatedAt,
 		&i.UserAvatar,
+		&i.UserOauthProvider,
+		&i.UserOauthID,
+		&i.UserAvatarUrl,
 	)
 	return i, err
 }
@@ -469,11 +577,11 @@ SET user_password = $1
 WHERE 
     user_uuid = $2::uuid
     AND user_deleted_at IS NULL
-RETURNING user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar
+RETURNING user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar, user_oauth_provider, user_oauth_id, user_avatar_url
 `
 
 type UpdatePasswordParams struct {
-	NewPassword string    `json:"new_password"`
+	NewPassword *string   `json:"new_password"`
 	UserUuid    uuid.UUID `json:"user_uuid"`
 }
 
@@ -493,6 +601,9 @@ func (q *Queries) UpdatePassword(ctx context.Context, arg UpdatePasswordParams) 
 		&i.UserCreatedAt,
 		&i.UserUpdatedAt,
 		&i.UserAvatar,
+		&i.UserOauthProvider,
+		&i.UserOauthID,
+		&i.UserAvatarUrl,
 	)
 	return i, err
 }
@@ -508,7 +619,7 @@ SET
 WHERE 
     user_uuid = $6
     AND user_deleted_at IS NULL
-RETURNING user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar
+RETURNING user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar, user_oauth_provider, user_oauth_id, user_avatar_url
 `
 
 type UpdateUserParams struct {
@@ -543,6 +654,43 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.UserCreatedAt,
 		&i.UserUpdatedAt,
 		&i.UserAvatar,
+		&i.UserOauthProvider,
+		&i.UserOauthID,
+		&i.UserAvatarUrl,
+	)
+	return i, err
+}
+
+const updateUserAvatar = `-- name: UpdateUserAvatar :one
+UPDATE users SET user_avatar_url = $1
+WHERE user_uuid = $2
+RETURNING user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar, user_oauth_provider, user_oauth_id, user_avatar_url
+`
+
+type UpdateUserAvatarParams struct {
+	AvatarUrl *string   `json:"avatar_url"`
+	UserUuid  uuid.UUID `json:"user_uuid"`
+}
+
+func (q *Queries) UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserAvatar, arg.AvatarUrl, arg.UserUuid)
+	var i User
+	err := row.Scan(
+		&i.UserID,
+		&i.UserUuid,
+		&i.UserFullname,
+		&i.UserEmail,
+		&i.UserPassword,
+		&i.UserAge,
+		&i.UserStatus,
+		&i.UserLevel,
+		&i.UserDeletedAt,
+		&i.UserCreatedAt,
+		&i.UserUpdatedAt,
+		&i.UserAvatar,
+		&i.UserOauthProvider,
+		&i.UserOauthID,
+		&i.UserAvatarUrl,
 	)
 	return i, err
 }

@@ -40,6 +40,10 @@ type UpdateProfileInput struct {
 	Password *string `json:"password" binding:"omitempty,min=6,password_strong"`
 }
 
+type GoogleLoginInput struct {
+	IDToken string `json:"id_token" validate:"required"`
+}
+
 type ChangePasswordRequest struct {
 	OldPassword     string `json:"old_password" binding:"required,min=8,max=32"`
 	NewPassword     string `json:"new_password" binding:"required,min=8,max=32"`
@@ -59,11 +63,15 @@ type GetUserParam struct {
 }
 
 func (input *CreateUserInput) MapCreateInputToModel() sqlc.CreateUserParams {
+	var userPassword *string
+	if input.Password != "" {
+		userPassword = &input.Password
+	}
 	return sqlc.CreateUserParams{
 		UserFullname: input.Name,
 		UserEmail:    input.Email,
 		UserAge:      utils.ConvertToInt32Pointer(input.Age),
-		UserPassword: input.Password,
+		UserPassword: userPassword,
 		UserStatus:   input.Status,
 		UserLevel:    input.Level,
 	}

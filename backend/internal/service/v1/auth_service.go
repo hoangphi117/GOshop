@@ -2,6 +2,8 @@ package v1service
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"goshop/internal/db/sqlc"
@@ -12,10 +14,13 @@ import (
 	"goshop/pkg/cache"
 	"goshop/pkg/mail"
 	"goshop/pkg/rabbitmq"
+	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
@@ -26,8 +31,10 @@ const (
 	loginRateLimitTTL     = 5 * time.Minute
 	maxLoginAttempts      = 5
 
-	UserStatusActive = 1
-	UserLevelUser    = 3
+	UserStatusActive   = 1
+	UserStatusInactive = 2
+	UserStatusBanned   = 3
+	UserLevelUser      = 3
 )
 
 type authService struct {
@@ -107,7 +114,12 @@ func (as *authService) Login(ctx context.Context, ip string, email, password str
 		return "", "", 0, utils.NewError(utils.ErrCodeUnauthorized, "Invalid email or password")
 	}
 
-	err = bcrypt.CompareHashAndPassword([]byte(user.UserPassword), []byte(password))
+	if user.UserPassword == nil || *user.UserPassword == "" {
+		as.recordFailedLogin(ip)
+		return "", "", 0, utils.NewError(utils.ErrCodeUnauthorized, "Invalid email or password")
+	}
+
+	err = bcrypt.CompareHashAndPassword([]byte(*user.UserPassword), []byte(password))
 	if err != nil {
 		as.recordFailedLogin(ip)
 		return "", "", 0, utils.NewError(utils.ErrCodeUnauthorized, "Invalid email or password")
@@ -285,9 +297,10 @@ func (as *authService) ResetPassword(ctx context.Context, token, newPassword str
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to hash password", err)
 	}
 
+	hashed := string(hashedPassword)
 	var input = sqlc.UpdatePasswordParams{
 		UserUuid:    userUuid,
-		NewPassword: string(hashedPassword),
+		NewPassword: &hashed,
 	}
 
 	_, err = as.userRepo.UpdatePassword(ctx, input)
@@ -306,10 +319,11 @@ func (as *authService) Register(ctx context.Context, input v1dto.RegisterInput) 
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to hash password", err)
 	}
 
+	hashed := string(hashedPassword)
 	user := sqlc.CreateUserParams{
 		UserFullname: input.Name,
 		UserEmail:    utils.NormalizeString(input.Email),
-		UserPassword: string(hashedPassword),
+		UserPassword: &hashed,
 		UserAge:      input.Age,
 		UserStatus:   UserStatusActive,
 		UserLevel:    UserLevelUser,
@@ -324,4 +338,139 @@ func (as *authService) Register(ctx context.Context, input v1dto.RegisterInput) 
 	}
 
 	return nil
+}
+
+// -------------- OAuth / Social Login Methods --------------
+
+func verifyGoogleIDToken(ctx context.Context, idToken string) (*v1dto.GoogleTokenInfo, error) {
+	if strings.TrimSpace(idToken) == "" {
+		return nil, utils.NewError(utils.ErrCodeBadRequest, "Google ID token is required")
+	}
+
+	// Call Google's tokeninfo endpoint
+	url := fmt.Sprintf("https://oauth2.googleapis.com/tokeninfo?id_token=%s", url.QueryEscape(idToken))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to create request to Google tokeninfo endpoint", err)
+	}
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, utils.WrapError(utils.ErrCodeExternalService, "failed to verify token with Google", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, utils.NewError(utils.ErrCodeUnauthorized, "invalid Google ID token")
+	}
+
+	var tokenInfo v1dto.GoogleTokenInfo
+	if err := json.NewDecoder(resp.Body).Decode(&tokenInfo); err != nil {
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to decode Google token info", err)
+	}
+
+	// Validate Client ID
+	expectedClientID := utils.GetEnv("GOOGLE_CLIENT_ID", "")
+	if expectedClientID != "" && tokenInfo.Aud != expectedClientID {
+		return nil, utils.NewError(utils.ErrCodeUnauthorized, "Google ID token audience mismatch")
+	}
+
+	if tokenInfo.EmailVerified != "true" {
+		return nil, utils.NewError(utils.ErrCodeUnauthorized, "Google account email is not verified")
+	}
+
+	return &tokenInfo, nil
+}
+
+func isNotFound(err error) bool {
+	return errors.Is(err, pgx.ErrNoRows) || errors.Is(err, sql.ErrNoRows)
+}
+
+func (as *authService) findOrCreateGoogleUser(ctx context.Context, payload *v1dto.GoogleTokenInfo) (sqlc.User, error) {
+	provider := "google"
+	oauthID := payload.Sub
+	email := utils.NormalizeString(payload.Email)
+
+	var user sqlc.User
+
+	// Find user by OAuth provider and ID (already registered)
+	user, err := as.userRepo.GetByOAuth(ctx, provider, oauthID)
+	if err == nil {
+		return user, nil
+	}
+	if !isNotFound(err) {
+		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to query user by OAuth provider and ID", err)
+	}
+
+	// User not found by OAuth, try to find by email (existing user)
+	user, err = as.userRepo.GetByEmail(ctx, email)
+	if err == nil {
+		return user, nil
+	}
+	if !isNotFound(err) {
+		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to query user by email", err)
+	}
+
+	// User not found, create a new user
+	var avatarURL *string
+	if payload.Picture != "" {
+		avatarURL = &payload.Picture
+	}
+
+	newUser, err := as.userRepo.CreateOAuthUser(ctx, sqlc.CreateOAuthUserParams{
+		Fullname:  payload.Name,
+		Email:     email,
+		Provider:  &provider,
+		OauthID:   &oauthID,
+		AvatarUrl: avatarURL,
+	})
+	if err != nil {
+		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to create new OAuth user", err)
+	}
+
+	return newUser, nil
+}
+
+func (as *authService) GoogleLogin(ctx context.Context, ip, idToken string) (string, string, int, error) {
+	if err := as.checkLoginRateLimit(ip); err != nil {
+		return "", "", 0, err
+	}
+
+	// Verify the Google ID token
+	payload, err := verifyGoogleIDToken(ctx, idToken)
+	if err != nil {
+		as.recordFailedLogin(ip)
+		return "", "", 0, err
+	}
+
+	user, err := as.findOrCreateGoogleUser(ctx, payload)
+	if err != nil {
+		return "", "", 0, err
+	}
+
+	if user.UserStatus == UserStatusInactive || user.UserStatus == UserStatusBanned {
+		return "", "", 0, utils.NewError(utils.ErrCodeForbidden, "User account is inactive or banned")
+	}
+
+	// Generate access and refresh tokens
+	accessToken, err := as.tokenService.GenerateAccessToken(user)
+	if err != nil {
+		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "Failed to generate access token", err)
+	}
+
+	refreshToken, err := as.tokenService.GenerateRefreshToken(user)
+	if err != nil {
+		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "Failed to generate refresh token", err)
+	}
+
+	if err := as.tokenService.StoreRefreshToken(refreshToken); err != nil {
+		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "Failed to store refresh token", err)
+	}
+
+	// Reset rate limit after successful login
+	as.resetLoginRateLimit(ip)
+
+	return accessToken, refreshToken.Token, int(auth.AccessTokenTTL.Seconds()), nil
+
 }

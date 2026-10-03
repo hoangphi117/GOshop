@@ -88,7 +88,8 @@ func TestAuthService_Register(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.Equal(t, "test@example.com", capturedUser.UserEmail)
-		assert.NoError(t, bcrypt.CompareHashAndPassword([]byte(capturedUser.UserPassword), []byte("mysecretpassword")))
+		require.NotNil(t, capturedUser.UserPassword)
+		assert.NoError(t, bcrypt.CompareHashAndPassword([]byte(*capturedUser.UserPassword), []byte("mysecretpassword")))
 		assert.Equal(t, int32(1), capturedUser.UserStatus)
 		assert.Equal(t, int32(3), capturedUser.UserLevel)
 	})
@@ -99,11 +100,12 @@ func TestAuthService_Login(t *testing.T) {
 	userUUID := uuid.New()
 	plainPass := "securepassword123"
 	hashedPass, _ := bcrypt.GenerateFromPassword([]byte(plainPass), bcrypt.DefaultCost)
+	hashedPassStr := string(hashedPass)
 	testUser := sqlc.User{
 		UserID:       1,
 		UserUuid:     userUUID,
 		UserEmail:    "user@example.com",
-		UserPassword: string(hashedPass),
+		UserPassword: &hashedPassStr,
 	}
 
 	t.Run("Case 1: IP Rate Limit Exceeded - Returns 429 Too Many Requests", func(t *testing.T) {
@@ -469,7 +471,8 @@ func TestAuthService_ResetPassword(t *testing.T) {
 		err := svc.ResetPassword(ctx, "valid-reset-token", "brandnewsecret123")
 		require.NoError(t, err)
 		assert.Equal(t, userUUID, capturedParams.UserUuid)
-		assert.NoError(t, bcrypt.CompareHashAndPassword([]byte(capturedParams.NewPassword), []byte("brandnewsecret123")))
+		require.NotNil(t, capturedParams.NewPassword)
+		assert.NoError(t, bcrypt.CompareHashAndPassword([]byte(*capturedParams.NewPassword), []byte("brandnewsecret123")))
 		assert.Equal(t, "reset:valid-reset-token", deletedTokenKey)
 	})
 }

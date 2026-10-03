@@ -305,7 +305,7 @@ type User struct {
 	UserUuid     uuid.UUID `json:"user_uuid"`
 	UserFullname string    `json:"user_fullname"`
 	UserEmail    string    `json:"user_email"`
-	UserPassword string    `json:"user_password"`
+	UserPassword *string   `json:"user_password"`
 	// Age of the user must be between 1 and 150 years old.
 	UserAge *int32 `json:"user_age"`
 	// 1: Active, 2: Inactive, 3: Banned
@@ -313,10 +313,13 @@ type User struct {
 	// 1: Admin, 2: Moderator, 3: Member
 	UserLevel int32 `json:"user_level"`
 	// Timestamp of when the user was deleted. (soft delete)
-	UserDeletedAt pgtype.Timestamptz `json:"user_deleted_at"`
-	UserCreatedAt time.Time          `json:"user_created_at"`
-	UserUpdatedAt time.Time          `json:"user_updated_at"`
-	UserAvatar    string             `json:"user_avatar"`
+	UserDeletedAt     pgtype.Timestamptz `json:"user_deleted_at"`
+	UserCreatedAt     time.Time          `json:"user_created_at"`
+	UserUpdatedAt     time.Time          `json:"user_updated_at"`
+	UserAvatar        string             `json:"user_avatar"`
+	UserOauthProvider *string            `json:"user_oauth_provider"`
+	UserOauthID       *string            `json:"user_oauth_id"`
+	UserAvatarUrl     *string            `json:"user_avatar_url"`
 }
 
 type UserAddress struct {
