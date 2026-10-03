@@ -2,11 +2,15 @@ package middleware
 
 import (
 	"crypto/subtle"
-	"goshop/internal/utils"
+	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"sync"
 	"time"
+
+	"goshop/internal/utils"
+	"goshop/pkg/cache"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
@@ -163,4 +167,51 @@ func shouldLogRateLimit(key string) bool {
 	}
 	rateLimitLogCache.Store(key, now)
 	return true
+}
+
+// RateLimit returns a Gin middleware that enforces a sliding window rate limit per client IP
+// on specific sensitive endpoints using Redis atomic INCR and TTL.
+func RateLimit(cacheService cache.RedisCacheService, action string, limit int64, window time.Duration) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		if cacheService == nil {
+			ctx.Next()
+			return
+		}
+
+		ip := getClientIP(ctx)
+		key := fmt.Sprintf("ratelimit:auth:%s:%s", action, ip)
+
+		count, err := cacheService.Incr(key)
+		if err != nil {
+			// Fail open on Redis communication error to prevent locking out valid users
+			ctx.Next()
+			return
+		}
+
+		// First request in this window -> establish expiry
+		if count == 1 {
+			_ = cacheService.Expire(key, window)
+		}
+
+		if count > limit {
+			ttl, err := cacheService.TTL(key)
+			retryAfterSec := int(window.Seconds())
+			if err == nil && ttl > 0 {
+				retryAfterSec = int(ttl.Seconds())
+			}
+			if retryAfterSec < 1 {
+				retryAfterSec = 1
+			}
+
+			ctx.Header("Retry-After", strconv.Itoa(retryAfterSec))
+			ctx.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
+				"code":    utils.ErrCodeTooManyRequests,
+				"error":   fmt.Sprintf("Too many requests for %s. Please try again in %d seconds.", action, retryAfterSec),
+				"message": "Too many requests. Please try again later.",
+			})
+			return
+		}
+
+		ctx.Next()
+	}
 }

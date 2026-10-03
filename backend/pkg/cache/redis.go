@@ -109,3 +109,27 @@ func (cs *redisCacheService) Del(key string) error {
 
 	return cs.rdb.Del(cs.ctx, key).Err()
 }
+
+func (cs *redisCacheService) Incr(key string) (int64, error) {
+	if cs.rdb == nil {
+		return 1, nil
+	}
+
+	return cs.rdb.Incr(cs.ctx, key).Result()
+}
+
+func (cs *redisCacheService) Expire(key string, ttl time.Duration) error {
+	if cs.rdb == nil {
+		return nil
+	}
+
+	return cs.rdb.Expire(cs.ctx, key, ttl).Err()
+}
+
+func (cs *redisCacheService) TTL(key string) (time.Duration, error) {
+	if cs.rdb == nil {
+		return 0, nil
+	}
+
+	return cs.rdb.TTL(cs.ctx, key).Result()
+}

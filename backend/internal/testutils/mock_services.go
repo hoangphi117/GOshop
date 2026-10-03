@@ -581,6 +581,9 @@ type MockRedisCacheService struct {
 	ClearFunc  func(pattern string) error
 	ExistsFunc func(key string) (bool, error)
 	DelFunc    func(key string) error
+	IncrFunc   func(key string) (int64, error)
+	ExpireFunc func(key string, ttl time.Duration) error
+	TTLFunc    func(key string) (time.Duration, error)
 }
 
 func (m *MockRedisCacheService) Set(key string, value any, ttl time.Duration) error {
@@ -623,6 +626,27 @@ func (m *MockRedisCacheService) Del(key string) error {
 		return m.DelFunc(key)
 	}
 	return nil
+}
+
+func (m *MockRedisCacheService) Incr(key string) (int64, error) {
+	if m.IncrFunc != nil {
+		return m.IncrFunc(key)
+	}
+	return 1, nil
+}
+
+func (m *MockRedisCacheService) Expire(key string, ttl time.Duration) error {
+	if m.ExpireFunc != nil {
+		return m.ExpireFunc(key, ttl)
+	}
+	return nil
+}
+
+func (m *MockRedisCacheService) TTL(key string) (time.Duration, error) {
+	if m.TTLFunc != nil {
+		return m.TTLFunc(key)
+	}
+	return 0, nil
 }
 
 // =========================================================================

@@ -28,7 +28,7 @@ func NewAuthModule(ctx *ModuleContext, tokenService auth.TokenService, cacheServ
 	authHandler := v1handler.NewAuthHandler(authService)
 
 	// Initialize routes
-	authRoutes := v1routes.NewAuthRoutes(authHandler)
+	authRoutes := v1routes.NewAuthRoutes(authHandler, cacheService)
 
 	return &AuthModule{routes: []routes.Route{authRoutes}}
 }

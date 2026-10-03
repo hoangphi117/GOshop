@@ -9,4 +9,8 @@ type RedisCacheService interface {
 	Clear(pattern string) error
 	Exists(key string) (bool, error)
 	Del(key string) error
+	Incr(key string) (int64, error)
+	Expire(key string, ttl time.Duration) error
+	TTL(key string) (time.Duration, error)
 }
+
