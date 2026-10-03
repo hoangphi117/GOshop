@@ -1,11 +1,11 @@
-'use client'
+"use client";
 
-import React from 'react'
-import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
-import { useAuthStore } from '@/stores/auth-store'
-import { useMounted } from '@/hooks/use-mounted'
-import { authFetch } from '@/lib/api'
+import React from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useAuthStore } from "@/stores/auth-store";
+import { useMounted } from "@/hooks/use-mounted";
+import { authFetch } from "@/lib/api";
 import {
   User,
   ShoppingBag,
@@ -16,25 +16,25 @@ import {
   LogOut,
   ChevronRight,
   LogIn,
-} from 'lucide-react'
-import { toast } from 'sonner'
+} from "lucide-react";
+import { toast } from "sonner";
 
 export default function AccountLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
-  const pathname = usePathname()
-  const router = useRouter()
-  const { user, accessToken, reset } = useAuthStore()
-  const mounted = useMounted()
+  const pathname = usePathname();
+  const router = useRouter();
+  const { user, accessToken, reset } = useAuthStore();
+  const mounted = useMounted();
 
   if (!mounted) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center">
         <div className="w-8 h-8 rounded-full border-2 border-[#2196F3] border-t-transparent animate-spin" />
       </div>
-    )
+    );
   }
 
   if (!user || !accessToken) {
@@ -48,7 +48,8 @@ export default function AccountLayout({
             Sign in to access your account
           </h2>
           <p className="text-xs text-slate-500 max-w-sm mx-auto">
-            View orders, saved addresses, manage reviews, and customize your profile.
+            View orders, saved addresses, manage reviews, and customize your
+            profile.
           </p>
           <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link
@@ -66,54 +67,53 @@ export default function AccountLayout({
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   const handleLogout = async () => {
     try {
-      await authFetch('/api/v1/auth/logout', { method: 'POST' })
+      await authFetch("/api/v1/auth/logout", { method: "POST" });
     } catch {
       // Ignore
     }
-    reset()
-    toast.success('Logged out successfully.')
-    router.push('/')
-  }
+    reset();
+    router.push("/");
+  };
 
   const navItems = [
     {
-      name: 'Personal Profile',
-      href: '/account/profile',
+      name: "Personal Profile",
+      href: "/account/profile",
       icon: User,
     },
     {
-      name: 'My Orders',
-      href: '/account/orders',
+      name: "My Orders",
+      href: "/account/orders",
       icon: ShoppingBag,
     },
     {
-      name: 'Returns & Refunds',
-      href: '/account/returns',
+      name: "Returns & Refunds",
+      href: "/account/returns",
       icon: RotateCcw,
     },
     {
-      name: 'My Reviews',
-      href: '/account/reviews',
+      name: "My Reviews",
+      href: "/account/reviews",
       icon: Star,
     },
     {
-      name: 'Shipping Addresses',
-      href: '/account/addresses',
+      name: "Shipping Addresses",
+      href: "/account/addresses",
       icon: MapPin,
     },
     {
-      name: 'Password & Security',
-      href: '/account/security',
+      name: "Password & Security",
+      href: "/account/security",
       icon: Shield,
     },
-  ]
+  ];
 
-  const displayName = user?.fullName || user?.email?.split('@')[0] || 'Member'
+  const displayName = user?.fullName || user?.email?.split("@")[0] || "Member";
 
   return (
     <div className="bg-[#FAFBFC] min-h-screen py-10">
@@ -139,7 +139,9 @@ export default function AccountLayout({
                 <h2 className="text-sm font-bold text-[#0D1B2A] truncate">
                   {displayName}
                 </h2>
-                <p className="text-[11px] text-slate-500 truncate">{user?.email}</p>
+                <p className="text-[11px] text-slate-500 truncate">
+                  {user?.email}
+                </p>
                 <div className="mt-1 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[#E3F2FD] text-[#0D47A1] text-[10px] font-bold">
                   <span>Verified Member</span>
                 </div>
@@ -149,10 +151,10 @@ export default function AccountLayout({
             {/* Navigation Menu */}
             <div className="p-3 rounded-3xl bg-white border border-slate-200/80 shadow-xs space-y-1">
               {navItems.map((item) => {
-                const Icon = item.icon
+                const Icon = item.icon;
                 const isActive =
                   pathname === item.href ||
-                  (item.href === '/account/profile' && pathname === '/account')
+                  (item.href === "/account/profile" && pathname === "/account");
 
                 return (
                   <Link
@@ -160,25 +162,25 @@ export default function AccountLayout({
                     href={item.href}
                     className={`flex items-center justify-between px-4 py-3 rounded-2xl text-xs font-semibold transition-all ${
                       isActive
-                        ? 'bg-[#E3F2FD] text-[#0D47A1] font-bold shadow-xs'
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-[#0D1B2A]'
+                        ? "bg-[#E3F2FD] text-[#0D47A1] font-bold shadow-xs"
+                        : "text-slate-600 hover:bg-slate-50 hover:text-[#0D1B2A]"
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       <Icon
                         className={`w-4 h-4 ${
-                          isActive ? 'text-[#2196F3]' : 'text-slate-400'
+                          isActive ? "text-[#2196F3]" : "text-slate-400"
                         }`}
                       />
                       <span>{item.name}</span>
                     </div>
                     <ChevronRight
                       className={`w-4 h-4 ${
-                        isActive ? 'text-[#0D47A1]' : 'text-slate-300'
+                        isActive ? "text-[#0D47A1]" : "text-slate-300"
                       }`}
                     />
                   </Link>
-                )
+                );
               })}
 
               <div className="pt-2 border-t border-slate-100 mt-2">
@@ -198,5 +200,5 @@ export default function AccountLayout({
         </div>
       </div>
     </div>
-  )
+  );
 }

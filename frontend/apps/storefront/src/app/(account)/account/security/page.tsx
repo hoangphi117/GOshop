@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import { useAuthStore } from '@/stores/auth-store'
 import { Shield, Lock, CheckCircle2, KeyRound } from 'lucide-react'
 import { toast } from 'sonner'
+import { SessionDeviceManager } from '@/components/account/session-device-manager'
 
 export default function SecurityPage() {
   const { accessToken } = useAuthStore()
@@ -61,15 +62,16 @@ export default function SecurityPage() {
   }
 
   return (
-    <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200/80 shadow-xs space-y-6">
-      <div>
-        <h1 className="text-xl font-extrabold text-[#0D1B2A] tracking-tight">
-          Password & Security
-        </h1>
-        <p className="text-xs text-slate-500 mt-1">
-          Update your account password and review authentication safeguards.
-        </p>
-      </div>
+    <div className="space-y-6">
+      <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200/80 shadow-xs space-y-6">
+        <div>
+          <h1 className="text-xl font-extrabold text-[#0D1B2A] tracking-tight">
+            Password & Security
+          </h1>
+          <p className="text-xs text-slate-500 mt-1">
+            Update your account password and review authentication safeguards.
+          </p>
+        </div>
 
       <form onSubmit={handleChangePassword} className="space-y-4 max-w-md">
         <div className="space-y-1.5">
@@ -153,5 +155,8 @@ export default function SecurityPage() {
         </ul>
       </div>
     </div>
-  )
+
+    <SessionDeviceManager />
+  </div>
+)
 }
