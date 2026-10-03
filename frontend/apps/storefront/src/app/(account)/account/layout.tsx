@@ -16,8 +16,10 @@ import {
   LogOut,
   ChevronRight,
   LogIn,
+  Bell,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useNotificationStore } from "@/stores/notification-store";
 
 export default function AccountLayout({
   children,
@@ -27,6 +29,7 @@ export default function AccountLayout({
   const pathname = usePathname();
   const router = useRouter();
   const { user, accessToken, reset } = useAuthStore();
+  const { unreadCount } = useNotificationStore();
   const mounted = useMounted();
 
   if (!mounted) {
@@ -90,6 +93,12 @@ export default function AccountLayout({
       name: "My Orders",
       href: "/account/orders",
       icon: ShoppingBag,
+    },
+    {
+      name: "Notifications",
+      href: "/account/notifications",
+      icon: Bell,
+      badge: unreadCount > 0 ? unreadCount : undefined,
     },
     {
       name: "Returns & Refunds",
@@ -166,19 +175,26 @@ export default function AccountLayout({
                         : "text-slate-600 hover:bg-slate-50 hover:text-[#0D1B2A]"
                     }`}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
                       <Icon
-                        className={`w-4 h-4 ${
+                        className={`w-4 h-4 shrink-0 ${
                           isActive ? "text-[#2196F3]" : "text-slate-400"
                         }`}
                       />
-                      <span>{item.name}</span>
+                      <span className="truncate">{item.name}</span>
                     </div>
-                    <ChevronRight
-                      className={`w-4 h-4 ${
-                        isActive ? "text-[#0D47A1]" : "text-slate-300"
-                      }`}
-                    />
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {item.badge !== undefined && (
+                        <span className="px-2 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-bold leading-none animate-pulse">
+                          {item.badge > 99 ? "99+" : item.badge}
+                        </span>
+                      )}
+                      <ChevronRight
+                        className={`w-4 h-4 ${
+                          isActive ? "text-[#0D47A1]" : "text-slate-300"
+                        }`}
+                      />
+                    </div>
                   </Link>
                 );
               })}

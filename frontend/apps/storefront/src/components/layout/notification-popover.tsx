@@ -20,6 +20,7 @@ import {
   X,
   ExternalLink,
   RefreshCw,
+  ShieldAlert,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-store";
 import {
@@ -176,6 +177,16 @@ export function NotificationPopover({
     }
 
     if (
+      item.type.includes("security") ||
+      item.type.includes("session") ||
+      item.type.includes("device") ||
+      item.type.includes("auth")
+    ) {
+      router.push(item.data?.url || "/account/security");
+      return;
+    }
+
+    if (
       item.type.includes("order") ||
       item.type.includes("shipping") ||
       item.type.includes("payment") ||
@@ -184,7 +195,9 @@ export function NotificationPopover({
     ) {
       const orderRef = item.data?.order_number || item.data?.order_uuid;
       if (orderRef) {
-        router.push(`/account/orders?orderId=${encodeURIComponent(String(orderRef))}`);
+        router.push(
+          `/account/orders?orderId=${encodeURIComponent(String(orderRef))}`,
+        );
       } else {
         router.push("/account/orders");
       }
@@ -194,7 +207,9 @@ export function NotificationPopover({
     if (item.type.includes("review")) {
       const orderRef = item.data?.order_number || item.data?.order_uuid;
       if (orderRef) {
-        router.push(`/account/orders?orderId=${encodeURIComponent(String(orderRef))}`);
+        router.push(
+          `/account/orders?orderId=${encodeURIComponent(String(orderRef))}`,
+        );
       } else {
         router.push("/account/orders");
       }
@@ -224,6 +239,18 @@ export function NotificationPopover({
 
   const getNotificationVisual = (type: string) => {
     const t = (type || "").toLowerCase();
+    if (
+      t.includes("security") ||
+      t.includes("alert") ||
+      t.includes("session") ||
+      t.includes("device") ||
+      t.includes("auth")
+    ) {
+      return {
+        icon: <ShieldAlert className="w-4 h-4 text-rose-600" />,
+        bg: "bg-rose-50 border-rose-100",
+      };
+    }
     if (
       t.includes("shipped") ||
       t.includes("shipping") ||
@@ -516,12 +543,12 @@ export function NotificationPopover({
           {/* Footer */}
           <div className="p-3 bg-slate-50/90 border-t border-slate-100 text-center">
             <Link
-              href="/account/orders"
+              href="/account/notifications"
               onClick={() => setIsOpen(false)}
-              className="text-xs font-bold text-[#0D47A1] hover:text-[#2196F3] inline-flex items-center gap-1 transition-colors"
+              className="text-xs font-bold text-[#0D47A1] hover:text-[#2196F3] inline-flex items-center gap-1.5 transition-colors"
             >
-              <span>View Order Activity</span>
-              <ExternalLink className="w-3 h-3" />
+              <span>View All Notifications</span>
+              <ExternalLink className="w-3.5 h-3.5" />
             </Link>
           </div>
         </div>

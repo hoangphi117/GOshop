@@ -10,20 +10,22 @@ import (
 	"goshop/pkg/cache"
 	"goshop/pkg/mail"
 	"goshop/pkg/rabbitmq"
+	"goshop/pkg/ws"
 )
 
 type AuthModule struct {
 	routes []routes.Route
 }
 
-func NewAuthModule(ctx *ModuleContext, tokenService auth.TokenService, cacheService cache.RedisCacheService, mailService mail.EmailProviderService, rabbitmqService rabbitmq.RabbitMQService, storefrontURL string) *AuthModule {
+func NewAuthModule(ctx *ModuleContext, tokenService auth.TokenService, cacheService cache.RedisCacheService, mailService mail.EmailProviderService, rabbitmqService rabbitmq.RabbitMQService, wsHub ws.Hub, redisBridge ws.RedisBridge, storefrontURL string) *AuthModule {
 
 	// Initialize repository
 	userRepo := repository.NewSqlUserRepository(ctx.DB)
 	sessionRepo := repository.NewSqlSessionRepository(ctx.DB)
+	notificationRepo := repository.NewSqlNotificationRepository(ctx.DB)
 
 	// Initialize service
-	authService := v1service.NewAuthService(userRepo, sessionRepo, tokenService, cacheService, mailService, rabbitmqService, storefrontURL)
+	authService := v1service.NewAuthService(userRepo, sessionRepo, notificationRepo, tokenService, cacheService, mailService, rabbitmqService, wsHub, redisBridge, storefrontURL)
 
 	// Initialize handler
 	authHandler := v1handler.NewAuthHandler(authService)

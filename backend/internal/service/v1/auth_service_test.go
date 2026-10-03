@@ -32,7 +32,7 @@ func TestAuthService_Register(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewAuthService(mockRepo, nil, nil, nil, nil, nil, "http://localhost:3000")
+		svc := v1service.NewAuthService(mockRepo, nil, nil, nil, nil, nil, nil, nil, nil, "http://localhost:3000")
 
 		err := svc.Register(ctx, v1dto.RegisterInput{
 			Email:    "test@example.com",
@@ -51,7 +51,7 @@ func TestAuthService_Register(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewAuthService(mockRepo, nil, nil, nil, nil, nil, "http://localhost:3000")
+		svc := v1service.NewAuthService(mockRepo, nil, nil, nil, nil, nil, nil, nil, nil, "http://localhost:3000")
 
 		err := svc.Register(ctx, v1dto.RegisterInput{
 			Email:    "test@example.com",
@@ -77,7 +77,7 @@ func TestAuthService_Register(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewAuthService(mockRepo, nil, nil, nil, nil, nil, "http://localhost:3000")
+		svc := v1service.NewAuthService(mockRepo, nil, nil, nil, nil, nil, nil, nil, nil, "http://localhost:3000")
 
 		age := int32(25)
 		err := svc.Register(ctx, v1dto.RegisterInput{
@@ -118,7 +118,7 @@ func TestAuthService_Login(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewAuthService(nil, nil, nil, mockCache, nil, nil, "http://localhost:3000")
+		svc := v1service.NewAuthService(nil, nil, nil, nil, mockCache, nil, nil, nil, nil, "http://localhost:3000")
 
 		_, _, _, err := svc.Login(ctx, "1.2.3.4", "Mozilla/5.0", "user@example.com", plainPass)
 		require.Error(t, err)
@@ -147,7 +147,7 @@ func TestAuthService_Login(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewAuthService(mockRepo, nil, nil, mockCache, nil, nil, "http://localhost:3000")
+		svc := v1service.NewAuthService(mockRepo, nil, nil, nil, mockCache, nil, nil, nil, nil, "http://localhost:3000")
 
 		_, _, _, err := svc.Login(ctx, "192.168.1.1", "Mozilla/5.0", "nonexistent@example.com", plainPass)
 		require.Error(t, err)
@@ -174,7 +174,7 @@ func TestAuthService_Login(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewAuthService(mockRepo, nil, nil, mockCache, nil, nil, "http://localhost:3000")
+		svc := v1service.NewAuthService(mockRepo, nil, nil, nil, mockCache, nil, nil, nil, nil, "http://localhost:3000")
 
 		_, _, _, err := svc.Login(ctx, "192.168.1.2", "Mozilla/5.0", "user@example.com", "wrongpass")
 		require.Error(t, err)
@@ -200,7 +200,7 @@ func TestAuthService_Login(t *testing.T) {
 			},
 		}
 		mockTokenSvc := &testutils.MockTokenService{
-			GenerateAccessTokenFunc: func(u sqlc.User) (string, error) {
+			GenerateAccessTokenWithFamilyFunc: func(u sqlc.User, familyID string) (string, error) {
 				assert.Equal(t, userUUID, u.UserUuid)
 				return "generated-access-token", nil
 			},
@@ -211,9 +211,12 @@ func TestAuthService_Login(t *testing.T) {
 				assert.Equal(t, "generated-refresh-token", token.Token)
 				return nil
 			},
+			GetTokenFamilyIDFunc: func(token string) (string, error) {
+				return "family-123", nil
+			},
 		}
 
-		svc := v1service.NewAuthService(mockRepo, nil, mockTokenSvc, mockCache, nil, nil, "http://localhost:3000")
+		svc := v1service.NewAuthService(mockRepo, nil, nil, mockTokenSvc, mockCache, nil, nil, nil, nil, "http://localhost:3000")
 
 		accessToken, refreshToken, expiresIn, err := svc.Login(ctx, "192.168.1.3", "Mozilla/5.0", "  USER@EXAMPLE.COM  ", plainPass)
 		require.NoError(t, err)
@@ -221,6 +224,68 @@ func TestAuthService_Login(t *testing.T) {
 		assert.Equal(t, "generated-refresh-token", refreshToken)
 		assert.Greater(t, expiresIn, 0)
 		assert.Equal(t, "auth:ratelimit:login:192.168.1.3", deletedKey)
+	})
+
+	t.Run("Case 5: Suspicious Login from New Device - Dispatches Security Notification", func(t *testing.T) {
+		mockRepo := &testutils.MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (sqlc.User, error) {
+				return testUser, nil
+			},
+		}
+		oldDevice := "Windows PC"
+		oldIP := "10.0.0.1"
+		mockSessionRepo := &testutils.MockSessionRepository{
+			ListByUserIDFunc: func(ctx context.Context, userID int32) ([]sqlc.UserSession, error) {
+				return []sqlc.UserSession{
+					{
+						SessionID:  1,
+						UserID:     userID,
+						FamilyID:   "old-family",
+						DeviceName: &oldDevice,
+						IpAddress:  &oldIP,
+					},
+				}, nil
+			},
+			CreateFunc: func(ctx context.Context, params sqlc.CreateSessionParams) (sqlc.UserSession, error) {
+				return sqlc.UserSession{SessionID: 2, UserID: params.UserID}, nil
+			},
+		}
+		var createdNotif sqlc.CreateNotificationParams
+		mockNotifRepo := &testutils.MockNotificationRepository{
+			CreateFunc: func(ctx context.Context, params sqlc.CreateNotificationParams) (sqlc.Notification, error) {
+				createdNotif = params
+				return sqlc.Notification{
+					NotificationID:    1,
+					NotificationUuid:  uuid.New(),
+					NotificationTitle: params.NotificationTitle,
+					NotificationBody:  params.NotificationBody,
+				}, nil
+			},
+		}
+		mockTokenSvc := &testutils.MockTokenService{
+			GenerateAccessTokenWithFamilyFunc: func(u sqlc.User, familyID string) (string, error) {
+				return "generated-access-token", nil
+			},
+			GenerateRefreshTokenFunc: func(u sqlc.User) (auth.RefreshToken, error) {
+				return auth.RefreshToken{Token: "generated-refresh-token", UserUUID: u.UserUuid.String()}, nil
+			},
+			StoreRefreshTokenFunc: func(token auth.RefreshToken) error {
+				return nil
+			},
+			GetTokenFamilyIDFunc: func(token string) (string, error) {
+				return "new-family", nil
+			},
+		}
+
+		svc := v1service.NewAuthService(mockRepo, mockSessionRepo, mockNotifRepo, mockTokenSvc, nil, nil, nil, nil, nil, "http://localhost:3000")
+
+		// Login from an iPhone (different device & different IP 192.168.1.99)
+		_, _, _, err := svc.Login(ctx, "192.168.1.99", "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)", "user@example.com", plainPass)
+		require.NoError(t, err)
+		assert.Equal(t, int32(1), createdNotif.NotificationUserID)
+		assert.Equal(t, "security_alert", createdNotif.NotificationType)
+		assert.Contains(t, createdNotif.NotificationTitle, "New login")
+		assert.Contains(t, createdNotif.NotificationBody, "192.168.1.99")
 	})
 }
 
@@ -234,7 +299,7 @@ func TestAuthService_Logout(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewAuthService(nil, nil, mockTokenSvc, nil, nil, nil, "http://localhost:3000")
+		svc := v1service.NewAuthService(nil, nil, nil, mockTokenSvc, nil, nil, nil, nil, nil, "http://localhost:3000")
 
 		err := svc.Logout(ctx, "", "invalid-refresh-token")
 		require.Error(t, err)
@@ -262,7 +327,7 @@ func TestAuthService_Logout(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewAuthService(nil, nil, mockTokenSvc, mockCache, nil, nil, "http://localhost:3000")
+		svc := v1service.NewAuthService(nil, nil, nil, mockTokenSvc, mockCache, nil, nil, nil, nil, "http://localhost:3000")
 
 		err := svc.Logout(ctx, "valid-access-token", "valid-refresh-token")
 		require.NoError(t, err)
@@ -285,7 +350,7 @@ func TestAuthService_RefreshToken(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewAuthService(nil, nil, mockTokenSvc, nil, nil, nil, "http://localhost:3000")
+		svc := v1service.NewAuthService(nil, nil, nil, mockTokenSvc, nil, nil, nil, nil, nil, "http://localhost:3000")
 
 		_, _, _, err := svc.RefreshToken(ctx, "expired-token")
 		require.Error(t, err)
@@ -299,7 +364,7 @@ func TestAuthService_RefreshToken(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewAuthService(nil, nil, mockTokenSvc, nil, nil, nil, "http://localhost:3000")
+		svc := v1service.NewAuthService(nil, nil, nil, mockTokenSvc, nil, nil, nil, nil, nil, "http://localhost:3000")
 
 		_, _, _, err := svc.RefreshToken(ctx, "replayed-token")
 		require.Error(t, err)
@@ -319,7 +384,7 @@ func TestAuthService_RefreshToken(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewAuthService(mockRepo, nil, mockTokenSvc, nil, nil, nil, "http://localhost:3000")
+		svc := v1service.NewAuthService(mockRepo, nil, nil, mockTokenSvc, nil, nil, nil, nil, nil, "http://localhost:3000")
 
 		_, _, _, err := svc.RefreshToken(ctx, "valid-refresh-token")
 		require.Error(t, err)
@@ -334,7 +399,7 @@ func TestAuthService_RefreshToken(t *testing.T) {
 				passedOldToken = token
 				return userUUID.String(), "new-rotated-refresh-token", nil
 			},
-			GenerateAccessTokenFunc: func(u sqlc.User) (string, error) {
+			GenerateAccessTokenWithFamilyFunc: func(u sqlc.User, familyID string) (string, error) {
 				return "new-access-token", nil
 			},
 		}
@@ -344,7 +409,7 @@ func TestAuthService_RefreshToken(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewAuthService(mockRepo, nil, mockTokenSvc, nil, nil, nil, "http://localhost:3000")
+		svc := v1service.NewAuthService(mockRepo, nil, nil, mockTokenSvc, nil, nil, nil, nil, nil, "http://localhost:3000")
 
 		access, refresh, exp, err := svc.RefreshToken(ctx, "old-refresh-token")
 		require.NoError(t, err)
@@ -372,7 +437,7 @@ func TestAuthService_RequestForgotPassword(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewAuthService(nil, nil, nil, mockCache, nil, nil, "http://localhost:3000")
+		svc := v1service.NewAuthService(nil, nil, nil, nil, mockCache, nil, nil, nil, nil, "http://localhost:3000")
 
 		err := svc.RequestForgotPassword(ctx, "john@example.com")
 		require.Error(t, err)
@@ -391,7 +456,7 @@ func TestAuthService_RequestForgotPassword(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewAuthService(mockRepo, nil, nil, mockCache, nil, nil, "http://localhost:3000")
+		svc := v1service.NewAuthService(mockRepo, nil, nil, nil, mockCache, nil, nil, nil, nil, "http://localhost:3000")
 
 		err := svc.RequestForgotPassword(ctx, "nonexistent@example.com")
 		require.Error(t, err)
@@ -420,7 +485,7 @@ func TestAuthService_RequestForgotPassword(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewAuthService(mockRepo, nil, nil, mockCache, nil, mockRabbitMQ, "http://localhost:3000")
+		svc := v1service.NewAuthService(mockRepo, nil, nil, nil, mockCache, nil, mockRabbitMQ, nil, nil, "http://localhost:3000")
 
 		err := svc.RequestForgotPassword(ctx, "john@example.com")
 		require.NoError(t, err)
@@ -439,7 +504,7 @@ func TestAuthService_ResetPassword(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewAuthService(nil, nil, nil, mockCache, nil, nil, "http://localhost:3000")
+		svc := v1service.NewAuthService(nil, nil, nil, nil, mockCache, nil, nil, nil, nil, "http://localhost:3000")
 
 		err := svc.ResetPassword(ctx, "invalid-token", "newpassword123")
 		require.Error(t, err)
@@ -469,7 +534,7 @@ func TestAuthService_ResetPassword(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewAuthService(mockRepo, nil, nil, mockCache, nil, nil, "http://localhost:3000")
+		svc := v1service.NewAuthService(mockRepo, nil, nil, nil, mockCache, nil, nil, nil, nil, "http://localhost:3000")
 
 		err := svc.ResetPassword(ctx, "valid-reset-token", "brandnewsecret123")
 		require.NoError(t, err)
