@@ -6,12 +6,21 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-type TokenService interface {
+type AccessTokenService interface {
 	GenerateAccessToken(user sqlc.User) (string, error)
-	GenerateRefreshToken(user sqlc.User) (RefreshToken, error)
 	ParseToken(tokenString string) (*jwt.Token, jwt.MapClaims, error)
 	DecryptAccessTokenPayload(tokenString string) (*EncryptedPayload, error)
+}
+
+type TokenService interface {
+	AccessTokenService
+
+	// Refresh Token Rotation (RTR) operations
+	GenerateRefreshToken(user sqlc.User) (RefreshToken, error)
 	StoreRefreshToken(token RefreshToken) error
 	ValidateRefreshToken(token string) (RefreshToken, error)
 	RevokeRefreshToken(token string) error
+
+	RotateRefreshToken(oldToken string) (userUUID string, newRefreshToken string, err error)
 }
+

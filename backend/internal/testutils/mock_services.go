@@ -502,6 +502,7 @@ type MockTokenService struct {
 	StoreRefreshTokenFunc         func(token auth.RefreshToken) error
 	ValidateRefreshTokenFunc      func(token string) (auth.RefreshToken, error)
 	RevokeRefreshTokenFunc        func(token string) error
+	RotateRefreshTokenFunc        func(oldToken string) (string, string, error)
 }
 
 func (m *MockTokenService) GenerateAccessToken(user sqlc.User) (string, error) {
@@ -551,6 +552,13 @@ func (m *MockTokenService) RevokeRefreshToken(token string) error {
 		return m.RevokeRefreshTokenFunc(token)
 	}
 	return nil
+}
+
+func (m *MockTokenService) RotateRefreshToken(oldToken string) (string, string, error) {
+	if m.RotateRefreshTokenFunc != nil {
+		return m.RotateRefreshTokenFunc(oldToken)
+	}
+	return uuid.New().String(), "mock-new-refresh-token", nil
 }
 
 // MockEmailProviderService

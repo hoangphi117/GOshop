@@ -280,8 +280,8 @@ func TestAuthService_RefreshToken(t *testing.T) {
 
 	t.Run("Case 1: Invalid Refresh Token - Returns 401 Unauthorized", func(t *testing.T) {
 		mockTokenSvc := &testutils.MockTokenService{
-			ValidateRefreshTokenFunc: func(token string) (auth.RefreshToken, error) {
-				return auth.RefreshToken{}, errors.New("token expired")
+			RotateRefreshTokenFunc: func(token string) (string, string, error) {
+				return "", "", auth.ErrInvalidRefreshToken
 			},
 		}
 
@@ -292,10 +292,25 @@ func TestAuthService_RefreshToken(t *testing.T) {
 		assertAppErrorCode(t, err, utils.ErrCodeUnauthorized)
 	})
 
-	t.Run("Case 2: User Not Found - Returns 404", func(t *testing.T) {
+	t.Run("Case 2: Replay Attack Detected - Returns 401 Unauthorized", func(t *testing.T) {
 		mockTokenSvc := &testutils.MockTokenService{
-			ValidateRefreshTokenFunc: func(token string) (auth.RefreshToken, error) {
-				return auth.RefreshToken{UserUUID: userUUID.String()}, nil
+			RotateRefreshTokenFunc: func(token string) (string, string, error) {
+				return "", "", auth.ErrReplayDetected
+			},
+		}
+
+		svc := v1service.NewAuthService(nil, mockTokenSvc, nil, nil, nil, "http://localhost:3000")
+
+		_, _, _, err := svc.RefreshToken(ctx, "replayed-token")
+		require.Error(t, err)
+		assertAppErrorCode(t, err, utils.ErrCodeUnauthorized)
+		assert.Contains(t, err.Error(), "reuse detected")
+	})
+
+	t.Run("Case 3: User Not Found - Returns 404", func(t *testing.T) {
+		mockTokenSvc := &testutils.MockTokenService{
+			RotateRefreshTokenFunc: func(token string) (string, string, error) {
+				return userUUID.String(), "new-refresh-token", nil
 			},
 		}
 		mockRepo := &testutils.MockUserRepository{
@@ -311,27 +326,16 @@ func TestAuthService_RefreshToken(t *testing.T) {
 		assertAppErrorCode(t, err, utils.ErrCodeNotFound)
 	})
 
-	t.Run("Case 3: Happy Path - Generates New Token Pair and Stores Refresh Token", func(t *testing.T) {
-		var revokedToken string
-		var storedToken string
+	t.Run("Case 4: Happy Path - Rotates Refresh Token and Generates New Access Token", func(t *testing.T) {
+		var passedOldToken string
 
 		mockTokenSvc := &testutils.MockTokenService{
-			ValidateRefreshTokenFunc: func(token string) (auth.RefreshToken, error) {
-				return auth.RefreshToken{UserUUID: userUUID.String()}, nil
+			RotateRefreshTokenFunc: func(token string) (string, string, error) {
+				passedOldToken = token
+				return userUUID.String(), "new-rotated-refresh-token", nil
 			},
 			GenerateAccessTokenFunc: func(u sqlc.User) (string, error) {
 				return "new-access-token", nil
-			},
-			GenerateRefreshTokenFunc: func(u sqlc.User) (auth.RefreshToken, error) {
-				return auth.RefreshToken{Token: "new-refresh-token"}, nil
-			},
-			RevokeRefreshTokenFunc: func(token string) error {
-				revokedToken = token
-				return nil
-			},
-			StoreRefreshTokenFunc: func(token auth.RefreshToken) error {
-				storedToken = token.Token
-				return nil
 			},
 		}
 		mockRepo := &testutils.MockUserRepository{
@@ -345,10 +349,9 @@ func TestAuthService_RefreshToken(t *testing.T) {
 		access, refresh, exp, err := svc.RefreshToken(ctx, "old-refresh-token")
 		require.NoError(t, err)
 		assert.Equal(t, "new-access-token", access)
-		assert.Equal(t, "new-refresh-token", refresh)
+		assert.Equal(t, "new-rotated-refresh-token", refresh)
 		assert.Greater(t, exp, 0)
-		assert.Equal(t, "old-refresh-token", revokedToken)
-		assert.Equal(t, "new-refresh-token", storedToken)
+		assert.Equal(t, "old-refresh-token", passedOldToken)
 	})
 }
 

@@ -15,7 +15,8 @@ import (
 )
 
 type JWTService struct {
-	cache cache.RedisCacheService
+	cache   cache.RedisCacheService
+	rotator RefreshTokenRotator
 }
 
 type EncryptedPayload struct {
@@ -38,16 +39,17 @@ var (
 
 const (
 	AccessTokenTTL  = 15 * time.Minute
-	RefreshTokenTTL = 1 * 24 * time.Hour
+	RefreshTokenTTL = 7 * 24 * time.Hour
 )
 
 func NewJWTService(cache cache.RedisCacheService) TokenService {
 	return &JWTService{
-		cache: cache,
+		cache:   cache,
+		rotator: NewRefreshTokenRotator(cache),
 	}
 }
 
-/***************** Refresh Token *****************/
+/***************** Access Token (JWT) *****************/
 
 func (js *JWTService) GenerateAccessToken(user sqlc.User) (string, error) {
 	payload := &EncryptedPayload{
@@ -120,9 +122,21 @@ func (js *JWTService) DecryptAccessTokenPayload(tokenString string) (*EncryptedP
 	return &payload, nil
 }
 
-/***************** Refresh Token *****************/
+/***************** Refresh Token & Rotation *****************/
 
 func (js *JWTService) GenerateRefreshToken(user sqlc.User) (RefreshToken, error) {
+	if js.rotator != nil {
+		rawToken, _, err := js.rotator.CreateSession(user.UserUuid.String())
+		if err != nil {
+			return RefreshToken{}, err
+		}
+		return RefreshToken{
+			Token:     rawToken,
+			UserUUID:  user.UserUuid.String(),
+			ExpiresAt: time.Now().Add(RefreshTokenTTL),
+			Revoked:   false,
+		}, nil
+	}
 
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
@@ -140,31 +154,37 @@ func (js *JWTService) GenerateRefreshToken(user sqlc.User) (RefreshToken, error)
 }
 
 func (js *JWTService) StoreRefreshToken(token RefreshToken) error {
-	key := "refresh_token:" + token.Token
-	return js.cache.Set(key, token, RefreshTokenTTL)
+	// If rotator is used, tokens are persisted in CreateSession / RotateToken
+	return nil
 }
 
 func (js *JWTService) ValidateRefreshToken(token string) (RefreshToken, error) {
-	key := "refresh_token:" + token
-
-	var refreshToken RefreshToken
-	err := js.cache.Get(key, &refreshToken)
-	if err != nil || refreshToken.Revoked || time.Now().After(refreshToken.ExpiresAt) {
-		return RefreshToken{}, utils.WrapError(utils.ErrCodeInternal, "Cannot get refresh token", err)
+	// Kept for backward compatibility
+	if js.rotator != nil {
+		oldHash := HashToken(token)
+		var rtData RefreshTokenData
+		if err := js.cache.Get("rt:"+oldHash, &rtData); err == nil && rtData.UserUUID != "" && !rtData.Used {
+			return RefreshToken{
+				Token:     token,
+				UserUUID:  rtData.UserUUID,
+				ExpiresAt: time.Now().Add(RefreshTokenTTL),
+				Revoked:   false,
+			}, nil
+		}
 	}
-
-	return refreshToken, nil
+	return RefreshToken{}, utils.NewError(utils.ErrCodeUnauthorized, "Refresh token is invalid or revoked")
 }
 
 func (js *JWTService) RevokeRefreshToken(token string) error {
-	key := "refresh_token:" + token
-	var refreshToken RefreshToken
-	err := js.cache.Get(key, &refreshToken)
-	if err != nil || time.Now().After(refreshToken.ExpiresAt) {
-		return utils.WrapError(utils.ErrCodeInternal, "Cannot get refresh token", err)
+	if js.rotator != nil {
+		return js.rotator.RevokeToken(token)
 	}
+	return nil
+}
 
-	refreshToken.Revoked = true
-
-	return js.cache.Set(key, refreshToken, time.Until(refreshToken.ExpiresAt))
+func (js *JWTService) RotateRefreshToken(oldToken string) (string, string, error) {
+	if js.rotator != nil {
+		return js.rotator.RotateToken(oldToken)
+	}
+	return "", "", utils.NewError(utils.ErrCodeInternal, "Token rotator not initialized")
 }

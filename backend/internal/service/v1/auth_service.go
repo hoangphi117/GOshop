@@ -175,12 +175,12 @@ func (as *authService) Logout(ctx context.Context, accessToken string, refreshTo
 }
 
 func (as *authService) RefreshToken(ctx context.Context, refreshToken string) (string, string, int, error) {
-	token, err := as.tokenService.ValidateRefreshToken(refreshToken)
+	userUUIDStr, newRefreshToken, err := as.tokenService.RotateRefreshToken(refreshToken)
 	if err != nil {
-		return "", "", 0, utils.NewError(utils.ErrCodeUnauthorized, "Refresh token is invalid or revoked")
+		return "", "", 0, err
 	}
 
-	userUuid, err := uuid.Parse(token.UserUUID)
+	userUuid, err := uuid.Parse(userUUIDStr)
 	if err != nil {
 		return "", "", 0, utils.NewError(utils.ErrCodeUnauthorized, "Invalid user UUID in token")
 	}
@@ -195,20 +195,7 @@ func (as *authService) RefreshToken(ctx context.Context, refreshToken string) (s
 		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "Failed to generate access token", err)
 	}
 
-	refreshTokenNew, err := as.tokenService.GenerateRefreshToken(user)
-	if err != nil {
-		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "Failed to generate refresh token", err)
-	}
-
-	if err := as.tokenService.RevokeRefreshToken(refreshToken); err != nil {
-		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "Failed to revoke old refresh token", err)
-	}
-
-	if err := as.tokenService.StoreRefreshToken(refreshTokenNew); err != nil {
-		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "Failed to store refresh token", err)
-	}
-
-	return accessToken, refreshTokenNew.Token, int(auth.AccessTokenTTL.Seconds()), nil
+	return accessToken, newRefreshToken, int(auth.AccessTokenTTL.Seconds()), nil
 }
 
 func (as *authService) RequestForgotPassword(ctx context.Context, email string) error {
