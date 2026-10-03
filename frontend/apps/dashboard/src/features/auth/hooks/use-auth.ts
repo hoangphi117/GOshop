@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { isStaffOrAdmin } from '@/lib/auth-utils'
 import { useAuthStore, type AuthUser } from '@/stores/auth-store'
 
 export function useAuth() {
@@ -15,6 +16,10 @@ export function useAuth() {
         throw new Error(error?.error || 'Failed to fetch user profile')
       }
       const u = data.data
+      if (!isStaffOrAdmin(u.level)) {
+        auth.reset()
+        throw new Error('Access denied. Administrator privileges required.')
+      }
       const userProfile: AuthUser = {
         uuid: u.uuid,
         email: u.email || '',
@@ -46,26 +51,27 @@ export function useAuth() {
       const loginData = data.data
       auth.setTokens(loginData.access_token || '', loginData.refresh_token || '')
 
-      // Fetch user profile immediately
-      try {
-        const { data: profileRes } = await api.GET('/users/me')
-        if (profileRes?.data) {
-          const u = profileRes.data
-          auth.setUser({
-            uuid: u.uuid,
-            email: u.email || email,
-            fullName: u.full_name,
-            level: u.level,
-            status: u.status,
-          })
-        }
-      } catch {
-        // Fallback user if me endpoint not yet ready
-        auth.setUser({
-          email,
-          fullName: email.split('@')[0],
-        })
+      // Fetch user profile immediately & verify role permissions
+      const { data: profileRes, error: profileErr } = await api.GET('/users/me')
+      if (profileErr || !profileRes?.data) {
+        auth.reset()
+        throw new Error('Failed to retrieve user profile. Access denied.')
       }
+
+      const u = profileRes.data
+      if (!isStaffOrAdmin(u.level)) {
+        auth.reset()
+        throw new Error('Access denied. This dashboard is restricted to administrators and staff members.')
+      }
+
+      const userProfile: AuthUser = {
+        uuid: u.uuid,
+        email: u.email || email,
+        fullName: u.full_name,
+        level: u.level,
+        status: u.status,
+      }
+      auth.setUser(userProfile)
 
       queryClient.invalidateQueries({ queryKey: ['currentUser'] })
       return loginData
