@@ -1,8 +1,10 @@
-package config
+﻿package config
 
 import (
 	"fmt"
 	"goshop/internal/utils"
+	"goshop/pkg/storage"
+	"strconv"
 )
 
 type DatabaseConfig struct {
@@ -22,6 +24,7 @@ type Config struct {
 	StorefrontURL      string
 	MailProviderType   string
 	MailProviderConfig map[string]any
+	Storage            storage.StorageConfig
 }
 
 func NewConfig() *Config {
@@ -45,6 +48,25 @@ func NewConfig() *Config {
 		mailProviderConfig["mailtrap"] = mailTrapConfig
 	}
 
+	usePathStyle, _ := strconv.ParseBool(utils.GetEnv("S3_USE_PATH_STYLE", "true"))
+	useSSL, _ := strconv.ParseBool(utils.GetEnv("S3_USE_SSL", "false"))
+
+	storageConfig := storage.StorageConfig{
+		Driver:        storage.StorageDriver(utils.GetEnv("STORAGE_DRIVER", "local")),
+		UploadDir:     utils.GetEnv("UPLOAD_DIR", "./uploads"),
+		PublicBaseURL: utils.GetEnv("STORAGE_PUBLIC_BASE_URL", ""),
+		S3: storage.S3Config{
+			Endpoint:      utils.GetEnv("S3_ENDPOINT", ""),
+			Region:        utils.GetEnv("S3_REGION", "auto"),
+			Bucket:        utils.GetEnv("S3_BUCKET", "goshop-media"),
+			AccessKey:     utils.GetEnv("S3_ACCESS_KEY", ""),
+			SecretKey:     utils.GetEnv("S3_SECRET_KEY", ""),
+			PublicBaseURL: utils.GetEnv("S3_PUBLIC_BASE_URL", ""),
+			UsePathStyle:  usePathStyle,
+			ForceSSL:      useSSL,
+		},
+	}
+
 	return &Config{
 		AppEnv:        utils.GetEnv("APP_ENV", "development"),
 		ServerAddress: fmt.Sprintf(":%s", utils.GetEnv("SERVER_PORT", "8080")),
@@ -60,6 +82,7 @@ func NewConfig() *Config {
 		StorefrontURL:      utils.GetEnv("STOREFRONT_URL", "http://localhost:3001"),
 		MailProviderType:   mailProviderType,
 		MailProviderConfig: mailProviderConfig,
+		Storage:            storageConfig,
 	}
 }
 

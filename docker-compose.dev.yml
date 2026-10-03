@@ -1,10 +1,4 @@
-version: "3.9"
-
-# =============================================================================
-# GOSHOP DEVELOPMENT DOCKER COMPOSE ORCHESTRATION (HOT RELOAD)
-# =============================================================================
-
-services:
+﻿services:
   nginx:
     image: nginx:1.27-alpine
     container_name: goshop-nginx
@@ -45,7 +39,11 @@ services:
       rabbitmq:
         condition: service_healthy
     networks:
-      - goshop-network
+      goshop-network:
+        aliases:
+          - api
+          - api1
+          - api2
 
   worker:
     build:
@@ -129,12 +127,30 @@ services:
     networks:
       - goshop-network
 
+  minio:
+    image: minio/minio:latest
+    container_name: goshop-minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-goshop_admin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-goshop_secret_key}
+    volumes:
+      - minio-data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - goshop-network
+
 volumes:
   postgres-data:
     driver: local
   redis-data:
     driver: local
   rabbitmq-data:
+    driver: local
+  minio-data:
     driver: local
 
 networks:

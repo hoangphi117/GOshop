@@ -1,4 +1,4 @@
-package app
+﻿package app
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"goshop/pkg/logger"
 	"goshop/pkg/mail"
 	"goshop/pkg/rabbitmq"
+	"goshop/pkg/storage"
 	"goshop/pkg/ws"
 	"net/http"
 	"os"
@@ -45,6 +46,7 @@ type ModuleContext struct {
 	DB        sqlc.Querier
 	Redis     *redis.Client
 	TxManager db.TxManager
+	Storage   storage.StorageService
 }
 
 func NewApplication(cfg *config.Config) (*Application, error) {
@@ -118,6 +120,13 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		return nil, err
 	}
 
+	storageLogger := utils.NewLoggerWithPath("storage.log", "info")
+	storageService, err := storage.NewStorageService(context.Background(), cfg.Storage, storageLogger)
+	if err != nil {
+		logger.Log.Fatal().Err(err).Msg("Failed to initialize storage service")
+		return nil, err
+	}
+
 	rabbitmqLogger := utils.NewLoggerWithPath("worker.log", "info")
 	rabbitmqService, err := rabbitmq.NewRabbitMQService(utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"), rabbitmqLogger)
 	if err != nil {
@@ -135,6 +144,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		DB:        db.DB,
 		Redis:     redisClient,
 		TxManager: txManager,
+		Storage:   storageService,
 	}
 
 	modules := []Module{
@@ -165,60 +175,53 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	}, nil
 }
 
+func getModuleRoutes(modules []Module) []routes.Route {
+	var moduleRoutes []routes.Route
+	for _, module := range modules {
+		moduleRoutes = append(moduleRoutes, module.Routes()...)
+	}
+	return moduleRoutes
+}
+
+func getAdminModuleRoutes(modules []Module) []routes.Route {
+	var adminModuleRoutes []routes.Route
+	for _, module := range modules {
+		if adminModule, ok := module.(AdminModule); ok {
+			adminModuleRoutes = append(adminModuleRoutes, adminModule.AdminRoutes()...)
+		}
+	}
+	return adminModuleRoutes
+}
+
 func (a *Application) Run() error {
 	srv := &http.Server{
 		Addr:    a.config.ServerAddress,
 		Handler: a.router,
 	}
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
-	// 					ctrl + c       | kill service  | reload service
-
 	go func() {
-		logger.Log.Info().Msgf("Server is running at: %s", a.config.ServerAddress)
-		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
-			logger.Log.Fatal().Err(err).Msg("Failed to start server")
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Log.Fatal().Err(err).Msg("Server failed to start")
 		}
 	}()
 
+	logger.Log.Info().Msgf("Server is running on %s", a.config.ServerAddress)
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	logger.Log.Warn().Msg("Shutdown signal received...")
 
-	if a.redisBridge != nil {
-		a.redisBridge.Stop()
-	}
+	logger.Log.Info().Msg("Server is shutting down...")
 
-	if a.wsHub != nil {
-		a.wsHub.Shutdown()
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		logger.Log.Fatal().Err(err).Msg("⛔ Server forced to shutdown")
+		logger.Log.Fatal().Err(err).Msg("Server forced to shutdown")
+		return err
 	}
 
-	logger.Log.Info().Msg("☑️  Server exited gracefully")
-
+	logger.Log.Info().Msg("Server exited successfully")
 	return nil
 }
 
-func getModuleRoutes(modules []Module) []routes.Route {
-	routeList := make([]routes.Route, 0)
-	for _, module := range modules {
-		routeList = append(routeList, module.Routes()...)
-	}
-	return routeList
-}
-
-func getAdminModuleRoutes(modules []Module) []routes.Route {
-	routeList := make([]routes.Route, 0)
-	for _, module := range modules {
-		if adminModule, ok := module.(AdminModule); ok {
-			routeList = append(routeList, adminModule.AdminRoutes()...)
-		}
-	}
-	return routeList
-}

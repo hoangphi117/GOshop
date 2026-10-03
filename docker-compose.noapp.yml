@@ -1,9 +1,8 @@
-version: "3.9"
-
+﻿
 # =============================================================================
 # GOSHOP INFRASTRUCTURE ONLY (Postgres, Redis, RabbitMQ)
 # =============================================================================
-# Dành cho môi trường Local Development khi chạy Go API và Storefront trực tiếp trên Host.
+# DÃ nh cho mÃ´i trÆ°á»ng Local Development khi cháº¡y Go API vÃ  Storefront trá»±c tiáº¿p trÃªn Host.
 # =============================================================================
 
 services:
@@ -73,3 +72,4 @@ volumes:
 networks:
   goshop-network:
     driver: bridge
+

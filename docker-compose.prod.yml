@@ -1,13 +1,4 @@
-version: "3.9"
-
-# =============================================================================
-# GOSHOP PRODUCTION DOCKER COMPOSE ORCHESTRATION
-# =============================================================================
-
-services:
-  # ---------------------------------------------------------------------------
-  # 1. NGINX REVERSE PROXY & LOAD BALANCER
-  # ---------------------------------------------------------------------------
+﻿services:
   nginx:
     image: nginx:1.27-alpine
     container_name: goshop-nginx
@@ -22,18 +13,16 @@ services:
       - certbot-etc:/etc/letsencrypt:ro
       - certbot-www:/var/www/certbot:ro
     depends_on:
-      - api
+      - api1
+      - api2
     networks:
       - goshop-network
 
-  # ---------------------------------------------------------------------------
-  # 2. GOSHOP BACKEND API (STATELESS GIN ENGINE)
-  # ---------------------------------------------------------------------------
-  api:
+  api1:
     build:
       context: ./backend
       dockerfile: Dockerfile.api.prod
-    container_name: goshop-api
+    container_name: goshop-api1
     restart: unless-stopped
     env_file:
       - ./backend/.env
@@ -41,8 +30,6 @@ services:
       - DB_HOST=postgres
       - REDIS_ADDR=redis:6379
       - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
-    volumes:
-      - ./backend/uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -51,11 +38,36 @@ services:
       rabbitmq:
         condition: service_healthy
     networks:
-      - goshop-network
+      goshop-network:
+        aliases:
+          - api
+          - api1
 
-  # ---------------------------------------------------------------------------
-  # 3. GOSHOP BACKGROUND WORKER
-  # ---------------------------------------------------------------------------
+  api2:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.api.prod
+    container_name: goshop-api2
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      - DB_HOST=postgres
+      - REDIS_ADDR=redis:6379
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      goshop-network:
+        aliases:
+          - api
+          - api2
+
   worker:
     build:
       context: ./backend
@@ -78,13 +90,10 @@ services:
     networks:
       - goshop-network
 
-  # ---------------------------------------------------------------------------
-  # 4. STOREFRONT (NEXT.JS APP)
-  # ---------------------------------------------------------------------------
   storefront:
     build:
       context: ./frontend
-      dockerfile: apps/storefront/Dockerfile
+      dockerfile: Dockerfile.storefront
     container_name: goshop-storefront
     restart: unless-stopped
     environment:
@@ -93,9 +102,6 @@ services:
     networks:
       - goshop-network
 
-  # ---------------------------------------------------------------------------
-  # 5. POSTGRESQL DATABASE
-  # ---------------------------------------------------------------------------
   postgres:
     image: postgres:16-alpine
     container_name: goshop-postgres
@@ -106,6 +112,8 @@ services:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-super@password}
       POSTGRES_DB: ${DB_NAME:-shopping}
+    ports:
+      - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -116,13 +124,12 @@ services:
     networks:
       - goshop-network
 
-  # ---------------------------------------------------------------------------
-  # 6. REDIS (CACHE, RATE LIMITING & WEBSOCKET PUBSUB BRIDGE)
-  # ---------------------------------------------------------------------------
   redis:
     image: redis:alpine
     container_name: goshop-redis
     restart: unless-stopped
+    ports:
+      - "6379:6379"
     volumes:
       - redis-data:/data
     healthcheck:
@@ -133,9 +140,6 @@ services:
     networks:
       - goshop-network
 
-  # ---------------------------------------------------------------------------
-  # 7. RABBITMQ MESSAGE BROKER
-  # ---------------------------------------------------------------------------
   rabbitmq:
     image: rabbitmq:3-management-alpine
     container_name: goshop-rabbitmq
@@ -144,7 +148,8 @@ services:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-goshop}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-goshop}
     ports:
-      - "15672:15672" # RabbitMQ Web Management Dashboard
+      - "5672:5672"
+      - "15672:15672"
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
     healthcheck:
@@ -155,9 +160,6 @@ services:
     networks:
       - goshop-network
 
-  # ---------------------------------------------------------------------------
-  # 8. CERTBOT (AUTOMATED SSL CERTIFICATE ISSUANCE & RENEWAL)
-  # ---------------------------------------------------------------------------
   certbot:
     image: certbot/certbot:latest
     container_name: goshop-certbot
@@ -170,9 +172,6 @@ services:
     networks:
       - goshop-network
 
-# =============================================================================
-# VOLUMES & NETWORKS
-# =============================================================================
 volumes:
   postgres-data:
     driver: local
