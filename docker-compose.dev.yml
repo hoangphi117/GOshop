@@ -1,82 +1,24 @@
+version: "3.9"
+
+# =============================================================================
+# GOSHOP DEVELOPMENT DOCKER COMPOSE ORCHESTRATION (HOT RELOAD)
+# =============================================================================
+
 services:
-  db:
-    image: postgres:18-alpine3.24
-    container_name: postgres-db
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: goshop-nginx
     restart: unless-stopped
-
-    environment:
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-
     ports:
-      - "5432:5432"
-
+      - "80:80"
     volumes:
-      - pgdata:/var/lib/postgresql
-
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./backend/uploads:/var/www/uploads:ro
+    depends_on:
+      - api
     networks:
-      - app-networks
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  redis:
-    image: redis:8.10-alpine
-    container_name: redis
-    restart: unless-stopped
-
-    environment:
-      REDIS_DB: ${REDIS_DB}
-      REDIS_USER: ${REDIS_USER}
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
-
-    ports:
-      - "6379:6379"
-
-    volumes:
-      - redis-data:/data
-      - ./system/redis/redis.conf:/usr/local/etc/redis/redis.conf
-
-    command:
-      - redis-server
-      - /usr/local/etc/redis/redis.conf
-
-    networks:
-      - app-networks
-
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  rabbitmq:
-    image: rabbitmq:4.3.4-management-alpine
-    container_name: rabbitmq
-    restart: unless-stopped
-
-    environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
-
-    ports:
-      - "5672:5672"
-      - "15672:15672"
-
-    volumes:
-      - rabbitmq-data:/var/lib/rabbitmq
-
-    networks:
-      - app-networks
-
-    healthcheck:
-      test: ["CMD", "rabbitmqctl", "status"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      - goshop-network
 
   api:
     build:
@@ -84,27 +26,26 @@ services:
       dockerfile: Dockerfile.api.dev
     container_name: goshop-api
     restart: unless-stopped
-
+    ports:
+      - "8080:8080"
     env_file:
       - ./backend/.env
-
     environment:
-      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/
-      DB_HOST: db
-
-    ports:
-      - "${SERVER_PORT}:${SERVER_PORT}"
+      - DB_HOST=postgres
+      - REDIS_ADDR=redis:6379
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
     volumes:
       - ./backend:/app
+      - ./backend/uploads:/app/uploads
     depends_on:
-      db:
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     networks:
-      - app-networks
+      - goshop-network
 
   worker:
     build:
@@ -112,68 +53,90 @@ services:
       dockerfile: Dockerfile.worker.dev
     container_name: goshop-worker
     restart: unless-stopped
-
     env_file:
       - ./backend/.env
-
     environment:
-      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/
-      DB_HOST: db
-
+      - DB_HOST=postgres
+      - REDIS_ADDR=redis:6379
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
     volumes:
       - ./backend:/app
     depends_on:
-      db:
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     networks:
-      - app-networks
+      - goshop-network
 
-  grafana:
-    image: grafana/grafana:13.0.6
-    container_name: grafana
+  postgres:
+    image: postgres:16-alpine
+    container_name: goshop-postgres
     restart: unless-stopped
-    ports:
-      - "3000:3000"
+    env_file:
+      - ./backend/.env
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-    depends_on:
-      - loki
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-super@password}
+      POSTGRES_DB: ${DB_NAME:-shopping}
+    ports:
+      - "5432:5432"
     volumes:
-      - grafana-data:/var/lib/grafana
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-shopping}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - goshop-network
 
-  loki:
-    image: grafana/loki:2.9.1
-    container_name: loki
+  redis:
+    image: redis:alpine
+    container_name: goshop-redis
     restart: unless-stopped
     ports:
-      - "3100:3100"
-    command: -config.file=/etc/loki/local-config.yaml
+      - "6379:6379"
     volumes:
-      - loki-data:/loki
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - goshop-network
 
-  promtail:
-    image: grafana/promtail:2.9.1
-    container_name: promtail
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: goshop-rabbitmq
     restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-goshop}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-goshop}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
     volumes:
-      - ./backend/internal/logs:/var/log
-      - ./system/promtail/promtail-config.yml:/etc/promtail/config.yml
-    command: -config.file=/etc/promtail/config.yml
-    depends_on:
-      - loki
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - goshop-network
 
 volumes:
-  pgdata:
+  postgres-data:
+    driver: local
   redis-data:
+    driver: local
   rabbitmq-data:
-  grafana-data:
-  loki-data:
+    driver: local
 
 networks:
-  app-networks:
+  goshop-network:
     driver: bridge

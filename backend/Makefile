@@ -5,9 +5,9 @@ MIGRATION_DIR=internal/db/migrations
 
 CONNECTION_STRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=${DB_SSL_MODE}
 
-PROD_COMPOSE=docker-compose.prod.yml
-NOAPP_COMPOSE=docker-compose.noapp.yml
-DEV_COMPOSE=docker-compose.dev.yml
+PROD_COMPOSE=../docker-compose.prod.yml
+NOAPP_COMPOSE=../docker-compose.noapp.yml
+DEV_COMPOSE=../docker-compose.dev.yml
 
 ENV_FILE=.env
 

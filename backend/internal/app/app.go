@@ -52,9 +52,41 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	validation.InitValidator()
 
 	r := gin.Default()
+
+	// =========================================================================
+	// CONFIGURE TRUSTED PROXIES FOR GIN ENGINE (REVERSE PROXY / LOAD BALANCER)
+	// =========================================================================
+	// Architectural & Security Rationale:
+	// When the system is deployed behind a Reverse Proxy / Load Balancer (Nginx, Cloudflare, AWS ALB),
+	// the TCP connection directly to Gin originates from the Proxy's internal IP address.
+	//
+	// If SetTrustedProxies is not configured:
+	// 1. c.ClientIP() will read the wrong IP and return the Proxy's IP (e.g., 172.x.x.x or 127.0.0.1).
+	// 2. This causes the Rate Limiting feature (Redis-based by IP) to incorrectly block all users.
+	// 3. The Suspicious Login Detection feature (alerts for unusual locations/IPs) will record the wrong client IP.
+	// 4. The X-Forwarded-For header can be spoofed (IP Spoofing) if arbitrary proxies are trusted.
+	//
+	// Configuration:
+	// - Production: Trust only secure internal network ranges (Docker bridge / private subnets / localhost).
+	// - Development: Trust the localhost loopback addresses (127.0.0.1, ::1).
+	if cfg.AppEnv == "production" {
+		_ = r.SetTrustedProxies([]string{
+			"127.0.0.1",      // Local loopback
+			"::1",            // IPv6 loopback
+			"10.0.0.0/8",     // RFC 1918 Private Class A (K8s/Cloud internal VPC)
+			"172.16.0.0/12",  // RFC 1918 Private Class B (Docker default bridge network)
+			"192.168.0.0/16", // RFC 1918 Private Class C (LAN / Custom Docker network)
+		})
+	} else {
+		_ = r.SetTrustedProxies([]string{
+			"127.0.0.1",
+			"::1",
+		})
+	}
+
 	r.MaxMultipartMemory = 8 << 20 // 8MB memory buffer for multipart forms (prevents OOM DoS)
 
-	// Bảo vệ thư mục tĩnh /uploads chống MIME sniffing và thực thi script trái phép
+	// Protect the static /uploads directory against MIME sniffing and unauthorized script execution
 	r.Use(func(c *gin.Context) {
 		if strings.HasPrefix(c.Request.URL.Path, "/uploads") {
 			c.Header("X-Content-Options", "nosniff")

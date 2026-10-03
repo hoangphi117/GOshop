@@ -15,6 +15,7 @@ type DatabaseConfig struct {
 }
 
 type Config struct {
+	AppEnv             string // Environment: "development", "production", "staging"
 	ServerAddress      string
 	DB                 DatabaseConfig
 	AppURL             string
@@ -45,6 +46,7 @@ func NewConfig() *Config {
 	}
 
 	return &Config{
+		AppEnv:        utils.GetEnv("APP_ENV", "development"),
 		ServerAddress: fmt.Sprintf(":%s", utils.GetEnv("SERVER_PORT", "8080")),
 		DB: DatabaseConfig{
 			Host:     utils.GetEnv("DB_HOST", "localhost"),

@@ -1,88 +1,75 @@
+version: "3.9"
+
+# =============================================================================
+# GOSHOP INFRASTRUCTURE ONLY (Postgres, Redis, RabbitMQ)
+# =============================================================================
+# Dành cho môi trường Local Development khi chạy Go API và Storefront trực tiếp trên Host.
+# =============================================================================
+
 services:
-  db:
-    image: postgres:18-alpine3.24
-    container_name: postgres-db
+  postgres:
+    image: postgres:16-alpine
+    container_name: goshop-postgres
     restart: unless-stopped
-
+    env_file:
+      - ./backend/.env
     environment:
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-my-app}
     ports:
       - "5432:5432"
-
     volumes:
-      - pgdata:/var/lib/postgresql
-
-    networks:
-      - app-networks
+      - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-my-app}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - goshop-network
 
   redis:
-    image: redis:8.10-alpine
-    container_name: redis
+    image: redis:7-alpine
+    container_name: goshop-redis
     restart: unless-stopped
-
-    environment:
-      REDIS_DB: ${REDIS_DB}
-      REDIS_USER: ${REDIS_USER}
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
-
     ports:
       - "6379:6379"
-
     volumes:
       - redis-data:/data
-      - ./system/redis/redis.conf:/usr/local/etc/redis/redis.conf
-
-    command:
-      - redis-server
-      - /usr/local/etc/redis/redis.conf
-
-    networks:
-      - app-networks
-
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - goshop-network
 
   rabbitmq:
-    image: rabbitmq:4.3.4-management-alpine
-    container_name: rabbitmq
+    image: rabbitmq:3-management-alpine
+    container_name: goshop-rabbitmq
     restart: unless-stopped
-
-    environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
-
     ports:
       - "5672:5672"
       - "15672:15672"
-
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
-
-    networks:
-      - app-networks
-
     healthcheck:
-      test: ["CMD", "rabbitmqctl", "status"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - goshop-network
 
 volumes:
-  pgdata:
+  postgres-data:
+    driver: local
   redis-data:
+    driver: local
   rabbitmq-data:
+    driver: local
 
 networks:
-  app-networks:
+  goshop-network:
     driver: bridge
