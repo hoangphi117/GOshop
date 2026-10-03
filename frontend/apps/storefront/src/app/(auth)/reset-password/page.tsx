@@ -3,59 +3,61 @@
 import React, { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import {
-  Store,
-  Lock,
-  KeyRound,
-  Eye,
-  EyeOff,
-  ArrowRight,
-  ArrowLeft,
-  ShieldCheck,
-  CheckCircle2,
-  RefreshCw,
-  AlertCircle,
-} from 'lucide-react'
-import { toast } from 'sonner'
+import { Store, Lock, KeyRound, ArrowRight, ArrowLeft, ShieldCheck, CheckCircle2, AlertCircle, Eye, EyeOff, RefreshCw } from 'lucide-react'
 import { extractErrorMessage } from '@/lib/utils'
 
 function ResetPasswordForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const urlToken = searchParams.get('token') || searchParams.get('code') || ''
 
-  const [token, setToken] = useState(urlToken)
+  const [token, setToken] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [generalError, setGeneralError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<{
+    token?: string
+    newPassword?: string
+    confirmPassword?: string
+  }>({})
 
   useEffect(() => {
-    if (urlToken) {
-      setToken(urlToken)
+    const tokenFromUrl = searchParams.get('token')
+    if (tokenFromUrl) {
+      setToken(tokenFromUrl)
     }
-  }, [urlToken])
+  }, [searchParams])
+
+  const validate = () => {
+    const errors: { token?: string; newPassword?: string; confirmPassword?: string } = {}
+
+    if (!token.trim()) {
+      errors.token = 'Please enter the reset token received via email'
+    }
+
+    if (!newPassword) {
+      errors.newPassword = 'Please enter a new password'
+    } else if (newPassword.length < 6) {
+      errors.newPassword = 'Password must be at least 6 characters long'
+    }
+
+    if (!confirmPassword) {
+      errors.confirmPassword = 'Please confirm your new password'
+    } else if (confirmPassword !== newPassword) {
+      errors.confirmPassword = 'Passwords do not match'
+    }
+
+    setFieldErrors(errors)
+    return Object.keys(errors).length === 0
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setErrorMsg(null)
+    setGeneralError(null)
 
-    if (!token.trim()) {
-      setErrorMsg('Please enter the reset token you received via email.')
-      return
-    }
-
-    if (newPassword.length < 6) {
-      setErrorMsg('New password must be at least 6 characters long.')
-      return
-    }
-
-    if (newPassword !== confirmPassword) {
-      setErrorMsg('Passwords do not match. Please check and try again.')
-      return
-    }
+    if (!validate()) return
 
     setLoading(true)
 
@@ -84,11 +86,9 @@ function ResetPasswordForm() {
       }
 
       setIsSuccess(true)
-      toast.success('Your password has been reset successfully!')
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to reset password.'
-      setErrorMsg(message)
-      toast.error(message)
+      setGeneralError(message)
     } finally {
       setLoading(false)
     }
@@ -142,11 +142,11 @@ function ResetPasswordForm() {
               </div>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {errorMsg && (
-                <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-100 text-xs text-rose-600 flex items-start gap-2.5">
+            <form onSubmit={handleSubmit} noValidate className="space-y-4">
+              {generalError && (
+                <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200/80 text-xs text-rose-600 flex items-start gap-2.5 animate-in fade-in duration-200">
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>{errorMsg}</span>
+                  <span className="font-medium leading-relaxed">{generalError}</span>
                 </div>
               )}
 
@@ -158,14 +158,29 @@ function ResetPasswordForm() {
                 <div className="relative">
                   <input
                     type="text"
-                    required
                     value={token}
-                    onChange={(e) => setToken(e.target.value)}
+                    onChange={(e) => {
+                      setToken(e.target.value)
+                      if (fieldErrors.token) setFieldErrors((prev) => ({ ...prev, token: undefined }))
+                      if (generalError) setGeneralError(null)
+                    }}
                     placeholder="Enter the reset token received via email"
-                    className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-[#0D1B2A] focus:outline-none focus:border-[#2196F3]"
+                    className={`w-full pl-9 pr-3.5 py-2.5 rounded-xl border text-xs font-mono text-[#0D1B2A] focus:outline-none transition-colors ${
+                      fieldErrors.token
+                        ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500'
+                        : 'border-slate-200 bg-slate-50 focus:border-[#2196F3]'
+                    }`}
                   />
-                  <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <KeyRound className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 ${
+                    fieldErrors.token ? 'text-rose-400' : 'text-slate-400'
+                  }`} />
                 </div>
+                {fieldErrors.token && (
+                  <p className="text-[11px] font-medium text-rose-500 flex items-center gap-1 mt-1 animate-in fade-in duration-150">
+                    <AlertCircle className="w-3 h-3 shrink-0" />
+                    <span>{fieldErrors.token}</span>
+                  </p>
+                )}
               </div>
 
               {/* New Password Field */}
@@ -176,14 +191,22 @@ function ResetPasswordForm() {
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
-                    required
-                    minLength={6}
                     value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
+                    onChange={(e) => {
+                      setNewPassword(e.target.value)
+                      if (fieldErrors.newPassword) setFieldErrors((prev) => ({ ...prev, newPassword: undefined }))
+                      if (generalError) setGeneralError(null)
+                    }}
                     placeholder="At least 6 characters"
-                    className="w-full pl-9 pr-10 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-[#0D1B2A] focus:outline-none focus:border-[#2196F3]"
+                    className={`w-full pl-9 pr-10 py-2.5 rounded-xl border text-xs text-[#0D1B2A] focus:outline-none transition-colors ${
+                      fieldErrors.newPassword
+                        ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500'
+                        : 'border-slate-200 bg-slate-50 focus:border-[#2196F3]'
+                    }`}
                   />
-                  <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Lock className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 ${
+                    fieldErrors.newPassword ? 'text-rose-400' : 'text-slate-400'
+                  }`} />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
@@ -192,6 +215,12 @@ function ResetPasswordForm() {
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
+                {fieldErrors.newPassword && (
+                  <p className="text-[11px] font-medium text-rose-500 flex items-center gap-1 mt-1 animate-in fade-in duration-150">
+                    <AlertCircle className="w-3 h-3 shrink-0" />
+                    <span>{fieldErrors.newPassword}</span>
+                  </p>
+                )}
               </div>
 
               {/* Confirm Password Field */}
@@ -202,20 +231,34 @@ function ResetPasswordForm() {
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
-                    required
-                    minLength={6}
                     value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    onChange={(e) => {
+                      setConfirmPassword(e.target.value)
+                      if (fieldErrors.confirmPassword) setFieldErrors((prev) => ({ ...prev, confirmPassword: undefined }))
+                      if (generalError) setGeneralError(null)
+                    }}
                     placeholder="Repeat your new password"
-                    className="w-full pl-9 pr-10 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-[#0D1B2A] focus:outline-none focus:border-[#2196F3]"
+                    className={`w-full pl-9 pr-10 py-2.5 rounded-xl border text-xs text-[#0D1B2A] focus:outline-none transition-colors ${
+                      fieldErrors.confirmPassword
+                        ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500'
+                        : 'border-slate-200 bg-slate-50 focus:border-[#2196F3]'
+                    }`}
                   />
-                  <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Lock className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 ${
+                    fieldErrors.confirmPassword ? 'text-rose-400' : 'text-slate-400'
+                  }`} />
                 </div>
+                {fieldErrors.confirmPassword && (
+                  <p className="text-[11px] font-medium text-rose-500 flex items-center gap-1 mt-1 animate-in fade-in duration-150">
+                    <AlertCircle className="w-3 h-3 shrink-0" />
+                    <span>{fieldErrors.confirmPassword}</span>
+                  </p>
+                )}
               </div>
 
               <button
                 type="submit"
-                disabled={loading || !token.trim() || !newPassword.trim() || !confirmPassword.trim()}
+                disabled={loading}
                 className="w-full py-3 px-4 rounded-xl bg-[#2196F3] text-white text-xs font-bold flex items-center justify-center gap-2 hover:bg-[#0D47A1] transition-all shadow-md disabled:bg-slate-300 cursor-pointer"
               >
                 {loading ? (

@@ -2,17 +2,36 @@
 
 import React, { useState } from 'react'
 import Link from 'next/link'
-import { Store, Mail, ArrowRight, ArrowLeft, ShieldCheck, CheckCircle2, RefreshCw } from 'lucide-react'
-import { toast } from 'sonner'
+import { Store, Mail, ArrowRight, ArrowLeft, ShieldCheck, CheckCircle2, AlertCircle } from 'lucide-react'
 import { extractErrorMessage } from '@/lib/utils'
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const [generalError, setGeneralError] = useState<string | null>(null)
+  const [emailError, setEmailError] = useState<string | null>(null)
+
+  const validate = () => {
+    const trimmed = email.trim()
+    if (!trimmed) {
+      setEmailError('Please enter your email address')
+      return false
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setEmailError('Please enter a valid email address')
+      return false
+    }
+    setEmailError(null)
+    return true
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setGeneralError(null)
+
+    if (!validate()) return
+
     setLoading(true)
 
     try {
@@ -31,14 +50,13 @@ export default function ForgotPasswordPage() {
       const data = await res.json().catch(() => null)
 
       if (!res.ok) {
-        throw new Error(extractErrorMessage(data, 'Failed to request password reset. Please try again.'))
+        throw new Error(extractErrorMessage(data, 'Failed to request password reset. Please verify your email.'))
       }
 
       setIsSubmitted(true)
-      toast.success('Password reset instructions sent to your email!')
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'An error occurred. Please try again.'
-      toast.error(message)
+      setGeneralError(message)
     } finally {
       setLoading(false)
     }
@@ -67,6 +85,13 @@ export default function ForgotPasswordPage() {
 
         {/* Form Card */}
         <div className="p-8 rounded-3xl bg-white border border-slate-200/80 shadow-lg space-y-5">
+          {generalError && !isSubmitted && (
+            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200/80 text-xs text-rose-600 flex items-start gap-2.5 animate-in fade-in duration-200">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span className="font-medium leading-relaxed">{generalError}</span>
+            </div>
+          )}
+
           {isSubmitted ? (
             <div className="text-center space-y-4 py-2">
               <div className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center mx-auto shadow-2xs">
@@ -98,15 +123,19 @@ export default function ForgotPasswordPage() {
 
                 <button
                   type="button"
-                  onClick={() => setIsSubmitted(false)}
-                  className="w-full py-2.5 px-4 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-all"
+                  onClick={() => {
+                    setIsSubmitted(false)
+                    setGeneralError(null)
+                    setEmailError(null)
+                  }}
+                  className="w-full py-2.5 px-4 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-all cursor-pointer"
                 >
                   Resend Email
                 </button>
               </div>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} noValidate className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-slate-700">
                   Email Address
@@ -114,19 +143,34 @@ export default function ForgotPasswordPage() {
                 <div className="relative">
                   <input
                     type="email"
-                    required
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value)
+                      if (emailError) setEmailError(null)
+                      if (generalError) setGeneralError(null)
+                    }}
                     placeholder="name@example.com"
-                    className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-[#0D1B2A] focus:outline-none focus:border-[#2196F3]"
+                    className={`w-full pl-9 pr-3.5 py-2.5 rounded-xl border text-xs text-[#0D1B2A] focus:outline-none transition-colors ${
+                      emailError
+                        ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500'
+                        : 'border-slate-200 bg-slate-50 focus:border-[#2196F3]'
+                    }`}
                   />
-                  <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Mail className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 ${
+                    emailError ? 'text-rose-400' : 'text-slate-400'
+                  }`} />
                 </div>
+                {emailError && (
+                  <p className="text-[11px] font-medium text-rose-500 flex items-center gap-1 mt-1 animate-in fade-in duration-150">
+                    <AlertCircle className="w-3 h-3 shrink-0" />
+                    <span>{emailError}</span>
+                  </p>
+                )}
               </div>
 
               <button
                 type="submit"
-                disabled={loading || !email.trim()}
+                disabled={loading}
                 className="w-full py-3 px-4 rounded-xl bg-[#2196F3] text-white text-xs font-bold flex items-center justify-center gap-2 hover:bg-[#0D47A1] transition-all shadow-md disabled:bg-slate-300 cursor-pointer"
               >
                 {loading ? (
