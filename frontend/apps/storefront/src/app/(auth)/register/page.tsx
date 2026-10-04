@@ -66,7 +66,7 @@ export default function RegisterPage() {
         body: JSON.stringify({
           email: email.trim(),
           password,
-          full_name: fullName.trim(),
+          name: fullName.trim(),
         }),
       })
 
