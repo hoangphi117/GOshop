@@ -1,4 +1,4 @@
-package storage
+﻿package storage
 
 import (
 	"context"
@@ -18,21 +18,22 @@ import (
 
 // S3Config holds configuration parameters for S3/MinIO/R2 providers.
 type S3Config struct {
-	Endpoint        string // Custom endpoint URL (e.g. http://minio:9000 or https://<account-id>.r2.cloudflarestorage.com)
-	Region          string // AWS Region (e.g. ap-southeast-1 or auto for R2/MinIO)
-	Bucket          string // S3 Bucket name
-	AccessKey       string // S3 Access Key / Cloudflare R2 Access Key ID
-	SecretKey       string // S3 Secret Key / Cloudflare R2 Secret Access Key
-	PublicBaseURL   string // Public CDN base URL (e.g. https://cdn.example.com or http://localhost:9000/goshop-media)
-	UsePathStyle    bool   // Set true for MinIO, false for AWS S3 / Cloudflare R2
-	ForceSSL        bool   // Use HTTPS
+	Endpoint      string // Custom endpoint URL (e.g. http://minio:9000 or https://<account-id>.r2.cloudflarestorage.com)
+	Region        string // AWS Region (e.g. ap-southeast-1 or auto for R2/MinIO)
+	Bucket        string // S3 Bucket name
+	AccessKey     string // S3 Access Key / Cloudflare R2 Access Key ID
+	SecretKey     string // S3 Secret Key / Cloudflare R2 Secret Access Key
+	PublicBaseURL string // Public CDN base URL (e.g. https://pub-xxx.r2.dev or http://localhost:9000/goshop-media)
+	UsePathStyle  bool   // Set true for MinIO, false for AWS S3 / Cloudflare R2
+	ForceSSL      bool   // Use HTTPS
 }
 
 type s3StorageService struct {
-	client         *s3.Client
-	presignClient  *s3.PresignClient
-	cfg            S3Config
-	logger         *zerolog.Logger
+	client        *s3.Client
+	presignClient *s3.PresignClient
+	cfg           S3Config
+	logger        *zerolog.Logger
+	isR2          bool
 }
 
 // NewS3StorageService initializes an S3-compatible storage service client.
@@ -40,6 +41,8 @@ func NewS3StorageService(ctx context.Context, cfg S3Config, logger *zerolog.Logg
 	if cfg.Region == "" {
 		cfg.Region = "auto"
 	}
+
+	isR2 := strings.Contains(strings.ToLower(cfg.Endpoint), "r2.cloudflarestorage.com")
 
 	customResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
 		if cfg.Endpoint != "" {
@@ -68,11 +71,21 @@ func NewS3StorageService(ctx context.Context, cfg S3Config, logger *zerolog.Logg
 
 	presignClient := s3.NewPresignClient(client)
 
+	if logger != nil {
+		logger.Info().
+			Str("bucket", cfg.Bucket).
+			Str("endpoint", cfg.Endpoint).
+			Str("public_base_url", cfg.PublicBaseURL).
+			Bool("is_r2", isR2).
+			Msg("Initialized S3/R2 Storage Service successfully")
+	}
+
 	return &s3StorageService{
 		client:        client,
 		presignClient: presignClient,
 		cfg:           cfg,
 		logger:        logger,
+		isR2:          isR2,
 	}, nil
 }
 
@@ -109,18 +122,25 @@ func (s *s3StorageService) Upload(ctx context.Context, folder, filename string, 
 		Body:          reader,
 		ContentType:   aws.String(contentType),
 		ContentLength: aws.Int64(size),
-		ACL:           types.ObjectCannedACLPublicRead, // ponytail: default public-read, override via presign if private bucket
+	}
+
+	// Cloudflare R2 does not support Object ACLs, only apply for standard S3 / MinIO
+	if !s.isR2 {
+		input.ACL = types.ObjectCannedACLPublicRead
 	}
 
 	_, err := s.client.PutObject(ctx, input)
 	if err != nil {
 		if s.logger != nil {
-			s.logger.Error().Err(err).Str("bucket", s.cfg.Bucket).Str("key", fileKey).Msg("Failed to upload object to S3")
+			s.logger.Error().Err(err).Str("bucket", s.cfg.Bucket).Str("key", fileKey).Msg("Failed to upload object to S3/R2")
 		}
 		return "", "", fmt.Errorf("failed to upload object to storage: %w", err)
 	}
 
 	publicURL := s.buildPublicURL(fileKey)
+	if s.logger != nil {
+		s.logger.Info().Str("key", fileKey).Str("url", publicURL).Msg("Uploaded file successfully to S3/R2")
+	}
 	return publicURL, fileKey, nil
 }
 
@@ -136,7 +156,7 @@ func (s *s3StorageService) Delete(ctx context.Context, fileKey string) error {
 	})
 	if err != nil {
 		if s.logger != nil {
-			s.logger.Warn().Err(err).Str("bucket", s.cfg.Bucket).Str("key", cleanKey).Msg("Failed to delete object from S3")
+			s.logger.Warn().Err(err).Str("bucket", s.cfg.Bucket).Str("key", cleanKey).Msg("Failed to delete object from S3/R2")
 		}
 		return fmt.Errorf("failed to delete object from storage: %w", err)
 	}
