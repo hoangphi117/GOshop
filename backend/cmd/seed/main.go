@@ -10,6 +10,7 @@ import (
 	"goshop/internal/db"
 	"goshop/internal/utils"
 	"goshop/pkg/logger"
+	"goshop/pkg/search"
 
 	"github.com/joho/godotenv"
 )
@@ -80,4 +81,75 @@ func main() {
 	duration := time.Since(startTime)
 	fmt.Printf("✅ Seeding completed successfully in %v!\n", duration)
 	fmt.Println("📦 Seeded tables: users, categories, products, user_addresses, coupons, orders, order_items, payments, reviews, carts, stock_movements, banners, notifications, chat.")
+
+	// 6. Sync Products to Meilisearch
+	fmt.Println("🔍 Syncing products to Meilisearch...")
+	meiliHost := utils.GetEnv("MEILISEARCH_HOST", "http://localhost:7700")
+	meiliKey := utils.GetEnv("MEILISEARCH_MASTER_KEY", "masterKey123")
+	meiliIndex := utils.GetEnv("MEILISEARCH_INDEX_PRODUCTS", "products")
+
+	meiliClient, err := search.NewClient(meiliHost, meiliKey, meiliIndex)
+	if err != nil {
+		fmt.Printf("⚠️ Meilisearch client initialization warning: %v\n", err)
+		return
+	}
+
+	if err := meiliClient.SetupIndex(ctx); err != nil {
+		fmt.Printf("⚠️ Failed to setup Meilisearch index: %v\n", err)
+	}
+
+	// Fetch all active/non-deleted products from PostgreSQL
+	rows, err := db.DBPool.Query(ctx, `
+		SELECT 
+			p.product_uuid, p.product_id, p.product_name, p.product_slug, 
+			COALESCE(p.product_description, ''), p.product_price, p.product_stock, 
+			p.product_sku, c.category_uuid, c.category_name, 
+			COALESCE(p.product_image_url, ''), p.product_status,
+			EXTRACT(EPOCH FROM p.product_created_at)::bigint
+		FROM products p
+		JOIN categories c ON c.category_id = p.product_category_id
+		WHERE p.product_deleted_at IS NULL
+	`)
+	if err != nil {
+		fmt.Printf("⚠️ Failed to fetch products for Meilisearch sync: %v\n", err)
+		return
+	}
+	defer rows.Close()
+
+	var documents []search.ProductDocument
+	for rows.Next() {
+		var doc search.ProductDocument
+		var pUUID, cUUID string
+		if err := rows.Scan(
+			&pUUID, &doc.ProductID, &doc.Name, &doc.Slug,
+			&doc.Description, &doc.Price, &doc.Stock,
+			&doc.SKU, &cUUID, &doc.CategoryName,
+			&doc.ImageURL, &doc.Status, &doc.CreatedAt,
+		); err != nil {
+			fmt.Printf("⚠️ Error scanning product row: %v\n", err)
+			continue
+		}
+		doc.ID = pUUID
+		doc.CategoryUUID = cUUID
+		documents = append(documents, doc)
+	}
+
+	if len(documents) > 0 {
+		// Batch indexing (1000 docs per chunk)
+		batchSize := 1000
+		for i := 0; i < len(documents); i += batchSize {
+			end := i + batchSize
+			if end > len(documents) {
+				end = len(documents)
+			}
+			chunk := documents[i:end]
+			if _, err := meiliClient.IndexProducts(ctx, chunk); err != nil {
+				fmt.Printf("⚠️ Failed to index batch [%d..%d]: %v\n", i, end, err)
+			} else {
+				fmt.Printf("   Indexed products %d..%d to Meilisearch\n", i+1, end)
+			}
+		}
+		fmt.Printf("🎯 Successfully synced %d products to Meilisearch with typo tolerance!\n", len(documents))
+	}
 }
+

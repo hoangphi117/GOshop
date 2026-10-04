@@ -30,6 +30,7 @@ services:
       - DB_HOST=postgres
       - REDIS_ADDR=redis:6379
       - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
+      - MEILISEARCH_HOST=http://meilisearch:7700
     depends_on:
       postgres:
         condition: service_healthy
@@ -55,6 +56,7 @@ services:
       - DB_HOST=postgres
       - REDIS_ADDR=redis:6379
       - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
+      - MEILISEARCH_HOST=http://meilisearch:7700
     depends_on:
       postgres:
         condition: service_healthy
@@ -80,6 +82,7 @@ services:
       - DB_HOST=postgres
       - REDIS_ADDR=redis:6379
       - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
+      - MEILISEARCH_HOST=http://meilisearch:7700
     depends_on:
       postgres:
         condition: service_healthy
@@ -173,6 +176,21 @@ services:
     networks:
       - goshop-network
 
+  meilisearch:
+    image: getmeili/meilisearch:v1.12
+    container_name: goshop-meilisearch
+    restart: unless-stopped
+    ports:
+      - "7700:7700"
+    environment:
+      - MEILI_MASTER_KEY=${MEILISEARCH_MASTER_KEY:-masterKey123}
+      - MEILI_ENV=production
+      - MEILI_NO_ANALYTICS=true
+    volumes:
+      - meilisearch-data:/meili_data
+    networks:
+      - goshop-network
+
 volumes:
   postgres-data:
     driver: local
@@ -186,7 +204,10 @@ volumes:
     driver: local
   certbot-www:
     driver: local
+  meilisearch-data:
+    driver: local
 
 networks:
   goshop-network:
     driver: bridge
+

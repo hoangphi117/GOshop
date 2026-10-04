@@ -130,6 +130,82 @@ func (ph *ProductHandler) GetAllProducts(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Products retrieved successfully", paginationResponse)
 }
 
+// SearchProducts godoc
+// @Summary      Search products with typo-tolerance
+// @Description  Fast instant product search using Meilisearch with typo tolerance (< 10ms)
+// @Tags         Products
+// @Accept       json
+// @Produce      json
+// @Param        q query string true "Search query keyword"
+// @Param        category_uuid query string false "Filter by Category UUID"
+// @Param        min_price query number false "Minimum price"
+// @Param        max_price query number false "Maximum price"
+// @Param        sort query string false "Sort option (price:asc, price:desc, created_at:desc, created_at:asc)"
+// @Param        page query int false "Page number (default 1)"
+// @Param        limit query int false "Page limit (default 20)"
+// @Success      200 {object} utils.APIResponse{data=[]v1dto.ProductDTO} "Products retrieved successfully"
+// @Failure      400 {object} utils.ErrorResponse "Invalid parameters"
+// @Router       /api/v1/products/search [get]
+func (ph *ProductHandler) SearchProducts(ctx *gin.Context) {
+	var params v1dto.SearchProductsParam
+	if err := ctx.ShouldBindQuery(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	products, total, err := ph.getQueryService().SearchProducts(
+		ctx.Request.Context(),
+		params.Q,
+		params.CategoryUUID,
+		params.MinPrice,
+		params.MaxPrice,
+		params.Sort,
+		params.Page,
+		params.Limit,
+	)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	if params.Page < 1 {
+		params.Page = 1
+	}
+	if params.Limit < 1 {
+		params.Limit = 20
+	}
+
+	paginationResponse := utils.NewPaginationResponse(products, params.Page, params.Limit, int32(total))
+	utils.ResponseSuccess(ctx, http.StatusOK, "Products search completed successfully", paginationResponse)
+}
+
+// SuggestProducts godoc
+// @Summary      Instant product suggestions (Search-as-you-type)
+// @Description  Ultra-fast product auto-complete suggestions (< 5ms)
+// @Tags         Products
+// @Accept       json
+// @Produce      json
+// @Param        q query string true "Search prefix/keyword"
+// @Param        limit query int false "Maximum suggestions to return (default 8, max 20)"
+// @Success      200 {object} utils.APIResponse{data=[]v1dto.ProductSuggestionDTO} "Suggestions retrieved successfully"
+// @Failure      400 {object} utils.ErrorResponse "Invalid query"
+// @Router       /api/v1/products/suggest [get]
+func (ph *ProductHandler) SuggestProducts(ctx *gin.Context) {
+	var params v1dto.SuggestProductsParam
+	if err := ctx.ShouldBindQuery(&params); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	suggestions, err := ph.getQueryService().SuggestProducts(ctx.Request.Context(), params.Q, params.Limit)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Product suggestions retrieved successfully", suggestions)
+}
+
 // GetProductByUUID godoc
 // @Summary      Get product by UUID
 // @Description  Retrieve product details by UUID

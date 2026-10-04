@@ -1,4 +1,4 @@
-﻿package config
+package config
 
 import (
 	"fmt"
@@ -16,10 +16,17 @@ type DatabaseConfig struct {
 	SSLMode  string
 }
 
+type MeilisearchConfig struct {
+	Host          string
+	MasterKey     string
+	IndexProducts string
+}
+
 type Config struct {
 	AppEnv             string // Environment: "development", "production", "staging"
 	ServerAddress      string
 	DB                 DatabaseConfig
+	Meilisearch        MeilisearchConfig
 	AppURL             string
 	StorefrontURL      string
 	MailProviderType   string
@@ -78,6 +85,11 @@ func NewConfig() *Config {
 			DBName:   utils.GetEnv("DB_NAME", "my-app"),
 			SSLMode:  utils.GetEnv("DB_SSL_MODE", "disable"),
 		},
+		Meilisearch: MeilisearchConfig{
+			Host:          utils.GetEnv("MEILISEARCH_HOST", "http://localhost:7700"),
+			MasterKey:     utils.GetEnv("MEILISEARCH_MASTER_KEY", "masterKey123"),
+			IndexProducts: utils.GetEnv("MEILISEARCH_INDEX_PRODUCTS", "products"),
+		},
 		AppURL:             utils.GetEnv("APP_URL", "http://localhost:8080"),
 		StorefrontURL:      utils.GetEnv("STOREFRONT_URL", "http://localhost:3001"),
 		MailProviderType:   mailProviderType,
@@ -89,3 +101,4 @@ func NewConfig() *Config {
 func (c *Config) DNS() string {
 	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", c.DB.Host, c.DB.Port, c.DB.User, c.DB.Password, c.DB.DBName, c.DB.SSLMode)
 }
+

@@ -20,6 +20,8 @@ func (pr *ProductRoutes) Register(r *gin.RouterGroup) {
 	products := r.Group("/products")
 	{
 		products.GET("", pr.handler.GetAllProducts)
+		products.GET("/search", pr.handler.SearchProducts)
+		products.GET("/suggest", pr.handler.SuggestProducts)
 		products.GET("/:uuid", pr.handler.GetProductByUUID)
 	}
 }

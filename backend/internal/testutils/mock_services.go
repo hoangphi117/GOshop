@@ -1370,6 +1370,8 @@ type MockProductService struct {
 	GetAllProductsFunc    func(ctx context.Context, search, categoryUUID string, minPrice, maxPrice float64, status int32, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.GetProductByUUIDRow, int32, error)
 	GetProductByUUIDFunc  func(ctx context.Context, productUUID uuid.UUID) (sqlc.GetProductByUUIDRow, error)
 	GetProductBySlugFunc  func(ctx context.Context, slug string) (sqlc.GetProductBySlugRow, error)
+	SearchProductsFunc    func(ctx context.Context, q, categoryUUID string, minPrice, maxPrice float64, sort string, page, limit int32) ([]v1dto.ProductDTO, int64, error)
+	SuggestProductsFunc   func(ctx context.Context, q string, limit int32) ([]v1dto.ProductSuggestionDTO, error)
 	UpdateProductFunc     func(ctx context.Context, input v1dto.UpdateProductInput) (sqlc.UpdateProductRow, error)
 	SoftDeleteProductFunc func(ctx context.Context, productUUID uuid.UUID) (sqlc.Product, error)
 	RestoreProductFunc    func(ctx context.Context, productUUID uuid.UUID) (sqlc.Product, error)
@@ -1389,6 +1391,20 @@ func (m *MockProductService) GetAllProducts(ctx context.Context, search, categor
 		return m.GetAllProductsFunc(ctx, search, categoryUUID, minPrice, maxPrice, status, orderBy, sort, page, limit, deleted)
 	}
 	return nil, 0, nil
+}
+
+func (m *MockProductService) SearchProducts(ctx context.Context, q, categoryUUID string, minPrice, maxPrice float64, sort string, page, limit int32) ([]v1dto.ProductDTO, int64, error) {
+	if m.SearchProductsFunc != nil {
+		return m.SearchProductsFunc(ctx, q, categoryUUID, minPrice, maxPrice, sort, page, limit)
+	}
+	return []v1dto.ProductDTO{}, 0, nil
+}
+
+func (m *MockProductService) SuggestProducts(ctx context.Context, q string, limit int32) ([]v1dto.ProductSuggestionDTO, error) {
+	if m.SuggestProductsFunc != nil {
+		return m.SuggestProductsFunc(ctx, q, limit)
+	}
+	return []v1dto.ProductSuggestionDTO{}, nil
 }
 
 func (m *MockProductService) GetProductByUUID(ctx context.Context, productUUID uuid.UUID) (sqlc.GetProductByUUIDRow, error) {

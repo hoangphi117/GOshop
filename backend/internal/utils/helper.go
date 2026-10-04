@@ -18,9 +18,9 @@ import (
 
 func GetEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
-		return value
+		return strings.TrimSpace(value)
 	}
-	return defaultValue
+	return strings.TrimSpace(defaultValue)
 }
 
 func GetIntEnv(key string, defaultValue int) int {

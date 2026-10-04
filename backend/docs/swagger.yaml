@@ -213,6 +213,15 @@ definitions:
     - order_uuids
     - status
     type: object
+  goshop_internal_dto_v1.CSVRowError:
+    properties:
+      field:
+        type: string
+      reason:
+        type: string
+      row:
+        type: integer
+    type: object
   goshop_internal_dto_v1.CalculateShippingFeeInput:
     properties:
       district_id:
@@ -339,6 +348,8 @@ definitions:
     type: object
   goshop_internal_dto_v1.CategoryDTO:
     properties:
+      category_id:
+        type: integer
       category_name:
         type: string
       created_at:
@@ -400,6 +411,39 @@ definitions:
     - confirm_password
     - new_password
     - old_password
+    type: object
+  goshop_internal_dto_v1.ConversationResponse:
+    properties:
+      admin_id:
+        type: integer
+      conversation_id:
+        type: integer
+      created_at:
+        type: string
+      is_online:
+        type: boolean
+      is_shop_online:
+        type: boolean
+      last_message_at:
+        type: string
+      last_message_content:
+        type: string
+      status:
+        type: string
+      unread_count:
+        type: integer
+      updated_at:
+        type: string
+      user_avatar:
+        type: string
+      user_email:
+        type: string
+      user_fullname:
+        type: string
+      user_id:
+        type: integer
+      uuid:
+        type: string
     type: object
   goshop_internal_dto_v1.CouponCampaignItemDTO:
     properties:
@@ -894,6 +938,29 @@ definitions:
         description: Count of items below threshold
         type: integer
     type: object
+  goshop_internal_dto_v1.MessageResponse:
+    properties:
+      attachment_name:
+        type: string
+      attachment_size:
+        type: integer
+      attachment_url:
+        type: string
+      content:
+        type: string
+      content_type:
+        type: string
+      created_at:
+        type: string
+      is_read:
+        type: boolean
+      sender_id:
+        type: integer
+      sender_role:
+        type: string
+      uuid:
+        type: string
+    type: object
   goshop_internal_dto_v1.MyReviewDTO:
     properties:
       can_edit:
@@ -1205,6 +1272,17 @@ definitions:
     - code
     - subtotal_amount
     type: object
+  goshop_internal_dto_v1.ProductCSVImportResponse:
+    properties:
+      error_count:
+        type: integer
+      errors:
+        items:
+          $ref: '#/definitions/goshop_internal_dto_v1.CSVRowError'
+        type: array
+      success_count:
+        type: integer
+    type: object
   goshop_internal_dto_v1.ProductDTO:
     properties:
       category_name:
@@ -1233,6 +1311,21 @@ definitions:
         type: string
       stock:
         type: integer
+      uuid:
+        type: string
+    type: object
+  goshop_internal_dto_v1.ProductSuggestionDTO:
+    properties:
+      category_name:
+        type: string
+      image_url:
+        type: string
+      name:
+        type: string
+      price:
+        type: number
+      slug:
+        type: string
       uuid:
         type: string
     type: object
@@ -1439,6 +1532,61 @@ definitions:
       user_name:
         type: string
     type: object
+  goshop_internal_dto_v1.SendMessageRequest:
+    properties:
+      attachment_name:
+        maxLength: 2000
+        type: string
+      attachment_size:
+        minimum: 0
+        type: integer
+      attachment_url:
+        description: Attachment fields (optional, set by FE after upload)
+        maxLength: 8000
+        type: string
+      content:
+        maxLength: 4000
+        type: string
+      content_type:
+        enum:
+        - text
+        - image
+        - video
+        - order_ref
+        - product_ref
+        - media_group
+        type: string
+      order_uuid:
+        description: References (optional, used when content_type = 'order_ref' or
+          'product_ref')
+        type: string
+      product_uuid:
+        type: string
+    required:
+    - content
+    type: object
+  goshop_internal_dto_v1.SendMessageResponse:
+    properties:
+      message:
+        $ref: '#/definitions/goshop_internal_dto_v1.MessageResponse'
+    type: object
+  goshop_internal_dto_v1.SessionDTO:
+    properties:
+      created_at:
+        type: string
+      device_name:
+        type: string
+      ip_address:
+        type: string
+      is_current:
+        type: boolean
+      last_active_at:
+        type: string
+      user_agent:
+        type: string
+      uuid:
+        type: string
+    type: object
   goshop_internal_dto_v1.ShippingFeeResponseDTO:
     properties:
       provider:
@@ -1465,6 +1613,11 @@ definitions:
         type: number
       shipping_provider:
         type: string
+    type: object
+  goshop_internal_dto_v1.ShopStatusResponse:
+    properties:
+      is_online:
+        type: boolean
     type: object
   goshop_internal_dto_v1.StockMovementDTO:
     properties:
@@ -1960,6 +2113,7 @@ definitions:
     - TOO_MANY_REQUESTS
     - FORBIDDEN
     - BAD_GATEWAY
+    - EXTERNAL_SERVICE_ERROR
     type: string
     x-enum-varnames:
     - ErrCodeBadRequest
@@ -1970,6 +2124,7 @@ definitions:
     - ErrCodeTooManyRequests
     - ErrCodeForbidden
     - ErrCodeBadGateway
+    - ErrCodeExternalService
   goshop_internal_utils.ErrorResponse:
     properties:
       code:
@@ -3229,6 +3384,447 @@ paths:
       summary: Permanently delete category
       tags:
       - Admin - Categories
+  /admin/chat/conversations:
+    get:
+      description: Admin list of customer conversations with filtering and pagination
+      parameters:
+      - description: 'Filter by status: open, closed, pending'
+        in: query
+        name: status
+        type: string
+      - description: Search keyword in user name or email
+        in: query
+        name: search
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/goshop_internal_dto_v1.ConversationResponse'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List all chat conversations
+      tags:
+      - Admin - Chat
+  /admin/chat/conversations/{id}:
+    get:
+      description: Admin get details of a specific conversation
+      parameters:
+      - description: Conversation UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.ConversationResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get conversation details
+      tags:
+      - Admin - Chat
+  /admin/chat/conversations/{id}/close:
+    patch:
+      description: Mark conversation status as closed
+      parameters:
+      - description: Conversation UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Close conversation
+      tags:
+      - Admin - Chat
+  /admin/chat/conversations/{id}/messages:
+    get:
+      description: Admin get paginated messages in a conversation
+      parameters:
+      - description: Conversation UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      - description: Cursor before ID
+        in: query
+        name: before_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/goshop_internal_dto_v1.MessageResponse'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List messages in conversation
+      tags:
+      - Admin - Chat
+    post:
+      consumes:
+      - application/json
+      description: Send an admin reply message to a conversation
+      parameters:
+      - description: Conversation UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Message payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.SendMessageRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.SendMessageResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Admin send reply message
+      tags:
+      - Admin - Chat
+  /admin/chat/conversations/{id}/read:
+    patch:
+      description: Mark customer messages in a conversation as read by admin
+      parameters:
+      - description: Conversation UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Admin mark conversation as read
+      tags:
+      - Admin - Chat
+  /admin/chat/conversations/{id}/reopen:
+    patch:
+      description: Mark conversation status as active
+      parameters:
+      - description: Conversation UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Reopen conversation
+      tags:
+      - Admin - Chat
+  /admin/chat/messages/{id}/recall:
+    patch:
+      description: Admin recall a message within 60 minutes
+      parameters:
+      - description: Message UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.MessageResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Admin recall message
+      tags:
+      - Admin - Chat
+  /admin/chat/unread-count:
+    get:
+      description: Get the total count of unread messages across all conversations
+        for admin
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  additionalProperties:
+                    format: int64
+                    type: integer
+                  type: object
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get admin unread message count
+      tags:
+      - Admin - Chat
+  /admin/chat/users/{user_uuid}/conversation:
+    post:
+      description: Admin get existing conversation with a user or create a new one
+      parameters:
+      - description: User UUID
+        in: path
+        name: user_uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.ConversationResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get or create conversation for a customer
+      tags:
+      - Admin - Chat
   /admin/coupons:
     get:
       description: Retrieve paginated coupons with filters (Admin/Moderator)
@@ -3473,6 +4069,28 @@ paths:
       summary: Permanently delete coupon
       tags:
       - Admin - Coupons
+  /admin/health/test-discord:
+    post:
+      description: Manually triggers a test alert to verify Discord Webhook configuration
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Test Discord Webhook Alerting
+      tags:
+      - Health
   /admin/inventory/adjust:
     post:
       consumes:
@@ -5062,6 +5680,48 @@ paths:
       summary: Permanently delete product
       tags:
       - Admin - Products
+  /api/v1/admin/products/import-csv:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Admin endpoint to batch import products from a CSV file (RFC 4180
+        compliant, atomic all-or-nothing transaction)
+      parameters:
+      - description: CSV file (name,price,description,imageUrl,category_id,stock,sku)
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: CSV import result report
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.ProductCSVImportResponse'
+              type: object
+        "400":
+          description: Bad request or validation error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      - BearerAuth: []
+      summary: Import products from CSV
+      tags:
+      - Admin - Products
   /api/v1/auth/forgot-password:
     post:
       consumes:
@@ -5373,6 +6033,99 @@ paths:
       summary: Get product by UUID
       tags:
       - Products
+  /api/v1/products/search:
+    get:
+      consumes:
+      - application/json
+      description: Fast instant product search using Meilisearch with typo tolerance
+        (< 10ms)
+      parameters:
+      - description: Search query keyword
+        in: query
+        name: q
+        required: true
+        type: string
+      - description: Filter by Category UUID
+        in: query
+        name: category_uuid
+        type: string
+      - description: Minimum price
+        in: query
+        name: min_price
+        type: number
+      - description: Maximum price
+        in: query
+        name: max_price
+        type: number
+      - description: Sort option (price:asc, price:desc, created_at:desc, created_at:asc)
+        in: query
+        name: sort
+        type: string
+      - description: Page number (default 1)
+        in: query
+        name: page
+        type: integer
+      - description: Page limit (default 20)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Products retrieved successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/goshop_internal_dto_v1.ProductDTO'
+                  type: array
+              type: object
+        "400":
+          description: Invalid parameters
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      summary: Search products with typo-tolerance
+      tags:
+      - Products
+  /api/v1/products/suggest:
+    get:
+      consumes:
+      - application/json
+      description: Ultra-fast product auto-complete suggestions (< 5ms)
+      parameters:
+      - description: Search prefix/keyword
+        in: query
+        name: q
+        required: true
+        type: string
+      - description: Maximum suggestions to return (default 8, max 20)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Suggestions retrieved successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/goshop_internal_dto_v1.ProductSuggestionDTO'
+                  type: array
+              type: object
+        "400":
+          description: Invalid query
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      summary: Instant product suggestions (Search-as-you-type)
+      tags:
+      - Products
   /banners:
     get:
       description: Get active banners for public display (e.g., home page)
@@ -5648,6 +6401,241 @@ paths:
       summary: Get category by UUID
       tags:
       - Categories
+  /chat/conversation:
+    get:
+      description: Retrieve the active conversation for the authenticated customer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.ConversationResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get or create customer conversation
+      tags:
+      - Chat
+  /chat/messages:
+    get:
+      description: Retrieve paginated messages for the customer's active conversation
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      - description: Cursor before ID
+        in: query
+        name: before_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/goshop_internal_dto_v1.MessageResponse'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get customer messages
+      tags:
+      - Chat
+    post:
+      consumes:
+      - application/json
+      description: Send a message inside customer conversation
+      parameters:
+      - description: Message content payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/goshop_internal_dto_v1.SendMessageRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.SendMessageResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Send chat message
+      tags:
+      - Chat
+  /chat/messages/{id}/recall:
+    patch:
+      description: Recall a sent message within 60 minutes
+      parameters:
+      - description: Message UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.MessageResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Recall message
+      tags:
+      - Chat
+  /chat/messages/read:
+    patch:
+      description: Mark unread messages in conversation as read
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Mark customer messages as read
+      tags:
+      - Chat
+  /chat/shop-status:
+    get:
+      description: Check whether any shop admin is currently online
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/goshop_internal_dto_v1.ShopStatusResponse'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      summary: Get shop online status
+      tags:
+      - Chat
+  /chat/unread-count:
+    get:
+      description: Get the number of unread messages for the customer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  additionalProperties:
+                    format: int64
+                    type: integer
+                  type: object
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get customer unread message count
+      tags:
+      - Chat
   /coupons/preview:
     post:
       consumes:
@@ -5679,6 +6667,26 @@ paths:
       summary: Preview coupon discount
       tags:
       - Coupons
+  /healthz:
+    get:
+      description: Validates connectivity of Database, Redis, RabbitMQ, and Object
+        Storage. Sends Discord alerts on degradation.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Comprehensive System Healthcheck
+      tags:
+      - Health
   /notifications/{uuid}:
     delete:
       description: Delete a notification by UUID
@@ -7013,7 +8021,8 @@ paths:
     post:
       consumes:
       - multipart/form-data
-      description: Upload image or video file with optional destination folder
+      description: Upload image or video file with optional destination folder to
+        Object Storage (S3/MinIO/Local)
       parameters:
       - description: File to upload
         in: formData
@@ -7028,6 +8037,7 @@ paths:
         - banners
         - avatars
         - common
+        - chat
         in: formData
         name: folder
         type: string
@@ -7059,6 +8069,45 @@ paths:
       - BearerAuth: []
       - ApiKeyAuth: []
       summary: Upload single file
+      tags:
+      - Upload
+  /upload/presign:
+    get:
+      description: Generates a presigned URL allowing the client to upload files directly
+        to S3 / Cloudflare R2
+      parameters:
+      - default: common
+        description: Destination folder
+        in: query
+        name: folder
+        type: string
+      - description: Original file name
+        in: query
+        name: filename
+        required: true
+        type: string
+      - description: MIME type (e.g. image/jpeg)
+        in: query
+        name: content_type
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get Direct-to-S3 Presigned Upload URL
       tags:
       - Upload
   /users/me:
@@ -7156,6 +8205,94 @@ paths:
       summary: Change password
       tags:
       - Users
+  /users/sessions:
+    delete:
+      description: Log out of all other devices except the current active session
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Revoke all other sessions
+      tags:
+      - Users - Sessions
+    get:
+      description: Retrieve all active devices/sessions for the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/goshop_internal_dto_v1.SessionDTO'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Get active login sessions
+      tags:
+      - Users - Sessions
+  /users/sessions/{uuid}:
+    delete:
+      description: Terminate a specific active login session by its UUID
+      parameters:
+      - description: Session UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+      security:
+      - BearerAuth: []
+      - ApiKeyAuth: []
+      summary: Revoke specific session
+      tags:
+      - Users - Sessions
   /webhooks/payment/{provider}:
     post:
       description: Receive IPN / Webhook callbacks from payment gateways (MoMo, VNPay)
@@ -7181,17 +8318,33 @@ paths:
   /ws:
     get:
       description: Establish persistent bidirectional WebSocket connection for real-time
-        order and notification events
+        order, notifications, and chat rooms
       parameters:
       - description: JWT Access Token
         in: query
         name: token
         type: string
+      - description: Conversation UUID to join chat room
+        in: query
+        name: conversation_uuid
+        type: string
       responses:
         "101":
           description: Switching Protocols
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
         "401":
           description: Unauthorized
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+        "404":
+          description: Not Found
           schema:
             $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
       summary: WebSocket connection

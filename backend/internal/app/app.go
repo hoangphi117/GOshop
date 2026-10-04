@@ -1,4 +1,4 @@
-﻿package app
+package app
 
 import (
 	"context"
@@ -14,6 +14,7 @@ import (
 	"goshop/pkg/mail"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/discord"
+	"goshop/pkg/search"
 	"goshop/pkg/storage"
 	"goshop/pkg/ws"
 	"net/http"
@@ -48,6 +49,7 @@ type ModuleContext struct {
 	Redis     *redis.Client
 	TxManager db.TxManager
 	Storage   storage.StorageService
+	Search    *search.Client
 }
 
 func NewApplication(cfg *config.Config) (*Application, error) {
@@ -141,11 +143,17 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 
 	txManager := db.NewTxManager(db.DBPool)
 
+	searchClient, err := search.NewClient(cfg.Meilisearch.Host, cfg.Meilisearch.MasterKey, cfg.Meilisearch.IndexProducts)
+	if err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to initialize Meilisearch client")
+	}
+
 	ctx := &ModuleContext{
 		DB:        db.DB,
 		Redis:     redisClient,
 		TxManager: txManager,
 		Storage:   storageService,
+		Search:    searchClient,
 	}
 
 	modules := []Module{

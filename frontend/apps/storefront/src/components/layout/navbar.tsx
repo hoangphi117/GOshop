@@ -6,9 +6,10 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCartStore } from "@/stores/cart-store";
 import { useAuthStore } from "@/stores/auth-store";
-import { ShoppingCart, Search, User, Menu, X, Store, Bell } from "lucide-react";
+import { ShoppingCart, User, Menu, X } from "lucide-react";
 import { useMounted } from "@/hooks/use-mounted";
 import { NotificationPopover } from "@/components/layout/notification-popover";
+import { SearchAutocomplete } from "@/components/layout/search-autocomplete";
 
 export function Navbar() {
   const pathname = usePathname();
@@ -18,8 +19,6 @@ export function Navbar() {
 
   const mounted = useMounted();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showSearch, setShowSearch] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
 
   const isHome = pathname === "/";
@@ -52,15 +51,6 @@ export function Navbar() {
     { name: "Catalog", href: "/products" },
     { name: "Flash Deals", href: "/#deals" },
   ];
-
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      router.push(`/products?search=${encodeURIComponent(searchQuery.trim())}`);
-      setShowSearch(false);
-      setMobileMenuOpen(false);
-    }
-  };
 
   const isAuthenticated = Boolean(user && accessToken);
   const totalCartItems = mounted && isAuthenticated ? getTotalItems() : 0;
@@ -123,44 +113,8 @@ export function Navbar() {
 
         {/* Right Section: Search, Cart, Account */}
         <div className="flex items-center gap-2">
-          {/* Quick Search Toggle / Form */}
-          <div className="relative">
-            {showSearch ? (
-              <form
-                onSubmit={handleSearchSubmit}
-                className="flex items-center absolute right-0 top-1/2 -translate-y-1/2 bg-white rounded-full shadow-lg border border-slate-200/80 px-3 py-1.5 w-64 z-10"
-              >
-                <Search className="w-4 h-4 text-slate-400 shrink-0 mr-2" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search products..."
-                  className="w-full text-xs text-[#0D1B2A] bg-transparent outline-none"
-                  autoFocus
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowSearch(false)}
-                  className="p-0.5 text-slate-400 hover:text-slate-600 ml-1"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </form>
-            ) : (
-              <button
-                onClick={() => setShowSearch(true)}
-                className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
-                  isTransparent
-                    ? "text-white/90 hover:text-white hover:bg-white/15"
-                    : "text-slate-600 hover:text-[#0D1B2A] hover:bg-slate-100"
-                }`}
-                aria-label="Search"
-              >
-                <Search className="w-4 h-4" />
-              </button>
-            )}
-          </div>
+          {/* Quick Search Autocomplete */}
+          <SearchAutocomplete isTransparent={isTransparent} />
 
           {/* Notifications Trigger */}
           <NotificationPopover isTransparent={isTransparent} />
@@ -243,16 +197,10 @@ export function Navbar() {
       {mobileMenuOpen && (
         <div className="md:hidden mt-2 max-w-6xl mx-auto rounded-2xl bg-white/95 backdrop-blur-md border border-slate-200/80 shadow-xl p-4 pointer-events-auto space-y-2">
           {/* Mobile Search */}
-          <form onSubmit={handleSearchSubmit} className="relative mb-3">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search products..."
-              className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-100 text-sm text-[#0D1B2A] outline-none border border-transparent focus:border-[#2196F3]"
-            />
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          </form>
+          <SearchAutocomplete
+            isMobile
+            onClose={() => setMobileMenuOpen(false)}
+          />
 
           {/* Links */}
           <nav className="flex flex-col space-y-1">

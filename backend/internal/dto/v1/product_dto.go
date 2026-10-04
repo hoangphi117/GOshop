@@ -80,6 +80,30 @@ type UpdateProductInput struct {
 	CategoryUUID *string
 }
 
+type ProductSuggestionDTO struct {
+	UUID         string  `json:"uuid"`
+	Name         string  `json:"name"`
+	Slug         string  `json:"slug"`
+	Price        float64 `json:"price"`
+	ImageURL     string  `json:"image_url,omitempty"`
+	CategoryName string  `json:"category_name,omitempty"`
+}
+
+type SearchProductsParam struct {
+	Q            string  `form:"q"             binding:"required,min=1,max=100"`
+	Page         int32   `form:"page"          binding:"omitempty,gte=1"`
+	Limit        int32   `form:"limit"         binding:"omitempty,gte=1,lte=100"`
+	CategoryUUID string  `form:"category_uuid" binding:"omitempty,uuid"`
+	MinPrice     float64 `form:"min_price"     binding:"omitempty,gte=0"`
+	MaxPrice     float64 `form:"max_price"     binding:"omitempty,gtefield=MinPrice"`
+	Sort         string  `form:"sort"          binding:"omitempty,oneof=price:asc price:desc created_at:desc created_at:asc"`
+}
+
+type SuggestProductsParam struct {
+	Q     string `form:"q"     binding:"required,min=1,max=100"`
+	Limit int32  `form:"limit" binding:"omitempty,gte=1,lte=20"`
+}
+
 type GetProductsParam struct {
 	Search       string  `form:"search"        binding:"omitempty,min=3,max=50,search"`
 	Page         int32   `form:"page"          binding:"omitempty,gte=1"`

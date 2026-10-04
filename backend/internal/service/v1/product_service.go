@@ -14,6 +14,7 @@ import (
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
+	"goshop/pkg/search"
 	"io"
 	"strconv"
 	"strings"
@@ -35,9 +36,10 @@ type productService struct {
 	repo         repository.ProductRepository
 	categoryRepo repository.CategoryRepository
 	cache        cache.RedisCacheService
+	search       *search.Client
 }
 
-func NewProductService(repo repository.ProductRepository, categoryRepo repository.CategoryRepository, redisClient *redis.Client) ProductService {
+func NewProductService(repo repository.ProductRepository, categoryRepo repository.CategoryRepository, redisClient *redis.Client, searchClient *search.Client) ProductService {
 	var cacheService cache.RedisCacheService
 	if redisClient != nil {
 		cacheService = cache.NewRedisCacheService(redisClient)
@@ -46,6 +48,7 @@ func NewProductService(repo repository.ProductRepository, categoryRepo repositor
 		repo:         repo,
 		categoryRepo: categoryRepo,
 		cache:        cacheService,
+		search:       searchClient,
 	}
 }
 
@@ -694,3 +697,142 @@ func (ps *productService) executeAtomicBatchInsert(ctx context.Context, rows []P
 
 	return nil
 }
+
+// SearchProducts executes typo-tolerant search in Meilisearch with fallback/caching
+func (ps *productService) SearchProducts(ctx context.Context, q, categoryUUID string, minPrice, maxPrice float64, sort string, page, limit int32) ([]v1dto.ProductDTO, int64, error) {
+	if ps.search == nil {
+		// Fallback to PostgreSQL if Meilisearch client is not configured
+		list, total, err := ps.GetAllProducts(ctx, q, categoryUUID, minPrice, maxPrice, ProductStatusActive, "product_created_at", "desc", page, limit, false)
+		if err != nil {
+			return nil, 0, err
+		}
+		return v1dto.MapListProductsToDTO(list), int64(total), nil
+	}
+
+	// 1. Build Meilisearch Filter string
+	var filters []string
+	filters = append(filters, "product_status = 1") // Only active products
+	if categoryUUID != "" {
+		filters = append(filters, fmt.Sprintf("category_uuid = '%s'", categoryUUID))
+	}
+	if minPrice > 0 {
+		filters = append(filters, fmt.Sprintf("product_price >= %f", minPrice))
+	}
+	if maxPrice > 0 && maxPrice >= minPrice {
+		filters = append(filters, fmt.Sprintf("product_price <= %f", maxPrice))
+	}
+
+	filterStr := strings.Join(filters, " AND ")
+
+	// 2. Build Sort parameters
+	var sorts []string
+	switch sort {
+	case "price:asc":
+		sorts = append(sorts, "product_price:asc")
+	case "price:desc":
+		sorts = append(sorts, "product_price:desc")
+	case "created_at:desc":
+		sorts = append(sorts, "product_created_at:desc")
+	case "created_at:asc":
+		sorts = append(sorts, "product_created_at:asc")
+	}
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+	offset := int64((page - 1) * limit)
+
+	// 3. Query Meilisearch
+	docs, totalHits, err := ps.search.SearchDocuments(ctx, q, filterStr, sorts, int64(limit), offset)
+	if err != nil {
+		logger.Log.Warn().Err(err).Msg("Meilisearch search query failed, falling back to PostgreSQL")
+		list, total, err := ps.GetAllProducts(ctx, q, categoryUUID, minPrice, maxPrice, ProductStatusActive, "product_created_at", "desc", page, limit, false)
+		if err != nil {
+			return nil, 0, err
+		}
+		return v1dto.MapListProductsToDTO(list), int64(total), nil
+	}
+
+	// 4. Map search docs to DTO
+	products := make([]v1dto.ProductDTO, 0, len(docs))
+	for _, doc := range docs {
+		var createdAtStr string
+		if doc.CreatedAt > 0 {
+			createdAtStr = time.Unix(doc.CreatedAt, 0).Format(time.RFC3339)
+		}
+
+		products = append(products, v1dto.ProductDTO{
+			UUID:         doc.ID,
+			Name:         doc.Name,
+			Slug:         doc.Slug,
+			Description:  doc.Description,
+			Price:        doc.Price,
+			Stock:        doc.Stock,
+			SKU:          doc.SKU,
+			CategoryUUID: doc.CategoryUUID,
+			CategoryName: doc.CategoryName,
+			ImageURL:     doc.ImageURL,
+			Status:       "Active",
+			CreatedAt:    createdAtStr,
+		})
+	}
+
+	return products, totalHits, nil
+}
+
+// SuggestProducts provides ultra-fast search suggestions (< 5ms) for search-as-you-type UI
+func (ps *productService) SuggestProducts(ctx context.Context, q string, limit int32) ([]v1dto.ProductSuggestionDTO, error) {
+	if limit <= 0 || limit > 20 {
+		limit = 8
+	}
+
+	if ps.search == nil {
+		// Fallback suggestion via PostgreSQL
+		list, _, err := ps.GetAllProducts(ctx, q, "", 0, 0, ProductStatusActive, "product_name", "asc", 1, limit, false)
+		if err != nil {
+			return nil, err
+		}
+		suggestions := make([]v1dto.ProductSuggestionDTO, 0, len(list))
+		for _, item := range list {
+			price := utils.NumericToFloat(item.ProductPrice)
+			img := ""
+			if item.ProductImageUrl != nil {
+				img = *item.ProductImageUrl
+			}
+			suggestions = append(suggestions, v1dto.ProductSuggestionDTO{
+				UUID:         item.ProductUuid.String(),
+				Name:         item.ProductName,
+				Slug:         item.ProductSlug,
+				Price:        price,
+				ImageURL:     img,
+				CategoryName: item.CategoryName,
+			})
+		}
+		return suggestions, nil
+	}
+
+	docs, _, err := ps.search.SearchDocuments(ctx, q, "product_status = 1", nil, int64(limit), 0)
+	if err != nil {
+		logger.Log.Warn().Err(err).Msg("Meilisearch suggestion query failed")
+		return []v1dto.ProductSuggestionDTO{}, nil
+	}
+
+	suggestions := make([]v1dto.ProductSuggestionDTO, 0, len(docs))
+	for _, doc := range docs {
+		suggestions = append(suggestions, v1dto.ProductSuggestionDTO{
+			UUID:         doc.ID,
+			Name:         doc.Name,
+			Slug:         doc.Slug,
+			Price:        doc.Price,
+			ImageURL:     doc.ImageURL,
+			CategoryName: doc.CategoryName,
+		})
+	}
+
+	return suggestions, nil
+}
+
+

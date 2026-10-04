@@ -1,4 +1,4 @@
-﻿
+
 # =============================================================================
 # GOSHOP INFRASTRUCTURE ONLY (Postgres, Redis, RabbitMQ)
 # =============================================================================
@@ -61,6 +61,21 @@ services:
     networks:
       - goshop-network
 
+  meilisearch:
+    image: getmeili/meilisearch:v1.12
+    container_name: goshop-meilisearch
+    restart: unless-stopped
+    ports:
+      - "7700:7700"
+    environment:
+      - MEILI_MASTER_KEY=${MEILISEARCH_MASTER_KEY:-masterKey123}
+      - MEILI_ENV=development
+      - MEILI_NO_ANALYTICS=true
+    volumes:
+      - meilisearch-data:/meili_data
+    networks:
+      - goshop-network
+
 volumes:
   postgres-data:
     driver: local
@@ -68,8 +83,11 @@ volumes:
     driver: local
   rabbitmq-data:
     driver: local
+  meilisearch-data:
+    driver: local
 
 networks:
   goshop-network:
     driver: bridge
+
 

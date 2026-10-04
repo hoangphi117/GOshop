@@ -66,7 +66,7 @@ func (h *ChatHandler) GetMyConversation(ctx *gin.Context) {
 // @Param        page     query int false "Page number" default(1)
 // @Param        limit    query int false "Items per page" default(20)
 // @Param        before_id query int false "Cursor before ID"
-// @Success      200 {object} utils.APIResponse{data=utils.PaginationResponse{items=[]v1dto.MessageResponse}}
+// @Success      200 {object} utils.APIResponse{data=[]v1dto.MessageResponse}
 // @Failure      401 {object} utils.ErrorResponse
 // @Failure      500 {object} utils.ErrorResponse
 // @Router       /chat/messages [get]
@@ -253,7 +253,7 @@ func (h *ChatHandler) GetUnreadCount(ctx *gin.Context) {
 // @Param        search query string false "Search keyword in user name or email"
 // @Param        page   query int    false "Page number" default(1)
 // @Param        limit  query int    false "Items per page" default(20)
-// @Success      200 {object} utils.APIResponse{data=utils.PaginationResponse{items=[]v1dto.ConversationResponse}}
+// @Success      200 {object} utils.APIResponse{data=[]v1dto.ConversationResponse}
 // @Failure      401 {object} utils.ErrorResponse
 // @Failure      403 {object} utils.ErrorResponse
 // @Failure      500 {object} utils.ErrorResponse
@@ -333,7 +333,7 @@ func (h *ChatHandler) AdminGetConversation(ctx *gin.Context) {
 // @Param        page     query int    false "Page number" default(1)
 // @Param        limit    query int    false "Items per page" default(20)
 // @Param        before_id query int   false "Cursor before ID"
-// @Success      200 {object} utils.APIResponse{data=utils.PaginationResponse{items=[]v1dto.MessageResponse}}
+// @Success      200 {object} utils.APIResponse{data=[]v1dto.MessageResponse}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      401 {object} utils.ErrorResponse
 // @Failure      403 {object} utils.ErrorResponse

@@ -127,6 +127,15 @@ export async function getCategories(): Promise<Category[]> {
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
+export interface ProductSuggestion {
+  uuid: string
+  name: string
+  slug: string
+  price: number
+  image_url?: string
+  category_name?: string
+}
+
 export async function getProducts(params?: {
   page?: number
   limit?: number
@@ -171,51 +180,77 @@ export async function getProducts(params?: {
     query.set('category_uuid', resolvedCategoryUuid)
   }
 
-  // Backend requires search keyword to be at least 3 characters
-  if (params?.search && params.search.trim().length >= 3) {
-    query.set('search', params.search.trim())
-  }
+  const isMeiliSearch = Boolean(params?.search && params.search.trim().length >= 1)
 
-  // Handle sorting
-  if (params?.order_by) {
-    query.set('order_by', params.order_by)
-  }
-  if (params?.sort) {
-    const sortVal = params.sort.toLowerCase()
-    if (sortVal === 'price_asc') {
-      query.set('order_by', 'product_price')
-      query.set('sort', 'asc')
-    } else if (sortVal === 'price_desc') {
-      query.set('order_by', 'product_price')
-      query.set('sort', 'desc')
-    } else if (sortVal === 'name_asc') {
-      query.set('order_by', 'product_name')
-      query.set('sort', 'asc')
-    } else if (sortVal === 'name_desc') {
-      query.set('order_by', 'product_name')
-      query.set('sort', 'desc')
-    } else if (sortVal === 'newest') {
-      query.set('order_by', 'product_created_at')
-      query.set('sort', 'desc')
-    } else if (sortVal === 'oldest') {
-      query.set('order_by', 'product_created_at')
-      query.set('sort', 'asc')
-    } else if (sortVal === 'asc' || sortVal === 'desc') {
-      query.set('sort', sortVal)
+  // Use Meilisearch endpoint when search is provided
+  if (isMeiliSearch) {
+    query.set('q', params!.search!.trim())
+    if (params?.sort) {
+      const sortVal = params.sort.toLowerCase()
+      if (sortVal === 'price_asc') {
+        query.set('sort', 'price:asc')
+      } else if (sortVal === 'price_desc') {
+        query.set('sort', 'price:desc')
+      } else if (sortVal === 'newest') {
+        query.set('sort', 'created_at:desc')
+      } else if (sortVal === 'oldest') {
+        query.set('sort', 'created_at:asc')
+      }
+    }
+  } else {
+    // Standard PostgreSQL filtering
+    if (params?.order_by) {
+      query.set('order_by', params.order_by)
+    }
+    if (params?.sort) {
+      const sortVal = params.sort.toLowerCase()
+      if (sortVal === 'price_asc') {
+        query.set('order_by', 'product_price')
+        query.set('sort', 'asc')
+      } else if (sortVal === 'price_desc') {
+        query.set('order_by', 'product_price')
+        query.set('sort', 'desc')
+      } else if (sortVal === 'name_asc') {
+        query.set('order_by', 'product_name')
+        query.set('sort', 'asc')
+      } else if (sortVal === 'name_desc') {
+        query.set('order_by', 'product_name')
+        query.set('sort', 'desc')
+      } else if (sortVal === 'newest') {
+        query.set('order_by', 'product_created_at')
+        query.set('sort', 'desc')
+      } else if (sortVal === 'oldest') {
+        query.set('order_by', 'product_created_at')
+        query.set('sort', 'asc')
+      } else if (sortVal === 'asc' || sortVal === 'desc') {
+        query.set('sort', sortVal)
+      }
     }
   }
 
   const queryString = query.toString()
-  const path = `/products${queryString ? `?${queryString}` : ''}`
+  const endpoint = isMeiliSearch ? '/products/search' : '/products'
+  const path = `${endpoint}${queryString ? `?${queryString}` : ''}`
 
   const res = await fetchServer<ApiResponse<Product[]>>(path, {
-    revalidate: 30,
+    revalidate: 15,
   })
 
   return {
     products: res?.data || [],
     pagination: res?.pagination,
   }
+}
+
+export async function getProductSuggestions(q: string, limit = 8): Promise<ProductSuggestion[]> {
+  if (!q || q.trim().length === 0) {
+    return []
+  }
+  const query = new URLSearchParams({ q: q.trim(), limit: limit.toString() })
+  const res = await fetchServer<ApiResponse<ProductSuggestion[]>>(`/products/suggest?${query.toString()}`, {
+    revalidate: 10,
+  })
+  return res?.data || []
 }
 
 export interface Review {

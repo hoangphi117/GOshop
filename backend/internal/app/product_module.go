@@ -19,7 +19,7 @@ func NewProductModule(ctx *ModuleContext) *ProductModule {
 	productRepo := repository.NewSqlProductRepository(ctx.DB)
 
 	categoryService := v1service.NewCategoryService(categoryRepo, ctx.Redis)
-	productService := v1service.NewProductService(productRepo, categoryRepo, ctx.Redis)
+	productService := v1service.NewProductService(productRepo, categoryRepo, ctx.Redis, ctx.Search)
 
 	categoryHandler := v1handler.NewCategoryHandler(categoryService)
 	productHandler := v1handler.NewProductHandler(productService)
