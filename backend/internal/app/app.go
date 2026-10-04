@@ -13,6 +13,7 @@ import (
 	"goshop/pkg/logger"
 	"goshop/pkg/mail"
 	"goshop/pkg/rabbitmq"
+	"goshop/pkg/discord"
 	"goshop/pkg/storage"
 	"goshop/pkg/ws"
 	"net/http"
@@ -162,6 +163,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		NewBannerModule(ctx, cacheRedisService),
 		NewAnalyticsModule(ctx),
 		NewChatModule(ctx, wsHub, redisBridge),
+		NewHealthModule(db.DBPool, redisClient, rabbitmqService, storageService, discord.NewDiscordNotifier(utils.GetEnv("DISCORD_WEBHOOK_URL", ""), logger.Log), logger.Log),
 	}
 
 	routes.RegisterRoutes(r, tokenService, cacheRedisService, getModuleRoutes(modules), getAdminModuleRoutes(modules))
@@ -224,4 +226,5 @@ func (a *Application) Run() error {
 	logger.Log.Info().Msg("Server exited successfully")
 	return nil
 }
+
 
