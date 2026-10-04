@@ -33,13 +33,14 @@ func InitDB() error {
 			Logger:         *sqlLogger,
 			SlowQueryLimit: 500 * time.Millisecond,
 		},
-		LogLevel: tracelog.LogLevelDebug,
+		LogLevel: tracelog.LogLevelWarn,
 	}
 
-	conf.MaxConns = 50
-	conf.MinConns = 5
-	conf.MaxConnLifetime = 30 * time.Minute
-	conf.MaxConnIdleTime = 5 * time.Minute
+	// Dynamic database connection pool configuration via environment variables
+	conf.MaxConns = int32(utils.GetIntEnv("DB_MAX_CONNS", 20))
+	conf.MinConns = int32(utils.GetIntEnv("DB_MIN_CONNS", 5))
+	conf.MaxConnLifetime = time.Duration(utils.GetIntEnv("DB_MAX_CONN_LIFETIME_MIN", 30)) * time.Minute
+	conf.MaxConnIdleTime = time.Duration(utils.GetIntEnv("DB_MAX_CONN_IDLE_MIN", 5)) * time.Minute
 	conf.HealthCheckPeriod = 1 * time.Minute
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -56,7 +57,10 @@ func InitDB() error {
 		return fmt.Errorf("error pinging DB: %w", err)
 	}
 
-	logger.Log.Info().Msg("✅ Connected to PostgreSQL database")
+	logger.Log.Info().
+		Int32("max_conns", conf.MaxConns).
+		Int32("min_conns", conf.MinConns).
+		Msg("✅ Connected to PostgreSQL database pool")
 
 	return nil
 }

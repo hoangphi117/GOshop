@@ -17,6 +17,12 @@ importdb:
 exportdb:
 	docker exec -i postgres-db pg_dump -U postgres -d master-golang > ./backupdb.sql
 
+seed:
+	go run ./cmd/seed
+
+seed-docker:
+	docker exec -i postgres-db psql -U postgres -d master-golang < ../scripts/seed.sql
+
 server:
 	go run ./cmd/api
 
@@ -94,4 +100,4 @@ logs-prod:
 bash:
 	docker exec -it goshop-api /bin/sh
 
-.PHONY: importdb exportdb server migrate-create migrate-up migrate-down migrate-force migrate-drop migrate-goto migrate-down-n sqlc build run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev swagger
+.PHONY: importdb exportdb server migrate-create migrate-up migrate-down migrate-force migrate-drop migrate-goto migrate-down-n sqlc build run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev swagger seed seed-docker

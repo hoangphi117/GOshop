@@ -1,4 +1,4 @@
-﻿package discord
+package discord
 
 import (
 	"bytes"
@@ -6,7 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -55,25 +58,70 @@ type WebhookPayload struct {
 type Notifier interface {
 	SendAlert(ctx context.Context, title, description string, severity AlertSeverity, fields map[string]string) error
 	SendHealthStatus(ctx context.Context, isHealthy bool, services map[string]string, extraInfo string) error
+	SetCooldown(duration time.Duration)
 }
 
 type discordNotifier struct {
-	webhookURL string
-	httpClient *http.Client
-	logger     *zerolog.Logger
+	webhookURL       string
+	httpClient       *http.Client
+	logger           *zerolog.Logger
+	cooldownDuration time.Duration
+	alertCache       sync.Map
 }
 
-// NewDiscordNotifier creates a Discord webhook notifier.
+// NewDiscordNotifier creates a Discord webhook notifier with built-in alert cooldown / rate limiting.
 func NewDiscordNotifier(webhookURL string, logger *zerolog.Logger) Notifier {
-	return &discordNotifier{
-		webhookURL: strings.TrimSpace(webhookURL),
-		httpClient: &http.Client{Timeout: 5 * time.Second},
-		logger:     logger,
+	cooldownSec := 120 // Default: 2 minutes cooldown between identical/burst alerts
+	if envSec := os.Getenv("DISCORD_ALERT_COOLDOWN_SEC"); envSec != "" {
+		if val, err := strconv.Atoi(envSec); err == nil && val >= 0 {
+			cooldownSec = val
+		}
 	}
+
+	return &discordNotifier{
+		webhookURL:       strings.TrimSpace(webhookURL),
+		httpClient:       &http.Client{Timeout: 5 * time.Second},
+		logger:           logger,
+		cooldownDuration: time.Duration(cooldownSec) * time.Second,
+	}
+}
+
+func (d *discordNotifier) SetCooldown(duration time.Duration) {
+	d.cooldownDuration = duration
+}
+
+func (d *discordNotifier) shouldSend(alertKey string) bool {
+	if d.cooldownDuration <= 0 {
+		return true
+	}
+
+	now := time.Now()
+	if val, ok := d.alertCache.Load(alertKey); ok {
+		if lastSent, ok := val.(time.Time); ok {
+			if now.Sub(lastSent) < d.cooldownDuration {
+				if d.logger != nil {
+					d.logger.Debug().
+						Str("alert_key", alertKey).
+						Dur("cooldown", d.cooldownDuration).
+						Msg("Discord alert suppressed due to active cooldown window")
+				}
+				return false
+			}
+		}
+	}
+
+	d.alertCache.Store(alertKey, now)
+	return true
 }
 
 func (d *discordNotifier) SendAlert(ctx context.Context, title, description string, severity AlertSeverity, fields map[string]string) error {
 	if d.webhookURL == "" {
+		return nil
+	}
+
+	// Rate limit / debounce alerts by category or title
+	alertKey := fmt.Sprintf("alert:%s:%s", severity, title)
+	if !d.shouldSend(alertKey) {
 		return nil
 	}
 
@@ -119,14 +167,26 @@ func (d *discordNotifier) SendHealthStatus(ctx context.Context, isHealthy bool, 
 		return nil
 	}
 
-	title := "System Services Are Healthy"
-	severity := SeverityInfo
 	desc := "All infrastructure components (Database, Redis, RabbitMQ, Storage) are operating normally."
+	color := ColorGreen
+	prefix := "ℹ️ [INFO]"
+	title := "System Services Are Healthy"
 
 	if !isHealthy {
 		title = "System Degradation Detected!"
-		severity = SeverityCritical
+		color = ColorRed
+		prefix = "🚨 [CRITICAL OUTAGE]"
 		desc = "One or more infrastructure services failed health validation. Please investigate immediately."
+
+		// Apply cooldown for health degradation alerts to prevent spamming during service outages
+		if !d.shouldSend("health:degraded") {
+			return nil
+		}
+	} else {
+		// Healthy notifications also get debounced to avoid flooding logs
+		if !d.shouldSend("health:healthy") {
+			return nil
+		}
 	}
 
 	fields := make(map[string]string)
@@ -142,7 +202,30 @@ func (d *discordNotifier) SendHealthStatus(ctx context.Context, isHealthy bool, 
 		fields["Details"] = extraInfo
 	}
 
-	return d.SendAlert(ctx, title, desc, severity, fields)
+	var embedFields []EmbedField
+	for k, v := range fields {
+		embedFields = append(embedFields, EmbedField{
+			Name:   k,
+			Value:  v,
+			Inline: true,
+		})
+	}
+
+	payload := WebhookPayload{
+		Username: "GOshop Health Monitor",
+		Embeds: []Embed{
+			{
+				Title:       fmt.Sprintf("%s %s", prefix, title),
+				Description: desc,
+				Color:       color,
+				Fields:      embedFields,
+				Footer:      EmbedFooter{Text: "GOshop Production Monitor"},
+				Timestamp:   time.Now().UTC().Format(time.RFC3339),
+			},
+		},
+	}
+
+	return d.send(ctx, payload)
 }
 
 func (d *discordNotifier) send(ctx context.Context, payload WebhookPayload) error {

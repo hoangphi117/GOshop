@@ -12,10 +12,16 @@ DEV_COMPOSE=docker-compose.dev.yml
 ENV_FILE=./backend/.env
 
 importdb:
-	docker exec -i postgres-db psql -U postgres -d master-golang < ./backupdb.sql
+	docker exec -i goshop-postgres psql -U ${DB_USER} -d ${DB_NAME} < ./backupdb.sql
 
 exportdb:
-	docker exec -i postgres-db pg_dump -U postgres -d master-golang > ./backupdb.sql
+	docker exec -i goshop-postgres pg_dump -U ${DB_USER} -d ${DB_NAME} > ./backupdb.sql
+
+seed:
+	cd backend && go run ./cmd/seed
+
+seed-docker:
+	docker exec -i goshop-postgres psql -U ${DB_USER} -d ${DB_NAME} < ./scripts/seed.sql
 
 server:
 	cd backend && go run ./cmd/api
@@ -94,4 +100,14 @@ logs-prod:
 bash:
 	docker exec -it goshop-api /bin/sh
 
-.PHONY: importdb exportdb server migrate-create migrate-up migrate-down migrate-force migrate-drop migrate-goto migrate-down-n sqlc build run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev swagger
+# Performance & Load Testing with Grafana k6 (Docker)
+loadtest:
+	docker run --rm -i --network=shopping_goshop-network -v "./loadtest:/loadtest" -e BASE_URL=http://goshop-nginx -e API_KEY=abcd-1234-1111 grafana/k6 run /loadtest/load_test.js
+
+stresstest:
+	docker run --rm -i --network=shopping_goshop-network -v "./loadtest:/loadtest" -e BASE_URL=http://goshop-nginx -e API_KEY=abcd-1234-1111 grafana/k6 run /loadtest/stress_test.js
+
+spiketest:
+	docker run --rm -i --network=shopping_goshop-network -v "./loadtest:/loadtest" -e BASE_URL=http://goshop-nginx -e API_KEY=abcd-1234-1111 grafana/k6 run /loadtest/spike_test.js
+
+.PHONY: importdb exportdb server migrate-create migrate-up migrate-down migrate-force migrate-drop migrate-goto migrate-down-n sqlc build run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev swagger loadtest stresstest spiketest seed seed-docker

@@ -28,10 +28,6 @@ var (
 
 	rateLimitLogCache = sync.Map{}
 
-	// cleanupOnce đảm bảo các goroutine dọn dẹp nền (clients map + log cache)
-	// chỉ được khởi động đúng 1 lần, bất kể RateLimiterMiddleware() được gọi
-	// bao nhiêu lần — không còn phụ thuộc vào việc main.go/app.go có nhớ gọi
-	// CleanupClients() thủ công hay không.
 	cleanupOnce sync.Once
 )
 
@@ -61,10 +57,6 @@ func getRateLimiter(key string, reqSec, burst int) *rate.Limiter {
 	return client.limiter
 }
 
-// startCleanupGoroutines starts the background cleanup goroutines. This function is NOT
-// exported and NOT called directly from outside — only called via
-// cleanupOnce.Do() inside RateLimiterMiddleware(), ensuring it runs automatically
-// exactly once so nobody has to remember to wire it up in main.go/app.go.
 func startCleanupGoroutines() {
 	go func() {
 		ticker := time.NewTicker(time.Minute)
@@ -96,20 +88,21 @@ func startCleanupGoroutines() {
 }
 
 func RateLimiterMiddleware(rateLimiterLogger *zerolog.Logger) gin.HandlerFunc {
-	// Ensure the cleanup goroutine starts only once, at the exact moment
-	// middleware is registered — no need for anyone to remember to call CleanupClients()
-	// separately elsewhere.
 	cleanupOnce.Do(startCleanupGoroutines)
 
-	expectedApiKey := os.Getenv("API_KEY")
-
-	publicSec := utils.GetIntEnv("RATE_LIMITER_PUBLIC_SEC", utils.GetIntEnv("RATE_LIMITER_REQUESTS_SEC", 20))
-	publicBurst := utils.GetIntEnv("RATE_LIMITER_PUBLIC_BURST", utils.GetIntEnv("RATE_LIMITER_REQUESTS_BURST", 50))
-
-	internalSec := utils.GetIntEnv("RATE_LIMITER_INTERNAL_SEC", 200)
-	internalBurst := utils.GetIntEnv("RATE_LIMITER_INTERNAL_BURST", 500)
-
 	return func(ctx *gin.Context) {
+		// Health check endpoint bypasses rate limiting
+		if ctx.Request.URL.Path == "/api/v1/healthz" || ctx.Request.URL.Path == "/healthz" {
+			ctx.Next()
+			return
+		}
+
+		expectedApiKey := os.Getenv("API_KEY")
+		publicSec := utils.GetIntEnv("RATE_LIMITER_PUBLIC_SEC", utils.GetIntEnv("RATE_LIMITER_REQUESTS_SEC", 100))
+		publicBurst := utils.GetIntEnv("RATE_LIMITER_PUBLIC_BURST", utils.GetIntEnv("RATE_LIMITER_REQUESTS_BURST", 200))
+		internalSec := utils.GetIntEnv("RATE_LIMITER_INTERNAL_SEC", 5000)
+		internalBurst := utils.GetIntEnv("RATE_LIMITER_INTERNAL_BURST", 10000)
+
 		ip := getClientIP(ctx)
 
 		isInternalService := false
@@ -169,8 +162,6 @@ func shouldLogRateLimit(key string) bool {
 	return true
 }
 
-// RateLimit returns a Gin middleware that enforces a sliding window rate limit per client IP
-// on specific sensitive endpoints using Redis atomic INCR and TTL.
 func RateLimit(cacheService cache.RedisCacheService, action string, limit int64, window time.Duration) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		if cacheService == nil {
@@ -183,12 +174,10 @@ func RateLimit(cacheService cache.RedisCacheService, action string, limit int64,
 
 		count, err := cacheService.Incr(key)
 		if err != nil {
-			// Fail open on Redis communication error to prevent locking out valid users
 			ctx.Next()
 			return
 		}
 
-		// First request in this window -> establish expiry
 		if count == 1 {
 			_ = cacheService.Expire(key, window)
 		}
