@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -30,6 +31,7 @@ const (
 type bannerService struct {
 	bannerRepo repository.BannerRepository
 	cache      cache.RedisCacheService
+	sf         singleflight.Group
 }
 
 // NewBannerService creates a new instance of BannerService.
@@ -53,21 +55,37 @@ func (s *bannerService) GetActiveBanners(ctx context.Context, position string) (
 		}
 	}
 
-	rows, err := s.bannerRepo.GetActiveByPosition(ctx, normPos)
+	res, err, _ := s.sf.Do(cacheKey, func() (any, error) {
+		// Re-check cache inside singleflight
+		if s.cache != nil {
+			var cb []v1dto.BannerDTO
+			if err := s.cache.Get(cacheKey, &cb); err == nil && len(cb) > 0 {
+				return cb, nil
+			}
+		}
+
+		rows, err := s.bannerRepo.GetActiveByPosition(ctx, normPos)
+		if err != nil {
+			return nil, utils.WrapError(utils.ErrCodeInternal, "failed to query active banners", err)
+		}
+
+		banners := make([]v1dto.BannerDTO, len(rows))
+		for i, r := range rows {
+			banners[i] = v1dto.MapBannerToDTO(r)
+		}
+
+		if s.cache != nil {
+			_ = s.cache.Set(cacheKey, banners, bannerCacheTTL)
+		}
+
+		return banners, nil
+	})
+
 	if err != nil {
-		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to query active banners", err)
+		return nil, err
 	}
 
-	banners := make([]v1dto.BannerDTO, len(rows))
-	for i, r := range rows {
-		banners[i] = v1dto.MapBannerToDTO(r)
-	}
-
-	if s.cache != nil {
-		_ = s.cache.Set(cacheKey, banners, bannerCacheTTL)
-	}
-
-	return banners, nil
+	return res.([]v1dto.BannerDTO), nil
 }
 
 // ── Admin Endpoints ───────────────────────────────────────────────

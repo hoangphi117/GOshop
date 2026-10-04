@@ -9,6 +9,8 @@ import (
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
 	"goshop/pkg/shipping"
+
+	"golang.org/x/sync/singleflight"
 )
 
 const locationCacheTTL = 30 * 24 * time.Hour
@@ -16,6 +18,7 @@ const locationCacheTTL = 30 * 24 * time.Hour
 type locationService struct {
 	shippingFactory *shipping.ShippingFactory
 	cache           cache.RedisCacheService
+	sf              singleflight.Group
 }
 
 // NewLocationService creates a focused service for retrieving administrative address hierarchies (Provinces, Districts, Wards).
@@ -56,21 +59,37 @@ func (s *locationService) GetProvinces(ctx context.Context) ([]v1dto.ProvinceDTO
 		}
 	}
 
-	ghnAdapter, err := s.getGHNAdapter()
+	res, err, _ := s.sf.Do(cacheKey, func() (any, error) {
+		// Re-check cache inside singleflight
+		if s.cache != nil {
+			var c []v1dto.ProvinceDTO
+			if err := s.cache.Get(cacheKey, &c); err == nil && len(c) > 0 {
+				return c, nil
+			}
+		}
+
+		ghnAdapter, err := s.getGHNAdapter()
+		if err != nil {
+			return nil, err
+		}
+
+		provinces, err := ghnAdapter.GetProvinces(ctx)
+		if err != nil {
+			return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to get provinces from GHN", err)
+		}
+
+		if s.cache != nil {
+			_ = s.cache.Set(cacheKey, provinces, 24*time.Hour)
+		}
+
+		return provinces, nil
+	})
+
 	if err != nil {
 		return nil, err
 	}
 
-	provinces, err := ghnAdapter.GetProvinces(ctx)
-	if err != nil {
-		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to get provinces from GHN", err)
-	}
-
-	if s.cache != nil {
-		_ = s.cache.Set(cacheKey, provinces, 24*time.Hour)
-	}
-
-	return provinces, nil
+	return res.([]v1dto.ProvinceDTO), nil
 }
 
 func (s *locationService) GetDistricts(ctx context.Context, provinceID int) ([]v1dto.DistrictDTO, error) {
@@ -82,21 +101,37 @@ func (s *locationService) GetDistricts(ctx context.Context, provinceID int) ([]v
 		}
 	}
 
-	ghnAdapter, err := s.getGHNAdapter()
+	res, err, _ := s.sf.Do(cacheKey, func() (any, error) {
+		// Re-check cache inside singleflight
+		if s.cache != nil {
+			var c []v1dto.DistrictDTO
+			if err := s.cache.Get(cacheKey, &c); err == nil && len(c) > 0 {
+				return c, nil
+			}
+		}
+
+		ghnAdapter, err := s.getGHNAdapter()
+		if err != nil {
+			return nil, err
+		}
+
+		districts, err := ghnAdapter.GetDistricts(ctx, provinceID)
+		if err != nil {
+			return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to fetch districts from GHN", err)
+		}
+
+		if s.cache != nil {
+			_ = s.cache.Set(cacheKey, districts, locationCacheTTL)
+		}
+
+		return districts, nil
+	})
+
 	if err != nil {
 		return nil, err
 	}
 
-	districts, err := ghnAdapter.GetDistricts(ctx, provinceID)
-	if err != nil {
-		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to fetch districts from GHN", err)
-	}
-
-	if s.cache != nil {
-		_ = s.cache.Set(cacheKey, districts, locationCacheTTL)
-	}
-
-	return districts, nil
+	return res.([]v1dto.DistrictDTO), nil
 }
 
 func (s *locationService) GetWards(ctx context.Context, districtID int) ([]v1dto.WardDTO, error) {
@@ -108,19 +143,36 @@ func (s *locationService) GetWards(ctx context.Context, districtID int) ([]v1dto
 		}
 	}
 
-	ghnAdapter, err := s.getGHNAdapter()
+	res, err, _ := s.sf.Do(cacheKey, func() (any, error) {
+		// Re-check cache inside singleflight
+		if s.cache != nil {
+			var c []v1dto.WardDTO
+			if err := s.cache.Get(cacheKey, &c); err == nil && len(c) > 0 {
+				return c, nil
+			}
+		}
+
+		ghnAdapter, err := s.getGHNAdapter()
+		if err != nil {
+			return nil, err
+		}
+
+		wards, err := ghnAdapter.GetWards(ctx, districtID)
+		if err != nil {
+			return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to fetch wards from GHN", err)
+		}
+
+		if s.cache != nil {
+			_ = s.cache.Set(cacheKey, wards, locationCacheTTL)
+		}
+
+		return wards, nil
+	})
+
 	if err != nil {
 		return nil, err
 	}
 
-	wards, err := ghnAdapter.GetWards(ctx, districtID)
-	if err != nil {
-		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to fetch wards from GHN", err)
-	}
-
-	if s.cache != nil {
-		_ = s.cache.Set(cacheKey, wards, locationCacheTTL)
-	}
-
-	return wards, nil
+	return res.([]v1dto.WardDTO), nil
 }
+

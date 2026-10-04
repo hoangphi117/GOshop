@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/redis/go-redis/v9"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -27,6 +28,7 @@ const (
 type categoryService struct {
 	repo  repository.CategoryRepository
 	cache cache.RedisCacheService
+	sf    singleflight.Group
 }
 
 func NewCategoryService(repo repository.CategoryRepository, redisClient *redis.Client) CategoryService {
@@ -135,28 +137,53 @@ func (cs *categoryService) GetAllCategories(ctx context.Context, search, orderBy
 		}
 	}
 
-	listCategories, err := cs.repo.GetAll(ctx, search, orderBy, sort, limit, offset, deleted)
+	type fetchResult struct {
+		categories []sqlc.Category
+		total      int64
+	}
+
+	res, err, _ := cs.sf.Do(cacheKey, func() (any, error) {
+		// Re-check cache inside singleflight
+		if cs.cache != nil {
+			var cd struct {
+				Categories []sqlc.Category `json:"categories"`
+				Total      int32           `json:"total"`
+			}
+			if err := cs.cache.Get(cacheKey, &cd); err == nil && cd.Categories != nil {
+				return fetchResult{categories: cd.Categories, total: int64(cd.Total)}, nil
+			}
+		}
+
+		listCategories, err := cs.repo.GetAll(ctx, search, orderBy, sort, limit, offset, deleted)
+		if err != nil {
+			return nil, utils.WrapError(utils.ErrCodeInternal, "failed to get all categories", err)
+		}
+
+		total, err := cs.repo.CountCategories(ctx, search, deleted)
+		if err != nil {
+			return nil, utils.WrapError(utils.ErrCodeInternal, "failed to count categories", err)
+		}
+
+		if cs.cache != nil {
+			cd := struct {
+				Categories []sqlc.Category `json:"categories"`
+				Total      int32           `json:"total"`
+			}{
+				Categories: listCategories,
+				Total:      int32(total),
+			}
+			cs.cache.Set(cacheKey, cd, 5*time.Minute)
+		}
+
+		return fetchResult{categories: listCategories, total: total}, nil
+	})
+
 	if err != nil {
-		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "failed to get all categories", err)
+		return nil, 0, err
 	}
 
-	total, err := cs.repo.CountCategories(ctx, search, deleted)
-	if err != nil {
-		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "failed to count categories", err)
-	}
-
-	cacheData = struct {
-		Categories []sqlc.Category `json:"categories"`
-		Total      int32           `json:"total"`
-	}{
-		Categories: listCategories,
-		Total:      int32(total),
-	}
-	if cs.cache != nil {
-		cs.cache.Set(cacheKey, cacheData, 5*time.Minute)
-	}
-
-	return listCategories, cacheData.Total, nil
+	fr := res.(fetchResult)
+	return fr.categories, int32(fr.total), nil
 }
 
 func (cs *categoryService) GetCategoryByUUID(ctx context.Context, categoryUUID uuid.UUID) (sqlc.Category, error) {

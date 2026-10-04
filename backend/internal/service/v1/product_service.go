@@ -25,6 +25,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/redis/go-redis/v9"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/text/encoding/charmap"
 )
 
@@ -37,6 +38,7 @@ type productService struct {
 	categoryRepo repository.CategoryRepository
 	cache        cache.RedisCacheService
 	search       *search.Client
+	sf           singleflight.Group
 }
 
 func NewProductService(repo repository.ProductRepository, categoryRepo repository.CategoryRepository, redisClient *redis.Client, searchClient *search.Client) ProductService {
@@ -143,28 +145,53 @@ func (ps *productService) GetAllProducts(ctx context.Context, search, categoryUU
 		}
 	}
 
-	listProducts, err := ps.repo.GetAll(ctx, search, categoryUUID, minPrice, maxPrice, status, orderBy, sort, limit, offset, deleted)
-	if err != nil {
-		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "failed to get all products", err)
+	type fetchResult struct {
+		products []sqlc.GetProductByUUIDRow
+		total    int64
 	}
 
-	total, err := ps.repo.CountProducts(ctx, search, categoryUUID, minPrice, maxPrice, status, deleted)
-	if err != nil {
-		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "failed to count products", err)
-	}
-
-	if ps.cache != nil {
-		cacheData = struct {
-			Products []sqlc.GetProductByUUIDRow `json:"products"`
-			Total    int32                      `json:"total"`
-		}{
-			Products: listProducts,
-			Total:    int32(total),
+	res, err, _ := ps.sf.Do(cacheKey, func() (any, error) {
+		// Re-check cache inside singleflight
+		if ps.cache != nil {
+			var cd struct {
+				Products []sqlc.GetProductByUUIDRow `json:"products"`
+				Total    int32                      `json:"total"`
+			}
+			if err := ps.cache.Get(cacheKey, &cd); err == nil && cd.Products != nil {
+				return fetchResult{products: cd.Products, total: int64(cd.Total)}, nil
+			}
 		}
-		ps.cache.Set(cacheKey, cacheData, 5*time.Minute)
+
+		listProducts, err := ps.repo.GetAll(ctx, search, categoryUUID, minPrice, maxPrice, status, orderBy, sort, limit, offset, deleted)
+		if err != nil {
+			return nil, utils.WrapError(utils.ErrCodeInternal, "failed to get all products", err)
+		}
+
+		total, err := ps.repo.CountProducts(ctx, search, categoryUUID, minPrice, maxPrice, status, deleted)
+		if err != nil {
+			return nil, utils.WrapError(utils.ErrCodeInternal, "failed to count products", err)
+		}
+
+		if ps.cache != nil {
+			cd := struct {
+				Products []sqlc.GetProductByUUIDRow `json:"products"`
+				Total    int32                      `json:"total"`
+			}{
+				Products: listProducts,
+				Total:    int32(total),
+			}
+			ps.cache.Set(cacheKey, cd, 5*time.Minute)
+		}
+
+		return fetchResult{products: listProducts, total: total}, nil
+	})
+
+	if err != nil {
+		return nil, 0, err
 	}
 
-	return listProducts, int32(total), nil
+	fr := res.(fetchResult)
+	return fr.products, int32(fr.total), nil
 }
 
 func (ps *productService) GetProductByUUID(ctx context.Context, productUUID uuid.UUID) (sqlc.GetProductByUUIDRow, error) {
