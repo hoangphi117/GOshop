@@ -97,6 +97,10 @@ func (s *orderPricingService) ValidateAndCalculateDiscount(coupon *sqlc.Coupon, 
 		return 0, utils.NewError(utils.ErrCodeBadRequest, "Coupon has expired")
 	}
 
+	if coupon.CouponUsageLimit != nil && coupon.CouponUsedCount >= *coupon.CouponUsageLimit {
+		return 0, utils.NewError(utils.ErrCodeBadRequest, "Coupon has reached its maximum total usage limit")
+	}
+
 	minOrderAmount := utils.NumericToFloat(coupon.CouponMinOrderAmount)
 	if subtotal < minOrderAmount {
 		return 0, utils.NewError(utils.ErrCodeBadRequest,
@@ -159,6 +163,15 @@ func (s *orderPricingService) CalculateOrderTotals(
 		calculatedDiscount, err := s.ValidateAndCalculateDiscount(&coupon, subtotal, now)
 		if err != nil {
 			return nil, err
+		}
+
+		userUsageCount, err := s.couponRepo.CountUserUsages(ctx, userID, coupon.CouponID)
+		if err != nil {
+			return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to check coupon user usage count", err)
+		}
+
+		if userUsageCount >= int64(coupon.CouponUserUsageLimit) {
+			return nil, utils.NewError(utils.ErrCodeBadRequest, "You have reached your usage limit for this coupon")
 		}
 
 		if calculatedDiscount > 0 {

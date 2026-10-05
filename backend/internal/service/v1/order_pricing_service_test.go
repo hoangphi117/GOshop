@@ -227,6 +227,7 @@ func TestOrderPricingService_CalculateOrderTotals(t *testing.T) {
 		CouponStartDate:      now.Add(-1 * time.Hour),
 		CouponEndDate:        now.Add(1 * time.Hour),
 		CouponMinOrderAmount: utils.FloatToNumeric(50.0),
+		CouponUserUsageLimit: 1,
 	}
 
 	mockCouponRepo := &testutils.MockCouponRepository{
@@ -294,5 +295,36 @@ func TestOrderPricingService_CalculateOrderTotals(t *testing.T) {
 		svc := v1service.NewOrderPricingService(expiredMockRepo)
 		_, err := svc.CalculateOrderTotals(ctx, items, &expiredCode, 1, 5.0, now)
 		require.Error(t, err)
+	})
+
+	t.Run("Error - User usage limit reached", func(t *testing.T) {
+		limitRepo := &testutils.MockCouponRepository{
+			GetByCodeFunc: func(ctx context.Context, code string) (sqlc.Coupon, error) {
+				return mockCoupon, nil
+			},
+			CountUserUsagesFunc: func(ctx context.Context, userID, couponID int32) (int64, error) {
+				return 1, nil // Already used once, limit is 1
+			},
+		}
+		svc := v1service.NewOrderPricingService(limitRepo)
+		_, err := svc.CalculateOrderTotals(ctx, items, &couponCode, 1, 5.0, now)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "You have reached your usage limit")
+	})
+
+	t.Run("Error - Coupon total usage limit reached", func(t *testing.T) {
+		limit := int32(5)
+		maxedCoupon := mockCoupon
+		maxedCoupon.CouponUsageLimit = &limit
+		maxedCoupon.CouponUsedCount = 5
+		limitRepo := &testutils.MockCouponRepository{
+			GetByCodeFunc: func(ctx context.Context, code string) (sqlc.Coupon, error) {
+				return maxedCoupon, nil
+			},
+		}
+		svc := v1service.NewOrderPricingService(limitRepo)
+		_, err := svc.CalculateOrderTotals(ctx, items, &couponCode, 1, 5.0, now)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "maximum total usage limit")
 	})
 }

@@ -979,7 +979,7 @@ function CheckoutContent() {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
-                "X-Idempotency-Key": `idem-pay-${createdOrderUuid}-${Date.now()}`,
+                "X-Idempotency-Key": `idem-pay-${createdOrderUuid}`,
               },
               body: JSON.stringify({
                 order_uuid: createdOrderUuid,

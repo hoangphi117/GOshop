@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/repository"
@@ -438,3 +439,32 @@ func (cs *couponService) PreviewCoupon(ctx context.Context, userUUID uuid.UUID, 
 		MinOrderAmount:   minOrderAmount,
 	}, nil
 }
+
+func (cs *couponService) LockAndApplyCoupon(ctx context.Context, couponID int32, userID int32, orderID int32) error {
+	tx, _ := db.GetTx(ctx)
+
+	// 1. Atomically increment used count (with limit enforcement)
+	if err := cs.repo.IncrementUsedCount(ctx, tx, couponID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) || errors.Is(err, sql.ErrNoRows) {
+			return utils.NewError(utils.ErrCodeBadRequest, "Coupon has reached its maximum total usage limit")
+		}
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to increment coupon usage count", err)
+	}
+
+	// 2. Record user usage with unique constraint (coupon_id, user_id, order_id) protection
+	_, err := cs.repo.RecordUserUsage(ctx, tx, sqlc.RecordCouponUsageParams{
+		CouponUsageCouponID: couponID,
+		CouponUsageUserID:   userID,
+		CouponUsageOrderID:  &orderID,
+	})
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return utils.NewError(utils.ErrCodeConflict, "Coupon has already been used")
+		}
+		return utils.WrapError(utils.ErrCodeInternal, "failed to record coupon usage", err)
+	}
+
+	return nil
+}
+

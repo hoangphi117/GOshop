@@ -135,7 +135,7 @@ function PaymentResultContent() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-Idempotency-Key": `idem-retry-${targetUuid}-${Date.now()}`,
+            "X-Idempotency-Key": `idem-pay-${targetUuid}`,
           },
           body: JSON.stringify({
             order_uuid: targetUuid,

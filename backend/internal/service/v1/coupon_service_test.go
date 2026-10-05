@@ -756,3 +756,66 @@ func TestCouponService_PreviewCoupon(t *testing.T) {
 		assert.Equal(t, 75.0, preview.FinalTotalAmount)
 	})
 }
+
+func TestCouponService_LockAndApplyCoupon(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Success: Increments count and records user usage", func(t *testing.T) {
+		incrementCalled := false
+		recordUsageCalled := false
+
+		mockRepo := &testutils.MockCouponRepository{
+			IncrementUsedCountFunc: func(ctx context.Context, tx pgx.Tx, couponID int32) error {
+				incrementCalled = true
+				assert.Equal(t, int32(10), couponID)
+				return nil
+			},
+			RecordUserUsageFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.RecordCouponUsageParams) (sqlc.CouponUsage, error) {
+				recordUsageCalled = true
+				assert.Equal(t, int32(10), params.CouponUsageCouponID)
+				assert.Equal(t, int32(1), params.CouponUsageUserID)
+				assert.Equal(t, int32(100), *params.CouponUsageOrderID)
+				return sqlc.CouponUsage{}, nil
+			},
+		}
+
+		svc := v1service.NewCouponService(mockRepo, nil, nil)
+		err := svc.LockAndApplyCoupon(ctx, 10, 1, 100)
+
+		require.NoError(t, err)
+		assert.True(t, incrementCalled)
+		assert.True(t, recordUsageCalled)
+	})
+
+	t.Run("Coupon limit reached: Increment returns ErrNoRows -> 400 Bad Request", func(t *testing.T) {
+		mockRepo := &testutils.MockCouponRepository{
+			IncrementUsedCountFunc: func(ctx context.Context, tx pgx.Tx, couponID int32) error {
+				return pgx.ErrNoRows
+			},
+		}
+
+		svc := v1service.NewCouponService(mockRepo, nil, nil)
+		err := svc.LockAndApplyCoupon(ctx, 10, 1, 100)
+
+		require.Error(t, err)
+		assertAppErrorCode(t, err, utils.ErrCodeBadRequest)
+	})
+
+	t.Run("Coupon already used: RecordUserUsage returns 23505 unique violation -> 409 Conflict", func(t *testing.T) {
+		mockRepo := &testutils.MockCouponRepository{
+			IncrementUsedCountFunc: func(ctx context.Context, tx pgx.Tx, couponID int32) error {
+				return nil
+			},
+			RecordUserUsageFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.RecordCouponUsageParams) (sqlc.CouponUsage, error) {
+				return sqlc.CouponUsage{}, &pgconn.PgError{Code: "23505"}
+			},
+		}
+
+		svc := v1service.NewCouponService(mockRepo, nil, nil)
+		err := svc.LockAndApplyCoupon(ctx, 10, 1, 100)
+
+		require.Error(t, err)
+		assertAppErrorCode(t, err, utils.ErrCodeConflict)
+	})
+}
+
