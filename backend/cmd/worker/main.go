@@ -34,6 +34,7 @@ type Worker struct {
 	cfg                  *config.Config
 	logger               *zerolog.Logger
 	notificationConsumer *worker.NotificationConsumer
+	orderConsumer        *worker.OrderConsumer
 	retentionJob         *worker.NotificationRetentionJob
 	redisBridge          ws.RedisBridge
 }
@@ -80,12 +81,17 @@ func NewWorker(cfg *config.Config) *Worker {
 
 	notificationRepo := repository.NewSqlNotificationRepository(db.DB)
 	userRepo := repository.NewSqlUserRepository(db.DB)
+	cartRepo := repository.NewSqlCartRepository(db.DB)
+	productRepo := repository.NewSqlProductRepository(db.DB)
+	cartService := v1service.NewCartService(cartRepo, userRepo, productRepo, redisClient)
+
 	notificationService := v1service.NewNotificationService(notificationRepo, userRepo, nil)
 	redisBridge := ws.NewRedisBridge(redisClient, nil)
 	if svc, ok := notificationService.(interface{ SetRedisBridge(ws.RedisBridge) }); ok {
 		svc.SetRedisBridge(redisBridge)
 	}
 	notificationConsumer := worker.NewNotificationConsumer(notificationService, log)
+	orderConsumer := worker.NewOrderConsumer(cartService, notificationService, log)
 
 	retentionJob := worker.NewNotificationRetentionJob(notificationService,
 		log,
@@ -99,6 +105,7 @@ func NewWorker(cfg *config.Config) *Worker {
 		cfg:                  cfg,
 		logger:               log,
 		notificationConsumer: notificationConsumer,
+		orderConsumer:        orderConsumer,
 		retentionJob:         retentionJob,
 		redisBridge:          redisBridge,
 	}
@@ -146,6 +153,16 @@ func (w *Worker) Start(ctx context.Context) error {
 		return err
 	}
 	w.logger.Info().Msgf("Worker consuming queue: %s", rabbitmq.QueueNotificationEvents)
+
+	// Consume Order Created Events (Cart cleanup & Order notifications)
+	if w.orderConsumer != nil {
+		orderHandler := w.withIdempotency(rabbitmq.QueueOrderCreated, w.orderConsumer.Handle)
+		if err := w.rabbitMQ.Consume(ctx, rabbitmq.QueueOrderCreated, orderHandler); err != nil {
+			w.logger.Error().Err(err).Msg("Failed to consume order created events")
+			return err
+		}
+		w.logger.Info().Msgf("Worker consuming queue: %s", rabbitmq.QueueOrderCreated)
+	}
 
 	if w.retentionJob != nil {
 		go w.retentionJob.Start(ctx)

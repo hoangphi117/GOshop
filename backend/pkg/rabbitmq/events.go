@@ -17,7 +17,38 @@ const (
 	ActionStockLow  = "stock_low"
 	ActionRequested = "requested"
 	ActionReported  = "reported"
+
+	// Queues
+	QueueOrderCreated = "order.created"
 )
+
+// OrderCreatedEvent is published when an order has been successfully placed and committed to DB.
+type OrderCreatedEvent struct {
+	EventID        string    `json:"event_id"`
+	OrderID        int32     `json:"order_id"`
+	OrderUUID      string    `json:"order_uuid"`
+	OrderNumber    string    `json:"order_number"`
+	UserID         int32     `json:"user_id"`
+	UserUUID       string    `json:"user_uuid"`
+	TotalAmount    float64   `json:"total_amount"`
+	PurchasedItems []int32   `json:"purchased_items"`
+	Timestamp      time.Time `json:"timestamp"`
+}
+
+// NewOrderCreatedEvent constructs a new OrderCreatedEvent.
+func NewOrderCreatedEvent(eventID, orderUUID, orderNumber, userUUID string, orderID, userID int32, totalAmount float64, purchasedItems []int32) OrderCreatedEvent {
+	return OrderCreatedEvent{
+		EventID:        eventID,
+		OrderID:        orderID,
+		OrderUUID:      orderUUID,
+		OrderNumber:    orderNumber,
+		UserID:         userID,
+		UserUUID:       userUUID,
+		TotalAmount:    totalAmount,
+		PurchasedItems: purchasedItems,
+		Timestamp:      time.Now().UTC(),
+	}
+}
 
 // NotificationEvent is the unified event envelope for both Customer and Admin notifications.
 type NotificationEvent struct {

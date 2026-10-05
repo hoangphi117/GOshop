@@ -149,6 +149,7 @@ type CartService interface {
 	UpdateCartItemQuantity(ctx context.Context, userUUID uuid.UUID, itemUUID uuid.UUID, input v1dto.UpdateCartItemQuantityInput) (v1dto.CartDTO, error)
 	RemoveItemFromCart(ctx context.Context, userUUID uuid.UUID, itemUUID uuid.UUID) (v1dto.CartDTO, error)
 	ClearMyCart(ctx context.Context, userUUID uuid.UUID) error
+	RemovePurchasedItems(ctx context.Context, userID int32, productIDs []int32) error
 }
 
 type CouponService interface {
@@ -160,6 +161,7 @@ type CouponService interface {
 	RestoreCoupon(ctx context.Context, couponUUID uuid.UUID) (v1dto.CouponDTO, error)
 	TrashCoupon(ctx context.Context, couponUUID uuid.UUID) error
 	PreviewCoupon(ctx context.Context, userUUID uuid.UUID, input v1dto.PreviewCouponInput) (v1dto.PreviewCouponDTO, error)
+	LockAndApplyCoupon(ctx context.Context, couponID int32, userID int32, orderID int32) error
 }
 
 type PaymentRefundService interface {

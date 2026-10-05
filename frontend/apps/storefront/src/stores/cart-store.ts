@@ -425,17 +425,19 @@ export const useCartStore = create<CartState>((set, get) => ({
     set({ items: updatedItems })
     persistUserCart(get().currentUserKey, updatedItems, get().appliedCoupon)
 
-    // Sync deletes with server
-    for (const item of selected) {
-      if (item.itemUuid) {
-        try {
-          await authFetch(`/api/v1/cart/items/${item.itemUuid}`, {
-            method: 'DELETE',
-          })
-        } catch (err) {
-          console.warn('Failed to delete selected item on server:', err)
-        }
-      }
+    // Sync deletes with server in parallel non-blocking background
+    if (selected.length > 0) {
+      Promise.allSettled(
+        selected
+          .filter((item) => item.itemUuid)
+          .map((item) =>
+            authFetch(`/api/v1/cart/items/${item.itemUuid}`, {
+              method: 'DELETE',
+            }).catch((err) =>
+              console.warn('Failed to delete selected item on server:', err)
+            )
+          )
+      )
     }
   },
 

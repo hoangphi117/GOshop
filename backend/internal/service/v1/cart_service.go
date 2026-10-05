@@ -272,3 +272,27 @@ func (cs *cartService) ClearMyCart(ctx context.Context, userUUID uuid.UUID) erro
 
 	return nil
 }
+
+func (cs *cartService) RemovePurchasedItems(ctx context.Context, userID int32, productIDs []int32) error {
+	if len(productIDs) == 0 {
+		return nil
+	}
+	cart, err := cs.repo.GetCartByUserID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		return utils.WrapError(utils.ErrCodeInternal, "failed to get cart by user id", err)
+	}
+
+	if err := cs.repo.DeleteCartItemsByProductIDs(ctx, nil, cart.CartID, productIDs); err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "failed to delete purchased cart items", err)
+	}
+
+	if cs.cache != nil {
+		_ = cs.cache.Clear("cart:user:*")
+	}
+
+	return nil
+}
+

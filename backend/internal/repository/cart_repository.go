@@ -58,7 +58,10 @@ func (cr *SqlCartRepository) ClearCart(ctx context.Context, cartID int32) error 
 }
 
 func (cr *SqlCartRepository) DeleteCartItemsByProductIDs(ctx context.Context, tx pgx.Tx, cartID int32, productIDs []int32) error {
-	q := sqlc.New(tx)
+	var q sqlc.Querier = cr.db
+	if tx != nil {
+		q = sqlc.New(tx)
+	}
 	return q.DeleteCartItemsByProductIDs(ctx, sqlc.DeleteCartItemsByProductIDsParams{
 		CartID:     cartID,
 		ProductIds: productIDs,

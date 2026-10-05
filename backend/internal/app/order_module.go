@@ -69,6 +69,7 @@ func NewOrderModule(ctx *ModuleContext, wsHub ws.Hub, rabbitmqService rabbitmq.R
 	notificationService := v1service.NewNotificationService(notificationRepo, userRepo, wsHub)
 
 	pricingService := v1service.NewOrderPricingService(couponRepo)
+	couponService := v1service.NewCouponService(couponRepo, userRepo, ctx.Redis)
 	stockMovementRepo := repository.NewSqlStockMovementRepository(ctx.DB)
 	inventoryService := v1service.NewInventoryService(productRepo, stockMovementRepo, userRepo, ctx.TxManager, notificationService)
 
@@ -82,11 +83,12 @@ func NewOrderModule(ctx *ModuleContext, wsHub ws.Hub, rabbitmqService rabbitmq.R
 		userRepo,
 		cartService,
 		cartRepo,
-		couponRepo,
+		couponService,
 		trackingRepo,
 		paymentRepo,
 		notificationService,
 		ctx.Redis,
+		rabbitmqService,
 	)
 
 	shippingService := v1service.NewOrderShippingService(
@@ -135,6 +137,14 @@ func NewOrderModule(ctx *ModuleContext, wsHub ws.Hub, rabbitmqService rabbitmq.R
 		err := rabbitmqService.Consume(context.Background(), v1service.QueueShippingCreate, shippingConsumer.Handle)
 		if err != nil {
 			logger.Log.Error().Err(err).Msg("Failed to start RabbitMQ consumer for shipping.order.create")
+		}
+	}()
+
+	orderConsumer := worker.NewOrderConsumer(cartService, notificationService, logger.Log)
+	go func() {
+		err := rabbitmqService.Consume(context.Background(), rabbitmq.QueueOrderCreated, orderConsumer.Handle)
+		if err != nil {
+			logger.Log.Error().Err(err).Msg("Failed to start RabbitMQ consumer for order.created")
 		}
 	}()
 

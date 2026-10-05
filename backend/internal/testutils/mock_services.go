@@ -248,6 +248,7 @@ type MockCartService struct {
 	UpdateCartItemQuantityFunc func(ctx context.Context, userUUID uuid.UUID, itemUUID uuid.UUID, input v1dto.UpdateCartItemQuantityInput) (v1dto.CartDTO, error)
 	RemoveItemFromCartFunc     func(ctx context.Context, userUUID uuid.UUID, itemUUID uuid.UUID) (v1dto.CartDTO, error)
 	ClearMyCartFunc            func(ctx context.Context, userUUID uuid.UUID) error
+	RemovePurchasedItemsFunc   func(ctx context.Context, userID int32, productIDs []int32) error
 }
 
 func (m *MockCartService) GetMyCart(ctx context.Context, userUUID uuid.UUID) (v1dto.CartDTO, error) {
@@ -285,6 +286,13 @@ func (m *MockCartService) ClearMyCart(ctx context.Context, userUUID uuid.UUID) e
 	return nil
 }
 
+func (m *MockCartService) RemovePurchasedItems(ctx context.Context, userID int32, productIDs []int32) error {
+	if m.RemovePurchasedItemsFunc != nil {
+		return m.RemovePurchasedItemsFunc(ctx, userID, productIDs)
+	}
+	return nil
+}
+
 // =========================================================================
 // MockCouponService
 // =========================================================================
@@ -297,6 +305,7 @@ type MockCouponService struct {
 	RestoreCouponFunc    func(ctx context.Context, couponUUID uuid.UUID) (v1dto.CouponDTO, error)
 	TrashCouponFunc      func(ctx context.Context, couponUUID uuid.UUID) error
 	PreviewCouponFunc    func(ctx context.Context, userUUID uuid.UUID, input v1dto.PreviewCouponInput) (v1dto.PreviewCouponDTO, error)
+	LockAndApplyCouponFunc func(ctx context.Context, couponID int32, userID int32, orderID int32) error
 }
 
 func (m *MockCouponService) CreateCoupon(ctx context.Context, input v1dto.CreateCouponInput) (v1dto.CouponDTO, error) {
@@ -353,6 +362,13 @@ func (m *MockCouponService) PreviewCoupon(ctx context.Context, userUUID uuid.UUI
 		return m.PreviewCouponFunc(ctx, userUUID, input)
 	}
 	return v1dto.PreviewCouponDTO{}, nil
+}
+
+func (m *MockCouponService) LockAndApplyCoupon(ctx context.Context, couponID int32, userID int32, orderID int32) error {
+	if m.LockAndApplyCouponFunc != nil {
+		return m.LockAndApplyCouponFunc(ctx, couponID, userID, orderID)
+	}
+	return nil
 }
 
 // =========================================================================

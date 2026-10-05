@@ -13,6 +13,7 @@ import (
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/testutils"
 	"goshop/internal/utils"
+	"goshop/pkg/rabbitmq"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -31,11 +32,12 @@ type testOrderServiceDeps struct {
 	userRepo            repository.UserRepository
 	cartService         v1service.CartService
 	cartRepo            repository.CartRepository
-	couponRepo          repository.CouponRepository
+	couponService       v1service.CouponService
 	trackingRepo        repository.TrackingRepository
 	paymentRepo         repository.PaymentRepository
 	notificationService v1service.NotificationService
 	redisClient         *redis.Client
+	rabbitMQ            rabbitmq.RabbitMQService
 }
 
 func newTestOrderService(deps testOrderServiceDeps) v1service.OrderService {
@@ -75,9 +77,9 @@ func newTestOrderService(deps testOrderServiceDeps) v1service.OrderService {
 	if cartRepo == nil {
 		cartRepo = &testutils.MockCartRepository{}
 	}
-	couponRepo := deps.couponRepo
-	if couponRepo == nil {
-		couponRepo = &testutils.MockCouponRepository{}
+	couponSvc := deps.couponService
+	if couponSvc == nil {
+		couponSvc = &testutils.MockCouponService{}
 	}
 	trackingRepo := deps.trackingRepo
 	if trackingRepo == nil {
@@ -102,11 +104,12 @@ func newTestOrderService(deps testOrderServiceDeps) v1service.OrderService {
 		userRepo,
 		cartSvc,
 		cartRepo,
-		couponRepo,
+		couponSvc,
 		trackingRepo,
 		paymentRepo,
 		notifSvc,
 		deps.redisClient,
+		deps.rabbitMQ,
 	)
 }
 
@@ -274,9 +277,9 @@ func TestOrderService_CreateOrder(t *testing.T) {
 				}, nil
 			},
 		}
-		mockCouponRepo := &testutils.MockCouponRepository{
-			IncrementUsedCountFunc: func(ctx context.Context, tx pgx.Tx, cID int32) error {
-				return errors.New("db deadlocked")
+		mockCouponService := &testutils.MockCouponService{
+			LockAndApplyCouponFunc: func(ctx context.Context, cID, uID, oID int32) error {
+				return utils.NewError(utils.ErrCodeBadRequest, "Failed to increment coupon usage count")
 			},
 		}
 
@@ -284,7 +287,7 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			pricingService: mockPricing,
 			inventoryService: mockInventory,
 			userRepo: mockUserRepo,
-			couponRepo: mockCouponRepo,
+			couponService: mockCouponService,
 		})
 
 		_, _, err := svc.CreateOrder(ctx, userUUID, baseInput)
@@ -334,7 +337,7 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		assert.Contains(t, err.Error(), "failed to create order")
 	})
 
-	t.Run("Case 8: Coupon RecordUserUsage Failure - Transaction Aborts", func(t *testing.T) {
+	t.Run("Case 8: Coupon LockAndApplyCoupon Failure - Transaction Aborts", func(t *testing.T) {
 		couponID := int32(5)
 		couponCode := "PROMO5"
 		mockUserRepo := &testutils.MockUserRepository{
@@ -367,12 +370,9 @@ func TestOrderService_CreateOrder(t *testing.T) {
 				return sqlc.Order{OrderID: 1001, OrderNumber: params.OrderNumber, OrderUserID: baseUser.UserID}, nil
 			},
 		}
-		mockCouponRepo := &testutils.MockCouponRepository{
-			IncrementUsedCountFunc: func(ctx context.Context, tx pgx.Tx, cID int32) error {
-				return nil
-			},
-			RecordUserUsageFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.RecordCouponUsageParams) (sqlc.CouponUsage, error) {
-				return sqlc.CouponUsage{}, errors.New("db error recording usage")
+		mockCouponService := &testutils.MockCouponService{
+			LockAndApplyCouponFunc: func(ctx context.Context, cID, uID, oID int32) error {
+				return utils.NewError(utils.ErrCodeInternal, "failed to record coupon usage")
 			},
 		}
 
@@ -381,7 +381,7 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			inventoryService: mockInventory,
 			orderRepo: mockOrderRepo,
 			userRepo: mockUserRepo,
-			couponRepo: mockCouponRepo,
+			couponService: mockCouponService,
 		})
 
 		_, _, err := svc.CreateOrder(ctx, userUUID, baseInput)
@@ -654,13 +654,9 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 
-		mockCartRepo := &testutils.MockCartRepository{
-			GetCartByUserIDFunc: func(ctx context.Context, userID int32) (sqlc.Cart, error) {
+		mockCartService := &testutils.MockCartService{
+			RemovePurchasedItemsFunc: func(ctx context.Context, userID int32, productIDs []int32) error {
 				assert.Equal(t, baseUser.UserID, userID)
-				return sqlc.Cart{CartID: 77}, nil
-			},
-			DeleteCartItemsByProductIDsFunc: func(ctx context.Context, tx pgx.Tx, cartID int32, productIDs []int32) error {
-				assert.Equal(t, int32(77), cartID)
 				deletedCartProductIDs = productIDs
 				return nil
 			},
@@ -681,13 +677,13 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		}
 
 		svc := newTestOrderService(testOrderServiceDeps{
-			pricingService: mockPricing,
-			inventoryService: mockInventory,
-			orderRepo: mockOrderRepo,
-			orderItemRepo: mockOrderItemRepo,
-			userRepo: mockUserRepo,
-			cartRepo: mockCartRepo,
-			trackingRepo: mockTrackingRepo,
+			pricingService:      mockPricing,
+			inventoryService:    mockInventory,
+			orderRepo:           mockOrderRepo,
+			orderItemRepo:       mockOrderItemRepo,
+			userRepo:            mockUserRepo,
+			cartService:         mockCartService,
+			trackingRepo:        mockTrackingRepo,
 			notificationService: mockNotification,
 		})
 
@@ -726,14 +722,103 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		assert.Equal(t, orderUUIDCreated.String(), notifiedInput.Data["order_uuid"])
 	})
 
+	t.Run("Event-driven: Success WITH RabbitMQ - Publishes OrderCreatedEvent", func(t *testing.T) {
+		var publishedQueue string
+		var publishedEvent rabbitmq.OrderCreatedEvent
+
+		mockRabbitMQ := &testutils.MockRabbitMQService{
+			PublishFunc: func(ctx context.Context, queue string, message any) error {
+				publishedQueue = queue
+				if ev, ok := message.(rabbitmq.OrderCreatedEvent); ok {
+					publishedEvent = ev
+				}
+				return nil
+			},
+		}
+
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return baseUser, nil
+			},
+		}
+
+		mockInventory := &testutils.MockInventoryService{
+			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]sqlc.GetByUUIDsForUpdateRow, error) {
+				return map[string]sqlc.GetByUUIDsForUpdateRow{
+					productUUID1.String(): {ProductID: 101, ProductName: "Keyboard", ProductPrice: utils.FloatToNumeric(500000)},
+					productUUID2.String(): {ProductID: 102, ProductName: "Mouse", ProductPrice: utils.FloatToNumeric(250000)},
+				}, nil
+			},
+		}
+
+		mockPricing := &testutils.MockOrderPricingService{
+			CalculateOrderTotalsFunc: func(ctx context.Context, items []v1service.ItemPriceInput, couponCode *string, userID int32, shippingFee float64, now time.Time) (*v1service.OrderPricingResult, error) {
+				return &v1service.OrderPricingResult{
+					Items: []v1service.ItemPriceResult{
+						{ProductID: 101, ProductName: "Keyboard", Price: 500000, Quantity: 2, Subtotal: 1000000},
+						{ProductID: 102, ProductName: "Mouse", Price: 250000, Quantity: 1, Subtotal: 250000},
+					},
+					SubtotalAmount:   1250000,
+					DiscountAmount:   0,
+					FinalTotalAmount: 1280000,
+					ShippingFee:      30000,
+				}, nil
+			},
+		}
+
+		mockOrderRepo := &testutils.MockOrderRepository{
+			CreateFunc: func(ctx context.Context, params sqlc.CreateOrderParams) (sqlc.Order, error) {
+				return sqlc.Order{
+					OrderID:          601,
+					OrderUuid:        uuid.New(),
+					OrderNumber:      params.OrderNumber,
+					OrderUserID:      baseUser.UserID,
+					OrderTotalAmount: params.OrderTotalAmount,
+				}, nil
+			},
+		}
+
+		mockOrderItemRepo := &testutils.MockOrderItemRepository{
+			CreateFunc: func(ctx context.Context, tx pgx.Tx, input sqlc.CreateOrderItemParams) (sqlc.OrderItem, error) {
+				return sqlc.OrderItem{OrderItemID: 1}, nil
+			},
+			GetByOrderIDFunc: func(ctx context.Context, orderID int32) ([]sqlc.GetOrderItemsByOrderIDRow, error) {
+				return []sqlc.GetOrderItemsByOrderIDRow{}, nil
+			},
+		}
+
+		mockTrackingRepo := &testutils.MockTrackingRepository{
+			InsertEventFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.InsertTrackingEventParams) (sqlc.OrderTrackingEvent, error) {
+				return sqlc.OrderTrackingEvent{EventID: 1, EventOrderID: params.EventOrderID}, nil
+			},
+		}
+
+		svc := newTestOrderService(testOrderServiceDeps{
+			pricingService:   mockPricing,
+			inventoryService: mockInventory,
+			orderRepo:        mockOrderRepo,
+			orderItemRepo:    mockOrderItemRepo,
+			userRepo:         mockUserRepo,
+			trackingRepo:     mockTrackingRepo,
+			rabbitMQ:         mockRabbitMQ,
+		})
+
+		order, _, err := svc.CreateOrder(ctx, userUUID, baseInput)
+		require.NoError(t, err)
+
+		assert.Equal(t, int32(601), order.OrderID)
+		assert.Equal(t, rabbitmq.QueueOrderCreated, publishedQueue)
+		assert.Equal(t, int32(601), publishedEvent.OrderID)
+		assert.Equal(t, baseUser.UserID, publishedEvent.UserID)
+		assert.Equal(t, []int32{101, 102}, publishedEvent.PurchasedItems)
+		assert.Equal(t, 1280000.0, publishedEvent.TotalAmount)
+	})
+
 	t.Run("Case 13: Success WITH Applied Coupon - Increments Coupon and Records User Usage", func(t *testing.T) {
 		appliedCouponID := int32(88)
 		appliedCouponCode := "SAVE10"
 		couponInput := baseInput
 		couponInput.CouponCode = &appliedCouponCode
-
-		var recordedUsage sqlc.RecordCouponUsageParams
-		var incrementedCouponID int32
 
 		mockUserRepo := &testutils.MockUserRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
@@ -770,14 +855,16 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 
-		mockCouponRepo := &testutils.MockCouponRepository{
-			IncrementUsedCountFunc: func(ctx context.Context, tx pgx.Tx, cID int32) error {
-				incrementedCouponID = cID
+		var appliedCouponIDParam int32
+		var appliedUserIDParam int32
+		var appliedOrderIDParam int32
+
+		mockCouponService := &testutils.MockCouponService{
+			LockAndApplyCouponFunc: func(ctx context.Context, cID, uID, oID int32) error {
+				appliedCouponIDParam = cID
+				appliedUserIDParam = uID
+				appliedOrderIDParam = oID
 				return nil
-			},
-			RecordUserUsageFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.RecordCouponUsageParams) (sqlc.CouponUsage, error) {
-				recordedUsage = params
-				return sqlc.CouponUsage{CouponUsageID: 1}, nil
 			},
 		}
 
@@ -838,7 +925,7 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			orderItemRepo: mockOrderItemRepo,
 			userRepo: mockUserRepo,
 			cartRepo: mockCartRepo,
-			couponRepo: mockCouponRepo,
+			couponService: mockCouponService,
 			trackingRepo: mockTrackingRepo,
 			notificationService: mockNotification,
 		})
@@ -850,10 +937,9 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		assert.Len(t, items, 1)
 
 		// Assert coupon operations
-		assert.Equal(t, appliedCouponID, incrementedCouponID)
-		assert.Equal(t, appliedCouponID, recordedUsage.CouponUsageCouponID)
-		assert.Equal(t, baseUser.UserID, recordedUsage.CouponUsageUserID)
-		assert.Equal(t, int32(601), *recordedUsage.CouponUsageOrderID)
+		assert.Equal(t, appliedCouponID, appliedCouponIDParam)
+		assert.Equal(t, baseUser.UserID, appliedUserIDParam)
+		assert.Equal(t, int32(601), appliedOrderIDParam)
 	})
 
 	t.Run("Case 14: Notification Failure - Does NOT Fail Order Creation", func(t *testing.T) {

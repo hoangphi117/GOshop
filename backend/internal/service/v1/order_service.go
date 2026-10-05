@@ -13,6 +13,7 @@ import (
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
+	"goshop/pkg/rabbitmq"
 	"math/big"
 	"slices"
 	"strings"
@@ -68,11 +69,12 @@ type orderService struct {
 	userRepo            repository.UserRepository
 	cartService         CartService
 	cartRepo            repository.CartRepository
-	couponRepo          repository.CouponRepository
+	couponService       CouponService
 	trackingRepo        repository.TrackingRepository
 	paymentRepo         repository.PaymentRepository
 	notificationService NotificationService
 	cache               cache.RedisCacheService
+	rabbitMQ            rabbitmq.RabbitMQService
 	invoiceService      OrderInvoiceService
 	adminService        OrderAdminService
 }
@@ -87,11 +89,12 @@ func NewOrderService(
 	userRepo repository.UserRepository,
 	cartService CartService,
 	cartRepo repository.CartRepository,
-	couponRepo repository.CouponRepository,
+	couponService CouponService,
 	trackingRepo repository.TrackingRepository,
 	paymentRepo repository.PaymentRepository,
 	notificationService NotificationService,
 	redisClient *redis.Client,
+	rabbitMQ rabbitmq.RabbitMQService,
 ) OrderService {
 	var cacheService cache.RedisCacheService
 	if redisClient != nil {
@@ -107,11 +110,12 @@ func NewOrderService(
 		userRepo:            userRepo,
 		cartService:         cartService,
 		cartRepo:            cartRepo,
-		couponRepo:          couponRepo,
+		couponService:       couponService,
 		trackingRepo:        trackingRepo,
 		paymentRepo:         paymentRepo,
 		notificationService: notificationService,
 		cache:               cacheService,
+		rabbitMQ:            rabbitMQ,
 	}
 	svc.invoiceService = NewOrderInvoiceService(orderRepo, orderItemRepo, userRepo, cacheService)
 	svc.adminService = NewOrderAdminService(svc)
@@ -174,8 +178,26 @@ func (s *orderService) CreateOrder(ctx context.Context, userUUID uuid.UUID, inpu
 		}
 	}
 
+	var couponLockKey string
+	if input.CouponCode != nil && strings.TrimSpace(*input.CouponCode) != "" && s.cache != nil {
+		cleanCouponCode := strings.ToUpper(strings.TrimSpace(*input.CouponCode))
+		couponLockKey = fmt.Sprintf("lock:coupon:%s:%d", cleanCouponCode, user.UserID)
+		acquired, err := s.cache.SetNX(couponLockKey, "1", 10*time.Second)
+		if err != nil {
+			logger.Log.Warn().Err(err).Str("coupon_lock_key", couponLockKey).Msg("Failed to check coupon lock")
+		} else if !acquired {
+			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeConflict, "Coupon is currently being applied in another checkout request")
+		}
+		defer func() {
+			if couponLockKey != "" {
+				_ = s.cache.Del(couponLockKey)
+			}
+		}()
+	}
+
 	/* ======================TRANSACTION START ====================== */
 	var order sqlc.Order
+	var purchasedProductIDs []int32
 
 	err = s.txManager.WithTx(ctx, func(txCtx context.Context) error {
 		tx, _ := db.GetTx(txCtx)
@@ -204,12 +226,6 @@ func (s *orderService) CreateOrder(ctx context.Context, userUUID uuid.UUID, inpu
 			return err
 		}
 
-		if pricingResult.AppliedCouponID != nil {
-			if err := s.couponRepo.IncrementUsedCount(txCtx, tx, *pricingResult.AppliedCouponID); err != nil {
-				return utils.WrapError(utils.ErrCodeInternal, "Failed to increment coupon usage count", err)
-			}
-		}
-
 		createOrderParams := sqlc.CreateOrderParams{
 			OrderNumber:          orderNumber,
 			OrderUserID:          user.UserID,
@@ -234,18 +250,14 @@ func (s *orderService) CreateOrder(ctx context.Context, userUUID uuid.UUID, inpu
 		}
 		order = createdOrder
 
-		if pricingResult.AppliedCouponID != nil {
-			_, err = s.couponRepo.RecordUserUsage(txCtx, tx, sqlc.RecordCouponUsageParams{
-				CouponUsageCouponID: *pricingResult.AppliedCouponID,
-				CouponUsageUserID:   user.UserID,
-				CouponUsageOrderID:  &order.OrderID,
-			})
-			if err != nil {
-				return utils.WrapError(utils.ErrCodeInternal, "failed to record coupon usage", err)
+		// Lock and apply coupon via CouponService
+		if pricingResult.AppliedCouponID != nil && s.couponService != nil {
+			if err := s.couponService.LockAndApplyCoupon(txCtx, *pricingResult.AppliedCouponID, user.UserID, order.OrderID); err != nil {
+				return err
 			}
 		}
 
-		purchasedProductIDs := make([]int32, len(pricingResult.Items))
+		purchasedProductIDs = make([]int32, len(pricingResult.Items))
 
 		for i, item := range pricingResult.Items {
 			purchasedProductIDs[i] = item.ProductID
@@ -261,14 +273,6 @@ func (s *orderService) CreateOrder(ctx context.Context, userUUID uuid.UUID, inpu
 			_, err := s.orderItemRepo.Create(txCtx, tx, createdItemParams)
 			if err != nil {
 				return utils.WrapError(utils.ErrCodeInternal, "failed to create order item", err)
-			}
-		}
-
-		// Remove purchased items from the user's cart if it exists
-		cart, cartErr := s.cartRepo.GetCartByUserID(txCtx, user.UserID)
-		if cartErr == nil {
-			if delErr := s.cartRepo.DeleteCartItemsByProductIDs(txCtx, tx, cart.CartID, purchasedProductIDs); delErr != nil {
-				logger.Log.Warn().Err(delErr).Msg("Failed to cleanup cart items after order creation")
 			}
 		}
 
@@ -298,38 +302,53 @@ func (s *orderService) CreateOrder(ctx context.Context, userUUID uuid.UUID, inpu
 		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "failed to get order items", err)
 	}
 
-	// Clear related caches
-	s.InvalidateOrderCaches(user.UserUuid)
-
-	// Send customer notification asynchronously via event queue
-	notifyErr := s.notificationService.SendAsync(ctx, v1dto.SendNotificationInput{
-		UserID: order.OrderUserID,
-		Type:   "order_created",
-		Title:  "Order Placed Successfully",
-		Body:   fmt.Sprintf("Your order #%s has been placed successfully.", order.OrderNumber),
-		Data:   map[string]any{"order_uuid": order.OrderUuid.String()},
-	})
-	if notifyErr != nil {
-		// Log the error but do not fail the order creation process
-		logger.Log.Warn().
-			Err(notifyErr).
-			Int32("user_id", order.OrderUserID).
-			Str("order_number", order.OrderNumber).
-			Msg("Failed to send order creation notification")
+	// 1. Immediately clean up purchased items from Cart in DB & Cache (Strong consistency)
+	if s.cartService != nil && len(purchasedProductIDs) > 0 {
+		_ = s.cartService.RemovePurchasedItems(ctx, order.OrderUserID, purchasedProductIDs)
 	}
 
-	// Notify admins asynchronously via RabbitMQ
-	if s.notificationService != nil {
-		_ = s.notificationService.NotifyAdminsAsync(ctx, v1dto.AdminNotifyInput{
-			Type:  "order",
-			Title: "New Order Received",
-			Body:  fmt.Sprintf("Order #%s placed for $%.2f", order.OrderNumber, utils.NumericToFloat(order.OrderTotalAmount)),
-			Data: map[string]any{
-				"order_uuid":   order.OrderUuid.String(),
-				"order_number": order.OrderNumber,
-				"link":         fmt.Sprintf("/orders/%s", order.OrderUuid),
-			},
-		})
+	// 2. Clear related order caches
+	s.InvalidateOrderCaches(user.UserUuid)
+
+	// 3. Emit OrderCreated event for asynchronous background notifications & audit
+	orderEvent := rabbitmq.NewOrderCreatedEvent(
+		uuid.New().String(),
+		order.OrderUuid.String(),
+		order.OrderNumber,
+		user.UserUuid.String(),
+		order.OrderID,
+		order.OrderUserID,
+		utils.NumericToFloat(order.OrderTotalAmount),
+		purchasedProductIDs,
+	)
+	if s.rabbitMQ != nil {
+		if err := s.rabbitMQ.Publish(ctx, rabbitmq.QueueOrderCreated, orderEvent); err != nil {
+			logger.Log.Error().
+				Err(err).
+				Str("order_uuid", order.OrderUuid.String()).
+				Msg("Failed to publish order created event")
+		}
+	} else {
+		// Fallback for non-RabbitMQ environments / synchronous unit tests
+		if s.notificationService != nil {
+			_ = s.notificationService.SendAsync(ctx, v1dto.SendNotificationInput{
+				UserID: order.OrderUserID,
+				Type:   "order_created",
+				Title:  "Order Placed Successfully",
+				Body:   fmt.Sprintf("Your order #%s has been placed successfully.", order.OrderNumber),
+				Data:   map[string]any{"order_uuid": order.OrderUuid.String()},
+			})
+			_ = s.notificationService.NotifyAdminsAsync(ctx, v1dto.AdminNotifyInput{
+				Type:  "order",
+				Title: "New Order Received",
+				Body:  fmt.Sprintf("Order #%s placed for $%.2f", order.OrderNumber, utils.NumericToFloat(order.OrderTotalAmount)),
+				Data: map[string]any{
+					"order_uuid":   order.OrderUuid.String(),
+					"order_number": order.OrderNumber,
+					"link":         fmt.Sprintf("/orders/%s", order.OrderUuid),
+				},
+			})
+		}
 	}
 
 	return order, orderItemsWithDetails, nil
