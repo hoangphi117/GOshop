@@ -1,35 +1,57 @@
 @import "tailwindcss";
 
 @theme {
-  --color-brand-lightest: #e3f2fd;
-  --color-brand-light: #90caf9;
-  --color-brand-primary: #2196f3;
-  --color-brand-dark: #0d47a1;
+  --color-primary: #007d9c;
+  --color-primary-hover: #006782;
+  --color-primary-cyan: #00add8;
+  --color-primary-cyan-hover: #0096bc;
+  --color-primary-light: #e6f7fb;
 
-  --color-app-bg: #fafbfc;
+  --color-secondary: #005f73;
+  --color-secondary-hover: #0a4f5f;
+
+  --color-accent: #f26522;
+  --color-accent-hover: #d94e0f;
+  --color-accent-light: #fff3ec;
+
+  --color-app-bg: #f8fafc;
   --color-app-surface: #ffffff;
-  --color-text-primary: #0d1b2a;
+  --color-text-primary: #0f172a;
   --color-text-secondary: #64748b;
+  --color-border-subtle: #e2e8f0;
 
-  --font-sans: var(--font-inter), system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-heading: var(--font-heading), 'Rubik', sans-serif;
+  --font-body: var(--font-body), 'Nunito Sans', sans-serif;
 }
 
 :root {
-  --background: #fafbfc;
-  --foreground: #0d1b2a;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --border: #e2e8f0;
+  --primary: #007d9c;
+  --primary-cyan: #00add8;
+  --accent: #f26522;
 }
 
 body {
   background-color: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans);
+  font-family: var(--font-body), system-ui, -apple-system, sans-serif;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Global button cursor behavior */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading), system-ui, -apple-system, sans-serif;
+}
+
+/* Global button and interactive cursor behavior */
 button:not(:disabled),
 [role="button"]:not(:disabled) {
   cursor: pointer;
@@ -42,15 +64,24 @@ button:disabled,
 
 /* Glassmorphism Navigation Bar */
 .glass-nav {
-  background-color: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background-color: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* Accessible focus ring utility */
+.focus-ring {
+  outline: none;
+}
+.focus-ring:focus-visible {
+  outline: 2px solid #00add8;
+  outline-offset: 2px;
 }
 
 /* Smooth custom scrollbars */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
 }
 
 ::-webkit-scrollbar-track {

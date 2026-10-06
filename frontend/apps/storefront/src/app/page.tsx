@@ -7,140 +7,94 @@ import {
   type Product,
 } from "@/lib/api-server";
 import { HeroBanner } from "@/components/home/hero-banner";
+import { FlashDeals } from "@/components/home/flash-deals";
 import { CategoryShowcase } from "@/components/home/category-showcase";
 import { ProductGrid } from "@/components/product/product-grid";
-import { Sparkles, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
-// Dynamic rendering ensures newly added or deleted banners display immediately on reload
+// Dynamic rendering ensures freshly updated products & categories display instantly
 export const revalidate = 0;
 
 export default async function HomePage() {
   // Fetch real data concurrently from Go backend
-  const [banners, subBanners, categories] = await Promise.all([
+  const [banners, subBanners, categories, productsResponse] = await Promise.all([
     getBanners("home_main"),
     getBanners("home_sub"),
     getCategories(),
+    getProducts({ limit: 12 }),
   ]);
 
   const subBanner = subBanners[0] || null;
+  const initialProducts: Product[] = productsResponse?.products || [];
 
-  // Fetch products for each category (up to 12 products per category = max 3 rows of 4 items)
-  const categoryProductsList = await Promise.all(
-    categories.map(async (cat) => {
-      const data = await getProducts({ category_uuid: cat.uuid, limit: 12 });
-      return {
-        category: cat,
-        products: data.products || [],
-        total: data.pagination?.total_records || (data.products || []).length,
-      };
-    }),
-  );
-
-  const categorySections = categoryProductsList.filter(
-    (item) => item.products.length > 0,
-  );
-
-  // Fallback in case no categories have products assigned yet
-  let fallbackProducts: Product[] = [];
-  if (categorySections.length === 0) {
-    const allProducts = await getProducts({ limit: 12 });
-    fallbackProducts = allProducts.products || [];
-  }
+  // Top 4 products for flash deals
+  const dealProducts = initialProducts.slice(0, 4);
+  // Catalog products
+  const catalogProducts = initialProducts.length > 4 ? initialProducts.slice(4) : initialProducts;
 
   return (
-    <div className="flex flex-col min-h-screen">
-      {/* 1. Hero Banner with Gradient & Floating Glass */}
+    <div className="flex flex-col min-h-screen bg-[#F8FAFC]">
+      {/* 1. Hero Showcase Section */}
       <HeroBanner banners={banners} subBanner={subBanner} />
 
-      {/* 2. Categories Showcase */}
+      {/* 2. Flash Sale Countdown & Real Deals Ticker */}
+      <FlashDeals products={dealProducts} />
+
+      {/* 3. Curated Department Grid (4 Columns) */}
       <CategoryShowcase categories={categories} />
 
-      {/* 3. Products Grouped by Category (Max 3 rows per category with View More button) */}
-      <div id="deals" className="py-12 bg-white border-y border-slate-100">
-        {categorySections.map(({ category, products }, index) => {
-          const categoryUrl = `/products?category=${encodeURIComponent(category.slug || category.uuid)}`;
-          // Up to 3 rows of products (12 items)
-          const displayedProducts = products.slice(0, 12);
+      {/* 4. Featured Drops & Best Sellers Catalog Grid */}
+      <section id="featured" className="max-w-7xl mx-auto px-4 sm:px-6 mb-16">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-8">
+          <div>
+            <span className="text-xs font-bold text-[#007D9C] uppercase tracking-wider font-heading">
+              Official Catalog
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight font-heading mt-0.5">
+              Featured Drops & Best Sellers
+            </h2>
+          </div>
 
-          return (
-            <React.Fragment key={category.uuid}>
-              {index > 0 && (
-                <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
-                  <div className="border-t border-slate-200" />
-                </div>
-              )}
-              <section
-                id={`cat-${category.slug || category.uuid}`}
-                className="py-2"
+          {/* Dynamic Category Filter Links */}
+          <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar w-full md:w-auto pb-2 md:pb-0">
+            <Link
+              href="/products"
+              className="bg-[#007D9C] text-white px-4 py-1.5 rounded-full text-xs font-bold shrink-0 shadow-xs font-heading"
+            >
+              All Merch
+            </Link>
+            {categories.slice(0, 4).map((cat) => (
+              <Link
+                key={cat.uuid || cat.slug}
+                href={`/products?category=${cat.slug}`}
+                className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 px-4 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-colors font-heading"
               >
-                <div className="max-w-6xl mx-auto px-4 sm:px-6">
-                  {/* Category Header */}
-                  <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-8 gap-4 pb-4 border-b border-slate-100">
-                    <div>
-                      <div className="inline-flex items-center gap-1.5 text-xs font-bold text-[#2196F3] uppercase tracking-wider mb-2">
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>{category.category_name}</span>
-                      </div>
-                      <h2 className="text-2xl sm:text-3xl font-extrabold text-[#0D1B2A] tracking-tight">
-                        {category.category_name}
-                      </h2>
-                      {category.description && (
-                        <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-xl line-clamp-1">
-                          {category.description}
-                        </p>
-                      )}
-                    </div>
+                {cat.category_name}
+              </Link>
+            ))}
+          </div>
+        </div>
 
-                    <Link
-                      href={categoryUrl}
-                      className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#0D47A1] hover:text-[#2196F3] transition-colors group shrink-0"
-                    >
-                      <span>View all {category.category_name}</span>
-                      <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-                    </Link>
-                  </div>
-
-                  {/* Products Grid (Max 3 rows) */}
-                  <ProductGrid products={displayedProducts} />
-
-                  {/* View More Button for Category */}
-                  <div className="mt-8 flex justify-center">
-                    <Link
-                      href={categoryUrl}
-                      className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl border border-slate-200 bg-white hover:bg-[#E3F2FD] text-xs sm:text-sm font-bold text-[#0D1B2A] hover:border-[#2196F3] hover:text-[#0D47A1] transition-all shadow-xs hover:shadow-sm active:scale-98 cursor-pointer"
-                    >
-                      <span>View More {category.category_name}</span>
-                      <ArrowRight className="w-4 h-4 text-[#2196F3]" />
-                    </Link>
-                  </div>
-                </div>
-              </section>
-            </React.Fragment>
-          );
-        })}
-
-        {categorySections.length === 0 && fallbackProducts.length > 0 && (
-          <section className="py-4">
-            <div className="max-w-6xl mx-auto px-4 sm:px-6">
-              <div className="mb-8 pb-4 border-b border-slate-100">
-                <h2 className="text-2xl sm:text-3xl font-extrabold text-[#0D1B2A] tracking-tight">
-                  All Products
-                </h2>
-              </div>
-              <ProductGrid products={fallbackProducts.slice(0, 12)} />
-              <div className="mt-8 flex justify-center">
-                <Link
-                  href="/products"
-                  className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl border border-slate-200 bg-white hover:bg-[#E3F2FD] text-xs sm:text-sm font-bold text-[#0D1B2A] hover:border-[#2196F3] hover:text-[#0D47A1] transition-all shadow-xs hover:shadow-sm active:scale-98 cursor-pointer"
-                >
-                  <span>View All Products</span>
-                  <ArrowRight className="w-4 h-4 text-[#2196F3]" />
-                </Link>
-              </div>
-            </div>
-          </section>
+        {/* Real Product Grid */}
+        {catalogProducts.length > 0 ? (
+          <ProductGrid products={catalogProducts} />
+        ) : (
+          <div className="p-12 text-center bg-white rounded-3xl border border-slate-200 text-slate-500 text-sm">
+            Catalog is updating. Check back shortly for new drops!
+          </div>
         )}
-      </div>
+
+        {/* Load More Official Gear CTA */}
+        <div className="mt-10 text-center">
+          <Link
+            href="/products"
+            className="inline-flex items-center gap-2 bg-white hover:bg-slate-50 text-[#007D9C] border-2 border-[#007D9C]/30 hover:border-[#007D9C] px-8 py-3.5 rounded-2xl text-sm font-bold transition-all shadow-xs hover:shadow-sm active:scale-95 font-heading cursor-pointer"
+          >
+            <span>Explore Full Official Catalog</span>
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+      </section>
     </div>
   );
 }

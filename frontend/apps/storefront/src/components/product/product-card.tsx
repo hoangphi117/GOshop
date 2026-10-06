@@ -3,12 +3,13 @@
 import React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import type { Product } from "@/lib/api-server";
 import { formatCurrency } from "@/lib/format";
 import { getImageUrl } from "@/lib/utils";
 import { useCartStore } from "@/stores/cart-store";
 import { useAuthStore } from "@/stores/auth-store";
-import { ShoppingCart, Eye, Package, Star } from "lucide-react";
+import { ShoppingCart, Package, Star, Eye } from "lucide-react";
 import { toast } from "sonner";
 
 interface ProductCardProps {
@@ -20,7 +21,7 @@ export function ProductCard({ product }: ProductCardProps) {
   const { addItem } = useCartStore();
   const { accessToken } = useAuthStore();
 
-  // Get primary image or fallback
+  // Primary product image
   const rawImg =
     product.images?.find((img) => img.is_primary)?.image_url ||
     product.images?.[0]?.image_url ||
@@ -29,19 +30,22 @@ export function ProductCard({ product }: ProductCardProps) {
   const primaryImg = getImageUrl(rawImg);
 
   const isInStock = (product.stock ?? 0) > 0;
+  const isLowStock = isInStock && (product.stock ?? 0) <= 5;
   const hasDiscount =
-    product.compare_at_price && product.compare_at_price > product.price;
+    Boolean(product.compare_at_price && product.compare_at_price > product.price);
   const discountPercent = hasDiscount
     ? Math.round(
         ((product.compare_at_price! - product.price) /
           product.compare_at_price!) *
-          100,
+          100
       )
     : 0;
 
   const ratingScore = product.rating ?? 0;
   const reviewsCount = product.reviews_count ?? 0;
   const hasReviews = reviewsCount > 0 && ratingScore > 0;
+
+  const productUrl = `/products/${encodeURIComponent(product.slug || product.uuid)}`;
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -72,22 +76,22 @@ export function ProductCard({ product }: ProductCardProps) {
     toast.success(`Added "${product.name}" to cart!`);
   };
 
-  const productUrl = `/products/${encodeURIComponent(product.slug || product.uuid)}`;
-
   return (
-    <div className="group relative rounded-2xl bg-white border border-slate-200/80 p-4 flex flex-col justify-between shadow-xs">
+    <article className="group relative rounded-2xl bg-white border border-slate-200/90 p-4 flex flex-col justify-between shadow-xs hover:border-[#007D9C] hover:shadow-md">
       <div>
-        {/* Thumbnail Container */}
-        <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-slate-100 mb-3.5 flex items-center justify-center">
+        {/* Product Image Thumbnail */}
+        <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-slate-50 mb-3 border border-slate-100 flex items-center justify-center">
           {primaryImg ? (
-            <img
+            <Image
               src={primaryImg}
               alt={product.name}
-              className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300"
+              fill
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+              className="object-cover object-center"
             />
           ) : (
             <div className="flex flex-col items-center justify-center text-slate-400 p-4">
-              <Package className="w-10 h-10 stroke-[1.5] text-slate-300 mb-1" />
+              <Package className="w-8 h-8 text-slate-300 mb-1" />
               <span className="text-[11px] font-medium text-slate-400">
                 No Image
               </span>
@@ -96,90 +100,103 @@ export function ProductCard({ product }: ProductCardProps) {
 
           {/* Discount Badge */}
           {hasDiscount && (
-            <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-bold shadow-xs">
+            <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md bg-[#F26522] text-white text-[10px] font-black font-heading shadow-xs z-10">
               -{discountPercent}%
             </span>
           )}
 
-          {/* Quick View Link Button */}
+          {/* Direct Link Overlay */}
           <Link
             href={productUrl}
-            className="absolute bottom-2.5 right-2.5 w-8 h-8 rounded-full bg-white/90 backdrop-blur-md text-slate-700 shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white hover:text-[#2196F3]"
-            aria-label="View product details"
-          >
-            <Eye className="w-4 h-4" />
-          </Link>
+            className="absolute inset-0 z-0"
+            aria-label={`View details of ${product.name}`}
+          />
         </div>
 
         {/* Category & Star Rating */}
-        <div className="flex items-center justify-between gap-2 mb-1.5 min-h-[22px]">
+        <div className="flex items-center justify-between gap-2 mb-1 min-h-[20px]">
           {product.category_name ? (
-            <p className="text-[11px] font-semibold text-[#2196F3] uppercase tracking-wider truncate">
+            <span className="text-[11px] font-bold text-[#007D9C] uppercase tracking-wider truncate font-heading">
               {product.category_name}
-            </p>
+            </span>
           ) : (
-            <span />
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider font-heading">
+              Official Merch
+            </span>
           )}
 
           {hasReviews && (
             <div
-              className="inline-flex items-center gap-1 shrink-0 px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200/70 text-[11px] font-bold text-amber-800"
-              title={`Rating: ${ratingScore.toFixed(1)} / 5.0 (${reviewsCount} ${reviewsCount === 1 ? "review" : "reviews"})`}
+              className="inline-flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200/80 text-[11px] font-bold text-amber-800"
+              title={`Rating: ${ratingScore.toFixed(1)} / 5.0 (${reviewsCount} reviews)`}
             >
               <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
               <span>{ratingScore.toFixed(1)}</span>
-              <span className="text-[11px] text-amber-700/75 font-normal">
-                ({reviewsCount})
-              </span>
             </div>
           )}
         </div>
 
-        {/* Title */}
-        <Link href={productUrl} className="block">
-          <h3 className="text-sm font-bold text-[#0D1B2A] line-clamp-2 hover:text-[#2196F3] transition-colors leading-snug">
+        {/* Product Title */}
+        <Link
+          href={productUrl}
+          className="block group-hover:text-[#007D9C]"
+        >
+          <h3 className="text-sm font-bold text-slate-900 line-clamp-2 leading-snug font-heading">
             {product.name}
           </h3>
         </Link>
 
-        {/* Stock Quantity */}
-        <p className="mt-1.5 text-xs text-slate-500">
+        {/* Inventory Stock Indicator */}
+        <div className="mt-2 flex items-center gap-1.5 text-[11px] font-medium font-body">
           {isInStock ? (
-            product.stock <= 5 ? (
-              <span className="text-amber-600 font-medium">
-                Only {product.stock} left in stock
-              </span>
+            isLowStock ? (
+              <>
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                <span className="text-amber-700 font-semibold">
+                  Only {product.stock} units remaining
+                </span>
+              </>
             ) : (
-              <span>Stock: {product.stock} units</span>
+              <>
+                <span className="w-1.5 h-1.5 rounded-full bg-[#00ADD8] shrink-0" />
+                <span className="text-slate-500">
+                  In stock ({product.stock} units)
+                </span>
+              </>
             )
           ) : (
-            <span className="text-rose-500 font-medium">Out of stock</span>
+            <>
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+              <span className="text-rose-600 font-semibold">Out of stock</span>
+            </>
           )}
-        </p>
+        </div>
       </div>
 
-      {/* Pricing & CTA */}
+      {/* Pricing & Add to Cart Action */}
       <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
         <div className="flex flex-col min-w-0">
-          <span className="text-base font-extrabold text-[#0D47A1] truncate">
+          <span className="text-base font-black text-slate-900 truncate font-heading">
             {formatCurrency(product.price)}
           </span>
           {hasDiscount && (
-            <span className="text-xs text-slate-400 line-through truncate">
+            <span className="text-xs text-slate-400 line-through truncate font-body">
               {formatCurrency(product.compare_at_price)}
             </span>
           )}
         </div>
 
-        {/* Add to Cart Button */}
+        {/* Add to Cart CTA */}
         <button
+          type="button"
           onClick={handleAddToCart}
           disabled={!isInStock}
-          className={`shrink-0 px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs ${
+          className={`shrink-0 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 font-heading z-10 ${
             isInStock
-              ? "bg-[#2196F3] text-white hover:bg-[#0D47A1] active:scale-95 cursor-pointer"
-              : "bg-slate-100 text-slate-400 cursor-not-allowed"
+              ? "bg-[#007D9C] text-white hover:bg-[#00637C] cursor-pointer shadow-xs"
+              : "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
           }`}
+          aria-label={isInStock ? `Add ${product.name} to cart` : "Out of stock"}
           title={isInStock ? "Add to cart" : "Out of stock"}
         >
           <ShoppingCart className="w-3.5 h-3.5 shrink-0" />
@@ -188,6 +205,6 @@ export function ProductCard({ product }: ProductCardProps) {
           </span>
         </button>
       </div>
-    </div>
+    </article>
   );
 }

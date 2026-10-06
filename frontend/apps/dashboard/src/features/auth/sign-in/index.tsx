@@ -15,6 +15,9 @@ export function SignIn() {
     <AuthLayout>
       <Card className='w-full sm:w-[380px] shadow-sm'>
         <CardHeader className='pb-4 text-center'>
+          <div className='mx-auto mb-3 flex items-center justify-center'>
+            <img src='/Logo.svg' alt='GOshop' className='h-10 w-auto' />
+          </div>
           <CardTitle className='text-2xl font-bold tracking-tight'>
             GOshop Admin
           </CardTitle>

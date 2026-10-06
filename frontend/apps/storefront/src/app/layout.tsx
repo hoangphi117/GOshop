@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Rubik, Nunito_Sans } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/providers/query-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
@@ -11,16 +11,24 @@ import { ChatWidget } from "@/components/chat/chat-widget";
 import { MainContainer } from "@/components/layout/main-container";
 import { Toaster } from "sonner";
 
-const inter = Inter({
-  variable: "--font-inter",
+const rubik = Rubik({
+  variable: "--font-heading",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  display: "swap",
+});
+
+const nunitoSans = Nunito_Sans({
+  variable: "--font-body",
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800"],
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "GOshop — Gaming Merch, Plushies, Tees & Collectibles",
+  title: "GOshop — Official Gaming Merch, Boss Plushies, Tees & Collectibles",
   description:
-    "Discover authentic game boss plushies, graphic printed gamer tees, and collectible toys with fast shipping and secure payments.",
+    "Discover authentic game boss plushies, graphic printed gamer tees, and collectible toys with express shipping and 100% genuine guarantee.",
 };
 
 export default function RootLayout({
@@ -29,8 +37,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${inter.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col bg-[#FAFBFC] text-[#0D1B2A]">
+    <html
+      lang="en"
+      className={`${rubik.variable} ${nunitoSans.variable} h-full antialiased`}
+    >
+      <body className="min-h-full flex flex-col bg-[#F8FAFC] text-[#0F172A] font-body selection:bg-emerald-100 selection:text-emerald-900">
         <ThemeProvider>
           <QueryProvider>
             <Navbar />
