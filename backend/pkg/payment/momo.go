@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"goshop/pkg/logger"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -120,9 +121,18 @@ func (p *momoProvider) CreatePaymentURL(ctx context.Context, req CreatePaymentRe
 	}
 	defer resp.Body.Close()
 
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return CreatePaymentResponse{}, fmt.Errorf("failed to read momo response: %w", err)
+	}
+
 	var momoResp momoCreateResponse
-	if err := json.NewDecoder(resp.Body).Decode(&momoResp); err != nil {
-		return CreatePaymentResponse{}, err
+	if err := json.Unmarshal(respBody, &momoResp); err != nil {
+		snippet := string(respBody)
+		if len(snippet) > 200 {
+			snippet = snippet[:200] + "..."
+		}
+		return CreatePaymentResponse{}, fmt.Errorf("momo gateway returned invalid JSON (HTTP %d): %s", resp.StatusCode, snippet)
 	}
 
 	if momoResp.ResultCode != 0 {
@@ -255,9 +265,18 @@ func (p *momoProvider) QueryTransactionStatus(ctx context.Context, orderNumber s
 	}
 	defer resp.Body.Close()
 
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return TxnStatusFailed, fmt.Errorf("failed to read momo query response: %w", err)
+	}
+
 	var queryResp momoQueryResponse
-	if err := json.NewDecoder(resp.Body).Decode(&queryResp); err != nil {
-		return TxnStatusFailed, fmt.Errorf("failed to decode query response: %w", err)
+	if err := json.Unmarshal(respBody, &queryResp); err != nil {
+		snippet := string(respBody)
+		if len(snippet) > 200 {
+			snippet = snippet[:200] + "..."
+		}
+		return TxnStatusFailed, fmt.Errorf("momo gateway returned invalid query response JSON (HTTP %d): %s", resp.StatusCode, snippet)
 	}
 
 	logger.Log.Info().
@@ -334,9 +353,18 @@ func (p *momoProvider) Refund(ctx context.Context, req RefundRequest) (RefundRes
 	}
 	defer resp.Body.Close()
 
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return RefundResponse{}, fmt.Errorf("failed to read momo refund response: %w", err)
+	}
+
 	var momoResp momoRefundResponse
-	if err := json.NewDecoder(resp.Body).Decode(&momoResp); err != nil {
-		return RefundResponse{}, fmt.Errorf("failed to decode MoMo refund response: %w", err)
+	if err := json.Unmarshal(respBody, &momoResp); err != nil {
+		snippet := string(respBody)
+		if len(snippet) > 200 {
+			snippet = snippet[:200] + "..."
+		}
+		return RefundResponse{}, fmt.Errorf("momo gateway returned invalid refund response JSON (HTTP %d): %s", resp.StatusCode, snippet)
 	}
 
 	if momoResp.ResultCode != 0 {

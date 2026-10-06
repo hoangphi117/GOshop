@@ -511,6 +511,53 @@ function MyOrdersPageContent() {
     }
   };
 
+  // --- PAY NOW ACTIONS ---
+  const [payingOrderUuid, setPayingOrderUuid] = useState<string | null>(null);
+
+  const handlePayNow = async (order: Order) => {
+    if (payingOrderUuid) return;
+    setPayingOrderUuid(order.uuid);
+    try {
+      const baseUrl =
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+      const res = await authFetch(
+        `${baseUrl}/api/v1/payments/create-intent`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Idempotency-Key": `idem-pay-${order.uuid}-${Date.now()}`,
+          },
+          body: JSON.stringify({
+            order_uuid: order.uuid,
+            provider: "momo",
+          }),
+        },
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        const paymentUrl = data?.data?.payment_url;
+        if (paymentUrl) {
+          toast.success("Redirecting to MoMo payment gateway...");
+          window.location.href = paymentUrl;
+          return;
+        }
+      }
+
+      const errJson = await res.json().catch(() => null);
+      const msg = extractErrorMessage(
+        errJson,
+        "Payment gateway is temporarily unavailable. Please try again later.",
+      );
+      toast.error(msg);
+    } catch {
+      toast.error("Network error while connecting to payment gateway.");
+    } finally {
+      setPayingOrderUuid(null);
+    }
+  };
+
   // --- DOWNLOAD INVOICE ACTIONS ---
   const handleDownloadInvoice = async (order: Order) => {
     if (downloadingInvoiceUuid) return;
@@ -1078,6 +1125,10 @@ function MyOrdersPageContent() {
     const activeStepIndex = getActiveStepIndex(selectedOrder, timelineEvents);
     const isCancelled = activeStepIndex === -1;
     const isCOD = checkIsCOD(selectedOrder);
+    const isUnpaidOnline =
+      isPending &&
+      selectedOrder.payment_status?.toUpperCase() !== "PAID" &&
+      !isCOD;
 
     const returnApprovedEvent = timelineEvents.find(
       (e) => (e.status || "").toLowerCase() === "return_approved",
@@ -1432,6 +1483,23 @@ function MyOrdersPageContent() {
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
+              {isUnpaidOnline && (
+                <button
+                  type="button"
+                  disabled={payingOrderUuid === selectedOrder.uuid}
+                  onClick={() => handlePayNow(selectedOrder)}
+                  className="px-3 py-1.5 rounded-lg bg-[#E01075] hover:bg-[#C00D63] text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50"
+                  title="Pay now via MoMo E-Wallet"
+                >
+                  {payingOrderUuid === selectedOrder.uuid ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <CreditCard className="w-3.5 h-3.5" />
+                  )}
+                  <span>Pay Now</span>
+                </button>
+              )}
+
               {isShipped && (
                 <button
                   type="button"
@@ -1851,6 +1919,22 @@ function MyOrdersPageContent() {
               </button>
             )}
 
+            {isUnpaidOnline && (
+              <button
+                type="button"
+                disabled={payingOrderUuid === selectedOrder.uuid}
+                onClick={() => handlePayNow(selectedOrder)}
+                className="px-5 py-2.5 rounded-xl bg-[#E01075] hover:bg-[#C00D63] text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50"
+              >
+                {payingOrderUuid === selectedOrder.uuid ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CreditCard className="w-4 h-4" />
+                )}
+                <span>Pay Now (MoMo)</span>
+              </button>
+            )}
+
             {isShipped && (
               <button
                 type="button"
@@ -2189,6 +2273,29 @@ function MyOrdersPageContent() {
                           <span>Invoice</span>
                         </button>
                       )}
+
+                      {/* Pay Now Button (if Pending & Unpaid & not COD) */}
+                      {isPending &&
+                        order.payment_status?.toUpperCase() !== "PAID" &&
+                        !checkIsCOD(order) && (
+                          <button
+                            type="button"
+                            disabled={payingOrderUuid === order.uuid}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePayNow(order);
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-[#E01075] hover:bg-[#C00D63] text-white text-xs font-bold transition-all flex items-center gap-1 shadow-xs cursor-pointer disabled:opacity-50"
+                            title="Pay now via MoMo E-Wallet"
+                          >
+                            {payingOrderUuid === order.uuid ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <CreditCard className="w-3.5 h-3.5" />
+                            )}
+                            <span>Pay Now</span>
+                          </button>
+                        )}
 
                       {/* Cancel Button (if Pending) */}
                       {isPending && (

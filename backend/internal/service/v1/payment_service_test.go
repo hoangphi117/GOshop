@@ -338,6 +338,68 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 		require.NotEmpty(t, dto.PaymentURL)
 		assert.Equal(t, "https://gateway.com/pay/123", dto.PaymentURL)
 	})
+
+	t.Run("Case 11: Payment Gateway Circuit Breaker Open -> Returns 503 Service Unavailable", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
+			},
+		}
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return sqlc.GetOrderByUUIDRow{
+					OrderID:            10,
+					OrderNumber:        "ORD123456",
+					OrderUuid:          orderUUID,
+					OrderUserID:        1,
+					OrderPaymentStatus: v1service.OrderPaymentStatusUnpaid,
+					OrderStatus:        v1service.OrderStatusPending,
+					OrderPaymentMethod: v1service.OrderPaymentMethodOnline,
+					OrderTotalAmount:   utils.FloatToNumeric(50000),
+				}, nil
+			},
+		}
+		mockPaymentRepo := &testutils.MockPaymentRepository{
+			GetByIdempotencyKeyFunc: func(ctx context.Context, tx pgx.Tx, idempotencyKey string) (sqlc.PaymentTransaction, error) {
+				return sqlc.PaymentTransaction{}, pgx.ErrNoRows
+			},
+		}
+
+		// Raw provider that repeatedly fails
+		rawProvider := &testutils.MockPaymentProvider{
+			CreatePaymentURLFunc: func(ctx context.Context, req payment.CreatePaymentRequest) (payment.CreatePaymentResponse, error) {
+				return payment.CreatePaymentResponse{}, errors.New("gateway connection timeout")
+			},
+		}
+
+		// Wrap with Circuit Breaker configured with threshold = 2
+		cbProvider := payment.NewCircuitBreakerPaymentProvider(rawProvider, "momo", payment.CBConfig{
+			MaxRequests: 1,
+			Interval:    0,
+			Timeout:     10 * time.Second,
+			MaxFailures: 2,
+		})
+
+		providers := map[string]payment.PaymentProvider{
+			"momo": cbProvider,
+		}
+
+		svc := v1service.NewPaymentService(mockPaymentRepo, mockOrderRepo, mockUserRepo, nil, providers, nil, nil, nil, "https://store.com/return", "https://api.com/webhooks")
+
+		// First 2 failures trip the breaker
+		_, _ = svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "key1", v1dto.CreatePaymentIntentInput{OrderUUID: orderUUID, Provider: "momo"})
+		_, _ = svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "key2", v1dto.CreatePaymentIntentInput{OrderUUID: orderUUID, Provider: "momo"})
+
+		// 3rd call must immediately fail with ErrCodeServiceUnavailable (503)
+		_, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "key3", v1dto.CreatePaymentIntentInput{
+			OrderUUID: orderUUID,
+			Provider:  "momo",
+		})
+
+		require.Error(t, err)
+		assertAppErrorCode(t, err, utils.ErrCodeServiceUnavailable)
+		assert.Contains(t, err.Error(), "temporarily unavailable")
+	})
 }
 
 func TestPaymentService_HandleWebhook(t *testing.T) {

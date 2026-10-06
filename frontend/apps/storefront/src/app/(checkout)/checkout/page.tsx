@@ -18,12 +18,15 @@ import {
   ShieldCheck,
   Banknote,
   ArrowLeft,
+  ArrowRight,
   ShoppingCart,
   CheckCircle2,
   Loader2,
   MapPin,
   Tag,
   AlertCircle,
+  AlertTriangle,
+  CreditCard,
   Plus,
   Pencil,
   Trash2,
@@ -89,10 +92,13 @@ function CheckoutContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState<{
     orderId: string;
+    orderUuid?: string;
     paymentMethod: string;
+    paymentFailed?: boolean;
     shippingFee: number;
     shippingAddress?: string;
   } | null>(null);
+  const [retryingPayment, setRetryingPayment] = useState(false);
 
   // Form State
   const [fullName, setFullName] = useState(user?.fullName || "");
@@ -972,6 +978,7 @@ function CheckoutContent() {
 
       // If MoMo payment method is selected and order was created, initiate MoMo payment intent
       if (paymentMethod === "MOMO" && createdOrderUuid) {
+        let paymentFailed = false;
         try {
           const paymentRes = await authFetch(
             '/api/v1/payments/create-intent',
@@ -1003,20 +1010,48 @@ function CheckoutContent() {
               return;
             }
           } else {
+            paymentFailed = true;
             const payErr = paymentRes
               ? await paymentRes.json().catch(() => null)
               : null;
             const payMsg = extractErrorMessage(
               payErr,
-              "Could not initiate MoMo payment URL.",
+              "Payment gateway is temporarily unavailable.",
             );
             toast.error(payMsg);
+            toast.warning(
+              "Your order has been created. Please visit My Orders to complete your payment.",
+              { duration: 6000 }
+            );
           }
         } catch {
+          paymentFailed = true;
           toast.error("Network error while connecting to MoMo gateway.");
+          toast.warning(
+            "Your order has been created. Please visit My Orders to complete your payment.",
+            { duration: 6000 }
+          );
         }
-      }
 
+        if (isBuyNow) {
+          clearBuyNowItem();
+        } else {
+          removeSelectedItems();
+        }
+        setAppliedCoupon(null);
+        setOrderPlaced({
+          orderId: generatedId,
+          orderUuid: createdOrderUuid,
+          paymentMethod,
+          paymentFailed,
+          shippingFee: finalShippingFee,
+          shippingAddress: fullShippingAddress,
+        });
+        if (!paymentFailed) {
+          toast.success("Order placed successfully!");
+        }
+        return;
+      }
 
       if (isBuyNow) {
         clearBuyNowItem();
@@ -1026,7 +1061,9 @@ function CheckoutContent() {
       setAppliedCoupon(null);
       setOrderPlaced({
         orderId: generatedId,
+        orderUuid: createdOrderUuid,
         paymentMethod,
+        paymentFailed: false,
         shippingFee: finalShippingFee,
         shippingAddress: fullShippingAddress,
       });
@@ -1035,6 +1072,50 @@ function CheckoutContent() {
       toast.error("Failed to create order. Please try again.");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleRetryPayment = async (orderUuid?: string) => {
+    if (!orderUuid) return;
+    setRetryingPayment(true);
+    try {
+      const baseUrl =
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+      const res = await authFetch(
+        `${baseUrl}/api/v1/payments/create-intent`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Idempotency-Key": `idem-pay-${orderUuid}-${Date.now()}`,
+          },
+          body: JSON.stringify({
+            order_uuid: orderUuid,
+            provider: "momo",
+          }),
+        },
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        const paymentUrl = data?.data?.payment_url;
+        if (paymentUrl) {
+          toast.success("Redirecting to MoMo payment gateway...");
+          window.location.href = paymentUrl;
+          return;
+        }
+      }
+
+      const errJson = await res.json().catch(() => null);
+      const errMsg = extractErrorMessage(
+        errJson,
+        "Payment gateway is temporarily unavailable. Please try again later.",
+      );
+      toast.error(errMsg);
+    } catch {
+      toast.error("Network error while connecting to payment gateway.");
+    } finally {
+      setRetryingPayment(false);
     }
   };
 
@@ -1111,17 +1192,41 @@ function CheckoutContent() {
     return (
       <div className="bg-[#FAFBFC] min-h-[75vh] py-16 flex items-center justify-center">
         <div className="max-w-lg w-full mx-auto px-4 text-center space-y-5">
-          <div className="w-20 h-20 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center mx-auto shadow-xs">
-            <CheckCircle2 className="w-12 h-12" />
+          <div
+            className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto shadow-xs ${
+              orderPlaced.paymentFailed
+                ? "bg-amber-50 text-amber-500"
+                : "bg-emerald-50 text-emerald-500"
+            }`}
+          >
+            {orderPlaced.paymentFailed ? (
+              <AlertTriangle className="w-12 h-12" />
+            ) : (
+              <CheckCircle2 className="w-12 h-12" />
+            )}
           </div>
           <h1 className="text-3xl font-black text-[#0D1B2A] tracking-tight">
-            Thank You For Your Order!
+            {orderPlaced.paymentFailed
+              ? "Order Created (Payment Pending)"
+              : "Thank You For Your Order!"}
           </h1>
           <p className="text-sm text-slate-600 leading-relaxed">
             Your order{" "}
             <strong className="text-[#0D47A1]">#{orderPlaced.orderId}</strong>{" "}
             has been placed successfully.
           </p>
+
+          {orderPlaced.paymentFailed && (
+            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200/80 text-amber-900 text-xs text-left space-y-1.5 shadow-2xs">
+              <div className="flex items-center gap-1.5 font-bold">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Payment was not completed</span>
+              </div>
+              <p className="text-amber-700 leading-relaxed">
+                We could not connect to the MoMo gateway automatically. You can retry paying now or visit your orders page anytime.
+              </p>
+            </div>
+          )}
 
           <div className="p-4 rounded-2xl bg-white border border-slate-200/80 text-left space-y-2 text-xs">
             <div className="flex justify-between">
@@ -1150,15 +1255,31 @@ function CheckoutContent() {
           </div>
 
           <div className="pt-4 flex flex-col sm:flex-row gap-3 justify-center">
+            {orderPlaced.paymentFailed && orderPlaced.orderUuid && (
+              <button
+                type="button"
+                disabled={retryingPayment}
+                onClick={() => handleRetryPayment(orderPlaced.orderUuid)}
+                className="px-6 py-3 rounded-xl bg-[#E01075] hover:bg-[#C00D63] text-white text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                {retryingPayment ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CreditCard className="w-4 h-4" />
+                )}
+                <span>Pay Now (MoMo)</span>
+              </button>
+            )}
             <Link
-              href="/"
-              className="px-6 py-3 rounded-xl bg-[#2196F3] text-white text-xs font-bold hover:bg-[#0D47A1] transition-all shadow-md"
+              href="/account/orders"
+              className="px-6 py-3 rounded-xl bg-[#2196F3] text-white text-xs font-bold hover:bg-[#0D47A1] transition-all shadow-md flex items-center justify-center gap-1.5"
             >
-              Back to Home
+              <span>View My Orders</span>
+              <ArrowRight className="w-4 h-4" />
             </Link>
             <Link
               href="/products"
-              className="px-6 py-3 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-all"
+              className="px-6 py-3 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-all flex items-center justify-center"
             >
               Continue Shopping
             </Link>
