@@ -22,6 +22,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/sony/gobreaker/v2"
 )
 
 const (
@@ -147,7 +148,10 @@ func (s *paymentService) CreatePaymentIntent(ctx context.Context, userUUID uuid.
 			Str("provider", providerName).
 			Str("order_uuid", order.OrderUuid.String()).
 			Msg("Failed to generate payment URL from provider")
-		return v1dto.PaymentIntentDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to generate payment URL from provider", err)
+		if errors.Is(err, gobreaker.ErrOpenState) || errors.Is(err, gobreaker.ErrTooManyRequests) {
+			return v1dto.PaymentIntentDTO{}, utils.WrapError(utils.ErrCodeServiceUnavailable, "Payment gateway is temporarily unavailable. Please try again later.", err)
+		}
+		return v1dto.PaymentIntentDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to connect to payment gateway. Please try again later.", err)
 	}
 
 	var providerURL *string
@@ -585,7 +589,33 @@ func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 			logger.Log.Warn().
 				Str("provider", txn.PtProvider).
 				Str("pt_uuid", txn.PtUuid.String()).
-				Msg("Reconciliation: Provider not supported, skipping")
+				Msg("Reconciliation: Provider not supported for stale pending transaction, marking as Expired")
+
+			tx, err := db.BeginTx(ctx)
+			if err != nil {
+				logger.Log.Error().Err(err).Msg("Reconciliation: Failed to begin db transaction for unsupported provider")
+				continue
+			}
+
+			_, err = s.paymentRepo.UpdateStatusAtomically(ctx, tx, sqlc.UpdatePaymentStatusAtomicallyParams{
+				PtUuid:              txn.PtUuid,
+				NewStatus:           PaymentStatusExpired,
+				AllowedFromStatuses: []int32{PaymentStatusPending},
+			})
+			if err != nil {
+				_ = tx.Rollback(ctx)
+				if !errors.Is(err, pgx.ErrNoRows) {
+					logger.Log.Error().Err(err).Str("pt_uuid", txn.PtUuid.String()).Msg("Reconciliation: Failed to mark unsupported provider transaction as Expired")
+				}
+				continue
+			}
+
+			if err := tx.Commit(ctx); err != nil {
+				logger.Log.Error().Err(err).Msg("Reconciliation: Failed to commit Expired update for unsupported provider")
+				continue
+			}
+
+			expiredCount++
 			continue
 		}
 

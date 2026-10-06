@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/sony/gobreaker/v2"
 
 	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
@@ -207,6 +208,9 @@ func (s *paymentRefundService) RefundPayment(ctx context.Context, idempotencyKey
 			Str("provider", originalTxn.PtProvider).
 			Str("order_number", order.OrderNumber).
 			Msg("Gateway refund failed, marked transaction as Failed")
+		if errors.Is(gatewayErr, gobreaker.ErrOpenState) || errors.Is(gatewayErr, gobreaker.ErrTooManyRequests) {
+			return v1dto.PaymentTransactionDTO{}, utils.WrapError(utils.ErrCodeServiceUnavailable, "Payment gateway is temporarily unavailable for refund. Please try again later.", gatewayErr)
+		}
 		return v1dto.PaymentTransactionDTO{}, utils.WrapError(utils.ErrCodeBadGateway, "Gateway refund failed", gatewayErr)
 	}
 

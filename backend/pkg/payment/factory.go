@@ -32,7 +32,8 @@ type momoFactory struct {
 }
 
 func (f *momoFactory) CreateProvider() (PaymentProvider, error) {
-	return NewMoMoProvider(f.config), nil
+	raw := NewMoMoProvider(f.config)
+	return NewCircuitBreakerPaymentProvider(raw, "momo", DefaultCBConfig()), nil
 }
 
 func NewProviderFactory(providerType ProviderType, cfg PaymentConfig) (PaymentProviderFactory, error) {

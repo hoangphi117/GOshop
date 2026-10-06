@@ -29,8 +29,8 @@ export function extractErrorMessage(errData: unknown, fallback = 'An error occur
   if (typeof errData === 'object' && errData !== null) {
     const obj = errData as Record<string, unknown>
     if (typeof obj.message === 'string' && obj.message.trim()) return obj.message
-    if (typeof obj.detail === 'string' && obj.detail.trim()) return obj.detail
     if (typeof obj.error === 'string' && obj.error.trim()) return obj.error
+    if (typeof obj.detail === 'string' && obj.detail.trim()) return obj.detail
     if (typeof obj.error === 'object' && obj.error !== null) {
       const fieldErrors = Object.values(obj.error as Record<string, unknown>).filter(
         (v): v is string => typeof v === 'string' && v.trim().length > 0
