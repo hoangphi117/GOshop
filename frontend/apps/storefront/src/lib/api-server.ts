@@ -144,10 +144,22 @@ export async function getProducts(params?: {
   search?: string
   sort?: string
   order_by?: string
+  min_price?: number
+  max_price?: number
+  min_rating?: number
 }): Promise<{ products: Product[]; pagination?: Pagination }> {
   const query = new URLSearchParams()
   if (params?.page) query.set('page', params.page.toString())
   if (params?.limit) query.set('limit', params.limit.toString())
+  if (params?.min_price !== undefined && params.min_price > 0) {
+    query.set('min_price', params.min_price.toString())
+  }
+  if (params?.max_price !== undefined && params.max_price > 0) {
+    query.set('max_price', params.max_price.toString())
+  }
+  if (params?.min_rating !== undefined && params.min_rating > 0) {
+    query.set('min_rating', params.min_rating.toString())
+  }
 
   // Resolve category UUID: backend requires 'category_uuid' with valid UUID
   let resolvedCategoryUuid = params?.category_uuid
@@ -191,6 +203,10 @@ export async function getProducts(params?: {
         query.set('sort', 'price:asc')
       } else if (sortVal === 'price_desc') {
         query.set('sort', 'price:desc')
+      } else if (sortVal === 'rating_desc' || sortVal === 'top_rated') {
+        query.set('sort', 'rating:desc')
+      } else if (sortVal === 'rating_asc') {
+        query.set('sort', 'rating:asc')
       } else if (sortVal === 'newest') {
         query.set('sort', 'created_at:desc')
       } else if (sortVal === 'oldest') {
@@ -210,6 +226,12 @@ export async function getProducts(params?: {
       } else if (sortVal === 'price_desc') {
         query.set('order_by', 'product_price')
         query.set('sort', 'desc')
+      } else if (sortVal === 'rating_desc' || sortVal === 'top_rated') {
+        query.set('order_by', 'product_avg_rating')
+        query.set('sort', 'desc')
+      } else if (sortVal === 'rating_asc') {
+        query.set('order_by', 'product_avg_rating')
+        query.set('sort', 'asc')
       } else if (sortVal === 'name_asc') {
         query.set('order_by', 'product_name')
         query.set('sort', 'asc')
