@@ -270,8 +270,10 @@ func (r *SqlProductRepository) Trash(ctx context.Context, uuid uuid.UUID) (sqlc.
 }
 
 func (r *SqlProductRepository) DeductStock(ctx context.Context, tx pgx.Tx, productID int32, quantity int32) error {
-
-	q := sqlc.New(tx)
+	q := r.db
+	if tx != nil {
+		q = sqlc.New(tx)
+	}
 
 	rowAffected, err := q.DeductStock(ctx, sqlc.DeductStockParams{
 		ProductID: productID,
@@ -289,7 +291,10 @@ func (r *SqlProductRepository) DeductStock(ctx context.Context, tx pgx.Tx, produ
 }
 
 func (r *SqlProductRepository) RestoreStock(ctx context.Context, tx pgx.Tx, productID int32, quantity int32) error {
-	q := sqlc.New(tx)
+	q := r.db
+	if tx != nil {
+		q = sqlc.New(tx)
+	}
 
 	err := q.RestoreStock(ctx, sqlc.RestoreStockParams{
 		ProductID: productID,

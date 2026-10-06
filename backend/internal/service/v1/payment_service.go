@@ -37,6 +37,9 @@ type paymentService struct {
 	paymentRepo         repository.PaymentRepository
 	orderRepo           repository.OrderRepository
 	userRepo            repository.UserRepository
+	orderItemRepo       repository.OrderItemRepository
+	trackingRepo        repository.TrackingRepository
+	inventoryService    InventoryService
 	webhookRepo         repository.WebhookEventRepository
 	providers           map[string]payment.PaymentProvider
 	notificationService NotificationService
@@ -45,6 +48,12 @@ type paymentService struct {
 	returnURL           string
 	webhookBaseURL      string
 	refundService       PaymentRefundService
+}
+
+type PaymentOrderDependencies struct {
+	InventoryService InventoryService
+	OrderItemRepo    repository.OrderItemRepository
+	TrackingRepo     repository.TrackingRepository
 }
 
 // NewPaymentService creates a new instance of PaymentService.
@@ -59,9 +68,10 @@ func NewPaymentService(
 	rabbitmq rabbitmq.RabbitMQService,
 	returnURL string,
 	webhookBaseURL string,
+	orderDeps ...PaymentOrderDependencies,
 ) PaymentService {
 	refundService := NewPaymentRefundService(paymentRepo, orderRepo, providers, notificationService, cache)
-	return &paymentService{
+	svc := &paymentService{
 		paymentRepo:         paymentRepo,
 		orderRepo:           orderRepo,
 		userRepo:            userRepo,
@@ -74,6 +84,12 @@ func NewPaymentService(
 		webhookBaseURL:      webhookBaseURL,
 		refundService:       refundService,
 	}
+	if len(orderDeps) > 0 {
+		svc.inventoryService = orderDeps[0].InventoryService
+		svc.orderItemRepo = orderDeps[0].OrderItemRepo
+		svc.trackingRepo = orderDeps[0].TrackingRepo
+	}
+	return svc
 }
 
 // WithRefundService allows overriding the PaymentRefundService instance (useful for testing).
@@ -610,12 +626,17 @@ func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 				continue
 			}
 
+			if err := s.cancelExpiredOrder(ctx, tx, txn); err != nil {
+				logger.Log.Error().Err(err).Str("order_number", txn.OrderNumber).Msg("Reconciliation: Failed to cancel expired order for unsupported provider")
+			}
+
 			if err := tx.Commit(ctx); err != nil {
 				logger.Log.Error().Err(err).Msg("Reconciliation: Failed to commit Expired update for unsupported provider")
 				continue
 			}
 
 			expiredCount++
+			s.dispatchExpirationSideEffects(txn)
 			continue
 		}
 
@@ -696,7 +717,7 @@ func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 				Str("pt_uuid", txn.PtUuid.String()).
 				Msg("Reconciliation: Successfully recovered missed paid transaction")
 
-		case payment.TxnStatusFailed, payment.TxnStatusExpired:
+		case payment.TxnStatusFailed, payment.TxnStatusExpired, payment.TxnStatusPending:
 			_, err = s.paymentRepo.UpdateStatusAtomically(ctx, tx, sqlc.UpdatePaymentStatusAtomicallyParams{
 				PtUuid:              txn.PtUuid,
 				NewStatus:           PaymentStatusExpired,
@@ -717,18 +738,21 @@ func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 				continue
 			}
 
+			if err := s.cancelExpiredOrder(ctx, tx, txn); err != nil {
+				logger.Log.Error().Err(err).Str("order_number", txn.OrderNumber).Msg("Reconciliation: Failed to cancel expired order")
+			}
+
 			if err := tx.Commit(ctx); err != nil {
 				logger.Log.Error().Err(err).Msg("Reconciliation: Failed to commit Expired update")
 				continue
 			}
 
 			expiredCount++
+			s.dispatchExpirationSideEffects(txn)
 			logger.Log.Info().
 				Str("pt_uuid", txn.PtUuid.String()).
-				Msg("Reconciliation: Marked abandoned payment transaction as Expired")
-
-		case payment.TxnStatusPending:
-			_ = tx.Rollback(ctx)
+				Str("order_number", txn.OrderNumber).
+				Msg("Reconciliation: Marked abandoned payment transaction as Expired and cancelled order")
 		}
 	}
 
@@ -746,6 +770,80 @@ func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 }
 
 // ── Private SRP Helper Methods ────────────────────────────────────
+
+func (s *paymentService) cancelExpiredOrder(ctx context.Context, tx pgx.Tx, txn sqlc.GetPendingTransactionsOlderThanRow) error {
+	order, err := s.orderRepo.GetByUUID(ctx, txn.OrderUuid)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		return err
+	}
+
+	// Only cancel if order is still Pending and Unpaid
+	if order.OrderStatus != OrderStatusPending || order.OrderPaymentStatus == OrderPaymentStatusPaid {
+		return nil
+	}
+
+	// 1. Atomically cancel order (updates order_status = 5 Cancelled, order_cancelled_at = NOW())
+	_, err = s.orderRepo.CancelOrder(ctx, tx, order.OrderUuid)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		return fmt.Errorf("failed to cancel order: %w", err)
+	}
+
+	// 2. Restore inventory if inventoryService and orderItemRepo are available
+	if s.inventoryService != nil && s.orderItemRepo != nil {
+		orderItems, err := s.orderItemRepo.GetByOrderID(ctx, order.OrderID)
+		if err == nil && len(orderItems) > 0 {
+			cancelReason := "Payment expired after 15 minutes"
+			txCtx := db.InjectTx(ctx, tx)
+			if err := s.inventoryService.RestoreStockWithRef(txCtx, toRestoreItems(orderItems), order.OrderNumber, "order_cancel", nil, &cancelReason); err != nil {
+				return fmt.Errorf("failed to restore stock for expired order: %w", err)
+			}
+		}
+	}
+
+	// 4. Record tracking event
+	if s.trackingRepo != nil {
+		cancelNote := "Order was automatically cancelled due to payment expiration (15 minutes timeout)."
+		_, _ = s.trackingRepo.InsertEvent(ctx, tx, sqlc.InsertTrackingEventParams{
+			EventOrderID: order.OrderID,
+			EventStatus:  "Cancelled",
+			EventNote:    &cancelNote,
+			EventSource:  "system",
+		})
+	}
+
+	return nil
+}
+
+func (s *paymentService) dispatchExpirationSideEffects(txn sqlc.GetPendingTransactionsOlderThanRow) {
+	if s.cache != nil {
+		_ = s.cache.Clear("orders:*")
+	}
+
+	if s.notificationService != nil && s.userRepo != nil {
+		go func() {
+			user, err := s.userRepo.GetByUUID(context.Background(), txn.UserUuid)
+			if err == nil {
+				_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
+					UserID: user.UserID,
+					Type:   "order_cancelled",
+					Title:  "Order Cancelled",
+					Body:   fmt.Sprintf("Your order #%s was automatically cancelled due to payment expiration (15 minutes).", txn.OrderNumber),
+					Data: map[string]any{
+						"order_uuid":   txn.OrderUuid.String(),
+						"order_number": txn.OrderNumber,
+						"reason":       "Payment timeout",
+					},
+				})
+			}
+		}()
+	}
+}
 
 func (s *paymentService) getUser(ctx context.Context, userUUID uuid.UUID) (sqlc.User, error) {
 	user, err := s.userRepo.GetByUUID(ctx, userUUID)
@@ -778,6 +876,10 @@ func (s *paymentService) validateOrderForPayment(order sqlc.GetOrderByUUIDRow, u
 	orderAmount := utils.NumericToFloat(order.OrderTotalAmount)
 	if orderAmount <= 0 {
 		return utils.NewError(utils.ErrCodeBadRequest, "Order amount is 0, online payment is not required")
+	}
+
+	if !order.OrderCreatedAt.IsZero() && time.Since(order.OrderCreatedAt) > 15*time.Minute {
+		return utils.NewError(utils.ErrCodeBadRequest, "Order payment window (15 minutes) has expired. Please place a new order.")
 	}
 
 	return nil

@@ -59,6 +59,8 @@ function PaymentResultContent() {
 
   const [isRetrying, setIsRetrying] = useState(false);
   const [resolvedOrderUuid, setResolvedOrderUuid] = useState<string | null>(null);
+  const [isOrderExpired, setIsOrderExpired] = useState(false);
+  const [isOrderCancelled, setIsOrderCancelled] = useState(false);
 
   useEffect(() => {
     if (isSuccess) {
@@ -78,12 +80,23 @@ function PaymentResultContent() {
               ? json.data.items
               : [];
             const matched = orderList.find(
-              (o: { order_number?: string; uuid?: string }) =>
+              (o: { order_number?: string; uuid?: string; created_at?: string; status?: string }) =>
                 o.order_number === displayOrderNumber ||
                 o.uuid === displayOrderNumber
             );
-            if (matched?.uuid) {
-              setResolvedOrderUuid(matched.uuid);
+            if (matched) {
+              if (matched.uuid) {
+                setResolvedOrderUuid(matched.uuid);
+              }
+              if (matched.status?.toUpperCase() === "CANCELLED") {
+                setIsOrderCancelled(true);
+              }
+              if (
+                matched.created_at &&
+                Date.now() - new Date(matched.created_at).getTime() > 15 * 60 * 1000
+              ) {
+                setIsOrderExpired(true);
+              }
             }
           }
         } catch {
@@ -310,20 +323,30 @@ function PaymentResultContent() {
             </>
           ) : (
             <>
-              {/* Retry Payment Button */}
-              <button
-                type="button"
-                onClick={handleRetryPayment}
-                disabled={isRetrying}
-                className="px-6 py-3 rounded-xl bg-[#A50064] text-white text-xs font-bold hover:bg-[#850050] transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
-              >
-                {isRetrying ? (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                ) : (
-                  <RotateCcw className="w-4 h-4" />
-                )}
-                <span>{isRetrying ? "Connecting MoMo..." : "Retry Payment"}</span>
-              </button>
+              {/* Expired / Cancelled notice */}
+              {isOrderExpired || isOrderCancelled ? (
+                <div className="w-full p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs text-center space-y-1">
+                  <p className="font-bold">Payment Window Expired</p>
+                  <p className="text-amber-700">
+                    The 15-minute payment window for this order has expired. Unpaid orders are automatically cancelled to release reserved stock.
+                  </p>
+                </div>
+              ) : (
+                /* Retry Payment Button */
+                <button
+                  type="button"
+                  onClick={handleRetryPayment}
+                  disabled={isRetrying}
+                  className="px-6 py-3 rounded-xl bg-[#A50064] text-white text-xs font-bold hover:bg-[#850050] transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                >
+                  {isRetrying ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <RotateCcw className="w-4 h-4" />
+                  )}
+                  <span>{isRetrying ? "Connecting MoMo..." : "Retry Payment"}</span>
+                </button>
+              )}
 
               {/* View My Orders Button */}
               <Link

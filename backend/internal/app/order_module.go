@@ -117,6 +117,11 @@ func NewOrderModule(ctx *ModuleContext, wsHub ws.Hub, rabbitmqService rabbitmq.R
 		rabbitmqService,
 		utils.GetEnv("PAYMENT_RETURN_URL", "http://localhost:3001/payment/result"),
 		utils.GetEnv("PAYMENT_WEBHOOK_BASE_URL", "http://localhost:8080"),
+		v1service.PaymentOrderDependencies{
+			InventoryService: inventoryService,
+			OrderItemRepo:    orderItemRepo,
+			TrackingRepo:     trackingRepo,
+		},
 	)
 
 	returnService := v1service.NewOrderReturnService(

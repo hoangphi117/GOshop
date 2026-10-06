@@ -623,3 +623,40 @@ func TestPaymentService_RefundPayment_Validation(t *testing.T) {
 		assert.Contains(t, err.Error(), "Invalid order UUID")
 	})
 }
+
+func TestPaymentService_CreatePaymentIntent_OrderExpired(t *testing.T) {
+	ctx := context.Background()
+	userUUID := uuid.New()
+	orderUUID := uuid.New()
+
+	mockUserRepo := &testutils.MockUserRepository{
+		GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+			return sqlc.User{UserID: 10, UserUuid: userUUID}, nil
+		},
+	}
+
+	mockOrderRepo := &testutils.MockOrderRepository{
+		GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+			return sqlc.GetOrderByUUIDRow{
+				OrderID:            100,
+				OrderUuid:          orderUUID,
+				OrderUserID:        10,
+				OrderStatus:        v1service.OrderStatusPending,
+				OrderPaymentStatus: v1service.OrderPaymentStatusUnpaid,
+				OrderPaymentMethod: v1service.OrderPaymentMethodOnline,
+				OrderTotalAmount:   utils.FloatToNumeric(100000),
+				OrderCreatedAt:     time.Now().Add(-20 * time.Minute), // Expired > 15m
+			}, nil
+		},
+	}
+
+	svc := v1service.NewPaymentService(nil, mockOrderRepo, mockUserRepo, nil, nil, nil, nil, nil, "", "")
+	_, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "key-123", v1dto.CreatePaymentIntentInput{
+		OrderUUID: orderUUID,
+		Provider:  "momo",
+	})
+
+	require.Error(t, err)
+	assertAppErrorCode(t, err, utils.ErrCodeBadRequest)
+	assert.Contains(t, err.Error(), "Order payment window (15 minutes) has expired. Please place a new order.")
+}

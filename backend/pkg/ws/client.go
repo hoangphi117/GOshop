@@ -31,7 +31,8 @@ type Client struct {
 	UserID         int32
 	IsAdmin        bool
 	ConversationID *int32 // nil: general listener | non-nil: active in conversation room
-	closeOnce      sync.Once
+	mu             sync.RWMutex
+	isClosed       bool
 }
 
 func NewClient(hub Hub, conn *websocket.Conn, userID int32, isAdmin bool) *Client {
@@ -44,14 +45,37 @@ func NewClient(hub Hub, conn *websocket.Conn, userID int32, isAdmin bool) *Clien
 	}
 }
 
+// SafeSend safely sends a message to the client without panicking on closed channel.
+// Returns false if client is closed or buffer is full.
+func (c *Client) SafeSend(payload []byte) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.isClosed {
+		return false
+	}
+
+	select {
+	case c.Send <- payload:
+		return true
+	default:
+		return false
+	}
+}
+
 // Close gracefully and idempotently closes the Send channel and underlying websocket connection
 func (c *Client) Close() {
-	c.closeOnce.Do(func() {
-		close(c.Send)
-		if c.Conn != nil {
-			_ = c.Conn.Close()
-		}
-	})
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.isClosed {
+		return
+	}
+	c.isClosed = true
+	close(c.Send)
+	if c.Conn != nil {
+		_ = c.Conn.Close()
+	}
 }
 
 // ReadPump pumps messages from the websocket connection to the hub.
@@ -95,10 +119,7 @@ func (c *Client) ReadPump() {
 			switch inbound.Type {
 			case EventPing:
 				pongMsg, _ := json.Marshal(WSMessage{Type: EventPong})
-				select {
-				case c.Send <- pongMsg:
-				default:
-				}
+				c.SafeSend(pongMsg)
 			case EventChatTyping:
 				var typingData struct {
 					ConversationUUID string `json:"conversation_uuid"`

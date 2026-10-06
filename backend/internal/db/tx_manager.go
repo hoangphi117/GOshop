@@ -79,3 +79,9 @@ func GetTx(ctx context.Context) (pgx.Tx, bool) {
 	tx, ok := ctx.Value(txKey{}).(pgx.Tx)
 	return tx, ok
 }
+
+// InjectTx injects an existing pgx.Tx into the context.
+func InjectTx(ctx context.Context, tx pgx.Tx) context.Context {
+	return context.WithValue(ctx, txKey{}, tx)
+}
+

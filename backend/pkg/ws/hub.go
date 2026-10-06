@@ -194,10 +194,7 @@ func (h *hub) BroadcastToUser(userID int32, msg WSMessage) {
 		Msg("WebSocket broadcasting to user connections")
 
 	for _, client := range targets {
-		select {
-		case client.Send <- payload:
-		default:
-			// Buffer full, unregister problematic client
+		if !client.SafeSend(payload) {
 			h.Unregister(client)
 		}
 	}
@@ -242,10 +239,7 @@ func (h *hub) BroadcastToAll(msg WSMessage) {
 		Msg("WebSocket broadcasting to ALL connections")
 
 	for _, client := range targets {
-		select {
-		case client.Send <- payload:
-		default:
-			// Buffer full, unregister problematic client
+		if !client.SafeSend(payload) {
 			h.Unregister(client)
 		}
 	}
@@ -273,9 +267,7 @@ func (h *hub) BroadCastToAdmins(msg WSMessage) {
 	}
 
 	for _, client := range targets {
-		select {
-		case client.Send <- payload:
-		default:
+		if !client.SafeSend(payload) {
 			h.Unregister(client)
 		}
 	}
@@ -328,10 +320,7 @@ func (h *hub) BroadcastToConversation(conversationID int32, msg WSMessage) {
 		Msg("WebSocket broadcasting to conversation room and admins")
 
 	for _, client := range targets {
-		select {
-		case client.Send <- payload:
-		default:
-			// Buffer full, unregister problematic client
+		if !client.SafeSend(payload) {
 			h.Unregister(client)
 		}
 	}

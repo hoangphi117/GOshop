@@ -51,9 +51,20 @@ func NewPaymentModule(ctx *ModuleContext, cacheService cache.RedisCacheService, 
 	notificationRepo := repository.NewSqlNotificationRepository(ctx.DB)
 	notificationService := v1service.NewNotificationService(notificationRepo, userRepo, wsHub)
 
+	orderItemRepo := repository.NewSqlOrderItemRepository(ctx.DB)
+	trackingRepo := repository.NewSqlTrackingRepository(ctx.DB)
+	productRepo := repository.NewSqlProductRepository(ctx.DB)
+	stockMovementRepo := repository.NewSqlStockMovementRepository(ctx.DB)
+	inventoryService := v1service.NewInventoryService(productRepo, stockMovementRepo, userRepo, ctx.TxManager, notificationService)
+
 	paymentService := v1service.NewPaymentService(
 		paymentRepo, orderRepo, userRepo, webhookRepo,
 		providers, notificationService, cacheService, rabbitmqService, returnURL, webhookBaseURL,
+		v1service.PaymentOrderDependencies{
+			InventoryService: inventoryService,
+			OrderItemRepo:    orderItemRepo,
+			TrackingRepo:     trackingRepo,
+		},
 	)
 
 	paymentConsumer := worker.NewPaymentConsumer(paymentService, logger.Log)

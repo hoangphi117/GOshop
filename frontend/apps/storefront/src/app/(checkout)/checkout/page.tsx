@@ -1220,10 +1220,10 @@ function CheckoutContent() {
             <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200/80 text-amber-900 text-xs text-left space-y-1.5 shadow-2xs">
               <div className="flex items-center gap-1.5 font-bold">
                 <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>Payment was not completed</span>
+                <span>Payment pending (15-minute window)</span>
               </div>
               <p className="text-amber-700 leading-relaxed">
-                We could not connect to the MoMo gateway automatically. You can retry paying now or visit your orders page anytime.
+                We could not connect to the MoMo gateway automatically. You can retry paying now. Unpaid orders will automatically expire and release stock after 15 minutes.
               </p>
             </div>
           )}

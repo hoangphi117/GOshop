@@ -1125,10 +1125,14 @@ function MyOrdersPageContent() {
     const activeStepIndex = getActiveStepIndex(selectedOrder, timelineEvents);
     const isCancelled = activeStepIndex === -1;
     const isCOD = checkIsCOD(selectedOrder);
+    const isOrderExpired =
+      Boolean(selectedOrder.created_at) &&
+      Date.now() - new Date(selectedOrder.created_at).getTime() > 15 * 60 * 1000;
     const isUnpaidOnline =
       isPending &&
       selectedOrder.payment_status?.toUpperCase() !== "PAID" &&
-      !isCOD;
+      !isCOD &&
+      !isOrderExpired;
 
     const returnApprovedEvent = timelineEvents.find(
       (e) => (e.status || "").toLowerCase() === "return_approved",
@@ -1498,6 +1502,13 @@ function MyOrdersPageContent() {
                   )}
                   <span>Pay Now</span>
                 </button>
+              )}
+
+              {isOrderExpired && isPending && !isPaid && !isCOD && (
+                <span className="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-xs font-semibold flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Payment Window Expired (15m)</span>
+                </span>
               )}
 
               {isShipped && (
@@ -2134,6 +2145,14 @@ function MyOrdersPageContent() {
             const isDelivered = order.status?.toUpperCase() === "DELIVERED";
             const isReturned = order.status?.toUpperCase() === "RETURNED";
             const isPaid = order.payment_status?.toUpperCase() === "PAID";
+            const isOrderExpired =
+              Boolean(order.created_at) &&
+              Date.now() - new Date(order.created_at).getTime() > 15 * 60 * 1000;
+            const isUnpaidOnline =
+              isPending &&
+              order.payment_status?.toUpperCase() !== "PAID" &&
+              !checkIsCOD(order) &&
+              !isOrderExpired;
 
             return (
               <div
@@ -2274,28 +2293,26 @@ function MyOrdersPageContent() {
                         </button>
                       )}
 
-                      {/* Pay Now Button (if Pending & Unpaid & not COD) */}
-                      {isPending &&
-                        order.payment_status?.toUpperCase() !== "PAID" &&
-                        !checkIsCOD(order) && (
-                          <button
-                            type="button"
-                            disabled={payingOrderUuid === order.uuid}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handlePayNow(order);
-                            }}
-                            className="px-2.5 py-1 rounded-lg bg-[#E01075] hover:bg-[#C00D63] text-white text-xs font-bold transition-all flex items-center gap-1 shadow-xs cursor-pointer disabled:opacity-50"
-                            title="Pay now via MoMo E-Wallet"
-                          >
-                            {payingOrderUuid === order.uuid ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <CreditCard className="w-3.5 h-3.5" />
-                            )}
-                            <span>Pay Now</span>
-                          </button>
-                        )}
+                      {/* Pay Now Button (if Pending & Unpaid & not COD & not expired) */}
+                      {isUnpaidOnline && (
+                        <button
+                          type="button"
+                          disabled={payingOrderUuid === order.uuid}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePayNow(order);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-[#E01075] hover:bg-[#C00D63] text-white text-xs font-bold transition-all flex items-center gap-1 shadow-xs cursor-pointer disabled:opacity-50"
+                          title="Pay now via MoMo E-Wallet"
+                        >
+                          {payingOrderUuid === order.uuid ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <CreditCard className="w-3.5 h-3.5" />
+                          )}
+                          <span>Pay Now</span>
+                        </button>
+                      )}
 
                       {/* Cancel Button (if Pending) */}
                       {isPending && (
