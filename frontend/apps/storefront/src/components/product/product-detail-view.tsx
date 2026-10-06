@@ -1,13 +1,13 @@
-'use client'
+"use client";
 
-import React, { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import type { Product, Review, ReviewSummary } from '@/lib/api-server'
-import { formatCurrency } from '@/lib/format'
-import { getImageUrl } from '@/lib/utils'
-import { useCartStore } from '@/stores/cart-store'
-import { useAuthStore } from '@/stores/auth-store'
-import { ProductReviewsSection } from '@/components/review/product-reviews-section'
+import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+import type { Product, Review, ReviewSummary } from "@/lib/api-server";
+import { formatCurrency } from "@/lib/format";
+import { getImageUrl } from "@/lib/utils";
+import { useCartStore } from "@/stores/cart-store";
+import { useAuthStore } from "@/stores/auth-store";
+import { ProductReviewsSection } from "@/components/review/product-reviews-section";
 import {
   ShoppingCart,
   Package,
@@ -18,16 +18,14 @@ import {
   Plus,
   Minus,
   Star,
-  Share2,
-  Heart,
   CheckCircle2,
-} from 'lucide-react'
-import { toast } from 'sonner'
+} from "lucide-react";
+import { toast } from "sonner";
 
 interface ProductDetailViewProps {
-  product: Product
-  initialSummary?: ReviewSummary | null
-  initialReviews?: Review[]
+  product: Product;
+  initialSummary?: ReviewSummary | null;
+  initialReviews?: Review[];
 }
 
 export function ProductDetailView({
@@ -35,66 +33,67 @@ export function ProductDetailView({
   initialSummary,
   initialReviews,
 }: ProductDetailViewProps) {
-  const router = useRouter()
-  const { addItem, setBuyNowItem } = useCartStore()
-  const { accessToken } = useAuthStore()
+  const router = useRouter();
+  const { addItem, setBuyNowItem } = useCartStore();
+  const { accessToken } = useAuthStore();
 
   // Collect all available images
   const allImages = (
     product.images && product.images.length > 0
       ? product.images.map((img) => getImageUrl(img.image_url))
       : product.image_url
-      ? [getImageUrl(product.image_url)]
-      : []
-  ).filter(Boolean)
+        ? [getImageUrl(product.image_url)]
+        : []
+  ).filter(Boolean);
 
-  const [activeImageIndex, setActiveImageIndex] = useState(0)
-  const [selectedVariantUuid, setSelectedVariantUuid] = useState<string | undefined>(
-    product.variants?.[0]?.uuid
-  )
-  const [quantity, setQuantity] = useState(1)
-  const [activeTab, setActiveTab] = useState<'desc' | 'specs' | 'shipping' | 'reviews'>('desc')
-  const [isWishlisted, setIsWishlisted] = useState(false)
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [selectedVariantUuid, setSelectedVariantUuid] = useState<
+    string | undefined
+  >(product.variants?.[0]?.uuid);
+  const [quantity, setQuantity] = useState(1);
+  const [activeTab, setActiveTab] = useState<
+    "desc" | "specs" | "shipping" | "reviews"
+  >("desc");
 
   // Active variant logic
   const activeVariant = product.variants?.find(
-    (v) => v.uuid === selectedVariantUuid
-  )
+    (v) => v.uuid === selectedVariantUuid,
+  );
 
-  const currentPrice = activeVariant ? activeVariant.price : product.price
+  const currentPrice = activeVariant ? activeVariant.price : product.price;
   const currentCompareAtPrice = activeVariant
     ? activeVariant.compare_at_price
-    : product.compare_at_price
-  const currentStock = activeVariant ? activeVariant.stock_quantity : product.stock
-  const isInStock = currentStock > 0
+    : product.compare_at_price;
+  const currentStock = activeVariant
+    ? activeVariant.stock_quantity
+    : product.stock;
+  const isInStock = currentStock > 0;
 
   const hasDiscount =
-    currentCompareAtPrice && currentCompareAtPrice > currentPrice
+    currentCompareAtPrice && currentCompareAtPrice > currentPrice;
   const discountPercent = hasDiscount
     ? Math.round(
-        ((currentCompareAtPrice - currentPrice) / currentCompareAtPrice) * 100
+        ((currentCompareAtPrice - currentPrice) / currentCompareAtPrice) * 100,
       )
-    : 0
-  const savedAmount = hasDiscount
-    ? currentCompareAtPrice! - currentPrice
-    : 0
+    : 0;
+  const savedAmount = hasDiscount ? currentCompareAtPrice! - currentPrice : 0;
 
-  const activeImage = allImages[activeImageIndex] || ''
+  const activeImage = allImages[activeImageIndex] || "";
 
   const handleAddToCart = () => {
     if (!accessToken) {
-      toast.error('Please sign in to add items to your cart.')
+      toast.error("Please sign in to add items to your cart.");
       const currentUrl =
-        typeof window !== 'undefined'
+        typeof window !== "undefined"
           ? window.location.pathname
-          : `/products/${product.slug || product.uuid}`
-      router.push(`/login?redirect=${encodeURIComponent(currentUrl)}`)
-      return
+          : `/products/${product.slug || product.uuid}`;
+      router.push(`/login?redirect=${encodeURIComponent(currentUrl)}`);
+      return;
     }
 
     if (!isInStock) {
-      toast.error('This product or variant is currently out of stock')
-      return
+      toast.error("This product or variant is currently out of stock");
+      return;
     }
 
     addItem({
@@ -109,30 +108,30 @@ export function ProductDetailView({
       selectedColor: activeVariant?.color,
       sku: activeVariant?.sku || product.sku,
       stockQuantity: currentStock,
-    })
+    });
 
-    toast.success(`Added ${quantity} "${product.name}" to cart!`)
-  }
+    toast.success(`Added ${quantity} "${product.name}" to cart!`);
+  };
 
   const handleBuyNow = () => {
     if (!accessToken) {
-      toast.error('Please sign in to proceed to checkout.')
+      toast.error("Please sign in to proceed to checkout.");
       const currentUrl =
-        typeof window !== 'undefined'
+        typeof window !== "undefined"
           ? window.location.pathname
-          : `/products/${product.slug || product.uuid}`
-      router.push(`/login?redirect=${encodeURIComponent(currentUrl)}`)
-      return
+          : `/products/${product.slug || product.uuid}`;
+      router.push(`/login?redirect=${encodeURIComponent(currentUrl)}`);
+      return;
     }
 
     if (!isInStock) {
-      toast.error('This product or variant is currently out of stock')
-      return
+      toast.error("This product or variant is currently out of stock");
+      return;
     }
 
     const buyNowId = activeVariant?.uuid
       ? `${product.uuid}-${activeVariant.uuid}`
-      : `${product.uuid}-${activeVariant?.size || 'default'}-${activeVariant?.color || 'default'}`
+      : `${product.uuid}-${activeVariant?.size || "default"}-${activeVariant?.color || "default"}`;
 
     setBuyNowItem({
       id: buyNowId,
@@ -148,26 +147,10 @@ export function ProductDetailView({
       sku: activeVariant?.sku || product.sku,
       stockQuantity: currentStock,
       selected: true,
-    })
+    });
 
-    router.push('/checkout?buyNow=1')
-  }
-
-  const handleShare = () => {
-    if (typeof window !== 'undefined') {
-      navigator.clipboard.writeText(window.location.href)
-      toast.success('Product link copied to clipboard!')
-    }
-  }
-
-  const toggleWishlist = () => {
-    setIsWishlisted(!isWishlisted)
-    if (!isWishlisted) {
-      toast.success('Added to your Wishlist!')
-    } else {
-      toast.info('Removed from your Wishlist.')
-    }
-  }
+    router.push("/checkout?buyNow=1");
+  };
 
   return (
     <div className="space-y-12">
@@ -195,28 +178,6 @@ export function ProductDetailView({
                 Save {discountPercent}%
               </span>
             )}
-
-            {/* Quick Actions (Wishlist & Share) */}
-            <div className="absolute top-4 right-4 flex items-center gap-2">
-              <button
-                onClick={toggleWishlist}
-                className={`w-9 h-9 rounded-full backdrop-blur-md flex items-center justify-center transition-all shadow-md ${
-                  isWishlisted
-                    ? 'bg-rose-500 text-white'
-                    : 'bg-white/90 text-slate-600 hover:bg-white hover:text-rose-500'
-                }`}
-                title="Save to wishlist"
-              >
-                <Heart className={`w-4 h-4 ${isWishlisted ? 'fill-white' : ''}`} />
-              </button>
-              <button
-                onClick={handleShare}
-                className="w-9 h-9 rounded-full bg-white/90 backdrop-blur-md text-slate-600 shadow-md flex items-center justify-center hover:bg-white hover:text-[#2196F3] transition-all"
-                title="Share product link"
-              >
-                <Share2 className="w-4 h-4" />
-              </button>
-            </div>
           </div>
 
           {/* Thumbnail Strip */}
@@ -228,8 +189,8 @@ export function ProductDetailView({
                   onClick={() => setActiveImageIndex(idx)}
                   className={`relative w-20 h-20 rounded-2xl overflow-hidden shrink-0 border-2 transition-all ${
                     activeImageIndex === idx
-                      ? 'border-[#2196F3] shadow-md ring-2 ring-[#2196F3]/20'
-                      : 'border-slate-200 opacity-70 hover:opacity-100'
+                      ? "border-[#2196F3] shadow-md ring-2 ring-[#2196F3]/20"
+                      : "border-slate-200 opacity-70 hover:opacity-100"
                   }`}
                 >
                   <img
@@ -255,16 +216,18 @@ export function ProductDetailView({
             <span
               className={`px-3 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1.5 ${
                 isInStock
-                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                  : 'bg-rose-50 text-rose-700 border border-rose-200'
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                  : "bg-rose-50 text-rose-700 border border-rose-200"
               }`}
             >
               <span
                 className={`w-1.5 h-1.5 rounded-full ${
-                  isInStock ? 'bg-emerald-500' : 'bg-rose-500'
+                  isInStock ? "bg-emerald-500" : "bg-rose-500"
                 }`}
               />
-              {isInStock ? `In Stock (${currentStock} units available)` : 'Sold Out'}
+              {isInStock
+                ? `In Stock (${currentStock} units available)`
+                : "Sold Out"}
             </span>
           </div>
 
@@ -277,7 +240,7 @@ export function ProductDetailView({
           <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 pb-2 border-b border-slate-100">
             <button
               type="button"
-              onClick={() => setActiveTab('reviews')}
+              onClick={() => setActiveTab("reviews")}
               className="flex items-center gap-1.5 hover:opacity-80 transition-opacity cursor-pointer text-left"
             >
               <div className="flex text-amber-400">
@@ -286,8 +249,8 @@ export function ProductDetailView({
                     key={i}
                     className={`w-4 h-4 ${
                       i < Math.round(initialSummary?.avg_rating || 5)
-                        ? 'fill-amber-400 text-amber-400'
-                        : 'text-slate-200'
+                        ? "fill-amber-400 text-amber-400"
+                        : "text-slate-200"
                     }`}
                   />
                 ))}
@@ -295,7 +258,7 @@ export function ProductDetailView({
               <span className="font-bold text-[#0D1B2A]">
                 {initialSummary && initialSummary.avg_rating > 0
                   ? initialSummary.avg_rating.toFixed(1)
-                  : '5.0'}
+                  : "5.0"}
               </span>
               <span className="text-slate-400">
                 ({initialSummary?.total_reviews || 0} verified reviews)
@@ -306,7 +269,10 @@ export function ProductDetailView({
 
             {(activeVariant?.sku || product.sku) && (
               <p className="font-mono">
-                SKU: <strong className="text-slate-800">{activeVariant?.sku || product.sku}</strong>
+                SKU:{" "}
+                <strong className="text-slate-800">
+                  {activeVariant?.sku || product.sku}
+                </strong>
               </p>
             )}
           </div>
@@ -337,26 +303,28 @@ export function ProductDetailView({
               </label>
               <div className="flex flex-wrap gap-2.5">
                 {product.variants.map((variant) => {
-                  const isSelected = variant.uuid === selectedVariantUuid
-                  const isVariantAvailable = variant.stock_quantity > 0
+                  const isSelected = variant.uuid === selectedVariantUuid;
+                  const isVariantAvailable = variant.stock_quantity > 0;
                   return (
                     <button
                       key={variant.uuid}
                       onClick={() => setSelectedVariantUuid(variant.uuid)}
                       className={`px-4 py-2.5 rounded-xl text-xs font-semibold border transition-all flex items-center gap-2 ${
                         isSelected
-                          ? 'border-[#2196F3] bg-[#E3F2FD] text-[#0D47A1] shadow-xs ring-2 ring-[#2196F3]/20'
+                          ? "border-[#2196F3] bg-[#E3F2FD] text-[#0D47A1] shadow-xs ring-2 ring-[#2196F3]/20"
                           : isVariantAvailable
-                          ? 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
-                          : 'border-slate-200 bg-slate-100 text-slate-400 line-through'
+                            ? "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                            : "border-slate-200 bg-slate-100 text-slate-400 line-through"
                       }`}
                     >
-                      <span>{variant.size || variant.color || variant.sku}</span>
+                      <span>
+                        {variant.size || variant.color || variant.sku}
+                      </span>
                       <span className="opacity-75">
                         ({formatCurrency(variant.price)})
                       </span>
                     </button>
-                  )
+                  );
                 })}
               </div>
             </div>
@@ -398,8 +366,8 @@ export function ProductDetailView({
                 disabled={!isInStock}
                 className={`w-full py-4 px-6 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-md ${
                   isInStock
-                    ? 'bg-[#2196F3] text-white hover:bg-[#0D47A1] hover:scale-[1.01] active:scale-[0.99] cursor-pointer'
-                    : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                    ? "bg-[#2196F3] text-white hover:bg-[#0D47A1] hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+                    : "bg-slate-200 text-slate-400 cursor-not-allowed"
                 }`}
               >
                 <ShoppingCart className="w-4 h-4" />
@@ -412,8 +380,8 @@ export function ProductDetailView({
                 disabled={!isInStock}
                 className={`w-full py-4 px-6 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-md ${
                   isInStock
-                    ? 'bg-[#0D47A1] text-white hover:bg-[#1565C0] hover:scale-[1.01] active:scale-[0.99] cursor-pointer'
-                    : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                    ? "bg-[#0D47A1] text-white hover:bg-[#1565C0] hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+                    : "bg-slate-100 text-slate-400 cursor-not-allowed"
                 }`}
               >
                 <Zap className="w-4 h-4 text-[#90CAF9]" />
@@ -448,21 +416,25 @@ export function ProductDetailView({
         {/* Tabs Bar */}
         <div className="flex border-b border-slate-200 overflow-x-auto gap-2 sm:gap-6">
           {[
-            { id: 'desc', label: 'Product Overview' },
-            { id: 'specs', label: 'Technical Specifications' },
-            { id: 'shipping', label: 'Shipping & Warranty' },
+            { id: "desc", label: "Product Overview" },
+            { id: "specs", label: "Technical Specifications" },
+            { id: "shipping", label: "Shipping & Warranty" },
             {
-              id: 'reviews',
+              id: "reviews",
               label: `Customer Reviews (${initialSummary?.total_reviews ?? 0})`,
             },
           ].map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as 'desc' | 'specs' | 'shipping' | 'reviews')}
+              onClick={() =>
+                setActiveTab(
+                  tab.id as "desc" | "specs" | "shipping" | "reviews",
+                )
+              }
               className={`pb-4 px-2 text-sm font-bold transition-all relative shrink-0 ${
                 activeTab === tab.id
-                  ? 'text-[#0D47A1]'
-                  : 'text-slate-500 hover:text-slate-800'
+                  ? "text-[#0D47A1]"
+                  : "text-slate-500 hover:text-slate-800"
               }`}
             >
               <span>{tab.label}</span>
@@ -475,7 +447,7 @@ export function ProductDetailView({
 
         {/* Tab Content */}
         <div className="pt-2">
-          {activeTab === 'desc' && (
+          {activeTab === "desc" && (
             <div className="space-y-6 max-w-3xl">
               <div>
                 <h3 className="text-lg font-bold text-[#0D1B2A] mb-3">
@@ -483,7 +455,7 @@ export function ProductDetailView({
                 </h3>
                 <div className="text-sm text-slate-600 leading-relaxed whitespace-pre-line">
                   {product.description ||
-                    'Experience top-tier quality and premium design with this authentic product from GOshop. Designed to elevate your everyday workflow and lifestyle.'}
+                    "Experience top-tier quality and premium design with this authentic product from GOshop. Designed to elevate your everyday workflow and lifestyle."}
                 </div>
               </div>
 
@@ -498,7 +470,9 @@ export function ProductDetailView({
                   </div>
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                    <span>Tested and certified for long-lasting reliability</span>
+                    <span>
+                      Tested and certified for long-lasting reliability
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
@@ -513,40 +487,64 @@ export function ProductDetailView({
             </div>
           )}
 
-          {activeTab === 'specs' && (
+          {activeTab === "specs" && (
             <div className="max-w-2xl">
               <div className="rounded-2xl border border-slate-200 overflow-hidden divide-y divide-slate-100 text-xs">
                 <div className="p-3.5 bg-slate-50 flex justify-between">
-                  <span className="font-semibold text-slate-600">Product Name</span>
-                  <span className="font-bold text-[#0D1B2A]">{product.name}</span>
+                  <span className="font-semibold text-slate-600">
+                    Product Name
+                  </span>
+                  <span className="font-bold text-[#0D1B2A]">
+                    {product.name}
+                  </span>
                 </div>
                 <div className="p-3.5 bg-white flex justify-between">
-                  <span className="font-semibold text-slate-600">SKU Number</span>
-                  <span className="font-mono text-slate-800">{product.sku || 'N/A'}</span>
-                </div>
-                <div className="p-3.5 bg-slate-50 flex justify-between">
-                  <span className="font-semibold text-slate-600">Department</span>
-                  <span className="text-[#0D47A1] font-bold">{product.category_name || 'General'}</span>
-                </div>
-                <div className="p-3.5 bg-white flex justify-between">
-                  <span className="font-semibold text-slate-600">Availability</span>
-                  <span className="text-emerald-600 font-bold">
-                    {isInStock ? `In Stock (${currentStock} items)` : 'Out of Stock'}
+                  <span className="font-semibold text-slate-600">
+                    SKU Number
+                  </span>
+                  <span className="font-mono text-slate-800">
+                    {product.sku || "N/A"}
                   </span>
                 </div>
                 <div className="p-3.5 bg-slate-50 flex justify-between">
-                  <span className="font-semibold text-slate-600">Warranty Term</span>
-                  <span className="text-slate-800 font-medium">12 Months Manufacturer Warranty</span>
+                  <span className="font-semibold text-slate-600">
+                    Department
+                  </span>
+                  <span className="text-[#0D47A1] font-bold">
+                    {product.category_name || "General"}
+                  </span>
                 </div>
                 <div className="p-3.5 bg-white flex justify-between">
-                  <span className="font-semibold text-slate-600">Authenticity</span>
-                  <span className="text-emerald-600 font-bold">100% Genuine Guaranteed</span>
+                  <span className="font-semibold text-slate-600">
+                    Availability
+                  </span>
+                  <span className="text-emerald-600 font-bold">
+                    {isInStock
+                      ? `In Stock (${currentStock} items)`
+                      : "Out of Stock"}
+                  </span>
+                </div>
+                <div className="p-3.5 bg-slate-50 flex justify-between">
+                  <span className="font-semibold text-slate-600">
+                    Warranty Term
+                  </span>
+                  <span className="text-slate-800 font-medium">
+                    12 Months Manufacturer Warranty
+                  </span>
+                </div>
+                <div className="p-3.5 bg-white flex justify-between">
+                  <span className="font-semibold text-slate-600">
+                    Authenticity
+                  </span>
+                  <span className="text-emerald-600 font-bold">
+                    100% Genuine Guaranteed
+                  </span>
                 </div>
               </div>
             </div>
           )}
 
-          {activeTab === 'shipping' && (
+          {activeTab === "shipping" && (
             <div className="space-y-6 max-w-3xl text-sm text-slate-600">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
@@ -555,8 +553,8 @@ export function ProductDetailView({
                     <span>Nationwide GHN Express</span>
                   </div>
                   <p className="text-xs text-slate-500 leading-relaxed">
-                    Orders in Ho Chi Minh City & Hanoi are delivered within 24 hours.
-                    Other provinces: 2 - 3 business days.
+                    Orders in Ho Chi Minh City & Hanoi are delivered within 24
+                    hours. Other provinces: 2 - 3 business days.
                   </p>
                 </div>
 
@@ -566,15 +564,16 @@ export function ProductDetailView({
                     <span>30-Day Free Return Policy</span>
                   </div>
                   <p className="text-xs text-slate-500 leading-relaxed">
-                    If there is any defect or damage during shipment, contact our support team
-                    for immediate exchange or 100% money-back refund.
+                    If there is any defect or damage during shipment, contact
+                    our support team for immediate exchange or 100% money-back
+                    refund.
                   </p>
                 </div>
               </div>
             </div>
           )}
 
-          {activeTab === 'reviews' && (
+          {activeTab === "reviews" && (
             <div className="max-w-4xl">
               <ProductReviewsSection
                 productUuid={product.uuid}
@@ -588,5 +587,5 @@ export function ProductDetailView({
         </div>
       </div>
     </div>
-  )
+  );
 }

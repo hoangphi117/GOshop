@@ -17,12 +17,14 @@ export const revalidate = 0;
 
 export default async function HomePage() {
   // Fetch real data concurrently from Go backend
-  const [banners, subBanners, categories, productsResponse] = await Promise.all([
-    getBanners("home_main"),
-    getBanners("home_sub"),
-    getCategories(),
-    getProducts({ limit: 12 }),
-  ]);
+  const [banners, subBanners, categories, productsResponse] = await Promise.all(
+    [
+      getBanners("home_main"),
+      getBanners("home_sub"),
+      getCategories(),
+      getProducts({ limit: 12 }),
+    ],
+  );
 
   const subBanner = subBanners[0] || null;
   const initialProducts: Product[] = productsResponse?.products || [];
@@ -30,7 +32,8 @@ export default async function HomePage() {
   // Top 4 products for flash deals
   const dealProducts = initialProducts.slice(0, 4);
   // Catalog products
-  const catalogProducts = initialProducts.length > 4 ? initialProducts.slice(4) : initialProducts;
+  const catalogProducts =
+    initialProducts.length > 4 ? initialProducts.slice(4) : initialProducts;
 
   return (
     <div className="flex flex-col min-h-screen bg-[#F8FAFC]">
@@ -88,7 +91,7 @@ export default async function HomePage() {
         <div className="mt-10 text-center">
           <Link
             href="/products"
-            className="inline-flex items-center gap-2 bg-white hover:bg-slate-50 text-[#007D9C] border-2 border-[#007D9C]/30 hover:border-[#007D9C] px-8 py-3.5 rounded-2xl text-sm font-bold transition-all shadow-xs hover:shadow-sm active:scale-95 font-heading cursor-pointer"
+            className="inline-flex items-center gap-2 bg-white hover:bg-slate-50 text-[#007D9C] border-2 border-[#007D9C]/30 hover:border-[#007D9C] px-8 py-3.5 rounded-md text-sm font-bold transition-all shadow-xs hover:shadow-sm active:scale-95 font-heading cursor-pointer"
           >
             <span>Explore Full Official Catalog</span>
             <ArrowRight className="w-4 h-4" />

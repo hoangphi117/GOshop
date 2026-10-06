@@ -11,6 +11,15 @@ interface HeroBannerProps {
   subBanner?: Banner | null;
 }
 
+function normalizeBannerUrl(url?: string): string {
+  if (!url) return "/products";
+  if (url.startsWith("/category/")) {
+    const slug = url.replace("/category/", "").trim();
+    return `/products?category=${slug}`;
+  }
+  return url;
+}
+
 export function HeroBanner({ banners = [], subBanner }: HeroBannerProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
 
@@ -24,6 +33,7 @@ export function HeroBanner({ banners = [], subBanner }: HeroBannerProps) {
   }, [banners.length]);
 
   const activeBanner = banners[currentSlide] || null;
+  const bannerLink = normalizeBannerUrl(activeBanner?.link_url);
 
   return (
     <section
@@ -75,7 +85,7 @@ export function HeroBanner({ banners = [], subBanner }: HeroBannerProps) {
               {/* CTAs */}
               <div className="flex flex-wrap items-center gap-3.5 pt-2">
                 <Link
-                  href={activeBanner?.link_url || "/products"}
+                  href={bannerLink}
                   className="bg-[#007D9C] hover:bg-[#00637C] text-white px-7 py-3.5 rounded-xl font-bold text-sm shadow-md hover:shadow-[#00ADD8]/25 transition-all flex items-center gap-2 group active:scale-95 font-heading cursor-pointer"
                 >
                   <span>Explore Catalog</span>
@@ -136,29 +146,35 @@ export function HeroBanner({ banners = [], subBanner }: HeroBannerProps) {
                 </div>
 
                 {/* Hero Showcase Image */}
-                <div className="relative w-full aspect-square max-w-sm rounded-2xl overflow-hidden shadow-xl bg-white p-3 border border-slate-200/80">
-                  <Image
-                    src={
-                      activeBanner?.image_url ||
-                      "https://images.unsplash.com/photo-1550009158-9ebf69173e03?w=800"
-                    }
-                    alt={activeBanner?.title || "GOshop Featured Collection"}
-                    fill
-                    sizes="(max-width: 1024px) 100vw, 400px"
-                    priority
-                    className="object-cover rounded-xl"
-                  />
-                </div>
+                <Link
+                  href={bannerLink}
+                  className="block w-full max-w-sm group/banner"
+                  aria-label={`View ${activeBanner?.title || "featured collection"}`}
+                >
+                  <div className="relative w-full aspect-square rounded-2xl overflow-hidden shadow-xl bg-white p-3 border border-slate-200/80">
+                    <Image
+                      src={
+                        activeBanner?.image_url ||
+                        "https://images.unsplash.com/photo-1550009158-9ebf69173e03?w=800"
+                      }
+                      alt={activeBanner?.title || "GOshop Featured Collection"}
+                      fill
+                      sizes="(max-width: 1024px) 100vw, 400px"
+                      priority
+                      className="object-cover rounded-xl"
+                    />
+                  </div>
 
-                {/* Card Subtitle */}
-                <div className="mt-4 text-center">
-                  <div className="text-sm font-bold text-slate-900 font-heading">
-                    {activeBanner?.title || "Official Tech & Merch Collection"}
+                  {/* Card Subtitle */}
+                  <div className="mt-4 text-center">
+                    <div className="text-sm font-bold text-slate-900 font-heading group-hover/banner:text-[#007D9C]">
+                      {activeBanner?.title || "Official Tech & Merch Collection"}
+                    </div>
+                    <div className="text-xs font-extrabold text-[#007D9C] font-heading mt-0.5">
+                      100% Genuine Guaranteed • Fast Delivery
+                    </div>
                   </div>
-                  <div className="text-xs font-extrabold text-[#007D9C] font-heading mt-0.5">
-                    100% Genuine Guaranteed • Fast Delivery
-                  </div>
-                </div>
+                </Link>
               </div>
             </div>
           </div>

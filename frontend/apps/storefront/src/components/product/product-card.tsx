@@ -31,13 +31,14 @@ export function ProductCard({ product }: ProductCardProps) {
 
   const isInStock = (product.stock ?? 0) > 0;
   const isLowStock = isInStock && (product.stock ?? 0) <= 5;
-  const hasDiscount =
-    Boolean(product.compare_at_price && product.compare_at_price > product.price);
+  const hasDiscount = Boolean(
+    product.compare_at_price && product.compare_at_price > product.price,
+  );
   const discountPercent = hasDiscount
     ? Math.round(
         ((product.compare_at_price! - product.price) /
           product.compare_at_price!) *
-          100
+          100,
       )
     : 0;
 
@@ -77,10 +78,10 @@ export function ProductCard({ product }: ProductCardProps) {
   };
 
   return (
-    <article className="group relative rounded-2xl bg-white border border-slate-200/90 p-4 flex flex-col justify-between shadow-xs hover:border-[#007D9C] hover:shadow-md">
+    <article className="group relative rounded-md bg-white border border-slate-200/90 p-4 flex flex-col justify-between shadow-xs hover:border-[#007D9C] hover:shadow-md">
       <div>
         {/* Product Image Thumbnail */}
-        <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-slate-50 mb-3 border border-slate-100 flex items-center justify-center">
+        <div className="relative aspect-square w-full rounded-md overflow-hidden bg-slate-50 mb-3 border border-slate-100 flex items-center justify-center">
           {primaryImg ? (
             <Image
               src={primaryImg}
@@ -100,7 +101,7 @@ export function ProductCard({ product }: ProductCardProps) {
 
           {/* Discount Badge */}
           {hasDiscount && (
-            <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md bg-[#F26522] text-white text-[10px] font-black font-heading shadow-xs z-10">
+            <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-xs bg-[#F26522] text-white text-[10px] font-black font-heading shadow-xs z-10">
               -{discountPercent}%
             </span>
           )}
@@ -127,7 +128,7 @@ export function ProductCard({ product }: ProductCardProps) {
 
           {hasReviews && (
             <div
-              className="inline-flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200/80 text-[11px] font-bold text-amber-800"
+              className="inline-flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded-xs bg-amber-50 border border-amber-200/80 text-[11px] font-bold text-amber-800"
               title={`Rating: ${ratingScore.toFixed(1)} / 5.0 (${reviewsCount} reviews)`}
             >
               <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
@@ -137,10 +138,7 @@ export function ProductCard({ product }: ProductCardProps) {
         </div>
 
         {/* Product Title */}
-        <Link
-          href={productUrl}
-          className="block group-hover:text-[#007D9C]"
-        >
+        <Link href={productUrl} className="block group-hover:text-[#007D9C]">
           <h3 className="text-sm font-bold text-slate-900 line-clamp-2 leading-snug font-heading">
             {product.name}
           </h3>
@@ -191,12 +189,14 @@ export function ProductCard({ product }: ProductCardProps) {
           type="button"
           onClick={handleAddToCart}
           disabled={!isInStock}
-          className={`shrink-0 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 font-heading z-10 ${
+          className={`shrink-0 px-3.5 py-2 rounded-xs text-xs font-bold flex items-center gap-1.5 font-heading z-10 ${
             isInStock
               ? "bg-[#007D9C] text-white hover:bg-[#00637C] cursor-pointer shadow-xs"
               : "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
           }`}
-          aria-label={isInStock ? `Add ${product.name} to cart` : "Out of stock"}
+          aria-label={
+            isInStock ? `Add ${product.name} to cart` : "Out of stock"
+          }
           title={isInStock ? "Add to cart" : "Out of stock"}
         >
           <ShoppingCart className="w-3.5 h-3.5 shrink-0" />
