@@ -38,7 +38,6 @@ import { cn, getDisplayNameInitials } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { DashboardHeader } from '@/components/layout/dashboard-header'
 import { Main } from '@/components/layout/main'
 import { useAdminUsers } from '@/features/users/hooks/use-users'
@@ -1127,17 +1126,22 @@ export function Chats() {
 
   return (
     <>
-      <DashboardHeader />
+      <DashboardHeader fixed={false} />
       <Main
         fixed
         fluid
-        className='flex h-[calc(100svh-4rem)] flex-1 flex-col overflow-hidden !p-0'
+        className='flex flex-1 min-h-0 flex-col overflow-hidden !p-0'
       >
-        <div className='flex h-full w-full flex-1 overflow-hidden border-t'>
+        <div className='flex h-full w-full flex-1 min-h-0 overflow-hidden border-t'>
           {/* Left Pane: Conversation List */}
-          <div className='flex w-80 shrink-0 flex-col border-r bg-card sm:w-96'>
+          <div
+            className={cn(
+              'flex w-full flex-col border-r bg-card md:w-80 lg:w-96 shrink-0 h-full min-h-0 overflow-hidden',
+              selectedConvUUID ? 'hidden md:flex' : 'flex'
+            )}
+          >
             {/* Search & Notification Permission Toggle */}
-            <div className='flex items-center gap-2 border-b p-3'>
+            <div className='flex items-center gap-2 border-b p-3 shrink-0'>
               <div ref={searchContainerRef} className='relative flex-1'>
                 <SearchIcon className='absolute top-2.5 left-2.5 h-4 w-4 text-muted-foreground' />
                 <Input
@@ -1257,7 +1261,7 @@ export function Chats() {
             </div>
 
             {/* Status Filter Tabs (Active / Archived) */}
-            <div className='flex border-b bg-muted/30 p-1.5 gap-1'>
+            <div className='flex border-b bg-muted/30 p-1.5 gap-1 shrink-0'>
               <button
                 type='button'
                 onClick={() => setStatusFilter('open')}
@@ -1284,8 +1288,8 @@ export function Chats() {
               </button>
             </div>
 
-            {/* Conversation Items */}
-            <ScrollArea className='flex-1'>
+            {/* Conversation Items - Direct scrollable container */}
+            <div className='flex-1 min-h-0 overflow-y-auto'>
               {isConversationsLoading ? (
                 <div className='p-6 text-center text-xs text-muted-foreground'>
                   Loading conversations...
@@ -1365,11 +1369,16 @@ export function Chats() {
                   })}
                 </div>
               )}
-            </ScrollArea>
+            </div>
           </div>
 
           {/* Right Pane: Active Conversation Room */}
-          <div className='flex flex-1 flex-col overflow-hidden bg-background'>
+          <div
+            className={cn(
+              'flex flex-1 flex-col overflow-hidden bg-background h-full min-h-0',
+              !selectedConvUUID ? 'hidden md:flex' : 'flex'
+            )}
+          >
             {!selectedConvUUID || !activeConversation ? (
               <div className='flex flex-1 flex-col items-center justify-center space-y-2 p-8 text-center text-muted-foreground'>
                 <MessagesSquare className='h-10 w-10 text-muted-foreground/40' />

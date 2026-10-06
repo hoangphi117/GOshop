@@ -6,7 +6,7 @@ export function Footer({ className, ...props }: FooterProps) {
   return (
     <footer
       className={cn(
-        'text-muted-foreground mt-auto shrink-0 border-t px-4 py-4 text-center text-sm',
+        'text-muted-foreground mt-auto shrink-0 border-t px-4 py-4 text-center text-sm [.has-data-\\[layout\\=fixed\\]_&]:hidden has-data-[layout=fixed]:hidden',
         className
       )}
       {...props}
