@@ -36,6 +36,9 @@ WHERE (
     sqlc.narg(max_price)::numeric IS NULL
     OR product_price <= sqlc.narg(max_price)::numeric
 ) AND (
+    sqlc.narg(min_rating)::numeric IS NULL
+    OR product_avg_rating >= sqlc.narg(min_rating)::numeric
+) AND (
     sqlc.narg(status)::int IS NULL
     OR product_status = sqlc.narg(status)::int
 );

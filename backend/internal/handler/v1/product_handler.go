@@ -117,7 +117,7 @@ func (ph *ProductHandler) GetAllProducts(ctx *gin.Context) {
 		return
 	}
 
-	listProducts, total, err := ph.getQueryService().GetAllProducts(ctx.Request.Context(), params.Search, params.CategoryUUID, params.MinPrice, params.MaxPrice, params.Status, params.OrderBy, params.Sort, params.Page, params.Limit, false)
+	listProducts, total, err := ph.getQueryService().GetAllProducts(ctx.Request.Context(), params.Search, params.CategoryUUID, params.MinPrice, params.MaxPrice, params.MinRating, params.Status, params.OrderBy, params.Sort, params.Page, params.Limit, false)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -140,7 +140,8 @@ func (ph *ProductHandler) GetAllProducts(ctx *gin.Context) {
 // @Param        category_uuid query string false "Filter by Category UUID"
 // @Param        min_price query number false "Minimum price"
 // @Param        max_price query number false "Maximum price"
-// @Param        sort query string false "Sort option (price:asc, price:desc, created_at:desc, created_at:asc)"
+// @Param        min_rating query number false "Minimum rating (0-5)"
+// @Param        sort query string false "Sort option (price:asc, price:desc, created_at:desc, created_at:asc, rating:desc, rating:asc)"
 // @Param        page query int false "Page number (default 1)"
 // @Param        limit query int false "Page limit (default 20)"
 // @Success      200 {object} utils.APIResponse{data=[]v1dto.ProductDTO} "Products retrieved successfully"
@@ -159,6 +160,7 @@ func (ph *ProductHandler) SearchProducts(ctx *gin.Context) {
 		params.CategoryUUID,
 		params.MinPrice,
 		params.MaxPrice,
+		params.MinRating,
 		params.Sort,
 		params.Page,
 		params.Limit,

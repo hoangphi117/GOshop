@@ -208,8 +208,8 @@ func (m *MockOrderItemRepository) GetByOrderID(ctx context.Context, orderID int3
 // =========================================================================
 type MockProductRepository struct {
 	CreateFunc        func(ctx context.Context, productParams sqlc.CreateProductParams) (sqlc.CreateProductRow, error)
-	CountProductsFunc func(ctx context.Context, search, categoryUUID string, minPrice, maxPrice float64, status int32, deleted bool) (int64, error)
-	GetAllFunc        func(ctx context.Context, search, categoryUUID string, minPrice, maxPrice float64, status int32, orderBy, sort string, limit, offset int32, deleted bool) ([]sqlc.GetProductByUUIDRow, error)
+	CountProductsFunc func(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, deleted bool) (int64, error)
+	GetAllFunc        func(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, orderBy, sort string, limit, offset int32, deleted bool) ([]sqlc.GetProductByUUIDRow, error)
 	GetBySlugFunc     func(ctx context.Context, slug string) (sqlc.GetProductBySlugRow, error)
 	GetByUUIDFunc     func(ctx context.Context, uuid uuid.UUID) (sqlc.GetProductByUUIDRow, error)
 	GetByUUIDsFunc    func(ctx context.Context, tx pgx.Tx, uuids []uuid.UUID) ([]sqlc.GetByUUIDsForUpdateRow, error)
@@ -228,16 +228,16 @@ func (m *MockProductRepository) Create(ctx context.Context, productParams sqlc.C
 	return sqlc.CreateProductRow{}, nil
 }
 
-func (m *MockProductRepository) CountProducts(ctx context.Context, search, categoryUUID string, minPrice, maxPrice float64, status int32, deleted bool) (int64, error) {
+func (m *MockProductRepository) CountProducts(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, deleted bool) (int64, error) {
 	if m.CountProductsFunc != nil {
-		return m.CountProductsFunc(ctx, search, categoryUUID, minPrice, maxPrice, status, deleted)
+		return m.CountProductsFunc(ctx, search, categoryUUID, minPrice, maxPrice, minRating, status, deleted)
 	}
 	return 0, nil
 }
 
-func (m *MockProductRepository) GetAll(ctx context.Context, search, categoryUUID string, minPrice, maxPrice float64, status int32, orderBy, sort string, limit, offset int32, deleted bool) ([]sqlc.GetProductByUUIDRow, error) {
+func (m *MockProductRepository) GetAll(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, orderBy, sort string, limit, offset int32, deleted bool) ([]sqlc.GetProductByUUIDRow, error) {
 	if m.GetAllFunc != nil {
-		return m.GetAllFunc(ctx, search, categoryUUID, minPrice, maxPrice, status, orderBy, sort, limit, offset, deleted)
+		return m.GetAllFunc(ctx, search, categoryUUID, minPrice, maxPrice, minRating, status, orderBy, sort, limit, offset, deleted)
 	}
 	return nil, nil
 }

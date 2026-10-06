@@ -34,7 +34,7 @@ func (r *SqlProductRepository) Create(ctx context.Context, productParams sqlc.Cr
 func (r *SqlProductRepository) CountProducts(
 	ctx context.Context,
 	search, categoryUUID string,
-	minPrice, maxPrice float64,
+	minPrice, maxPrice, minRating float64,
 	status int32,
 	deleted bool,
 ) (int64, error) {
@@ -61,6 +61,10 @@ func (r *SqlProductRepository) CountProducts(
 		params.MaxPrice = utils.FloatToNumeric(maxPrice)
 	}
 
+	if minRating > 0 {
+		params.MinRating = utils.FloatToNumeric(minRating)
+	}
+
 	if status > 0 {
 		params.Status = &status
 	}
@@ -76,7 +80,7 @@ func (r *SqlProductRepository) CountProducts(
 func (r *SqlProductRepository) GetAll(
 	ctx context.Context,
 	search, categoryUUID string,
-	minPrice, maxPrice float64,
+	minPrice, maxPrice, minRating float64,
 	status int32,
 	orderBy, sort string,
 	limit, offset int32,
@@ -141,6 +145,12 @@ func (r *SqlProductRepository) GetAll(
 		paramIdx++
 	}
 
+	if minRating > 0 {
+		query += fmt.Sprintf(" AND p.product_avg_rating >= $%d", paramIdx)
+		args = append(args, minRating)
+		paramIdx++
+	}
+
 	if status > 0 {
 		query += fmt.Sprintf(" AND p.product_status = $%d", paramIdx)
 		args = append(args, status)
@@ -157,6 +167,8 @@ func (r *SqlProductRepository) GetAll(
 		query += fmt.Sprintf(" ORDER BY p.product_name %s, p.product_id ASC", sortOrder)
 	case "product_price":
 		query += fmt.Sprintf(" ORDER BY p.product_price %s, p.product_id ASC", sortOrder)
+	case "product_avg_rating", "rating":
+		query += fmt.Sprintf(" ORDER BY p.product_avg_rating %s, p.product_id ASC", sortOrder)
 	default:
 		query += fmt.Sprintf(" ORDER BY p.product_created_at %s, p.product_id ASC", sortOrder)
 	}

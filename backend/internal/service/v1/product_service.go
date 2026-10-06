@@ -113,7 +113,7 @@ func (ps *productService) CreateProduct(ctx context.Context, input v1dto.CreateP
 	return product, nil
 }
 
-func (ps *productService) GetAllProducts(ctx context.Context, search, categoryUUID string, minPrice, maxPrice float64, status int32, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.GetProductByUUIDRow, int32, error) {
+func (ps *productService) GetAllProducts(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.GetProductByUUIDRow, int32, error) {
 	if sort == "" {
 		sort = "desc"
 	}
@@ -133,7 +133,7 @@ func (ps *productService) GetAllProducts(ctx context.Context, search, categoryUU
 
 	offset := (page - 1) * limit
 
-	cacheKey := ps.generateCacheKey(search, categoryUUID, minPrice, maxPrice, status, orderBy, sort, page, limit, deleted)
+	cacheKey := ps.generateCacheKey(search, categoryUUID, minPrice, maxPrice, minRating, status, orderBy, sort, page, limit, deleted)
 	var cacheData struct {
 		Products []sqlc.GetProductByUUIDRow `json:"products"`
 		Total    int32                      `json:"total"`
@@ -162,12 +162,12 @@ func (ps *productService) GetAllProducts(ctx context.Context, search, categoryUU
 			}
 		}
 
-		listProducts, err := ps.repo.GetAll(ctx, search, categoryUUID, minPrice, maxPrice, status, orderBy, sort, limit, offset, deleted)
+		listProducts, err := ps.repo.GetAll(ctx, search, categoryUUID, minPrice, maxPrice, minRating, status, orderBy, sort, limit, offset, deleted)
 		if err != nil {
 			return nil, utils.WrapError(utils.ErrCodeInternal, "failed to get all products", err)
 		}
 
-		total, err := ps.repo.CountProducts(ctx, search, categoryUUID, minPrice, maxPrice, status, deleted)
+		total, err := ps.repo.CountProducts(ctx, search, categoryUUID, minPrice, maxPrice, minRating, status, deleted)
 		if err != nil {
 			return nil, utils.WrapError(utils.ErrCodeInternal, "failed to count products", err)
 		}
@@ -335,7 +335,7 @@ func (ps *productService) TrashProduct(ctx context.Context, productUUID uuid.UUI
 	return nil
 }
 
-func (ps *productService) generateCacheKey(search, categoryUUID string, minPrice, maxPrice float64, status int32, orderBy, sort string, page, limit int32, deleted bool) string {
+func (ps *productService) generateCacheKey(search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, orderBy, sort string, page, limit int32, deleted bool) string {
 	search = strings.TrimSpace(search)
 	if search == "" {
 		search = "none"
@@ -348,6 +348,7 @@ func (ps *productService) generateCacheKey(search, categoryUUID string, minPrice
 
 	minPriceStr := fmt.Sprintf("%.2f", minPrice)
 	maxPriceStr := fmt.Sprintf("%.2f", maxPrice)
+	minRatingStr := fmt.Sprintf("%.2f", minRating)
 
 	statusStr := fmt.Sprintf("%d", status)
 
@@ -360,7 +361,7 @@ func (ps *productService) generateCacheKey(search, categoryUUID string, minPrice
 	if sort == "" {
 		sort = "desc"
 	}
-	return fmt.Sprintf("products:%s:%s:%s:%s:%s:%s:%s:%d:%d:%t", search, categoryUUID, minPriceStr, maxPriceStr, statusStr, orderBy, sort, page, limit, deleted)
+	return fmt.Sprintf("products:%s:%s:%s:%s:%s:%s:%s:%s:%d:%d:%t", search, categoryUUID, minPriceStr, maxPriceStr, minRatingStr, statusStr, orderBy, sort, page, limit, deleted)
 }
 
 type ParsedProductRow struct {
@@ -726,10 +727,10 @@ func (ps *productService) executeAtomicBatchInsert(ctx context.Context, rows []P
 }
 
 // SearchProducts executes typo-tolerant search in Meilisearch with fallback/caching
-func (ps *productService) SearchProducts(ctx context.Context, q, categoryUUID string, minPrice, maxPrice float64, sort string, page, limit int32) ([]v1dto.ProductDTO, int64, error) {
+func (ps *productService) SearchProducts(ctx context.Context, q, categoryUUID string, minPrice, maxPrice, minRating float64, sort string, page, limit int32) ([]v1dto.ProductDTO, int64, error) {
 	if ps.search == nil {
 		// Fallback to PostgreSQL if Meilisearch client is not configured
-		list, total, err := ps.GetAllProducts(ctx, q, categoryUUID, minPrice, maxPrice, ProductStatusActive, "product_created_at", "desc", page, limit, false)
+		list, total, err := ps.GetAllProducts(ctx, q, categoryUUID, minPrice, maxPrice, minRating, ProductStatusActive, "product_created_at", "desc", page, limit, false)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -748,6 +749,9 @@ func (ps *productService) SearchProducts(ctx context.Context, q, categoryUUID st
 	if maxPrice > 0 && maxPrice >= minPrice {
 		filters = append(filters, fmt.Sprintf("product_price <= %f", maxPrice))
 	}
+	if minRating > 0 {
+		filters = append(filters, fmt.Sprintf("product_avg_rating >= %f", minRating))
+	}
 
 	filterStr := strings.Join(filters, " AND ")
 
@@ -758,6 +762,10 @@ func (ps *productService) SearchProducts(ctx context.Context, q, categoryUUID st
 		sorts = append(sorts, "product_price:asc")
 	case "price:desc":
 		sorts = append(sorts, "product_price:desc")
+	case "rating:desc":
+		sorts = append(sorts, "product_avg_rating:desc")
+	case "rating:asc":
+		sorts = append(sorts, "product_avg_rating:asc")
 	case "created_at:desc":
 		sorts = append(sorts, "product_created_at:desc")
 	case "created_at:asc":
@@ -776,7 +784,7 @@ func (ps *productService) SearchProducts(ctx context.Context, q, categoryUUID st
 	docs, totalHits, err := ps.search.SearchDocuments(ctx, q, filterStr, sorts, int64(limit), offset)
 	if err != nil {
 		logger.Log.Warn().Err(err).Msg("Meilisearch search query failed, falling back to PostgreSQL")
-		list, total, err := ps.GetAllProducts(ctx, q, categoryUUID, minPrice, maxPrice, ProductStatusActive, "product_created_at", "desc", page, limit, false)
+		list, total, err := ps.GetAllProducts(ctx, q, categoryUUID, minPrice, maxPrice, minRating, ProductStatusActive, "product_created_at", "desc", page, limit, false)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -818,7 +826,7 @@ func (ps *productService) SuggestProducts(ctx context.Context, q string, limit i
 
 	if ps.search == nil {
 		// Fallback suggestion via PostgreSQL
-		list, _, err := ps.GetAllProducts(ctx, q, "", 0, 0, ProductStatusActive, "product_name", "asc", 1, limit, false)
+		list, _, err := ps.GetAllProducts(ctx, q, "", 0, 0, 0, ProductStatusActive, "product_name", "asc", 1, limit, false)
 		if err != nil {
 			return nil, err
 		}

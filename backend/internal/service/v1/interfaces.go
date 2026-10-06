@@ -44,10 +44,10 @@ type CategoryService interface {
 }
 
 type ProductQueryService interface {
-	GetAllProducts(ctx context.Context, search, categoryUUID string, minPrice, maxPrice float64, status int32, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.GetProductByUUIDRow, int32, error)
+	GetAllProducts(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.GetProductByUUIDRow, int32, error)
 	GetProductByUUID(ctx context.Context, productUUID uuid.UUID) (sqlc.GetProductByUUIDRow, error)
 	GetProductBySlug(ctx context.Context, slug string) (sqlc.GetProductBySlugRow, error)
-	SearchProducts(ctx context.Context, q, categoryUUID string, minPrice, maxPrice float64, sort string, page, limit int32) ([]v1dto.ProductDTO, int64, error)
+	SearchProducts(ctx context.Context, q, categoryUUID string, minPrice, maxPrice, minRating float64, sort string, page, limit int32) ([]v1dto.ProductDTO, int64, error)
 	SuggestProducts(ctx context.Context, q string, limit int32) ([]v1dto.ProductSuggestionDTO, error)
 }
 

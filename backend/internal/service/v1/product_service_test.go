@@ -257,12 +257,13 @@ func TestProductService_GetAllProducts(t *testing.T) {
 	t.Run("Case 1: Happy Path - Queries Repo and Returns Products with Total", func(t *testing.T) {
 		productUUID := uuid.New()
 		mockRepo := &testutils.MockProductRepository{
-			GetAllFunc: func(ctx context.Context, search, categoryUUID string, minPrice, maxPrice float64, status int32, orderBy, sort string, limit, offset int32, deleted bool) ([]sqlc.GetProductByUUIDRow, error) {
+			GetAllFunc: func(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, orderBy, sort string, limit, offset int32, deleted bool) ([]sqlc.GetProductByUUIDRow, error) {
 				assert.Equal(t, "laptop", search)
 				assert.Equal(t, int32(10), limit)
 				assert.Equal(t, int32(0), offset)
 				assert.Equal(t, "product_price", orderBy)
 				assert.Equal(t, "asc", sort)
+				assert.Equal(t, float64(4), minRating)
 				return []sqlc.GetProductByUUIDRow{
 					{
 						ProductID:   1,
@@ -271,14 +272,15 @@ func TestProductService_GetAllProducts(t *testing.T) {
 					},
 				}, nil
 			},
-			CountProductsFunc: func(ctx context.Context, search, categoryUUID string, minPrice, maxPrice float64, status int32, deleted bool) (int64, error) {
+			CountProductsFunc: func(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, deleted bool) (int64, error) {
+				assert.Equal(t, float64(4), minRating)
 				return 1, nil
 			},
 		}
 
 		svc := v1service.NewProductService(mockRepo, nil, nil, nil)
 
-		products, total, err := svc.GetAllProducts(ctx, "laptop", "", 100, 1000, 1, "product_price", "asc", 1, 10, false)
+		products, total, err := svc.GetAllProducts(ctx, "laptop", "", 100, 1000, 4, 1, "product_price", "asc", 1, 10, false)
 		require.NoError(t, err)
 		assert.Equal(t, int32(1), total)
 		assert.Len(t, products, 1)
@@ -287,20 +289,20 @@ func TestProductService_GetAllProducts(t *testing.T) {
 
 	t.Run("Case 2: Default Parameter Fallbacks", func(t *testing.T) {
 		mockRepo := &testutils.MockProductRepository{
-			GetAllFunc: func(ctx context.Context, search, categoryUUID string, minPrice, maxPrice float64, status int32, orderBy, sort string, limit, offset int32, deleted bool) ([]sqlc.GetProductByUUIDRow, error) {
+			GetAllFunc: func(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, orderBy, sort string, limit, offset int32, deleted bool) ([]sqlc.GetProductByUUIDRow, error) {
 				assert.Equal(t, "desc", sort)
 				assert.Equal(t, "product_created_at", orderBy)
 				assert.Equal(t, int32(0), offset)
 				return []sqlc.GetProductByUUIDRow{}, nil
 			},
-			CountProductsFunc: func(ctx context.Context, search, categoryUUID string, minPrice, maxPrice float64, status int32, deleted bool) (int64, error) {
+			CountProductsFunc: func(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, deleted bool) (int64, error) {
 				return 0, nil
 			},
 		}
 
 		svc := v1service.NewProductService(mockRepo, nil, nil, nil)
 
-		products, total, err := svc.GetAllProducts(ctx, "", "", 0, 0, 0, "", "", 0, 0, false)
+		products, total, err := svc.GetAllProducts(ctx, "", "", 0, 0, 0, 0, "", "", 0, 0, false)
 		require.NoError(t, err)
 		assert.Equal(t, int32(0), total)
 		assert.Empty(t, products)
@@ -308,31 +310,31 @@ func TestProductService_GetAllProducts(t *testing.T) {
 
 	t.Run("Case 3: Repo GetAll Error - Returns 500", func(t *testing.T) {
 		mockRepo := &testutils.MockProductRepository{
-			GetAllFunc: func(ctx context.Context, search, categoryUUID string, minPrice, maxPrice float64, status int32, orderBy, sort string, limit, offset int32, deleted bool) ([]sqlc.GetProductByUUIDRow, error) {
+			GetAllFunc: func(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, orderBy, sort string, limit, offset int32, deleted bool) ([]sqlc.GetProductByUUIDRow, error) {
 				return nil, errors.New("db query error")
 			},
 		}
 
 		svc := v1service.NewProductService(mockRepo, nil, nil, nil)
 
-		_, _, err := svc.GetAllProducts(ctx, "", "", 0, 0, 0, "", "", 1, 10, false)
+		_, _, err := svc.GetAllProducts(ctx, "", "", 0, 0, 0, 0, "", "", 1, 10, false)
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeInternal)
 	})
 
 	t.Run("Case 4: Repo CountProducts Error - Returns 500", func(t *testing.T) {
 		mockRepo := &testutils.MockProductRepository{
-			GetAllFunc: func(ctx context.Context, search, categoryUUID string, minPrice, maxPrice float64, status int32, orderBy, sort string, limit, offset int32, deleted bool) ([]sqlc.GetProductByUUIDRow, error) {
+			GetAllFunc: func(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, orderBy, sort string, limit, offset int32, deleted bool) ([]sqlc.GetProductByUUIDRow, error) {
 				return []sqlc.GetProductByUUIDRow{}, nil
 			},
-			CountProductsFunc: func(ctx context.Context, search, categoryUUID string, minPrice, maxPrice float64, status int32, deleted bool) (int64, error) {
+			CountProductsFunc: func(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, deleted bool) (int64, error) {
 				return 0, errors.New("count query error")
 			},
 		}
 
 		svc := v1service.NewProductService(mockRepo, nil, nil, nil)
 
-		_, _, err := svc.GetAllProducts(ctx, "", "", 0, 0, 0, "", "", 1, 10, false)
+		_, _, err := svc.GetAllProducts(ctx, "", "", 0, 0, 0, 0, "", "", 1, 10, false)
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeInternal)
 	})

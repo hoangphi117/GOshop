@@ -34,8 +34,11 @@ WHERE (
     $5::numeric IS NULL
     OR product_price <= $5::numeric
 ) AND (
-    $6::int IS NULL
-    OR product_status = $6::int
+    $6::numeric IS NULL
+    OR product_avg_rating >= $6::numeric
+) AND (
+    $7::int IS NULL
+    OR product_status = $7::int
 )
 `
 
@@ -45,6 +48,7 @@ type CountProductsParams struct {
 	CategoryUuid pgtype.UUID    `json:"category_uuid"`
 	MinPrice     pgtype.Numeric `json:"min_price"`
 	MaxPrice     pgtype.Numeric `json:"max_price"`
+	MinRating    pgtype.Numeric `json:"min_rating"`
 	Status       *int32         `json:"status"`
 }
 
@@ -55,6 +59,7 @@ func (q *Queries) CountProducts(ctx context.Context, arg CountProductsParams) (i
 		arg.CategoryUuid,
 		arg.MinPrice,
 		arg.MaxPrice,
+		arg.MinRating,
 		arg.Status,
 	)
 	var count int64

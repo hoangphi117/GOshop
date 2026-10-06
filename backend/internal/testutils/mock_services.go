@@ -1383,10 +1383,10 @@ func (m *MockLocationService) GetWards(ctx context.Context, districtID int) ([]v
 
 type MockProductService struct {
 	CreateProductFunc     func(ctx context.Context, input v1dto.CreateProductInput) (sqlc.CreateProductRow, error)
-	GetAllProductsFunc    func(ctx context.Context, search, categoryUUID string, minPrice, maxPrice float64, status int32, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.GetProductByUUIDRow, int32, error)
+	GetAllProductsFunc    func(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.GetProductByUUIDRow, int32, error)
 	GetProductByUUIDFunc  func(ctx context.Context, productUUID uuid.UUID) (sqlc.GetProductByUUIDRow, error)
 	GetProductBySlugFunc  func(ctx context.Context, slug string) (sqlc.GetProductBySlugRow, error)
-	SearchProductsFunc    func(ctx context.Context, q, categoryUUID string, minPrice, maxPrice float64, sort string, page, limit int32) ([]v1dto.ProductDTO, int64, error)
+	SearchProductsFunc    func(ctx context.Context, q, categoryUUID string, minPrice, maxPrice, minRating float64, sort string, page, limit int32) ([]v1dto.ProductDTO, int64, error)
 	SuggestProductsFunc   func(ctx context.Context, q string, limit int32) ([]v1dto.ProductSuggestionDTO, error)
 	UpdateProductFunc     func(ctx context.Context, input v1dto.UpdateProductInput) (sqlc.UpdateProductRow, error)
 	SoftDeleteProductFunc func(ctx context.Context, productUUID uuid.UUID) (sqlc.Product, error)
@@ -1402,16 +1402,16 @@ func (m *MockProductService) CreateProduct(ctx context.Context, input v1dto.Crea
 	return sqlc.CreateProductRow{}, nil
 }
 
-func (m *MockProductService) GetAllProducts(ctx context.Context, search, categoryUUID string, minPrice, maxPrice float64, status int32, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.GetProductByUUIDRow, int32, error) {
+func (m *MockProductService) GetAllProducts(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.GetProductByUUIDRow, int32, error) {
 	if m.GetAllProductsFunc != nil {
-		return m.GetAllProductsFunc(ctx, search, categoryUUID, minPrice, maxPrice, status, orderBy, sort, page, limit, deleted)
+		return m.GetAllProductsFunc(ctx, search, categoryUUID, minPrice, maxPrice, minRating, status, orderBy, sort, page, limit, deleted)
 	}
 	return nil, 0, nil
 }
 
-func (m *MockProductService) SearchProducts(ctx context.Context, q, categoryUUID string, minPrice, maxPrice float64, sort string, page, limit int32) ([]v1dto.ProductDTO, int64, error) {
+func (m *MockProductService) SearchProducts(ctx context.Context, q, categoryUUID string, minPrice, maxPrice, minRating float64, sort string, page, limit int32) ([]v1dto.ProductDTO, int64, error) {
 	if m.SearchProductsFunc != nil {
-		return m.SearchProductsFunc(ctx, q, categoryUUID, minPrice, maxPrice, sort, page, limit)
+		return m.SearchProductsFunc(ctx, q, categoryUUID, minPrice, maxPrice, minRating, sort, page, limit)
 	}
 	return []v1dto.ProductDTO{}, 0, nil
 }
