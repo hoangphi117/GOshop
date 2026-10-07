@@ -156,7 +156,6 @@ export function ProductCard({ product }: ProductCardProps) {
               </>
             ) : (
               <>
-                <span className="w-1.5 h-1.5 rounded-full bg-[#00ADD8] shrink-0" />
                 <span className="text-slate-500">
                   In stock ({product.stock} units)
                 </span>

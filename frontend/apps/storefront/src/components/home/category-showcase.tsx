@@ -88,10 +88,10 @@ export function CategoryShowcase({ categories = [] }: CategoryShowcaseProps) {
             <Link
               key={cat.uuid || cat.slug}
               href={`/products?category=${cat.slug}`}
-              className="group bg-white rounded-3xl p-5 border border-slate-200/90 hover:border-[#007D9C] hover:shadow-xl cursor-pointer overflow-hidden shadow-xs flex flex-col justify-between"
+              className="group bg-white rounded-md p-5 border border-slate-200/90 hover:border-[#007D9C] hover:shadow-xl cursor-pointer overflow-hidden shadow-xs flex flex-col justify-between"
             >
               <div>
-                <div className="w-full h-44 rounded-2xl bg-slate-50 overflow-hidden relative mb-4 border border-slate-100">
+                <div className="w-full h-44 rounded-md bg-slate-50 overflow-hidden relative mb-4 border border-slate-100">
                   <span
                     className={`absolute top-3 left-3 text-[11px] font-bold px-2.5 py-0.5 rounded-full z-10 shadow-xs font-heading ${tagBg}`}
                   >

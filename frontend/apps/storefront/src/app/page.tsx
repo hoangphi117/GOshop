@@ -62,7 +62,7 @@ export default async function HomePage() {
           <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar w-full md:w-auto pb-2 md:pb-0">
             <Link
               href="/products"
-              className="bg-[#007D9C] text-white px-4 py-1.5 rounded-full text-xs font-bold shrink-0 shadow-xs font-heading"
+              className="bg-[#007D9C] text-white px-4 py-1.5 rounded-md text-xs font-bold shrink-0 shadow-xs font-heading"
             >
               All Merch
             </Link>
@@ -70,7 +70,7 @@ export default async function HomePage() {
               <Link
                 key={cat.uuid || cat.slug}
                 href={`/products?category=${cat.slug}`}
-                className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 px-4 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-colors font-heading"
+                className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 px-4 py-1.5 rounded-md text-xs font-semibold shrink-0 transition-colors font-heading"
               >
                 {cat.category_name}
               </Link>

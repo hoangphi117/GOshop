@@ -61,30 +61,30 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
   )
 
   return (
-    <div className="bg-[#FAFBFC] min-h-screen py-8">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 space-y-8">
+    <div className="bg-[#F8FAFC] min-h-screen py-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 space-y-6">
         {/* Breadcrumb Navigation */}
-        <nav className="flex items-center gap-2 text-xs text-slate-500">
-          <Link href="/" className="hover:text-[#2196F3] transition-colors">
+        <nav className="flex items-center gap-2 text-xs text-[#64748B]">
+          <Link href="/" className="hover:text-[#007D9C] transition-colors">
             Home
           </Link>
-          <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-          <Link href="/products" className="hover:text-[#2196F3] transition-colors">
+          <ChevronRight className="w-3.5 h-3.5 text-[#94A3B8]" />
+          <Link href="/products" className="hover:text-[#007D9C] transition-colors">
             Catalog
           </Link>
           {product.category_name && (
             <>
-              <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+              <ChevronRight className="w-3.5 h-3.5 text-[#94A3B8]" />
               <Link
                 href={`/products?category=${encodeURIComponent(product.category_uuid || '')}`}
-                className="hover:text-[#2196F3] transition-colors"
+                className="hover:text-[#007D9C] transition-colors"
               >
                 {product.category_name}
               </Link>
             </>
           )}
-          <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-          <span className="font-semibold text-[#0D1B2A] truncate max-w-xs sm:max-w-md">
+          <ChevronRight className="w-3.5 h-3.5 text-[#94A3B8]" />
+          <span className="font-semibold text-[#0F172A] truncate max-w-xs sm:max-w-md">
             {product.name}
           </span>
         </nav>
@@ -93,7 +93,7 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
         <div>
           <Link
             href="/products"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-[#2196F3] transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#64748B] hover:text-[#007D9C] transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Back to Products</span>
@@ -109,16 +109,21 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
 
         {/* Related Products Section */}
         {relatedProducts.length > 0 && (
-          <section className="pt-16 border-t border-slate-200/80 space-y-6">
+          <section className="pt-10 border-t border-[#E2E8F0] space-y-5">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl sm:text-2xl font-extrabold text-[#0D1B2A] tracking-tight">
-                You May Also Like
-              </h2>
+              <div>
+                <h2 className="text-lg sm:text-xl font-bold text-[#0F172A] tracking-tight">
+                  Frequently Paired With
+                </h2>
+                <p className="text-xs text-[#64748B]">
+                  Complete your gear setup with matching hardware accessories.
+                </p>
+              </div>
               <Link
                 href="/products"
-                className="text-xs font-semibold text-[#0D47A1] hover:text-[#2196F3] transition-colors"
+                className="text-xs font-semibold text-[#007D9C] hover:text-[#00657E] transition-colors"
               >
-                View More
+                View Catalog →
               </Link>
             </div>
 

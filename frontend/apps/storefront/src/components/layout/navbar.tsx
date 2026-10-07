@@ -227,12 +227,6 @@ export function Navbar() {
               <Phone className="w-3.5 h-3.5 text-[#00ADD8]" />
               <span className="font-bold">Hotline: 1900-6868</span>
             </div>
-            <span className="text-[#004D66]">|</span>
-            <div className="flex items-center gap-1 cursor-pointer text-[#B0CDD9] hover:text-[#E0F7FC]">
-              <span className="font-bold text-[#E0F7FC]">VN</span>
-              <span>/</span>
-              <span>EN</span>
-            </div>
           </div>
         </div>
       </div>

@@ -39,10 +39,10 @@ export function HeroBanner({ banners = [], subBanner }: HeroBannerProps) {
     <section
       id="hero-banner"
       aria-label="Hero Showcase"
-      className="relative overflow-hidden bg-[#F8FAFC] py-8 sm:py-12 lg:py-16"
+      className="relative overflow-hidden bg-[#F8FAFC] py-2 sm:py-4 lg:py-8"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-10 lg:p-12 shadow-sm overflow-hidden relative">
+        <div className="bg-white rounded-xl border border-slate-200/90 p-6 sm:p-10 lg:p-12 shadow-sm overflow-hidden relative">
           {/* Ambient radial glow backdrop */}
           <div className="absolute -right-20 -top-20 w-96 h-96 bg-[#00ADD8]/15 rounded-full blur-3xl pointer-events-none" />
           <div className="absolute right-1/4 -bottom-20 w-80 h-80 bg-[#007D9C]/10 rounded-full blur-3xl pointer-events-none" />
@@ -168,7 +168,8 @@ export function HeroBanner({ banners = [], subBanner }: HeroBannerProps) {
                   {/* Card Subtitle */}
                   <div className="mt-4 text-center">
                     <div className="text-sm font-bold text-slate-900 font-heading group-hover/banner:text-[#007D9C]">
-                      {activeBanner?.title || "Official Tech & Merch Collection"}
+                      {activeBanner?.title ||
+                        "Official Tech & Merch Collection"}
                     </div>
                     <div className="text-xs font-extrabold text-[#007D9C] font-heading mt-0.5">
                       100% Genuine Guaranteed • Fast Delivery

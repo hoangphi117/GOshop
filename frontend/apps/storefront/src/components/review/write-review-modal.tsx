@@ -193,39 +193,40 @@ export function WriteReviewModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
       <div
-        className="w-full max-w-xl max-h-[90vh] bg-white rounded-3xl shadow-2xl border border-slate-200/80 flex flex-col overflow-hidden animate-scale-up"
+        className="w-full max-w-xl max-h-[90vh] bg-white rounded-md shadow-xl border border-[#E2E8F0] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+        <div className="px-5 py-4 border-b border-[#E2E8F0] flex items-center justify-between bg-[#F8FAFC]">
           <div className="flex items-center gap-3 min-w-0">
             {productImageUrl && (
               <img
                 src={productImageUrl}
                 alt={productName}
-                className="w-10 h-10 rounded-xl object-cover border border-slate-200/80 shrink-0"
+                className="w-10 h-10 rounded-md object-cover border border-[#E2E8F0] shrink-0"
               />
             )}
             <div className="min-w-0">
-              <h2 className="text-base font-bold text-[#0D1B2A] truncate">
+              <h2 className="font-heading text-sm sm:text-base font-bold text-[#0F172A] truncate">
                 Rate & Review Product
               </h2>
-              <p className="text-xs text-slate-500 truncate">{productName}</p>
+              <p className="text-xs text-[#64748B] truncate">{productName}</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            className="w-8 h-8 rounded-md flex items-center justify-center text-[#64748B] hover:text-[#0F172A] hover:bg-[#E2E8F0]/60 transition-colors cursor-pointer"
+            aria-label="Close review dialog"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Content Form */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-4">
           {errorMsg && (
-            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-start gap-2.5">
+            <div className="p-3 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-start gap-2.5">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{errorMsg}</span>
             </div>
@@ -234,13 +235,13 @@ export function WriteReviewModal({
           {/* Order Selection if not fixed */}
           {!initialOrderUuid && eligibleOrders && eligibleOrders.length > 0 && (
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-[#0D1B2A]">
+              <label className="text-xs font-bold text-[#0F172A]">
                 Associated Purchase Order <span className="text-rose-500">*</span>
               </label>
               <select
                 value={selectedOrderUuid}
                 onChange={(e) => setSelectedOrderUuid(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-[#0D1B2A] focus:outline-none focus:border-[#2196F3] transition-all"
+                className="w-full px-3 py-2 rounded-md bg-[#F8FAFC] border border-[#E2E8F0] text-xs font-medium text-[#0F172A] focus:outline-none focus:border-[#007D9C] focus:ring-1 focus:ring-[#007D9C] transition-all"
                 required
               >
                 {eligibleOrders.map((ord) => (
@@ -253,8 +254,8 @@ export function WriteReviewModal({
           )}
 
           {/* Star Rating Selector */}
-          <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/60 flex flex-col items-center justify-center gap-2 text-center">
-            <span className="text-xs font-bold text-slate-700">Overall Rating</span>
+          <div className="p-4 rounded-md bg-[#F8FAFC] border border-[#E2E8F0] flex flex-col items-center justify-center gap-2 text-center">
+            <span className="font-heading text-xs font-bold text-[#0F172A] uppercase tracking-wider">Overall Rating</span>
             <div className="flex items-center gap-2">
               {[1, 2, 3, 4, 5].map((star) => (
                 <button
@@ -263,13 +264,14 @@ export function WriteReviewModal({
                   onClick={() => handleRatingClick(star)}
                   onMouseEnter={() => setHoverRating(star)}
                   onMouseLeave={() => setHoverRating(null)}
-                  className="p-1 text-amber-400 hover:scale-125 transition-transform cursor-pointer focus:outline-none"
+                  className="p-1 text-amber-400 hover:scale-110 transition-transform cursor-pointer focus:outline-none"
+                  aria-label={`Rate ${star} star`}
                 >
                   <Star
-                    className={`w-8 h-8 ${
+                    className={`w-7 h-7 ${
                       star <= currentDisplayRating
                         ? 'fill-amber-400 text-amber-400'
-                        : 'text-slate-300'
+                        : 'text-slate-200'
                     }`}
                   />
                 </button>
@@ -277,7 +279,7 @@ export function WriteReviewModal({
             </div>
             <span
               className={`text-xs font-bold ${
-                RATING_LABELS[currentDisplayRating]?.color || 'text-slate-600'
+                RATING_LABELS[currentDisplayRating]?.color || 'text-[#64748B]'
               }`}
             >
               {RATING_LABELS[currentDisplayRating]?.text}
@@ -286,8 +288,8 @@ export function WriteReviewModal({
 
           {/* Title */}
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-[#0D1B2A]">
-              Review Title <span className="text-slate-400 font-normal">(Optional)</span>
+            <label className="text-xs font-bold text-[#0F172A]">
+              Review Title <span className="text-[#64748B] font-normal">(Optional)</span>
             </label>
             <input
               type="text"
@@ -295,17 +297,17 @@ export function WriteReviewModal({
               onChange={(e) => setTitle(e.target.value)}
               maxLength={200}
               placeholder="e.g. Great quality and lightning fast delivery!"
-              className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-medium text-[#0D1B2A] placeholder:text-slate-400 focus:outline-none focus:border-[#2196F3] shadow-2xs transition-all"
+              className="w-full px-3 py-2 rounded-md bg-white border border-[#E2E8F0] text-xs font-medium text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#007D9C] focus:ring-1 focus:ring-[#007D9C] shadow-2xs transition-all"
             />
           </div>
 
           {/* Comment */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-[#0D1B2A]">
-                Review Experience <span className="text-slate-400 font-normal">(Optional)</span>
+              <label className="text-xs font-bold text-[#0F172A]">
+                Review Experience <span className="text-[#64748B] font-normal">(Optional)</span>
               </label>
-              <span className="text-[10px] text-slate-400">{comment.length}/2000</span>
+              <span className="text-[10px] text-[#94A3B8]">{comment.length}/2000</span>
             </div>
             <textarea
               value={comment}
@@ -313,15 +315,15 @@ export function WriteReviewModal({
               maxLength={2000}
               rows={4}
               placeholder="What did you like or dislike? How was the fit, material, packaging or customer support?"
-              className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-medium text-[#0D1B2A] placeholder:text-slate-400 focus:outline-none focus:border-[#2196F3] shadow-2xs transition-all resize-none"
+              className="w-full px-3 py-2 rounded-md bg-white border border-[#E2E8F0] text-xs font-medium text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#007D9C] focus:ring-1 focus:ring-[#007D9C] shadow-2xs transition-all resize-none"
             />
           </div>
 
           {/* Media Uploads */}
           <div className="space-y-2">
             <div className="flex items-center justify-between text-xs">
-              <span className="font-bold text-[#0D1B2A]">Photos & Video</span>
-              <span className="text-slate-400 text-[11px]">Max 5 images, 1 video (20MB max)</span>
+              <span className="font-bold text-[#0F172A]">Photos & Video</span>
+              <span className="text-[#64748B] text-[11px]">Max 5 images, 1 video (20MB max)</span>
             </div>
 
             {/* Media Preview Grid */}
@@ -329,7 +331,7 @@ export function WriteReviewModal({
               {previews.map((preview, index) => (
                 <div
                   key={index}
-                  className="relative group aspect-square rounded-xl overflow-hidden border border-slate-200 bg-slate-100"
+                  className="relative group aspect-square rounded-md overflow-hidden border border-[#E2E8F0] bg-[#F8FAFC]"
                 >
                   {preview.isVideo ? (
                     <video
@@ -364,6 +366,7 @@ export function WriteReviewModal({
                     type="button"
                     onClick={() => handleRemoveFile(index)}
                     className="absolute top-1 right-1 w-6 h-6 rounded-full bg-rose-600 text-white flex items-center justify-center opacity-90 hover:opacity-100 transition-opacity shadow-xs cursor-pointer"
+                    aria-label="Remove uploaded media"
                   >
                     <Trash2 className="w-3 h-3" />
                   </button>
@@ -374,9 +377,9 @@ export function WriteReviewModal({
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="aspect-square rounded-xl border-2 border-dashed border-slate-300 hover:border-[#2196F3] bg-slate-50 hover:bg-blue-50/40 text-slate-500 hover:text-[#2196F3] flex flex-col items-center justify-center gap-1 transition-all cursor-pointer"
+                  className="aspect-square rounded-md border-2 border-dashed border-[#CBD5E1] hover:border-[#007D9C] bg-[#F8FAFC] hover:bg-[#F0F9FB] text-[#64748B] hover:text-[#007D9C] flex flex-col items-center justify-center gap-1 transition-all cursor-pointer"
                 >
-                  <Upload className="w-5 h-5" />
+                  <Upload className="w-4 h-4" />
                   <span className="text-[10px] font-bold">Add Media</span>
                 </button>
               )}
@@ -393,31 +396,31 @@ export function WriteReviewModal({
           </div>
 
           {/* Submission Info */}
-          <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-2 text-[11px] text-slate-500">
-            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+          <div className="p-3 rounded-md bg-[#F8FAFC] border border-[#E2E8F0] flex items-center gap-2 text-[11px] text-[#64748B]">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>
               Your review helps other shoppers make informed choices. Verified buyers will receive a badge.
             </span>
           </div>
 
           {/* Actions */}
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+          <div className="pt-3 border-t border-[#E2E8F0] flex items-center justify-end gap-2.5">
             <button
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+              className="px-4 py-2 rounded-md border border-[#E2E8F0] bg-white hover:bg-[#F8FAFC] text-[#0F172A] text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-[#2196F3] hover:bg-[#0D47A1] text-white text-xs font-bold transition-all shadow-xs disabled:opacity-50 cursor-pointer"
+              className="inline-flex items-center justify-center gap-2 px-5 py-2 rounded-md bg-[#007D9C] hover:bg-[#00657E] text-white text-xs font-bold transition-all shadow-xs disabled:opacity-50 cursor-pointer"
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   <span>Submitting...</span>
                 </>
               ) : (

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Rubik, Nunito_Sans } from "next/font/google";
 import "./globals.css";
+import NextTopLoader from "nextjs-toploader";
 import { QueryProvider } from "@/providers/query-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { Navbar } from "@/components/layout/navbar";
@@ -42,6 +43,17 @@ export default function RootLayout({
       className={`${rubik.variable} ${nunitoSans.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-[#F8FAFC] text-[#0F172A] font-body selection:bg-emerald-100 selection:text-emerald-900">
+        <NextTopLoader
+          color="#007D9C"
+          initialPosition={0.08}
+          crawlSpeed={200}
+          height={3}
+          crawl={true}
+          showSpinner={false}
+          easing="ease"
+          speed={200}
+          shadow="0 0 10px #007D9C,0 0 5px #00ADD8"
+        />
         <ThemeProvider>
           <QueryProvider>
             <Navbar />
