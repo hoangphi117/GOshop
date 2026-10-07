@@ -104,6 +104,22 @@ func (r *SqlNotificationRepository) CountAdminNotifications(ctx context.Context,
 	return count, nil
 }
 
+func (r *SqlNotificationRepository) CountAdminUnreadNotifications(ctx context.Context, userID int32) (int64, error) {
+	isReadFalse := false
+	count, err := r.db.CountAdminNotifications(ctx, sqlc.CountAdminNotificationsParams{
+		UserID: userID,
+		IsRead: &isReadFalse,
+	})
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func (r *SqlNotificationRepository) MarkAllAdminAsRead(ctx context.Context, userID int32) error {
+	return r.db.MarkAllAdminNotificationsRead(ctx, userID)
+}
+
 func (r *SqlNotificationRepository) DeleteOldReadNotifications(ctx context.Context, cutoff time.Time) (int64, error) {
 	return r.db.DeleteOldNotifications(ctx, cutoff)
 }

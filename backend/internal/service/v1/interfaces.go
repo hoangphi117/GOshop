@@ -214,8 +214,10 @@ type NotificationService interface {
 	GetMyNotifications(ctx context.Context, userUUID uuid.UUID, query v1dto.GetNotificationsQuery) ([]v1dto.NotificationDTO, int32, error)
 	GetAdminNotifications(ctx context.Context, userUUID uuid.UUID, query v1dto.AdminGetNotificationsQuery) ([]v1dto.NotificationDTO, int32, error)
 	GetUnreadNotificationCount(ctx context.Context, userUUID uuid.UUID) (v1dto.UnreadCountDTO, error)
+	GetAdminUnreadNotificationCount(ctx context.Context, userUUID uuid.UUID) (v1dto.UnreadCountDTO, error)
 	MarkNotificationAsRead(ctx context.Context, userUUID uuid.UUID, notificationUUID uuid.UUID) (v1dto.NotificationDTO, error)
 	MarkAllNotificationsAsRead(ctx context.Context, userUUID uuid.UUID) error
+	MarkAllAdminNotificationsAsRead(ctx context.Context, userUUID uuid.UUID) error
 	DeleteNotification(ctx context.Context, userUUID uuid.UUID, notificationUUID uuid.UUID) error
 	PurgeStaleNotifications(ctx context.Context, retentionDays int) (int64, error)
 }

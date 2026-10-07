@@ -183,6 +183,7 @@ type Querier interface {
 	ListUserUserCreatedAtDesc(ctx context.Context, arg ListUserUserCreatedAtDescParams) ([]User, error)
 	ListUserUserIdAsc(ctx context.Context, arg ListUserUserIdAscParams) ([]User, error)
 	ListUserUserIdDesc(ctx context.Context, arg ListUserUserIdDescParams) ([]User, error)
+	MarkAllAdminNotificationsRead(ctx context.Context, notificationUserID int32) error
 	MarkAllNotificationsRead(ctx context.Context, notificationUserID int32) error
 	MarkMessagesRead(ctx context.Context, arg MarkMessagesReadParams) error
 	MarkNotificationRead(ctx context.Context, arg MarkNotificationReadParams) (Notification, error)

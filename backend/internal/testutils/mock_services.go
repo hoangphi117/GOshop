@@ -130,19 +130,21 @@ func (m *MockInventoryService) ListStockMovements(ctx context.Context, params v1
 
 
 type MockNotificationService struct {
-	SendFunc                       func(ctx context.Context, input v1dto.SendNotificationInput) error
-	SendAsyncFunc                  func(ctx context.Context, input v1dto.SendNotificationInput) error
-	CreateNotificationFunc         func(ctx context.Context, input v1dto.CreateNotificationInput) (v1dto.NotificationDTO, error)
-	BroadcastNotificationFunc      func(ctx context.Context, input v1dto.BroadcastNotificationInput) error
-	GetMyNotificationsFunc         func(ctx context.Context, userUUID uuid.UUID, query v1dto.GetNotificationsQuery) ([]v1dto.NotificationDTO, int32, error)
-	GetUnreadNotificationCountFunc func(ctx context.Context, userUUID uuid.UUID) (v1dto.UnreadCountDTO, error)
-	MarkNotificationAsReadFunc     func(ctx context.Context, userUUID uuid.UUID, notificationUUID uuid.UUID) (v1dto.NotificationDTO, error)
-	MarkAllNotificationsAsReadFunc func(ctx context.Context, userUUID uuid.UUID) error
-	DeleteNotificationFunc         func(ctx context.Context, userUUID uuid.UUID, notificationUUID uuid.UUID) error
-	NotifyAdminsFunc               func(ctx context.Context, input v1dto.AdminNotifyInput) error
-	NotifyAdminsAsyncFunc          func(ctx context.Context, input v1dto.AdminNotifyInput) error
-	GetAdminNotificationsFunc      func(ctx context.Context, userUUID uuid.UUID, query v1dto.AdminGetNotificationsQuery) ([]v1dto.NotificationDTO, int32, error)
-	PurgeStaleNotificationsFunc    func(ctx context.Context, retentionDays int) (int64, error)
+	SendFunc                            func(ctx context.Context, input v1dto.SendNotificationInput) error
+	SendAsyncFunc                       func(ctx context.Context, input v1dto.SendNotificationInput) error
+	CreateNotificationFunc              func(ctx context.Context, input v1dto.CreateNotificationInput) (v1dto.NotificationDTO, error)
+	BroadcastNotificationFunc           func(ctx context.Context, input v1dto.BroadcastNotificationInput) error
+	GetMyNotificationsFunc              func(ctx context.Context, userUUID uuid.UUID, query v1dto.GetNotificationsQuery) ([]v1dto.NotificationDTO, int32, error)
+	GetUnreadNotificationCountFunc      func(ctx context.Context, userUUID uuid.UUID) (v1dto.UnreadCountDTO, error)
+	GetAdminUnreadNotificationCountFunc func(ctx context.Context, userUUID uuid.UUID) (v1dto.UnreadCountDTO, error)
+	MarkNotificationAsReadFunc          func(ctx context.Context, userUUID uuid.UUID, notificationUUID uuid.UUID) (v1dto.NotificationDTO, error)
+	MarkAllNotificationsAsReadFunc      func(ctx context.Context, userUUID uuid.UUID) error
+	MarkAllAdminNotificationsAsReadFunc func(ctx context.Context, userUUID uuid.UUID) error
+	DeleteNotificationFunc              func(ctx context.Context, userUUID uuid.UUID, notificationUUID uuid.UUID) error
+	NotifyAdminsFunc                    func(ctx context.Context, input v1dto.AdminNotifyInput) error
+	NotifyAdminsAsyncFunc               func(ctx context.Context, input v1dto.AdminNotifyInput) error
+	GetAdminNotificationsFunc           func(ctx context.Context, userUUID uuid.UUID, query v1dto.AdminGetNotificationsQuery) ([]v1dto.NotificationDTO, int32, error)
+	PurgeStaleNotificationsFunc         func(ctx context.Context, retentionDays int) (int64, error)
 }
 
 func (m *MockNotificationService) Send(ctx context.Context, input v1dto.SendNotificationInput) error {
@@ -190,6 +192,13 @@ func (m *MockNotificationService) GetUnreadNotificationCount(ctx context.Context
 	return v1dto.UnreadCountDTO{}, nil
 }
 
+func (m *MockNotificationService) GetAdminUnreadNotificationCount(ctx context.Context, userUUID uuid.UUID) (v1dto.UnreadCountDTO, error) {
+	if m.GetAdminUnreadNotificationCountFunc != nil {
+		return m.GetAdminUnreadNotificationCountFunc(ctx, userUUID)
+	}
+	return v1dto.UnreadCountDTO{}, nil
+}
+
 func (m *MockNotificationService) MarkNotificationAsRead(ctx context.Context, userUUID uuid.UUID, notificationUUID uuid.UUID) (v1dto.NotificationDTO, error) {
 	if m.MarkNotificationAsReadFunc != nil {
 		return m.MarkNotificationAsReadFunc(ctx, userUUID, notificationUUID)
@@ -200,6 +209,13 @@ func (m *MockNotificationService) MarkNotificationAsRead(ctx context.Context, us
 func (m *MockNotificationService) MarkAllNotificationsAsRead(ctx context.Context, userUUID uuid.UUID) error {
 	if m.MarkAllNotificationsAsReadFunc != nil {
 		return m.MarkAllNotificationsAsReadFunc(ctx, userUUID)
+	}
+	return nil
+}
+
+func (m *MockNotificationService) MarkAllAdminNotificationsAsRead(ctx context.Context, userUUID uuid.UUID) error {
+	if m.MarkAllAdminNotificationsAsReadFunc != nil {
+		return m.MarkAllAdminNotificationsAsReadFunc(ctx, userUUID)
 	}
 	return nil
 }

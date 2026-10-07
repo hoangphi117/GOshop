@@ -19,10 +19,10 @@ func (r *AdminNotificationRoutes) Register(rg *gin.RouterGroup) {
 	{
 		// Query & counts
 		adminGroup.GET("", r.handler.GetAdminNotifications)
-		adminGroup.GET("/unread", r.handler.GetUnreadCount)
+		adminGroup.GET("/unread", r.handler.GetAdminUnreadCount)
 
 		// Mark as read & delete
-		adminGroup.PATCH("/read-all", r.handler.MarkAllNotificationsAsRead)
+		adminGroup.PATCH("/read-all", r.handler.MarkAllAdminNotificationsAsRead)
 		adminGroup.PATCH("/:uuid/read", r.handler.MarkNotificationAsRead)
 		adminGroup.DELETE("/:uuid", r.handler.DeleteNotification)
 

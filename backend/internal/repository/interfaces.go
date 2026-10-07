@@ -197,6 +197,8 @@ type NotificationRepository interface {
 	CreateForAdmins(ctx context.Context, nType, title, body string, data []byte) error
 	GetAdminNotifications(ctx context.Context, userID int32, nType *string, isRead *bool, limit, offset int32) ([]sqlc.Notification, error)
 	CountAdminNotifications(ctx context.Context, userID int32, nType *string, isRead *bool) (int64, error)
+	CountAdminUnreadNotifications(ctx context.Context, userID int32) (int64, error)
+	MarkAllAdminAsRead(ctx context.Context, userID int32) error
 	CreateForAllUsers(ctx context.Context, nType, title, body string, data []byte) error
 	GetByUserID(ctx context.Context, userID int32, limit, offset int32) ([]sqlc.Notification, error)
 	CountByUserID(ctx context.Context, userID int32) (int64, error)

@@ -306,6 +306,7 @@ func (s *notificationService) broadCastToAdmins(input v1dto.AdminNotifyInput) {
 			"body":       input.Body,
 			"data":       input.Data,
 			"is_read":    false,
+			"is_admin":   true,
 			"created_at": time.Now().UTC(),
 		},
 	}
@@ -376,6 +377,7 @@ func (s *notificationService) NotifyAdmins(ctx context.Context, input v1dto.Admi
 			"body":       input.Body,
 			"data":       input.Data,
 			"is_read":    false,
+			"is_admin":   true,
 			"created_at": time.Now().UTC(),
 		},
 	}
@@ -450,4 +452,34 @@ func (s *notificationService) GetAdminNotifications(ctx context.Context, userUUI
 		dtos = append(dtos, v1dto.MapToNotificationDTO(n))
 	}
 	return dtos, int32(total), nil
+}
+
+func (s *notificationService) GetAdminUnreadNotificationCount(ctx context.Context, userUUID uuid.UUID) (v1dto.UnreadCountDTO, error) {
+	user, err := s.getUser(ctx, userUUID)
+	if err != nil {
+		return v1dto.UnreadCountDTO{}, err
+	}
+
+	count, err := s.notificationRepo.CountAdminUnreadNotifications(ctx, user.UserID)
+	if err != nil {
+		logger.Log.Error().Err(err).Int32("admin_id", user.UserID).Msg("Failed to count admin unread notifications")
+		return v1dto.UnreadCountDTO{}, utils.NewError(utils.ErrCodeInternal, "Failed to retrieve admin unread count")
+	}
+
+	return v1dto.UnreadCountDTO{UnreadCount: count}, nil
+}
+
+func (s *notificationService) MarkAllAdminNotificationsAsRead(ctx context.Context, userUUID uuid.UUID) error {
+	user, err := s.getUser(ctx, userUUID)
+	if err != nil {
+		return err
+	}
+
+	err = s.notificationRepo.MarkAllAdminAsRead(ctx, user.UserID)
+	if err != nil {
+		logger.Log.Error().Err(err).Int32("admin_id", user.UserID).Msg("Failed to mark all admin notifications as read")
+		return utils.NewError(utils.ErrCodeInternal, "Failed to mark all admin notifications as read")
+	}
+
+	return nil
 }

@@ -96,7 +96,22 @@ export function NotificationPopover({
           try {
             const msg = JSON.parse(event.data);
             if (msg?.type === "notification" && msg?.data) {
-              addNotification(msg.data);
+              const isAdminNotif =
+                Boolean(msg.data.is_admin) ||
+                [
+                  "order",
+                  "inventory",
+                  "refund",
+                  "review",
+                  "admin_order",
+                  "admin_inventory",
+                  "admin_refund",
+                  "admin_review",
+                ].includes(msg.data.type);
+
+              if (!isAdminNotif) {
+                addNotification(msg.data);
+              }
             }
           } catch {
             // ignore non-json messages

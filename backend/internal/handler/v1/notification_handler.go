@@ -280,3 +280,54 @@ func (h *NotificationHandler) DeleteNotification(ctx *gin.Context) {
 
 	utils.ResponseSuccess(ctx, http.StatusNoContent, "Notification deleted successfully", nil)
 }
+
+// GetAdminUnreadCount godoc
+// @Summary      Get admin unread notification count
+// @Description  Get number of unread admin notifications for current admin user
+// @Tags         Admin Notifications
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Success      200 {object} utils.APIResponse{data=v1dto.UnreadCountDTO}
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/notifications/unread [get]
+func (h *NotificationHandler) GetAdminUnreadCount(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	res, err := h.notificationService.GetAdminUnreadNotificationCount(ctx.Request.Context(), userUUID)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Admin unread notification count retrieved successfully", res)
+}
+
+// MarkAllAdminNotificationsAsRead godoc
+// @Summary      Mark all admin notifications as read
+// @Description  Mark all unread admin notifications of current user as read
+// @Tags         Admin Notifications
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Success      200 {object} utils.APIResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/notifications/read-all [patch]
+func (h *NotificationHandler) MarkAllAdminNotificationsAsRead(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	err = h.notificationService.MarkAllAdminNotificationsAsRead(ctx.Request.Context(), userUUID)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+	utils.ResponseSuccess(ctx, http.StatusOK, "All admin notifications marked as read successfully", nil)
+}

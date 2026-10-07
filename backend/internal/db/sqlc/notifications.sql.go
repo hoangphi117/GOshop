@@ -15,6 +15,7 @@ import (
 const countAdminNotifications = `-- name: CountAdminNotifications :one
 SELECT COUNT(*) FROM notifications
 WHERE notification_user_id = $1
+  AND notification_type IN ('order', 'inventory', 'refund', 'review', 'admin_order', 'admin_inventory', 'admin_refund', 'admin_review')
   AND ($2::TEXT IS NULL OR notification_type = $2::TEXT)
   AND ($3::BOOLEAN IS NULL OR notification_is_read = $3::BOOLEAN)
 `
@@ -35,6 +36,7 @@ func (q *Queries) CountAdminNotifications(ctx context.Context, arg CountAdminNot
 const countNotificationsByUserID = `-- name: CountNotificationsByUserID :one
 SELECT COUNT(*) FROM notifications
 WHERE notification_user_id = $1
+  AND notification_type NOT IN ('order', 'inventory', 'refund', 'review', 'admin_order', 'admin_inventory', 'admin_refund', 'admin_review')
 `
 
 func (q *Queries) CountNotificationsByUserID(ctx context.Context, notificationUserID int32) (int64, error) {
@@ -48,6 +50,7 @@ const countUnreadNotificationsByUserID = `-- name: CountUnreadNotificationsByUse
 SELECT COUNT(*) FROM notifications
 WHERE notification_user_id = $1
   AND notification_is_read = FALSE
+  AND notification_type NOT IN ('order', 'inventory', 'refund', 'review', 'admin_order', 'admin_inventory', 'admin_refund', 'admin_review')
 `
 
 func (q *Queries) CountUnreadNotificationsByUserID(ctx context.Context, notificationUserID int32) (int64, error) {
@@ -198,6 +201,7 @@ func (q *Queries) DeleteOldNotifications(ctx context.Context, notificationCreate
 const getAdminNotifications = `-- name: GetAdminNotifications :many
 SELECT notification_id, notification_uuid, notification_user_id, notification_type, notification_title, notification_body, notification_data, notification_is_read, notification_read_at, notification_created_at FROM notifications
 WHERE notification_user_id = $1
+  AND notification_type IN ('order', 'inventory', 'refund', 'review', 'admin_order', 'admin_inventory', 'admin_refund', 'admin_review')
   AND ($2::TEXT IS NULL OR notification_type = $2::TEXT)
   AND ($3::BOOLEAN IS NULL OR notification_is_read = $3::BOOLEAN)
 ORDER BY notification_created_at DESC
@@ -252,6 +256,7 @@ func (q *Queries) GetAdminNotifications(ctx context.Context, arg GetAdminNotific
 const getNotificationsByUserId = `-- name: GetNotificationsByUserId :many
 SELECT notification_id, notification_uuid, notification_user_id, notification_type, notification_title, notification_body, notification_data, notification_is_read, notification_read_at, notification_created_at FROM notifications
 WHERE notification_user_id = $1
+  AND notification_type NOT IN ('order', 'inventory', 'refund', 'review', 'admin_order', 'admin_inventory', 'admin_refund', 'admin_review')
 ORDER BY notification_created_at DESC
 LIMIT $2 OFFSET $3
 `
@@ -293,11 +298,26 @@ func (q *Queries) GetNotificationsByUserId(ctx context.Context, arg GetNotificat
 	return items, nil
 }
 
+const markAllAdminNotificationsRead = `-- name: MarkAllAdminNotificationsRead :exec
+UPDATE notifications SET
+    notification_is_read = TRUE,
+    notification_read_at  = now()
+WHERE notification_user_id = $1
+  AND notification_type IN ('order', 'inventory', 'refund', 'review', 'admin_order', 'admin_inventory', 'admin_refund', 'admin_review')
+  AND notification_is_read = FALSE
+`
+
+func (q *Queries) MarkAllAdminNotificationsRead(ctx context.Context, notificationUserID int32) error {
+	_, err := q.db.Exec(ctx, markAllAdminNotificationsRead, notificationUserID)
+	return err
+}
+
 const markAllNotificationsRead = `-- name: MarkAllNotificationsRead :exec
 UPDATE notifications SET
     notification_is_read = TRUE,
     notification_read_at  = now()
 WHERE notification_user_id = $1
+  AND notification_type NOT IN ('order', 'inventory', 'refund', 'review', 'admin_order', 'admin_inventory', 'admin_refund', 'admin_review')
   AND notification_is_read = FALSE
 `
 

@@ -1274,17 +1274,19 @@ func (m *MockAddressRepository) GetByUUID(ctx context.Context, userID int32, add
 // =========================================================================
 
 type MockNotificationRepository struct {
-	CreateFunc            func(ctx context.Context, params sqlc.CreateNotificationParams) (sqlc.Notification, error)
-	CreateForAllUsersFunc func(ctx context.Context, nType, title, body string, data []byte) error
-	GetByUserIDFunc       func(ctx context.Context, userID int32, limit, offset int32) ([]sqlc.Notification, error)
-	CountByUserIDFunc     func(ctx context.Context, userID int32) (int64, error)
-	CountUnreadByUserIDFunc func(ctx context.Context, userID int32) (int64, error)
-	MarkAsReadFunc        func(ctx context.Context, notifUUID uuid.UUID, userID int32) (sqlc.Notification, error)
-	MarkAllAsReadFunc           func(ctx context.Context, userID int32) error
-	DeleteFunc                  func(ctx context.Context, notifUUID uuid.UUID, userID int32) error
-	CreateForAdminsFunc         func(ctx context.Context, nType, title, body string, data []byte) error
-	GetAdminNotificationsFunc   func(ctx context.Context, userID int32, nType *string, isRead *bool, limit, offset int32) ([]sqlc.Notification, error)
-	CountAdminNotificationsFunc func(ctx context.Context, userID int32, nType *string, isRead *bool) (int64, error)
+	CreateFunc                     func(ctx context.Context, params sqlc.CreateNotificationParams) (sqlc.Notification, error)
+	CreateForAllUsersFunc          func(ctx context.Context, nType, title, body string, data []byte) error
+	GetByUserIDFunc                func(ctx context.Context, userID int32, limit, offset int32) ([]sqlc.Notification, error)
+	CountByUserIDFunc              func(ctx context.Context, userID int32) (int64, error)
+	CountUnreadByUserIDFunc        func(ctx context.Context, userID int32) (int64, error)
+	CountAdminUnreadNotificationsFunc func(ctx context.Context, userID int32) (int64, error)
+	MarkAsReadFunc                 func(ctx context.Context, notifUUID uuid.UUID, userID int32) (sqlc.Notification, error)
+	MarkAllAsReadFunc              func(ctx context.Context, userID int32) error
+	MarkAllAdminAsReadFunc         func(ctx context.Context, userID int32) error
+	DeleteFunc                     func(ctx context.Context, notifUUID uuid.UUID, userID int32) error
+	CreateForAdminsFunc            func(ctx context.Context, nType, title, body string, data []byte) error
+	GetAdminNotificationsFunc      func(ctx context.Context, userID int32, nType *string, isRead *bool, limit, offset int32) ([]sqlc.Notification, error)
+	CountAdminNotificationsFunc    func(ctx context.Context, userID int32, nType *string, isRead *bool) (int64, error)
 	DeleteOldReadNotificationsFunc func(ctx context.Context, cutoff time.Time) (int64, error)
 }
 
@@ -1323,6 +1325,13 @@ func (m *MockNotificationRepository) CountUnreadByUserID(ctx context.Context, us
 	return 0, nil
 }
 
+func (m *MockNotificationRepository) CountAdminUnreadNotifications(ctx context.Context, userID int32) (int64, error) {
+	if m.CountAdminUnreadNotificationsFunc != nil {
+		return m.CountAdminUnreadNotificationsFunc(ctx, userID)
+	}
+	return 0, nil
+}
+
 func (m *MockNotificationRepository) MarkAsRead(ctx context.Context, notifUUID uuid.UUID, userID int32) (sqlc.Notification, error) {
 	if m.MarkAsReadFunc != nil {
 		return m.MarkAsReadFunc(ctx, notifUUID, userID)
@@ -1333,6 +1342,13 @@ func (m *MockNotificationRepository) MarkAsRead(ctx context.Context, notifUUID u
 func (m *MockNotificationRepository) MarkAllAsRead(ctx context.Context, userID int32) error {
 	if m.MarkAllAsReadFunc != nil {
 		return m.MarkAllAsReadFunc(ctx, userID)
+	}
+	return nil
+}
+
+func (m *MockNotificationRepository) MarkAllAdminAsRead(ctx context.Context, userID int32) error {
+	if m.MarkAllAdminAsReadFunc != nil {
+		return m.MarkAllAdminAsReadFunc(ctx, userID)
 	}
 	return nil
 }
