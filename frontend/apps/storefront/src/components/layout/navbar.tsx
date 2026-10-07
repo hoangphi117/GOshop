@@ -30,7 +30,6 @@ import { useMounted } from "@/hooks/use-mounted";
 import { NotificationPopover } from "@/components/layout/notification-popover";
 import { SearchAutocomplete } from "@/components/layout/search-autocomplete";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 
 export function Navbar() {
   const pathname = usePathname();
@@ -275,7 +274,7 @@ export function Navbar() {
               <div className="relative flex items-center justify-center">
                 <ShoppingCart className="w-5 h-5" />
                 {totalCartItems > 0 && (
-                  <span className="absolute -top-1.5 -right-2 min-w-[18px] h-[18px] px-1 bg-[#F26522] text-white text-[10px] font-black rounded-full flex items-center justify-center ring-2 ring-[#007D9C] shadow-xs">
+                  <span className="absolute -top-3 -right-2 min-w-[18px] h-[18px] px-1 bg-[#F26522] text-white text-[10px] font-black rounded-full flex items-center justify-center ring-2 ring-[#007D9C] shadow-xs">
                     {totalCartItems > 99 ? "99+" : totalCartItems}
                   </span>
                 )}

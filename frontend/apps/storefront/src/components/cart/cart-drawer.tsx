@@ -44,22 +44,29 @@ export function CartDrawer() {
 
   const isAuthenticated = Boolean(user && accessToken);
   const availableItems = isAuthenticated
-    ? items.filter((item) => item.isAvailable !== false && item.stockQuantity > 0)
+    ? items.filter(
+        (item) => item.isAvailable !== false && item.stockQuantity > 0,
+      )
     : [];
-  const selectedItems = availableItems.filter((item) => item.selected !== false);
+  const selectedItems = availableItems.filter(
+    (item) => item.selected !== false,
+  );
   const selectedCount = selectedItems.length;
   const allSelected =
     availableItems.length > 0 && selectedCount === availableItems.length;
   const subtotal = selectedItems.reduce(
     (acc, item) => acc + item.price * item.quantity,
-    0
+    0,
   );
 
   const freeShippingProgress = Math.min(
     100,
-    Math.round((subtotal / FREE_SHIPPING_THRESHOLD) * 100)
+    Math.round((subtotal / FREE_SHIPPING_THRESHOLD) * 100),
   );
-  const remainingForFreeShipping = Math.max(0, FREE_SHIPPING_THRESHOLD - subtotal);
+  const remainingForFreeShipping = Math.max(
+    0,
+    FREE_SHIPPING_THRESHOLD - subtotal,
+  );
 
   return (
     <>
@@ -91,7 +98,7 @@ export function CartDrawer() {
               </h2>
               <p className="text-[11px] text-slate-500 font-body">
                 {isAuthenticated
-                  ? `${items.length} unique ${items.length === 1 ? "item" : "items"}`
+                  ? `${items.length} ${items.length === 1 ? "item" : "items"}`
                   : "Guest Session"}
               </p>
             </div>
@@ -132,11 +139,13 @@ export function CartDrawer() {
                   ? "You unlocked FREE Express Shipping!"
                   : `Add ${formatCurrency(remainingForFreeShipping)} for FREE Express Shipping`}
               </span>
-              <span className="text-[11px] font-bold">{freeShippingProgress}%</span>
+              <span className="text-[11px] font-bold">
+                {freeShippingProgress}%
+              </span>
             </div>
-            <div className="h-1.5 w-full bg-slate-200/80 rounded-full overflow-hidden">
+            <div className="h-1.5 w-full bg-slate-200/80 rounded-md overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-[#00ADD8] to-[#007D9C] rounded-full transition-all duration-500"
+                className="h-full bg-gradient-to-r from-[#00ADD8] to-[#007D9C] rounded-md transition-all duration-500"
                 style={{ width: `${freeShippingProgress}%` }}
               />
             </div>
@@ -164,14 +173,15 @@ export function CartDrawer() {
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
           {!isAuthenticated ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-3">
-              <div className="w-16 h-16 rounded-2xl bg-[#E6F7FB] flex items-center justify-center text-[#007D9C] mb-2">
+              <div className="w-16 h-16 rounded-md bg-[#E6F7FB] flex items-center justify-center text-[#007D9C] mb-2">
                 <Lock className="w-8 h-8" />
               </div>
               <h3 className="text-base font-bold text-slate-900 font-heading">
                 Sign In Required
               </h3>
               <p className="text-xs text-slate-500 max-w-xs font-body leading-relaxed">
-                Please sign in to your GOshop account to sync your saved loot, track orders, and checkout.
+                Please sign in to your GOshop account to sync your saved loot,
+                track orders, and checkout.
               </p>
               <Button
                 asChild
@@ -185,14 +195,15 @@ export function CartDrawer() {
             </div>
           ) : items.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-3">
-              <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-2">
+              <div className="w-16 h-16 rounded-md bg-slate-100 flex items-center justify-center text-slate-400 mb-2">
                 <ShoppingCart className="w-8 h-8" />
               </div>
               <h3 className="text-base font-bold text-slate-900 font-heading">
                 Your loot box is empty
               </h3>
               <p className="text-xs text-slate-500 max-w-xs font-body leading-relaxed">
-                Looks like you haven&apos;t added any boss plushies or game gear to your cart yet.
+                Looks like you haven&apos;t added any boss plushies or game gear
+                to your cart yet.
               </p>
               <Button
                 variant="cyan"
@@ -209,7 +220,9 @@ export function CartDrawer() {
                 const isOutOfStock =
                   item.isAvailable === false || item.stockQuantity <= 0;
                 const isLowStock =
-                  !isOutOfStock && item.stockQuantity > 0 && item.stockQuantity <= 5;
+                  !isOutOfStock &&
+                  item.stockQuantity > 0 &&
+                  item.stockQuantity <= 5;
                 const isSelected = item.selected !== false && !isOutOfStock;
 
                 return (
@@ -274,15 +287,19 @@ export function CartDrawer() {
                         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                           {(item.selectedSize || item.selectedColor) && (
                             <p className="text-xs text-slate-500 font-body">
-                              {item.selectedSize && `Size: ${item.selectedSize}`}
+                              {item.selectedSize &&
+                                `Size: ${item.selectedSize}`}
                               {item.selectedSize && item.selectedColor && " | "}
-                              {item.selectedColor && `Color: ${item.selectedColor}`}
+                              {item.selectedColor &&
+                                `Color: ${item.selectedColor}`}
                             </p>
                           )}
                           {isOutOfStock ? (
                             <Badge variant="destructive">Out of stock</Badge>
                           ) : isLowStock ? (
-                            <Badge variant="cyan">Only {item.stockQuantity} left</Badge>
+                            <Badge variant="cyan">
+                              Only {item.stockQuantity} left
+                            </Badge>
                           ) : null}
                         </div>
                       </div>
@@ -296,7 +313,9 @@ export function CartDrawer() {
                         <div className="flex items-center border border-slate-200 rounded-lg bg-slate-50 overflow-hidden shadow-2xs">
                           <button
                             type="button"
-                            onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                            onClick={() =>
+                              updateQuantity(item.id, item.quantity - 1)
+                            }
                             disabled={isOutOfStock || item.quantity <= 1}
                             className="p-1.5 hover:bg-slate-200 transition-colors text-slate-600 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                             aria-label="Decrease quantity"
@@ -308,7 +327,9 @@ export function CartDrawer() {
                           </span>
                           <button
                             type="button"
-                            onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                            onClick={() =>
+                              updateQuantity(item.id, item.quantity + 1)
+                            }
                             disabled={
                               isOutOfStock ||
                               (item.stockQuantity > 0 &&
@@ -334,7 +355,8 @@ export function CartDrawer() {
           <div className="p-5 border-t border-slate-200 bg-slate-50/90 space-y-3">
             <div className="flex items-center justify-between text-sm">
               <span className="text-slate-600 font-body">
-                Subtotal ({selectedCount} {selectedCount === 1 ? "item" : "items"})
+                Subtotal ({selectedCount}{" "}
+                {selectedCount === 1 ? "item" : "items"})
               </span>
               <span className="text-base font-extrabold text-slate-900 font-heading">
                 {formatCurrency(subtotal)}

@@ -19,6 +19,7 @@ import {
   Lock,
   RefreshCw,
   AlertTriangle,
+  AlertCircle,
   CheckCircle2,
   Sparkles,
 } from "lucide-react";
@@ -45,12 +46,13 @@ export default function CartPage() {
   const mounted = useMounted();
   const [couponCode, setCouponCode] = useState("");
   const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   if (!mounted) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="w-8 h-8 rounded-full border-2 border-[#2196F3] border-t-transparent animate-spin" />
+        <div className="w-8 h-8 rounded-full border-2 border-[#007D9C] border-t-transparent animate-spin" />
       </div>
     );
   }
@@ -59,10 +61,10 @@ export default function CartPage() {
     return (
       <div className="min-h-[70vh] bg-[#FAFBFC] py-16 flex items-center justify-center">
         <div className="max-w-md w-full mx-auto px-4 text-center space-y-4">
-          <div className="w-20 h-20 rounded-3xl bg-[#E3F2FD] text-[#2196F3] flex items-center justify-center mx-auto shadow-xs">
-            <Lock className="w-10 h-10" />
+          <div className="w-16 h-16 rounded-md bg-[#E6F7FB] text-[#007D9C] flex items-center justify-center mx-auto shadow-xs">
+            <Lock className="w-8 h-8" />
           </div>
-          <h1 className="text-2xl font-extrabold text-[#0D1B2A] tracking-tight">
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
             Sign In Required
           </h1>
           <p className="text-sm text-slate-500 leading-relaxed">
@@ -72,13 +74,13 @@ export default function CartPage() {
           <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link
               href="/login?redirect=/cart"
-              className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-[#2196F3] text-white text-sm font-semibold hover:bg-[#0D47A1] transition-all shadow-md text-center"
+              className="w-full sm:w-auto px-5 py-2.5 rounded-md bg-[#007D9C] hover:bg-[#00657E] text-white text-sm font-semibold transition-all shadow-xs text-center cursor-pointer"
             >
               Sign In Now
             </Link>
             <Link
               href="/products"
-              className="w-full sm:w-auto px-6 py-3 rounded-2xl border border-slate-200 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-all text-center"
+              className="w-full sm:w-auto px-5 py-2.5 rounded-md border border-slate-200 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-all text-center shadow-xs cursor-pointer"
             >
               Continue Shopping
             </Link>
@@ -111,17 +113,21 @@ export default function CartPage() {
 
   const handleApplyCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!couponCode.trim()) return;
+    setCouponError(null);
+    if (!couponCode.trim()) {
+      setCouponError("Please enter a promo code.");
+      return;
+    }
 
     const code = couponCode.trim().toUpperCase();
 
     if (!accessToken) {
-      toast.error("Please sign in to apply coupon codes.");
+      setCouponError("Please sign in to apply coupon codes.");
       return;
     }
 
     if (subtotal <= 0) {
-      toast.error(
+      setCouponError(
         "Please select valid in-stock items before applying a coupon.",
       );
       return;
@@ -129,7 +135,7 @@ export default function CartPage() {
 
     setIsApplyingCoupon(true);
     try {
-      const res = await authFetch('/api/v1/coupons/preview', {
+      const res = await authFetch("/api/v1/coupons/preview", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -148,9 +154,7 @@ export default function CartPage() {
           name: data.data.coupon_name,
           discountAmount: data.data.discount_amount,
         });
-        toast.success(
-          `Coupon ${data.data.coupon_code} applied! Saved ${formatCurrency(data.data.discount_amount)}.`,
-        );
+        setCouponError(null);
         setCouponCode("");
       } else {
         const errMsg =
@@ -158,10 +162,10 @@ export default function CartPage() {
           data?.error ||
           data?.message ||
           "Invalid or expired coupon code.";
-        toast.error(errMsg);
+        setCouponError(errMsg);
       }
     } catch {
-      toast.error("Network error while verifying coupon.");
+      setCouponError("Network error while verifying coupon.");
     } finally {
       setIsApplyingCoupon(false);
     }
@@ -170,7 +174,7 @@ export default function CartPage() {
   const handleRemoveCoupon = () => {
     setAppliedCoupon(null);
     setCouponCode("");
-    toast.info("Coupon removed.");
+    setCouponError(null);
   };
 
   const handleClearCart = async () => {
@@ -183,10 +187,10 @@ export default function CartPage() {
     return (
       <div className="min-h-[70vh] bg-[#FAFBFC] py-16 flex items-center justify-center">
         <div className="max-w-md w-full mx-auto px-4 text-center space-y-4">
-          <div className="w-20 h-20 rounded-3xl bg-[#E3F2FD] text-[#2196F3] flex items-center justify-center mx-auto shadow-xs">
-            <ShoppingCart className="w-10 h-10" />
+          <div className="w-16 h-16 rounded-2xl bg-[#E6F7FB] text-[#007D9C] flex items-center justify-center mx-auto shadow-xs">
+            <ShoppingCart className="w-8 h-8" />
           </div>
-          <h1 className="text-2xl font-extrabold text-[#0D1B2A] tracking-tight">
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
             Your Cart is Empty
           </h1>
           <p className="text-sm text-slate-500 leading-relaxed">
@@ -196,18 +200,19 @@ export default function CartPage() {
           <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link
               href="/products"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-[#2196F3] text-white text-sm font-semibold hover:bg-[#0D47A1] transition-all shadow-md"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-md bg-[#007D9C] hover:bg-[#00657E] text-white text-sm font-semibold transition-all shadow-xs cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>Continue Shopping</span>
             </Link>
             <button
+              type="button"
               onClick={() => fetchServerCart()}
               disabled={isSyncing}
-              className="inline-flex items-center gap-1.5 px-4 py-3 rounded-2xl border border-slate-200 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-all cursor-pointer"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-md border border-slate-200 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50 hover:text-slate-900 transition-all shadow-xs cursor-pointer disabled:opacity-60"
             >
               <RefreshCw
-                className={`w-4 h-4 ${isSyncing ? "animate-spin text-[#2196F3]" : ""}`}
+                className={`w-4 h-4 ${isSyncing ? "animate-spin text-[#007D9C]" : "text-slate-400"}`}
               />
               <span>Sync Cart</span>
             </button>
@@ -224,10 +229,10 @@ export default function CartPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200/80 mb-6">
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0D1B2A] tracking-tight">
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
                 Shopping Cart
               </h1>
-              <span className="bg-[#E3F2FD] text-[#0D47A1] text-xs font-bold px-2.5 py-1 rounded-full">
+              <span className="bg-[#E6F7FB] text-[#007D9C] text-xs font-bold px-2.5 py-1 rounded-full">
                 {items.length} {items.length === 1 ? "item" : "items"}
               </span>
             </div>
@@ -239,13 +244,14 @@ export default function CartPage() {
 
           <div className="flex items-center gap-3">
             <button
+              type="button"
               onClick={() => fetchServerCart()}
               disabled={isSyncing}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-xs cursor-pointer disabled:opacity-60"
               title="Sync cart items with latest server stock"
             >
               <RefreshCw
-                className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin text-[#2196F3]" : ""}`}
+                className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin text-[#007D9C]" : "text-slate-400"}`}
               />
               <span>{isSyncing ? "Syncing..." : "Sync Stock"}</span>
             </button>
@@ -311,13 +317,13 @@ export default function CartPage() {
             <div className="rounded-2xl bg-white border border-slate-200/80 shadow-xs overflow-hidden divide-y divide-slate-100">
               {/* Select All Action Bar */}
               <div className="px-5 py-3.5 bg-slate-50/90 flex items-center justify-between">
-                <label className="flex items-center gap-3 cursor-pointer select-none text-xs font-bold text-[#0D1B2A]">
+                <label className="flex items-center gap-3 cursor-pointer select-none text-xs font-bold text-slate-900">
                   <input
                     type="checkbox"
                     checked={allSelected}
                     onChange={(e) => selectAllItems(e.target.checked)}
                     disabled={availableItems.length === 0}
-                    className="w-4 h-4 rounded text-[#2196F3] focus:ring-[#2196F3] border-slate-300 accent-[#2196F3] cursor-pointer disabled:opacity-40"
+                    className="w-4 h-4 rounded text-[#007D9C] focus:ring-[#007D9C] border-slate-300 accent-[#007D9C] cursor-pointer disabled:opacity-40"
                   />
                   <span>
                     Select All ({selectedCount}/{availableItems.length}{" "}
@@ -373,7 +379,7 @@ export default function CartPage() {
                         disabled={isOutOfStock}
                         onChange={() => toggleSelectItem(item.id)}
                         aria-label={`Select ${item.name}`}
-                        className="w-4 h-4 rounded text-[#2196F3] focus:ring-[#2196F3] border-slate-300 accent-[#2196F3] cursor-pointer shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
+                        className="w-4 h-4 rounded text-[#007D9C] focus:ring-[#007D9C] border-slate-300 accent-[#007D9C] cursor-pointer shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
                       />
 
                       <div className="relative w-20 h-20 rounded-xl bg-slate-100 overflow-hidden shrink-0 border border-slate-200/60 flex items-center justify-center">
@@ -497,25 +503,40 @@ export default function CartPage() {
 
               {/* Coupon Form */}
               <div className="space-y-2">
-                <form onSubmit={handleApplyCoupon} className="flex gap-2">
-                  <div className="relative flex-1">
-                    <input
-                      type="text"
-                      value={couponCode}
-                      onChange={(e) => setCouponCode(e.target.value)}
-                      placeholder="Promo Code (e.g. SOLOLEVELING)"
-                      disabled={isApplyingCoupon}
-                      className="w-full pl-8 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs uppercase text-[#0D1B2A] focus:outline-none focus:border-[#2196F3] disabled:opacity-60"
-                    />
-                    <Tag className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <form onSubmit={handleApplyCoupon} className="space-y-1.5">
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        value={couponCode}
+                        onChange={(e) => {
+                          setCouponCode(e.target.value);
+                          if (couponError) setCouponError(null);
+                        }}
+                        placeholder="Promo Code (e.g. SOLOLEVELING)"
+                        disabled={isApplyingCoupon}
+                        className={`w-full pl-8 pr-3 py-2 rounded-xl bg-slate-50 border text-xs uppercase text-slate-900 focus:outline-none disabled:opacity-60 transition-colors ${
+                          couponError
+                            ? "border-rose-400 focus:border-rose-500"
+                            : "border-slate-200 focus:border-[#007D9C]"
+                        }`}
+                      />
+                      <Tag className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={isApplyingCoupon || !couponCode.trim()}
+                      className="px-3.5 py-2 rounded-xl bg-[#007D9C] text-white text-xs font-semibold hover:bg-[#00657E] transition-colors cursor-pointer disabled:opacity-60 shadow-xs"
+                    >
+                      {isApplyingCoupon ? "Verifying..." : "Apply"}
+                    </button>
                   </div>
-                  <button
-                    type="submit"
-                    disabled={isApplyingCoupon || !couponCode.trim()}
-                    className="px-3.5 py-2 rounded-xl bg-[#0D47A1] text-white text-xs font-semibold hover:bg-[#2196F3] transition-colors cursor-pointer disabled:opacity-60"
-                  >
-                    {isApplyingCoupon ? "Verifying..." : "Apply"}
-                  </button>
+                  {couponError && (
+                    <div className="flex items-center gap-1.5 text-[11px] text-rose-600 font-medium px-0.5">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>{couponError}</span>
+                    </div>
+                  )}
                 </form>
 
                 {appliedCoupon && (
@@ -548,7 +569,7 @@ export default function CartPage() {
                     Subtotal ({selectedCount}{" "}
                     {selectedCount === 1 ? "item" : "items"})
                   </span>
-                  <span className="font-semibold text-[#0D1B2A]">
+                  <span className="font-semibold text-slate-900">
                     {formatCurrency(subtotal)}
                   </span>
                 </div>
@@ -572,9 +593,9 @@ export default function CartPage() {
                   </span>
                 </div>
 
-                <div className="flex justify-between text-base font-extrabold text-[#0D1B2A] pt-3 border-t border-slate-200">
+                <div className="flex justify-between text-base font-bold text-slate-900 pt-3 border-t border-slate-200">
                   <span>Total</span>
-                  <span className="text-[#0D47A1] font-black">
+                  <span className="text-[#007D9C] font-extrabold">
                     {formatCurrency(grandTotal)}
                   </span>
                 </div>
@@ -584,7 +605,7 @@ export default function CartPage() {
               {selectedCount > 0 ? (
                 <Link
                   href="/checkout"
-                  className="w-full py-3.5 px-6 rounded-2xl bg-[#2196F3] text-white text-sm font-bold flex items-center justify-center gap-2 hover:bg-[#0D47A1] transition-all shadow-md active:scale-98 text-center"
+                  className="w-full py-3 px-6 rounded-xl bg-[#007D9C] text-white text-sm font-bold flex items-center justify-center gap-2 hover:bg-[#00657E] transition-all shadow-xs active:scale-[0.99] text-center cursor-pointer"
                 >
                   <span>Proceed to Checkout ({selectedCount})</span>
                   <ArrowRight className="w-4 h-4" />
@@ -593,7 +614,7 @@ export default function CartPage() {
                 <button
                   type="button"
                   disabled
-                  className="w-full py-3.5 px-6 rounded-2xl bg-slate-200 text-slate-400 text-sm font-bold flex items-center justify-center gap-2 cursor-not-allowed"
+                  className="w-full py-3 px-6 rounded-xl bg-slate-200 text-slate-400 text-sm font-bold flex items-center justify-center gap-2 cursor-not-allowed"
                 >
                   <span>Select items to checkout</span>
                 </button>
