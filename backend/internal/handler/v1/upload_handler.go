@@ -1,4 +1,4 @@
-﻿package v1handler
+package v1handler
 
 import (
 	"errors"
@@ -86,7 +86,7 @@ func validateUploadedFile(fileHeader *multipart.FileHeader) (string, utils.Media
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Param        file formData file true "File to upload"
-// @Param        folder formData string false "Destination folder" Enums(products, categories, banners, avatars, common, chat) default(common)
+// @Param        folder formData string false "Destination folder" Enums(products, categories, banners, avatars, reviews, returns, common, chat) default(common)
 // @Success      200 {object} utils.APIResponse{data=v1dto.UploadResponseDTO}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      401 {object} utils.ErrorResponse
@@ -121,6 +121,8 @@ func (uh *UploadHandler) UploadSingleFile(ctx *gin.Context) {
 		"categories": true,
 		"banners":    true,
 		"avatars":    true,
+		"reviews":    true,
+		"returns":    true,
 		"common":     true,
 		"chat":       true,
 	}

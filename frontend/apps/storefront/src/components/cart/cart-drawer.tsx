@@ -211,7 +211,7 @@ export function CartDrawer() {
                 onClick={closeDrawer}
                 className="mt-2"
               >
-                Explore Drops Now
+                Explore Products Now
               </Button>
             </div>
           ) : (

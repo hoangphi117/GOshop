@@ -7,8 +7,6 @@ import (
 	"goshop/internal/utils"
 	"goshop/internal/validation"
 	"net/http"
-	"os"
-	"path/filepath"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -28,16 +26,11 @@ func NewReviewHandler(service v1service.ReviewService) *ReviewHandler {
 // @Summary      Create review
 // @Description  Create a product review with rating, comments, images and video
 // @Tags         Reviews
-// @Accept       multipart/form-data
+// @Accept       json
 // @Produce      json
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
-// @Param        product_uuid formData string true "Product UUID"
-// @Param        order_uuid formData string true "Order UUID"
-// @Param        rating formData int true "Rating from 1 to 5" minimum(1) maximum(5)
-// @Param        title formData string false "Review title"
-// @Param        comment formData string false "Review comment"
-// @Param        files formData file false "Review media files (max 5 images, 1 video)"
+// @Param        request body v1dto.CreateReviewInput true "Review request body"
 // @Success      201 {object} utils.APIResponse{data=v1dto.ReviewDTO}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      401 {object} utils.ErrorResponse
@@ -50,69 +43,23 @@ func (rh *ReviewHandler) CreateReview(ctx *gin.Context) {
 	}
 
 	var input v1dto.CreateReviewInput
-	if err := ctx.ShouldBind(&input); err != nil {
+	if err := ctx.ShouldBindJSON(&input); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
 	}
 
-	form, _ := ctx.MultipartForm()
-	var imageURLs []string
-	var videoURL *string
-	var savedFiles []string // rollback if error occurs in DB
-
-	uploadDir := "./uploads/reviews/"
-
-	if form != nil && form.File["files"] != nil {
-		files := form.File["files"]
-
-		if len(files) > 6 {
-			utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "You can upload a maximum of 5 images and 1 video"))
-			return
-		}
-
-		for _, fileHeader := range files {
-			fileName, mediaType, err := utils.ValidateAndSaveFile(fileHeader, uploadDir)
-			if err != nil {
-				rh.cleanupFiles(savedFiles, uploadDir)
-				utils.ResponseError(ctx, err)
-				return
-			}
-			savedFiles = append(savedFiles, fileName)
-			fileRelativePath := "/uploads/reviews/" + fileName
-
-			switch mediaType {
-			case "image":
-				if len(imageURLs) >= 5 {
-					rh.cleanupFiles(savedFiles, uploadDir)
-					utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "You can upload a maximum of 5 images"))
-					return
-				}
-				imageURLs = append(imageURLs, fileRelativePath)
-			case "video":
-				if videoURL != nil {
-					rh.cleanupFiles(savedFiles, uploadDir)
-					utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "You can upload a maximum of 1 video"))
-					return
-				}
-				videoURL = &fileRelativePath
-			}
-		}
+	if len(input.Images) > 5 {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "You can upload a maximum of 5 images"))
+		return
 	}
 
-	review, err := rh.service.CreateReview(ctx.Request.Context(), userUUID, input, imageURLs, videoURL)
+	review, err := rh.service.CreateReview(ctx.Request.Context(), userUUID, input, input.Images, input.VideoURL)
 	if err != nil {
-		rh.cleanupFiles(savedFiles, uploadDir)
 		utils.ResponseError(ctx, err)
 		return
 	}
 
 	utils.ResponseSuccess(ctx, http.StatusCreated, "Review created successfully", review)
-}
-
-func (rh *ReviewHandler) cleanupFiles(fileNames []string, uploadDir string) {
-	for _, name := range fileNames {
-		_ = os.Remove(filepath.Join(uploadDir, name))
-	}
 }
 
 // GetProductReviews godoc

@@ -83,6 +83,8 @@ export function NotificationPopover({
     let isCleanedUp = false;
 
     const connectWS = () => {
+      if (isCleanedUp) return;
+
       try {
         const baseUrl =
           process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
@@ -110,7 +112,7 @@ export function NotificationPopover({
                 ].includes(msg.data.type);
 
               if (!isAdminNotif) {
-                addNotification(msg.data);
+                useNotificationStore.getState().addNotification(msg.data);
               }
             }
           } catch {
@@ -125,7 +127,7 @@ export function NotificationPopover({
         };
 
         ws.onerror = () => {
-          if (ws) ws.close();
+          // Error handler to prevent unhandled socket exceptions
         };
       } catch {
         if (!isCleanedUp) {
@@ -138,13 +140,32 @@ export function NotificationPopover({
 
     return () => {
       isCleanedUp = true;
-      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+        reconnectTimeout = null;
+      }
       if (ws) {
-        ws.onclose = null;
-        ws.close();
+        const socket = ws;
+        ws = null;
+        socket.onopen = null;
+        socket.onmessage = null;
+        socket.onerror = null;
+        socket.onclose = null;
+
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.close(1000, "Normal closure");
+        } else if (socket.readyState === WebSocket.CONNECTING) {
+          socket.addEventListener(
+            "open",
+            () => {
+              socket.close(1000, "Normal closure");
+            },
+            { once: true },
+          );
+        }
       }
     };
-  }, [isAuthenticated, accessToken, addNotification]);
+  }, [isAuthenticated, accessToken]);
 
   // Click outside to close
   useEffect(() => {

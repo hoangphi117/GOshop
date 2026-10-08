@@ -1,248 +1,369 @@
-'use client'
+"use client";
 
-import React, { useState, useRef } from 'react'
-import { authFetch } from '@/lib/api'
-import { extractErrorMessage } from '@/lib/utils'
+import React, { useState, useRef } from "react";
+import { authFetch } from "@/lib/api";
+import { extractErrorMessage } from "@/lib/utils";
 import {
   X,
   RotateCcw,
   Upload,
-  Image as ImageIcon,
   Film,
   Trash2,
   Loader2,
   AlertCircle,
   Building2,
-  CreditCard,
-  User,
-  HelpCircle,
-} from 'lucide-react'
-import { toast } from 'sonner'
+} from "lucide-react";
+import { toast } from "sonner";
 
 interface RequestReturnModalProps {
-  isOpen: boolean
-  onClose: () => void
-  orderUuid: string
-  orderNumber?: string
-  paymentMethod?: string
-  totalAmount?: number
-  onSuccess?: () => void
+  isOpen: boolean;
+  onClose: () => void;
+  orderUuid: string;
+  orderNumber?: string;
+  paymentMethod?: string;
+  totalAmount?: number;
+  onSuccess?: () => void;
 }
 
 const COMMON_REASONS = [
-  'Damaged or defective item upon arrival',
-  'Incorrect product or wrong variant received',
-  'Item does not match website description',
-  'Missing parts, accessories, or free gifts',
-  'Quality issue / Product is not functioning properly',
-  'Other reason',
-]
+  "Damaged or defective item upon arrival",
+  "Incorrect product or wrong variant received",
+  "Item does not match website description",
+  "Missing parts, accessories, or free gifts",
+  "Quality issue / Product is not functioning properly",
+  "Other reason",
+];
 
 const VIETNAM_BANKS = [
-  'Vietcombank',
-  'Techcombank',
-  'MB Bank (Military Bank)',
-  'ACB (Asia Commercial Bank)',
-  'VPBank',
-  'BIDV',
-  'VietinBank',
-  'TPBank',
-  'Sacombank',
-  'VIB',
-  'HDBank',
-  'MSB (Maritime Bank)',
-  'SHB',
-  'SeABank',
-  'Agribank',
-  'MoMo E-Wallet Account',
-  'Other Bank',
-]
+  "Vietcombank",
+  "Techcombank",
+  "MB Bank (Military Bank)",
+  "ACB (Asia Commercial Bank)",
+  "VPBank",
+  "BIDV",
+  "VietinBank",
+  "TPBank",
+  "Sacombank",
+  "VIB",
+  "HDBank",
+  "MSB (Maritime Bank)",
+  "SHB",
+  "SeABank",
+  "Agribank",
+  "MoMo E-Wallet Account",
+  "Other Bank",
+];
 
 export function RequestReturnModal({
   isOpen,
   onClose,
   orderUuid,
   orderNumber,
-  paymentMethod,
-  totalAmount,
   onSuccess,
 }: RequestReturnModalProps) {
-  const [selectedReasonPrefix, setSelectedReasonPrefix] = useState(COMMON_REASONS[0])
-  const [detailedReason, setDetailedReason] = useState('')
-  const [bankName, setBankName] = useState('')
-  const [bankAccount, setBankAccount] = useState('')
-  const [bankAccountName, setBankAccountName] = useState('')
-  const [files, setFiles] = useState<File[]>([])
-  const [previews, setPreviews] = useState<Array<{ url: string; isVideo: boolean; file: File }>>([])
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [selectedReasonPrefix, setSelectedReasonPrefix] = useState(
+    COMMON_REASONS[0],
+  );
+  const [detailedReason, setDetailedReason] = useState("");
+  const [bankName, setBankName] = useState("");
+  const [bankAccount, setBankAccount] = useState("");
+  const [bankAccountName, setBankAccountName] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<
+    Array<{ url: string; isVideo: boolean; file: File }>
+  >([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  if (!isOpen) return null
+  const [fieldErrors, setFieldErrors] = useState({
+    detailedReason: "",
+    bankName: "",
+    bankAccount: "",
+    bankAccountName: "",
+    proofs: "",
+  });
+
+  const validateForm = () => {
+    const errors = {
+      detailedReason: "",
+      bankName: "",
+      bankAccount: "",
+      bankAccountName: "",
+      proofs: "",
+    };
+
+    const trimmedReason = detailedReason.trim();
+    const trimmedBankName = bankName.trim();
+    const trimmedBankAccount = bankAccount.trim();
+    const trimmedBankAccountName = bankAccountName.trim();
+
+    if (!trimmedReason) {
+      errors.detailedReason = "Please provide a detailed explanation.";
+    } else if (trimmedReason.length < 10) {
+      errors.detailedReason =
+        "Detailed explanation must be at least 10 characters.";
+    }
+
+    if (!trimmedBankName) {
+      errors.bankName = "Please enter your bank name.";
+    }
+
+    if (!trimmedBankAccount) {
+      errors.bankAccount = "Please enter your account number.";
+    }
+
+    if (!trimmedBankAccountName) {
+      errors.bankAccountName = "Please enter the account holder name.";
+    }
+
+    if (previews.length === 0) {
+      errors.proofs = "Please upload at least 1 photo or video as proof.";
+    }
+
+    setFieldErrors(errors);
+
+    return !Object.values(errors).some(Boolean);
+  };
+
+  if (!isOpen) return null;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = Array.from(e.target.files || [])
-    if (!selected.length) return
+    const selected = Array.from(e.target.files || []);
+    if (!selected.length) return;
 
-    let currentImages = previews.filter((p) => !p.isVideo).length
-    let currentVideos = previews.filter((p) => p.isVideo).length
+    let currentImages = previews.filter((p) => !p.isVideo).length;
+    let currentVideos = previews.filter((p) => p.isVideo).length;
 
-    const validNewFiles: File[] = []
-    const newPreviews: Array<{ url: string; isVideo: boolean; file: File }> = []
+    const validNewFiles: File[] = [];
+    const newPreviews: Array<{ url: string; isVideo: boolean; file: File }> =
+      [];
 
     for (const file of selected) {
-      const isImg = file.type.startsWith('image/')
-      const isVid = file.type.startsWith('video/')
+      const isImg = file.type.startsWith("image/");
+      const isVid = file.type.startsWith("video/");
 
       if (!isImg && !isVid) {
-        toast.error(`Unsupported file type: ${file.name}`)
-        continue
+        toast.error(`Unsupported file type: ${file.name}`);
+        continue;
       }
 
       if (file.size > 25 * 1024 * 1024) {
-        toast.error(`File ${file.name} exceeds 25MB limit.`)
-        continue
+        toast.error(`File ${file.name} exceeds 25MB limit.`);
+        continue;
       }
 
       if (isImg) {
         if (currentImages >= 5) {
-          toast.warning('Maximum 5 proof images allowed.')
-          continue
+          toast.warning("Maximum 5 proof images allowed.");
+          continue;
         }
-        currentImages++
+        currentImages++;
       } else if (isVid) {
         if (currentVideos >= 1) {
-          toast.warning('Maximum 1 video allowed.')
-          continue
+          toast.warning("Maximum 1 video allowed.");
+          continue;
         }
-        currentVideos++
+        currentVideos++;
       }
 
-      validNewFiles.push(file)
+      validNewFiles.push(file);
       newPreviews.push({
         url: URL.createObjectURL(file),
         isVideo: isVid,
         file,
-      })
+      });
     }
 
-    setFiles((prev) => [...prev, ...validNewFiles])
-    setPreviews((prev) => [...prev, ...newPreviews])
+    setFiles((prev) => [...prev, ...validNewFiles]);
+    setPreviews((prev) => [...prev, ...newPreviews]);
 
     if (fileInputRef.current) {
-      fileInputRef.current.value = ''
+      fileInputRef.current.value = "";
     }
-  }
+  };
 
   const handleRemoveFile = (index: number) => {
-    const target = previews[index]
+    const target = previews[index];
     if (target?.url) {
-      URL.revokeObjectURL(target.url)
+      URL.revokeObjectURL(target.url);
     }
-    setPreviews((prev) => prev.filter((_, i) => i !== index))
-    setFiles((prev) => prev.filter((_, i) => i !== index))
-  }
+    setPreviews((prev) => prev.filter((_, i) => i !== index));
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setErrorMsg(null)
+    e.preventDefault();
+    setErrorMsg(null);
 
     const fullReason =
-      selectedReasonPrefix === 'Other reason'
+      selectedReasonPrefix === "Other reason"
         ? detailedReason.trim()
         : detailedReason.trim()
-        ? `${selectedReasonPrefix}: ${detailedReason.trim()}`
-        : selectedReasonPrefix
+          ? `${selectedReasonPrefix}: ${detailedReason.trim()}`
+          : selectedReasonPrefix;
 
-    if (fullReason.length < 10) {
-      setErrorMsg('Please provide a detailed explanation of the issue (minimum 10 characters).')
-      return
+    if (!validateForm()) {
+      return;
     }
 
-    setIsSubmitting(true)
+    if (!bankName.trim()) {
+      setErrorMsg("Please enter or select your refund bank name.");
+      return;
+    }
+
+    if (!bankAccount.trim()) {
+      setErrorMsg("Please enter your refund bank account number.");
+      return;
+    }
+
+    if (!bankAccountName.trim()) {
+      setErrorMsg("Please enter the beneficiary account holder name.");
+      return;
+    }
+
+    if (files.length === 0) {
+      setErrorMsg(
+        "Please upload at least 1 photo or video proof of the item defect or issue.",
+      );
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
-      const formData = new FormData()
-      formData.append('reason', fullReason)
+      // 1. Upload files to /api/v1/upload (folder='returns') if any
+      const uploadedImageUrls: string[] = [];
+      let uploadedVideoUrl: string | undefined = undefined;
 
-      if (bankName.trim()) formData.append('bank_name', bankName.trim())
-      if (bankAccount.trim()) formData.append('bank_account', bankAccount.trim())
-      if (bankAccountName.trim()) formData.append('bank_account_name', bankAccountName.trim().toUpperCase())
+      if (files.length > 0) {
+        for (const file of files) {
+          const uploadData = new FormData();
+          uploadData.append("file", file);
+          uploadData.append("folder", "returns");
 
-      files.forEach((file) => {
-        formData.append('files', file)
-      })
+          const uploadRes = await authFetch("/api/v1/upload", {
+            method: "POST",
+            body: uploadData,
+          });
 
-      const res = await authFetch(`/api/v1/orders/${orderUuid}/return`, {
-        method: 'POST',
-        body: formData,
-      })
+          if (!uploadRes.ok) {
+            const errJson = await uploadRes.json().catch(() => null);
+            const msg = extractErrorMessage(
+              errJson,
+              `Failed to upload "${file.name}".`,
+            );
+            setErrorMsg(msg);
+            toast.error(msg);
+            setIsSubmitting(false);
+            return;
+          }
 
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => null)
-        const msg = extractErrorMessage(errJson, 'Failed to submit return request.')
-        setErrorMsg(msg)
-        toast.error(msg)
-        setIsSubmitting(false)
-        return
+          const resData = await uploadRes.json();
+          const fileUrl = resData?.data?.url || resData?.url;
+          if (file.type.startsWith("video/")) {
+            uploadedVideoUrl = fileUrl;
+          } else {
+            uploadedImageUrls.push(fileUrl);
+          }
+        }
       }
 
-      toast.success('Return & refund request submitted successfully! Our support team will review it shortly.')
-      onSuccess?.()
-      onClose()
+      // 2. Submit pure JSON return request
+      const res = await authFetch(`/api/v1/orders/${orderUuid}/return`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          reason: fullReason,
+          bank_name: bankName.trim() || undefined,
+          bank_account: bankAccount.trim() || undefined,
+          bank_account_name: bankAccountName.trim().toUpperCase() || undefined,
+          images: uploadedImageUrls,
+          video_url: uploadedVideoUrl,
+        }),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => null);
+        const msg = extractErrorMessage(
+          errJson,
+          "Failed to submit return request.",
+        );
+        setErrorMsg(msg);
+        toast.error(msg);
+        setIsSubmitting(false);
+        return;
+      }
+
+      toast.success(
+        "Return & refund request submitted successfully! Our support team will review it shortly.",
+      );
+      onSuccess?.();
+      onClose();
     } catch {
-      setErrorMsg('Network error. Please try again.')
-      toast.error('Network error. Please try again.')
+      setErrorMsg("Network error. Please try again.");
+      toast.error("Network error. Please try again.");
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto animate-in fade-in">
-      <div className="w-full max-w-xl bg-white rounded-3xl p-6 shadow-2xl space-y-5 border border-slate-100 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto font-body">
+      <div className="w-full max-w-xl bg-white rounded-md border border-[#E2E8F0] shadow-lg max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-4">
+        <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-[#E2E8F0]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 shadow-2xs">
+            <div className="w-10 h-10 rounded-md bg-[#E6F7FB] text-[#007D9C] border border-[#00ADD8]/30 flex items-center justify-center shrink-0">
               <RotateCcw className="w-5 h-5" />
             </div>
+
             <div>
-              <h2 className="text-lg font-black text-[#0D1B2A]">
+              <h2 className="text-base sm:text-lg font-bold text-[#0F172A] font-heading">
                 Request Return & Refund
               </h2>
-              <p className="text-xs text-slate-500">
+
+              <p className="text-xs text-[#64748B] mt-0.5">
                 Order #{orderNumber || orderUuid.slice(0, 8).toUpperCase()}
               </p>
             </div>
           </div>
+
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+            className="w-8 h-8 rounded-md flex items-center justify-center text-[#64748B] hover:bg-[#F8FAFC] hover:text-[#0F172A] border border-[#E2E8F0] shrink-0 transition-colors cursor-pointer"
+            aria-label="Close"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
+        {/* General Error */}
         {errorMsg && (
-          <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-100 text-xs text-rose-600 flex items-start gap-2.5">
+          <div className="mx-6 mt-4 p-3 rounded-md bg-[#FEF2F2] border border-[#FECACA] text-xs text-[#DC2626] flex items-start gap-2.5">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+
             <span>{errorMsg}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Reason Selection */}
+        <form onSubmit={handleSubmit} noValidate className="p-6 space-y-5">
+          {/* ====================================================== */}
+          {/* Reason */}
+          {/* ====================================================== */}
+
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-[#0D1B2A] flex items-center gap-1.5">
-              <span>Reason for Return</span>
-              <span className="text-rose-500">*</span>
+            <label className="text-xs font-semibold text-[#0F172A]">
+              Reason for Return <span className="text-[#DC2626]">*</span>
             </label>
+
             <select
               value={selectedReasonPrefix}
               onChange={(e) => setSelectedReasonPrefix(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#2196F3] focus:ring-2 focus:ring-[#2196F3]/15 transition-all"
+              className="w-full h-9 px-3 rounded-md border border-[#E2E8F0] bg-white text-xs font-medium text-[#0F172A] focus:outline-none focus:border-[#007D9C] focus:ring-1 focus:ring-[#00ADD8]/30"
             >
               {COMMON_REASONS.map((r) => (
                 <option key={r} value={r}>
@@ -252,102 +373,248 @@ export function RequestReturnModal({
             </select>
           </div>
 
-          {/* Detailed Reason Textarea */}
+          {/* ====================================================== */}
+          {/* Detailed Explanation */}
+          {/* ====================================================== */}
+
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-[#0D1B2A] flex items-center justify-between">
-              <span>Detailed Explanation</span>
-              <span className="text-[11px] font-normal text-slate-400">
-                {detailedReason.length}/1000 (Min 10 characters)
+            <div className="flex items-center justify-between gap-3">
+              <label className="text-xs font-semibold text-[#0F172A]">
+                Detailed Explanation <span className="text-[#DC2626]">*</span>
+              </label>
+
+              <span className="text-[11px] text-[#64748B]">
+                {detailedReason.length}/1000
               </span>
-            </label>
+            </div>
+
             <textarea
               rows={3}
               value={detailedReason}
-              onChange={(e) => setDetailedReason(e.target.value)}
-              placeholder="Please describe the defect or issue in detail to help our team process your request quickly..."
+              onChange={(e) => {
+                setDetailedReason(e.target.value);
+
+                if (fieldErrors.detailedReason) {
+                  setFieldErrors((prev) => ({
+                    ...prev,
+                    detailedReason: "",
+                  }));
+                }
+              }}
+              placeholder="Please describe the item defect or reason for return in detail..."
               maxLength={1000}
-              className="w-full p-3.5 rounded-2xl border border-slate-200 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#2196F3] focus:ring-2 focus:ring-[#2196F3]/15 resize-none transition-all"
+              className={`w-full px-3 py-2 rounded-md border bg-white text-xs text-[#0F172A] placeholder-[#64748B] focus:outline-none resize-none ${
+                fieldErrors.detailedReason
+                  ? "border-[#DC2626] focus:border-[#DC2626] focus:ring-1 focus:ring-[#DC2626]/20"
+                  : "border-[#E2E8F0] focus:border-[#007D9C] focus:ring-1 focus:ring-[#00ADD8]/30"
+              }`}
             />
+
+            {fieldErrors.detailedReason ? (
+              <p className="text-[11px] text-[#DC2626] flex items-center gap-1">
+                <AlertCircle className="w-3 h-3 shrink-0" />
+                {fieldErrors.detailedReason}
+              </p>
+            ) : (
+              <p className="text-[11px] text-[#64748B]">
+                Minimum 10 characters required.
+              </p>
+            )}
           </div>
 
-          {/* Bank Info for Refund */}
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
-            <div className="flex items-center gap-2 text-xs font-bold text-[#0D1B2A]">
-              <Building2 className="w-4 h-4 text-[#2196F3]" />
-              <span>Refund Bank Account Information (Optional / for COD)</span>
+          {/* ====================================================== */}
+          {/* Refund Bank Information */}
+          {/* ====================================================== */}
+
+          <div className="rounded-md border border-[#E2E8F0] bg-[#F8FAFC] p-4 space-y-3">
+            {/* Section Header */}
+            <div className="flex items-start gap-2.5">
+              <div className="w-7 h-7 rounded-md bg-[#E6F7FB] text-[#007D9C] border border-[#00ADD8]/30 flex items-center justify-center shrink-0 mt-0.5">
+                <Building2 className="w-4 h-4" />
+              </div>
+
+              <div>
+                <h3 className="text-xs sm:text-sm font-bold text-[#0F172A] font-heading">
+                  Refund Bank Account Details{" "}
+                  <span className="text-[#DC2626]">*</span>
+                </h3>
+
+                <p className="text-[11px] text-[#64748B] mt-0.5 leading-relaxed">
+                  Required. Enter your bank details so that the refund payout
+                  can be credited once approved.
+                </p>
+              </div>
             </div>
-            <p className="text-[11px] text-slate-500 leading-relaxed">
-              If your order was paid via Cash on Delivery (COD), providing your bank account details ensures prompt refund settlement upon approval.
-            </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <div className="space-y-1 sm:col-span-2">
-                <label className="text-[11px] font-semibold text-slate-600">Bank Name</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    list="vietnam-banks-list"
-                    value={bankName}
-                    onChange={(e) => setBankName(e.target.value)}
-                    placeholder="e.g. Vietcombank, Techcombank, MB Bank..."
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-none focus:border-[#2196F3]"
-                  />
-                  <datalist id="vietnam-banks-list">
-                    {VIETNAM_BANKS.map((b) => (
-                      <option key={b} value={b} />
-                    ))}
-                  </datalist>
-                </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              {/* ================================================== */}
+              {/* Bank Name */}
+              {/* ================================================== */}
+
+              <div className="sm:col-span-2 space-y-1">
+                <label className="text-xs font-semibold text-[#0F172A]">
+                  Bank Name <span className="text-[#DC2626]">*</span>
+                </label>
+
+                <input
+                  type="text"
+                  list="vietnam-banks-list"
+                  value={bankName}
+                  onChange={(e) => {
+                    setBankName(e.target.value);
+
+                    if (fieldErrors.bankName) {
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        bankName: "",
+                      }));
+                    }
+                  }}
+                  placeholder="e.g. Vietcombank, Techcombank, MB Bank"
+                  className={`w-full h-9 px-3 rounded-md border bg-white text-xs text-[#0F172A] placeholder-[#64748B] focus:outline-none ${
+                    fieldErrors.bankName
+                      ? "border-[#DC2626] focus:border-[#DC2626] focus:ring-1 focus:ring-[#DC2626]/20"
+                      : "border-[#E2E8F0] focus:border-[#007D9C] focus:ring-1 focus:ring-[#00ADD8]/30"
+                  }`}
+                />
+
+                {fieldErrors.bankName && (
+                  <p className="text-[11px] text-[#DC2626] flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3 shrink-0" />
+                    {fieldErrors.bankName}
+                  </p>
+                )}
+
+                <datalist id="vietnam-banks-list">
+                  {VIETNAM_BANKS.map((b) => (
+                    <option key={b} value={b} />
+                  ))}
+                </datalist>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-slate-600">Account Number</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={bankAccount}
-                    onChange={(e) => setBankAccount(e.target.value.replace(/[^0-9A-Za-z]/g, ''))}
-                    placeholder="e.g. 190345678910"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-mono text-slate-800 focus:outline-none focus:border-[#2196F3]"
-                  />
-                </div>
-              </div>
+              {/* ================================================== */}
+              {/* Account Number */}
+              {/* ================================================== */}
 
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-slate-600">Account Holder Name</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={bankAccountName}
-                    onChange={(e) => setBankAccountName(e.target.value)}
-                    placeholder="e.g. NGUYEN VAN A"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs uppercase text-slate-800 focus:outline-none focus:border-[#2196F3]"
-                  />
-                </div>
+                <label className="text-xs font-semibold text-[#0F172A]">
+                  Account Number <span className="text-[#DC2626]">*</span>
+                </label>
+
+                <input
+                  type="text"
+                  value={bankAccount}
+                  onChange={(e) => {
+                    setBankAccount(e.target.value.replace(/[^0-9A-Za-z]/g, ""));
+
+                    if (fieldErrors.bankAccount) {
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        bankAccount: "",
+                      }));
+                    }
+                  }}
+                  placeholder="e.g. 012345678910"
+                  className={`w-full h-9 px-3 rounded-md border bg-white text-xs font-mono text-[#0F172A] placeholder-[#64748B] focus:outline-none ${
+                    fieldErrors.bankAccount
+                      ? "border-[#DC2626] focus:border-[#DC2626] focus:ring-1 focus:ring-[#DC2626]/20"
+                      : "border-[#E2E8F0] focus:border-[#007D9C] focus:ring-1 focus:ring-[#00ADD8]/30"
+                  }`}
+                />
+
+                {fieldErrors.bankAccount && (
+                  <p className="text-[11px] text-[#DC2626] flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3 shrink-0" />
+                    {fieldErrors.bankAccount}
+                  </p>
+                )}
+              </div>
+
+              {/* ================================================== */}
+              {/* Account Holder */}
+              {/* ================================================== */}
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-[#0F172A]">
+                  Account Holder Name <span className="text-[#DC2626]">*</span>
+                </label>
+
+                <input
+                  type="text"
+                  value={bankAccountName}
+                  onChange={(e) => {
+                    setBankAccountName(e.target.value);
+
+                    if (fieldErrors.bankAccountName) {
+                      setFieldErrors((prev) => ({
+                        ...prev,
+                        bankAccountName: "",
+                      }));
+                    }
+                  }}
+                  placeholder="e.g. NGUYEN VAN A"
+                  className={`w-full h-9 px-3 rounded-md border bg-white text-xs uppercase text-[#0F172A] placeholder-[#64748B] focus:outline-none ${
+                    fieldErrors.bankAccountName
+                      ? "border-[#DC2626] focus:border-[#DC2626] focus:ring-1 focus:ring-[#DC2626]/20"
+                      : "border-[#E2E8F0] focus:border-[#007D9C] focus:ring-1 focus:ring-[#00ADD8]/30"
+                  }`}
+                />
+
+                {fieldErrors.bankAccountName && (
+                  <p className="text-[11px] text-[#DC2626] flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3 shrink-0" />
+                    {fieldErrors.bankAccountName}
+                  </p>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Proof Uploads */}
+          {/* ====================================================== */}
+          {/* Proof Upload */}
+          {/* ====================================================== */}
+
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-[#0D1B2A] flex items-center gap-1.5">
-                <span>Proof Photos & Video</span>
-                <span className="text-[11px] font-normal text-slate-400">(Max 5 images, 1 video)</span>
-              </label>
-              <span className="text-[11px] text-slate-400">{previews.length}/6 files</span>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <label className="text-xs font-semibold text-[#0F172A]">
+                  Proof Photos & Video <span className="text-[#DC2626]">*</span>
+                </label>
+
+                <p className="text-[11px] text-[#64748B] mt-0.5">
+                  At least 1 photo or video required (Up to 5 images and 1
+                  video)
+                </p>
+              </div>
+
+              <span
+                className={`text-[11px] font-semibold ${
+                  previews.length === 0 ? "text-[#DC2626]" : "text-[#007D9C]"
+                }`}
+              >
+                {previews.length}/6 {previews.length === 0 ? "(Required)" : ""}
+              </span>
             </div>
 
-            <div className="grid grid-cols-4 sm:grid-cols-6 gap-2.5">
+            <div
+              className={`grid grid-cols-4 sm:grid-cols-6 gap-2.5 p-1 rounded-md ${
+                fieldErrors.proofs
+                  ? "border border-[#DC2626]/40 bg-[#FEF2F2]/40"
+                  : ""
+              }`}
+            >
               {previews.map((item, idx) => (
                 <div
                   key={idx}
-                  className="relative group aspect-square rounded-xl border border-slate-200 overflow-hidden bg-slate-100 flex items-center justify-center shadow-2xs"
+                  className="relative group aspect-square rounded-md border border-[#E2E8F0] overflow-hidden bg-[#F8FAFC] flex items-center justify-center"
                 >
                   {item.isVideo ? (
-                    <div className="relative w-full h-full bg-slate-900 flex flex-col items-center justify-center text-white">
-                      <Film className="w-5 h-5 text-amber-400" />
-                      <span className="text-[9px] font-bold mt-1">Video</span>
+                    <div className="relative w-full h-full bg-[#0F172A] flex flex-col items-center justify-center text-white">
+                      <Film className="w-5 h-5 text-[#00ADD8]" />
+
+                      <span className="text-[10px] font-semibold mt-1">
+                        Video
+                      </span>
                     </div>
                   ) : (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -361,7 +628,7 @@ export function RequestReturnModal({
                   <button
                     type="button"
                     onClick={() => handleRemoveFile(idx)}
-                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-xs"
+                    className="absolute top-1 right-1 w-5 h-5 rounded-md bg-[#DC2626] text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                     title="Remove file"
                   >
                     <Trash2 className="w-3 h-3" />
@@ -373,47 +640,69 @@ export function RequestReturnModal({
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="aspect-square rounded-xl border-2 border-dashed border-slate-200 hover:border-[#2196F3] bg-slate-50/60 hover:bg-[#E3F2FD]/30 transition-all flex flex-col items-center justify-center gap-1 text-slate-400 hover:text-[#2196F3] cursor-pointer"
+                  className="aspect-square rounded-md border border-dashed border-[#E2E8F0] bg-[#F8FAFC] hover:border-[#00ADD8] hover:bg-[#E6F7FB] text-[#64748B] hover:text-[#007D9C] flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors"
                 >
                   <Upload className="w-4 h-4" />
-                  <span className="text-[10px] font-bold">Upload</span>
+
+                  <span className="text-[10px] font-semibold">Upload</span>
                 </button>
               )}
             </div>
+
+            {/* Inline Proof Error */}
+            {fieldErrors.proofs && (
+              <p className="text-[11px] text-[#DC2626] flex items-center gap-1">
+                <AlertCircle className="w-3 h-3 shrink-0" />
+                {fieldErrors.proofs}
+              </p>
+            )}
 
             <input
               ref={fileInputRef}
               type="file"
               accept="image/*,video/*"
               multiple
-              onChange={handleFileChange}
+              onChange={(e) => {
+                handleFileChange(e);
+
+                if (fieldErrors.proofs) {
+                  setFieldErrors((prev) => ({
+                    ...prev,
+                    proofs: "",
+                  }));
+                }
+              }}
               className="hidden"
             />
           </div>
 
-          {/* Form Actions */}
-          <div className="flex gap-2.5 pt-3 border-t border-slate-100">
+          {/* ====================================================== */}
+          {/* Actions */}
+          {/* ====================================================== */}
+
+          <div className="flex gap-2.5 pt-4 border-t border-[#E2E8F0]">
             <button
               type="button"
               disabled={isSubmitting}
               onClick={onClose}
-              className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
+              className="flex-1 h-9 rounded-md border border-[#E2E8F0] bg-white text-[#0F172A] text-xs font-semibold hover:bg-[#F8FAFC] disabled:opacity-50 cursor-pointer transition-colors"
             >
               Cancel
             </button>
+
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 py-2.5 rounded-xl bg-[#2196F3] hover:bg-[#0D47A1] text-white text-xs font-bold transition-all shadow-md shadow-blue-500/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              className="flex-1 h-9 rounded-md bg-[#007D9C] hover:bg-[#006782] text-white text-xs font-semibold flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Submitting Request...</span>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Submitting...</span>
                 </>
               ) : (
                 <>
-                  <RotateCcw className="w-4 h-4" />
+                  <RotateCcw className="w-3.5 h-3.5" />
                   <span>Submit Return Request</span>
                 </>
               )}
@@ -422,5 +711,5 @@ export function RequestReturnModal({
         </form>
       </div>
     </div>
-  )
+  );
 }

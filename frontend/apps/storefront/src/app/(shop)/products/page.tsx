@@ -2,6 +2,7 @@ import React from "react";
 import Link from "next/link";
 import { getCategories, getProducts } from "@/lib/api-server";
 import { ProductGrid } from "@/components/product/product-grid";
+import { SearchAutocomplete } from "@/components/layout/search-autocomplete";
 import {
   ChevronRight,
   Filter,
@@ -489,7 +490,6 @@ export default async function ProductsPage({
             {/* Quality & Authenticity Guarantee Note */}
             <div className="bg-[#071F2C] text-white border border-[#00384D] rounded-xs p-4 space-y-2 text-xs shadow-xs">
               <div className="flex items-center gap-1.5 text-xs font-bold text-[#BAEAFF] font-heading">
-                <Sparkles className="w-3.5 h-3.5 text-[#00ADD8]" />
                 <span>100% Genuine Standard</span>
               </div>
               <p className="text-[11px] text-[#B0CDD9] leading-relaxed">
@@ -503,53 +503,20 @@ export default async function ProductsPage({
           <main className="lg:col-span-9 space-y-5">
             {/* Filter Controls & In-Catalog Search Bar (2-Column Layout) */}
             <div className="bg-white border border-slate-200/90 rounded-xs p-3.5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-xs">
-              {/* Column 1: Keyword Search Input (fixed/bounded width) */}
+              {/* Column 1: Keyword Search Input (with Meilisearch autocomplete dropdown) */}
               <div className="w-full md:w-72 lg:w-80 shrink-0">
-                <form
-                  method="GET"
-                  action="/products"
-                  className="relative w-full"
-                >
-                  {currentCategory && (
-                    <input
-                      type="hidden"
-                      name="category"
-                      value={currentCategory}
-                    />
-                  )}
-                  {currentSort && (
-                    <input type="hidden" name="sort" value={currentSort} />
-                  )}
-                  {currentMinPrice !== undefined && (
-                    <input
-                      type="hidden"
-                      name="min_price"
-                      value={currentMinPrice.toString()}
-                    />
-                  )}
-                  {currentMaxPrice !== undefined && (
-                    <input
-                      type="hidden"
-                      name="max_price"
-                      value={currentMaxPrice.toString()}
-                    />
-                  )}
-                  {currentMinRating !== undefined && (
-                    <input
-                      type="hidden"
-                      name="min_rating"
-                      value={currentMinRating.toString()}
-                    />
-                  )}
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <input
-                    type="text"
-                    name="search"
-                    defaultValue={currentSearch}
-                    placeholder="Filter within results..."
-                    className="w-full pl-9 pr-3 py-1.5 rounded-xs border border-slate-300 bg-white text-xs text-slate-900 placeholder-slate-400 outline-none focus:border-[#007D9C] focus:ring-1 focus:ring-[#007D9C] font-body"
-                  />
-                </form>
+                <SearchAutocomplete
+                  variant="compact"
+                  placeholder="Filter within results..."
+                  initialValue={currentSearch}
+                  preserveParams={{
+                    category: currentCategory,
+                    sort: currentSort,
+                    min_price: currentMinPrice,
+                    max_price: currentMaxPrice,
+                    min_rating: currentMinRating,
+                  }}
+                />
               </div>
 
               {/* Column 2: Active Filter Badges (Wraps cleanly without crowding search bar) */}

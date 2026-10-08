@@ -182,7 +182,7 @@ func (s *orderReturnService) RequestOrderReturn(ctx context.Context, userUUID uu
 			})
 
 			_ = s.notificationService.NotifyAdminsAsync(context.Background(), v1dto.AdminNotifyInput{
-				Type:  "order_return",
+				Type:  "return",
 				Title: "New Return Requested",
 				Body:  fmt.Sprintf("Return requested for order #%s: %s", order.OrderNumber, createdReturn.ReturnReason),
 				Data: map[string]any{
@@ -657,6 +657,22 @@ func (s *orderReturnService) CancelOrderReturn(ctx context.Context, userUUID uui
 
 	if s.cache != nil {
 		_ = s.cache.Clear(fmt.Sprintf("order:%s", resolved.OrderUUID.String()))
+	}
+
+	if s.notificationService != nil {
+		go func() {
+			_ = s.notificationService.NotifyAdminsAsync(context.Background(), v1dto.AdminNotifyInput{
+				Type:  "return",
+				Title: "Return Request Cancelled",
+				Body:  fmt.Sprintf("Customer cancelled return request for order #%s.", resolved.OrderNumber),
+				Data: map[string]any{
+					"order_uuid":   resolved.OrderUUID.String(),
+					"return_uuid":  updatedReturn.ReturnUuid.String(),
+					"order_number": resolved.OrderNumber,
+					"link":         "/returns",
+				},
+			})
+		}()
 	}
 
 	return v1dto.CancelOrderReturnResponseDTO{

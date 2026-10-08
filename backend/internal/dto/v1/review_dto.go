@@ -105,11 +105,13 @@ type ToggleHelpfulResponseDTO struct {
 
 // ── Input ───────────────────────────────────────────────
 type CreateReviewInput struct {
-	ProductUUID string  `form:"product_uuid" binding:"required,uuid"`
-	OrderUUID   string  `form:"order_uuid"   binding:"required,uuid"`
-	Rating      int32   `form:"rating"       binding:"required,min=1,max=5"`
-	Title       *string `form:"title"        binding:"omitempty,max=200"`
-	Comment     *string `form:"comment"      binding:"omitempty,max=2000"`
+	ProductUUID string   `json:"product_uuid" form:"product_uuid" binding:"required,uuid"`
+	OrderUUID   string   `json:"order_uuid"   form:"order_uuid"   binding:"required,uuid"`
+	Rating      int32    `json:"rating"       form:"rating"       binding:"required,min=1,max=5"`
+	Title       *string  `json:"title"        form:"title"        binding:"omitempty,max=200"`
+	Comment     *string  `json:"comment"      form:"comment"      binding:"omitempty,max=2000"`
+	Images      []string `json:"images"       form:"images"       binding:"omitempty,max=5"`
+	VideoURL    *string  `json:"video_url"    form:"video_url"    binding:"omitempty"`
 }
 
 type UpdateReviewInput struct {

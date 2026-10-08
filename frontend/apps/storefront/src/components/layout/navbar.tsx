@@ -89,7 +89,7 @@ export function Navbar() {
   const handleLogout = () => {
     reset();
     setUserDropdownOpen(false);
-    router.push("/");
+    router.push("/login");
   };
 
   const [apiCategories, setApiCategories] = useState<
@@ -241,15 +241,15 @@ export function Navbar() {
           <div className="flex items-center gap-3 shrink-0">
             <Link
               href="/"
-              className="flex items-center gap-2 group bg-white/95 hover:bg-white rounded-xl px-2.5 py-1 shadow-xs transition-all active:scale-95"
+              className="flex items-center gap-2 group bg-white/95 hover:bg-white rounded-xl px-2.5 py-1 shadow-xs"
             >
               <Image
                 src="/Logo.svg"
-                alt="GOshop — Official Gaming & GoLang Merch"
+                alt="GOshop — Official E-commerce Store for Tech Collectors and Developers"
                 width={150}
                 height={38}
                 priority
-                className="h-7 sm:h-8 w-auto object-contain transition-transform group-hover:scale-[1.02]"
+                className="h-7 sm:h-8 w-auto object-contain"
               />
             </Link>
           </div>
@@ -419,9 +419,7 @@ export function Navbar() {
                 >
                   <Icon
                     className={`w-3.5 h-3.5 ${
-                      cat.isHighlight
-                        ? "text-[#F26522] animate-bounce"
-                        : "text-[#007D9C]"
+                      cat.isHighlight ? "text-[#F26522]" : "text-[#007D9C]"
                     }`}
                   />
                   <span>{cat.name}</span>

@@ -9,8 +9,6 @@ import (
 	"goshop/internal/utils"
 	"goshop/internal/validation"
 	"net/http"
-	"os"
-	"path/filepath"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -820,16 +818,12 @@ func (oh *OrderHandler) GetWards(ctx *gin.Context) {
 // @Summary      Request order return / refund
 // @Description  Submit a request to return an order with reason and proof files
 // @Tags         Orders
-// @Accept       multipart/form-data
+// @Accept       json
 // @Produce      json
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Param        uuid path string true "Order UUID"
-// @Param        reason formData string true "Return reason"
-// @Param        bank_name formData string false "Bank name for refund"
-// @Param        bank_account formData string false "Bank account number"
-// @Param        bank_account_name formData string false "Bank account holder name"
-// @Param        files formData file false "Proof images (max 5) or video (max 1)"
+// @Param        request body v1dto.CreateOrderReturnInput true "Return request body"
 // @Success      201 {object} utils.APIResponse{data=v1dto.OrderReturnDTO}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      401 {object} utils.ErrorResponse
@@ -854,57 +848,18 @@ func (oh *OrderHandler) RequestOrderReturn(ctx *gin.Context) {
 	}
 
 	var input v1dto.CreateOrderReturnInput
-	if err := ctx.ShouldBind(&input); err != nil {
+	if err := ctx.ShouldBindJSON(&input); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
 	}
 
-	form, _ := ctx.MultipartForm()
-	var images []string
-	var videoURL *string
-	var savedFiles []string
-
-	uploadDir := "./uploads/returns/"
-
-	if form != nil && form.File["files"] != nil {
-		files := form.File["files"]
-		if len(files) > 6 {
-			utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "You can upload a maximum of 5 images and 1 video"))
-			return
-		}
-
-		for _, fileHeader := range files {
-			fileName, mediaType, err := utils.ValidateAndSaveFile(fileHeader, uploadDir)
-			if err != nil {
-				oh.cleanupFiles(savedFiles, uploadDir)
-				utils.ResponseError(ctx, err)
-				return
-			}
-			savedFiles = append(savedFiles, fileName)
-			fileRelativePath := fmt.Sprintf("/uploads/returns/%s", fileName)
-
-			switch mediaType {
-			case "image":
-				if len(images) >= 5 {
-					oh.cleanupFiles(savedFiles, uploadDir)
-					utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "You can upload a maximum of 5 images"))
-					return
-				}
-				images = append(images, fileRelativePath)
-			case "video":
-				if videoURL != nil {
-					oh.cleanupFiles(savedFiles, uploadDir)
-					utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "You can upload only 1 video"))
-					return
-				}
-				videoURL = &fileRelativePath
-			}
-		}
+	if len(input.Images) > 5 {
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "You can upload a maximum of 5 images"))
+		return
 	}
 
-	returnDTO, err := oh.returnService.RequestOrderReturn(ctx.Request.Context(), userUUID, orderUUID, input, images, videoURL)
+	returnDTO, err := oh.returnService.RequestOrderReturn(ctx.Request.Context(), userUUID, orderUUID, input, input.Images, input.VideoURL)
 	if err != nil {
-		oh.cleanupFiles(savedFiles, uploadDir)
 		utils.ResponseError(ctx, err)
 		return
 	}
@@ -1000,11 +955,7 @@ func (oh *OrderHandler) GetMyOrderReturns(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Return requests retrieved successfully", paginationResponse)
 }
 
-func (oh *OrderHandler) cleanupFiles(fileNames []string, uploadDir string) {
-	for _, name := range fileNames {
-		_ = os.Remove(filepath.Join(uploadDir, name))
-	}
-}
+
 
 // AdminGetReturns godoc
 // @Summary      Get all return requests

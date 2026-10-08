@@ -254,6 +254,9 @@ func (rs *reviewService) CreateReview(ctx context.Context, userUUID uuid.UUID, i
 	defer tx.Rollback(txCtx)
 
 	hasMedia := len(imageURLs) > 0 || videoURL != nil
+	if imageURLs == nil {
+		imageURLs = []string{}
+	}
 
 	createParams := sqlc.CreateReviewParams{
 		ReviewUserID:    user.UserID,

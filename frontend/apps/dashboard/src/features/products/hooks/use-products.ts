@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, fetchWithAuth } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
-import type { Product, ProductCSVImportResponse, ProductFormData } from '../types'
+import type { Product, ProductCSVImportResponse, ProductFormData, ProductSuggestion } from '../types'
 
 export interface ProductQueryParams {
   page?: number
@@ -19,6 +19,28 @@ export function useProducts(params: ProductQueryParams = {}) {
   return useQuery({
     queryKey: ['products', params],
     queryFn: async () => {
+      const isSearch = Boolean(params.search && params.search.trim().length >= 1)
+
+      if (isSearch) {
+        const { data, error } = await api.GET('/api/v1/products/search', {
+          params: {
+            query: {
+              q: params.search!.trim(),
+              category_uuid: params.category_uuid || undefined,
+              min_price: params.min_price,
+              max_price: params.max_price,
+              sort: params.sort || undefined,
+              page: params.page ?? 1,
+              limit: params.limit ?? 10,
+            },
+          },
+        })
+        if (error) {
+          throw new Error((error as { error?: string })?.error || 'Failed to search products')
+        }
+        return data
+      }
+
       const { data, error } = await api.GET('/api/v1/products', {
         params: {
           query: {
@@ -221,4 +243,28 @@ export function useImportProductsCSV() {
     },
   })
 }
+
+export function useProductSuggestions(query: string, limit = 8) {
+  return useQuery({
+    queryKey: ['product-suggestions', query, limit],
+    queryFn: async () => {
+      if (!query || query.trim().length === 0) return []
+      const { data, error } = await api.GET('/api/v1/products/suggest', {
+        params: {
+          query: {
+            q: query.trim(),
+            limit,
+          },
+        },
+      })
+      if (error) {
+        return []
+      }
+      return ((data as { data?: ProductSuggestion[] })?.data ?? []) as ProductSuggestion[]
+    },
+    enabled: Boolean(query && query.trim().length >= 1),
+    staleTime: 60 * 1000,
+  })
+}
+
 

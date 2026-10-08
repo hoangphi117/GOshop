@@ -373,35 +373,40 @@ export function useChat() {
                 },
               );
 
-              // If message came from admin, increment unread count, play chime, and notify
+              // If message came from admin, check if widget is open to mark as read or notify
               if (newMsg.sender_role === "admin") {
-                queryClient.invalidateQueries({
-                  queryKey: ["chat", "unread-count"],
-                });
-
                 const isHidden =
                   typeof document !== "undefined" && document.hidden;
-                const isWidgetClosed = !useChatUIStore.getState().isOpen;
+                const isWidgetOpen = useChatUIStore.getState().isOpen;
 
-                // Play audio chime if user is in background tab or widget is minimized
-                if (isHidden || isWidgetClosed) {
-                  playNotificationSound();
-                }
-
-                // Show desktop web notification if user is currently on another tab
-                if (isHidden) {
-                  showChatWebNotification({
-                    title: "GOshop Support",
-                    body: formatMessageNotificationSnippet(
-                      newMsg.content_type,
-                      newMsg.content,
-                      newMsg.attachment_name,
-                    ),
-                    tag: `storefront-chat-${conversation.uuid}`,
-                    onClick: () => {
-                      useChatUIStore.getState().openChat();
-                    },
+                if (isWidgetOpen && !isHidden) {
+                  // User is actively looking at the chat, mark read immediately
+                  authFetch("/api/v1/chat/messages/read", {
+                    method: "PATCH",
+                  }).catch(() => {});
+                } else {
+                  queryClient.invalidateQueries({
+                    queryKey: ["chat", "unread-count"],
                   });
+
+                  // Play audio chime if user is in background tab or widget is minimized
+                  playNotificationSound();
+
+                  // Show desktop web notification if user is currently on another tab
+                  if (isHidden) {
+                    showChatWebNotification({
+                      title: "GOshop Support",
+                      body: formatMessageNotificationSnippet(
+                        newMsg.content_type,
+                        newMsg.content,
+                        newMsg.attachment_name,
+                      ),
+                      tag: `storefront-chat-${conversation.uuid}`,
+                      onClick: () => {
+                        useChatUIStore.getState().openChat();
+                      },
+                    });
+                  }
                 }
               }
             } else if (
@@ -432,12 +437,21 @@ export function useChat() {
                 (old = []) => old.map((m) => ({ ...m, is_read: true })),
               );
             } else if (payload?.type === "chat.typing" && payload?.data) {
-              if (payload.data.sender_role === "admin") {
+              const typingUserId = payload.data.user_id;
+              const typingRole = payload.data.sender_role;
+              const isTyping = Boolean(payload.data.is_typing);
+
+              // Never display typing indicator for own user events
+              if (conversation?.user_id && typingUserId === conversation.user_id) {
+                return;
+              }
+
+              if (typingRole === "admin") {
                 if (adminTypingTimeoutRef.current) {
                   clearTimeout(adminTypingTimeoutRef.current);
                 }
 
-                if (payload.data.is_typing) {
+                if (isTyping) {
                   setIsAdminTyping(true);
                   // Auto clear typing state after 3.5s in case stop event is lost
                   adminTypingTimeoutRef.current = setTimeout(() => {
@@ -479,8 +493,22 @@ export function useChat() {
       if (wsRef.current) {
         const socket = wsRef.current;
         wsRef.current = null;
+        socket.onopen = null;
+        socket.onmessage = null;
+        socket.onerror = null;
         socket.onclose = null;
-        socket.close(1000, "Normal closure");
+
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.close(1000, "Normal closure");
+        } else if (socket.readyState === WebSocket.CONNECTING) {
+          socket.addEventListener(
+            "open",
+            () => {
+              socket.close(1000, "Normal closure");
+            },
+            { once: true },
+          );
+        }
       }
     };
   }, [isAuthenticated, accessToken, conversation?.uuid, queryClient]);

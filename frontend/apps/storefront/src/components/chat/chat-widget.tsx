@@ -1125,11 +1125,16 @@ export function ChatWidget() {
     markAsRead,
   } = useChat();
 
-  // Auto scroll to bottom when new messages arrive or when widget opens
+  // Auto scroll to bottom when new messages arrive or when widget opens, and mark read
   useEffect(() => {
     if (isOpen) {
       messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
-      if (unreadCount > 0) markAsRead();
+      const hasUnreadAdminMsg =
+        unreadCount > 0 ||
+        messages.some((m) => !m.is_read && m.sender_role === "admin");
+      if (hasUnreadAdminMsg) {
+        markAsRead();
+      }
     }
   }, [isOpen, messages, unreadCount, markAsRead]);
 
@@ -1140,10 +1145,18 @@ export function ChatWidget() {
     }
   }, [isOpen, isAdminTyping]);
 
-  // Focus input when chat opens
+  // Focus input and ensure read status when chat opens
   useEffect(() => {
-    if (isOpen && isAuthenticated) inputRef.current?.focus();
-  }, [isOpen, isAuthenticated]);
+    if (isOpen && isAuthenticated) {
+      inputRef.current?.focus();
+      const hasUnreadAdminMsg =
+        unreadCount > 0 ||
+        messages.some((m) => !m.is_read && m.sender_role === "admin");
+      if (hasUnreadAdminMsg) {
+        markAsRead();
+      }
+    }
+  }, [isOpen, isAuthenticated, messages, unreadCount, markAsRead]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -1424,7 +1437,10 @@ export function ChatWidget() {
                     msg.created_at,
                     prevMsg?.created_at,
                   );
-                  const isUser = msg.sender_role === "user";
+                  const isUser =
+                    msg.sender_role === "user" ||
+                    (Boolean(conversation?.user_id) &&
+                      msg.sender_id === conversation?.user_id);
                   const isRecalled = msg.content_type === "recalled";
                   const canRecall =
                     isUser &&
@@ -1864,6 +1880,16 @@ export function ChatWidget() {
                   type="text"
                   value={inputValue}
                   onChange={handleInputChange}
+                  onFocus={() => {
+                    if (
+                      unreadCount > 0 ||
+                      messages.some(
+                        (m) => !m.is_read && m.sender_role === "admin",
+                      )
+                    ) {
+                      markAsRead();
+                    }
+                  }}
                   placeholder={
                     pendingFiles.length > 0
                       ? `Add a caption for ${pendingFiles.length} ${

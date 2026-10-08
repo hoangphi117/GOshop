@@ -140,6 +140,11 @@ func (h *WSHandler) HandleWS(ctx *gin.Context) {
 				return
 			}
 
+			// If the connected user is the conversation owner, they participate as customer ("user")
+			if conv.UserID == user.UserID {
+				isAdmin = false
+			}
+
 			targetConvID = &conv.ConversationID
 		}
 	}
@@ -174,10 +179,7 @@ func (h *WSHandler) HandleWS(ctx *gin.Context) {
 				IsOnline: hasAdmin,
 			},
 		})
-		select {
-		case client.Send <- shopPresence:
-		default:
-		}
+		client.SafeSend(shopPresence)
 
 		// 2. If client is admin and target conversation is set, send customer presence
 		if isAdmin && targetConvID != nil && h.chatRepo != nil {
@@ -193,10 +195,7 @@ func (h *WSHandler) HandleWS(ctx *gin.Context) {
 						IsOnline:         custOnline,
 					},
 				})
-				select {
-				case client.Send <- custPresence:
-				default:
-				}
+				client.SafeSend(custPresence)
 			}
 		}
 	}()

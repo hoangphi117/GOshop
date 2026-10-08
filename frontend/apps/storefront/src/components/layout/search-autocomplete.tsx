@@ -8,26 +8,49 @@ import { ProductSuggestion } from "@/lib/api-server";
 import { API_BASE_URL, API_KEY } from "@/lib/api";
 import { formatCurrency } from "@/lib/format";
 
+import { getImageUrl } from "@/lib/utils";
+
 interface SearchAutocompleteProps {
   isTransparent?: boolean;
   onClose?: () => void;
   isMobile?: boolean;
+  variant?: "navbar" | "compact";
+  placeholder?: string;
+  initialValue?: string;
+  preserveParams?: {
+    category?: string;
+    sort?: string;
+    min_price?: number;
+    max_price?: number;
+    min_rating?: number;
+  };
+  className?: string;
 }
 
 export function SearchAutocomplete({
   isTransparent = false,
   onClose,
   isMobile = false,
+  variant = "navbar",
+  placeholder,
+  initialValue = "",
+  preserveParams,
+  className = "",
 }: SearchAutocompleteProps) {
   const router = useRouter();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialValue);
   const [suggestions, setSuggestions] = useState<ProductSuggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Debounced search suggestion query
+  // Sync state if initialValue prop changes
+  useEffect(() => {
+    setQuery(initialValue);
+  }, [initialValue]);
+
+  // Debounced search suggestion query to Meilisearch
   useEffect(() => {
     const trimmed = query.trim();
     if (!trimmed) {
@@ -54,7 +77,7 @@ export function SearchAutocomplete({
       } finally {
         setIsLoading(false);
       }
-    }, 150); // 150ms debounce for fast responsive feel
+    }, 150); // 150ms debounce for ultra-fast response
 
     return () => clearTimeout(timer);
   }, [query]);
@@ -73,29 +96,57 @@ export function SearchAutocomplete({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const buildUrl = (searchVal: string) => {
+    const q = new URLSearchParams();
+    if (preserveParams?.category) q.set("category", preserveParams.category);
+    if (searchVal.trim()) q.set("search", searchVal.trim());
+    if (preserveParams?.sort) q.set("sort", preserveParams.sort);
+    if (preserveParams?.min_price !== undefined)
+      q.set("min_price", preserveParams.min_price.toString());
+    if (preserveParams?.max_price !== undefined)
+      q.set("max_price", preserveParams.max_price.toString());
+    if (preserveParams?.min_rating !== undefined)
+      q.set("min_rating", preserveParams.min_rating.toString());
+
+    const qs = q.toString();
+    return `/products${qs ? `?${qs}` : ""}`;
+  };
+
   const handleSelectProduct = (slug: string) => {
     router.push(`/products/${slug}`);
     setIsOpen(false);
     if (onClose) onClose();
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (query.trim()) {
-      router.push(`/products?search=${encodeURIComponent(query.trim())}`);
-      setIsOpen(false);
-      if (onClose) onClose();
-    }
+  const handleSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setIsOpen(false);
+    if (onClose) onClose();
+    router.push(buildUrl(query));
   };
+
+  const isCompact = variant === "compact";
 
   return (
     <div
       ref={containerRef}
-      className={`relative w-full ${isMobile ? "mb-3" : "max-w-xl mx-auto"}`}
+      className={`relative w-full ${
+        isCompact
+          ? className
+          : isMobile
+            ? "mb-3"
+            : `max-w-xl mx-auto ${className}`
+      }`}
     >
       <form onSubmit={handleSubmit} className="relative w-full group">
         <div className="relative flex items-center w-full">
-          <Search className="w-4 h-4 text-[#007D9C] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none transition-colors" />
+          <Search
+            className={`${
+              isCompact
+                ? "w-3.5 h-3.5 text-slate-400 left-3"
+                : "w-4 h-4 text-[#007D9C] left-3.5"
+            } absolute top-1/2 -translate-y-1/2 pointer-events-none transition-colors`}
+          />
           <input
             ref={inputRef}
             type="text"
@@ -104,25 +155,51 @@ export function SearchAutocomplete({
               setQuery(e.target.value);
               setIsOpen(true);
             }}
-            onFocus={() => setIsOpen(true)}
-            placeholder="Search GOshop"
-            className="w-full pl-10 pr-28 py-2 rounded-md text-xs text-slate-900 outline-none border-0 bg-white shadow-xs focus:ring-2 focus:ring-[#00ADD8] transition-all font-body placeholder:text-slate-400"
+            onFocus={() => {
+              if (query.trim().length > 0) setIsOpen(true);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setIsOpen(false);
+            }}
+            placeholder={
+              placeholder ||
+              (isCompact ? "Filter within results..." : "Search GOshop")
+            }
+            className={
+              isCompact
+                ? "w-full pl-9 pr-8 py-1.5 rounded-xs border border-slate-300 bg-white text-xs text-slate-900 placeholder-slate-400 outline-none focus:border-[#007D9C] focus:ring-1 focus:ring-[#007D9C] font-body transition-colors"
+                : "w-full pl-10 pr-28 py-2 rounded-md text-xs text-slate-900 outline-none border-0 bg-white shadow-xs focus:ring-2 focus:ring-[#00ADD8] transition-all font-body placeholder:text-slate-400"
+            }
           />
 
           {isLoading ? (
-            <Loader2 className="w-3.5 h-3.5 text-[#00ADD8] absolute right-3.5 top-1/2 -translate-y-1/2 animate-spin" />
+            <Loader2
+              className={`${
+                isCompact
+                  ? "w-3.5 h-3.5 right-2.5 text-[#00ADD8]"
+                  : "w-3.5 h-3.5 right-3.5 text-[#00ADD8]"
+              } absolute top-1/2 -translate-y-1/2 animate-spin`}
+            />
           ) : query ? (
             <button
               type="button"
               onClick={() => {
                 setQuery("");
                 setSuggestions([]);
+                setIsOpen(false);
                 inputRef.current?.focus();
+                if (isCompact) {
+                  router.push(buildUrl(""));
+                }
               }}
-              className="p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200/60 absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer transition-colors"
+              className={`${
+                isCompact
+                  ? "p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 right-1.5"
+                  : "p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200/60 right-2.5"
+              } absolute top-1/2 -translate-y-1/2 cursor-pointer transition-colors`}
               aria-label="Clear search query"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className={isCompact ? "w-3 h-3" : "w-3.5 h-3.5"} />
             </button>
           ) : null}
         </div>
@@ -130,24 +207,34 @@ export function SearchAutocomplete({
 
       {/* Suggestions Dropdown */}
       {isOpen && query.trim().length > 0 && (
-        <div className="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl shadow-2xl border border-slate-200/90 overflow-hidden z-50">
+        <div
+          className={`absolute ${
+            isCompact
+              ? "left-0 top-full mt-1.5 w-full"
+              : "left-0 right-0 top-full mt-1"
+          } bg-white rounded-md shadow-2xl border border-slate-200/90 overflow-hidden z-50 animate-in fade-in-50 zoom-in-95`}
+        >
           {suggestions.length > 0 ? (
             <div>
-              <div className="max-h-80 overflow-y-auto divide-y divide-slate-50">
+              <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-500 font-heading">
+                <span>{suggestions.length} found</span>
+              </div>
+
+              <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
                 {suggestions.map((item) => (
                   <button
                     key={item.uuid}
                     type="button"
                     onClick={() => handleSelectProduct(item.slug)}
-                    className="w-full px-3.5 py-2 flex items-center gap-3 hover:bg-[#E6F7FB] text-left  cursor-pointer"
+                    className="w-full px-3.5 py-2 flex items-center gap-3 hover:bg-[#E6F7FB] text-left cursor-pointer transition-colors group"
                   >
-                    <div className="relative w-10 h-10 rounded-lg bg-slate-100 overflow-hidden border border-slate-200/80">
+                    <div className="relative w-9 h-9 rounded-md bg-slate-100 overflow-hidden border border-slate-200/80 shrink-0">
                       {item.image_url ? (
                         <Image
-                          src={item.image_url}
+                          src={getImageUrl(item.image_url)}
                           alt={item.name}
                           fill
-                          sizes="40px"
+                          sizes="36px"
                           className="object-cover"
                         />
                       ) : (
@@ -177,7 +264,7 @@ export function SearchAutocomplete({
               </div>
               <button
                 type="button"
-                onClick={handleSubmit}
+                onClick={() => handleSubmit()}
                 className="w-full px-3.5 py-2.5 bg-slate-50 border-t border-slate-100 text-xs text-[#007D9C] font-bold flex items-center justify-between hover:bg-[#E6F7FB] transition-colors cursor-pointer font-heading"
               >
                 <span>View all results for &quot;{query}&quot;</span>
@@ -193,7 +280,12 @@ export function SearchAutocomplete({
                 Press Enter to search the full catalog
               </p>
             </div>
-          ) : null}
+          ) : (
+            <div className="py-5 flex items-center justify-center gap-2 text-xs text-slate-500">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#007D9C]" />
+              <span>Searching products...</span>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -94,6 +94,22 @@ func (s *orderReturnService) SubmitReturnShipping(ctx context.Context, userUUID 
 		_ = s.cache.Clear(fmt.Sprintf("order:%s", resolved.OrderUUID.String()))
 	}
 
+	if s.notificationService != nil {
+		go func() {
+			_ = s.notificationService.NotifyAdminsAsync(context.Background(), v1dto.AdminNotifyInput{
+				Type:  "return",
+				Title: "Return Tracking Submitted",
+				Body:  fmt.Sprintf("Return shipping details submitted for order #%s: %s (%s).", resolved.OrderNumber, shippingCode, provider),
+				Data: map[string]any{
+					"order_uuid":   resolved.OrderUUID.String(),
+					"return_uuid":  updatedReturn.ReturnUuid.String(),
+					"order_number": resolved.OrderNumber,
+					"link":         "/returns",
+				},
+			})
+		}()
+	}
+
 	return v1dto.SubmitReturnShippingResponseDTO{
 		ReturnUUID:       updatedReturn.ReturnUuid.String(),
 		OrderUUID:        resolved.OrderUUID.String(),

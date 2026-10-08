@@ -84,10 +84,12 @@ type CancelShippingInput struct {
 }
 
 type CreateOrderReturnInput struct {
-	Reason          string `form:"reason" json:"reason" binding:"required,min=10,max=1000"`
-	BankName        string `form:"bank_name" json:"bank_name" binding:"omitempty,max=100"`
-	BankAccount     string `form:"bank_account" json:"bank_account" binding:"omitempty,max=50"`
-	BankAccountName string `form:"bank_account_name" json:"bank_account_name" binding:"omitempty,max=100"`
+	Reason          string   `form:"reason" json:"reason" binding:"required,min=10,max=1000"`
+	BankName        string   `form:"bank_name" json:"bank_name" binding:"omitempty,max=100"`
+	BankAccount     string   `form:"bank_account" json:"bank_account" binding:"omitempty,max=50"`
+	BankAccountName string   `form:"bank_account_name" json:"bank_account_name" binding:"omitempty,max=100"`
+	Images          []string `form:"images" json:"images" binding:"omitempty,max=5"`
+	VideoURL        *string  `form:"video_url" json:"video_url" binding:"omitempty"`
 }
 
 type CancelOrderReturnInput struct {

@@ -38,3 +38,13 @@ export interface ProductCSVImportResponse {
   errors: CSVRowError[]
 }
 
+export interface ProductSuggestion {
+  uuid: string
+  name: string
+  slug: string
+  price: number
+  image_url?: string
+  category_name?: string
+}
+
+

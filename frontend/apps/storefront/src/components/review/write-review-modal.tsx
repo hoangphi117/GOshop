@@ -1,8 +1,8 @@
-'use client'
+"use client";
 
-import React, { useState, useRef } from 'react'
-import { authFetch } from '@/lib/api'
-import { extractErrorMessage } from '@/lib/utils'
+import React, { useState, useRef } from "react";
+import { authFetch } from "@/lib/api";
+import { extractErrorMessage } from "@/lib/utils";
 import {
   X,
   Star,
@@ -13,31 +13,31 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
-} from 'lucide-react'
-import { toast } from 'sonner'
+} from "lucide-react";
+import { toast } from "sonner";
 
 interface WriteReviewModalProps {
-  isOpen: boolean
-  onClose: () => void
-  productUuid: string
-  productName: string
-  productImageUrl?: string
-  orderUuid?: string
+  isOpen: boolean;
+  onClose: () => void;
+  productUuid: string;
+  productName: string;
+  productImageUrl?: string;
+  orderUuid?: string;
   eligibleOrders?: Array<{
-    order_uuid: string
-    order_number: string
-    created_at?: string
-  }>
-  onSuccess?: () => void
+    order_uuid: string;
+    order_number: string;
+    created_at?: string;
+  }>;
+  onSuccess?: () => void;
 }
 
 const RATING_LABELS: Record<number, { text: string; color: string }> = {
-  1: { text: 'Poor - Very Dissatisfied', color: 'text-rose-500' },
-  2: { text: 'Fair - Needs Improvement', color: 'text-amber-500' },
-  3: { text: 'Average - Met Expectations', color: 'text-yellow-600' },
-  4: { text: 'Good - Highly Satisfied', color: 'text-emerald-500' },
-  5: { text: 'Excellent - Loved It!', color: 'text-emerald-600' },
-}
+  1: { text: "Poor - Very Dissatisfied", color: "text-rose-500" },
+  2: { text: "Fair - Needs Improvement", color: "text-amber-500" },
+  3: { text: "Average - Met Expectations", color: "text-yellow-600" },
+  4: { text: "Good - Highly Satisfied", color: "text-emerald-500" },
+  5: { text: "Excellent - Loved It!", color: "text-emerald-600" },
+};
 
 export function WriteReviewModal({
   isOpen,
@@ -49,146 +49,188 @@ export function WriteReviewModal({
   eligibleOrders,
   onSuccess,
 }: WriteReviewModalProps) {
-  const [rating, setRating] = useState<number>(5)
-  const [hoverRating, setHoverRating] = useState<number | null>(null)
-  const [title, setTitle] = useState('')
-  const [comment, setComment] = useState('')
+  const [rating, setRating] = useState<number>(5);
+  const [hoverRating, setHoverRating] = useState<number | null>(null);
+  const [title, setTitle] = useState("");
+  const [comment, setComment] = useState("");
   const [selectedOrderUuid, setSelectedOrderUuid] = useState<string>(
-    initialOrderUuid || eligibleOrders?.[0]?.order_uuid || ''
-  )
-  const [files, setFiles] = useState<File[]>([])
-  const [previews, setPreviews] = useState<Array<{ url: string; isVideo: boolean; file: File }>>([])
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+    initialOrderUuid || eligibleOrders?.[0]?.order_uuid || "",
+  );
+  const [files, setFiles] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<
+    Array<{ url: string; isVideo: boolean; file: File }>
+  >([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
   const handleRatingClick = (star: number) => {
-    setRating(star)
-  }
+    setRating(star);
+  };
 
   const handleFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files) return
-    const selectedFiles = Array.from(e.target.files)
-    setErrorMsg(null)
+    if (!e.target.files) return;
+    const selectedFiles = Array.from(e.target.files);
+    setErrorMsg(null);
 
     // Validate media counts
-    const currentImages = previews.filter((p) => !p.isVideo).length
-    const currentVideos = previews.filter((p) => p.isVideo).length
+    const currentImages = previews.filter((p) => !p.isVideo).length;
+    const currentVideos = previews.filter((p) => p.isVideo).length;
 
-    const newPreviews: Array<{ url: string; isVideo: boolean; file: File }> = []
-    const newFiles: File[] = []
+    const newPreviews: Array<{ url: string; isVideo: boolean; file: File }> =
+      [];
+    const newFiles: File[] = [];
 
-    let addedImages = 0
-    let addedVideos = 0
+    let addedImages = 0;
+    let addedVideos = 0;
 
     for (const file of selectedFiles) {
-      const isImage = file.type.startsWith('image/')
-      const isVideo = file.type.startsWith('video/')
+      const isImage = file.type.startsWith("image/");
+      const isVideo = file.type.startsWith("video/");
 
       if (!isImage && !isVideo) {
-        toast.error(`"${file.name}" is not a supported image or video file.`)
-        continue
+        toast.error(`"${file.name}" is not a supported image or video file.`);
+        continue;
       }
 
       if (isImage) {
         if (currentImages + addedImages >= 5) {
-          toast.error('You can upload a maximum of 5 images.')
-          continue
+          toast.error("You can upload a maximum of 5 images.");
+          continue;
         }
-        addedImages++
+        addedImages++;
       } else if (isVideo) {
         if (currentVideos + addedVideos >= 1) {
-          toast.error('You can upload a maximum of 1 video.')
-          continue
+          toast.error("You can upload a maximum of 1 video.");
+          continue;
         }
-        addedVideos++
+        addedVideos++;
       }
 
       if (file.size > 20 * 1024 * 1024) {
-        toast.error(`"${file.name}" exceeds 20MB file size limit.`)
-        continue
+        toast.error(`"${file.name}" exceeds 20MB file size limit.`);
+        continue;
       }
 
-      const url = URL.createObjectURL(file)
-      newPreviews.push({ url, isVideo, file })
-      newFiles.push(file)
+      const url = URL.createObjectURL(file);
+      newPreviews.push({ url, isVideo, file });
+      newFiles.push(file);
     }
 
-    setPreviews((prev) => [...prev, ...newPreviews])
-    setFiles((prev) => [...prev, ...newFiles])
+    setPreviews((prev) => [...prev, ...newPreviews]);
+    setFiles((prev) => [...prev, ...newFiles]);
 
     // Reset input
     if (fileInputRef.current) {
-      fileInputRef.current.value = ''
+      fileInputRef.current.value = "";
     }
-  }
+  };
 
   const handleRemoveFile = (index: number) => {
-    const previewToRemove = previews[index]
+    const previewToRemove = previews[index];
     if (previewToRemove) {
-      URL.revokeObjectURL(previewToRemove.url)
+      URL.revokeObjectURL(previewToRemove.url);
     }
-    setPreviews((prev) => prev.filter((_, i) => i !== index))
-    setFiles((prev) => prev.filter((_, i) => i !== index))
-  }
+    setPreviews((prev) => prev.filter((_, i) => i !== index));
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setErrorMsg(null)
+    e.preventDefault();
+    setErrorMsg(null);
 
-    const finalOrderUuid = initialOrderUuid || selectedOrderUuid
+    const finalOrderUuid = initialOrderUuid || selectedOrderUuid;
     if (!finalOrderUuid) {
-      setErrorMsg('Please select a verified purchase order to attach your review.')
-      return
+      setErrorMsg(
+        "Please select a verified purchase order to attach your review.",
+      );
+      return;
     }
 
     if (rating < 1 || rating > 5) {
-      setErrorMsg('Please select a rating score between 1 and 5 stars.')
-      return
+      setErrorMsg("Please select a rating score between 1 and 5 stars.");
+      return;
     }
 
-    setIsSubmitting(true)
+    setIsSubmitting(true);
 
     try {
-      const formData = new FormData()
-      formData.append('product_uuid', productUuid)
-      formData.append('order_uuid', finalOrderUuid)
-      formData.append('rating', String(rating))
-      if (title.trim()) formData.append('title', title.trim())
-      if (comment.trim()) formData.append('comment', comment.trim())
+      // 1. Upload files to /api/v1/upload (folder='reviews') if any
+      const uploadedImageUrls: string[] = [];
+      let uploadedVideoUrl: string | undefined = undefined;
 
-      files.forEach((file) => {
-        formData.append('files', file)
-      })
+      if (files.length > 0) {
+        for (const file of files) {
+          const uploadData = new FormData();
+          uploadData.append("file", file);
+          uploadData.append("folder", "reviews");
 
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
-      const res = await authFetch(`${baseUrl}/api/v1/reviews`, {
-        method: 'POST',
-        body: formData,
-      })
+          const uploadRes = await authFetch("/api/v1/upload", {
+            method: "POST",
+            body: uploadData,
+          });
+
+          if (!uploadRes.ok) {
+            const errJson = await uploadRes.json().catch(() => null);
+            const msg = extractErrorMessage(
+              errJson,
+              `Failed to upload "${file.name}".`,
+            );
+            setErrorMsg(msg);
+            toast.error(msg);
+            setIsSubmitting(false);
+            return;
+          }
+
+          const resData = await uploadRes.json();
+          const fileUrl = resData?.data?.url || resData?.url;
+          if (file.type.startsWith("video/")) {
+            uploadedVideoUrl = fileUrl;
+          } else {
+            uploadedImageUrls.push(fileUrl);
+          }
+        }
+      }
+
+      // 2. Submit pure JSON review
+      const res = await authFetch("/api/v1/reviews", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          product_uuid: productUuid,
+          order_uuid: finalOrderUuid,
+          rating,
+          title: title.trim() || undefined,
+          comment: comment.trim() || undefined,
+          images: uploadedImageUrls,
+          video_url: uploadedVideoUrl,
+        }),
+      });
 
       if (res.ok) {
-        toast.success('Thank you! Your product review has been submitted.')
-        onSuccess?.()
-        onClose()
+        toast.success("Thank you! Your product review has been submitted.");
+        onSuccess?.();
+        onClose();
       } else {
-        const errJson = await res.json().catch(() => null)
-        const msg = extractErrorMessage(errJson, 'Failed to submit review.')
-        setErrorMsg(msg)
-        toast.error(msg)
+        const errJson = await res.json().catch(() => null);
+        const msg = extractErrorMessage(errJson, "Failed to submit review.");
+        setErrorMsg(msg);
+        toast.error(msg);
       }
     } catch {
-      const msg = 'Network error occurred while submitting your review.'
-      setErrorMsg(msg)
-      toast.error(msg)
+      const msg = "Network error occurred while submitting your review.";
+      setErrorMsg(msg);
+      toast.error(msg);
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
-  const currentDisplayRating = hoverRating || rating
+  const currentDisplayRating = hoverRating || rating;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
@@ -224,7 +266,10 @@ export function WriteReviewModal({
         </div>
 
         {/* Content Form */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-4">
+        <form
+          onSubmit={handleSubmit}
+          className="flex-1 overflow-y-auto p-5 space-y-4"
+        >
           {errorMsg && (
             <div className="p-3 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-start gap-2.5">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -236,7 +281,8 @@ export function WriteReviewModal({
           {!initialOrderUuid && eligibleOrders && eligibleOrders.length > 0 && (
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-[#0F172A]">
-                Associated Purchase Order <span className="text-rose-500">*</span>
+                Associated Purchase Order{" "}
+                <span className="text-rose-500">*</span>
               </label>
               <select
                 value={selectedOrderUuid}
@@ -246,7 +292,8 @@ export function WriteReviewModal({
               >
                 {eligibleOrders.map((ord) => (
                   <option key={ord.order_uuid} value={ord.order_uuid}>
-                    Order #{ord.order_number} {ord.created_at ? `(${ord.created_at})` : ''}
+                    Order #{ord.order_number}{" "}
+                    {ord.created_at ? `(${ord.created_at})` : ""}
                   </option>
                 ))}
               </select>
@@ -255,7 +302,9 @@ export function WriteReviewModal({
 
           {/* Star Rating Selector */}
           <div className="p-4 rounded-md bg-[#F8FAFC] border border-[#E2E8F0] flex flex-col items-center justify-center gap-2 text-center">
-            <span className="font-heading text-xs font-bold text-[#0F172A] uppercase tracking-wider">Overall Rating</span>
+            <span className="font-heading text-xs font-bold text-[#0F172A] uppercase tracking-wider">
+              Overall Rating
+            </span>
             <div className="flex items-center gap-2">
               {[1, 2, 3, 4, 5].map((star) => (
                 <button
@@ -270,8 +319,8 @@ export function WriteReviewModal({
                   <Star
                     className={`w-7 h-7 ${
                       star <= currentDisplayRating
-                        ? 'fill-amber-400 text-amber-400'
-                        : 'text-slate-200'
+                        ? "fill-amber-400 text-amber-400"
+                        : "text-slate-200"
                     }`}
                   />
                 </button>
@@ -279,7 +328,7 @@ export function WriteReviewModal({
             </div>
             <span
               className={`text-xs font-bold ${
-                RATING_LABELS[currentDisplayRating]?.color || 'text-[#64748B]'
+                RATING_LABELS[currentDisplayRating]?.color || "text-[#64748B]"
               }`}
             >
               {RATING_LABELS[currentDisplayRating]?.text}
@@ -289,7 +338,8 @@ export function WriteReviewModal({
           {/* Title */}
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-[#0F172A]">
-              Review Title <span className="text-[#64748B] font-normal">(Optional)</span>
+              Review Title{" "}
+              <span className="text-[#64748B] font-normal">(Optional)</span>
             </label>
             <input
               type="text"
@@ -305,9 +355,12 @@ export function WriteReviewModal({
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-[#0F172A]">
-                Review Experience <span className="text-[#64748B] font-normal">(Optional)</span>
+                Review Experience{" "}
+                <span className="text-[#64748B] font-normal">(Optional)</span>
               </label>
-              <span className="text-[10px] text-[#94A3B8]">{comment.length}/2000</span>
+              <span className="text-[10px] text-[#94A3B8]">
+                {comment.length}/2000
+              </span>
             </div>
             <textarea
               value={comment}
@@ -323,7 +376,9 @@ export function WriteReviewModal({
           <div className="space-y-2">
             <div className="flex items-center justify-between text-xs">
               <span className="font-bold text-[#0F172A]">Photos & Video</span>
-              <span className="text-[#64748B] text-[11px]">Max 5 images, 1 video (20MB max)</span>
+              <span className="text-[#64748B] text-[11px]">
+                Max 5 images, 1 video (20MB max)
+              </span>
             </div>
 
             {/* Media Preview Grid */}
@@ -394,15 +449,6 @@ export function WriteReviewModal({
               className="hidden"
             />
           </div>
-
-          {/* Submission Info */}
-          <div className="p-3 rounded-md bg-[#F8FAFC] border border-[#E2E8F0] flex items-center gap-2 text-[11px] text-[#64748B]">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>
-              Your review helps other shoppers make informed choices. Verified buyers will receive a badge.
-            </span>
-          </div>
-
           {/* Actions */}
           <div className="pt-3 border-t border-[#E2E8F0] flex items-center justify-end gap-2.5">
             <button
@@ -431,5 +477,5 @@ export function WriteReviewModal({
         </form>
       </div>
     </div>
-  )
+  );
 }

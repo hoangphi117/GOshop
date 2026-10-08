@@ -162,7 +162,13 @@ func (s *chatService) SendMessage(
 		_, _ = s.chatRepo.UpdateConversationStatus(ctx, conv.ConversationID, "open")
 	}
 
-	computedRole := s.determineSenderRole(sender)
+	computedRole := "user"
+	if senderRole == "admin" || (conv.UserID != sender.UserID && (sender.UserLevel == 1 || sender.UserLevel == 2)) {
+		computedRole = "admin"
+	} else if conv.UserID == sender.UserID {
+		computedRole = "user"
+	}
+
 	if computedRole == "user" && conv.UserID != sender.UserID {
 		return v1dto.MessageResponse{}, utils.NewError(utils.ErrCodeForbidden, "user is not part of this conversation")
 	}
@@ -625,7 +631,13 @@ func (s *chatService) SendTyping(
 		return err
 	}
 
-	role := s.determineSenderRole(caller)
+	role := "user"
+	if conv.UserID != caller.UserID && (caller.UserLevel == 1 || caller.UserLevel == 2) {
+		role = "admin"
+	} else if conv.UserID == caller.UserID {
+		role = "user"
+	}
+
 	if role == "user" && conv.UserID != caller.UserID {
 		return utils.NewError(utils.ErrCodeForbidden, "you cannot send typing in this conversation")
 	}

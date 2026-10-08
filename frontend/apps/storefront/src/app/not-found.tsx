@@ -1,45 +1,82 @@
-import React from 'react'
-import Link from 'next/link'
-import { Store, Compass, ArrowLeft, Search, ShoppingBag } from 'lucide-react'
+import React from "react";
+import Link from "next/link";
+import {
+  ArrowLeft,
+  ShoppingBag,
+  Terminal,
+  Zap,
+  ShieldCheck,
+} from "lucide-react";
 
 export default function NotFound() {
   return (
-    <div className="min-h-[75vh] flex items-center justify-center py-16 px-4 sm:px-6 bg-[#FAFBFC]">
-      <div className="max-w-md w-full text-center space-y-6">
-        <div className="relative mx-auto w-28 h-28 rounded-3xl bg-[#E3F2FD] text-[#2196F3] flex items-center justify-center shadow-md">
-          <Compass className="w-14 h-14 animate-pulse text-[#0D47A1]" />
-          <span className="absolute -bottom-2 -right-2 px-2.5 py-0.5 rounded-full bg-[#0D1B2A] text-white text-xs font-black">
-            404
-          </span>
-        </div>
+    <div
+      className="w-full max-w-4xl mx-auto p-4 sm:p-6 min-h-[75vh] flex items-center justify-center"
+      style={{ fontFamily: 'var(--font-body, "Nunito Sans", sans-serif)' }}
+    >
+      <div className="w-full">
+        {/* SECTION 1: MAIN NOT FOUND CONTENT (LEFT - 7 COLS) */}
+        <div className="lg:col-span-7 flex flex-col bg-white rounded-2xl shadow-xl border border-[#E2E8F0] overflow-hidden">
+          {/* Top Decorative Solid Line Stripe */}
+          <div className="h-1.5 w-full bg-[#00637C]" />
 
-        <div className="space-y-2">
-          <h1 className="text-2xl sm:text-3xl font-black text-[#0D1B2A] tracking-tight">
-            Page Not Found
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 leading-relaxed max-w-sm mx-auto">
-            Sorry, the page or item you are looking for doesn&apos;t exist, has been removed,
-            or the URL might be mistyped.
-          </p>
-        </div>
+          <div className="p-6 sm:p-8 flex flex-col items-center text-center justify-center flex-1 space-y-5">
+            {/* Logo Brand Presence */}
+            <div className="h-7 flex items-center justify-center">
+              <span
+                className="text-2xl font-bold text-[#007D9C] tracking-tight"
+                style={{
+                  fontFamily: 'var(--font-heading, "Rubik", sans-serif)',
+                }}
+              >
+                GO<span className="text-[#F26522]">shop</span>
+              </span>
+            </div>
 
-        <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
-          <Link
-            href="/"
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-[#2196F3] text-white text-xs font-bold hover:bg-[#0D47A1] transition-all shadow-md active:scale-98"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Return Home</span>
-          </Link>
-          <Link
-            href="/products"
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl border border-slate-200 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-all shadow-xs"
-          >
-            <ShoppingBag className="w-4 h-4 text-[#2196F3]" />
-            <span>Browse Products</span>
-          </Link>
+            {/* Mascot Avatar Node with "404" Badge instead of Compass */}
+            <div className="w-20 h-20 rounded-2xl bg-[#EAEDFF] flex flex-col items-center justify-center shadow-xs relative group">
+              <span
+                className="text-2xl font-black text-[#00637C] tracking-tight"
+                style={{
+                  fontFamily: 'var(--font-heading, "Rubik", sans-serif)',
+                }}
+              >
+                404
+              </span>
+            </div>
+
+            {/* Title & Description */}
+            <div className="space-y-2 max-w-sm">
+              <h1
+                className="text-2xl font-bold text-[#131B2A]"
+                style={{
+                  fontFamily: 'var(--font-heading, "Rubik", sans-serif)',
+                }}
+              >
+                Page Not Found
+              </h1>
+              <p className="text-xs text-[#3E484D] leading-relaxed">
+                Sorry, the page or item you are looking for doesn&apos;t exist,
+                has been moved, or the URL might be mistyped.
+              </p>
+            </div>
+
+            {/* Main Action Button */}
+            <div className="pt-2 w-full max-w-xs">
+              <Link
+                href="/"
+                className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-[#00637C] hover:bg-[#004D62] text-white text-xs font-bold transition-all shadow-md shadow-[#00637C]/25"
+                style={{
+                  fontFamily: 'var(--font-heading, "Rubik", sans-serif)',
+                }}
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Return Home</span>
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
     </div>
-  )
+  );
 }
