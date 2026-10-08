@@ -40,7 +40,6 @@ const (
 
 type authService struct {
 	userRepo         repository.UserRepository
-	sessionRepo      repository.SessionRepository
 	notificationRepo repository.NotificationRepository
 	tokenService     auth.TokenService
 	cacheService     cache.RedisCacheService
@@ -53,7 +52,6 @@ type authService struct {
 
 func NewAuthService(
 	userRepo repository.UserRepository,
-	sessionRepo repository.SessionRepository,
 	notificationRepo repository.NotificationRepository,
 	tokenService auth.TokenService,
 	cacheService cache.RedisCacheService,
@@ -65,7 +63,6 @@ func NewAuthService(
 ) AuthService {
 	return &authService{
 		userRepo:         userRepo,
-		sessionRepo:      sessionRepo,
 		notificationRepo: notificationRepo,
 		tokenService:     tokenService,
 		cacheService:     cacheService,
@@ -113,85 +110,6 @@ func (as *authService) resetLoginRateLimit(ip string) {
 	_ = as.cacheService.Del(key)
 }
 
-func (as *authService) handleNewSession(ctx context.Context, user sqlc.User, familyID, ip, userAgent string) {
-	if as.sessionRepo == nil || familyID == "" {
-		return
-	}
-
-	deviceName := utils.ParseDeviceName(userAgent)
-
-	// 1. Check existing sessions: if account is already logged in on any device/session,
-	// notify the user of this new session login so they can verify security.
-	existingSessions, err := as.sessionRepo.ListByUserID(ctx, user.UserID)
-	if err == nil && len(existingSessions) > 0 {
-		as.sendSuspiciousLoginNotification(ctx, user.UserID, deviceName, ip, familyID)
-	}
-
-	// 2. Create new session
-	_, _ = as.sessionRepo.Create(ctx, sqlc.CreateSessionParams{
-		UserID:     user.UserID,
-		FamilyID:   familyID,
-		IpAddress:  &ip,
-		UserAgent:  &userAgent,
-		DeviceName: &deviceName,
-	})
-}
-
-func (as *authService) sendSuspiciousLoginNotification(ctx context.Context, userID int32, deviceName, ip, familyID string) {
-	title := "New login from unrecognized device"
-	body := fmt.Sprintf("Your account was just logged into from a new device (%s) at IP %s. If this wasn't you, please check your active sessions and log out immediately.", deviceName, ip)
-	notifType := "security_alert"
-	data := map[string]any{
-		"url":       "/account/security",
-		"device":    deviceName,
-		"ip":        ip,
-		"family_id": familyID,
-	}
-
-	// 1. If RabbitMQ is available, publish event asynchronously (handled by NotificationConsumer)
-	if as.rabbitmq != nil {
-		event := rabbitmq.NewCustomerNotificationEvent(
-			uuid.New().String(),
-			userID,
-			notifType,
-			"send",
-			title,
-			body,
-			data,
-		)
-		if err := as.rabbitmq.Publish(ctx, rabbitmq.QueueNotificationEvents, event); err == nil {
-			return
-		}
-	}
-
-	// 2. Fallback: Direct DB persist & WS broadcast (when RabbitMQ is not configured or publish failed)
-	if as.notificationRepo != nil {
-		dataBytes, _ := json.Marshal(data)
-		notif, err := as.notificationRepo.Create(ctx, sqlc.CreateNotificationParams{
-			NotificationUserID: userID,
-			NotificationType:   notifType,
-			NotificationTitle:  title,
-			NotificationBody:   body,
-			NotificationData:   dataBytes,
-		})
-		if err == nil {
-			wsMsg := ws.WSMessage{
-				Type: ws.EventTypeNotification,
-				Data: v1dto.MapToNotificationDTO(notif),
-			}
-			if as.redisBridge != nil {
-				_ = as.redisBridge.Publish(context.Background(), ws.RedisNotificationEnvelope{
-					UserID:  &userID,
-					IsAdmin: false,
-					Message: wsMsg,
-				})
-			} else if as.wsHub != nil {
-				go as.wsHub.BroadcastToUser(userID, wsMsg)
-			}
-		}
-	}
-}
-
 // ----------------- Core Auth Methods -----------------
 
 func (as *authService) Login(ctx context.Context, ip, userAgent string, email, password string) (string, string, int, error) {
@@ -231,8 +149,6 @@ func (as *authService) Login(ctx context.Context, ip, userAgent string, email, p
 		familyID, _ = as.tokenService.GetTokenFamilyID(refreshToken.Token)
 	}
 
-	as.handleNewSession(ctx, user, familyID, ip, userAgent)
-
 	accessToken, err := as.tokenService.GenerateAccessTokenWithFamily(user, familyID)
 	if err != nil {
 		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "Failed to generate access token", err)
@@ -263,12 +179,6 @@ func (as *authService) Logout(ctx context.Context, accessToken string, refreshTo
 		_, err := as.tokenService.ValidateRefreshToken(refreshToken)
 		if err != nil {
 			return utils.NewError(utils.ErrCodeUnauthorized, "Refresh token is invalid or revoked")
-		}
-
-		if as.sessionRepo != nil {
-			if familyID, err := as.tokenService.GetTokenFamilyID(refreshToken); err == nil && familyID != "" {
-				_ = as.sessionRepo.DeleteByFamilyID(ctx, familyID)
-			}
 		}
 
 		if err := as.tokenService.RevokeRefreshToken(refreshToken); err != nil {
@@ -303,10 +213,6 @@ func (as *authService) RefreshToken(ctx context.Context, refreshToken string) (s
 	accessToken, err := as.tokenService.GenerateAccessTokenWithFamily(user, familyID)
 	if err != nil {
 		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "Failed to generate access token", err)
-	}
-
-	if as.sessionRepo != nil && familyID != "" {
-		_ = as.sessionRepo.UpdateActivity(ctx, familyID)
 	}
 
 	return accessToken, newRefreshToken, int(auth.AccessTokenTTL.Seconds()), nil
@@ -568,8 +474,6 @@ func (as *authService) GoogleLogin(ctx context.Context, ip, userAgent, idToken s
 	if as.tokenService != nil {
 		familyID, _ = as.tokenService.GetTokenFamilyID(refreshToken.Token)
 	}
-
-	as.handleNewSession(ctx, user, familyID, ip, userAgent)
 
 	accessToken, err := as.tokenService.GenerateAccessTokenWithFamily(user, familyID)
 	if err != nil {

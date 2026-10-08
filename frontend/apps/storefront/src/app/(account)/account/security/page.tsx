@@ -6,15 +6,11 @@ import { authFetch } from "@/lib/api";
 import {
   Shield,
   Lock,
-  CheckCircle2,
-  KeyRound,
-  ShieldCheck,
   Key,
   Eye,
   EyeOff,
 } from "lucide-react";
 import { toast } from "sonner";
-import { SessionDeviceManager } from "@/components/account/session-device-manager";
 
 export default function SecurityPage() {
   const { accessToken } = useAuthStore();
@@ -92,8 +88,7 @@ export default function SecurityPage() {
             Password & Security
           </h1>
           <p className="text-sm text-[#64748B] mt-1">
-            Manage your authentication credentials, multi-factor authorization,
-            and active browser sessions.
+            Manage your authentication credentials and account security settings.
           </p>
         </div>
       </div>
@@ -253,11 +248,6 @@ export default function SecurityPage() {
             </li>
           </ul>
         </div>
-      </div>
-
-      {/* Session and Active Device Manager Component */}
-      <div className="bg-white border border-[#E2E8F0] rounded-md p-6">
-        <SessionDeviceManager />
       </div>
     </div>
   );

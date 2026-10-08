@@ -30,6 +30,7 @@ import { useMounted } from "@/hooks/use-mounted";
 import { NotificationPopover } from "@/components/layout/notification-popover";
 import { SearchAutocomplete } from "@/components/layout/search-autocomplete";
 import { Button } from "@/components/ui/button";
+import { authFetch } from "@/lib/api";
 
 export function Navbar() {
   const pathname = usePathname();
@@ -86,7 +87,17 @@ export function Navbar() {
     openDrawer();
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      const refreshToken = useAuthStore.getState().refreshToken;
+      await authFetch("/api/v1/auth/logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(refreshToken ? { refresh_token: refreshToken } : {}),
+      });
+    } catch {
+      // Ignore network errors on logout
+    }
     reset();
     setUserDropdownOpen(false);
     router.push("/login");

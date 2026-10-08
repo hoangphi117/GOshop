@@ -7,14 +7,12 @@ import (
 )
 
 type UserRoutes struct {
-	handler        *v1handler.UserHandler
-	sessionHandler *v1handler.SessionHandler
+	handler *v1handler.UserHandler
 }
 
-func NewUserRoutes(handler *v1handler.UserHandler, sessionHandler *v1handler.SessionHandler) *UserRoutes {
+func NewUserRoutes(handler *v1handler.UserHandler) *UserRoutes {
 	return &UserRoutes{
-		handler:        handler,
-		sessionHandler: sessionHandler,
+		handler: handler,
 	}
 }
 
@@ -24,11 +22,5 @@ func (ur *UserRoutes) Register(r *gin.RouterGroup) {
 		users.GET("/me", ur.handler.GetProfile)
 		users.PUT("/me", ur.handler.UpdateProfile)
 		users.PUT("/me/change-password", ur.handler.ChangePassword)
-
-		if ur.sessionHandler != nil {
-			users.GET("/sessions", ur.sessionHandler.ListSessions)
-			users.DELETE("/sessions/:uuid", ur.sessionHandler.RevokeSession)
-			users.DELETE("/sessions", ur.sessionHandler.RevokeAllOtherSessions)
-		}
 	}
 }

@@ -15,21 +15,17 @@ type UserModule struct {
 }
 
 func NewUserModule(ctx *ModuleContext, tokenService auth.TokenService) *UserModule {
-
 	// Initialize repository
 	userRepo := repository.NewSqlUserRepository(ctx.DB)
-	sessionRepo := repository.NewSqlSessionRepository(ctx.DB)
 
 	// Initialize service
 	userService := v1service.NewUserService(userRepo, ctx.Redis)
-	sessionService := v1service.NewSessionService(sessionRepo, userRepo, tokenService)
 
 	// Initialize handler
 	userHandler := v1handler.NewUserHandler(userService)
-	sessionHandler := v1handler.NewSessionHandler(sessionService)
 
 	// Initialize routes
-	userRoutes := v1routes.NewUserRoutes(userHandler, sessionHandler)
+	userRoutes := v1routes.NewUserRoutes(userHandler)
 	adminUserRoutes := v1routes.NewAdminUserRoutes(userHandler)
 
 	return &UserModule{

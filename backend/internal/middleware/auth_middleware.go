@@ -67,12 +67,31 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		familyID := payload.FamilyID
+		if fid, ok := claims["fid"].(string); ok && fid != "" {
+			familyID = fid
+		}
+		if familyID != "" {
+			ctx.Set("family_id", familyID)
+		}
+
 		ctx.Set("user_uuid", payload.UserUUID)
 		ctx.Set("user_email", payload.Email)
 		ctx.Set("user_role", payload.Role)
 
 		ctx.Next()
 	}
+}
+
+func GetFamilyID(ctx *gin.Context) string {
+	val, exists := ctx.Get("family_id")
+	if !exists || val == nil {
+		return ""
+	}
+	if str, ok := val.(string); ok {
+		return str
+	}
+	return ""
 }
 
 func GetUserUUID(ctx *gin.Context) (uuid.UUID, error) {
@@ -108,3 +127,4 @@ func GetUserFromContext(ctx *gin.Context, userRepo repository.UserRepository) (s
 
 	return user, nil
 }
+

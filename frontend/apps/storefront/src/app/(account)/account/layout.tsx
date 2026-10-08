@@ -75,7 +75,12 @@ export default function AccountLayout({
 
   const handleLogout = async () => {
     try {
-      await authFetch("/api/v1/auth/logout", { method: "POST" });
+      const refreshToken = useAuthStore.getState().refreshToken;
+      await authFetch("/api/v1/auth/logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(refreshToken ? { refresh_token: refreshToken } : {}),
+      });
     } catch {
       // Ignore
     }

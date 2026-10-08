@@ -270,14 +270,3 @@ type ChatRepository interface {
 	RecallMessage(ctx context.Context, messageID int32) (sqlc.ChatMessage, error)
 }
 
-type SessionRepository interface {
-	Create(ctx context.Context, params sqlc.CreateSessionParams) (sqlc.UserSession, error)
-	ListByUserID(ctx context.Context, userID int32) ([]sqlc.UserSession, error)
-	GetByUUID(ctx context.Context, sessionUUID uuid.UUID) (sqlc.UserSession, error)
-	GetByFamilyID(ctx context.Context, familyID string) (sqlc.UserSession, error)
-	DeleteByUUID(ctx context.Context, sessionUUID uuid.UUID, userID int32) error
-	DeleteAllOther(ctx context.Context, userID int32, currentFamilyID string) error
-	DeleteByFamilyID(ctx context.Context, familyID string) error
-	UpdateActivity(ctx context.Context, familyID string) error
-}
-

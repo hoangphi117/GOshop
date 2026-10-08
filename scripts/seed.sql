@@ -27,7 +27,6 @@ TRUNCATE TABLE
     cart_items,
     carts,
     user_addresses,
-    user_sessions,
     banners,
     products,
     categories,
