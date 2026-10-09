@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"goshop/internal/db/sqlc"
-	"goshop/internal/repository"
 	"goshop/internal/utils"
 	"strings"
 	"time"
@@ -39,13 +38,20 @@ type OrderPricingResult struct {
 	Items             []ItemPriceResult
 }
 
-type orderPricingService struct {
-	couponRepo repository.CouponRepository
+// CouponLookup is a narrow read port consumed only by orderPricingService.
+// Satisfied by any implementation providing code lookup and usage counts (e.g. CouponRepository).
+type CouponLookup interface {
+	GetByCode(ctx context.Context, code string) (sqlc.Coupon, error)
+	CountUserUsages(ctx context.Context, userID, couponID int32) (int64, error)
 }
 
-func NewOrderPricingService(couponRepo repository.CouponRepository) OrderPricingService {
+type orderPricingService struct {
+	couponLookup CouponLookup
+}
+
+func NewOrderPricingService(couponLookup CouponLookup) OrderPricingService {
 	return &orderPricingService{
-		couponRepo: couponRepo,
+		couponLookup: couponLookup,
 	}
 }
 
@@ -148,11 +154,11 @@ func (s *orderPricingService) CalculateOrderTotals(
 	var discount float64
 
 	if couponCode != nil && strings.TrimSpace(*couponCode) != "" {
-		if s.couponRepo == nil {
+		if s.couponLookup == nil {
 			return nil, utils.NewError(utils.ErrCodeInternal, "Coupon repository is not configured")
 		}
 		cleanCode := strings.ToUpper(strings.TrimSpace(*couponCode))
-		coupon, err := s.couponRepo.GetByCode(ctx, cleanCode)
+		coupon, err := s.couponLookup.GetByCode(ctx, cleanCode)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
 				return nil, utils.NewError(utils.ErrCodeNotFound, "Coupon not found")
@@ -165,7 +171,7 @@ func (s *orderPricingService) CalculateOrderTotals(
 			return nil, err
 		}
 
-		userUsageCount, err := s.couponRepo.CountUserUsages(ctx, userID, coupon.CouponID)
+		userUsageCount, err := s.couponLookup.CountUserUsages(ctx, userID, coupon.CouponID)
 		if err != nil {
 			return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to check coupon user usage count", err)
 		}

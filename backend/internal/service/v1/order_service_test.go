@@ -28,13 +28,10 @@ type testOrderServiceDeps struct {
 	inventoryService    v1service.InventoryService
 	orderRepo           repository.OrderRepository
 	orderItemRepo       repository.OrderItemRepository
-	productRepo         repository.ProductRepository
 	userRepo            repository.UserRepository
 	cartService         v1service.CartService
-	cartRepo            repository.CartRepository
 	couponService       v1service.CouponService
 	trackingRepo        repository.TrackingRepository
-	paymentRepo         repository.PaymentRepository
 	notificationService v1service.NotificationService
 	redisClient         *redis.Client
 	rabbitMQ            rabbitmq.RabbitMQService
@@ -61,10 +58,6 @@ func newTestOrderService(deps testOrderServiceDeps) v1service.OrderService {
 	if orderItemRepo == nil {
 		orderItemRepo = &testutils.MockOrderItemRepository{}
 	}
-	productRepo := deps.productRepo
-	if productRepo == nil {
-		productRepo = &testutils.MockProductRepository{}
-	}
 	userRepo := deps.userRepo
 	if userRepo == nil {
 		userRepo = &testutils.MockUserRepository{}
@@ -73,10 +66,6 @@ func newTestOrderService(deps testOrderServiceDeps) v1service.OrderService {
 	if cartSvc == nil {
 		cartSvc = &testutils.MockCartService{}
 	}
-	cartRepo := deps.cartRepo
-	if cartRepo == nil {
-		cartRepo = &testutils.MockCartRepository{}
-	}
 	couponSvc := deps.couponService
 	if couponSvc == nil {
 		couponSvc = &testutils.MockCouponService{}
@@ -84,10 +73,6 @@ func newTestOrderService(deps testOrderServiceDeps) v1service.OrderService {
 	trackingRepo := deps.trackingRepo
 	if trackingRepo == nil {
 		trackingRepo = &testutils.MockTrackingRepository{}
-	}
-	paymentRepo := deps.paymentRepo
-	if paymentRepo == nil {
-		paymentRepo = &testutils.MockPaymentRepository{}
 	}
 	notifSvc := deps.notificationService
 	if notifSvc == nil {
@@ -100,13 +85,10 @@ func newTestOrderService(deps testOrderServiceDeps) v1service.OrderService {
 		invSvc,
 		orderRepo,
 		orderItemRepo,
-		productRepo,
 		userRepo,
 		cartSvc,
-		cartRepo,
 		couponSvc,
 		trackingRepo,
-		paymentRepo,
 		notifSvc,
 		deps.redisClient,
 		deps.rabbitMQ,
@@ -897,15 +879,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 
-		mockCartRepo := &testutils.MockCartRepository{
-			GetCartByUserIDFunc: func(ctx context.Context, userID int32) (sqlc.Cart, error) {
-				return sqlc.Cart{CartID: 77}, nil
-			},
-			DeleteCartItemsByProductIDsFunc: func(ctx context.Context, tx pgx.Tx, cartID int32, productIDs []int32) error {
-				return nil
-			},
-		}
-
 		mockTrackingRepo := &testutils.MockTrackingRepository{
 			InsertEventFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.InsertTrackingEventParams) (sqlc.OrderTrackingEvent, error) {
 				return sqlc.OrderTrackingEvent{EventID: 1}, nil
@@ -924,7 +897,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			orderRepo: mockOrderRepo,
 			orderItemRepo: mockOrderItemRepo,
 			userRepo: mockUserRepo,
-			cartRepo: mockCartRepo,
 			couponService: mockCouponService,
 			trackingRepo: mockTrackingRepo,
 			notificationService: mockNotification,
@@ -983,14 +955,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 				return sqlc.OrderTrackingEvent{EventID: 1}, nil
 			},
 		}
-		mockCartRepo := &testutils.MockCartRepository{
-			GetCartByUserIDFunc: func(ctx context.Context, userID int32) (sqlc.Cart, error) {
-				return sqlc.Cart{CartID: 1}, nil
-			},
-			DeleteCartItemsByProductIDsFunc: func(ctx context.Context, tx pgx.Tx, cartID int32, productIDs []int32) error {
-				return nil
-			},
-		}
 		mockNotification := &testutils.MockNotificationService{
 			SendFunc: func(ctx context.Context, input v1dto.SendNotificationInput) error {
 				return errors.New("fcm service unavailable")
@@ -1003,7 +967,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			orderRepo: mockOrderRepo,
 			orderItemRepo: mockOrderItemRepo,
 			userRepo: mockUserRepo,
-			cartRepo: mockCartRepo,
 			trackingRepo: mockTrackingRepo,
 			notificationService: mockNotification,
 		})
@@ -1055,19 +1018,12 @@ func TestOrderService_CreateOrder(t *testing.T) {
 				return sqlc.OrderTrackingEvent{EventID: 1}, nil
 			},
 		}
-		mockCartRepo := &testutils.MockCartRepository{
-			GetCartByUserIDFunc: func(ctx context.Context, userID int32) (sqlc.Cart, error) {
-				return sqlc.Cart{}, pgx.ErrNoRows // Cart not found
-			},
-		}
-
 		svc := newTestOrderService(testOrderServiceDeps{
 			pricingService: mockPricing,
 			inventoryService: mockInventory,
 			orderRepo: mockOrderRepo,
 			orderItemRepo: mockOrderItemRepo,
 			userRepo: mockUserRepo,
-			cartRepo: mockCartRepo,
 			trackingRepo: mockTrackingRepo,
 		})
 
