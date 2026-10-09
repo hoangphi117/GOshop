@@ -29,6 +29,7 @@ var (
 	_ repository.AddressRepository      = (*MockAddressRepository)(nil)
 	_ repository.NotificationRepository = (*MockNotificationRepository)(nil)
 	_ repository.ChatRepository         = (*MockChatRepository)(nil)
+	_ repository.OutboxRepository       = (*MockOutboxRepository)(nil)
 )
 
 // =========================================================================
@@ -1684,6 +1685,44 @@ func (m *MockChatRepository) RecallMessage(ctx context.Context, messageID int32)
 		return m.RecallMessageFunc(ctx, messageID)
 	}
 	return sqlc.ChatMessage{}, nil
+}
+
+// =========================================================================
+// 16. MockOutboxRepository
+// =========================================================================
+type MockOutboxRepository struct {
+	InsertFunc        func(ctx context.Context, tx pgx.Tx, aggregateType, aggregateID, eventType string, payload any) (sqlc.OutboxEvent, error)
+	GetPendingFunc    func(ctx context.Context, limit int32) ([]sqlc.OutboxEvent, error)
+	MarkProcessedFunc func(ctx context.Context, eventIDs []int64) error
+	MarkFailedFunc    func(ctx context.Context, eventID int64, lastErr *string) error
+}
+
+func (m *MockOutboxRepository) Insert(ctx context.Context, tx pgx.Tx, aggregateType, aggregateID, eventType string, payload any) (sqlc.OutboxEvent, error) {
+	if m.InsertFunc != nil {
+		return m.InsertFunc(ctx, tx, aggregateType, aggregateID, eventType, payload)
+	}
+	return sqlc.OutboxEvent{}, nil
+}
+
+func (m *MockOutboxRepository) GetPending(ctx context.Context, limit int32) ([]sqlc.OutboxEvent, error) {
+	if m.GetPendingFunc != nil {
+		return m.GetPendingFunc(ctx, limit)
+	}
+	return nil, nil
+}
+
+func (m *MockOutboxRepository) MarkProcessed(ctx context.Context, eventIDs []int64) error {
+	if m.MarkProcessedFunc != nil {
+		return m.MarkProcessedFunc(ctx, eventIDs)
+	}
+	return nil
+}
+
+func (m *MockOutboxRepository) MarkFailed(ctx context.Context, eventID int64, lastErr *string) error {
+	if m.MarkFailedFunc != nil {
+		return m.MarkFailedFunc(ctx, eventID, lastErr)
+	}
+	return nil
 }
 
 

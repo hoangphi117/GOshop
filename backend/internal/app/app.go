@@ -5,9 +5,11 @@ import (
 	"goshop/internal/config"
 	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
+	"goshop/internal/repository"
 	"goshop/internal/routes"
 	"goshop/internal/utils"
 	"goshop/internal/validation"
+	"goshop/internal/worker"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
@@ -146,6 +148,11 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	searchClient, err := search.NewClient(cfg.Meilisearch.Host, cfg.Meilisearch.MasterKey, cfg.Meilisearch.IndexProducts)
 	if err != nil {
 		logger.Log.Warn().Err(err).Msg("Failed to initialize Meilisearch client")
+	} else if searchClient != nil {
+		outboxRepo := repository.NewSqlOutboxRepository(db.DB)
+		syncWorker := worker.NewMeilisearchSyncWorker(outboxRepo, searchClient, 2*time.Second, 50, logger.Log)
+		go syncWorker.Start(context.Background())
+		logger.Log.Info().Msg("Meilisearch Outbox Sync Worker started (interval: 2s, batch: 50)")
 	}
 
 	ctx := &ModuleContext{

@@ -270,3 +270,10 @@ type ChatRepository interface {
 	RecallMessage(ctx context.Context, messageID int32) (sqlc.ChatMessage, error)
 }
 
+type OutboxRepository interface {
+	Insert(ctx context.Context, tx pgx.Tx, aggregateType, aggregateID, eventType string, payload any) (sqlc.OutboxEvent, error)
+	GetPending(ctx context.Context, limit int32) ([]sqlc.OutboxEvent, error)
+	MarkProcessed(ctx context.Context, eventIDs []int64) error
+	MarkFailed(ctx context.Context, eventID int64, lastErr *string) error
+}
+

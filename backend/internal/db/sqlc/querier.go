@@ -131,6 +131,7 @@ type Querier interface {
 	GetPaymentByTxnRef(ctx context.Context, arg GetPaymentByTxnRefParams) (PaymentTransaction, error)
 	GetPaymentMethodBreakdown(ctx context.Context, arg GetPaymentMethodBreakdownParams) ([]GetPaymentMethodBreakdownRow, error)
 	GetPaymentTransactionsByOrderID(ctx context.Context, ptOrderID int32) ([]PaymentTransaction, error)
+	GetPendingOutboxEvents(ctx context.Context, limit int32) ([]OutboxEvent, error)
 	GetPendingTransactionsOlderThan(ctx context.Context, arg GetPendingTransactionsOlderThanParams) ([]GetPendingTransactionsOlderThanRow, error)
 	GetProductBySlug(ctx context.Context, productSlug string) (GetProductBySlugRow, error)
 	GetProductByUUID(ctx context.Context, productUuid uuid.UUID) (GetProductByUUIDRow, error)
@@ -165,6 +166,7 @@ type Querier interface {
 	IncrementCouponUsedCount(ctx context.Context, couponID int32) (Coupon, error)
 	IncrementHelpfulCount(ctx context.Context, reviewID int32) (int32, error)
 	InsertHelpfulVote(ctx context.Context, arg InsertHelpfulVoteParams) error
+	InsertOutboxEvent(ctx context.Context, arg InsertOutboxEventParams) (OutboxEvent, error)
 	InsertReviewReport(ctx context.Context, arg InsertReviewReportParams) error
 	InsertTrackingEvent(ctx context.Context, arg InsertTrackingEventParams) (OrderTrackingEvent, error)
 	InsertWebhookEvent(ctx context.Context, arg InsertWebhookEventParams) (WebhookEvent, error)
@@ -182,6 +184,8 @@ type Querier interface {
 	MarkNotificationRead(ctx context.Context, arg MarkNotificationReadParams) (Notification, error)
 	MarkOrderDeliveredByShippingCode(ctx context.Context, shippingCode *string) (Order, error)
 	MarkOrderDeliveredByUUID(ctx context.Context, orderUuid uuid.UUID) (Order, error)
+	MarkOutboxEventFailed(ctx context.Context, arg MarkOutboxEventFailedParams) error
+	MarkOutboxEventsProcessed(ctx context.Context, dollar_1 []int64) error
 	MarkWebhookEventProcessed(ctx context.Context, weID int32) error
 	RecalcProductRating(ctx context.Context, reviewProductID int32) error
 	RecallMessage(ctx context.Context, messageID int32) (ChatMessage, error)

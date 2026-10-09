@@ -36,12 +36,13 @@ const (
 type productService struct {
 	repo         repository.ProductRepository
 	categoryRepo repository.CategoryRepository
+	outboxRepo   repository.OutboxRepository
 	cache        cache.RedisCacheService
 	search       *search.Client
 	sf           singleflight.Group
 }
 
-func NewProductService(repo repository.ProductRepository, categoryRepo repository.CategoryRepository, redisClient *redis.Client, searchClient *search.Client) ProductService {
+func NewProductService(repo repository.ProductRepository, categoryRepo repository.CategoryRepository, outboxRepo repository.OutboxRepository, redisClient *redis.Client, searchClient *search.Client) ProductService {
 	var cacheService cache.RedisCacheService
 	if redisClient != nil {
 		cacheService = cache.NewRedisCacheService(redisClient)
@@ -49,8 +50,62 @@ func NewProductService(repo repository.ProductRepository, categoryRepo repositor
 	return &productService{
 		repo:         repo,
 		categoryRepo: categoryRepo,
+		outboxRepo:   outboxRepo,
 		cache:        cacheService,
 		search:       searchClient,
+	}
+}
+
+func (ps *productService) enqueueProductUpsertOutbox(ctx context.Context, tx pgx.Tx, productUUID uuid.UUID) {
+	if ps.outboxRepo == nil {
+		return
+	}
+	prod, err := ps.repo.GetByUUID(ctx, productUUID)
+	if err != nil {
+		return
+	}
+	doc := mapProductRowToSearchDoc(prod)
+	_, _ = ps.outboxRepo.Insert(ctx, tx, "product", productUUID.String(), "PRODUCT_UPSERT", doc)
+}
+
+func (ps *productService) enqueueProductDeleteOutbox(ctx context.Context, tx pgx.Tx, productUUID uuid.UUID) {
+	if ps.outboxRepo == nil {
+		return
+	}
+	_, _ = ps.outboxRepo.Insert(ctx, tx, "product", productUUID.String(), "PRODUCT_DELETE", map[string]string{"id": productUUID.String()})
+}
+
+func mapProductRowToSearchDoc(product sqlc.GetProductByUUIDRow) search.ProductDocument {
+	img := ""
+	if product.ProductImageUrl != nil {
+		img = *product.ProductImageUrl
+	}
+	desc := ""
+	if product.ProductDescription != nil {
+		desc = *product.ProductDescription
+	}
+	sku := ""
+	if product.ProductSku != nil {
+		sku = *product.ProductSku
+	}
+	stock := int32(0)
+	if product.ProductStock != nil {
+		stock = *product.ProductStock
+	}
+	return search.ProductDocument{
+		ID:           product.ProductUuid.String(),
+		ProductID:    product.ProductID,
+		Name:         product.ProductName,
+		Slug:         product.ProductSlug,
+		Description:  desc,
+		Price:        utils.NumericToFloat(product.ProductPrice),
+		Stock:        stock,
+		SKU:          sku,
+		CategoryUUID: product.CategoryUuid.String(),
+		CategoryName: product.CategoryName,
+		ImageURL:     img,
+		Status:       product.ProductStatus,
+		CreatedAt:    product.ProductCreatedAt.Unix(),
 	}
 }
 
@@ -109,6 +164,8 @@ func (ps *productService) CreateProduct(ctx context.Context, input v1dto.CreateP
 			logger.Log.Warn().Err(err).Msg("Failed to clear product cache")
 		}
 	}
+
+	ps.enqueueProductUpsertOutbox(ctx, nil, product.ProductUuid)
 
 	return product, nil
 }
@@ -278,6 +335,8 @@ func (ps *productService) UpdateProduct(ctx context.Context, input v1dto.UpdateP
 		}
 	}
 
+	ps.enqueueProductUpsertOutbox(ctx, nil, product.ProductUuid)
+
 	return product, nil
 }
 
@@ -295,6 +354,8 @@ func (ps *productService) SoftDeleteProduct(ctx context.Context, productUUID uui
 			logger.Log.Warn().Err(err).Msg("Failed to clear product cache")
 		}
 	}
+
+	ps.enqueueProductDeleteOutbox(ctx, nil, productUUID)
 
 	return product, nil
 }
@@ -314,6 +375,8 @@ func (ps *productService) RestoreProduct(ctx context.Context, productUUID uuid.U
 		}
 	}
 
+	ps.enqueueProductUpsertOutbox(ctx, nil, productUUID)
+
 	return product, nil
 }
 
@@ -331,6 +394,8 @@ func (ps *productService) TrashProduct(ctx context.Context, productUUID uuid.UUI
 			logger.Log.Warn().Err(err).Msg("Failed to clear product cache")
 		}
 	}
+
+	ps.enqueueProductDeleteOutbox(ctx, nil, productUUID)
 
 	return nil
 }
@@ -684,7 +749,7 @@ func (ps *productService) executeAtomicBatchInsert(ctx context.Context, rows []P
 		slug := fmt.Sprintf("%s-%s", utils.Slugify(row.Name), uuid.New().String()[:8])
 		skuCopy := row.SKU
 
-		_, err := qtx.CreateProduct(ctx, sqlc.CreateProductParams{
+		prodCreated, err := qtx.CreateProduct(ctx, sqlc.CreateProductParams{
 			ProductName:        row.Name,
 			ProductSlug:        slug,
 			ProductPrice:       utils.FloatToNumeric(row.Price),
@@ -717,6 +782,31 @@ func (ps *productService) executeAtomicBatchInsert(ctx context.Context, rows []P
 				reason = err.Error()
 			}
 			return &DBInsertError{Row: row.RowNum, Field: field, Reason: reason}
+		}
+
+		if ps.outboxRepo != nil {
+			desc := ""
+			if row.Description != nil {
+				desc = *row.Description
+			}
+			img := ""
+			if row.ImageURL != nil {
+				img = *row.ImageURL
+			}
+			doc := search.ProductDocument{
+				ID:          prodCreated.ProductUuid.String(),
+				ProductID:   prodCreated.ProductID,
+				Name:        prodCreated.ProductName,
+				Slug:        prodCreated.ProductSlug,
+				Description: desc,
+				Price:       row.Price,
+				Stock:       row.Stock,
+				SKU:         skuCopy,
+				ImageURL:    img,
+				Status:      ProductStatusActive,
+				CreatedAt:   time.Now().Unix(),
+			}
+			_, _ = ps.outboxRepo.Insert(ctx, tx, "product", prodCreated.ProductUuid.String(), "PRODUCT_UPSERT", doc)
 		}
 	}
 	if err := tx.Commit(ctx); err != nil {

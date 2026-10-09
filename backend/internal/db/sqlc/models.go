@@ -5,6 +5,7 @@
 package sqlc
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -199,6 +200,19 @@ type OrderTrackingEvent struct {
 	EventNote      *string   `json:"event_note"`
 	EventSource    string    `json:"event_source"`
 	EventCreatedAt time.Time `json:"event_created_at"`
+}
+
+type OutboxEvent struct {
+	EventID       int64              `json:"event_id"`
+	AggregateType string             `json:"aggregate_type"`
+	AggregateID   string             `json:"aggregate_id"`
+	EventType     string             `json:"event_type"`
+	Payload       json.RawMessage    `json:"payload"`
+	Status        string             `json:"status"`
+	RetryCount    int32              `json:"retry_count"`
+	LastError     *string            `json:"last_error"`
+	CreatedAt     time.Time          `json:"created_at"`
+	ProcessedAt   pgtype.Timestamptz `json:"processed_at"`
 }
 
 type PaymentTransaction struct {

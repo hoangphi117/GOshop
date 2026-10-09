@@ -29,7 +29,7 @@ func TestProductService_CreateProduct(t *testing.T) {
 	t.Run("Case 1: Invalid Category UUID - Returns 400 Bad Request", func(t *testing.T) {
 		mockRepo := &testutils.MockProductRepository{}
 		mockCatRepo := &testutils.MockCategoryRepository{}
-		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil)
+		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil, nil)
 
 		_, err := svc.CreateProduct(ctx, v1dto.CreateProductInput{
 			CategoryUUID: "invalid-uuid",
@@ -50,7 +50,7 @@ func TestProductService_CreateProduct(t *testing.T) {
 				return sqlc.Category{}, pgx.ErrNoRows
 			},
 		}
-		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil)
+		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil, nil)
 
 		_, err := svc.CreateProduct(ctx, v1dto.CreateProductInput{
 			CategoryUUID: categoryUUID.String(),
@@ -71,7 +71,7 @@ func TestProductService_CreateProduct(t *testing.T) {
 				return sqlc.Category{}, errors.New("db connection failure")
 			},
 		}
-		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil)
+		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil, nil)
 
 		_, err := svc.CreateProduct(ctx, v1dto.CreateProductInput{
 			CategoryUUID: categoryUUID.String(),
@@ -91,7 +91,7 @@ func TestProductService_CreateProduct(t *testing.T) {
 				return sqlc.Category{CategoryID: 10, CategoryUuid: categoryUUID}, nil
 			},
 		}
-		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil)
+		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil, nil)
 
 		_, err := svc.CreateProduct(ctx, v1dto.CreateProductInput{
 			CategoryUUID: categoryUUID.String(),
@@ -133,7 +133,7 @@ func TestProductService_CreateProduct(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil)
+		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil, nil)
 
 		res, err := svc.CreateProduct(ctx, v1dto.CreateProductInput{
 			CategoryUUID: categoryUUID.String(),
@@ -163,7 +163,7 @@ func TestProductService_CreateProduct(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil)
+		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil, nil)
 
 		_, err := svc.CreateProduct(ctx, v1dto.CreateProductInput{
 			CategoryUUID: categoryUUID.String(),
@@ -192,7 +192,7 @@ func TestProductService_CreateProduct(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil)
+		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil, nil)
 
 		_, err := svc.CreateProduct(ctx, v1dto.CreateProductInput{
 			CategoryUUID: categoryUUID.String(),
@@ -233,7 +233,7 @@ func TestProductService_CreateProduct(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil)
+		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil, nil)
 
 		res, err := svc.CreateProduct(ctx, v1dto.CreateProductInput{
 			CategoryUUID: categoryUUID.String(),
@@ -278,7 +278,7 @@ func TestProductService_GetAllProducts(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewProductService(mockRepo, nil, nil, nil)
+		svc := v1service.NewProductService(mockRepo, nil, nil, nil, nil)
 
 		products, total, err := svc.GetAllProducts(ctx, "laptop", "", 100, 1000, 4, 1, "product_price", "asc", 1, 10, false)
 		require.NoError(t, err)
@@ -300,7 +300,7 @@ func TestProductService_GetAllProducts(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewProductService(mockRepo, nil, nil, nil)
+		svc := v1service.NewProductService(mockRepo, nil, nil, nil, nil)
 
 		products, total, err := svc.GetAllProducts(ctx, "", "", 0, 0, 0, 0, "", "", 0, 0, false)
 		require.NoError(t, err)
@@ -315,7 +315,7 @@ func TestProductService_GetAllProducts(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewProductService(mockRepo, nil, nil, nil)
+		svc := v1service.NewProductService(mockRepo, nil, nil, nil, nil)
 
 		_, _, err := svc.GetAllProducts(ctx, "", "", 0, 0, 0, 0, "", "", 1, 10, false)
 		require.Error(t, err)
@@ -332,7 +332,7 @@ func TestProductService_GetAllProducts(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewProductService(mockRepo, nil, nil, nil)
+		svc := v1service.NewProductService(mockRepo, nil, nil, nil, nil)
 
 		_, _, err := svc.GetAllProducts(ctx, "", "", 0, 0, 0, 0, "", "", 1, 10, false)
 		require.Error(t, err)
@@ -351,7 +351,7 @@ func TestProductService_GetProductByUUID(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewProductService(mockRepo, nil, nil, nil)
+		svc := v1service.NewProductService(mockRepo, nil, nil, nil, nil)
 
 		_, err := svc.GetProductByUUID(ctx, productUUID)
 		require.Error(t, err)
@@ -366,7 +366,7 @@ func TestProductService_GetProductByUUID(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewProductService(mockRepo, nil, nil, nil)
+		svc := v1service.NewProductService(mockRepo, nil, nil, nil, nil)
 
 		_, err := svc.GetProductByUUID(ctx, productUUID)
 		require.Error(t, err)
@@ -380,7 +380,7 @@ func TestProductService_GetProductByUUID(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewProductService(mockRepo, nil, nil, nil)
+		svc := v1service.NewProductService(mockRepo, nil, nil, nil, nil)
 
 		_, err := svc.GetProductByUUID(ctx, productUUID)
 		require.Error(t, err)
@@ -399,7 +399,7 @@ func TestProductService_GetProductByUUID(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewProductService(mockRepo, nil, nil, nil)
+		svc := v1service.NewProductService(mockRepo, nil, nil, nil, nil)
 
 		res, err := svc.GetProductByUUID(ctx, productUUID)
 		require.NoError(t, err)
@@ -416,7 +416,7 @@ func TestProductService_UpdateProduct(t *testing.T) {
 		invalidCatStr := "invalid-uuid"
 		mockRepo := &testutils.MockProductRepository{}
 		mockCatRepo := &testutils.MockCategoryRepository{}
-		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil)
+		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil, nil)
 
 		_, err := svc.UpdateProduct(ctx, v1dto.UpdateProductInput{
 			CategoryUUID: &invalidCatStr,
@@ -438,7 +438,7 @@ func TestProductService_UpdateProduct(t *testing.T) {
 				return sqlc.Category{}, pgx.ErrNoRows
 			},
 		}
-		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil)
+		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil, nil)
 
 		_, err := svc.UpdateProduct(ctx, v1dto.UpdateProductInput{
 			CategoryUUID: &catStr,
@@ -457,7 +457,7 @@ func TestProductService_UpdateProduct(t *testing.T) {
 				return sqlc.UpdateProductRow{}, pgx.ErrNoRows
 			},
 		}
-		svc := v1service.NewProductService(mockRepo, nil, nil, nil)
+		svc := v1service.NewProductService(mockRepo, nil, nil, nil, nil)
 
 		_, err := svc.UpdateProduct(ctx, v1dto.UpdateProductInput{
 			Params: sqlc.UpdateProductParams{
@@ -475,7 +475,7 @@ func TestProductService_UpdateProduct(t *testing.T) {
 				return sqlc.UpdateProductRow{}, &pgconn.PgError{Code: "23505", Message: "duplicate key"}
 			},
 		}
-		svc := v1service.NewProductService(mockRepo, nil, nil, nil)
+		svc := v1service.NewProductService(mockRepo, nil, nil, nil, nil)
 
 		_, err := svc.UpdateProduct(ctx, v1dto.UpdateProductInput{
 			Params: sqlc.UpdateProductParams{
@@ -518,7 +518,7 @@ func TestProductService_UpdateProduct(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil)
+		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil, nil)
 
 		res, err := svc.UpdateProduct(ctx, v1dto.UpdateProductInput{
 			CategoryUUID: &catStr,
@@ -548,7 +548,7 @@ func TestProductService_SoftDeleteProduct(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewProductService(mockRepo, nil, nil, nil)
+		svc := v1service.NewProductService(mockRepo, nil, nil, nil, nil)
 
 		_, err := svc.SoftDeleteProduct(ctx, productUUID)
 		require.Error(t, err)
@@ -569,7 +569,7 @@ func TestProductService_SoftDeleteProduct(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewProductService(mockRepo, nil, nil, nil)
+		svc := v1service.NewProductService(mockRepo, nil, nil, nil, nil)
 
 		res, err := svc.SoftDeleteProduct(ctx, productUUID)
 		require.NoError(t, err)
@@ -589,7 +589,7 @@ func TestProductService_RestoreProduct(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewProductService(mockRepo, nil, nil, nil)
+		svc := v1service.NewProductService(mockRepo, nil, nil, nil, nil)
 
 		_, err := svc.RestoreProduct(ctx, productUUID)
 		require.Error(t, err)
@@ -609,7 +609,7 @@ func TestProductService_RestoreProduct(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewProductService(mockRepo, nil, nil, nil)
+		svc := v1service.NewProductService(mockRepo, nil, nil, nil, nil)
 
 		res, err := svc.RestoreProduct(ctx, productUUID)
 		require.NoError(t, err)
@@ -629,7 +629,7 @@ func TestProductService_TrashProduct(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewProductService(mockRepo, nil, nil, nil)
+		svc := v1service.NewProductService(mockRepo, nil, nil, nil, nil)
 
 		err := svc.TrashProduct(ctx, productUUID)
 		require.Error(t, err)
@@ -648,7 +648,7 @@ func TestProductService_TrashProduct(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewProductService(mockRepo, nil, nil, nil)
+		svc := v1service.NewProductService(mockRepo, nil, nil, nil, nil)
 
 		err := svc.TrashProduct(ctx, productUUID)
 		require.NoError(t, err)
@@ -661,7 +661,7 @@ func TestProductService_ImportProductsCSV(t *testing.T) {
 	t.Run("Case 1: Empty or Invalid Header - Returns 400 Bad Request", func(t *testing.T) {
 		mockRepo := &testutils.MockProductRepository{}
 		mockCatRepo := &testutils.MockCategoryRepository{}
-		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil)
+		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil, nil)
 
 		invalidCSV := "wrong,headers\nvalue1,value2"
 		res, err := svc.ImportProductsCSV(ctx, strings.NewReader(invalidCSV))
@@ -673,7 +673,7 @@ func TestProductService_ImportProductsCSV(t *testing.T) {
 	t.Run("Case 2: Row-level Validation Errors - Returns 0 success and detailed error report", func(t *testing.T) {
 		mockRepo := &testutils.MockProductRepository{}
 		mockCatRepo := &testutils.MockCategoryRepository{}
-		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil)
+		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil, nil)
 
 		csvContent := "name,price,description,imageUrl,category_id,stock,sku\n" +
 			",-10,Good product,http://img.com,0,-5,SKU-1\n" +
@@ -698,7 +698,7 @@ func TestProductService_ImportProductsCSV(t *testing.T) {
 	t.Run("Case 3: In-File Duplicate Name within Same Category and Duplicate SKU", func(t *testing.T) {
 		mockRepo := &testutils.MockProductRepository{}
 		mockCatRepo := &testutils.MockCategoryRepository{}
-		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil)
+		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil, nil)
 
 		csvContent := "name,price,description,imageUrl,category_id,stock,sku\n" +
 			"T-Shirt,100,Desc,http://img.com,1,10,SKU-DUPE\n" +
@@ -726,7 +726,7 @@ func TestProductService_ImportProductsCSV(t *testing.T) {
 				}, nil
 			},
 		}
-		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil)
+		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil, nil)
 
 		csvContent := "name,price,description,imageUrl,category_id,stock,sku\n" +
 			"Shoes,250,Running shoes,http://img.com,999,10,SKU-SHOES\n"
@@ -749,7 +749,7 @@ func TestProductService_ImportProductsCSV(t *testing.T) {
 				}, nil
 			},
 		}
-		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil)
+		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil, nil)
 
 		// UTF-8 BOM + Comma in quotes
 		csvContent := "\ufeffname,price,description,imageUrl,category_id,stock,sku\n" +
@@ -777,7 +777,7 @@ func TestProductService_ImportProductsCSV(t *testing.T) {
 				}, nil
 			},
 		}
-		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil)
+		svc := v1service.NewProductService(mockRepo, mockCatRepo, nil, nil, nil)
 
 		// 0xed 0x6e 0x68 in Windows-1258 is "ính"
 		win1258Bytes := []byte("name,price,description,imageUrl,category_id,stock,sku\nM\xednh,100,Desc,http://img.com,1,10,SKU-WIN\n")
