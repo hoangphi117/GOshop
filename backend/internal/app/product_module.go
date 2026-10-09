@@ -20,7 +20,7 @@ func NewProductModule(ctx *ModuleContext) *ProductModule {
 	outboxRepo := repository.NewSqlOutboxRepository(ctx.DB)
 
 	categoryService := v1service.NewCategoryService(categoryRepo, ctx.Redis)
-	productService := v1service.NewProductService(productRepo, categoryRepo, outboxRepo, ctx.Redis, ctx.Search)
+	productService := v1service.NewProductService(productRepo, categoryRepo, outboxRepo, ctx.Redis, ctx.Search, ctx.TxManager)
 
 	categoryHandler := v1handler.NewCategoryHandler(categoryService)
 	productHandler := v1handler.NewProductHandler(productService)

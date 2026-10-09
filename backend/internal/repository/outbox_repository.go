@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
 
 	"github.com/jackc/pgx/v5"
@@ -37,6 +38,8 @@ func (r *sqlOutboxRepository) Insert(ctx context.Context, tx pgx.Tx, aggregateTy
 	querier := r.db
 	if tx != nil {
 		querier = sqlc.New(tx)
+	} else if ctxTx, ok := db.GetTx(ctx); ok {
+		querier = sqlc.New(ctxTx)
 	}
 
 	return querier.InsertOutboxEvent(ctx, sqlc.InsertOutboxEventParams{

@@ -23,8 +23,12 @@ func NewSqlProductRepository(db sqlc.Querier) ProductRepository {
 	}
 }
 
+func (r *SqlProductRepository) querier(ctx context.Context) sqlc.Querier {
+	return db.GetQuerier(ctx, r.db)
+}
+
 func (r *SqlProductRepository) Create(ctx context.Context, productParams sqlc.CreateProductParams) (sqlc.CreateProductRow, error) {
-	product, err := r.db.CreateProduct(ctx, productParams)
+	product, err := r.querier(ctx).CreateProduct(ctx, productParams)
 	if err != nil {
 		return sqlc.CreateProductRow{}, err
 	}
@@ -219,7 +223,7 @@ func (r *SqlProductRepository) GetAll(
 }
 
 func (r *SqlProductRepository) GetBySlug(ctx context.Context, slug string) (sqlc.GetProductBySlugRow, error) {
-	product, err := r.db.GetProductBySlug(ctx, slug)
+	product, err := r.querier(ctx).GetProductBySlug(ctx, slug)
 	if err != nil {
 		return sqlc.GetProductBySlugRow{}, err
 	}
@@ -227,7 +231,7 @@ func (r *SqlProductRepository) GetBySlug(ctx context.Context, slug string) (sqlc
 }
 
 func (r *SqlProductRepository) GetByUUID(ctx context.Context, productUuid uuid.UUID) (sqlc.GetProductByUUIDRow, error) {
-	product, err := r.db.GetProductByUUID(ctx, productUuid)
+	product, err := r.querier(ctx).GetProductByUUID(ctx, productUuid)
 	if err != nil {
 		return sqlc.GetProductByUUIDRow{}, err
 	}
@@ -249,7 +253,7 @@ func (r *SqlProductRepository) GetByUUIDs(ctx context.Context, tx pgx.Tx, uuids 
 }
 
 func (r *SqlProductRepository) Update(ctx context.Context, productParams sqlc.UpdateProductParams) (sqlc.UpdateProductRow, error) {
-	product, err := r.db.UpdateProduct(ctx, productParams)
+	product, err := r.querier(ctx).UpdateProduct(ctx, productParams)
 	if err != nil {
 		return sqlc.UpdateProductRow{}, err
 	}
@@ -258,7 +262,7 @@ func (r *SqlProductRepository) Update(ctx context.Context, productParams sqlc.Up
 }
 
 func (r *SqlProductRepository) SoftDelete(ctx context.Context, uuid uuid.UUID) (sqlc.Product, error) {
-	product, err := r.db.SoftDeleteProduct(ctx, uuid)
+	product, err := r.querier(ctx).SoftDeleteProduct(ctx, uuid)
 	if err != nil {
 		return sqlc.Product{}, err
 	}
@@ -266,7 +270,7 @@ func (r *SqlProductRepository) SoftDelete(ctx context.Context, uuid uuid.UUID) (
 }
 
 func (r *SqlProductRepository) Restore(ctx context.Context, uuid uuid.UUID) (sqlc.Product, error) {
-	product, err := r.db.RestoreProduct(ctx, uuid)
+	product, err := r.querier(ctx).RestoreProduct(ctx, uuid)
 	if err != nil {
 		return sqlc.Product{}, err
 	}
@@ -274,7 +278,7 @@ func (r *SqlProductRepository) Restore(ctx context.Context, uuid uuid.UUID) (sql
 }
 
 func (r *SqlProductRepository) Trash(ctx context.Context, uuid uuid.UUID) (sqlc.Product, error) {
-	product, err := r.db.TrashProduct(ctx, uuid)
+	product, err := r.querier(ctx).TrashProduct(ctx, uuid)
 	if err != nil {
 		return sqlc.Product{}, err
 	}

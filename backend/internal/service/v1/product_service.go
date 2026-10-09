@@ -39,13 +39,25 @@ type productService struct {
 	outboxRepo   repository.OutboxRepository
 	cache        cache.RedisCacheService
 	search       *search.Client
+	txManager    db.TxManager
 	sf           singleflight.Group
 }
 
-func NewProductService(repo repository.ProductRepository, categoryRepo repository.CategoryRepository, outboxRepo repository.OutboxRepository, redisClient *redis.Client, searchClient *search.Client) ProductService {
+func NewProductService(
+	repo repository.ProductRepository,
+	categoryRepo repository.CategoryRepository,
+	outboxRepo repository.OutboxRepository,
+	redisClient *redis.Client,
+	searchClient *search.Client,
+	txManager ...db.TxManager,
+) ProductService {
 	var cacheService cache.RedisCacheService
 	if redisClient != nil {
 		cacheService = cache.NewRedisCacheService(redisClient)
+	}
+	var txMgr db.TxManager
+	if len(txManager) > 0 {
+		txMgr = txManager[0]
 	}
 	return &productService{
 		repo:         repo,
@@ -53,26 +65,44 @@ func NewProductService(repo repository.ProductRepository, categoryRepo repositor
 		outboxRepo:   outboxRepo,
 		cache:        cacheService,
 		search:       searchClient,
+		txManager:    txMgr,
 	}
 }
 
-func (ps *productService) enqueueProductUpsertOutbox(ctx context.Context, tx pgx.Tx, productUUID uuid.UUID) {
+func (ps *productService) withTx(ctx context.Context, fn func(txCtx context.Context, tx pgx.Tx) error) error {
+	if ps.txManager != nil {
+		return ps.txManager.WithTx(ctx, func(txCtx context.Context) error {
+			tx, _ := db.GetTx(txCtx)
+			return fn(txCtx, tx)
+		})
+	}
+	tx, _ := db.GetTx(ctx)
+	return fn(ctx, tx)
+}
+
+func (ps *productService) enqueueProductUpsertOutbox(ctx context.Context, tx pgx.Tx, productUUID uuid.UUID) error {
 	if ps.outboxRepo == nil {
-		return
+		return nil
 	}
 	prod, err := ps.repo.GetByUUID(ctx, productUUID)
 	if err != nil {
-		return
+		return fmt.Errorf("failed to get product for outbox: %w", err)
 	}
 	doc := mapProductRowToSearchDoc(prod)
-	_, _ = ps.outboxRepo.Insert(ctx, tx, "product", productUUID.String(), "PRODUCT_UPSERT", doc)
+	if _, err := ps.outboxRepo.Insert(ctx, tx, "product", productUUID.String(), "PRODUCT_UPSERT", doc); err != nil {
+		return fmt.Errorf("failed to insert outbox event: %w", err)
+	}
+	return nil
 }
 
-func (ps *productService) enqueueProductDeleteOutbox(ctx context.Context, tx pgx.Tx, productUUID uuid.UUID) {
+func (ps *productService) enqueueProductDeleteOutbox(ctx context.Context, tx pgx.Tx, productUUID uuid.UUID) error {
 	if ps.outboxRepo == nil {
-		return
+		return nil
 	}
-	_, _ = ps.outboxRepo.Insert(ctx, tx, "product", productUUID.String(), "PRODUCT_DELETE", map[string]string{"id": productUUID.String()})
+	if _, err := ps.outboxRepo.Insert(ctx, tx, "product", productUUID.String(), "PRODUCT_DELETE", map[string]string{"id": productUUID.String()}); err != nil {
+		return fmt.Errorf("failed to insert delete outbox event: %w", err)
+	}
+	return nil
 }
 
 func mapProductRowToSearchDoc(product sqlc.GetProductByUUIDRow) search.ProductDocument {
@@ -150,13 +180,21 @@ func (ps *productService) CreateProduct(ctx context.Context, input v1dto.CreateP
 		}
 	}
 
-	product, err := ps.repo.Create(ctx, input.Params)
-	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return sqlc.CreateProductRow{}, utils.NewError(utils.ErrCodeConflict, "product already exists")
+	var product sqlc.CreateProductRow
+	err = ps.withTx(ctx, func(txCtx context.Context, tx pgx.Tx) error {
+		created, err := ps.repo.Create(txCtx, input.Params)
+		if err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+				return utils.NewError(utils.ErrCodeConflict, "product already exists")
+			}
+			return utils.WrapError(utils.ErrCodeInternal, "failed to create product", err)
 		}
-		return sqlc.CreateProductRow{}, utils.WrapError(utils.ErrCodeInternal, "failed to create product", err)
+		product = created
+		return ps.enqueueProductUpsertOutbox(txCtx, tx, product.ProductUuid)
+	})
+	if err != nil {
+		return sqlc.CreateProductRow{}, err
 	}
 
 	if ps.cache != nil {
@@ -164,8 +202,6 @@ func (ps *productService) CreateProduct(ctx context.Context, input v1dto.CreateP
 			logger.Log.Warn().Err(err).Msg("Failed to clear product cache")
 		}
 	}
-
-	ps.enqueueProductUpsertOutbox(ctx, nil, product.ProductUuid)
 
 	return product, nil
 }
@@ -317,16 +353,24 @@ func (ps *productService) UpdateProduct(ctx context.Context, input v1dto.UpdateP
 		}
 	}
 
-	product, err := ps.repo.Update(ctx, input.Params)
+	var product sqlc.UpdateProductRow
+	err := ps.withTx(ctx, func(txCtx context.Context, tx pgx.Tx) error {
+		updated, err := ps.repo.Update(txCtx, input.Params)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+				return utils.NewError(utils.ErrCodeNotFound, "product not found")
+			}
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+				return utils.NewError(utils.ErrCodeConflict, "product already exists")
+			}
+			return utils.WrapError(utils.ErrCodeInternal, "failed to update product", err)
+		}
+		product = updated
+		return ps.enqueueProductUpsertOutbox(txCtx, tx, product.ProductUuid)
+	})
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
-			return sqlc.UpdateProductRow{}, utils.NewError(utils.ErrCodeNotFound, "product not found")
-		}
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return sqlc.UpdateProductRow{}, utils.NewError(utils.ErrCodeConflict, "product already exists")
-		}
-		return sqlc.UpdateProductRow{}, utils.WrapError(utils.ErrCodeInternal, "failed to update product", err)
+		return sqlc.UpdateProductRow{}, err
 	}
 
 	if ps.cache != nil {
@@ -334,19 +378,25 @@ func (ps *productService) UpdateProduct(ctx context.Context, input v1dto.UpdateP
 			logger.Log.Warn().Err(err).Msg("Failed to clear product cache")
 		}
 	}
-
-	ps.enqueueProductUpsertOutbox(ctx, nil, product.ProductUuid)
 
 	return product, nil
 }
 
 func (ps *productService) SoftDeleteProduct(ctx context.Context, productUUID uuid.UUID) (sqlc.Product, error) {
-	product, err := ps.repo.SoftDelete(ctx, productUUID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
-			return sqlc.Product{}, utils.NewError(utils.ErrCodeNotFound, "product not found")
+	var product sqlc.Product
+	err := ps.withTx(ctx, func(txCtx context.Context, tx pgx.Tx) error {
+		deleted, err := ps.repo.SoftDelete(txCtx, productUUID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+				return utils.NewError(utils.ErrCodeNotFound, "product not found")
+			}
+			return utils.WrapError(utils.ErrCodeInternal, "failed to soft delete product", err)
 		}
-		return sqlc.Product{}, utils.WrapError(utils.ErrCodeInternal, "failed to soft delete product", err)
+		product = deleted
+		return ps.enqueueProductDeleteOutbox(txCtx, tx, productUUID)
+	})
+	if err != nil {
+		return sqlc.Product{}, err
 	}
 
 	if ps.cache != nil {
@@ -354,19 +404,25 @@ func (ps *productService) SoftDeleteProduct(ctx context.Context, productUUID uui
 			logger.Log.Warn().Err(err).Msg("Failed to clear product cache")
 		}
 	}
-
-	ps.enqueueProductDeleteOutbox(ctx, nil, productUUID)
 
 	return product, nil
 }
 
 func (ps *productService) RestoreProduct(ctx context.Context, productUUID uuid.UUID) (sqlc.Product, error) {
-	product, err := ps.repo.Restore(ctx, productUUID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
-			return sqlc.Product{}, utils.NewError(utils.ErrCodeNotFound, "product not found")
+	var product sqlc.Product
+	err := ps.withTx(ctx, func(txCtx context.Context, tx pgx.Tx) error {
+		restored, err := ps.repo.Restore(txCtx, productUUID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+				return utils.NewError(utils.ErrCodeNotFound, "product not found")
+			}
+			return utils.WrapError(utils.ErrCodeInternal, "failed to restore product", err)
 		}
-		return sqlc.Product{}, utils.WrapError(utils.ErrCodeInternal, "failed to restore product", err)
+		product = restored
+		return ps.enqueueProductUpsertOutbox(txCtx, tx, productUUID)
+	})
+	if err != nil {
+		return sqlc.Product{}, err
 	}
 
 	if ps.cache != nil {
@@ -374,19 +430,23 @@ func (ps *productService) RestoreProduct(ctx context.Context, productUUID uuid.U
 			logger.Log.Warn().Err(err).Msg("Failed to clear product cache")
 		}
 	}
-
-	ps.enqueueProductUpsertOutbox(ctx, nil, productUUID)
 
 	return product, nil
 }
 
 func (ps *productService) TrashProduct(ctx context.Context, productUUID uuid.UUID) error {
-	_, err := ps.repo.Trash(ctx, productUUID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
-			return utils.NewError(utils.ErrCodeNotFound, "product not found")
+	err := ps.withTx(ctx, func(txCtx context.Context, tx pgx.Tx) error {
+		_, err := ps.repo.Trash(txCtx, productUUID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+				return utils.NewError(utils.ErrCodeNotFound, "product not found")
+			}
+			return utils.WrapError(utils.ErrCodeInternal, "failed to trash product", err)
 		}
-		return utils.WrapError(utils.ErrCodeInternal, "failed to trash product", err)
+		return ps.enqueueProductDeleteOutbox(txCtx, tx, productUUID)
+	})
+	if err != nil {
+		return err
 	}
 
 	if ps.cache != nil {
@@ -394,8 +454,6 @@ func (ps *productService) TrashProduct(ctx context.Context, productUUID uuid.UUI
 			logger.Log.Warn().Err(err).Msg("Failed to clear product cache")
 		}
 	}
-
-	ps.enqueueProductDeleteOutbox(ctx, nil, productUUID)
 
 	return nil
 }
@@ -806,7 +864,9 @@ func (ps *productService) executeAtomicBatchInsert(ctx context.Context, rows []P
 				Status:      ProductStatusActive,
 				CreatedAt:   time.Now().Unix(),
 			}
-			_, _ = ps.outboxRepo.Insert(ctx, tx, "product", prodCreated.ProductUuid.String(), "PRODUCT_UPSERT", doc)
+			if _, err := ps.outboxRepo.Insert(ctx, tx, "product", prodCreated.ProductUuid.String(), "PRODUCT_UPSERT", doc); err != nil {
+				return &DBInsertError{Row: row.RowNum, Reason: fmt.Sprintf("Failed to enqueue search outbox event: %v", err)}
+			}
 		}
 	}
 	if err := tx.Commit(ctx); err != nil {

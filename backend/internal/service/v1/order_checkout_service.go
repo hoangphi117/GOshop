@@ -264,7 +264,16 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 			logger.Log.Error().
 				Err(err).
 				Str("order_uuid", order.OrderUuid.String()).
-				Msg("Failed to publish order created event")
+				Msg("Failed to publish order created event, falling back to synchronous notification")
+			if s.notificationService != nil {
+				_ = s.notificationService.Send(ctx, v1dto.SendNotificationInput{
+					UserID: order.OrderUserID,
+					Type:   "order_created",
+					Title:  "Order Placed Successfully",
+					Body:   fmt.Sprintf("Your order #%s has been placed successfully.", order.OrderNumber),
+					Data:   map[string]any{"order_uuid": order.OrderUuid.String()},
+				})
+			}
 		}
 	} else {
 		// Fallback for non-RabbitMQ environments / synchronous unit tests

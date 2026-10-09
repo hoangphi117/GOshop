@@ -13,10 +13,14 @@ import (
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 	"goshop/pkg/mail"
+	"goshop/pkg/payment"
 	"goshop/pkg/rabbitmq"
+	"goshop/pkg/search"
+	"goshop/pkg/shipping"
 	"goshop/pkg/ws"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -31,11 +35,17 @@ type Worker struct {
 	rabbitMQ             rabbitmq.RabbitMQService
 	mailService          mail.EmailProviderService
 	cache                cache.RedisCacheService
+	redisClient          *redis.Client
 	cfg                  *config.Config
 	logger               *zerolog.Logger
 	notificationConsumer *worker.NotificationConsumer
 	orderConsumer        *worker.OrderConsumer
+	shippingConsumer     *worker.ShippingConsumer
+	paymentConsumer      *worker.PaymentConsumer
 	retentionJob         *worker.NotificationRetentionJob
+	syncWorker           *worker.MeilisearchSyncWorker
+	shippingService      v1service.OrderShippingService
+	paymentService       v1service.PaymentService
 	redisBridge          ws.RedisBridge
 }
 
@@ -83,30 +93,113 @@ func NewWorker(cfg *config.Config) *Worker {
 	userRepo := repository.NewSqlUserRepository(db.DB)
 	cartRepo := repository.NewSqlCartRepository(db.DB)
 	productRepo := repository.NewSqlProductRepository(db.DB)
-	cartService := v1service.NewCartService(cartRepo, userRepo, productRepo, redisClient)
+	orderRepo := repository.NewSqlOrderRepository(db.DB)
+	orderItemRepo := repository.NewSqlOrderItemRepository(db.DB)
+	trackingRepo := repository.NewSqlTrackingRepository(db.DB)
+	paymentRepo := repository.NewSqlPaymentRepository(db.DB)
+	webhookRepo := repository.NewSqlWebhookEventRepository(db.DB)
+	txManager := db.NewTxManager(db.DBPool)
 
-	notificationService := v1service.NewNotificationService(notificationRepo, userRepo, nil)
 	redisBridge := ws.NewRedisBridge(redisClient, nil)
-	if svc, ok := notificationService.(interface{ SetRedisBridge(ws.RedisBridge) }); ok {
-		svc.SetRedisBridge(redisBridge)
-	}
+	notificationService := v1service.NewNotificationServiceWithTransports(
+		notificationRepo,
+		userRepo,
+		nil,
+		rabbitMQ,
+		redisBridge,
+	)
+
+	cartService := v1service.NewCartService(cartRepo, userRepo, productRepo, redisClient)
 	notificationConsumer := worker.NewNotificationConsumer(notificationService, log)
 	orderConsumer := worker.NewOrderConsumer(cartService, notificationService, log)
 
-	retentionJob := worker.NewNotificationRetentionJob(notificationService,
+	// Shipping Factory & Service
+	ghnToken := utils.GetEnv("GHN_TOKEN", "")
+	ghnShopID, _ := strconv.Atoi(utils.GetEnv("GHN_SHOP_ID", "0"))
+	ghnBaseURL := utils.GetEnv("GHN_BASE_URL", "")
+	ghnAdapter := shipping.NewGHNAdapter(ghnToken, ghnShopID, ghnBaseURL)
+	shippingFactory := shipping.NewShippingFactory(ghnAdapter)
+
+	shippingService := v1service.NewOrderShippingService(
+		txManager,
+		orderRepo,
+		orderItemRepo,
+		trackingRepo,
+		paymentRepo,
+		shippingFactory,
+		webhookRepo,
+		notificationService,
+		userRepo,
+		redisClient,
+		rabbitMQ,
+	)
+	shippingConsumer := worker.NewShippingConsumer(shippingService, log)
+
+	// Payment Providers & Service
+	paymentConfig := payment.PaymentConfig{
+		MoMo: payment.MoMoConfig{
+			PartnerCode: utils.GetEnv("MOMO_PARTNER_CODE", ""),
+			AccessKey:   utils.GetEnv("MOMO_ACCESS_KEY", ""),
+			SecretKey:   utils.GetEnv("MOMO_SECRET_KEY", ""),
+			Endpoint:    utils.GetEnv("MOMO_ENDPOINT", ""),
+			QueryURL:    utils.GetEnv("MOMO_QUERY_URL", ""),
+		},
+	}
+	paymentProviders := make(map[string]payment.PaymentProvider)
+	if momoFactory, err := payment.NewProviderFactory(payment.ProviderMoMo, paymentConfig); err == nil {
+		if p, err := momoFactory.CreateProvider(); err == nil {
+			paymentProviders["momo"] = p
+		}
+	}
+
+	returnURL := utils.GetEnv("PAYMENT_RETURN_URL", "http://localhost:3001/payment/result")
+	webhookBaseURL := utils.GetEnv("PAYMENT_WEBHOOK_BASE_URL", "http://localhost:8080")
+	paymentService := v1service.NewPaymentService(
+		paymentRepo,
+		orderRepo,
+		userRepo,
+		webhookRepo,
+		paymentProviders,
+		notificationService,
+		cacheService,
+		rabbitMQ,
+		returnURL,
+		webhookBaseURL,
+	)
+	paymentConsumer := worker.NewPaymentConsumer(paymentService, log)
+
+	// Meilisearch Sync Worker
+	var syncWorker *worker.MeilisearchSyncWorker
+	searchClient, err := search.NewClient(cfg.Meilisearch.Host, cfg.Meilisearch.MasterKey, cfg.Meilisearch.IndexProducts)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to initialize Meilisearch client in worker")
+	} else if searchClient != nil {
+		outboxRepo := repository.NewSqlOutboxRepository(db.DB)
+		syncWorker = worker.NewMeilisearchSyncWorker(outboxRepo, searchClient, 2*time.Second, 50, log)
+	}
+
+	retentionJob := worker.NewNotificationRetentionJob(
+		notificationService,
 		log,
 		24*time.Hour,
-		utils.GetIntEnv("NOTIFICATION_RETENTION_DAYS", 30))
+		utils.GetIntEnv("NOTIFICATION_RETENTION_DAYS", 30),
+	)
 
 	return &Worker{
 		rabbitMQ:             rabbitMQ,
 		mailService:          mailService,
 		cache:                cacheService,
+		redisClient:          redisClient,
 		cfg:                  cfg,
 		logger:               log,
 		notificationConsumer: notificationConsumer,
 		orderConsumer:        orderConsumer,
+		shippingConsumer:     shippingConsumer,
+		paymentConsumer:      paymentConsumer,
 		retentionJob:         retentionJob,
+		syncWorker:           syncWorker,
+		shippingService:      shippingService,
+		paymentService:       paymentService,
 		redisBridge:          redisBridge,
 	}
 }
@@ -162,6 +255,80 @@ func (w *Worker) Start(ctx context.Context) error {
 			return err
 		}
 		w.logger.Info().Msgf("Worker consuming queue: %s", rabbitmq.QueueOrderCreated)
+	}
+
+	// Consume Shipping Order Create Events
+	if w.shippingConsumer != nil {
+		shippingHandler := w.withIdempotency(v1service.QueueShippingCreate, w.shippingConsumer.Handle)
+		if err := w.rabbitMQ.Consume(ctx, v1service.QueueShippingCreate, shippingHandler); err != nil {
+			w.logger.Error().Err(err).Msg("Failed to consume shipping order create events")
+		} else {
+			w.logger.Info().Msgf("Worker consuming queue: %s", v1service.QueueShippingCreate)
+		}
+	}
+
+	// Consume Payment Webhook Events
+	if w.paymentConsumer != nil {
+		paymentHandler := w.withIdempotency("payment.webhook", w.paymentConsumer.Handle)
+		if err := w.rabbitMQ.Consume(ctx, "payment.webhook", paymentHandler); err != nil {
+			w.logger.Error().Err(err).Msg("Failed to consume payment webhook events")
+		} else {
+			w.logger.Info().Msg("Worker consuming queue: payment.webhook")
+		}
+	}
+
+	// Meilisearch Transactional Outbox Sync Worker
+	if w.syncWorker != nil {
+		go w.syncWorker.Start(ctx)
+		w.logger.Info().Msg("Meilisearch Outbox Sync Worker started in worker process")
+	}
+
+	// Periodic Shipping Tracking Sync (Cronjob with Redis Distributed Lock)
+	if w.shippingService != nil {
+		go func() {
+			intervalMinutes, _ := strconv.Atoi(utils.GetEnv("SHIPPING_SYNC_INTERVAL_MINUTES", "30"))
+			if intervalMinutes <= 0 {
+				intervalMinutes = 30
+			}
+			ticker := time.NewTicker(time.Duration(intervalMinutes) * time.Minute)
+			defer ticker.Stop()
+			w.logger.Info().Int("interval_minutes", intervalMinutes).Msg("Shipping tracking sync cron job started (with Redis lock)")
+
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					runWithDistributedLock(ctx, w.redisClient, "lock:cron:shipping_sync", time.Duration(intervalMinutes-1)*time.Minute, func() {
+						if _, err := w.shippingService.SyncActiveShippingOrders(ctx); err != nil {
+							w.logger.Error().Err(err).Msg("Error during periodic shipping sync cron job")
+						}
+					})
+				}
+			}
+		}()
+	}
+
+	// Periodic Payment Reconciliation (Cronjob with Redis Distributed Lock)
+	if w.paymentService != nil {
+		go func() {
+			ticker := time.NewTicker(5 * time.Minute)
+			defer ticker.Stop()
+			w.logger.Info().Msg("Payment reconciliation cron job started (interval: 5m, with Redis lock)")
+
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					runWithDistributedLock(ctx, w.redisClient, "lock:cron:payment_reconciliation", 4*time.Minute, func() {
+						if err := w.paymentService.ReconcilePendingPayments(ctx); err != nil {
+							w.logger.Error().Err(err).Msg("Error during periodic payment reconciliation cron job")
+						}
+					})
+				}
+			}
+		}()
 	}
 
 	if w.retentionJob != nil {
@@ -280,4 +447,19 @@ func main() {
 
 	wg.Wait()
 	logger.Log.Info().Msg("Main process terminated")
+}
+
+func runWithDistributedLock(ctx context.Context, redisClient *redis.Client, lockKey string, ttl time.Duration, task func()) {
+	if redisClient == nil {
+		task()
+		return
+	}
+	if ttl <= 0 {
+		ttl = time.Minute
+	}
+	ok, err := redisClient.SetNX(ctx, lockKey, "1", ttl).Result()
+	if err != nil || !ok {
+		return // Lock held by another worker instance
+	}
+	task()
 }
