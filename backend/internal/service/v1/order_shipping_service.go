@@ -11,7 +11,6 @@ import (
 	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
-	"goshop/internal/repository"
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
@@ -28,14 +27,14 @@ import (
 
 type orderShippingService struct {
 	txManager           db.TxManager
-	orderRepo           repository.OrderRepository
-	orderItemRepo       repository.OrderItemRepository
-	trackingRepo        repository.TrackingRepository
-	paymentRepo         repository.PaymentRepository
+	orderRepo           OrderStorePort
+	orderItemRepo       OrderItemStorePort
+	trackingRepo        OrderTrackingPort
+	paymentRepo         ShippingPaymentPort
 	shippingFactory     *shipping.ShippingFactory
-	webhookRepo         repository.WebhookEventRepository
+	webhookRepo         ShippingWebhookPort
 	notificationService NotificationService
-	userRepo            repository.UserRepository
+	userRepo            OrderCustomerReader
 	cache               cache.RedisCacheService
 	rabbitmq            rabbitmq.RabbitMQService
 	locationService     LocationService
@@ -43,14 +42,14 @@ type orderShippingService struct {
 
 func NewOrderShippingService(
 	txManager db.TxManager,
-	orderRepo repository.OrderRepository,
-	orderItemRepo repository.OrderItemRepository,
-	trackingRepo repository.TrackingRepository,
-	paymentRepo repository.PaymentRepository,
+	orderRepo OrderStorePort,
+	orderItemRepo OrderItemStorePort,
+	trackingRepo OrderTrackingPort,
+	paymentRepo ShippingPaymentPort,
 	shippingFactory *shipping.ShippingFactory,
-	webhookRepo repository.WebhookEventRepository,
+	webhookRepo ShippingWebhookPort,
 	notificationService NotificationService,
-	userRepo repository.UserRepository,
+	userRepo OrderCustomerReader,
 	redisClient *redis.Client,
 	rabbitmq rabbitmq.RabbitMQService,
 ) OrderShippingService {

@@ -10,7 +10,6 @@ import (
 	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
-	"goshop/internal/repository"
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
 
@@ -21,26 +20,26 @@ import (
 
 type orderReturnService struct {
 	txManager           db.TxManager
-	orderRepo           repository.OrderRepository
-	orderItemRepo       repository.OrderItemRepository
-	orderReturnRepo     repository.OrderReturnsRepository
-	productRepo         repository.ProductRepository
-	userRepo            repository.UserRepository
-	trackingRepo        repository.TrackingRepository
-	paymentService      PaymentService
+	orderRepo           OrderStorePort
+	orderItemRepo       OrderItemStorePort
+	orderReturnRepo     OrderReturnStorePort
+	productRepo         OrderStockRestorer
+	userRepo            OrderCustomerReader
+	trackingRepo        OrderTrackingPort
+	paymentService      OrderPaymentRefundPort
 	notificationService NotificationService
 	cache               cache.RedisCacheService
 }
 
 func NewOrderReturnService(
 	txManager db.TxManager,
-	orderRepo repository.OrderRepository,
-	orderItemRepo repository.OrderItemRepository,
-	orderReturnRepo repository.OrderReturnsRepository,
-	productRepo repository.ProductRepository,
-	userRepo repository.UserRepository,
-	trackingRepo repository.TrackingRepository,
-	paymentService PaymentService,
+	orderRepo OrderStorePort,
+	orderItemRepo OrderItemStorePort,
+	orderReturnRepo OrderReturnStorePort,
+	productRepo OrderStockRestorer,
+	userRepo OrderCustomerReader,
+	trackingRepo OrderTrackingPort,
+	paymentService OrderPaymentRefundPort,
 	notificationService NotificationService,
 	redisClient *redis.Client,
 ) OrderReturnService {

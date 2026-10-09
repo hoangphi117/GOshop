@@ -64,12 +64,19 @@ type OrderCartPort interface {
 type OrderStorePort interface {
 	Create(ctx context.Context, params sqlc.CreateOrderParams) (sqlc.Order, error)
 	GetByUUID(ctx context.Context, orderUUID uuid.UUID) (sqlc.GetOrderByUUIDRow, error)
+	GetByID(ctx context.Context, orderID int32) (sqlc.GetOrderByIDRow, error)
 	GetAll(ctx context.Context, userID *int32, status *int32, search, orderBy, sort string, limit, offset int32) ([]sqlc.Order, error)
 	CountOrders(ctx context.Context, userID *int32, status *int32, search string) (int64, error)
 	UpdateStatus(ctx context.Context, tx pgx.Tx, params sqlc.UpdateOrderStatusParams) (sqlc.Order, error)
 	CancelOrder(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID) (sqlc.Order, error)
 	UpdateOrderShippingInfo(ctx context.Context, params sqlc.UpdateOrderShippingInfoParams) (sqlc.Order, error)
 	UpdateOrderPaymentStatus(ctx context.Context, tx pgx.Tx, params sqlc.UpdateOrderPaymentStatusParams) (sqlc.Order, error)
+	UpdateShippingAndStatus(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID, params sqlc.UpdateOrderShippingAndStatusParams) (sqlc.Order, error)
+	GetByShippingCode(ctx context.Context, shippingCode string) (sqlc.GetOrderByShippingCodeRow, error)
+	MarkDeliveredByShippingCode(ctx context.Context, tx pgx.Tx, shippingCode string) (sqlc.Order, error)
+	MarkDeliveredByUUID(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID) (sqlc.Order, error)
+	CancelShipping(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID) (sqlc.Order, error)
+	GetActiveShippedOrders(ctx context.Context, limit int32) ([]sqlc.Order, error)
 }
 
 // OrderItemStorePort is the narrow persistence port for order line items.
@@ -83,4 +90,49 @@ type OrderItemStorePort interface {
 // Satisfied by repository.TrackingRepository.
 type OrderTrackingPort interface {
 	InsertEvent(ctx context.Context, tx pgx.Tx, params sqlc.InsertTrackingEventParams) (sqlc.OrderTrackingEvent, error)
+	GetByOrderID(ctx context.Context, orderID int32) ([]sqlc.OrderTrackingEvent, error)
 }
+
+// OrderReturnStorePort is the narrow persistence port for returns.
+// Satisfied by repository.OrderReturnsRepository.
+type OrderReturnStorePort interface {
+	Create(ctx context.Context, tx pgx.Tx, params sqlc.CreateOrderReturnParams) (sqlc.OrderReturn, error)
+	GetActiveByOrderID(ctx context.Context, orderID int32) (sqlc.OrderReturn, error)
+	GetLatestByOrderID(ctx context.Context, orderID int32) (sqlc.OrderReturn, error)
+	GetReturns(ctx context.Context, params sqlc.AdminGetReturnsParams) ([]sqlc.AdminGetReturnsRow, error)
+	GetByUUID(ctx context.Context, returnUUID uuid.UUID) (sqlc.OrderReturn, error)
+	CountReturns(ctx context.Context, params sqlc.AdminCountReturnsParams) (int64, error)
+	GetReturnsByUserID(ctx context.Context, params sqlc.GetReturnsByUserIDParams) ([]sqlc.GetReturnsByUserIDRow, error)
+	CountReturnsByUserID(ctx context.Context, params sqlc.CountReturnsByUserIDParams) (int64, error)
+	AdminGetReturnByUUID(ctx context.Context, returnUUID uuid.UUID) (sqlc.AdminGetReturnByUUIDRow, error)
+	AdminGetLatestReturnByOrderID(ctx context.Context, orderID int32) (sqlc.AdminGetLatestReturnByOrderIDRow, error)
+	UpdateStatus(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReturnStatusParams) (sqlc.OrderReturn, error)
+	UpdateReturnShippingInfo(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReturnShippingInfoParams) (sqlc.OrderReturn, error)
+	UpdateReturnBankAccount(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReturnBankAccountParams) (sqlc.OrderReturn, error)
+}
+
+// ShippingWebhookPort is the narrow persistence port for shipping webhook events.
+// Satisfied by repository.WebhookEventRepository.
+type ShippingWebhookPort interface {
+	InsertEvent(ctx context.Context, tx pgx.Tx, params sqlc.InsertWebhookEventParams) (sqlc.WebhookEvent, error)
+	MarkProcessed(ctx context.Context, tx pgx.Tx, eventID int32) error
+}
+
+// ShippingPaymentPort is the narrow persistence port for recording COD payments from shipping carriers.
+// Satisfied by repository.PaymentRepository.
+type ShippingPaymentPort interface {
+	Create(ctx context.Context, tx pgx.Tx, params sqlc.CreatePaymentTransactionParams) (sqlc.PaymentTransaction, error)
+}
+
+// OrderStockRestorer manages restoring catalog stock for returned goods.
+// Satisfied by repository.ProductRepository.
+type OrderStockRestorer interface {
+	RestoreStock(ctx context.Context, tx pgx.Tx, productID int32, quantity int32) error
+}
+
+// OrderPaymentRefundPort handles issuing refunds via payment service.
+// Satisfied by PaymentService.
+type OrderPaymentRefundPort interface {
+	RefundPayment(ctx context.Context, idempotencyKey string, input v1dto.RefundPaymentInput) (v1dto.PaymentTransactionDTO, error)
+}
+
