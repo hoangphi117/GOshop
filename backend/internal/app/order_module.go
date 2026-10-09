@@ -1,22 +1,18 @@
 package app
 
 import (
-	"context"
 	v1handler "goshop/internal/handler/v1"
 	"goshop/internal/repository"
 	"goshop/internal/routes"
 	v1routes "goshop/internal/routes/v1"
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/utils"
-	"goshop/internal/worker"
 	"goshop/pkg/cache"
-	"goshop/pkg/logger"
 	"goshop/pkg/payment"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/shipping"
 	"goshop/pkg/ws"
 	"strconv"
-	"time"
 )
 
 type OrderModule struct {
@@ -24,7 +20,13 @@ type OrderModule struct {
 	adminRoutes []routes.Route
 }
 
-func NewOrderModule(ctx *ModuleContext, wsHub ws.Hub, rabbitmqService rabbitmq.RabbitMQService) *OrderModule {
+func NewOrderModule(
+	ctx *ModuleContext,
+	wsHub ws.Hub,
+	rabbitmqService rabbitmq.RabbitMQService,
+	notificationService v1service.NotificationService,
+	locationService v1service.LocationService,
+) *OrderModule {
 
 	orderRepo := repository.NewSqlOrderRepository(ctx.DB)
 	orderItemRepo := repository.NewSqlOrderItemRepository(ctx.DB)
@@ -64,9 +66,6 @@ func NewOrderModule(ctx *ModuleContext, wsHub ws.Hub, rabbitmqService rabbitmq.R
 			paymentProviders["momo"] = p
 		}
 	}
-
-	notificationRepo := repository.NewSqlNotificationRepository(ctx.DB)
-	notificationService := v1service.NewNotificationService(notificationRepo, userRepo, wsHub)
 
 	pricingService := v1service.NewOrderPricingService(couponRepo)
 	couponService := v1service.NewCouponService(couponRepo, userRepo, ctx.Redis)
@@ -114,11 +113,6 @@ func NewOrderModule(ctx *ModuleContext, wsHub ws.Hub, rabbitmqService rabbitmq.R
 		rabbitmqService,
 		utils.GetEnv("PAYMENT_RETURN_URL", "http://localhost:3001/payment/result"),
 		utils.GetEnv("PAYMENT_WEBHOOK_BASE_URL", "http://localhost:8080"),
-		v1service.PaymentOrderDependencies{
-			InventoryService: inventoryService,
-			OrderItemRepo:    orderItemRepo,
-			TrackingRepo:     trackingRepo,
-		},
 	)
 
 	returnService := v1service.NewOrderReturnService(
@@ -134,47 +128,11 @@ func NewOrderModule(ctx *ModuleContext, wsHub ws.Hub, rabbitmqService rabbitmq.R
 		ctx.Redis,
 	)
 
-	shippingConsumer := worker.NewShippingConsumer(shippingService, logger.Log)
-	go func() {
-		err := rabbitmqService.Consume(context.Background(), v1service.QueueShippingCreate, shippingConsumer.Handle)
-		if err != nil {
-			logger.Log.Error().Err(err).Msg("Failed to start RabbitMQ consumer for shipping.order.create")
-		}
-	}()
-
-	orderConsumer := worker.NewOrderConsumer(cartService, notificationService, logger.Log)
-	go func() {
-		err := rabbitmqService.Consume(context.Background(), rabbitmq.QueueOrderCreated, orderConsumer.Handle)
-		if err != nil {
-			logger.Log.Error().Err(err).Msg("Failed to start RabbitMQ consumer for order.created")
-		}
-	}()
-
-	// Background worker đồng bộ trạng thái đơn vận chuyển từ GHN định kỳ (Cronjob)
-	go func() {
-		intervalMinutes, _ := strconv.Atoi(utils.GetEnv("SHIPPING_SYNC_INTERVAL_MINUTES", "30"))
-		if intervalMinutes <= 0 {
-			intervalMinutes = 30
-		}
-		interval := time.Duration(intervalMinutes) * time.Minute
-
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-
-		logger.Log.Info().
-			Int("interval_minutes", intervalMinutes).
-			Msg("Shipping tracking sync cronjob worker started")
-
-		for range ticker.C {
-			if _, err := shippingService.SyncActiveShippingOrders(context.Background()); err != nil {
-				logger.Log.Error().Err(err).Msg("Error occurred during periodic shipping sync cronjob")
-			}
-		}
-	}()
-
 	invoiceService := v1service.NewOrderInvoiceService(orderRepo, orderItemRepo, userRepo, cacheService)
 	orderAdminService := v1service.NewOrderAdminService(orderService)
-	locationService := v1service.NewLocationService(shippingFactory, cacheService)
+	if locationService == nil {
+		locationService = v1service.NewLocationService(shippingFactory, cacheService)
+	}
 
 	orderHandler := v1handler.NewOrderHandler(orderService, shippingService, returnService).
 		WithInvoiceService(invoiceService).

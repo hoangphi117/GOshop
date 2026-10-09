@@ -18,10 +18,6 @@ func (r *ShippingWebhookRoutes) Register(rg *gin.RouterGroup) {
 	shipping := rg.Group("/shipping")
 	{
 		shipping.POST("/webhook/ghn", r.handler.HandleShippingWebhook)
-
-		shipping.GET("/provinces", r.handler.GetProvinces)
-		shipping.GET("/districts", r.handler.GetDistricts)
-		shipping.GET("/wards", r.handler.GetWards)
 		shipping.POST("/calculate-fee", r.handler.CalculateShippingFee)
 	}
 }
