@@ -276,6 +276,10 @@ function MyOrdersPageContent() {
       setTimelineEvents([]);
       setIsLoadingDetail(true);
 
+      if (typeof window !== "undefined") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+
       const ref = order.order_number || order.uuid;
       activeOrderRef.current = ref;
 
@@ -323,6 +327,9 @@ function MyOrdersPageContent() {
     setSelectedOrder(null);
     activeOrderRef.current = null;
     router.push("/account/orders", { scroll: false });
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   };
 
   // Sync URL searchParams orderId on mount or external navigation
@@ -772,6 +779,14 @@ function MyOrdersPageContent() {
   const isShippingEvent = (ev: TrackingEvent): boolean => {
     const s = (ev.status || "").toLowerCase();
     const st = (ev.status_text || "").toLowerCase();
+    if (
+      s.includes("fail") ||
+      st.includes("fail") ||
+      s.includes("cancel") ||
+      st.includes("cancel")
+    ) {
+      return false;
+    }
     return (
       s.includes("ship") ||
       s.includes("transit") ||
@@ -897,18 +912,7 @@ function MyOrdersPageContent() {
     }
 
     if (stepIdx === 2) {
-      const ev = events.find((e) => {
-        const s = (e.status || "").toLowerCase();
-        const st = (e.status_text || "").toLowerCase();
-        return (
-          s.includes("ship") ||
-          s.includes("transit") ||
-          s.includes("pick") ||
-          s.includes("delivering") ||
-          st.includes("out for delivery") ||
-          st.includes("đang giao")
-        );
-      });
+      const ev = events.find((e) => isShippingEvent(e));
       return ev?.created_at || null;
     }
 

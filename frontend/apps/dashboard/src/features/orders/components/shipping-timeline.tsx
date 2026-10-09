@@ -60,6 +60,14 @@ export function ShippingTimeline({
   const isShippingEvent = (ev: TrackingEvent): boolean => {
     const s = (ev.status || '').toLowerCase()
     const st = (ev.status_text || '').toLowerCase()
+    if (
+      s.includes('fail') ||
+      st.includes('fail') ||
+      s.includes('cancel') ||
+      st.includes('cancel')
+    ) {
+      return false
+    }
     return (
       s.includes('ship') ||
       s.includes('transit') ||
@@ -79,6 +87,8 @@ export function ShippingTimeline({
     if (ev.status_text && !ev.status_text.includes('_')) return ev.status_text
     const s = (ev.status || '').toLowerCase()
     switch (s) {
+      case 'shipping_failed':
+        return 'Shipping creation failed'
       case 'return_shipping_submitted':
         return 'Return waybill submitted'
       case 'return_requested':
@@ -240,18 +250,7 @@ export function ShippingTimeline({
 
     // Step 2: Order shipped out
     if (stepIdx === 2) {
-      const ev = events.find((e) => {
-        const s = (e.status || '').toLowerCase()
-        const st = (e.status_text || '').toLowerCase()
-        return (
-          s.includes('ship') ||
-          s.includes('transit') ||
-          s.includes('pick') ||
-          s.includes('delivering') ||
-          st.includes('out for delivery') ||
-          st.includes('đang giao')
-        )
-      })
+      const ev = events.find((e) => isShippingEvent(e))
       return ev?.created_at || null
     }
 
