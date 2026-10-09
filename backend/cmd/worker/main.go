@@ -40,9 +40,10 @@ type Worker struct {
 	logger               *zerolog.Logger
 	notificationConsumer *worker.NotificationConsumer
 	orderConsumer        *worker.OrderConsumer
-	shippingConsumer     *worker.ShippingConsumer
-	paymentConsumer      *worker.PaymentConsumer
-	retentionJob         *worker.NotificationRetentionJob
+	shippingConsumer       *worker.ShippingConsumer
+	paymentConsumer        *worker.PaymentConsumer
+	paymentExpiredConsumer *worker.PaymentExpiredConsumer
+	retentionJob           *worker.NotificationRetentionJob
 	syncWorker           *worker.MeilisearchSyncWorker
 	shippingService      v1service.OrderShippingService
 	paymentService       v1service.PaymentService
@@ -168,6 +169,29 @@ func NewWorker(cfg *config.Config) *Worker {
 	)
 	paymentConsumer := worker.NewPaymentConsumer(paymentService, log)
 
+	// Order Service & Payment Expired Consumer
+	couponRepo := repository.NewSqlCouponRepository(db.DB)
+	pricingService := v1service.NewOrderPricingService(couponRepo)
+	couponService := v1service.NewCouponService(couponRepo, userRepo, redisClient)
+	stockMovementRepo := repository.NewSqlStockMovementRepository(db.DB)
+	inventoryService := v1service.NewInventoryService(productRepo, stockMovementRepo, userRepo, txManager, notificationService)
+
+	orderService := v1service.NewOrderService(
+		txManager,
+		pricingService,
+		inventoryService,
+		orderRepo,
+		orderItemRepo,
+		userRepo,
+		cartService,
+		couponService,
+		trackingRepo,
+		notificationService,
+		redisClient,
+		rabbitMQ,
+	)
+	paymentExpiredConsumer := worker.NewPaymentExpiredConsumer(orderService, log)
+
 	// Meilisearch Sync Worker
 	var syncWorker *worker.MeilisearchSyncWorker
 	searchClient, err := search.NewClient(cfg.Meilisearch.Host, cfg.Meilisearch.MasterKey, cfg.Meilisearch.IndexProducts)
@@ -186,21 +210,22 @@ func NewWorker(cfg *config.Config) *Worker {
 	)
 
 	return &Worker{
-		rabbitMQ:             rabbitMQ,
-		mailService:          mailService,
-		cache:                cacheService,
-		redisClient:          redisClient,
-		cfg:                  cfg,
-		logger:               log,
-		notificationConsumer: notificationConsumer,
-		orderConsumer:        orderConsumer,
-		shippingConsumer:     shippingConsumer,
-		paymentConsumer:      paymentConsumer,
-		retentionJob:         retentionJob,
-		syncWorker:           syncWorker,
-		shippingService:      shippingService,
-		paymentService:       paymentService,
-		redisBridge:          redisBridge,
+		rabbitMQ:               rabbitMQ,
+		mailService:            mailService,
+		cache:                  cacheService,
+		redisClient:            redisClient,
+		cfg:                    cfg,
+		logger:                 log,
+		notificationConsumer:   notificationConsumer,
+		orderConsumer:          orderConsumer,
+		shippingConsumer:       shippingConsumer,
+		paymentConsumer:        paymentConsumer,
+		paymentExpiredConsumer: paymentExpiredConsumer,
+		retentionJob:           retentionJob,
+		syncWorker:             syncWorker,
+		shippingService:        shippingService,
+		paymentService:         paymentService,
+		redisBridge:            redisBridge,
 	}
 }
 
@@ -274,6 +299,16 @@ func (w *Worker) Start(ctx context.Context) error {
 			w.logger.Error().Err(err).Msg("Failed to consume payment webhook events")
 		} else {
 			w.logger.Info().Msg("Worker consuming queue: payment.webhook")
+		}
+	}
+
+	// Consume Payment Expired Events (Order cancellation & Inventory restoration)
+	if w.paymentExpiredConsumer != nil {
+		expiredHandler := w.withIdempotency(rabbitmq.QueuePaymentExpired, w.paymentExpiredConsumer.Handle)
+		if err := w.rabbitMQ.Consume(ctx, rabbitmq.QueuePaymentExpired, expiredHandler); err != nil {
+			w.logger.Error().Err(err).Msg("Failed to consume payment expired events")
+		} else {
+			w.logger.Info().Msgf("Worker consuming queue: %s", rabbitmq.QueuePaymentExpired)
 		}
 	}
 

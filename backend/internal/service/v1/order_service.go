@@ -143,6 +143,10 @@ func (s *orderService) CancelOrder(ctx context.Context, userUUID uuid.UUID, orde
 	return s.lifecycleService.CancelOrder(ctx, userUUID, orderUUID, reason)
 }
 
+func (s *orderService) CancelExpiredOrder(ctx context.Context, orderUUID uuid.UUID) error {
+	return s.lifecycleService.CancelExpiredOrder(ctx, orderUUID)
+}
+
 func (s *orderService) UpdateOrderShippingInfo(ctx context.Context, userUUID uuid.UUID, input sqlc.UpdateOrderShippingInfoParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
 	return s.lifecycleService.UpdateOrderShippingInfo(ctx, userUUID, input)
 }

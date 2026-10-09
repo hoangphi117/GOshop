@@ -1539,6 +1539,129 @@ func TestOrderService_CancelOrder(t *testing.T) {
 	})
 }
 
+func TestOrderService_CancelExpiredOrder(t *testing.T) {
+	ctx := context.Background()
+	orderUUID := uuid.New()
+	userUUID := uuid.New()
+
+	t.Run("Order Not Found -> Idempotent NoOp", func(t *testing.T) {
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return sqlc.GetOrderByUUIDRow{}, pgx.ErrNoRows
+			},
+		}
+
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+		})
+
+		err := svc.CancelExpiredOrder(ctx, orderUUID)
+		require.NoError(t, err)
+	})
+
+	t.Run("Order Already Paid -> Idempotent NoOp", func(t *testing.T) {
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return sqlc.GetOrderByUUIDRow{
+					OrderID:            10,
+					OrderUuid:          orderUUID,
+					OrderStatus:        v1service.OrderStatusPending,
+					OrderPaymentStatus: v1service.OrderPaymentStatusPaid,
+				}, nil
+			},
+		}
+
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo: mockOrderRepo,
+		})
+
+		err := svc.CancelExpiredOrder(ctx, orderUUID)
+		require.NoError(t, err)
+	})
+
+	t.Run("Pending Order Expired -> Cancels, Restores Stock, Inserts Tracking", func(t *testing.T) {
+		orderCancelled := false
+		stockRestored := false
+		trackingRecorded := false
+
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return sqlc.GetOrderByUUIDRow{
+					OrderID:            10,
+					OrderUuid:          orderUUID,
+					OrderNumber:        "ORD-EXP-123",
+					OrderStatus:        v1service.OrderStatusPending,
+					OrderPaymentStatus: v1service.OrderPaymentStatusUnpaid,
+					UserUuid:           userUUID,
+				}, nil
+			},
+			CancelOrderFunc: func(ctx context.Context, tx pgx.Tx, u uuid.UUID) (sqlc.Order, error) {
+				orderCancelled = true
+				return sqlc.Order{
+					OrderID:     10,
+					OrderUuid:   orderUUID,
+					OrderStatus: v1service.OrderStatusCancelled,
+				}, nil
+			},
+		}
+
+		mockOrderItemRepo := &testutils.MockOrderItemRepository{
+			GetByOrderIDFunc: func(ctx context.Context, orderID int32) ([]sqlc.GetOrderItemsByOrderIDRow, error) {
+				return []sqlc.GetOrderItemsByOrderIDRow{
+					{OrderItemProductID: 101, OrderItemQuantity: 2},
+				}, nil
+			},
+		}
+
+		mockInventory := &testutils.MockInventoryService{
+			RestoreStockWithRefFunc: func(ctx context.Context, items []v1service.RestoreItem, refID, refType string, actorID *int32, note *string) error {
+				stockRestored = true
+				assert.Equal(t, "ORD-EXP-123", refID)
+				assert.Equal(t, "order_cancel", refType)
+				assert.Nil(t, actorID)
+				assert.NotNil(t, note)
+				assert.Contains(t, *note, "Payment expired")
+				assert.Len(t, items, 1)
+				assert.Equal(t, int32(101), items[0].ProductID)
+				assert.Equal(t, int32(2), items[0].Quantity)
+				return nil
+			},
+		}
+
+		mockTracking := &testutils.MockTrackingRepository{
+			InsertEventFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.InsertTrackingEventParams) (sqlc.OrderTrackingEvent, error) {
+				trackingRecorded = true
+				assert.Equal(t, int32(10), params.EventOrderID)
+				assert.Equal(t, "cancelled", params.EventStatus)
+				assert.Equal(t, "system", params.EventSource)
+				assert.Contains(t, *params.EventNote, "payment expiration")
+				return sqlc.OrderTrackingEvent{}, nil
+			},
+		}
+
+		mockNotification := &testutils.MockNotificationService{
+			SendFunc: func(ctx context.Context, input v1dto.SendNotificationInput) error {
+				assert.Equal(t, "order_cancelled", input.Type)
+				return nil
+			},
+		}
+
+		svc := newTestOrderService(testOrderServiceDeps{
+			orderRepo:           mockOrderRepo,
+			orderItemRepo:       mockOrderItemRepo,
+			inventoryService:    mockInventory,
+			trackingRepo:        mockTracking,
+			notificationService: mockNotification,
+		})
+
+		err := svc.CancelExpiredOrder(ctx, orderUUID)
+		require.NoError(t, err)
+		assert.True(t, orderCancelled)
+		assert.True(t, stockRestored)
+		assert.True(t, trackingRecorded)
+	})
+}
+
 func TestOrderService_GetMyOrders(t *testing.T) {
 	ctx := context.Background()
 	userUUID := uuid.New()

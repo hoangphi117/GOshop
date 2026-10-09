@@ -203,6 +203,73 @@ func (s *orderLifecycleService) CancelOrder(ctx context.Context, userUUID uuid.U
 	return cancelledOrder, nil
 }
 
+func (s *orderLifecycleService) CancelExpiredOrder(ctx context.Context, orderUUID uuid.UUID) error {
+	orderRow, err := s.orderStore.GetByUUID(ctx, orderUUID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		return handleOrderNotFoundError(err)
+	}
+
+	// Only cancel if order is still Pending and Unpaid
+	if orderRow.OrderStatus != OrderStatusPending || orderRow.OrderPaymentStatus == OrderPaymentStatusPaid {
+		return nil
+	}
+
+	orderItems, err := s.orderItemStore.GetByOrderID(ctx, orderRow.OrderID)
+	if err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "failed to get order items", err)
+	}
+
+	cancelReason := "Payment expired after 15 minutes"
+	err = s.txManager.WithTx(ctx, func(txCtx context.Context) error {
+		tx, _ := db.GetTx(txCtx)
+
+		// 1. Atomically cancel order
+		_, err := s.orderStore.CancelOrder(txCtx, tx, orderUUID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+				return nil
+			}
+			return utils.WrapError(utils.ErrCodeInternal, "failed to cancel order", err)
+		}
+
+		// 2. Restore inventory if stockPort is available
+		if s.stockPort != nil && len(orderItems) > 0 {
+			if err := s.stockPort.RestoreStockWithRef(txCtx, toRestoreItems(orderItems), orderRow.OrderNumber, "order_cancel", nil, &cancelReason); err != nil {
+				return utils.WrapError(utils.ErrCodeInternal, "failed to restore product stock", err)
+			}
+		}
+
+		// 3. Record tracking event
+		if s.trackingStore != nil {
+			note := "Order was automatically cancelled due to payment expiration (15 minutes timeout)."
+			_, err = s.trackingStore.InsertEvent(txCtx, tx, sqlc.InsertTrackingEventParams{
+				EventOrderID: orderRow.OrderID,
+				EventStatus:  "cancelled",
+				EventNote:    &note,
+				EventSource:  "system",
+			})
+			if err != nil {
+				return utils.WrapError(utils.ErrCodeInternal, "failed to insert tracking event", err)
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return err
+	}
+
+	// 4. Invalidate caches & send cancellation notification
+	InvalidateOrderCachesWithCache(s.cache, orderRow.UserUuid)
+	s.sendCancellationNotification(ctx, orderRow)
+
+	return nil
+}
+
 func (s *orderLifecycleService) validateOrderCancellation(user sqlc.User, order sqlc.GetOrderByUUIDRow) error {
 	isAdminOrMod := user.UserLevel == RoleAdmin || user.UserLevel == RoleModerator
 	if order.OrderUserID != user.UserID && !isAdminOrMod {

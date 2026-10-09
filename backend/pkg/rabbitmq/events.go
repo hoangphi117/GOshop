@@ -19,8 +19,89 @@ const (
 	ActionReported  = "reported"
 
 	// Queues
-	QueueOrderCreated = "order.created"
+	QueueOrderCreated     = "order.created"
+	QueuePaymentExpired   = "payment.expired"
+	QueuePaymentSucceeded = "payment.succeeded"
+	QueuePaymentFailed    = "payment.failed"
 )
+
+// PaymentExpiredEvent is emitted when a payment transaction exceeds its timeout and expires.
+type PaymentExpiredEvent struct {
+	EventID       string    `json:"event_id"`
+	PtUUID        string    `json:"pt_uuid"`
+	OrderUUID     string    `json:"order_uuid"`
+	OrderNumber   string    `json:"order_number"`
+	UserUUID      string    `json:"user_uuid"`
+	PaymentMethod string    `json:"payment_method"`
+	Timestamp     time.Time `json:"timestamp"`
+}
+
+// NewPaymentExpiredEvent constructs a new PaymentExpiredEvent.
+func NewPaymentExpiredEvent(eventID, ptUUID, orderUUID, orderNumber, userUUID, paymentMethod string) PaymentExpiredEvent {
+	return PaymentExpiredEvent{
+		EventID:       eventID,
+		PtUUID:        ptUUID,
+		OrderUUID:     orderUUID,
+		OrderNumber:   orderNumber,
+		UserUUID:      userUUID,
+		PaymentMethod: paymentMethod,
+		Timestamp:     time.Now().UTC(),
+	}
+}
+
+// PaymentSucceededEvent is emitted when a payment transaction succeeds.
+type PaymentSucceededEvent struct {
+	EventID         string    `json:"event_id"`
+	PtUUID          string    `json:"pt_uuid"`
+	OrderUUID       string    `json:"order_uuid"`
+	OrderNumber     string    `json:"order_number"`
+	UserUUID        string    `json:"user_uuid"`
+	Provider        string    `json:"provider"`
+	ProviderTxnID   string    `json:"provider_txn_id"`
+	Amount          float64   `json:"amount"`
+	Timestamp       time.Time `json:"timestamp"`
+}
+
+// NewPaymentSucceededEvent constructs a new PaymentSucceededEvent.
+func NewPaymentSucceededEvent(eventID, ptUUID, orderUUID, orderNumber, userUUID, provider, providerTxnID string, amount float64) PaymentSucceededEvent {
+	return PaymentSucceededEvent{
+		EventID:         eventID,
+		PtUUID:          ptUUID,
+		OrderUUID:       orderUUID,
+		OrderNumber:     orderNumber,
+		UserUUID:        userUUID,
+		Provider:        provider,
+		ProviderTxnID:   providerTxnID,
+		Amount:          amount,
+		Timestamp:       time.Now().UTC(),
+	}
+}
+
+// PaymentFailedEvent is emitted when a payment transaction fails.
+type PaymentFailedEvent struct {
+	EventID     string    `json:"event_id"`
+	PtUUID      string    `json:"pt_uuid"`
+	OrderUUID   string    `json:"order_uuid"`
+	OrderNumber string    `json:"order_number"`
+	UserUUID    string    `json:"user_uuid"`
+	Provider    string    `json:"provider"`
+	Reason      string    `json:"reason"`
+	Timestamp   time.Time `json:"timestamp"`
+}
+
+// NewPaymentFailedEvent constructs a new PaymentFailedEvent.
+func NewPaymentFailedEvent(eventID, ptUUID, orderUUID, orderNumber, userUUID, provider, reason string) PaymentFailedEvent {
+	return PaymentFailedEvent{
+		EventID:     eventID,
+		PtUUID:      ptUUID,
+		OrderUUID:   orderUUID,
+		OrderNumber: orderNumber,
+		UserUUID:    userUUID,
+		Provider:    provider,
+		Reason:      reason,
+		Timestamp:   time.Now().UTC(),
+	}
+}
 
 // OrderCreatedEvent is published when an order has been successfully placed and committed to DB.
 type OrderCreatedEvent struct {

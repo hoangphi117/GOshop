@@ -1051,6 +1051,7 @@ type MockOrderService struct {
 	GetAllOrdersFunc             func(ctx context.Context, input v1dto.GetOrdersParam) ([]v1dto.OrderSummaryDTO, int32, error)
 	UpdateOrderStatusFunc        func(ctx context.Context, input sqlc.UpdateOrderStatusParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error)
 	CancelOrderFunc              func(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, reason *string) (sqlc.Order, error)
+	CancelExpiredOrderFunc       func(ctx context.Context, orderUUID uuid.UUID) error
 	UpdateOrderShippingInfoFunc  func(ctx context.Context, userUUID uuid.UUID, input sqlc.UpdateOrderShippingInfoParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error)
 	UpdateOrderPaymentStatusFunc func(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.UpdateOrderPaymentStatusInput) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error)
 	GetOrderInvoicePDFFunc       func(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) ([]byte, string, error)
@@ -1098,6 +1099,13 @@ func (m *MockOrderService) CancelOrder(ctx context.Context, userUUID uuid.UUID, 
 		return m.CancelOrderFunc(ctx, userUUID, orderUUID, reason)
 	}
 	return sqlc.Order{}, nil
+}
+
+func (m *MockOrderService) CancelExpiredOrder(ctx context.Context, orderUUID uuid.UUID) error {
+	if m.CancelExpiredOrderFunc != nil {
+		return m.CancelExpiredOrderFunc(ctx, orderUUID)
+	}
+	return nil
 }
 
 func (m *MockOrderService) UpdateOrderShippingInfo(ctx context.Context, userUUID uuid.UUID, input sqlc.UpdateOrderShippingInfoParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
