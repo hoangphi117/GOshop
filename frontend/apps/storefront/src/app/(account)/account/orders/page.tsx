@@ -571,15 +571,24 @@ function MyOrdersPageContent() {
       const baseUrl =
         process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
       const res = await authFetch(
-        `${baseUrl}/api/v1/orders/${order.uuid}/pay`,
+        `${baseUrl}/api/v1/payments/create-intent`,
         {
           method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Idempotency-Key": `idem-pay-${order.uuid}`,
+          },
+          body: JSON.stringify({
+            order_uuid: order.uuid,
+            provider: "momo",
+          }),
         },
       );
       if (res.ok) {
         const json = await res.json();
-        const payUrl = json?.data?.pay_url || json?.data?.payment_url;
+        const payUrl = json?.data?.payment_url || json?.data?.pay_url;
         if (payUrl) {
+          toast.success("Redirecting to MoMo payment gateway...");
           window.location.href = payUrl;
         } else {
           toast.error(
