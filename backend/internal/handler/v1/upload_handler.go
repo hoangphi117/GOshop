@@ -159,25 +159,54 @@ func (uh *UploadHandler) UploadSingleFile(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "File uploaded successfully", response)
 }
 
+// PresignRequest represents payload for direct presigned upload URL generation.
+type PresignRequest struct {
+	Folder      string `json:"folder" form:"folder"`
+	Filename    string `json:"filename" form:"filename"`
+	ContentType string `json:"content_type" form:"content_type"`
+}
+
 // GetPresignedURL godoc
 // @Summary      Get Direct-to-S3 Presigned Upload URL
 // @Description  Generates a presigned URL allowing the client to upload files directly to S3 / Cloudflare R2
 // @Tags         Upload
+// @Accept       json
 // @Produce      json
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
+// @Param        request body PresignRequest false "Presign request body"
 // @Param        folder query string false "Destination folder" default(common)
-// @Param        filename query string true "Original file name"
-// @Param        content_type query string true "MIME type (e.g. image/jpeg)"
+// @Param        filename query string false "Original file name"
+// @Param        content_type query string false "MIME type (e.g. image/jpeg)"
 // @Success      200 {object} utils.APIResponse{data=map[string]any}
 // @Router       /upload/presign [get]
+// @Router       /upload/presign [post]
 func (uh *UploadHandler) GetPresignedURL(ctx *gin.Context) {
-	folder := strings.ToLower(strings.TrimSpace(ctx.DefaultQuery("folder", "common")))
-	filename := strings.TrimSpace(ctx.Query("filename"))
-	contentType := strings.TrimSpace(ctx.Query("content_type"))
+	var req PresignRequest
+	if ctx.Request.Method == http.MethodPost && ctx.Request.Header.Get("Content-Type") != "" {
+		_ = ctx.ShouldBind(&req)
+	}
+
+	folder := req.Folder
+	if folder == "" {
+		folder = ctx.DefaultQuery("folder", "common")
+	}
+	folder = strings.ToLower(strings.TrimSpace(folder))
+
+	filename := req.Filename
+	if filename == "" {
+		filename = ctx.Query("filename")
+	}
+	filename = strings.TrimSpace(filename)
+
+	contentType := req.ContentType
+	if contentType == "" {
+		contentType = ctx.Query("content_type")
+	}
+	contentType = strings.TrimSpace(contentType)
 
 	if filename == "" {
-		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "filename query parameter is required"))
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "filename is required"))
 		return
 	}
 	if contentType == "" {
