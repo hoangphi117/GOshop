@@ -9,7 +9,7 @@ import (
 	"goshop/internal/routes"
 	"goshop/internal/utils"
 	"goshop/internal/validation"
-	"goshop/internal/worker"
+	v1service "goshop/internal/service/v1"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
@@ -17,11 +17,14 @@ import (
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/discord"
 	"goshop/pkg/search"
+	"goshop/pkg/shipping"
+	"fmt"
 	"goshop/pkg/storage"
 	"goshop/pkg/ws"
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -48,6 +51,7 @@ type Application struct {
 
 type ModuleContext struct {
 	DB        sqlc.Querier
+	ReadDB    sqlc.Querier
 	Redis     *redis.Client
 	TxManager db.TxManager
 	Storage   storage.StorageService
@@ -93,16 +97,37 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 
 	r.MaxMultipartMemory = 8 << 20 // 8MB memory buffer for multipart forms (prevents OOM DoS)
 
-	// Protect the static /uploads directory against MIME sniffing and unauthorized script execution
-	r.Use(func(c *gin.Context) {
-		if strings.HasPrefix(c.Request.URL.Path, "/uploads") {
-			c.Header("X-Content-Options", "nosniff")
-			c.Header("Content-Security-Policy", "default-src 'none'; img-src 'self'; media-src 'self'")
-		}
-		c.Next()
-	})
+	// Media Storage Decoupling:
+	// In local driver mode, serve the static /uploads directory with security headers.
+	// In remote object storage mode (S3, MinIO, Cloudflare R2), local disk is decoupled
+	// and requests to legacy /uploads/:filepath are redirected to the configured public CDN/S3 URL.
+	uploadDir := cfg.Storage.UploadDir
+	if uploadDir == "" {
+		uploadDir = "./uploads"
+	}
 
-	r.Static("/uploads", "./uploads")
+	if cfg.Storage.Driver == storage.DriverLocal {
+		r.Use(func(c *gin.Context) {
+			if strings.HasPrefix(c.Request.URL.Path, "/uploads") {
+				c.Header("X-Content-Options", "nosniff")
+				c.Header("Content-Security-Policy", "default-src 'none'; img-src 'self'; media-src 'self'")
+			}
+			c.Next()
+		})
+		r.Static("/uploads", uploadDir)
+	} else {
+		remoteBaseURL := cfg.Storage.S3.PublicBaseURL
+		if remoteBaseURL == "" {
+			remoteBaseURL = cfg.Storage.PublicBaseURL
+		}
+		if remoteBaseURL != "" {
+			remoteBaseURL = strings.TrimRight(remoteBaseURL, "/")
+			r.GET("/uploads/*filepath", func(c *gin.Context) {
+				fp := strings.TrimPrefix(c.Param("filepath"), "/")
+				c.Redirect(http.StatusMovedPermanently, fmt.Sprintf("%s/%s", remoteBaseURL, fp))
+			})
+		}
+	}
 
 	if err := db.InitDB(); err != nil {
 		logger.Log.Fatal().Err(err).Msg("Failed to initialize database")
@@ -148,15 +173,29 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	searchClient, err := search.NewClient(cfg.Meilisearch.Host, cfg.Meilisearch.MasterKey, cfg.Meilisearch.IndexProducts)
 	if err != nil {
 		logger.Log.Warn().Err(err).Msg("Failed to initialize Meilisearch client")
-	} else if searchClient != nil {
-		outboxRepo := repository.NewSqlOutboxRepository(db.DB)
-		syncWorker := worker.NewMeilisearchSyncWorker(outboxRepo, searchClient, 2*time.Second, 50, logger.Log)
-		go syncWorker.Start(context.Background())
-		logger.Log.Info().Msg("Meilisearch Outbox Sync Worker started (interval: 2s, batch: 50)")
 	}
+
+	notificationRepo := repository.NewSqlNotificationRepository(db.DB)
+	userRepo := repository.NewSqlUserRepository(db.DB)
+	notificationService := v1service.NewNotificationServiceWithTransports(
+		notificationRepo,
+		userRepo,
+		wsHub,
+		rabbitmqService,
+		redisBridge,
+	)
+
+	// Location Domain Initialization
+	ghnToken := utils.GetEnv("GHN_TOKEN", "")
+	ghnShopID, _ := strconv.Atoi(utils.GetEnv("GHN_SHOP_ID", "0"))
+	ghnBaseURL := utils.GetEnv("GHN_BASE_URL", "")
+	ghnAdapter := shipping.NewGHNAdapter(ghnToken, ghnShopID, ghnBaseURL)
+	shippingFactory := shipping.NewShippingFactory(ghnAdapter)
+	locationService := v1service.NewLocationService(shippingFactory, cacheRedisService)
 
 	ctx := &ModuleContext{
 		DB:        db.DB,
+		ReadDB:    db.GetReadDB(),
 		Redis:     redisClient,
 		TxManager: txManager,
 		Storage:   storageService,
@@ -166,13 +205,14 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	modules := []Module{
 		NewUserModule(ctx, tokenService),
 		NewProductModule(ctx),
-		NewOrderModule(ctx, wsHub, rabbitmqService),
+		NewOrderModule(ctx, wsHub, rabbitmqService, notificationService, locationService),
 		NewCartModule(ctx),
 		NewCouponModule(ctx),
-		NewPaymentModule(ctx, cacheRedisService, rabbitmqService, wsHub),
+		NewPaymentModule(ctx, cacheRedisService, rabbitmqService, wsHub, notificationService),
 		NewAddressModule(ctx),
-		NewReviewModule(ctx, wsHub),
-		NewNotificationModule(ctx, wsHub, tokenService, cacheRedisService, rabbitmqService, redisBridge),
+		NewReviewModule(ctx, notificationService),
+		NewNotificationModule(ctx, notificationService, wsHub, tokenService, cacheRedisService),
+		NewLocationModule(locationService),
 		NewAuthModule(ctx, tokenService, cacheRedisService, mailService, rabbitmqService, wsHub, redisBridge, cfg.StorefrontURL),
 		NewUploadModule(ctx),
 		NewBannerModule(ctx, cacheRedisService),

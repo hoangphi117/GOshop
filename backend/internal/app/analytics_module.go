@@ -13,7 +13,11 @@ type AnalyticsModule struct {
 }
 
 func NewAnalyticsModule(ctx *ModuleContext) *AnalyticsModule {
-	analyticsRepo := repository.NewSqlAnalyticsRepository(ctx.DB)
+	querier := ctx.DB
+	if ctx.ReadDB != nil {
+		querier = ctx.ReadDB
+	}
+	analyticsRepo := repository.NewSqlAnalyticsRepository(querier)
 	analyticsService := v1service.NewAnalyticsService(analyticsRepo)
 	analyticsHandler := v1handler.NewAnalyticsHandler(analyticsService)
 

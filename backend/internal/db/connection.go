@@ -18,8 +18,19 @@ import (
 var DB sqlc.Querier
 var DBPool *pgxpool.Pool
 
+var ReadDB sqlc.Querier
+var ReadDBPool *pgxpool.Pool
+
+func GetReadDB() sqlc.Querier {
+	if ReadDB != nil {
+		return ReadDB
+	}
+	return DB
+}
+
 func InitDB() error {
-	connStr := config.NewConfig().DNS()
+	cfg := config.NewConfig()
+	connStr := cfg.DNS()
 
 	conf, err := pgxpool.ParseConfig(connStr)
 	if err != nil {
@@ -61,6 +72,38 @@ func InitDB() error {
 		Int32("max_conns", conf.MaxConns).
 		Int32("min_conns", conf.MinConns).
 		Msg("✅ Connected to PostgreSQL database pool")
+
+	// Read Replica initialization (defaults to DBPool if identical connection string)
+	if cfg.ReadDNS() == cfg.DNS() {
+		ReadDBPool = DBPool
+		ReadDB = DB
+	} else {
+		readConf, err := pgxpool.ParseConfig(cfg.ReadDNS())
+		if err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to parse Read DB config, falling back to primary DB")
+			ReadDBPool = DBPool
+			ReadDB = DB
+		} else {
+			readConf.MaxConns = int32(utils.GetIntEnv("DB_READ_MAX_CONNS", utils.GetIntEnv("DB_MAX_CONNS", 20)))
+			readConf.MinConns = int32(utils.GetIntEnv("DB_READ_MIN_CONNS", utils.GetIntEnv("DB_MIN_CONNS", 5)))
+			readConf.MaxConnLifetime = time.Duration(utils.GetIntEnv("DB_MAX_CONN_LIFETIME_MIN", 30)) * time.Minute
+			readConf.MaxConnIdleTime = time.Duration(utils.GetIntEnv("DB_MAX_CONN_IDLE_MIN", 5)) * time.Minute
+			readConf.HealthCheckPeriod = 1 * time.Minute
+
+			ReadDBPool, err = pgxpool.NewWithConfig(ctx, readConf)
+			if err != nil {
+				logger.Log.Warn().Err(err).Msg("Failed to connect to Read DB pool, falling back to primary DB")
+				ReadDBPool = DBPool
+				ReadDB = DB
+			} else {
+				ReadDB = sqlc.New(ReadDBPool)
+				logger.Log.Info().
+					Str("host", cfg.ReadDB.Host).
+					Int32("max_conns", readConf.MaxConns).
+					Msg("✅ Connected to PostgreSQL Read-Replica database pool")
+			}
+		}
+	}
 
 	return nil
 }

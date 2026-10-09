@@ -26,6 +26,7 @@ type Config struct {
 	AppEnv             string // Environment: "development", "production", "staging"
 	ServerAddress      string
 	DB                 DatabaseConfig
+	ReadDB             DatabaseConfig
 	Meilisearch        MeilisearchConfig
 	AppURL             string
 	StorefrontURL      string
@@ -85,6 +86,14 @@ func NewConfig() *Config {
 			DBName:   utils.GetEnv("DB_NAME", "my-app"),
 			SSLMode:  utils.GetEnv("DB_SSL_MODE", "disable"),
 		},
+		ReadDB: DatabaseConfig{
+			Host:     utils.GetEnv("DB_READ_HOST", utils.GetEnv("DB_HOST", "localhost")),
+			Port:     utils.GetEnv("DB_READ_PORT", utils.GetEnv("DB_PORT", "5432")),
+			User:     utils.GetEnv("DB_READ_USER", utils.GetEnv("DB_USER", "postgres")),
+			Password: utils.GetEnv("DB_READ_PASSWORD", utils.GetEnv("DB_PASSWORD", "postgres")),
+			DBName:   utils.GetEnv("DB_READ_NAME", utils.GetEnv("DB_NAME", "my-app")),
+			SSLMode:  utils.GetEnv("DB_READ_SSL_MODE", utils.GetEnv("DB_SSL_MODE", "disable")),
+		},
 		Meilisearch: MeilisearchConfig{
 			Host:          utils.GetEnv("MEILISEARCH_HOST", "http://localhost:7700"),
 			MasterKey:     utils.GetEnv("MEILISEARCH_MASTER_KEY", "masterKey123"),
@@ -100,5 +109,9 @@ func NewConfig() *Config {
 
 func (c *Config) DNS() string {
 	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", c.DB.Host, c.DB.Port, c.DB.User, c.DB.Password, c.DB.DBName, c.DB.SSLMode)
+}
+
+func (c *Config) ReadDNS() string {
+	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", c.ReadDB.Host, c.ReadDB.Port, c.ReadDB.User, c.ReadDB.Password, c.ReadDB.DBName, c.ReadDB.SSLMode)
 }
 
