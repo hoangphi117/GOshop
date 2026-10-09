@@ -2,7 +2,9 @@ package v1service_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,6 +19,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
@@ -482,3 +485,288 @@ func TestAuthService_ResetPassword(t *testing.T) {
 		assert.Equal(t, "reset:valid-reset-token", deletedTokenKey)
 	})
 }
+
+func TestAuthService_SendRegisterOTP(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Case 1: Email already exists in database - Returns 409 Conflict", func(t *testing.T) {
+		mockRepo := &testutils.MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (sqlc.User, error) {
+				return sqlc.User{UserID: 1, UserEmail: email}, nil
+			},
+		}
+		svc := v1service.NewAuthService(mockRepo, nil, nil, nil, nil, nil, nil, nil, "http://localhost:3000")
+
+		err := svc.SendRegisterOTP(ctx, v1dto.SendRegisterOTPInput{
+			Name:     "Existing User",
+			Email:    "exist@example.com",
+			Password: "Password123!",
+		})
+		require.Error(t, err)
+		assertAppErrorCode(t, err, utils.ErrCodeConflict)
+	})
+
+	t.Run("Case 2: Resend cooldown active - Returns 429 Too Many Requests", func(t *testing.T) {
+		mockRepo := &testutils.MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (sqlc.User, error) {
+				return sqlc.User{}, pgx.ErrNoRows
+			},
+		}
+		mockCache := &testutils.MockRedisCacheService{
+			GetFunc: func(key string, dest any) error {
+				if strings.HasPrefix(key, "auth:otp_resend:") {
+					if d, ok := dest.(*string); ok {
+						*d = "1"
+					}
+					return nil
+				}
+				return redis.Nil
+			},
+		}
+		svc := v1service.NewAuthService(mockRepo, nil, nil, mockCache, nil, nil, nil, nil, "http://localhost:3000")
+
+		err := svc.SendRegisterOTP(ctx, v1dto.SendRegisterOTPInput{
+			Name:     "New User",
+			Email:    "new@example.com",
+			Password: "Password123!",
+		})
+		require.Error(t, err)
+		assertAppErrorCode(t, err, utils.ErrCodeTooManyRequests)
+	})
+
+	t.Run("Case 3: Happy Path - Saves pending data in Redis and publishes email", func(t *testing.T) {
+		mockRepo := &testutils.MockUserRepository{
+			GetByEmailFunc: func(ctx context.Context, email string) (sqlc.User, error) {
+				return sqlc.User{}, pgx.ErrNoRows
+			},
+		}
+		savedKeys := make(map[string]any)
+		mockCache := &testutils.MockRedisCacheService{
+			GetFunc: func(key string, dest any) error {
+				return redis.Nil
+			},
+			SetFunc: func(key string, value any, ttl time.Duration) error {
+				savedKeys[key] = value
+				return nil
+			},
+		}
+		publishedQueue := ""
+		mockRabbitMQ := &testutils.MockRabbitMQService{
+			PublishFunc: func(ctx context.Context, queue string, message any) error {
+				publishedQueue = queue
+				return nil
+			},
+		}
+
+		svc := v1service.NewAuthService(mockRepo, nil, nil, mockCache, nil, mockRabbitMQ, nil, nil, "http://localhost:3000")
+
+		err := svc.SendRegisterOTP(ctx, v1dto.SendRegisterOTPInput{
+			Name:     "Alice Doe",
+			Email:    "alice@example.com",
+			Password: "Password123!",
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "auth_email_queue", publishedQueue)
+		assert.Contains(t, savedKeys, "auth:register:alice@example.com")
+		assert.Contains(t, savedKeys, "auth:otp_resend:alice@example.com")
+	})
+}
+
+func TestAuthService_VerifyRegisterOTP(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Case 1: Expired or missing session - Returns 400 Bad Request", func(t *testing.T) {
+		mockCache := &testutils.MockRedisCacheService{
+			GetFunc: func(key string, dest any) error {
+				return redis.Nil
+			},
+		}
+		svc := v1service.NewAuthService(nil, nil, nil, mockCache, nil, nil, nil, nil, "http://localhost:3000")
+
+		_, _, _, err := svc.VerifyRegisterOTP(ctx, v1dto.VerifyRegisterOTPInput{
+			Email: "expired@example.com",
+			OTP:   "123456",
+		})
+		require.Error(t, err)
+		assertAppErrorCode(t, err, utils.ErrCodeBadRequest)
+		assert.Contains(t, err.Error(), "Verification code expired")
+	})
+
+	t.Run("Case 2: Invalid OTP - Increments attempts and returns 400 Bad Request", func(t *testing.T) {
+		mockCache := &testutils.MockRedisCacheService{
+			GetFunc: func(key string, dest any) error {
+				dataBytes, _ := json.Marshal(map[string]any{
+					"name":            "Bob",
+					"email":           "bob@example.com",
+					"hashed_password": "hash",
+					"otp":             "654321",
+					"attempts":        0,
+				})
+				_ = json.Unmarshal(dataBytes, dest)
+				return nil
+			},
+			SetFunc: func(key string, value any, ttl time.Duration) error {
+				return nil
+			},
+		}
+		svc := v1service.NewAuthService(nil, nil, nil, mockCache, nil, nil, nil, nil, "http://localhost:3000")
+
+		_, _, _, err := svc.VerifyRegisterOTP(ctx, v1dto.VerifyRegisterOTPInput{
+			Email: "bob@example.com",
+			OTP:   "000000",
+		})
+		require.Error(t, err)
+		assertAppErrorCode(t, err, utils.ErrCodeBadRequest)
+		assert.Contains(t, err.Error(), "Invalid verification code")
+	})
+
+	t.Run("Case 3: Happy Path - Creates user, generates tokens, and cleans up cache", func(t *testing.T) {
+		deletedKeys := make([]string, 0)
+		mockCache := &testutils.MockRedisCacheService{
+			GetFunc: func(key string, dest any) error {
+				dataBytes, _ := json.Marshal(map[string]any{
+					"name":            "Charlie",
+					"email":           "charlie@example.com",
+					"hashed_password": "hashed_secret",
+					"otp":             "123456",
+					"attempts":        0,
+				})
+				_ = json.Unmarshal(dataBytes, dest)
+				return nil
+			},
+			DelFunc: func(key string) error {
+				deletedKeys = append(deletedKeys, key)
+				return nil
+			},
+		}
+
+		userUUID := uuid.New()
+		mockRepo := &testutils.MockUserRepository{
+			CreateFunc: func(ctx context.Context, params sqlc.CreateUserParams) (sqlc.User, error) {
+				return sqlc.User{
+					UserID:       10,
+					UserUuid:     userUUID,
+					UserFullname: params.UserFullname,
+					UserEmail:    params.UserEmail,
+					UserStatus:   1,
+				}, nil
+			},
+		}
+
+		mockTokenSvc := &testutils.MockTokenService{
+			GenerateRefreshTokenFunc: func(user sqlc.User) (auth.RefreshToken, error) {
+				return auth.RefreshToken{Token: "test-refresh-token"}, nil
+			},
+			StoreRefreshTokenFunc: func(refreshToken auth.RefreshToken) error {
+				return nil
+			},
+			GetTokenFamilyIDFunc: func(token string) (string, error) {
+				return "family-1", nil
+			},
+			GenerateAccessTokenWithFamilyFunc: func(user sqlc.User, familyID string) (string, error) {
+				return "test-access-token", nil
+			},
+		}
+
+		svc := v1service.NewAuthService(mockRepo, nil, mockTokenSvc, mockCache, nil, nil, nil, nil, "http://localhost:3000")
+
+		accessToken, refreshToken, expiresIn, err := svc.VerifyRegisterOTP(ctx, v1dto.VerifyRegisterOTPInput{
+			Email: "charlie@example.com",
+			OTP:   "123456",
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "test-access-token", accessToken)
+		assert.Equal(t, "test-refresh-token", refreshToken)
+		assert.Equal(t, int(auth.AccessTokenTTL.Seconds()), expiresIn)
+		assert.Contains(t, deletedKeys, "auth:register:charlie@example.com")
+		assert.Contains(t, deletedKeys, "auth:otp_resend:charlie@example.com")
+	})
+}
+
+func TestAuthService_ResendRegisterOTP(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Case 1: No pending registration session - Returns 400 Bad Request", func(t *testing.T) {
+		mockCache := &testutils.MockRedisCacheService{
+			GetFunc: func(key string, dest any) error {
+				return redis.Nil
+			},
+		}
+		svc := v1service.NewAuthService(nil, nil, nil, mockCache, nil, nil, nil, nil, "http://localhost:3000")
+
+		err := svc.ResendRegisterOTP(ctx, v1dto.ResendRegisterOTPInput{
+			Email: "none@example.com",
+		})
+		require.Error(t, err)
+		assertAppErrorCode(t, err, utils.ErrCodeBadRequest)
+	})
+
+	t.Run("Case 2: Cooldown active - Returns 429 Too Many Requests", func(t *testing.T) {
+		mockCache := &testutils.MockRedisCacheService{
+			GetFunc: func(key string, dest any) error {
+				if strings.HasPrefix(key, "auth:register:") {
+					dataBytes, _ := json.Marshal(map[string]any{
+						"name":            "Dan",
+						"email":           "dan@example.com",
+						"hashed_password": "hash",
+						"otp":             "111111",
+					})
+					_ = json.Unmarshal(dataBytes, dest)
+					return nil
+				}
+				if strings.HasPrefix(key, "auth:otp_resend:") {
+					if d, ok := dest.(*string); ok {
+						*d = "1"
+					}
+					return nil
+				}
+				return redis.Nil
+			},
+		}
+		svc := v1service.NewAuthService(nil, nil, nil, mockCache, nil, nil, nil, nil, "http://localhost:3000")
+
+		err := svc.ResendRegisterOTP(ctx, v1dto.ResendRegisterOTPInput{
+			Email: "dan@example.com",
+		})
+		require.Error(t, err)
+		assertAppErrorCode(t, err, utils.ErrCodeTooManyRequests)
+	})
+
+	t.Run("Case 3: Happy Path - Updates OTP in Redis and sends email", func(t *testing.T) {
+		mockCache := &testutils.MockRedisCacheService{
+			GetFunc: func(key string, dest any) error {
+				if strings.HasPrefix(key, "auth:register:") {
+					dataBytes, _ := json.Marshal(map[string]any{
+						"name":            "Dan",
+						"email":           "dan@example.com",
+						"hashed_password": "hash",
+						"otp":             "111111",
+					})
+					_ = json.Unmarshal(dataBytes, dest)
+					return nil
+				}
+				return redis.Nil
+			},
+			SetFunc: func(key string, value any, ttl time.Duration) error {
+				return nil
+			},
+		}
+
+		publishedQueue := ""
+		mockRabbitMQ := &testutils.MockRabbitMQService{
+			PublishFunc: func(ctx context.Context, queue string, message any) error {
+				publishedQueue = queue
+				return nil
+			},
+		}
+
+		svc := v1service.NewAuthService(nil, nil, nil, mockCache, nil, mockRabbitMQ, nil, nil, "http://localhost:3000")
+
+		err := svc.ResendRegisterOTP(ctx, v1dto.ResendRegisterOTPInput{
+			Email: "dan@example.com",
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "auth_email_queue", publishedQueue)
+	})
+}
+

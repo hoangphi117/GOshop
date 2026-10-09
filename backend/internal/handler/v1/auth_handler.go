@@ -50,6 +50,98 @@ func (ah *AuthHandler) Register(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusCreated, "Register successfully")
 }
 
+// SendRegisterOTP godoc
+// @Summary      Send registration verification OTP
+// @Description  Validate registration input, hash password, and send 6-digit OTP code to email
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        request body v1dto.SendRegisterOTPInput true "Registration credentials"
+// @Success      200 {object} utils.APIResponse "Verification code sent to email"
+// @Failure      400 {object} utils.ErrorResponse "Validation error"
+// @Failure      409 {object} utils.ErrorResponse "Email already registered"
+// @Failure      429 {object} utils.ErrorResponse "Cooldown active"
+// @Failure      500 {object} utils.ErrorResponse "Internal server error"
+// @Router       /api/v1/auth/register-otp/send [post]
+func (ah *AuthHandler) SendRegisterOTP(ctx *gin.Context) {
+	var input v1dto.SendRegisterOTPInput
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	if err := ah.service.SendRegisterOTP(ctx.Request.Context(), input); err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Verification code sent to email")
+}
+
+// VerifyRegisterOTP godoc
+// @Summary      Verify registration OTP and create account
+// @Description  Verify the 6-digit OTP code sent to user email and return access/refresh token
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        request body v1dto.VerifyRegisterOTPInput true "Verification payload"
+// @Success      201 {object} utils.APIResponse{data=v1dto.LoginResponse} "Registration verified successfully"
+// @Failure      400 {object} utils.ErrorResponse "Invalid or expired OTP"
+// @Failure      500 {object} utils.ErrorResponse "Internal server error"
+// @Router       /api/v1/auth/register-otp/verify [post]
+func (ah *AuthHandler) VerifyRegisterOTP(ctx *gin.Context) {
+	var input v1dto.VerifyRegisterOTPInput
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	accessToken, refreshToken, expiresIn, err := ah.service.VerifyRegisterOTP(ctx.Request.Context(), input)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	cookieSecure := os.Getenv("APP_ENV") == "production"
+	ctx.SetSameSite(http.SameSiteLaxMode)
+	ctx.SetCookie("refresh_token", refreshToken, int(auth.RefreshTokenTTL.Seconds()), "/", "", cookieSecure, true)
+
+	response := v1dto.LoginResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		ExpiresIn:    expiresIn,
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusCreated, "Registration verified successfully", response)
+}
+
+// ResendRegisterOTP godoc
+// @Summary      Resend registration verification OTP
+// @Description  Resend a new 6-digit OTP code to the user email if cooldown elapsed
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        request body v1dto.ResendRegisterOTPInput true "Resend payload"
+// @Success      200 {object} utils.APIResponse "Verification code resent successfully"
+// @Failure      400 {object} utils.ErrorResponse "No pending registration found"
+// @Failure      429 {object} utils.ErrorResponse "Cooldown active"
+// @Failure      500 {object} utils.ErrorResponse "Internal server error"
+// @Router       /api/v1/auth/register-otp/resend [post]
+func (ah *AuthHandler) ResendRegisterOTP(ctx *gin.Context) {
+	var input v1dto.ResendRegisterOTPInput
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	if err := ah.service.ResendRegisterOTP(ctx.Request.Context(), input); err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Verification code resent successfully")
+}
+
 // Login godoc
 // @Summary      User login
 // @Description  Authenticate user with email and password, returns access token and refresh token

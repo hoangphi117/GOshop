@@ -2,6 +2,7 @@ package v1service
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -15,6 +16,7 @@ import (
 	"goshop/pkg/mail"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/ws"
+	"math/big"
 	"net/http"
 	"net/url"
 	"strings"
@@ -32,11 +34,37 @@ const (
 	loginRateLimitTTL     = 5 * time.Minute
 	maxLoginAttempts      = 5
 
+	registerOTPTTL       = 5 * time.Minute
+	registerOTPResendTTL = 60 * time.Second
+	maxOTPAttempts       = 5
+
 	UserStatusActive   = 1
 	UserStatusInactive = 2
 	UserStatusBanned   = 3
 	UserLevelUser      = 3
 )
+
+type pendingRegistrationData struct {
+	Name           string `json:"name"`
+	Email          string `json:"email"`
+	HashedPassword string `json:"hashed_password"`
+	Age            *int32 `json:"age,omitempty"`
+	OTP            string `json:"otp"`
+	Attempts       int    `json:"attempts"`
+}
+
+func generateNumericOTP(length int) (string, error) {
+	const digits = "0123456789"
+	b := make([]byte, length)
+	for i := range b {
+		num, err := rand.Int(rand.Reader, big.NewInt(int64(len(digits))))
+		if err != nil {
+			return "", err
+		}
+		b[i] = digits[num.Int64()]
+	}
+	return string(b), nil
+}
 
 type authService struct {
 	userRepo         repository.UserRepository
@@ -342,6 +370,214 @@ func (as *authService) Register(ctx context.Context, input v1dto.RegisterInput) 
 			return utils.NewError(utils.ErrCodeConflict, "email already exists")
 		}
 		return utils.WrapError(utils.ErrCodeInternal, "failed to register user", err)
+	}
+
+	return nil
+}
+
+func (as *authService) SendRegisterOTP(ctx context.Context, input v1dto.SendRegisterOTPInput) error {
+	email := utils.NormalizeString(input.Email)
+
+	// 1. Check if email already exists in Postgres
+	existingUser, err := as.userRepo.GetByEmail(ctx, email)
+	if err == nil && existingUser.UserID > 0 {
+		return utils.NewError(utils.ErrCodeConflict, "email already exists")
+	}
+
+	// 2. Check Resend Cooldown
+	cooldownKey := "auth:otp_resend:" + email
+	if as.cacheService != nil {
+		var cd string
+		if err := as.cacheService.Get(cooldownKey, &cd); err == nil && cd != "" {
+			return utils.NewError(utils.ErrCodeTooManyRequests, "Please wait before requesting another verification code")
+		}
+	}
+
+	// 3. Hash password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to hash password", err)
+	}
+
+	// 4. Generate 6-digit numeric OTP
+	otp, err := generateNumericOTP(6)
+	if err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to generate verification code", err)
+	}
+
+	// 5. Store pending registration in Redis (TTL: 5m)
+	pending := pendingRegistrationData{
+		Name:           input.Name,
+		Email:          email,
+		HashedPassword: string(hashedPassword),
+		Age:            input.Age,
+		OTP:            otp,
+		Attempts:       0,
+	}
+
+	if as.cacheService != nil {
+		if err := as.cacheService.Set("auth:register:"+email, pending, registerOTPTTL); err != nil {
+			return utils.WrapError(utils.ErrCodeInternal, "Failed to store registration session", err)
+		}
+		_ = as.cacheService.Set(cooldownKey, "1", registerOTPResendTTL)
+	}
+
+	// 6. Send OTP Email via RabbitMQ queue
+	htmlBody, textBody, err := mail.RegisterOTPTemplate(input.Name, otp, registerOTPTTL, time.Now().Year())
+	if err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to render verification email", err)
+	}
+
+	mailContent := &mail.Email{
+		To:       []mail.Address{{Email: email}},
+		Subject:  "Your GOshop Verification Code",
+		Text:     textBody,
+		HTML:     htmlBody,
+		Category: "register-otp",
+	}
+
+	if as.rabbitmq != nil {
+		_ = as.rabbitmq.Publish(ctx, "auth_email_queue", mailContent)
+	} else if as.mailService != nil {
+		_ = as.mailService.SendEmail(ctx, mailContent)
+	}
+
+	return nil
+}
+
+func (as *authService) VerifyRegisterOTP(ctx context.Context, input v1dto.VerifyRegisterOTPInput) (string, string, int, error) {
+	if as.cacheService == nil {
+		return "", "", 0, utils.NewError(utils.ErrCodeInternal, "Cache service is not available")
+	}
+
+	email := utils.NormalizeString(input.Email)
+	regKey := "auth:register:" + email
+
+	var pending pendingRegistrationData
+	err := as.cacheService.Get(regKey, &pending)
+	if err == redis.Nil || pending.Email == "" {
+		return "", "", 0, utils.NewError(utils.ErrCodeBadRequest, "Verification code expired or not found. Please register again.")
+	}
+	if err != nil {
+		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "Failed to retrieve registration session", err)
+	}
+
+	// Check attempts
+	if pending.Attempts >= maxOTPAttempts {
+		_ = as.cacheService.Del(regKey)
+		_ = as.cacheService.Del("auth:otp_resend:" + email)
+		return "", "", 0, utils.NewError(utils.ErrCodeBadRequest, "Too many failed attempts. Please request a new verification code.")
+	}
+
+	// Validate OTP
+	if pending.OTP != strings.TrimSpace(input.OTP) {
+		pending.Attempts++
+		_ = as.cacheService.Set(regKey, pending, registerOTPTTL)
+		return "", "", 0, utils.NewError(utils.ErrCodeBadRequest, "Invalid verification code")
+	}
+
+	// OTP is valid -> Create user in PostgreSQL
+	hashed := pending.HashedPassword
+	userParams := sqlc.CreateUserParams{
+		UserFullname: pending.Name,
+		UserEmail:    pending.Email,
+		UserPassword: &hashed,
+		UserAge:      pending.Age,
+		UserStatus:   UserStatusActive,
+		UserLevel:    UserLevelUser,
+	}
+
+	createdUser, err := as.userRepo.Create(ctx, userParams)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return "", "", 0, utils.NewError(utils.ErrCodeConflict, "email already exists")
+		}
+		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "failed to register user", err)
+	}
+
+	// Clean up Redis session
+	_ = as.cacheService.Del(regKey)
+	_ = as.cacheService.Del("auth:otp_resend:" + email)
+
+	// Generate access token and refresh token
+	refreshToken, err := as.tokenService.GenerateRefreshToken(createdUser)
+	if err != nil {
+		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "Failed to generate refresh token", err)
+	}
+
+	if err := as.tokenService.StoreRefreshToken(refreshToken); err != nil {
+		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "Failed to store refresh token", err)
+	}
+
+	familyID := ""
+	if as.tokenService != nil {
+		familyID, _ = as.tokenService.GetTokenFamilyID(refreshToken.Token)
+	}
+
+	accessToken, err := as.tokenService.GenerateAccessTokenWithFamily(createdUser, familyID)
+	if err != nil {
+		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "Failed to generate access token", err)
+	}
+
+	return accessToken, refreshToken.Token, int(auth.AccessTokenTTL.Seconds()), nil
+}
+
+func (as *authService) ResendRegisterOTP(ctx context.Context, input v1dto.ResendRegisterOTPInput) error {
+	if as.cacheService == nil {
+		return utils.NewError(utils.ErrCodeInternal, "Cache service is not available")
+	}
+
+	email := utils.NormalizeString(input.Email)
+	regKey := "auth:register:" + email
+
+	var pending pendingRegistrationData
+	err := as.cacheService.Get(regKey, &pending)
+	if err == redis.Nil || pending.Email == "" {
+		return utils.NewError(utils.ErrCodeBadRequest, "No pending registration found for this email. Please register again.")
+	}
+	if err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to retrieve registration session", err)
+	}
+
+	// Check Cooldown
+	cooldownKey := "auth:otp_resend:" + email
+	var cd string
+	if err := as.cacheService.Get(cooldownKey, &cd); err == nil && cd != "" {
+		return utils.NewError(utils.ErrCodeTooManyRequests, "Please wait before requesting another verification code")
+	}
+
+	// Generate new 6-digit OTP
+	newOTP, err := generateNumericOTP(6)
+	if err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to generate verification code", err)
+	}
+
+	pending.OTP = newOTP
+	pending.Attempts = 0
+	if err := as.cacheService.Set(regKey, pending, registerOTPTTL); err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to update registration session", err)
+	}
+	_ = as.cacheService.Set(cooldownKey, "1", registerOTPResendTTL)
+
+	// Send OTP Email
+	htmlBody, textBody, err := mail.RegisterOTPTemplate(pending.Name, newOTP, registerOTPTTL, time.Now().Year())
+	if err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to render verification email", err)
+	}
+
+	mailContent := &mail.Email{
+		To:       []mail.Address{{Email: email}},
+		Subject:  "Your GOshop Verification Code",
+		Text:     textBody,
+		HTML:     htmlBody,
+		Category: "register-otp",
+	}
+
+	if as.rabbitmq != nil {
+		_ = as.rabbitmq.Publish(ctx, "auth_email_queue", mailContent)
+	} else if as.mailService != nil {
+		_ = as.mailService.SendEmail(ctx, mailContent)
 	}
 
 	return nil

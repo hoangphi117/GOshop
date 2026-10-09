@@ -42,6 +42,7 @@ var (
 	_ v1service.ProductService       = (*MockProductService)(nil)
 	_ v1service.ProductQueryService  = (*MockProductService)(nil)
 	_ v1service.AdminProductService  = (*MockProductService)(nil)
+	_ v1service.AuthService          = (*MockAuthService)(nil)
 	_ rabbitmq.RabbitMQService       = (*MockRabbitMQService)(nil)
 	_ shipping.ShippingProvider      = (*MockShippingProvider)(nil)
 	_ payment.PaymentProvider        = (*MockPaymentProvider)(nil)
@@ -1487,5 +1488,89 @@ func (m *MockProductService) ImportProductsCSV(ctx context.Context, file io.Read
 	}
 	return &v1dto.ProductCSVImportResponse{}, nil
 }
+
+type MockAuthService struct {
+	RegisterFunc              func(ctx context.Context, input v1dto.RegisterInput) error
+	SendRegisterOTPFunc       func(ctx context.Context, input v1dto.SendRegisterOTPInput) error
+	VerifyRegisterOTPFunc     func(ctx context.Context, input v1dto.VerifyRegisterOTPInput) (string, string, int, error)
+	ResendRegisterOTPFunc     func(ctx context.Context, input v1dto.ResendRegisterOTPInput) error
+	LoginFunc                 func(ctx context.Context, ip, userAgent string, email, password string) (string, string, int, error)
+	GoogleLoginFunc           func(ctx context.Context, ip, userAgent, idToken string) (string, string, int, error)
+	LogoutFunc                func(ctx context.Context, accessToken string, refreshToken string) error
+	RefreshTokenFunc          func(ctx context.Context, refreshToken string) (string, string, int, error)
+	RequestForgotPasswordFunc func(ctx context.Context, email string) error
+	ResetPasswordFunc         func(ctx context.Context, token, newPassword string) error
+}
+
+func (m *MockAuthService) Register(ctx context.Context, input v1dto.RegisterInput) error {
+	if m.RegisterFunc != nil {
+		return m.RegisterFunc(ctx, input)
+	}
+	return nil
+}
+
+func (m *MockAuthService) SendRegisterOTP(ctx context.Context, input v1dto.SendRegisterOTPInput) error {
+	if m.SendRegisterOTPFunc != nil {
+		return m.SendRegisterOTPFunc(ctx, input)
+	}
+	return nil
+}
+
+func (m *MockAuthService) VerifyRegisterOTP(ctx context.Context, input v1dto.VerifyRegisterOTPInput) (string, string, int, error) {
+	if m.VerifyRegisterOTPFunc != nil {
+		return m.VerifyRegisterOTPFunc(ctx, input)
+	}
+	return "", "", 0, nil
+}
+
+func (m *MockAuthService) ResendRegisterOTP(ctx context.Context, input v1dto.ResendRegisterOTPInput) error {
+	if m.ResendRegisterOTPFunc != nil {
+		return m.ResendRegisterOTPFunc(ctx, input)
+	}
+	return nil
+}
+
+func (m *MockAuthService) Login(ctx context.Context, ip, userAgent string, email, password string) (string, string, int, error) {
+	if m.LoginFunc != nil {
+		return m.LoginFunc(ctx, ip, userAgent, email, password)
+	}
+	return "", "", 0, nil
+}
+
+func (m *MockAuthService) GoogleLogin(ctx context.Context, ip, userAgent, idToken string) (string, string, int, error) {
+	if m.GoogleLoginFunc != nil {
+		return m.GoogleLoginFunc(ctx, ip, userAgent, idToken)
+	}
+	return "", "", 0, nil
+}
+
+func (m *MockAuthService) Logout(ctx context.Context, accessToken string, refreshToken string) error {
+	if m.LogoutFunc != nil {
+		return m.LogoutFunc(ctx, accessToken, refreshToken)
+	}
+	return nil
+}
+
+func (m *MockAuthService) RefreshToken(ctx context.Context, refreshToken string) (string, string, int, error) {
+	if m.RefreshTokenFunc != nil {
+		return m.RefreshTokenFunc(ctx, refreshToken)
+	}
+	return "", "", 0, nil
+}
+
+func (m *MockAuthService) RequestForgotPassword(ctx context.Context, email string) error {
+	if m.RequestForgotPasswordFunc != nil {
+		return m.RequestForgotPasswordFunc(ctx, email)
+	}
+	return nil
+}
+
+func (m *MockAuthService) ResetPassword(ctx context.Context, token, newPassword string) error {
+	if m.ResetPasswordFunc != nil {
+		return m.ResetPasswordFunc(ctx, token, newPassword)
+	}
+	return nil
+}
+
 
 

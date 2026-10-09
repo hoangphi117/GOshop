@@ -194,3 +194,105 @@ func ResetPasswordTemplate(userName, resetLink string, expiresIn time.Duration, 
 
 	return htmlBuf.String(), textBuf.String(), nil
 }
+
+/* ============================================================
+   REGISTER OTP TEMPLATE
+   ============================================================ */
+
+const registerOTPHTMLTmpl = `<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Verify Your Email</title>
+	<style>
+		body { margin: 0; padding: 0; background-color: #f4f7f6; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+		.container { max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+		.header { background-color: #00ADD8; padding: 30px 20px; text-align: center; }
+		.header h1 { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: 1px; color: #ffffff; }
+		.content { padding: 40px 30px; color: #333333; line-height: 1.6; font-size: 16px; }
+		.otp-box { background-color: #f0f9ff; border: 2px dashed #00ADD8; border-radius: 8px; padding: 20px; text-align: center; margin: 30px 0; }
+		.otp-code { font-size: 36px; font-weight: 700; letter-spacing: 8px; color: #007799; font-family: 'Courier New', Courier, monospace; }
+		.footer { background-color: #f9fbfb; padding: 20px; text-align: center; font-size: 13px; color: #888888; border-top: 1px solid #eeeeee; }
+	</style>
+</head>
+<body>
+	<table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f4f7f6;">
+		<tr>
+			<td align="center" style="padding: 20px 0;">
+				<table class="container" width="100%" border="0" cellspacing="0" cellpadding="0">
+					<tr>
+						<td class="header">
+							<h1>GOshop Verification Code</h1>
+						</td>
+					</tr>
+					<tr>
+						<td class="content">
+							<p>Hello <strong>{{.UserName}}</strong>,</p>
+							<p>Thank you for signing up with GOshop. Please use the verification code below to complete your registration:</p>
+							<div class="otp-box">
+								<div class="otp-code">{{.OTP}}</div>
+							</div>
+							<p style="color: #666666; font-size: 14px;">This code is valid for <strong>{{.ExpiresIn}}</strong>. Do not share this code with anyone.</p>
+							<p style="color: #666666; font-size: 14px;">If you did not request this registration, you can safely ignore this email.</p>
+						</td>
+					</tr>
+					<tr>
+						<td class="footer">
+							<p style="margin: 0 0 5px 0;">This is an automated message, please do not reply.</p>
+							<p style="margin: 0;">&copy; {{.Year}} GOshop. All rights reserved.</p>
+						</td>
+					</tr>
+				</table>
+			</td>
+		</tr>
+	</table>
+</body>
+</html>`
+
+const registerOTPTextTmpl = `Hello {{.UserName}},
+
+Thank you for signing up with GOshop. Please use the verification code below to complete your registration:
+
+Verification Code: {{.OTP}}
+
+This code is valid for {{.ExpiresIn}}. Do not share this code with anyone.
+
+If you did not request this registration, you can safely ignore this email.
+
+This is an automated message, please do not reply.
+© {{.Year}} GOshop. All rights reserved.`
+
+type registerOTPData struct {
+	UserName  string
+	OTP       string
+	ExpiresIn string
+	Year      int
+}
+
+var (
+	registerOTPHTMLParsed = template.Must(template.New("registerOTPHTML").Parse(registerOTPHTMLTmpl))
+	registerOTPTextParsed = template.Must(template.New("registerOTPText").Parse(registerOTPTextTmpl))
+)
+
+func RegisterOTPTemplate(userName, otp string, expiresIn time.Duration, year int) (htmlBody, textBody string, err error) {
+	data := registerOTPData{
+		UserName:  userName,
+		OTP:       otp,
+		ExpiresIn: formatDuration(expiresIn),
+		Year:      year,
+	}
+
+	var htmlBuf bytes.Buffer
+	if err := registerOTPHTMLParsed.Execute(&htmlBuf, data); err != nil {
+		return "", "", fmt.Errorf("failed to render register otp html template: %w", err)
+	}
+
+	var textBuf bytes.Buffer
+	if err := registerOTPTextParsed.Execute(&textBuf, data); err != nil {
+		return "", "", fmt.Errorf("failed to render register otp text template: %w", err)
+	}
+
+	return htmlBuf.String(), textBuf.String(), nil
+}
+
