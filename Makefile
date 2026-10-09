@@ -26,8 +26,20 @@ seed-docker:
 server:
 	cd backend && go run ./cmd/api
 
+worker:
+	cd backend && go run ./cmd/worker
+
+ws-gateway:
+	cd backend && go run ./cmd/ws-gateway
+
 build:
 	cd backend && go build -o bin/goshop ./cmd/api
+
+build-worker:
+	cd backend && go build -o bin/worker ./cmd/worker
+
+build-ws-gateway:
+	cd backend && go build -o bin/ws-gateway ./cmd/ws-gateway
 
 run-binary:
 	./backend/bin/goshop
@@ -110,4 +122,4 @@ stresstest:
 spiketest:
 	docker run --rm -i --network=shopping_goshop-network -v "./loadtest:/loadtest" -e BASE_URL=http://goshop-nginx -e API_KEY=abcd-1234-1111 grafana/k6 run /loadtest/spike_test.js
 
-.PHONY: importdb exportdb server migrate-create migrate-up migrate-down migrate-force migrate-drop migrate-goto migrate-down-n sqlc build run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev swagger loadtest stresstest spiketest seed seed-docker
+.PHONY: importdb exportdb server worker ws-gateway migrate-create migrate-up migrate-down migrate-force migrate-drop migrate-goto migrate-down-n sqlc build build-worker build-ws-gateway run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev swagger loadtest stresstest spiketest seed seed-docker
