@@ -8,7 +8,6 @@ import (
 	v1service "goshop/internal/service/v1"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
-	"goshop/pkg/rabbitmq"
 	"goshop/pkg/ws"
 )
 
@@ -17,19 +16,14 @@ type NotificationModule struct {
 	adminRoutes []routes.Route
 }
 
-func NewNotificationModule(ctx *ModuleContext, wsHub ws.Hub, tokenService auth.TokenService, cacheService cache.RedisCacheService, rabbitmqService rabbitmq.RabbitMQService, redisBridge ws.RedisBridge) *NotificationModule {
-
-	notificationRepo := repository.NewSqlNotificationRepository(ctx.DB)
+func NewNotificationModule(
+	ctx *ModuleContext,
+	notificationService v1service.NotificationService,
+	wsHub ws.Hub,
+	tokenService auth.TokenService,
+	cacheService cache.RedisCacheService,
+) *NotificationModule {
 	userRepo := repository.NewSqlUserRepository(ctx.DB)
-
-	notificationService := v1service.NewNotificationService(notificationRepo, userRepo, wsHub)
-	if svc, ok := notificationService.(interface{ SetRabbitMQ(rabbitmq.RabbitMQService) }); ok {
-		svc.SetRabbitMQ(rabbitmqService)
-	}
-	if svc, ok := notificationService.(interface{ SetRedisBridge(ws.RedisBridge) }); ok {
-		svc.SetRedisBridge(redisBridge)
-	}
-
 	notificationHandler := v1handler.NewNotificationHandler(notificationService)
 
 	notificationRoutes := v1routes.NewNotificationRoutes(notificationHandler)
@@ -44,7 +38,6 @@ func NewNotificationModule(ctx *ModuleContext, wsHub ws.Hub, tokenService auth.T
 		routes:      []routes.Route{notificationRoutes, wsRoutes},
 		adminRoutes: []routes.Route{adminNotificationRoutes},
 	}
-
 }
 
 func (m *NotificationModule) Routes() []routes.Route {

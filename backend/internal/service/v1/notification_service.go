@@ -27,16 +27,29 @@ type notificationService struct {
 	redisBridge      ws.RedisBridge
 }
 
-// NewNotificationService creates a new instance of NotificationService.
+// NewNotificationService creates a new instance of NotificationService without background transports (e.g. for unit testing).
 func NewNotificationService(
 	notificationRepo repository.NotificationRepository,
 	userRepo repository.UserRepository,
 	wsHub ws.Hub,
 ) NotificationService {
+	return NewNotificationServiceWithTransports(notificationRepo, userRepo, wsHub, nil, nil)
+}
+
+// NewNotificationServiceWithTransports creates a NotificationService with full RabbitMQ and Redis bridge support.
+func NewNotificationServiceWithTransports(
+	notificationRepo repository.NotificationRepository,
+	userRepo repository.UserRepository,
+	wsHub ws.Hub,
+	rabbitMQ rabbitmq.RabbitMQService,
+	redisBridge ws.RedisBridge,
+) NotificationService {
 	return &notificationService{
 		notificationRepo: notificationRepo,
 		userRepo:         userRepo,
 		wsHub:            wsHub,
+		rabbitMQ:         rabbitMQ,
+		redisBridge:      redisBridge,
 	}
 }
 

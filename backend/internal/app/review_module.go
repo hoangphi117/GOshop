@@ -6,7 +6,6 @@ import (
 	"goshop/internal/routes"
 	v1routes "goshop/internal/routes/v1"
 	v1service "goshop/internal/service/v1"
-	"goshop/pkg/ws"
 )
 
 type ReviewModule struct {
@@ -14,16 +13,13 @@ type ReviewModule struct {
 	adminRoutes []routes.Route
 }
 
-func NewReviewModule(ctx *ModuleContext, wsHub ws.Hub) *ReviewModule {
+func NewReviewModule(ctx *ModuleContext, notificationService v1service.NotificationService) *ReviewModule {
 
 	// Initialize repository
 	reviewRepo := repository.NewSqlReviewRepository(ctx.DB)
 	userRepo := repository.NewSqlUserRepository(ctx.DB)
 	productRepo := repository.NewSqlProductRepository(ctx.DB)
 	orderRepo := repository.NewSqlOrderRepository(ctx.DB)
-
-	notificationRepo := repository.NewSqlNotificationRepository(ctx.DB)
-	notificationService := v1service.NewNotificationService(notificationRepo, userRepo, wsHub)
 
 	// Initialize service
 	reviewService := v1service.NewReviewService(reviewRepo, userRepo, productRepo, orderRepo, notificationService, ctx.Redis)
