@@ -1691,10 +1691,11 @@ func (m *MockChatRepository) RecallMessage(ctx context.Context, messageID int32)
 // 16. MockOutboxRepository
 // =========================================================================
 type MockOutboxRepository struct {
-	InsertFunc        func(ctx context.Context, tx pgx.Tx, aggregateType, aggregateID, eventType string, payload any) (sqlc.OutboxEvent, error)
-	GetPendingFunc    func(ctx context.Context, limit int32) ([]sqlc.OutboxEvent, error)
-	MarkProcessedFunc func(ctx context.Context, eventIDs []int64) error
-	MarkFailedFunc    func(ctx context.Context, eventID int64, lastErr *string) error
+	InsertFunc                     func(ctx context.Context, tx pgx.Tx, aggregateType, aggregateID, eventType string, payload any) (sqlc.OutboxEvent, error)
+	GetPendingFunc                 func(ctx context.Context, limit int32) ([]sqlc.OutboxEvent, error)
+	GetPendingByAggregateTypesFunc func(ctx context.Context, aggregateTypes []string, limit int32) ([]sqlc.OutboxEvent, error)
+	MarkProcessedFunc              func(ctx context.Context, eventIDs []int64) error
+	MarkFailedFunc                 func(ctx context.Context, eventID int64, lastErr *string) error
 }
 
 func (m *MockOutboxRepository) Insert(ctx context.Context, tx pgx.Tx, aggregateType, aggregateID, eventType string, payload any) (sqlc.OutboxEvent, error) {
@@ -1705,6 +1706,16 @@ func (m *MockOutboxRepository) Insert(ctx context.Context, tx pgx.Tx, aggregateT
 }
 
 func (m *MockOutboxRepository) GetPending(ctx context.Context, limit int32) ([]sqlc.OutboxEvent, error) {
+	if m.GetPendingFunc != nil {
+		return m.GetPendingFunc(ctx, limit)
+	}
+	return nil, nil
+}
+
+func (m *MockOutboxRepository) GetPendingByAggregateTypes(ctx context.Context, aggregateTypes []string, limit int32) ([]sqlc.OutboxEvent, error) {
+	if m.GetPendingByAggregateTypesFunc != nil {
+		return m.GetPendingByAggregateTypesFunc(ctx, aggregateTypes, limit)
+	}
 	if m.GetPendingFunc != nil {
 		return m.GetPendingFunc(ctx, limit)
 	}

@@ -132,6 +132,7 @@ type Querier interface {
 	GetPaymentMethodBreakdown(ctx context.Context, arg GetPaymentMethodBreakdownParams) ([]GetPaymentMethodBreakdownRow, error)
 	GetPaymentTransactionsByOrderID(ctx context.Context, ptOrderID int32) ([]PaymentTransaction, error)
 	GetPendingOutboxEvents(ctx context.Context, limit int32) ([]OutboxEvent, error)
+	GetPendingOutboxEventsByAggregateTypes(ctx context.Context, arg GetPendingOutboxEventsByAggregateTypesParams) ([]OutboxEvent, error)
 	GetPendingTransactionsOlderThan(ctx context.Context, arg GetPendingTransactionsOlderThanParams) ([]GetPendingTransactionsOlderThanRow, error)
 	GetProductBySlug(ctx context.Context, productSlug string) (GetProductBySlugRow, error)
 	GetProductByUUID(ctx context.Context, productUuid uuid.UUID) (GetProductByUUIDRow, error)

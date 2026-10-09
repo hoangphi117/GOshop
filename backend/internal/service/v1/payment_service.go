@@ -45,6 +45,7 @@ type paymentService struct {
 	returnURL           string
 	webhookBaseURL      string
 	refundService       PaymentRefundService
+	outboxRepo          repository.OutboxRepository
 }
 
 // NewPaymentService creates a new instance of PaymentService.
@@ -59,8 +60,13 @@ func NewPaymentService(
 	rabbitmq rabbitmq.RabbitMQService,
 	returnURL string,
 	webhookBaseURL string,
+	outboxRepo ...repository.OutboxRepository,
 ) PaymentService {
 	refundService := NewPaymentRefundService(paymentRepo, orderRepo, providers, notificationService, cache)
+	var obRepo repository.OutboxRepository
+	if len(outboxRepo) > 0 {
+		obRepo = outboxRepo[0]
+	}
 	return &paymentService{
 		paymentRepo:         paymentRepo,
 		orderRepo:           orderRepo,
@@ -73,6 +79,7 @@ func NewPaymentService(
 		returnURL:           returnURL,
 		webhookBaseURL:      webhookBaseURL,
 		refundService:       refundService,
+		outboxRepo:          obRepo,
 	}
 }
 
@@ -398,6 +405,40 @@ func (s *paymentService) ProcessWebhook(ctx context.Context, msg v1dto.PaymentWe
 		return utils.WrapError(utils.ErrCodeInternal, "failed to mark webhook event as processed", err)
 	}
 
+	// Enqueue payment event to transactional outbox atomically
+	if s.outboxRepo != nil {
+		if msg.Status == "success" && paidOrder != nil {
+			event := rabbitmq.NewPaymentSucceededEvent(
+				uuid.New().String(),
+				pt.PtUuid.String(),
+				paidOrder.OrderUuid.String(),
+				paidOrder.OrderNumber,
+				paidOrder.UserUuid.String(),
+				msg.Provider,
+				msg.ProviderTxnID,
+				msg.Amount,
+			)
+			if _, err := s.outboxRepo.Insert(ctx, tx, "payment", pt.PtUuid.String(), rabbitmq.QueuePaymentSucceeded, event); err != nil {
+				logger.Log.Error().Err(err).Msg("Failed to enqueue payment.succeeded outbox event")
+				return err
+			}
+		} else if msg.Status != "success" {
+			event := rabbitmq.NewPaymentFailedEvent(
+				uuid.New().String(),
+				pt.PtUuid.String(),
+				msg.OrderUUID,
+				msg.OrderNumber,
+				"",
+				msg.Provider,
+				msg.Status,
+			)
+			if _, err := s.outboxRepo.Insert(ctx, tx, "payment", pt.PtUuid.String(), rabbitmq.QueuePaymentFailed, event); err != nil {
+				logger.Log.Error().Err(err).Msg("Failed to enqueue payment.failed outbox event")
+				return err
+			}
+		}
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		logger.Log.Error().Err(err).Msg("Failed to commit database transaction")
 		return err
@@ -518,6 +559,20 @@ func (s *paymentService) ConfirmCODPayment(ctx context.Context, orderUUID uuid.U
 		return utils.WrapError(utils.ErrCodeInternal, "failed to update order payment status", err)
 	}
 
+	if s.outboxRepo != nil {
+		event := rabbitmq.NewPaymentSucceededEvent(
+			uuid.New().String(),
+			paymentTxn.PtUuid.String(),
+			order.OrderUuid.String(),
+			order.OrderNumber,
+			order.OrderUuid.String(),
+			"cod",
+			providerTxnID,
+			utils.NumericToFloat(order.OrderTotalAmount),
+		)
+		_, _ = s.outboxRepo.Insert(ctx, tx, "payment", paymentTxn.PtUuid.String(), rabbitmq.QueuePaymentSucceeded, event)
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		logger.Log.Error().Err(err).Msg("Failed to commit database transaction for COD confirmation")
 		return utils.WrapError(utils.ErrCodeInternal, "failed to commit database transaction", err)
@@ -615,6 +670,18 @@ func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 				continue
 			}
 
+			if s.outboxRepo != nil {
+				expEvent := rabbitmq.NewPaymentExpiredEvent(
+					uuid.New().String(),
+					txn.PtUuid.String(),
+					txn.OrderUuid.String(),
+					txn.OrderNumber,
+					txn.UserUuid.String(),
+					txn.PtProvider,
+				)
+				_, _ = s.outboxRepo.Insert(ctx, tx, "payment", txn.PtUuid.String(), rabbitmq.QueuePaymentExpired, expEvent)
+			}
+
 			if err := tx.Commit(ctx); err != nil {
 				logger.Log.Error().Err(err).Msg("Reconciliation: Failed to commit Expired update for unsupported provider")
 				continue
@@ -691,6 +758,24 @@ func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 				}
 			}
 
+			if s.outboxRepo != nil {
+				providerTxnID := queryOrderID
+				if txn.PtProviderTxnID != nil && *txn.PtProviderTxnID != "" {
+					providerTxnID = *txn.PtProviderTxnID
+				}
+				event := rabbitmq.NewPaymentSucceededEvent(
+					uuid.New().String(),
+					txn.PtUuid.String(),
+					txn.OrderUuid.String(),
+					txn.OrderNumber,
+					txn.UserUuid.String(),
+					txn.PtProvider,
+					providerTxnID,
+					utils.NumericToFloat(txn.PtAmount),
+				)
+				_, _ = s.outboxRepo.Insert(ctx, tx, "payment", txn.PtUuid.String(), rabbitmq.QueuePaymentSucceeded, event)
+			}
+
 			if err := tx.Commit(ctx); err != nil {
 				logger.Log.Error().Err(err).Msg("Reconciliation: Failed to commit Paid update")
 				continue
@@ -726,6 +811,18 @@ func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 						Msg("Reconciliation: DB error expiring pending transaction")
 				}
 				continue
+			}
+
+			if s.outboxRepo != nil {
+				expEvent := rabbitmq.NewPaymentExpiredEvent(
+					uuid.New().String(),
+					txn.PtUuid.String(),
+					txn.OrderUuid.String(),
+					txn.OrderNumber,
+					txn.UserUuid.String(),
+					txn.PtProvider,
+				)
+				_, _ = s.outboxRepo.Insert(ctx, tx, "payment", txn.PtUuid.String(), rabbitmq.QueuePaymentExpired, expEvent)
 			}
 
 			if err := tx.Commit(ctx); err != nil {

@@ -59,6 +59,12 @@ type OrderCartPort interface {
 	RemovePurchasedItems(ctx context.Context, userID int32, productIDs []int32) error
 }
 
+// OrderOutboxPort writes domain events to outbox within a database transaction.
+// Satisfied by repository.OutboxRepository.
+type OrderOutboxPort interface {
+	Insert(ctx context.Context, tx pgx.Tx, aggregateType, aggregateID, eventType string, payload any) (sqlc.OutboxEvent, error)
+}
+
 // OrderStorePort is the narrow persistence port for orders.
 // Satisfied by repository.OrderRepository.
 type OrderStorePort interface {

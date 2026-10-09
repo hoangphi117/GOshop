@@ -72,6 +72,8 @@ func NewOrderModule(
 	stockMovementRepo := repository.NewSqlStockMovementRepository(ctx.DB)
 	inventoryService := v1service.NewInventoryService(productRepo, stockMovementRepo, userRepo, ctx.TxManager, notificationService)
 
+	outboxRepo := repository.NewSqlOutboxRepository(ctx.DB)
+
 	orderService := v1service.NewOrderService(
 		ctx.TxManager,
 		pricingService,
@@ -85,6 +87,7 @@ func NewOrderModule(
 		notificationService,
 		ctx.Redis,
 		rabbitmqService,
+		outboxRepo,
 	)
 
 	shippingService := v1service.NewOrderShippingService(
@@ -113,6 +116,7 @@ func NewOrderModule(
 		rabbitmqService,
 		utils.GetEnv("PAYMENT_RETURN_URL", "http://localhost:3001/payment/result"),
 		utils.GetEnv("PAYMENT_WEBHOOK_BASE_URL", "http://localhost:8080"),
+		outboxRepo,
 	)
 
 	returnService := v1service.NewOrderReturnService(

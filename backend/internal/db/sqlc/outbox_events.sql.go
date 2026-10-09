@@ -49,6 +49,50 @@ func (q *Queries) GetPendingOutboxEvents(ctx context.Context, limit int32) ([]Ou
 	return items, nil
 }
 
+const getPendingOutboxEventsByAggregateTypes = `-- name: GetPendingOutboxEventsByAggregateTypes :many
+SELECT event_id, aggregate_type, aggregate_id, event_type, payload, status, retry_count, last_error, created_at, processed_at FROM outbox_events
+WHERE status = 'PENDING' AND retry_count < 5 AND aggregate_type = ANY($2::varchar[])
+ORDER BY created_at ASC
+LIMIT $1
+FOR UPDATE SKIP LOCKED
+`
+
+type GetPendingOutboxEventsByAggregateTypesParams struct {
+	Limit          int32    `json:"limit"`
+	AggregateTypes []string `json:"aggregate_types"`
+}
+
+func (q *Queries) GetPendingOutboxEventsByAggregateTypes(ctx context.Context, arg GetPendingOutboxEventsByAggregateTypesParams) ([]OutboxEvent, error) {
+	rows, err := q.db.Query(ctx, getPendingOutboxEventsByAggregateTypes, arg.Limit, arg.AggregateTypes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OutboxEvent{}
+	for rows.Next() {
+		var i OutboxEvent
+		if err := rows.Scan(
+			&i.EventID,
+			&i.AggregateType,
+			&i.AggregateID,
+			&i.EventType,
+			&i.Payload,
+			&i.Status,
+			&i.RetryCount,
+			&i.LastError,
+			&i.CreatedAt,
+			&i.ProcessedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertOutboxEvent = `-- name: InsertOutboxEvent :one
 INSERT INTO outbox_events (
     aggregate_type, aggregate_id, event_type, payload

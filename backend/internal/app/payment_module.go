@@ -49,10 +49,12 @@ func NewPaymentModule(
 
 	returnURL := utils.GetEnv("PAYMENT_RETURN_URL", "http://localhost:3001/payment/result")
 	webhookBaseURL := utils.GetEnv("PAYMENT_WEBHOOK_BASE_URL", "http://localhost:8080")
+	outboxRepo := repository.NewSqlOutboxRepository(ctx.DB)
 
 	paymentService := v1service.NewPaymentService(
 		paymentRepo, orderRepo, userRepo, webhookRepo,
 		providers, notificationService, cacheService, rabbitmqService, returnURL, webhookBaseURL,
+		outboxRepo,
 	)
 
 	paymentHandler := v1handler.NewPaymentHandler(paymentService)

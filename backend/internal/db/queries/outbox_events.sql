@@ -12,6 +12,13 @@ ORDER BY created_at ASC
 LIMIT $1
 FOR UPDATE SKIP LOCKED;
 
+-- name: GetPendingOutboxEventsByAggregateTypes :many
+SELECT * FROM outbox_events
+WHERE status = 'PENDING' AND retry_count < 5 AND aggregate_type = ANY(@aggregate_types::varchar[])
+ORDER BY created_at ASC
+LIMIT $1
+FOR UPDATE SKIP LOCKED;
+
 -- name: MarkOutboxEventsProcessed :exec
 UPDATE outbox_events
 SET status = 'PROCESSED', processed_at = NOW()

@@ -72,6 +72,7 @@ func NewOrderService(
 	notificationService NotificationService,
 	redisClient *redis.Client,
 	rabbitMQ rabbitmq.RabbitMQService,
+	outboxRepo ...repository.OutboxRepository,
 ) OrderService {
 	var cacheService cache.RedisCacheService
 	if redisClient != nil {
@@ -79,6 +80,11 @@ func NewOrderService(
 	}
 
 	invoiceService := NewOrderInvoiceService(orderRepo, orderItemRepo, userRepo, cacheService)
+
+	var outboxStore OrderOutboxPort
+	if len(outboxRepo) > 0 {
+		outboxStore = outboxRepo[0]
+	}
 
 	checkoutSvc := NewOrderCheckoutService(
 		txManager,
@@ -93,6 +99,7 @@ func NewOrderService(
 		notificationService,
 		cacheService,
 		rabbitMQ,
+		outboxStore,
 	)
 
 	querySvc := NewOrderQueryService(

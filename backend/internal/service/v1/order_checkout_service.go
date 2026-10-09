@@ -58,6 +58,7 @@ type checkoutService struct {
 	notificationService NotificationService
 	cache               cache.RedisCacheService
 	rabbitMQ            rabbitmq.RabbitMQService
+	outboxStore         OrderOutboxPort
 }
 
 func NewOrderCheckoutService(
@@ -73,7 +74,12 @@ func NewOrderCheckoutService(
 	notificationService NotificationService,
 	cacheService cache.RedisCacheService,
 	rabbitMQ rabbitmq.RabbitMQService,
+	outboxStore ...OrderOutboxPort,
 ) OrderCheckoutService {
+	var outboxPort OrderOutboxPort
+	if len(outboxStore) > 0 {
+		outboxPort = outboxStore[0]
+	}
 	return &checkoutService{
 		txManager:           txManager,
 		pricingService:      pricingService,
@@ -87,6 +93,7 @@ func NewOrderCheckoutService(
 		notificationService: notificationService,
 		cache:               cacheService,
 		rabbitMQ:            rabbitMQ,
+		outboxStore:         outboxPort,
 	}
 }
 
@@ -224,6 +231,24 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 		})
 		if err != nil {
 			return utils.WrapError(utils.ErrCodeInternal, "failed to insert tracking event", err)
+		}
+
+		// Enqueue OrderCreated event to transactional outbox atomically
+		if s.outboxStore != nil {
+			outboxPayload := rabbitmq.NewOrderCreatedEvent(
+				uuid.New().String(),
+				order.OrderUuid.String(),
+				order.OrderNumber,
+				user.UserUuid.String(),
+				order.OrderID,
+				order.OrderUserID,
+				utils.NumericToFloat(order.OrderTotalAmount),
+				purchasedProductIDs,
+			)
+			_, err = s.outboxStore.Insert(txCtx, tx, "order", order.OrderUuid.String(), rabbitmq.QueueOrderCreated, outboxPayload)
+			if err != nil {
+				return utils.WrapError(utils.ErrCodeInternal, "failed to record order outbox event", err)
+			}
 		}
 
 		return nil

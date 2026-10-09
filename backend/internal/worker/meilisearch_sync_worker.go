@@ -46,7 +46,7 @@ func (w *MeilisearchSyncWorker) ProcessBatch(ctx context.Context) (int, error) {
 		return 0, nil
 	}
 
-	events, err := w.outboxRepo.GetPending(ctx, w.batchSize)
+	events, err := w.outboxRepo.GetPendingByAggregateTypes(ctx, []string{"product"}, w.batchSize)
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch pending outbox events: %w", err)
 	}

@@ -54,6 +54,13 @@ func (r *sqlOutboxRepository) GetPending(ctx context.Context, limit int32) ([]sq
 	return r.db.GetPendingOutboxEvents(ctx, limit)
 }
 
+func (r *sqlOutboxRepository) GetPendingByAggregateTypes(ctx context.Context, aggregateTypes []string, limit int32) ([]sqlc.OutboxEvent, error) {
+	return r.db.GetPendingOutboxEventsByAggregateTypes(ctx, sqlc.GetPendingOutboxEventsByAggregateTypesParams{
+		AggregateTypes: aggregateTypes,
+		Limit:          limit,
+	})
+}
+
 func (r *sqlOutboxRepository) MarkProcessed(ctx context.Context, eventIDs []int64) error {
 	if len(eventIDs) == 0 {
 		return nil

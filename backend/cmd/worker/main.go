@@ -44,10 +44,11 @@ type Worker struct {
 	paymentConsumer        *worker.PaymentConsumer
 	paymentExpiredConsumer *worker.PaymentExpiredConsumer
 	retentionJob           *worker.NotificationRetentionJob
-	syncWorker           *worker.MeilisearchSyncWorker
-	shippingService      v1service.OrderShippingService
-	paymentService       v1service.PaymentService
-	redisBridge          ws.RedisBridge
+	syncWorker             *worker.MeilisearchSyncWorker
+	outboxPublisherWorker  *worker.OutboxPublisherWorker
+	shippingService        v1service.OrderShippingService
+	paymentService         v1service.PaymentService
+	redisBridge            ws.RedisBridge
 }
 
 func NewWorker(cfg *config.Config) *Worker {
@@ -153,6 +154,8 @@ func NewWorker(cfg *config.Config) *Worker {
 		}
 	}
 
+	outboxRepo := repository.NewSqlOutboxRepository(db.DB)
+
 	returnURL := utils.GetEnv("PAYMENT_RETURN_URL", "http://localhost:3001/payment/result")
 	webhookBaseURL := utils.GetEnv("PAYMENT_WEBHOOK_BASE_URL", "http://localhost:8080")
 	paymentService := v1service.NewPaymentService(
@@ -166,6 +169,7 @@ func NewWorker(cfg *config.Config) *Worker {
 		rabbitMQ,
 		returnURL,
 		webhookBaseURL,
+		outboxRepo,
 	)
 	paymentConsumer := worker.NewPaymentConsumer(paymentService, log)
 
@@ -189,8 +193,12 @@ func NewWorker(cfg *config.Config) *Worker {
 		notificationService,
 		redisClient,
 		rabbitMQ,
+		outboxRepo,
 	)
 	paymentExpiredConsumer := worker.NewPaymentExpiredConsumer(orderService, log)
+
+	// Transactional Outbox Publisher Worker (Relay for order & payment events)
+	outboxPublisherWorker := worker.NewOutboxPublisherWorker(outboxRepo, rabbitMQ, 1*time.Second, 50, log)
 
 	// Meilisearch Sync Worker
 	var syncWorker *worker.MeilisearchSyncWorker
@@ -198,7 +206,6 @@ func NewWorker(cfg *config.Config) *Worker {
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to initialize Meilisearch client in worker")
 	} else if searchClient != nil {
-		outboxRepo := repository.NewSqlOutboxRepository(db.DB)
 		syncWorker = worker.NewMeilisearchSyncWorker(outboxRepo, searchClient, 2*time.Second, 50, log)
 	}
 
@@ -223,6 +230,7 @@ func NewWorker(cfg *config.Config) *Worker {
 		paymentExpiredConsumer: paymentExpiredConsumer,
 		retentionJob:           retentionJob,
 		syncWorker:             syncWorker,
+		outboxPublisherWorker:  outboxPublisherWorker,
 		shippingService:        shippingService,
 		paymentService:         paymentService,
 		redisBridge:            redisBridge,
@@ -316,6 +324,12 @@ func (w *Worker) Start(ctx context.Context) error {
 	if w.syncWorker != nil {
 		go w.syncWorker.Start(ctx)
 		w.logger.Info().Msg("Meilisearch Outbox Sync Worker started in worker process")
+	}
+
+	// Transactional Outbox Publisher Worker (Order & Payment Relay)
+	if w.outboxPublisherWorker != nil {
+		go w.outboxPublisherWorker.Start(ctx)
+		w.logger.Info().Msg("Transactional Outbox Publisher Worker started in worker process")
 	}
 
 	// Periodic Shipping Tracking Sync (Cronjob with Redis Distributed Lock)
