@@ -431,6 +431,8 @@ func MapTrackingStatusToText(status string) string {
 		return "Order cancelled"
 	case "shipping_cancelled":
 		return "Shipping waybill cancelled"
+	case "shipping_failed":
+		return "Shipping creation failed"
 	case "return_requested":
 		return "Return requested"
 	case "return_approved":
