@@ -15,7 +15,6 @@ import (
 )
 
 type OrderHandler struct {
-	service         v1service.OrderService
 	customerService v1service.CustomerOrderService
 	shippingService v1service.OrderShippingService
 	locationService v1service.LocationService
@@ -25,25 +24,24 @@ type OrderHandler struct {
 }
 
 func NewOrderHandler(
-	service v1service.OrderService,
+	customerService v1service.CustomerOrderService,
 	shippingService v1service.OrderShippingService,
 	returnService v1service.OrderReturnService,
 ) *OrderHandler {
 	var invSvc v1service.OrderInvoiceService
 	var admSvc v1service.OrderAdminService
 	var locSvc v1service.LocationService
-	var custSvc v1service.CustomerOrderService
-	if service != nil {
-		custSvc = service
-		invSvc = service
-		admSvc = service
+	if asInv, ok := customerService.(v1service.OrderInvoiceService); ok {
+		invSvc = asInv
+	}
+	if asAdm, ok := customerService.(v1service.OrderAdminService); ok {
+		admSvc = asAdm
 	}
 	if shippingService != nil {
 		locSvc = shippingService
 	}
 	return &OrderHandler{
-		service:         service,
-		customerService: custSvc,
+		customerService: customerService,
 		shippingService: shippingService,
 		locationService: locSvc,
 		returnService:   returnService,
@@ -81,17 +79,11 @@ func (oh *OrderHandler) WithLocationService(locationService v1service.LocationSe
 }
 
 func (oh *OrderHandler) getCustomerService() v1service.CustomerOrderService {
-	if oh.customerService != nil {
-		return oh.customerService
-	}
-	return oh.service
+	return oh.customerService
 }
 
 func (oh *OrderHandler) getAdminService() v1service.OrderAdminService {
-	if oh.adminService != nil {
-		return oh.adminService
-	}
-	return oh.service
+	return oh.adminService
 }
 
 // CreateOrder godoc
