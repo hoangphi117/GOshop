@@ -724,6 +724,7 @@ func (as *authService) GoogleLogin(ctx context.Context, ip, userAgent, idToken s
 
 func toUserTokenPayload(user sqlc.User) auth.UserTokenPayload {
 	return auth.UserTokenPayload{
+		UserID:   user.UserID,
 		UserUUID: user.UserUuid.String(),
 		Email:    user.UserEmail,
 		Role:     user.UserLevel,

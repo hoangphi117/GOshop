@@ -33,9 +33,10 @@ location /uploads/ {
 # 3. WEBSOCKET REVERSE PROXY (/api/v1/ws) - PHẢI ĐỨNG TRƯỚC /api/v1/
 # -----------------------------------------------------------------------------
 # Lợi ích: Hỗ trợ kết nối thời gian thực hai chiều (Chat, Notifications, Redis Bridge).
+# Điều hướng trực tiếp tới ws-gateway chuyên biệt giúp giảm tải trên REST API servers.
 # Timeout mở rộng 3600s để tránh ngắt kết nối WebSocket giữa chừng.
 location /api/v1/ws {
-    proxy_pass http://goshop_backend;
+    proxy_pass http://goshop_ws_gateway;
     proxy_http_version 1.1;
 
     # Header bắt buộc cho cơ chế HTTP Upgrade -> WebSocket

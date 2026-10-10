@@ -65,6 +65,23 @@ func NewOrderCustomer(userID int32, userUUID uuid.UUID, fullName, email string, 
 	}
 }
 
+type customerContextKey struct{}
+
+// WithOrderCustomer attaches an authenticated OrderCustomer to the context,
+// bypassing redundant repository round-trips when user claims are known.
+func WithOrderCustomer(ctx context.Context, customer *OrderCustomer) context.Context {
+	return context.WithValue(ctx, customerContextKey{}, customer)
+}
+
+// GetOrderCustomerFromContext retrieves an OrderCustomer attached to the context.
+func GetOrderCustomerFromContext(ctx context.Context) (*OrderCustomer, bool) {
+	if ctx == nil {
+		return nil, false
+	}
+	customer, ok := ctx.Value(customerContextKey{}).(*OrderCustomer)
+	return customer, ok && customer != nil
+}
+
 // OrderCustomerReader resolves customer information without leaking sqlc.User.
 type OrderCustomerReader interface {
 	GetByUUID(ctx context.Context, userUUID uuid.UUID) (*OrderCustomer, error)

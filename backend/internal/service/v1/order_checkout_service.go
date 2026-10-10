@@ -92,12 +92,18 @@ func NewOrderCheckoutService(
 }
 
 func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, input v1dto.CreateOrderInput) (*v1dto.OrderDTO, error) {
-	user, err := s.userReader.GetByUUID(ctx, userUUID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, utils.NewError(utils.ErrCodeNotFound, "User not found")
+	var user *OrderCustomer
+	if cust, ok := GetOrderCustomerFromContext(ctx); ok && cust.UserUUID == userUUID && cust.UserID > 0 {
+		user = cust
+	} else {
+		var err error
+		user, err = s.userReader.GetByUUID(ctx, userUUID)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil, utils.NewError(utils.ErrCodeNotFound, "User not found")
+			}
+			return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to get user", err)
 		}
-		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to get user", err)
 	}
 
 	// Validate duplicate products in the order
@@ -137,8 +143,9 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 	/* ====================== TRANSACTION START ====================== */
 	var order sqlc.Order
 	var purchasedProductIDs []int32
+	var createdOrderItems []sqlc.GetOrderItemsByOrderIDRow
 
-	err = s.txManager.WithTx(ctx, func(txCtx context.Context) error {
+	err := s.txManager.WithTx(ctx, func(txCtx context.Context) error {
 		tx, _ := db.GetTx(txCtx)
 
 		orderNumber := GenerateOrderNumber(user.UserID)
@@ -150,6 +157,7 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 		}
 
 		priceInputs := make([]ItemPriceInput, len(input.Items))
+		prodIDToUUID := make(map[int32]uuid.UUID, len(input.Items))
 		for i, item := range input.Items {
 			p := productMap[item.ProductUUID]
 			priceInputs[i] = ItemPriceInput{
@@ -158,6 +166,7 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 				Price:       p.Price,
 				Quantity:    item.Quantity,
 			}
+			prodIDToUUID[p.ProductID] = p.ProductUUID
 		}
 
 		pricingResult, err := s.pricingService.CalculateOrderTotals(txCtx, priceInputs, input.CouponCode, user.UserID, input.ShippingFee, time.Now())
@@ -197,6 +206,7 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 		}
 
 		purchasedProductIDs = make([]int32, len(pricingResult.Items))
+		createdOrderItems = make([]sqlc.GetOrderItemsByOrderIDRow, len(pricingResult.Items))
 
 		for i, item := range pricingResult.Items {
 			purchasedProductIDs[i] = item.ProductID
@@ -209,9 +219,48 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 				OrderItemSubtotal:    utils.FloatToNumeric(item.Subtotal),
 			}
 
-			_, err := s.orderItemStore.Create(txCtx, tx, createdItemParams)
+			createdItem, err := s.orderItemStore.Create(txCtx, tx, createdItemParams)
 			if err != nil {
 				return utils.WrapError(utils.ErrCodeInternal, "failed to create order item", err)
+			}
+
+			orderItemUuid := createdItem.OrderItemUuid
+			if orderItemUuid == uuid.Nil {
+				orderItemUuid = uuid.New()
+			}
+			prodName := createdItem.OrderItemProductName
+			if prodName == "" {
+				prodName = item.ProductName
+			}
+			price := createdItem.OrderItemPrice
+			if !price.Valid {
+				price = createdItemParams.OrderItemPrice
+			}
+			qty := createdItem.OrderItemQuantity
+			if qty == 0 {
+				qty = item.Quantity
+			}
+			subtotal := createdItem.OrderItemSubtotal
+			if !subtotal.Valid {
+				subtotal = createdItemParams.OrderItemSubtotal
+			}
+			createdAt := createdItem.OrderItemCreatedAt
+			if createdAt.IsZero() {
+				createdAt = time.Now()
+			}
+
+			prodUUID := prodIDToUUID[item.ProductID]
+			createdOrderItems[i] = sqlc.GetOrderItemsByOrderIDRow{
+				OrderItemID:          createdItem.OrderItemID,
+				OrderItemUuid:        orderItemUuid,
+				OrderItemOrderID:     order.OrderID,
+				OrderItemProductID:   item.ProductID,
+				OrderItemProductName: prodName,
+				OrderItemPrice:       price,
+				OrderItemQuantity:    qty,
+				OrderItemSubtotal:    subtotal,
+				OrderItemCreatedAt:   createdAt,
+				ProductUuid:          prodUUID,
 			}
 		}
 
@@ -253,20 +302,9 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 	}
 	/* ====================== TRANSACTION END ====================== */
 
-	// Get order items with details after transaction is committed
-	orderItemsWithDetails, err := s.orderItemStore.GetByOrderID(ctx, order.OrderID)
-	if err != nil {
-		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to get order items", err)
-	}
-
-	// 1. Immediately clean up purchased items from Cart in DB & Cache (Strong consistency)
-	if s.cartPort != nil && len(purchasedProductIDs) > 0 {
-		_ = s.cartPort.RemovePurchasedItems(ctx, order.OrderUserID, purchasedProductIDs)
-	}
-
-	// 3. Invalidate related order caches
+	// Invalidate related order caches
 	InvalidateOrderCachesWithCache(s.cache, user.UserUuid)
 
-	dto := v1dto.MapToOrderDTO(order, orderItemsWithDetails)
+	dto := v1dto.MapToOrderDTO(order, createdOrderItems)
 	return &dto, nil
 }

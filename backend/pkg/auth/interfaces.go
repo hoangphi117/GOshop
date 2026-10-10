@@ -6,6 +6,7 @@ import (
 
 // UserTokenPayload represents the domain model required to issue and rotate tokens.
 type UserTokenPayload struct {
+	UserID   int32  `json:"user_id,omitempty"`
 	UserUUID string `json:"user_uuid"`
 	Email    string `json:"email"`
 	Role     int32  `json:"role"`

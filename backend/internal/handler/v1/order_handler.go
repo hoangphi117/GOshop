@@ -113,7 +113,14 @@ func (oh *OrderHandler) CreateOrder(ctx *gin.Context) {
 		return
 	}
 
-	orderDTO, err := oh.getCustomerService().CreateOrder(ctx.Request.Context(), userUUID, input)
+	reqCtx := ctx.Request.Context()
+	if userID, ok := middleware.GetUserID(ctx); ok && userID > 0 {
+		role, _ := middleware.GetUserRole(ctx)
+		customer := v1service.NewOrderCustomer(userID, userUUID, "", "", role, 1)
+		reqCtx = v1service.WithOrderCustomer(reqCtx, customer)
+	}
+
+	orderDTO, err := oh.getCustomerService().CreateOrder(reqCtx, userUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return

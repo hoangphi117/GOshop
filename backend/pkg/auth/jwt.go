@@ -19,6 +19,7 @@ type JWTService struct {
 }
 
 type EncryptedPayload struct {
+	UserID   int32  `json:"user_id,omitempty"`
 	UserUUID string `json:"user_uuid"`
 	Email    string `json:"email"`
 	Role     int32  `json:"role"`
@@ -57,6 +58,7 @@ func (js *JWTService) GenerateAccessToken(user UserTokenPayload) (string, error)
 
 func (js *JWTService) GenerateAccessTokenWithFamily(user UserTokenPayload, familyID string) (string, error) {
 	payload := &EncryptedPayload{
+		UserID:   user.UserID,
 		UserUUID: user.UserUUID,
 		Email:    user.Email,
 		Role:     user.Role,

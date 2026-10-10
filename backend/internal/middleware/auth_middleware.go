@@ -75,12 +75,37 @@ func AuthMiddleware() gin.HandlerFunc {
 			ctx.Set("family_id", familyID)
 		}
 
+		if payload.UserID > 0 {
+			ctx.Set("user_id", payload.UserID)
+		}
 		ctx.Set("user_uuid", payload.UserUUID)
 		ctx.Set("user_email", payload.Email)
 		ctx.Set("user_role", payload.Role)
 
 		ctx.Next()
 	}
+}
+
+func GetUserID(ctx *gin.Context) (int32, bool) {
+	val, exists := ctx.Get("user_id")
+	if !exists || val == nil {
+		return 0, false
+	}
+	if id, ok := val.(int32); ok && id > 0 {
+		return id, true
+	}
+	return 0, false
+}
+
+func GetUserRole(ctx *gin.Context) (int32, bool) {
+	val, exists := ctx.Get("user_role")
+	if !exists || val == nil {
+		return 0, false
+	}
+	if role, ok := val.(int32); ok {
+		return role, true
+	}
+	return 0, false
 }
 
 func GetFamilyID(ctx *gin.Context) string {

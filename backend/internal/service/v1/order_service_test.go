@@ -478,7 +478,7 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		assert.Contains(t, err.Error(), "failed to insert tracking event")
 	})
 
-	t.Run("Case 11: OrderItem Repo GetByOrderID Failure Post-Commit", func(t *testing.T) {
+	t.Run("Case 11: OrderItem Repo Create Failure During Transaction", func(t *testing.T) {
 		mockUserRepo := &testutils.MockUserRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
 				return baseUser, nil
@@ -508,10 +508,7 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		}
 		mockOrderItemRepo := &testutils.MockOrderItemRepository{
 			CreateFunc: func(ctx context.Context, tx pgx.Tx, input sqlc.CreateOrderItemParams) (sqlc.OrderItem, error) {
-				return sqlc.OrderItem{OrderItemID: 1}, nil
-			},
-			GetByOrderIDFunc: func(ctx context.Context, orderID int32) ([]sqlc.GetOrderItemsByOrderIDRow, error) {
-				return nil, errors.New("post-commit select failed")
+				return sqlc.OrderItem{}, errors.New("insert order item failed")
 			},
 		}
 		mockTrackingRepo := &testutils.MockTrackingRepository{
@@ -521,17 +518,17 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		}
 
 		svc := newTestOrderService(testOrderServiceDeps{
-			pricingService: mockPricing,
+			pricingService:   mockPricing,
 			inventoryService: mockInventory,
-			orderRepo: mockOrderRepo,
-			orderItemRepo: mockOrderItemRepo,
-			userRepo: mockUserRepo,
-			trackingRepo: mockTrackingRepo,
+			orderRepo:        mockOrderRepo,
+			orderItemRepo:    mockOrderItemRepo,
+			userRepo:         mockUserRepo,
+			trackingRepo:     mockTrackingRepo,
 		})
 
 		_, err := svc.CreateOrder(ctx, userUUID, baseInput)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to get order items")
+		assert.Contains(t, err.Error(), "failed to create order item")
 	})
 
 	t.Run("Case 12: Success WITHOUT Coupon - Complete End-to-End Flow", func(t *testing.T) {
@@ -695,8 +692,8 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		assert.Equal(t, int32(101), createdItemParamsList[0].OrderItemProductID)
 		assert.Equal(t, int32(102), createdItemParamsList[1].OrderItemProductID)
 
-		// Assert Cart cleanup
-		assert.Equal(t, []int32{101, 102}, deletedCartProductIDs)
+		// Assert Cart cleanup - synchronous cleanup is skipped in favor of event-driven worker
+		assert.Nil(t, deletedCartProductIDs, "Synchronous cart cleanup must be skipped; cart cleanup is asynchronous via outbox")
 
 		// Assert Tracking event
 		assert.Equal(t, int32(501), createdTrackingEvent.EventOrderID)
@@ -1010,7 +1007,7 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		orderDTO, err := svc.CreateOrder(ctx, userUUID, couponInput)
 		require.NoError(t, err)
 		assert.Equal(t, &appliedCouponCode, orderDTO.CouponCode)
-		assert.Len(t, orderDTO.Items, 1)
+		assert.Len(t, orderDTO.Items, 2)
 
 		// Assert coupon operations
 		assert.Equal(t, appliedCouponID, appliedCouponIDParam)

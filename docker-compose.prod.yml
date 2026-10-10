@@ -15,6 +15,7 @@ services:
     depends_on:
       - api1
       - api2
+      - ws-gateway
     networks:
       - goshop-network
 
@@ -89,6 +90,27 @@ services:
       redis:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+    networks:
+      - goshop-network
+
+  ws-gateway:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.ws-gateway.prod
+    container_name: goshop-ws-gateway
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      - DB_HOST=postgres
+      - REDIS_ADDR=redis:6379
+      - WS_GATEWAY_PORT=8085
+      - APP_ENV=production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - goshop-network

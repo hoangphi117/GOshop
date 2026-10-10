@@ -271,4 +271,115 @@ func TestOrderCheckoutService_CreateOrder(t *testing.T) {
 		assert.Equal(t, float64(430000), res.TotalAmount)
 		assert.True(t, outboxInserted, "Transactional outbox event must be inserted")
 	})
+
+	t.Run("Optimized checkout using user claims from context and memory items", func(t *testing.T) {
+		userRepoCalled := false
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				userRepoCalled = true
+				return sqlc.User{}, errors.New("user repo should not be called when claims are in context")
+			},
+		}
+		customerAdapter := v1service.NewOrderCustomerAdapter(mockUserRepo)
+
+		mockInv := &testutils.MockInventoryService{
+			LockAndDeductStockWithRefFunc: func(ctx context.Context, items []v1service.DeductItem, refID, refType string, actorID *int32, note *string) (map[string]v1service.InventoryItemStock, error) {
+				return map[string]v1service.InventoryItemStock{
+					prodUUID1: {ProductID: 10, Price: 100000, Stock: 50, ProductName: "Product 1", ProductUUID: uuid.MustParse(prodUUID1)},
+				}, nil
+			},
+		}
+
+		mockPricing := &testutils.MockOrderPricingService{
+			CalculateOrderTotalsFunc: func(ctx context.Context, items []v1service.ItemPriceInput, couponCode *string, userID int32, shippingFee float64, now time.Time) (*v1service.OrderPricingResult, error) {
+				return &v1service.OrderPricingResult{
+					SubtotalAmount:   200000,
+					DiscountAmount:   0,
+					ShippingFee:      0,
+					FinalTotalAmount: 200000,
+					Items: []v1service.ItemPriceResult{
+						{ProductID: 10, ProductName: "Product 1", Price: 100000, Quantity: 2, Subtotal: 200000},
+					},
+				}, nil
+			},
+		}
+
+		createdOrderUUID := uuid.New()
+		mockOrderRepo := &testutils.MockOrderRepository{
+			CreateFunc: func(ctx context.Context, params sqlc.CreateOrderParams) (sqlc.Order, error) {
+				return sqlc.Order{
+					OrderID:             100,
+					OrderUuid:           createdOrderUUID,
+					OrderNumber:         params.OrderNumber,
+					OrderUserID:         customer.UserID,
+					OrderStatus:         v1service.OrderStatusPending,
+					OrderPaymentStatus:  v1service.OrderPaymentStatusUnpaid,
+					OrderPaymentMethod:  params.OrderPaymentMethod,
+					OrderTotalAmount:    params.OrderTotalAmount,
+					OrderCreatedAt:      time.Now(),
+				}, nil
+			},
+		}
+
+		getByOrderIDCalled := false
+		mockOrderItemRepo := &testutils.MockOrderItemRepository{
+			CreateFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.CreateOrderItemParams) (sqlc.OrderItem, error) {
+				return sqlc.OrderItem{
+					OrderItemID:          15,
+					OrderItemOrderID:     params.OrderItemOrderID,
+					OrderItemProductID:   params.OrderItemProductID,
+					OrderItemProductName: params.OrderItemProductName,
+					OrderItemQuantity:    params.OrderItemQuantity,
+					OrderItemPrice:       params.OrderItemPrice,
+					OrderItemSubtotal:    params.OrderItemSubtotal,
+				}, nil
+			},
+			GetByOrderIDFunc: func(ctx context.Context, orderID int32) ([]sqlc.GetOrderItemsByOrderIDRow, error) {
+				getByOrderIDCalled = true
+				return nil, errors.New("GetByOrderID should not be called post-commit")
+			},
+		}
+
+		cartRemovedSync := false
+		mockCart := &testutils.MockCartService{
+			RemovePurchasedItemsFunc: func(ctx context.Context, userID int32, productIDs []int32) error {
+				cartRemovedSync = true
+				return nil
+			},
+		}
+
+		svc := v1service.NewOrderCheckoutService(
+			testutils.NewNoopTxManager(),
+			mockPricing,
+			mockInv,
+			mockOrderRepo,
+			mockOrderItemRepo,
+			customerAdapter,
+			mockCart,
+			&testutils.MockCouponService{},
+			&testutils.MockTrackingRepository{},
+			nil,
+		)
+
+		ctxWithClaims := v1service.WithOrderCustomer(ctx, customer)
+		input := v1dto.CreateOrderInput{
+			ShippingName:    "Jane Doe",
+			ShippingPhone:   "0909888777",
+			ShippingAddress: "456 Avenue, District 3, HCMC",
+			PaymentMethod:   v1service.OrderPaymentMethodCOD,
+			Items: []v1dto.CreateOrderItemInput{
+				{ProductUUID: prodUUID1, Quantity: 2},
+			},
+		}
+
+		res, err := svc.CreateOrder(ctxWithClaims, userUUID, input)
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		assert.Equal(t, createdOrderUUID.String(), res.UUID)
+		assert.Equal(t, 1, len(res.Items))
+		assert.Equal(t, prodUUID1, res.Items[0].ProductUUID)
+		assert.False(t, userRepoCalled, "userRepo.GetByUUID must NOT be called when customer claims exist in context")
+		assert.False(t, getByOrderIDCalled, "orderItemStore.GetByOrderID must NOT be called post-commit")
+		assert.False(t, cartRemovedSync, "cartPort.RemovePurchasedItems must NOT be called synchronously during checkout")
+	})
 }
