@@ -88,13 +88,15 @@ func newTestReturnService(deps testReturnServiceDeps) v1service.OrderReturnServi
 		outboxStore = &testutils.MockOutboxRepository{}
 	}
 
+	customerReader := v1service.NewOrderCustomerAdapter(userRepo)
+
 	return v1service.NewOrderReturnService(
 		txMgr,
 		orderRepo,
 		orderItemRepo,
 		returnRepo,
 		stockPort,
-		userRepo,
+		customerReader,
 		trackingRepo,
 		paymentSvc,
 		outboxStore,

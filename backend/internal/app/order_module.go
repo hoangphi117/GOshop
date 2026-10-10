@@ -73,6 +73,7 @@ func NewOrderModule(
 	inventoryService := v1service.NewInventoryService(productRepo, stockMovementRepo, userRepo, ctx.TxManager, notificationService)
 
 	outboxRepo := repository.NewSqlOutboxRepository(ctx.DB)
+	customerReader := v1service.NewOrderCustomerAdapter(userRepo)
 
 	orderService := v1service.NewOrderService(
 		ctx.TxManager,
@@ -80,7 +81,7 @@ func NewOrderModule(
 		inventoryService,
 		orderRepo,
 		orderItemRepo,
-		userRepo,
+		customerReader,
 		cartService,
 		couponService,
 		trackingRepo,
@@ -96,7 +97,7 @@ func NewOrderModule(
 		paymentRepo,
 		shippingFactory,
 		webhookRepo,
-		userRepo,
+		customerReader,
 		ctx.Redis,
 		rabbitmqService,
 	)
@@ -123,14 +124,14 @@ func NewOrderModule(
 		orderItemRepo,
 		orderReturnRepo,
 		inventoryService,
-		userRepo,
+		customerReader,
 		trackingRepo,
 		paymentService,
 		outboxRepo,
 		ctx.Redis,
 	)
 
-	invoiceService := v1service.NewOrderInvoiceService(orderRepo, orderItemRepo, userRepo, cacheService)
+	invoiceService := v1service.NewOrderInvoiceService(orderRepo, orderItemRepo, customerReader, cacheService)
 	orderAdminService := v1service.NewOrderAdminService(orderService)
 	if locationService == nil {
 		locationService = v1service.NewLocationService(shippingFactory, cacheService)

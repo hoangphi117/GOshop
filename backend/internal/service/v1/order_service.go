@@ -63,7 +63,7 @@ func NewOrderService(
 	inventoryService InventoryService,
 	orderRepo repository.OrderRepository,
 	orderItemRepo repository.OrderItemRepository,
-	userRepo repository.UserReader,
+	userRepo OrderCustomerReader,
 	cartService CartService,
 	couponService CouponService,
 	trackingRepo repository.TrackingRepository,

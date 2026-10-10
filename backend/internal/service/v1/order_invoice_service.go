@@ -23,7 +23,7 @@ type CachedInvoicePDF struct {
 type orderInvoiceService struct {
 	orderRepo     repository.OrderRepository
 	orderItemRepo repository.OrderItemRepository
-	userRepo      repository.UserReader
+	userRepo      OrderCustomerReader
 	cache         cache.RedisCacheService
 }
 
@@ -31,7 +31,7 @@ type orderInvoiceService struct {
 func NewOrderInvoiceService(
 	orderRepo repository.OrderRepository,
 	orderItemRepo repository.OrderItemRepository,
-	userRepo repository.UserReader,
+	userRepo OrderCustomerReader,
 	redisCache cache.RedisCacheService,
 ) OrderInvoiceService {
 	return &orderInvoiceService{

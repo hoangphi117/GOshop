@@ -4,7 +4,6 @@ import (
 	"context"
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
-	"goshop/internal/repository"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -35,9 +34,42 @@ type OrderLifecycleService interface {
 
 // ─── Consumer-driven Outbound Ports (Narrow Dependency Ports) ─────────────────
 
-// OrderCustomerReader resolves user profile information.
-// Satisfied by repository.UserReader and repository.UserRepository.
-type OrderCustomerReader = repository.UserReader
+// OrderCustomer represents customer information needed within the order domain.
+type OrderCustomer struct {
+	UserID       int32     `json:"user_id"`
+	UserUUID     uuid.UUID `json:"user_uuid"`
+	FullName     string    `json:"full_name"`
+	Email        string    `json:"email"`
+	UserLevel    int32     `json:"user_level"`
+	Status       int32     `json:"status"`
+
+	// Aliases for seamless migration
+	UserUuid     uuid.UUID `json:"-"`
+	UserFullname string    `json:"-"`
+	UserEmail    string    `json:"-"`
+	UserStatus   int32     `json:"-"`
+}
+
+func NewOrderCustomer(userID int32, userUUID uuid.UUID, fullName, email string, userLevel, status int32) *OrderCustomer {
+	return &OrderCustomer{
+		UserID:       userID,
+		UserUUID:     userUUID,
+		UserUuid:     userUUID,
+		FullName:     fullName,
+		UserFullname: fullName,
+		Email:        email,
+		UserEmail:    email,
+		UserLevel:    userLevel,
+		Status:       status,
+		UserStatus:   status,
+	}
+}
+
+// OrderCustomerReader resolves customer information without leaking sqlc.User.
+type OrderCustomerReader interface {
+	GetByUUID(ctx context.Context, userUUID uuid.UUID) (*OrderCustomer, error)
+	GetByID(ctx context.Context, userID int32) (*OrderCustomer, error)
+}
 
 // OrderStockPort manages stock reservation and restoration.
 // Satisfied by InventoryService.

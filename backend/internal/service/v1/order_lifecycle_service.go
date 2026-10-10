@@ -304,7 +304,7 @@ func (s *orderLifecycleService) CancelExpiredOrder(ctx context.Context, orderUUI
 	return nil
 }
 
-func (s *orderLifecycleService) validateOrderCancellation(user sqlc.User, order sqlc.GetOrderByUUIDRow) error {
+func (s *orderLifecycleService) validateOrderCancellation(user *OrderCustomer, order sqlc.GetOrderByUUIDRow) error {
 	isAdminOrMod := user.UserLevel == RoleAdmin || user.UserLevel == RoleModerator
 	if order.OrderUserID != user.UserID && !isAdminOrMod {
 		return utils.NewError(utils.ErrCodeForbidden, "You are not authorized to cancel this order")
@@ -328,7 +328,7 @@ func toRestoreItems(orderItems []sqlc.GetOrderItemsByOrderIDRow) []RestoreItem {
 	return items
 }
 
-func (s *orderLifecycleService) recordCancellationTracking(ctx context.Context, tx pgx.Tx, user sqlc.User, order sqlc.GetOrderByUUIDRow, reason *string) error {
+func (s *orderLifecycleService) recordCancellationTracking(ctx context.Context, tx pgx.Tx, user *OrderCustomer, order sqlc.GetOrderByUUIDRow, reason *string) error {
 	note := "Order cancelled."
 	if reason != nil && strings.TrimSpace(*reason) != "" {
 		note = fmt.Sprintf("Order cancelled. Reason: %s", strings.TrimSpace(*reason))

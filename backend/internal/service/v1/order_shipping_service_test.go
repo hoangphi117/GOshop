@@ -71,6 +71,8 @@ func newTestShippingService(deps testShippingServiceDeps) v1service.OrderShippin
 		userRepo = &testutils.MockUserRepository{}
 	}
 
+	customerReader := v1service.NewOrderCustomerAdapter(userRepo)
+
 	return v1service.NewOrderShippingService(
 		txMgr,
 		orderRepo,
@@ -79,7 +81,7 @@ func newTestShippingService(deps testShippingServiceDeps) v1service.OrderShippin
 		paymentRepo,
 		deps.shippingFactory,
 		webhookRepo,
-		userRepo,
+		customerReader,
 		deps.redisClient,
 		deps.rabbitmq,
 	)

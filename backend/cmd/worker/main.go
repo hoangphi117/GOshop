@@ -123,6 +123,8 @@ func NewWorker(cfg *config.Config) *Worker {
 	ghnAdapter := shipping.NewGHNAdapter(ghnToken, ghnShopID, ghnBaseURL)
 	shippingFactory := shipping.NewShippingFactory(ghnAdapter)
 
+	customerReader := v1service.NewOrderCustomerAdapter(userRepo)
+
 	shippingService := v1service.NewOrderShippingService(
 		txManager,
 		orderRepo,
@@ -131,7 +133,7 @@ func NewWorker(cfg *config.Config) *Worker {
 		paymentRepo,
 		shippingFactory,
 		webhookRepo,
-		userRepo,
+		customerReader,
 		redisClient,
 		rabbitMQ,
 	)
@@ -187,7 +189,7 @@ func NewWorker(cfg *config.Config) *Worker {
 		inventoryService,
 		orderRepo,
 		orderItemRepo,
-		userRepo,
+		customerReader,
 		cartService,
 		couponService,
 		trackingRepo,

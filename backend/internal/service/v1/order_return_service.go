@@ -255,7 +255,7 @@ func (s *orderReturnService) resolveOrderReturn(ctx context.Context, identifier 
 	return &res, nil
 }
 
-func isReturnAccessibleByUser(user sqlc.User, res *resolvedOrderReturn) bool {
+func isReturnAccessibleByUser(user *OrderCustomer, res *resolvedOrderReturn) bool {
 	if user.UserLevel == RoleAdmin || user.UserLevel == RoleModerator {
 		return true
 	}

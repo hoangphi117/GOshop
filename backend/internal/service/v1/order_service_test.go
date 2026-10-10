@@ -85,13 +85,15 @@ func newTestOrderService(deps testOrderServiceDeps) v1service.OrderService {
 		outboxArgs = append(outboxArgs, deps.outboxRepo)
 	}
 
+	customerReader := v1service.NewOrderCustomerAdapter(userRepo)
+
 	return v1service.NewOrderService(
 		txMgr,
 		pricingSvc,
 		invSvc,
 		orderRepo,
 		orderItemRepo,
-		userRepo,
+		customerReader,
 		cartSvc,
 		couponSvc,
 		trackingRepo,

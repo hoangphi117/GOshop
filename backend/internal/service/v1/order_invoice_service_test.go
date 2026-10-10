@@ -51,7 +51,7 @@ func TestOrderInvoiceService_GetOrderInvoicePDF(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderInvoiceService(nil, nil, mockUserRepo, nil)
+		svc := v1service.NewOrderInvoiceService(nil, nil, v1service.NewOrderCustomerAdapter(mockUserRepo), nil)
 		_, _, err := svc.GetOrderInvoicePDF(ctx, userUUID, orderUUID)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "User not found")
@@ -69,7 +69,7 @@ func TestOrderInvoiceService_GetOrderInvoicePDF(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderInvoiceService(mockOrderRepo, nil, mockUserRepo, nil)
+		svc := v1service.NewOrderInvoiceService(mockOrderRepo, nil, v1service.NewOrderCustomerAdapter(mockUserRepo), nil)
 		_, _, err := svc.GetOrderInvoicePDF(ctx, userUUID, orderUUID)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "Order not found")
@@ -90,7 +90,7 @@ func TestOrderInvoiceService_GetOrderInvoicePDF(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderInvoiceService(mockOrderRepo, nil, mockUserRepo, nil)
+		svc := v1service.NewOrderInvoiceService(mockOrderRepo, nil, v1service.NewOrderCustomerAdapter(mockUserRepo), nil)
 		_, _, err := svc.GetOrderInvoicePDF(ctx, userUUID, orderUUID)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "Invoice is not available until payment is confirmed")
@@ -108,7 +108,7 @@ func TestOrderInvoiceService_GetOrderInvoicePDF(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderInvoiceService(mockOrderRepo, nil, mockUserRepo, nil)
+		svc := v1service.NewOrderInvoiceService(mockOrderRepo, nil, v1service.NewOrderCustomerAdapter(mockUserRepo), nil)
 		_, _, err := svc.GetOrderInvoicePDF(ctx, otherUserUUID, orderUUID)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "Access denied")
@@ -138,7 +138,7 @@ func TestOrderInvoiceService_GetOrderInvoicePDF(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderInvoiceService(mockOrderRepo, mockItemRepo, mockUserRepo, nil)
+		svc := v1service.NewOrderInvoiceService(mockOrderRepo, mockItemRepo, v1service.NewOrderCustomerAdapter(mockUserRepo), nil)
 		pdfBytes, filename, err := svc.GetOrderInvoicePDF(ctx, userUUID, orderUUID)
 		require.NoError(t, err)
 		assert.NotEmpty(t, pdfBytes)
@@ -169,7 +169,7 @@ func TestOrderInvoiceService_GetOrderInvoicePDF(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewOrderInvoiceService(mockOrderRepo, mockItemRepo, mockUserRepo, nil)
+		svc := v1service.NewOrderInvoiceService(mockOrderRepo, mockItemRepo, v1service.NewOrderCustomerAdapter(mockUserRepo), nil)
 		pdfBytes, filename, err := svc.GetOrderInvoicePDF(ctx, adminUUID, orderUUID)
 		require.NoError(t, err)
 		assert.NotEmpty(t, pdfBytes)
