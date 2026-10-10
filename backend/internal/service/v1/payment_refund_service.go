@@ -197,12 +197,16 @@ func (s *paymentRefundService) RefundPayment(ctx context.Context, idempotencyKey
 	defer txPhase3.Rollback(ctx)
 
 	if gatewayErr != nil {
-		_, _ = s.paymentRepo.UpdateStatusAtomically(ctx, txPhase3, sqlc.UpdatePaymentStatusAtomicallyParams{
+		if _, updateErr := s.paymentRepo.UpdateStatusAtomically(ctx, txPhase3, sqlc.UpdatePaymentStatusAtomicallyParams{
 			PtUuid:              pendingRefundTxn.PtUuid,
 			NewStatus:           PaymentStatusFailed,
 			AllowedFromStatuses: []int32{PaymentStatusPending},
-		})
-		_ = txPhase3.Commit(ctx)
+		}); updateErr != nil {
+			logger.Log.Error().Err(updateErr).Msg("Failed to mark refund transaction as Failed in db")
+		}
+		if commitErr := txPhase3.Commit(ctx); commitErr != nil {
+			logger.Log.Error().Err(commitErr).Msg("Failed to commit failed refund status")
+		}
 		logger.Log.Error().
 			Err(gatewayErr).
 			Str("provider", originalTxn.PtProvider).
@@ -248,7 +252,9 @@ func (s *paymentRefundService) RefundPayment(ctx context.Context, idempotencyKey
 	}
 
 	if s.cache != nil {
-		_ = s.cache.Clear("orders:*")
+		if clearErr := s.cache.Clear("orders:*"); clearErr != nil {
+			logger.Log.Warn().Err(clearErr).Msg("Failed to clear orders cache after refund")
+		}
 	}
 
 	s.dispatchRefundNotification(order, finalRefundTxn, input.Amount)
@@ -272,7 +278,7 @@ func (s *paymentRefundService) RefundPayment(ctx context.Context, idempotencyKey
 func (s *paymentRefundService) dispatchRefundNotification(order sqlc.Order, finalRefundTxn sqlc.PaymentTransaction, amount float64) {
 	if s.notificationService != nil {
 		go func() {
-			_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
+			if notifErr := s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
 				UserID: order.OrderUserID,
 				Type:   "payment_refunded",
 				Title:  "Payment Refunded",
@@ -281,7 +287,9 @@ func (s *paymentRefundService) dispatchRefundNotification(order sqlc.Order, fina
 					"order_uuid":      order.OrderUuid.String(),
 					"refund_txn_uuid": finalRefundTxn.PtUuid.String(),
 				},
-			})
+			}); notifErr != nil {
+				logger.Log.Warn().Err(notifErr).Str("order_number", order.OrderNumber).Msg("Failed to dispatch refund notification")
+			}
 		}()
 	}
 }

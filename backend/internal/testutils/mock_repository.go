@@ -777,6 +777,7 @@ type MockPaymentRepository struct {
 	GetByProviderTxnIDFunc              func(ctx context.Context, tx pgx.Tx, provider, providerTxnID string) (sqlc.PaymentTransaction, error)
 	GetByOrderIDFunc                    func(ctx context.Context, tx pgx.Tx, orderID int32) ([]sqlc.PaymentTransaction, error)
 	UpdateStatusAtomicallyFunc          func(ctx context.Context, tx pgx.Tx, params sqlc.UpdatePaymentStatusAtomicallyParams) (sqlc.PaymentTransaction, error)
+	UpdateProviderInfoFunc              func(ctx context.Context, tx pgx.Tx, params sqlc.UpdatePaymentProviderInfoParams) (sqlc.PaymentTransaction, error)
 	CreateRefundFunc                    func(ctx context.Context, tx pgx.Tx, params sqlc.CreateRefundTransactionParams) (sqlc.PaymentTransaction, error)
 	GetPendingTransactionsOlderThanFunc func(ctx context.Context, tx pgx.Tx, params sqlc.GetPendingTransactionsOlderThanParams) ([]sqlc.GetPendingTransactionsOlderThanRow, error)
 }
@@ -821,6 +822,17 @@ func (m *MockPaymentRepository) UpdateStatusAtomically(ctx context.Context, tx p
 		return m.UpdateStatusAtomicallyFunc(ctx, tx, params)
 	}
 	return sqlc.PaymentTransaction{}, nil
+}
+
+func (m *MockPaymentRepository) UpdateProviderInfo(ctx context.Context, tx pgx.Tx, params sqlc.UpdatePaymentProviderInfoParams) (sqlc.PaymentTransaction, error) {
+	if m.UpdateProviderInfoFunc != nil {
+		return m.UpdateProviderInfoFunc(ctx, tx, params)
+	}
+	return sqlc.PaymentTransaction{
+		PtUuid:          params.PtUuid,
+		PtProviderUrl:   params.ProviderUrl,
+		PtProviderTxnID: params.ProviderTxnID,
+	}, nil
 }
 
 func (m *MockPaymentRepository) CreateRefund(ctx context.Context, tx pgx.Tx, params sqlc.CreateRefundTransactionParams) (sqlc.PaymentTransaction, error) {

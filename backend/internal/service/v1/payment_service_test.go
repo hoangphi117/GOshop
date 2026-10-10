@@ -8,6 +8,7 @@ import (
 
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
+	"goshop/internal/repository"
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/testutils"
 	"goshop/internal/utils"
@@ -15,9 +16,17 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func toOrderReader(repo repository.OrderRepository) v1service.PaymentOrderReaderPort {
+	if repo == nil {
+		return nil
+	}
+	return v1service.NewOrderReaderAdapter(repo)
+}
 
 func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 	ctx := context.Background()
@@ -53,7 +62,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(nil, mockOrderRepo, mockUserRepo, nil, nil, nil, nil, nil, "", "")
+		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), mockUserRepo, nil, nil, nil, nil, nil, "", "")
 		_, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
@@ -79,7 +88,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(nil, mockOrderRepo, mockUserRepo, nil, nil, nil, nil, nil, "", "")
+		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), mockUserRepo, nil, nil, nil, nil, nil, "", "")
 		_, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
@@ -106,7 +115,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(nil, mockOrderRepo, mockUserRepo, nil, nil, nil, nil, nil, "", "")
+		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), mockUserRepo, nil, nil, nil, nil, nil, "", "")
 		_, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
@@ -135,7 +144,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(nil, mockOrderRepo, mockUserRepo, nil, nil, nil, nil, nil, "", "")
+		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), mockUserRepo, nil, nil, nil, nil, nil, "", "")
 		_, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
@@ -165,7 +174,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(nil, mockOrderRepo, mockUserRepo, nil, nil, nil, nil, nil, "", "")
+		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), mockUserRepo, nil, nil, nil, nil, nil, "", "")
 		_, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
@@ -196,7 +205,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(nil, mockOrderRepo, mockUserRepo, nil, nil, nil, nil, nil, "", "")
+		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), mockUserRepo, nil, nil, nil, nil, nil, "", "")
 		_, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
@@ -227,7 +236,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(nil, mockOrderRepo, mockUserRepo, nil, nil, nil, nil, nil, "", "")
+		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), mockUserRepo, nil, nil, nil, nil, nil, "", "")
 		_, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "   ", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
@@ -263,7 +272,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(mockPaymentRepo, mockOrderRepo, mockUserRepo, nil, map[string]payment.PaymentProvider{}, nil, nil, nil, "", "")
+		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), mockUserRepo, nil, map[string]payment.PaymentProvider{}, nil, nil, nil, "", "")
 		_, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "unknown_gateway",
@@ -326,7 +335,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			"momo": mockProvider,
 		}
 
-		svc := v1service.NewPaymentService(mockPaymentRepo, mockOrderRepo, mockUserRepo, nil, providers, nil, nil, nil, "https://store.com/return", "https://api.com/webhooks")
+		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), mockUserRepo, nil, providers, nil, nil, nil, "https://store.com/return", "https://api.com/webhooks")
 		dto, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
@@ -384,7 +393,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			"momo": cbProvider,
 		}
 
-		svc := v1service.NewPaymentService(mockPaymentRepo, mockOrderRepo, mockUserRepo, nil, providers, nil, nil, nil, "https://store.com/return", "https://api.com/webhooks")
+		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), mockUserRepo, nil, providers, nil, nil, nil, "https://store.com/return", "https://api.com/webhooks")
 
 		// First 2 failures trip the breaker
 		_, _ = svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "key1", v1dto.CreatePaymentIntentInput{OrderUUID: orderUUID, Provider: "momo"})
@@ -399,6 +408,273 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeServiceUnavailable)
 		assert.Contains(t, err.Error(), "temporarily unavailable")
+	})
+
+	t.Run("Case 12: Step 1, 3, 4 Verification -> DB Record Created First, Stable TxnRef Sent To Gateway, URL Saved", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
+			},
+		}
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return sqlc.GetOrderByUUIDRow{
+					OrderID:            10,
+					OrderNumber:        "ORD_STEP123",
+					OrderUuid:          orderUUID,
+					OrderUserID:        1,
+					OrderPaymentStatus: v1service.OrderPaymentStatusUnpaid,
+					OrderStatus:        v1service.OrderStatusPending,
+					OrderPaymentMethod: v1service.OrderPaymentMethodOnline,
+					OrderTotalAmount:   utils.FloatToNumeric(75000),
+				}, nil
+			},
+		}
+
+		var executionOrder []string
+		ptUUID := uuid.New()
+
+		mockPaymentRepo := &testutils.MockPaymentRepository{
+			GetByIdempotencyKeyFunc: func(ctx context.Context, tx pgx.Tx, idempotencyKey string) (sqlc.PaymentTransaction, error) {
+				return sqlc.PaymentTransaction{}, pgx.ErrNoRows
+			},
+			CreateFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.CreatePaymentTransactionParams) (sqlc.PaymentTransaction, error) {
+				executionOrder = append(executionOrder, "db_create")
+				assert.Equal(t, int32(v1service.PaymentStatusPending), params.PtStatus)
+				assert.Nil(t, params.PtProviderUrl)
+				require.NotNil(t, params.PtTxnRef)
+				assert.Equal(t, "ORD_STEP123_idem-step-test", *params.PtTxnRef)
+
+				return sqlc.PaymentTransaction{
+					PtID:             99,
+					PtUuid:           ptUUID,
+					PtOrderID:        params.PtOrderID,
+					PtIdempotencyKey: params.PtIdempotencyKey,
+					PtProvider:       params.PtProvider,
+					PtTxnRef:         params.PtTxnRef,
+					PtAmount:         params.PtAmount,
+					PtCurrency:       params.PtCurrency,
+					PtStatus:         params.PtStatus,
+					PtCreatedAt:      time.Now(),
+				}, nil
+			},
+			UpdateProviderInfoFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.UpdatePaymentProviderInfoParams) (sqlc.PaymentTransaction, error) {
+				executionOrder = append(executionOrder, "db_update_url")
+				assert.Equal(t, ptUUID, params.PtUuid)
+				require.NotNil(t, params.ProviderUrl)
+				assert.Equal(t, "https://momo.vn/pay/session_step4", *params.ProviderUrl)
+
+				return sqlc.PaymentTransaction{
+					PtID:          99,
+					PtUuid:        ptUUID,
+					PtProvider:    "momo",
+					PtProviderUrl: params.ProviderUrl,
+					PtStatus:      v1service.PaymentStatusPending,
+				}, nil
+			},
+		}
+
+		mockProvider := &testutils.MockPaymentProvider{
+			CreatePaymentURLFunc: func(ctx context.Context, req payment.CreatePaymentRequest) (payment.CreatePaymentResponse, error) {
+				executionOrder = append(executionOrder, "gateway_call")
+				assert.Equal(t, "ORD_STEP123_idem-step-test", req.OrderNumber)
+				return payment.CreatePaymentResponse{
+					PaymentURL: "https://momo.vn/pay/session_step4",
+				}, nil
+			},
+		}
+
+		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), mockUserRepo, nil, map[string]payment.PaymentProvider{"momo": mockProvider}, nil, nil, nil, "https://store.com/return", "https://api.com/webhooks")
+		dto, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "idem-step-test", v1dto.CreatePaymentIntentInput{
+			OrderUUID: orderUUID,
+			Provider:  "momo",
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, "https://momo.vn/pay/session_step4", dto.PaymentURL)
+		assert.Equal(t, []string{"db_create", "gateway_call", "db_update_url"}, executionOrder)
+	})
+
+	t.Run("Case 13: Step 2 Duplicate Key (23505) -> Returns Existing DTO Without Re-invoking Gateway", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
+			},
+		}
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return sqlc.GetOrderByUUIDRow{
+					OrderID:            10,
+					OrderNumber:        "ORD_STEP123",
+					OrderUuid:          orderUUID,
+					OrderUserID:        1,
+					OrderPaymentStatus: v1service.OrderPaymentStatusUnpaid,
+					OrderStatus:        v1service.OrderStatusPending,
+					OrderPaymentMethod: v1service.OrderPaymentMethodOnline,
+					OrderTotalAmount:   utils.FloatToNumeric(75000),
+				}, nil
+			},
+		}
+
+		existingURL := "https://momo.vn/pay/already_created"
+		gatewayCalled := false
+
+		mockPaymentRepo := &testutils.MockPaymentRepository{
+			GetByIdempotencyKeyFunc: func(ctx context.Context, tx pgx.Tx, idempotencyKey string) (sqlc.PaymentTransaction, error) {
+				return sqlc.PaymentTransaction{
+					PtID:             88,
+					PtUuid:           uuid.New(),
+					PtOrderID:        10,
+					PtIdempotencyKey: idempotencyKey,
+					PtProvider:       "momo",
+					PtProviderUrl:    &existingURL,
+					PtStatus:         v1service.PaymentStatusPending,
+				}, nil
+			},
+			CreateFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.CreatePaymentTransactionParams) (sqlc.PaymentTransaction, error) {
+				return sqlc.PaymentTransaction{}, &pgconn.PgError{Code: "23505"}
+			},
+		}
+
+		mockProvider := &testutils.MockPaymentProvider{
+			CreatePaymentURLFunc: func(ctx context.Context, req payment.CreatePaymentRequest) (payment.CreatePaymentResponse, error) {
+				gatewayCalled = true
+				return payment.CreatePaymentResponse{}, nil
+			},
+		}
+
+		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), mockUserRepo, nil, map[string]payment.PaymentProvider{"momo": mockProvider}, nil, nil, nil, "https://store.com/return", "https://api.com/webhooks")
+		dto, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "idem-dup-key", v1dto.CreatePaymentIntentInput{
+			OrderUUID: orderUUID,
+			Provider:  "momo",
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, existingURL, dto.PaymentURL)
+		assert.False(t, gatewayCalled, "Gateway must not be called when another request already generated the URL")
+	})
+
+	t.Run("Case 14: Step 2 Duplicate Key (23505) -> Returns 409 Conflict When Initialization In Progress", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
+			},
+		}
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return sqlc.GetOrderByUUIDRow{
+					OrderID:            10,
+					OrderNumber:        "ORD_STEP123",
+					OrderUuid:          orderUUID,
+					OrderUserID:        1,
+					OrderPaymentStatus: v1service.OrderPaymentStatusUnpaid,
+					OrderStatus:        v1service.OrderStatusPending,
+					OrderPaymentMethod: v1service.OrderPaymentMethodOnline,
+					OrderTotalAmount:   utils.FloatToNumeric(75000),
+				}, nil
+			},
+		}
+
+		mockPaymentRepo := &testutils.MockPaymentRepository{
+			GetByIdempotencyKeyFunc: func(ctx context.Context, tx pgx.Tx, idempotencyKey string) (sqlc.PaymentTransaction, error) {
+				// Provider URL is still nil (in flight)
+				return sqlc.PaymentTransaction{
+					PtID:             88,
+					PtUuid:           uuid.New(),
+					PtOrderID:        10,
+					PtIdempotencyKey: idempotencyKey,
+					PtProvider:       "momo",
+					PtProviderUrl:    nil,
+					PtStatus:         v1service.PaymentStatusPending,
+				}, nil
+			},
+			CreateFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.CreatePaymentTransactionParams) (sqlc.PaymentTransaction, error) {
+				return sqlc.PaymentTransaction{}, &pgconn.PgError{Code: "23505"}
+			},
+		}
+
+		mockProvider := &testutils.MockPaymentProvider{
+			CreatePaymentURLFunc: func(ctx context.Context, req payment.CreatePaymentRequest) (payment.CreatePaymentResponse, error) {
+				return payment.CreatePaymentResponse{}, nil
+			},
+		}
+
+		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), mockUserRepo, nil, map[string]payment.PaymentProvider{"momo": mockProvider}, nil, nil, nil, "https://store.com/return", "https://api.com/webhooks")
+		_, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "idem-in-progress", v1dto.CreatePaymentIntentInput{
+			OrderUUID: orderUUID,
+			Provider:  "momo",
+		})
+
+		require.Error(t, err)
+		assertAppErrorCode(t, err, utils.ErrCodeConflict)
+		assert.Contains(t, err.Error(), "initialization is currently in progress")
+	})
+
+	t.Run("Case 15: Step 5 Gateway Timeout -> Preserves Pending Status For Reconciliation Without Marking Failed", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
+			},
+		}
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return sqlc.GetOrderByUUIDRow{
+					OrderID:            10,
+					OrderNumber:        "ORD_STEP123",
+					OrderUuid:          orderUUID,
+					OrderUserID:        1,
+					OrderPaymentStatus: v1service.OrderPaymentStatusUnpaid,
+					OrderStatus:        v1service.OrderStatusPending,
+					OrderPaymentMethod: v1service.OrderPaymentMethodOnline,
+					OrderTotalAmount:   utils.FloatToNumeric(75000),
+				}, nil
+			},
+		}
+
+		markedFailed := false
+		ptUUID := uuid.New()
+
+		mockPaymentRepo := &testutils.MockPaymentRepository{
+			GetByIdempotencyKeyFunc: func(ctx context.Context, tx pgx.Tx, idempotencyKey string) (sqlc.PaymentTransaction, error) {
+				return sqlc.PaymentTransaction{}, pgx.ErrNoRows
+			},
+			CreateFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.CreatePaymentTransactionParams) (sqlc.PaymentTransaction, error) {
+				return sqlc.PaymentTransaction{
+					PtID:             99,
+					PtUuid:           ptUUID,
+					PtOrderID:        params.PtOrderID,
+					PtIdempotencyKey: params.PtIdempotencyKey,
+					PtProvider:       params.PtProvider,
+					PtTxnRef:         params.PtTxnRef,
+					PtAmount:         params.PtAmount,
+					PtCurrency:       params.PtCurrency,
+					PtStatus:         v1service.PaymentStatusPending,
+				}, nil
+			},
+			UpdateStatusAtomicallyFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.UpdatePaymentStatusAtomicallyParams) (sqlc.PaymentTransaction, error) {
+				if params.NewStatus == v1service.PaymentStatusFailed {
+					markedFailed = true
+				}
+				return sqlc.PaymentTransaction{}, nil
+			},
+		}
+
+		mockProvider := &testutils.MockPaymentProvider{
+			CreatePaymentURLFunc: func(ctx context.Context, req payment.CreatePaymentRequest) (payment.CreatePaymentResponse, error) {
+				return payment.CreatePaymentResponse{}, errors.New("gateway request timeout (context deadline exceeded)")
+			},
+		}
+
+		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), mockUserRepo, nil, map[string]payment.PaymentProvider{"momo": mockProvider}, nil, nil, nil, "https://store.com/return", "https://api.com/webhooks")
+		_, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "idem-timeout-test", v1dto.CreatePaymentIntentInput{
+			OrderUUID: orderUUID,
+			Provider:  "momo",
+		})
+
+		require.Error(t, err)
+		assertAppErrorCode(t, err, utils.ErrCodeServiceUnavailable)
+		assert.Contains(t, err.Error(), "pending reconciliation")
+		assert.False(t, markedFailed, "Transaction must remain in Pending status for reconciliation, must not be marked Failed")
 	})
 }
 
@@ -497,7 +773,7 @@ func TestPaymentService_HandleWebhook(t *testing.T) {
 		}
 
 		providers := map[string]payment.PaymentProvider{"momo": mockProvider}
-		svc := v1service.NewPaymentService(nil, mockOrderRepo, nil, mockWebhookRepo, providers, nil, nil, mockRabbitMQ, "", "")
+		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, mockWebhookRepo, providers, nil, nil, mockRabbitMQ, "", "")
 		err := svc.HandleWebhook(ctx, "momo", []byte(`{"event":"test"}`), map[string]string{})
 
 		require.NoError(t, err)
@@ -536,7 +812,7 @@ func TestPaymentService_GetPaymentHistory(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(nil, mockOrderRepo, mockUserRepo, nil, nil, nil, nil, nil, "", "")
+		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), mockUserRepo, nil, nil, nil, nil, nil, "", "")
 		_, err := svc.GetPaymentHistory(ctx, userUUID, orderUUID)
 
 		require.Error(t, err)
@@ -559,7 +835,7 @@ func TestPaymentService_GetPaymentHistory(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(nil, mockOrderRepo, mockUserRepo, nil, nil, nil, nil, nil, "", "")
+		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), mockUserRepo, nil, nil, nil, nil, nil, "", "")
 		_, err := svc.GetPaymentHistory(ctx, userUUID, orderUUID)
 
 		require.Error(t, err)
@@ -598,7 +874,7 @@ func TestPaymentService_GetPaymentHistory(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(mockPaymentRepo, mockOrderRepo, mockUserRepo, nil, nil, nil, nil, nil, "", "")
+		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), mockUserRepo, nil, nil, nil, nil, nil, "", "")
 		history, err := svc.GetPaymentHistory(ctx, userUUID, orderUUID)
 
 		require.NoError(t, err)
@@ -650,7 +926,7 @@ func TestPaymentService_CreatePaymentIntent_OrderExpired(t *testing.T) {
 		},
 	}
 
-	svc := v1service.NewPaymentService(nil, mockOrderRepo, mockUserRepo, nil, nil, nil, nil, nil, "", "")
+	svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), mockUserRepo, nil, nil, nil, nil, nil, "", "")
 	_, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "key-123", v1dto.CreatePaymentIntentInput{
 		OrderUUID: orderUUID,
 		Provider:  "momo",
@@ -660,3 +936,151 @@ func TestPaymentService_CreatePaymentIntent_OrderExpired(t *testing.T) {
 	assertAppErrorCode(t, err, utils.ErrCodeBadRequest)
 	assert.Contains(t, err.Error(), "Order payment window (15 minutes) has expired. Please place a new order.")
 }
+
+type standaloneOrderReader struct {
+	order *v1service.PaymentOrderSummary
+	err   error
+}
+
+func (s *standaloneOrderReader) GetByUUID(ctx context.Context, orderUUID uuid.UUID) (*v1service.PaymentOrderSummary, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	return s.order, nil
+}
+
+func (s *standaloneOrderReader) GetByOrderNumber(ctx context.Context, orderNumber string) (*v1service.PaymentOrderSummary, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	return s.order, nil
+}
+
+func TestPaymentService_DecoupledOrderReaderPort(t *testing.T) {
+	ctx := context.Background()
+	userUUID := uuid.New()
+	orderUUID := uuid.New()
+
+	mockUserRepo := &testutils.MockUserRepository{
+		GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+			return sqlc.User{UserID: 10, UserUuid: userUUID}, nil
+		},
+	}
+
+	reader := &standaloneOrderReader{
+		order: &v1service.PaymentOrderSummary{
+			OrderID:       100,
+			OrderUUID:     orderUUID,
+			OrderNumber:   "ORD-DECOUPLE-001",
+			UserID:        10,
+			UserUUID:      userUUID,
+			TotalAmount:   250000,
+			PaymentStatus: v1service.OrderPaymentStatusUnpaid,
+			OrderStatus:   v1service.OrderStatusPending,
+			PaymentMethod: v1service.OrderPaymentMethodOnline,
+			CreatedAt:     time.Now(),
+		},
+	}
+
+	mockPaymentRepo := &testutils.MockPaymentRepository{
+		GetByIdempotencyKeyFunc: func(ctx context.Context, tx pgx.Tx, idempotencyKey string) (sqlc.PaymentTransaction, error) {
+			return sqlc.PaymentTransaction{}, pgx.ErrNoRows
+		},
+		CreateFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.CreatePaymentTransactionParams) (sqlc.PaymentTransaction, error) {
+			return sqlc.PaymentTransaction{
+				PtID:             1,
+				PtUuid:           uuid.New(),
+				PtOrderID:        params.PtOrderID,
+				PtIdempotencyKey: params.PtIdempotencyKey,
+				PtProvider:       params.PtProvider,
+				PtTxnRef:         params.PtTxnRef,
+				PtProviderUrl:    params.PtProviderUrl,
+				PtStatus:         params.PtStatus,
+				PtAmount:         params.PtAmount,
+				PtCreatedAt:      time.Now(),
+			}, nil
+		},
+	}
+
+	mockProvider := &testutils.MockPaymentProvider{
+		CreatePaymentURLFunc: func(ctx context.Context, req payment.CreatePaymentRequest) (payment.CreatePaymentResponse, error) {
+			return payment.CreatePaymentResponse{PaymentURL: "https://pay.momo.vn/123"}, nil
+		},
+	}
+
+	// Note: reader is a pure PaymentOrderReaderPort, NOT an OrderRepository
+	svc := v1service.NewPaymentService(mockPaymentRepo, reader, mockUserRepo, nil, map[string]payment.PaymentProvider{"momo": mockProvider}, nil, nil, nil, "", "")
+
+	intent, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "idem-decouple-1", v1dto.CreatePaymentIntentInput{
+		OrderUUID: orderUUID,
+		Provider:  "momo",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, orderUUID.String(), intent.OrderUUID)
+	assert.Equal(t, "https://pay.momo.vn/123", intent.PaymentURL)
+}
+
+func TestPaymentService_OrderReaderAdapter(t *testing.T) {
+	ctx := context.Background()
+	orderUUID := uuid.New()
+	userUUID := uuid.New()
+
+	mockOrderRepo := &testutils.MockOrderRepository{
+		GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+			return sqlc.GetOrderByUUIDRow{
+				OrderID:             99,
+				OrderUuid:           orderUUID,
+				OrderNumber:         "ORD-ADAPT-001",
+				OrderUserID:         12,
+				UserUuid:            userUUID,
+				OrderTotalAmount:    utils.FloatToNumeric(350000),
+				OrderPaymentStatus:  v1service.OrderPaymentStatusUnpaid,
+				OrderStatus:         v1service.OrderStatusPending,
+				OrderPaymentMethod:  v1service.OrderPaymentMethodOnline,
+				OrderRefundedAmount: utils.FloatToNumeric(0),
+				OrderCreatedAt:      time.Now(),
+			}, nil
+		},
+		GetByOrderNumberFunc: func(ctx context.Context, orderNumber string) (sqlc.GetOrderByOrderNumberRow, error) {
+			return sqlc.GetOrderByOrderNumberRow{
+				OrderID:             99,
+				OrderUuid:           orderUUID,
+				OrderNumber:         orderNumber,
+				OrderUserID:         12,
+				UserUuid:            userUUID,
+				OrderTotalAmount:    utils.FloatToNumeric(350000),
+				OrderPaymentStatus:  v1service.OrderPaymentStatusUnpaid,
+				OrderStatus:         v1service.OrderStatusPending,
+				OrderPaymentMethod:  v1service.OrderPaymentMethodOnline,
+				OrderRefundedAmount: utils.FloatToNumeric(0),
+				OrderCreatedAt:      time.Now(),
+			}, nil
+		},
+	}
+
+	adapter := v1service.NewOrderReaderAdapter(mockOrderRepo)
+	require.NotNil(t, adapter)
+
+	// Verify GetByUUID
+	summary, err := adapter.GetByUUID(ctx, orderUUID)
+	require.NoError(t, err)
+	assert.Equal(t, int32(99), summary.OrderID)
+	assert.Equal(t, orderUUID, summary.OrderUUID)
+	assert.Equal(t, "ORD-ADAPT-001", summary.OrderNumber)
+	assert.Equal(t, float64(350000), summary.TotalAmount)
+	assert.Equal(t, v1service.OrderPaymentStatusUnpaid, summary.PaymentStatus)
+
+	// Verify GetByOrderNumber
+	summaryByNum, err := adapter.GetByOrderNumber(ctx, "ORD-ADAPT-001")
+	require.NoError(t, err)
+	assert.Equal(t, int32(99), summaryByNum.OrderID)
+	assert.Equal(t, "ORD-ADAPT-001", summaryByNum.OrderNumber)
+	assert.Equal(t, float64(350000), summaryByNum.TotalAmount)
+
+	// Verify underlying repo accessor for backward-compatible modules
+	if provider, ok := adapter.(interface{ OrderRepository() repository.OrderRepository }); ok {
+		assert.Equal(t, mockOrderRepo, provider.OrderRepository())
+	}
+}
+

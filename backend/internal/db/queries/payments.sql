@@ -113,4 +113,9 @@ WHERE pt.pt_status = 1
 ORDER BY pt.pt_created_at ASC
 LIMIT sqlc.arg(lim);
 
-
+-- name: UpdatePaymentProviderInfo :one
+UPDATE payment_transactions
+SET pt_provider_url = sqlc.arg(provider_url),
+    pt_provider_txn_id = COALESCE(sqlc.narg('provider_txn_id'), pt_provider_txn_id)
+WHERE pt_uuid = sqlc.arg(pt_uuid)
+RETURNING *;

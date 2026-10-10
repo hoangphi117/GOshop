@@ -41,8 +41,9 @@ type Worker struct {
 	notificationConsumer *worker.NotificationConsumer
 	orderConsumer        *worker.OrderConsumer
 	shippingConsumer       *worker.ShippingConsumer
-	paymentConsumer        *worker.PaymentConsumer
-	paymentExpiredConsumer *worker.PaymentExpiredConsumer
+	paymentConsumer          *worker.PaymentConsumer
+	paymentExpiredConsumer   *worker.PaymentExpiredConsumer
+	paymentSucceededConsumer *worker.PaymentSucceededConsumer
 	retentionJob           *worker.NotificationRetentionJob
 	syncWorker             *worker.MeilisearchSyncWorker
 	outboxPublisherWorker  *worker.OutboxPublisherWorker
@@ -158,9 +159,10 @@ func NewWorker(cfg *config.Config) *Worker {
 
 	returnURL := utils.GetEnv("PAYMENT_RETURN_URL", "http://localhost:3001/payment/result")
 	webhookBaseURL := utils.GetEnv("PAYMENT_WEBHOOK_BASE_URL", "http://localhost:8080")
+	orderReader := v1service.NewOrderReaderAdapter(orderRepo)
 	paymentService := v1service.NewPaymentService(
 		paymentRepo,
-		orderRepo,
+		orderReader,
 		userRepo,
 		webhookRepo,
 		paymentProviders,
@@ -196,6 +198,7 @@ func NewWorker(cfg *config.Config) *Worker {
 		outboxRepo,
 	)
 	paymentExpiredConsumer := worker.NewPaymentExpiredConsumer(orderService, log)
+	paymentSucceededConsumer := worker.NewPaymentSucceededConsumer(orderService, log)
 
 	// Transactional Outbox Publisher Worker (Relay for order & payment events)
 	outboxPublisherWorker := worker.NewOutboxPublisherWorker(outboxRepo, rabbitMQ, 1*time.Second, 50, log)
@@ -226,9 +229,10 @@ func NewWorker(cfg *config.Config) *Worker {
 		notificationConsumer:   notificationConsumer,
 		orderConsumer:          orderConsumer,
 		shippingConsumer:       shippingConsumer,
-		paymentConsumer:        paymentConsumer,
-		paymentExpiredConsumer: paymentExpiredConsumer,
-		retentionJob:           retentionJob,
+		paymentConsumer:          paymentConsumer,
+		paymentExpiredConsumer:   paymentExpiredConsumer,
+		paymentSucceededConsumer: paymentSucceededConsumer,
+		retentionJob:             retentionJob,
 		syncWorker:             syncWorker,
 		outboxPublisherWorker:  outboxPublisherWorker,
 		shippingService:        shippingService,
@@ -317,6 +321,16 @@ func (w *Worker) Start(ctx context.Context) error {
 			w.logger.Error().Err(err).Msg("Failed to consume payment expired events")
 		} else {
 			w.logger.Info().Msgf("Worker consuming queue: %s", rabbitmq.QueuePaymentExpired)
+		}
+	}
+
+	// Consume Payment Succeeded Events (Order payment status update)
+	if w.paymentSucceededConsumer != nil {
+		succeededHandler := w.withIdempotency(rabbitmq.QueuePaymentSucceeded, w.paymentSucceededConsumer.Handle)
+		if err := w.rabbitMQ.Consume(ctx, rabbitmq.QueuePaymentSucceeded, succeededHandler); err != nil {
+			w.logger.Error().Err(err).Msg("Failed to consume payment succeeded events")
+		} else {
+			w.logger.Info().Msgf("Worker consuming queue: %s", rabbitmq.QueuePaymentSucceeded)
 		}
 	}
 

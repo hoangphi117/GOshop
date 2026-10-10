@@ -105,9 +105,10 @@ func NewOrderModule(
 	)
 
 	cacheService := cache.NewRedisCacheService(ctx.Redis)
+	orderReader := v1service.NewOrderReaderAdapter(orderRepo)
 	paymentService := v1service.NewPaymentService(
 		paymentRepo,
-		orderRepo,
+		orderReader,
 		userRepo,
 		webhookRepo,
 		paymentProviders,

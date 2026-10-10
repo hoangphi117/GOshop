@@ -455,6 +455,46 @@ func (q *Queries) MarkWebhookEventProcessed(ctx context.Context, weID int32) err
 	return err
 }
 
+const updatePaymentProviderInfo = `-- name: UpdatePaymentProviderInfo :one
+UPDATE payment_transactions
+SET pt_provider_url = $1,
+    pt_provider_txn_id = COALESCE($2, pt_provider_txn_id)
+WHERE pt_uuid = $3
+RETURNING pt_id, pt_uuid, pt_order_id, pt_idempotency_key, pt_provider, pt_txn_ref, pt_provider_txn_id, pt_provider_url, pt_amount, pt_currency, pt_status, pt_refund_of, pt_refund_amount, pt_paid_at, pt_expired_at, pt_metadata, pt_created_at, pt_updated_at
+`
+
+type UpdatePaymentProviderInfoParams struct {
+	ProviderUrl   *string   `json:"provider_url"`
+	ProviderTxnID *string   `json:"provider_txn_id"`
+	PtUuid        uuid.UUID `json:"pt_uuid"`
+}
+
+func (q *Queries) UpdatePaymentProviderInfo(ctx context.Context, arg UpdatePaymentProviderInfoParams) (PaymentTransaction, error) {
+	row := q.db.QueryRow(ctx, updatePaymentProviderInfo, arg.ProviderUrl, arg.ProviderTxnID, arg.PtUuid)
+	var i PaymentTransaction
+	err := row.Scan(
+		&i.PtID,
+		&i.PtUuid,
+		&i.PtOrderID,
+		&i.PtIdempotencyKey,
+		&i.PtProvider,
+		&i.PtTxnRef,
+		&i.PtProviderTxnID,
+		&i.PtProviderUrl,
+		&i.PtAmount,
+		&i.PtCurrency,
+		&i.PtStatus,
+		&i.PtRefundOf,
+		&i.PtRefundAmount,
+		&i.PtPaidAt,
+		&i.PtExpiredAt,
+		&i.PtMetadata,
+		&i.PtCreatedAt,
+		&i.PtUpdatedAt,
+	)
+	return i, err
+}
+
 const updatePaymentStatusAtomically = `-- name: UpdatePaymentStatusAtomically :one
 UPDATE payment_transactions
 SET

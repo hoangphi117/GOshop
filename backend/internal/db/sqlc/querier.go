@@ -224,6 +224,7 @@ type Querier interface {
 	UpdateOrderShippingInfo(ctx context.Context, arg UpdateOrderShippingInfoParams) (Order, error)
 	UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusParams) (Order, error)
 	UpdatePassword(ctx context.Context, arg UpdatePasswordParams) (User, error)
+	UpdatePaymentProviderInfo(ctx context.Context, arg UpdatePaymentProviderInfoParams) (PaymentTransaction, error)
 	UpdatePaymentStatusAtomically(ctx context.Context, arg UpdatePaymentStatusAtomicallyParams) (PaymentTransaction, error)
 	UpdateProduct(ctx context.Context, arg UpdateProductParams) (UpdateProductRow, error)
 	UpdateReturnBankAccount(ctx context.Context, arg UpdateReturnBankAccountParams) (OrderReturn, error)
