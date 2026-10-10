@@ -35,6 +35,7 @@ type testOrderServiceDeps struct {
 	notificationService v1service.NotificationService
 	redisClient         *redis.Client
 	rabbitMQ            rabbitmq.RabbitMQService
+	outboxRepo          repository.OutboxRepository
 }
 
 func newTestOrderService(deps testOrderServiceDeps) v1service.OrderService {
@@ -79,6 +80,11 @@ func newTestOrderService(deps testOrderServiceDeps) v1service.OrderService {
 		notifSvc = &testutils.MockNotificationService{}
 	}
 
+	var outboxArgs []repository.OutboxRepository
+	if deps.outboxRepo != nil {
+		outboxArgs = append(outboxArgs, deps.outboxRepo)
+	}
+
 	return v1service.NewOrderService(
 		txMgr,
 		pricingSvc,
@@ -92,6 +98,7 @@ func newTestOrderService(deps testOrderServiceDeps) v1service.OrderService {
 		notifSvc,
 		deps.redisClient,
 		deps.rabbitMQ,
+		outboxArgs...,
 	)
 }
 
@@ -791,6 +798,106 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		assert.Equal(t, baseUser.UserID, publishedEvent.UserID)
 		assert.Equal(t, []int32{101, 102}, publishedEvent.PurchasedItems)
 		assert.Equal(t, 1280000.0, publishedEvent.TotalAmount)
+	})
+
+	t.Run("Transactional Outbox: Success WITH Outbox and RabbitMQ - Inserts to Outbox and SKIPS direct publish", func(t *testing.T) {
+		var publishedCount int
+		var outboxInsertCalls int
+		var insertedAggregateType string
+		var insertedEventType string
+
+		mockRabbitMQ := &testutils.MockRabbitMQService{
+			PublishFunc: func(ctx context.Context, queue string, message any) error {
+				publishedCount++
+				return nil
+			},
+		}
+
+		mockOutbox := &testutils.MockOutboxRepository{
+			InsertFunc: func(ctx context.Context, tx pgx.Tx, aggType, aggID, eventType string, payload any) (sqlc.OutboxEvent, error) {
+				outboxInsertCalls++
+				insertedAggregateType = aggType
+				insertedEventType = eventType
+				return sqlc.OutboxEvent{EventID: 1001}, nil
+			},
+		}
+
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return baseUser, nil
+			},
+		}
+
+		mockInventory := &testutils.MockInventoryService{
+			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error) {
+				return map[string]v1service.InventoryItemStock{
+					productUUID1.String(): {ProductID: 101, ProductName: "Keyboard", Price: 500000},
+					productUUID2.String(): {ProductID: 102, ProductName: "Mouse", Price: 250000},
+				}, nil
+			},
+		}
+
+		mockPricing := &testutils.MockOrderPricingService{
+			CalculateOrderTotalsFunc: func(ctx context.Context, items []v1service.ItemPriceInput, couponCode *string, userID int32, shippingFee float64, now time.Time) (*v1service.OrderPricingResult, error) {
+				return &v1service.OrderPricingResult{
+					Items: []v1service.ItemPriceResult{
+						{ProductID: 101, ProductName: "Keyboard", Price: 500000, Quantity: 2, Subtotal: 1000000},
+						{ProductID: 102, ProductName: "Mouse", Price: 250000, Quantity: 1, Subtotal: 250000},
+					},
+					SubtotalAmount:   1250000,
+					DiscountAmount:   0,
+					FinalTotalAmount: 1280000,
+					ShippingFee:      30000,
+				}, nil
+			},
+		}
+
+		mockOrderRepo := &testutils.MockOrderRepository{
+			CreateFunc: func(ctx context.Context, params sqlc.CreateOrderParams) (sqlc.Order, error) {
+				return sqlc.Order{
+					OrderID:          602,
+					OrderUuid:        uuid.New(),
+					OrderNumber:      params.OrderNumber,
+					OrderUserID:      baseUser.UserID,
+					OrderTotalAmount: params.OrderTotalAmount,
+				}, nil
+			},
+		}
+
+		mockOrderItemRepo := &testutils.MockOrderItemRepository{
+			CreateFunc: func(ctx context.Context, tx pgx.Tx, input sqlc.CreateOrderItemParams) (sqlc.OrderItem, error) {
+				return sqlc.OrderItem{OrderItemID: 1}, nil
+			},
+			GetByOrderIDFunc: func(ctx context.Context, orderID int32) ([]sqlc.GetOrderItemsByOrderIDRow, error) {
+				return []sqlc.GetOrderItemsByOrderIDRow{}, nil
+			},
+		}
+
+		mockTrackingRepo := &testutils.MockTrackingRepository{
+			InsertEventFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.InsertTrackingEventParams) (sqlc.OrderTrackingEvent, error) {
+				return sqlc.OrderTrackingEvent{EventID: 1, EventOrderID: params.EventOrderID}, nil
+			},
+		}
+
+		svc := newTestOrderService(testOrderServiceDeps{
+			pricingService:   mockPricing,
+			inventoryService: mockInventory,
+			orderRepo:        mockOrderRepo,
+			orderItemRepo:    mockOrderItemRepo,
+			userRepo:         mockUserRepo,
+			trackingRepo:     mockTrackingRepo,
+			rabbitMQ:         mockRabbitMQ,
+			outboxRepo:       mockOutbox,
+		})
+
+		orderDTO, err := svc.CreateOrder(ctx, userUUID, baseInput)
+		require.NoError(t, err)
+
+		assert.NotEmpty(t, orderDTO.UUID)
+		assert.Equal(t, 1, outboxInsertCalls, "OrderCreated event must be enqueued to Outbox")
+		assert.Equal(t, "order", insertedAggregateType)
+		assert.Equal(t, rabbitmq.QueueOrderCreated, insertedEventType)
+		assert.Equal(t, 0, publishedCount, "Direct RabbitMQ publish MUST be skipped to avoid duplicate notifications")
 	})
 
 	t.Run("Case 13: Success WITH Applied Coupon - Increments Coupon and Records User Usage", func(t *testing.T) {

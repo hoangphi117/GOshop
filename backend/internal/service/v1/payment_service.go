@@ -451,10 +451,14 @@ func (s *paymentService) ProcessWebhook(ctx context.Context, msg v1dto.PaymentWe
 	if msg.Status == "success" {
 		if paidOrder != nil {
 			s.dispatchSuccessNotification(*paidOrder, msg.ProviderTxnID)
-			s.publishPaymentSucceeded(ctx, pt.PtUuid.String(), paidOrder.OrderUuid.String(), paidOrder.OrderNumber, paidOrder.UserUuid.String(), msg.Provider, msg.ProviderTxnID, msg.Amount)
+			if s.outboxRepo == nil {
+				s.publishPaymentSucceeded(ctx, pt.PtUuid.String(), paidOrder.OrderUuid.String(), paidOrder.OrderNumber, paidOrder.UserUuid.String(), msg.Provider, msg.ProviderTxnID, msg.Amount)
+			}
 		}
 	} else {
-		s.publishPaymentFailed(ctx, pt.PtUuid.String(), msg.OrderUUID, msg.OrderNumber, "", msg.Provider, msg.Status)
+		if s.outboxRepo == nil {
+			s.publishPaymentFailed(ctx, pt.PtUuid.String(), msg.OrderUUID, msg.OrderNumber, "", msg.Provider, msg.Status)
+		}
 	}
 
 	logger.Log.Info().
@@ -786,7 +790,9 @@ func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 			if txn.PtProviderTxnID != nil && *txn.PtProviderTxnID != "" {
 				providerTxnID = *txn.PtProviderTxnID
 			}
-			s.publishPaymentSucceeded(ctx, txn.PtUuid.String(), txn.OrderUuid.String(), txn.OrderNumber, txn.UserUuid.String(), txn.PtProvider, providerTxnID, utils.NumericToFloat(txn.PtAmount))
+			if s.outboxRepo == nil {
+				s.publishPaymentSucceeded(ctx, txn.PtUuid.String(), txn.OrderUuid.String(), txn.OrderNumber, txn.UserUuid.String(), txn.PtProvider, providerTxnID, utils.NumericToFloat(txn.PtAmount))
+			}
 			logger.Log.Info().
 				Str("order_number", txn.OrderNumber).
 				Str("pt_uuid", txn.PtUuid.String()).
@@ -831,7 +837,9 @@ func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 			}
 
 			expiredCount++
-			s.publishPaymentExpired(ctx, txn)
+			if s.outboxRepo == nil {
+				s.publishPaymentExpired(ctx, txn)
+			}
 			logger.Log.Info().
 				Str("pt_uuid", txn.PtUuid.String()).
 				Str("order_number", txn.OrderNumber).
