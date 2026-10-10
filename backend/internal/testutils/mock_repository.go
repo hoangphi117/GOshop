@@ -21,6 +21,7 @@ var (
 	_ repository.CartRepository         = (*MockCartRepository)(nil)
 	_ repository.TrackingRepository     = (*MockTrackingRepository)(nil)
 	_ repository.UserRepository         = (*MockUserRepository)(nil)
+	_ repository.UserReader             = (*MockUserRepository)(nil)
 	_ repository.WebhookEventRepository = (*MockWebhookEventRepository)(nil)
 	_ repository.OrderReturnsRepository = (*MockOrderReturnsRepository)(nil)
 	_ repository.PaymentRepository      = (*MockPaymentRepository)(nil)

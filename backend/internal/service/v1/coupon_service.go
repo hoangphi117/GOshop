@@ -25,11 +25,11 @@ import (
 
 type couponService struct {
 	repo     repository.CouponRepository
-	userRepo repository.UserRepository
+	userRepo repository.UserReader
 	cache    cache.RedisCacheService
 }
 
-func NewCouponService(repo repository.CouponRepository, userRepo repository.UserRepository, redisClient *redis.Client) CouponService {
+func NewCouponService(repo repository.CouponRepository, userRepo repository.UserReader, redisClient *redis.Client) CouponService {
 	var cacheService cache.RedisCacheService
 	if redisClient != nil {
 		cacheService = cache.NewRedisCacheService(redisClient)

@@ -36,7 +36,7 @@ const (
 type paymentService struct {
 	paymentRepo         repository.PaymentRepository
 	orderRepo           repository.OrderRepository
-	userRepo            repository.UserRepository
+	userRepo            repository.UserReader
 	webhookRepo         repository.WebhookEventRepository
 	providers           map[string]payment.PaymentProvider
 	notificationService NotificationService
@@ -52,7 +52,7 @@ type paymentService struct {
 func NewPaymentService(
 	paymentRepo repository.PaymentRepository,
 	orderRepo repository.OrderRepository,
-	userRepo repository.UserRepository,
+	userRepo repository.UserReader,
 	webhookRepo repository.WebhookEventRepository,
 	providers map[string]payment.PaymentProvider,
 	notificationService NotificationService,

@@ -28,7 +28,7 @@ const (
 
 type reviewService struct {
 	repo                repository.ReviewRepository
-	userRepo            repository.UserRepository
+	userRepo            repository.UserReader
 	productRepo         repository.ProductRepository
 	orderRepo           repository.OrderRepository
 	notificationService NotificationService
@@ -37,7 +37,7 @@ type reviewService struct {
 
 func NewReviewService(
 	repo repository.ReviewRepository,
-	userRepo repository.UserRepository,
+	userRepo repository.UserReader,
 	productRepo repository.ProductRepository,
 	orderRepo repository.OrderRepository,
 	notificationService NotificationService,

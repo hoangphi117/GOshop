@@ -24,11 +24,11 @@ const (
 
 type addressService struct {
 	repo     repository.AddressRepository
-	userRepo repository.UserRepository
+	userRepo repository.UserReader
 }
 
 // NewAddressService creates a new instance of AddressService.
-func NewAddressService(repo repository.AddressRepository, userRepo repository.UserRepository) AddressService {
+func NewAddressService(repo repository.AddressRepository, userRepo repository.UserReader) AddressService {
 	return &addressService{
 		repo:     repo,
 		userRepo: userRepo,

@@ -20,12 +20,12 @@ import (
 
 type cartService struct {
 	repo        repository.CartRepository
-	userRepo    repository.UserRepository
+	userRepo    repository.UserReader
 	productRepo repository.ProductRepository
 	cache       cache.RedisCacheService
 }
 
-func NewCartService(repo repository.CartRepository, userRepo repository.UserRepository, productRepo repository.ProductRepository, redisClient *redis.Client) CartService {
+func NewCartService(repo repository.CartRepository, userRepo repository.UserReader, productRepo repository.ProductRepository, redisClient *redis.Client) CartService {
 	var cacheService cache.RedisCacheService
 	if redisClient != nil {
 		cacheService = cache.NewRedisCacheService(redisClient)

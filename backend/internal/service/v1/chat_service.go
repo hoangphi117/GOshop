@@ -24,7 +24,7 @@ import (
 
 type chatService struct {
 	chatRepo    repository.ChatRepository
-	userRepo    repository.UserRepository
+	userRepo    repository.UserReader
 	orderRepo   repository.OrderRepository
 	rdb         *redis.Client
 	redisBridge ws.RedisBridge
@@ -35,7 +35,7 @@ type chatService struct {
 
 func NewChatService(
 	chatRepo repository.ChatRepository,
-	userRepo repository.UserRepository,
+	userRepo repository.UserReader,
 	orderRepo repository.OrderRepository,
 	txManager db.TxManager,
 	rdb *redis.Client,

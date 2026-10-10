@@ -28,7 +28,7 @@ type RestoreItem struct {
 type inventoryService struct {
 	productRepo         repository.ProductRepository
 	stockMovementRepo   repository.StockMovementRepository
-	userRepo            repository.UserRepository
+	userRepo            repository.UserReader
 	txManager           db.TxManager
 	notificationService NotificationService
 }
@@ -36,7 +36,7 @@ type inventoryService struct {
 func NewInventoryService(
 	productRepo repository.ProductRepository,
 	stockMovementRepo repository.StockMovementRepository,
-	userRepo repository.UserRepository,
+	userRepo repository.UserReader,
 	txManager db.TxManager,
 	notificationService ...NotificationService,
 ) InventoryService {

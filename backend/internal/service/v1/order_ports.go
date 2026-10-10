@@ -4,6 +4,7 @@ import (
 	"context"
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
+	"goshop/internal/repository"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -35,10 +36,8 @@ type OrderLifecycleService interface {
 // ─── Consumer-driven Outbound Ports (Narrow Dependency Ports) ─────────────────
 
 // OrderCustomerReader resolves user profile information.
-// Satisfied by repository.UserRepository.
-type OrderCustomerReader interface {
-	GetByUUID(ctx context.Context, userUUID uuid.UUID) (sqlc.User, error)
-}
+// Satisfied by repository.UserReader and repository.UserRepository.
+type OrderCustomerReader = repository.UserReader
 
 // OrderStockPort manages stock reservation and restoration.
 // Satisfied by InventoryService.

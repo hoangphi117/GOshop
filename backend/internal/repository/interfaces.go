@@ -10,13 +10,18 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// UserReader provides read-only access to user entities for peripheral domains.
+type UserReader interface {
+	GetByUUID(ctx context.Context, uuid uuid.UUID) (sqlc.User, error)
+	GetActiveAdminUserIDs(ctx context.Context) ([]int32, error)
+}
+
 type UserRepository interface {
+	UserReader
 	GetAll(ctx context.Context, search, orderBy, sort string, limit, offset int32) ([]sqlc.User, error)
 	GetAllV2(ctx context.Context, search, orderBy, sort string, limit, offset int32, deleted bool) ([]sqlc.User, error)
 	CountUsers(ctx context.Context, search string, deleted bool) (int64, error)
 	Create(ctx context.Context, input sqlc.CreateUserParams) (sqlc.User, error)
-	GetByUUID(ctx context.Context, uuid uuid.UUID) (sqlc.User, error)
-	GetActiveAdminUserIDs(ctx context.Context) ([]int32, error)
 	Update(ctx context.Context, input sqlc.UpdateUserParams) (sqlc.User, error)
 	SoftDelete(ctx context.Context, uuid uuid.UUID) (sqlc.User, error)
 	Restore(ctx context.Context, uuid uuid.UUID) (sqlc.User, error)
