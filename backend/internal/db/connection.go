@@ -98,7 +98,8 @@ func InitDB() error {
 			} else {
 				ReadDB = sqlc.New(ReadDBPool)
 				logger.Log.Info().
-					Str("host", cfg.ReadDB.Host).
+					Str("host", readConf.ConnConfig.Host).
+					Str("database", readConf.ConnConfig.Database).
 					Int32("max_conns", readConf.MaxConns).
 					Msg("✅ Connected to PostgreSQL Read-Replica database pool")
 			}

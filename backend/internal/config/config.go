@@ -108,10 +108,16 @@ func NewConfig() *Config {
 }
 
 func (c *Config) DNS() string {
+	if dbURL := utils.GetEnv("DATABASE_URL", utils.GetEnv("DB_URL", "")); dbURL != "" {
+		return dbURL
+	}
 	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", c.DB.Host, c.DB.Port, c.DB.User, c.DB.Password, c.DB.DBName, c.DB.SSLMode)
 }
 
 func (c *Config) ReadDNS() string {
+	if replicaURL := utils.GetEnv("DB_READ_REPLICA_URL", ""); replicaURL != "" {
+		return replicaURL
+	}
 	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", c.ReadDB.Host, c.ReadDB.Port, c.ReadDB.User, c.ReadDB.Password, c.ReadDB.DBName, c.ReadDB.SSLMode)
 }
 

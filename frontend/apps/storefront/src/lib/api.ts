@@ -6,6 +6,12 @@ export const API_BASE_URL =
 
 export const API_KEY = process.env.NEXT_PUBLIC_API_KEY || ''
 
+export const MEILISEARCH_URL =
+  process.env.NEXT_PUBLIC_MEILISEARCH_URL || ''
+
+export const MEILISEARCH_SEARCH_KEY =
+  process.env.NEXT_PUBLIC_MEILISEARCH_SEARCH_KEY || ''
+
 export const api = createApiClient({
   baseUrl: API_BASE_URL,
   getToken: () => useAuthStore.getState().accessToken,

@@ -34,7 +34,9 @@ location /uploads/ {
 # Điều hướng trực tiếp tới ws-gateway chuyên biệt giúp giảm tải trên REST API servers.
 # Timeout mở rộng 3600s để tránh ngắt kết nối WebSocket giữa chừng.
 location /api/v1/ws {
-    proxy_pass http://goshop_ws_gateway;
+    # Dùng biến động để Nginx không bị crash nếu container ws-gateway chưa khởi động
+    set $ws_target http://ws-gateway:8085;
+    proxy_pass $ws_target;
     proxy_http_version 1.1;
 
     # Header bắt buộc cho cơ chế HTTP Upgrade -> WebSocket
@@ -108,7 +110,29 @@ location /.well-known/ {
 }
 
 # -----------------------------------------------------------------------------
-# 7. FRONTEND NEXT.JS STOREFRONT ROUTING (/)
+# 7. DIRECT MEILISEARCH SEARCH PROXY (/search-api/)
+# -----------------------------------------------------------------------------
+# Chuyển tiếp trực tiếp truy vấn tìm kiếm sang Meilisearch cluster,
+# giải phóng 100% tải đọc tìm kiếm ra khỏi PostgreSQL Master và Backend API.
+location /search-api/ {
+    # Dùng biến động để Nginx không bị crash nếu container meilisearch chưa khởi động
+    set $meili_target http://meilisearch:7700;
+    rewrite ^/search-api/(.*)$ /$1 break;
+    proxy_pass $meili_target;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    # Bảo vệ an toàn: Chỉ cho phép GET, POST, OPTIONS phục vụ tìm kiếm tài liệu
+    limit_except GET POST OPTIONS {
+        deny all;
+    }
+}
+
+# -----------------------------------------------------------------------------
+# 8. FRONTEND NEXT.JS STOREFRONT ROUTING (/)
 # -----------------------------------------------------------------------------
 location / {
     # Dùng biến động để Nginx không bị crash nếu container storefront chưa khởi động

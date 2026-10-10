@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Search, X, Loader2, Tag, ArrowRight, Sparkles } from "lucide-react";
 import { ProductSuggestion } from "@/lib/api-server";
-import { API_BASE_URL, API_KEY } from "@/lib/api";
+import { API_BASE_URL, API_KEY, MEILISEARCH_URL, MEILISEARCH_SEARCH_KEY } from "@/lib/api";
 import { formatCurrency } from "@/lib/format";
 
 import { getImageUrl } from "@/lib/utils";
@@ -62,6 +62,55 @@ export function SearchAutocomplete({
     setIsLoading(true);
     const timer = setTimeout(async () => {
       try {
+        // 1. Direct Meilisearch query (offloads PostgreSQL Master & Go Backend API)
+        if (MEILISEARCH_URL) {
+          try {
+            const meiliRes = await fetch(
+              `${MEILISEARCH_URL}/indexes/products/search`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  ...(MEILISEARCH_SEARCH_KEY
+                    ? { Authorization: `Bearer ${MEILISEARCH_SEARCH_KEY}` }
+                    : {}),
+                },
+                body: JSON.stringify({
+                  q: trimmed,
+                  limit: 6,
+                  attributesToRetrieve: [
+                    "product_id",
+                    "product_uuid",
+                    "product_name",
+                    "product_slug",
+                    "product_price",
+                    "product_image_url",
+                    "category_name",
+                  ],
+                }),
+              },
+            );
+            if (meiliRes.ok) {
+              const meiliJson = await meiliRes.json();
+              const hits: ProductSuggestion[] = (meiliJson?.hits || []).map(
+                (hit: any) => ({
+                  uuid: hit.product_uuid || String(hit.product_id),
+                  name: hit.product_name,
+                  slug: hit.product_slug,
+                  price: hit.product_price,
+                  image_url: hit.product_image_url,
+                  category_name: hit.category_name,
+                }),
+              );
+              setSuggestions(hits);
+              return;
+            }
+          } catch (e) {
+            console.warn("Direct Meilisearch search failed, falling back to backend API:", e);
+          }
+        }
+
+        // 2. Fallback to Go Backend API proxy
         const res = await fetch(
           `${API_BASE_URL}/api/v1/products/suggest?q=${encodeURIComponent(trimmed)}&limit=6`,
           {

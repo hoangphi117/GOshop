@@ -268,6 +268,48 @@ export async function getProductSuggestions(q: string, limit = 8): Promise<Produ
   if (!q || q.trim().length === 0) {
     return []
   }
+
+  const meiliHost = process.env.INTERNAL_MEILISEARCH_URL || process.env.NEXT_PUBLIC_MEILISEARCH_URL
+  const meiliKey = process.env.MEILISEARCH_SEARCH_KEY || process.env.NEXT_PUBLIC_MEILISEARCH_SEARCH_KEY
+  if (meiliHost) {
+    try {
+      const res = await fetch(`${meiliHost}/indexes/products/search`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(meiliKey ? { Authorization: `Bearer ${meiliKey}` } : {}),
+        },
+        body: JSON.stringify({
+          q: q.trim(),
+          limit,
+          attributesToRetrieve: [
+            'product_id',
+            'product_uuid',
+            'product_name',
+            'product_slug',
+            'product_price',
+            'product_image_url',
+            'category_name',
+          ],
+        }),
+        next: { revalidate: 10 },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        return (data.hits || []).map((hit: any) => ({
+          uuid: hit.product_uuid || String(hit.product_id),
+          name: hit.product_name,
+          slug: hit.product_slug,
+          price: hit.product_price,
+          image_url: hit.product_image_url,
+          category_name: hit.category_name,
+        }))
+      }
+    } catch {
+      // Fallback to backend API
+    }
+  }
+
   const query = new URLSearchParams({ q: q.trim(), limit: limit.toString() })
   const res = await fetchServer<ApiResponse<ProductSuggestion[]>>(`/products/suggest?${query.toString()}`, {
     revalidate: 10,

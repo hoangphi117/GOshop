@@ -71,6 +71,29 @@ services:
     networks:
       - goshop-network
 
+  ws-gateway:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.ws-gateway.prod
+    container_name: goshop-ws-gateway
+    restart: unless-stopped
+    ports:
+      - "8085:8085"
+    env_file:
+      - ./backend/.env
+    environment:
+      - DB_HOST=postgres
+      - REDIS_ADDR=redis:6379
+      - WS_GATEWAY_PORT=8085
+      - APP_ENV=development
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - goshop-network
+
   postgres:
     image: postgres:16-alpine
     container_name: goshop-postgres
