@@ -620,6 +620,10 @@ func (m *MockTokenService) GetTokenFamilyID(rawToken string) (string, error) {
 	return "mock-family-id", nil
 }
 
+func (m *MockTokenService) GetJWKS() auth.JWKS {
+	return auth.JWKS{}
+}
+
 // MockEmailProviderService
 type MockEmailProviderService struct {
 	SendEmailFunc func(ctx context.Context, email *mail.Email) error

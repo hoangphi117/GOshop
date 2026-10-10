@@ -94,7 +94,21 @@ location /swagger/ {
 }
 
 # -----------------------------------------------------------------------------
-# 6. FRONTEND NEXT.JS STOREFRONT ROUTING (/)
+# 6. OPENID / JWKS WELL-KNOWN PROXY (/.well-known/)
+# -----------------------------------------------------------------------------
+# Cung cấp public key JWKS để microservices ngoại vi (ws-gateway, worker, gateway)
+# tự verify JWT signature offline mà không cần gọi network tới Auth service.
+location /.well-known/ {
+    proxy_pass http://goshop_backend;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+
+# -----------------------------------------------------------------------------
+# 7. FRONTEND NEXT.JS STOREFRONT ROUTING (/)
 # -----------------------------------------------------------------------------
 location / {
     # Dùng biến động để Nginx không bị crash nếu container storefront chưa khởi động

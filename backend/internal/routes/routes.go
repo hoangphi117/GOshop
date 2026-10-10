@@ -7,6 +7,7 @@ import (
 	"goshop/internal/utils"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
+	"net/http"
 	"strings"
 
 	"github.com/gin-contrib/gzip"
@@ -42,7 +43,15 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 		ctx.Redirect(301, "/swagger/index.html")
 	})
 
+	// JWKS (JSON Web Key Set) endpoint for offline JWT verification across microservices
+	jwksHandler := func(ctx *gin.Context) {
+		ctx.Header("Cache-Control", "public, max-age=3600")
+		ctx.JSON(http.StatusOK, authService.GetJWKS())
+	}
+	r.GET("/.well-known/jwks.json", jwksHandler)
+
 	v1api := r.Group("/api/v1")
+	v1api.GET("/.well-known/jwks.json", jwksHandler)
 
 	public := v1api.Group("")
 
@@ -71,7 +80,7 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 
 	r.NoRoute(func(ctx *gin.Context) {
 		p := ctx.Request.URL.Path
-		if !strings.HasPrefix(p, "/api/v1") && !strings.HasPrefix(p, "/swagger") {
+		if !strings.HasPrefix(p, "/api/v1") && !strings.HasPrefix(p, "/swagger") && !strings.HasPrefix(p, "/.well-known") {
 			ctx.Request.URL.Path = "/api/v1" + p
 			r.HandleContext(ctx)
 			return

@@ -76,3 +76,6 @@ coverage.*
 .claude/
 
 .gitnexus/
+
+# Cert
+certs/

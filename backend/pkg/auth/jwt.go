@@ -2,20 +2,29 @@ package auth
 
 import (
 	"crypto/rand"
+	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
-	"goshop/internal/utils"
-	"goshop/pkg/cache"
+	"fmt"
+	"math/big"
+	"os"
+	"strings"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
+	"goshop/internal/utils"
+	"goshop/pkg/cache"
+	"goshop/pkg/logger"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
 
 type JWTService struct {
-	cache   cache.RedisCacheService
-	rotator RefreshTokenRotator
+	cache      cache.RedisCacheService
+	rotator    RefreshTokenRotator
+	privateKey *rsa.PrivateKey
+	publicKey  *rsa.PublicKey
+	keyID      string
 }
 
 type EncryptedPayload struct {
@@ -43,10 +52,80 @@ const (
 	RefreshTokenTTL = 7 * 24 * time.Hour
 )
 
+func loadKeyData(val string) []byte {
+	trimmed := strings.TrimSpace(val)
+	if trimmed == "" {
+		return nil
+	}
+	if content, err := os.ReadFile(trimmed); err == nil {
+		return content
+	}
+	normalized := strings.ReplaceAll(trimmed, `\n`, "\n")
+	return []byte(normalized)
+}
+
+func loadOrGenerateRSAKeys() (*rsa.PrivateKey, *rsa.PublicKey, string) {
+	keyID := utils.GetEnv("JWT_KEY_ID", "goshop-key-1")
+
+	var privKey *rsa.PrivateKey
+	var pubKey *rsa.PublicKey
+
+	privEnv := utils.GetEnv("JWT_PRIVATE_KEY", "")
+	if privEnv != "" {
+		if data := loadKeyData(privEnv); len(data) > 0 {
+			if k, err := jwt.ParseRSAPrivateKeyFromPEM(data); err == nil {
+				privKey = k
+				pubKey = &k.PublicKey
+			} else {
+				logger.Log.Error().Err(err).Msg("Failed to parse JWT_PRIVATE_KEY")
+			}
+		}
+	}
+
+	pubEnv := utils.GetEnv("JWT_PUBLIC_KEY", "")
+	if pubEnv != "" {
+		if data := loadKeyData(pubEnv); len(data) > 0 {
+			if k, err := jwt.ParseRSAPublicKeyFromPEM(data); err == nil {
+				pubKey = k
+			} else {
+				logger.Log.Error().Err(err).Msg("Failed to parse JWT_PUBLIC_KEY")
+			}
+		}
+	}
+
+	// Ephemeral generation if neither private key nor public key is configured
+	if privKey == nil && pubKey == nil {
+		generated, err := rsa.GenerateKey(rand.Reader, 2048)
+		if err == nil {
+			privKey = generated
+			pubKey = &generated.PublicKey
+			logger.Log.Info().Str("kid", keyID).Msg("🔑 Initialized ephemeral RSA-2048 keypair for RS256 JWT")
+		} else {
+			logger.Log.Error().Err(err).Msg("Failed to generate ephemeral RSA keypair")
+		}
+	}
+
+	return privKey, pubKey, keyID
+}
+
 func NewJWTService(cache cache.RedisCacheService) TokenService {
+	privKey, pubKey, keyID := loadOrGenerateRSAKeys()
 	return &JWTService{
-		cache:   cache,
-		rotator: NewRefreshTokenRotator(cache),
+		cache:      cache,
+		rotator:    NewRefreshTokenRotator(cache),
+		privateKey: privKey,
+		publicKey:  pubKey,
+		keyID:      keyID,
+	}
+}
+
+func NewJWTServiceWithKeys(cache cache.RedisCacheService, privKey *rsa.PrivateKey, pubKey *rsa.PublicKey, keyID string) TokenService {
+	return &JWTService{
+		cache:      cache,
+		rotator:    NewRefreshTokenRotator(cache),
+		privateKey: privKey,
+		publicKey:  pubKey,
+		keyID:      keyID,
 	}
 }
 
@@ -57,41 +136,62 @@ func (js *JWTService) GenerateAccessToken(user UserTokenPayload) (string, error)
 }
 
 func (js *JWTService) GenerateAccessTokenWithFamily(user UserTokenPayload, familyID string) (string, error) {
-	payload := &EncryptedPayload{
-		UserID:   user.UserID,
-		UserUUID: user.UserUUID,
-		Email:    user.Email,
-		Role:     user.Role,
-		FamilyID: familyID,
-	}
-
-	rawData, err := json.Marshal(payload)
-	if err != nil {
-		return "", err
-	}
-
-	encryptedData, err := utils.EncryptAES(rawData, jwtEncryptKey)
-	if err != nil {
-		return "", err
-	}
-
 	claims := jwt.MapClaims{
-		"data": encryptedData,
-		"jti":  uuid.NewString(),
-		"fid":  familyID,
-		"exp":  time.Now().Add(AccessTokenTTL).Unix(),
-		"iat":  time.Now().Unix(),
-		"iss":  "goshop",
+		"sub":       user.UserUUID,
+		"user_uuid": user.UserUUID,
+		"user_id":   user.UserID,
+		"email":     user.Email,
+		"role":      user.Role,
+		"jti":       uuid.NewString(),
+		"fid":       familyID,
+		"exp":       time.Now().Add(AccessTokenTTL).Unix(),
+		"iat":       time.Now().Unix(),
+		"iss":       "goshop",
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	if len(jwtEncryptKey) == 32 {
+		payload := &EncryptedPayload{
+			UserID:   user.UserID,
+			UserUUID: user.UserUUID,
+			Email:    user.Email,
+			Role:     user.Role,
+			FamilyID: familyID,
+		}
+		if rawData, err := json.Marshal(payload); err == nil {
+			if encryptedData, err := utils.EncryptAES(rawData, jwtEncryptKey); err == nil {
+				claims["data"] = encryptedData
+			}
+		}
+	}
 
+	// Use RS256 asymmetric signing if private key is available
+	if js.privateKey != nil {
+		token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+		token.Header["kid"] = js.keyID
+		return token.SignedString(js.privateKey)
+	}
+
+	// Fallback to symmetric HS256 if private key is not present
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(jwtSecret)
 }
 
 func (js *JWTService) ParseToken(tokenString string) (*jwt.Token, jwt.MapClaims, error) {
 	token, err := jwt.Parse(tokenString, func(t *jwt.Token) (any, error) {
-		return jwtSecret, nil
+		// Asymmetric RS256 verification
+		if _, ok := t.Method.(*jwt.SigningMethodRSA); ok {
+			if js.publicKey == nil {
+				return nil, utils.NewError(utils.ErrCodeUnauthorized, "Public key not configured for RS256 verification")
+			}
+			return js.publicKey, nil
+		}
+
+		// Backward-compatibility: HS256 verification
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); ok {
+			return jwtSecret, nil
+		}
+
+		return nil, utils.NewError(utils.ErrCodeUnauthorized, fmt.Sprintf("Unexpected signing method: %v", t.Header["alg"]))
 	})
 
 	if err != nil || !token.Valid {
@@ -112,6 +212,48 @@ func (js *JWTService) DecryptAccessTokenPayload(tokenString string) (*EncryptedP
 		return nil, utils.WrapError(utils.ErrCodeInternal, "Cannot parse token", err)
 	}
 
+	// 1. Direct claims extraction (offline verification across microservices)
+	userUUID, _ := claims["user_uuid"].(string)
+	if userUUID == "" {
+		if sub, ok := claims["sub"].(string); ok {
+			userUUID = sub
+		}
+	}
+
+	if userUUID != "" {
+		payload := &EncryptedPayload{
+			UserUUID: userUUID,
+		}
+		if email, ok := claims["email"].(string); ok {
+			payload.Email = email
+		}
+		if fid, ok := claims["fid"].(string); ok {
+			payload.FamilyID = fid
+		}
+		if roleVal, ok := claims["role"]; ok {
+			switch v := roleVal.(type) {
+			case float64:
+				payload.Role = int32(v)
+			case int32:
+				payload.Role = v
+			case int:
+				payload.Role = int32(v)
+			}
+		}
+		if idVal, ok := claims["user_id"]; ok {
+			switch v := idVal.(type) {
+			case float64:
+				payload.UserID = int32(v)
+			case int32:
+				payload.UserID = v
+			case int:
+				payload.UserID = int32(v)
+			}
+		}
+		return payload, nil
+	}
+
+	// 2. Legacy fallback to AES decrypted data
 	encryptedData, ok := claims["data"].(string)
 	if !ok {
 		return nil, utils.NewError(utils.ErrCodeUnauthorized, "Encoded data not found")
@@ -128,6 +270,30 @@ func (js *JWTService) DecryptAccessTokenPayload(tokenString string) (*EncryptedP
 	}
 
 	return &payload, nil
+}
+
+// GetJWKS publishes the public key set in standard RFC 7517 format for offline microservice verification.
+func (js *JWTService) GetJWKS() JWKS {
+	if js.publicKey == nil {
+		return JWKS{Keys: []JWK{}}
+	}
+
+	n := base64.RawURLEncoding.EncodeToString(js.publicKey.N.Bytes())
+	eBytes := big.NewInt(int64(js.publicKey.E)).Bytes()
+	e := base64.RawURLEncoding.EncodeToString(eBytes)
+
+	return JWKS{
+		Keys: []JWK{
+			{
+				Kty: "RSA",
+				Use: "sig",
+				Alg: "RS256",
+				Kid: js.keyID,
+				N:   n,
+				E:   e,
+			},
+		},
+	}
 }
 
 /***************** Refresh Token & Rotation *****************/
