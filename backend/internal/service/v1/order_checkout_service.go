@@ -55,9 +55,7 @@ type checkoutService struct {
 	cartPort            OrderCartPort
 	couponPort          OrderCouponPort
 	trackingStore       OrderTrackingPort
-	notificationService NotificationService
 	cache               cache.RedisCacheService
-	rabbitMQ            rabbitmq.RabbitMQService
 	outboxStore         OrderOutboxPort
 }
 
@@ -71,9 +69,7 @@ func NewOrderCheckoutService(
 	cartPort OrderCartPort,
 	couponPort OrderCouponPort,
 	trackingStore OrderTrackingPort,
-	notificationService NotificationService,
 	cacheService cache.RedisCacheService,
-	rabbitMQ rabbitmq.RabbitMQService,
 	outboxStore ...OrderOutboxPort,
 ) OrderCheckoutService {
 	var outboxPort OrderOutboxPort
@@ -81,19 +77,17 @@ func NewOrderCheckoutService(
 		outboxPort = outboxStore[0]
 	}
 	return &checkoutService{
-		txManager:           txManager,
-		pricingService:      pricingService,
-		stockPort:           stockPort,
-		orderStore:          orderStore,
-		orderItemStore:      orderItemStore,
-		userReader:          userReader,
-		cartPort:            cartPort,
-		couponPort:          couponPort,
-		trackingStore:       trackingStore,
-		notificationService: notificationService,
-		cache:               cacheService,
-		rabbitMQ:            rabbitMQ,
-		outboxStore:         outboxPort,
+		txManager:      txManager,
+		pricingService: pricingService,
+		stockPort:      stockPort,
+		orderStore:     orderStore,
+		orderItemStore: orderItemStore,
+		userReader:     userReader,
+		cartPort:       cartPort,
+		couponPort:     couponPort,
+		trackingStore:  trackingStore,
+		cache:          cacheService,
+		outboxStore:    outboxPort,
 	}
 }
 
@@ -270,63 +264,8 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 		_ = s.cartPort.RemovePurchasedItems(ctx, order.OrderUserID, purchasedProductIDs)
 	}
 
-	// 2. Clear related order caches
+	// 3. Invalidate related order caches
 	InvalidateOrderCachesWithCache(s.cache, user.UserUuid)
-
-	// 3. Emit OrderCreated event for asynchronous background notifications & audit
-	// When outboxStore is configured, the event is atomically committed with the order transaction
-	// and asynchronously relayed to RabbitMQ by OutboxPublisherWorker (guaranteeing at-least-once delivery).
-	// Direct publish must only run as a fallback when outboxStore is nil to prevent duplicate events.
-	if s.outboxStore == nil {
-		orderEvent := rabbitmq.NewOrderCreatedEvent(
-			uuid.New().String(),
-			order.OrderUuid.String(),
-			order.OrderNumber,
-			user.UserUuid.String(),
-			order.OrderID,
-			order.OrderUserID,
-			utils.NumericToFloat(order.OrderTotalAmount),
-			purchasedProductIDs,
-		)
-		if s.rabbitMQ != nil {
-			if err := s.rabbitMQ.Publish(ctx, rabbitmq.QueueOrderCreated, orderEvent); err != nil {
-				logger.Log.Error().
-					Err(err).
-					Str("order_uuid", order.OrderUuid.String()).
-					Msg("Failed to publish order created event, falling back to synchronous notification")
-				if s.notificationService != nil {
-					_ = s.notificationService.Send(ctx, v1dto.SendNotificationInput{
-						UserID: order.OrderUserID,
-						Type:   "order_created",
-						Title:  "Order Placed Successfully",
-						Body:   fmt.Sprintf("Your order #%s has been placed successfully.", order.OrderNumber),
-						Data:   map[string]any{"order_uuid": order.OrderUuid.String()},
-					})
-				}
-			}
-		} else {
-			// Fallback for non-RabbitMQ environments / synchronous unit tests
-			if s.notificationService != nil {
-				_ = s.notificationService.SendAsync(ctx, v1dto.SendNotificationInput{
-					UserID: order.OrderUserID,
-					Type:   "order_created",
-					Title:  "Order Placed Successfully",
-					Body:   fmt.Sprintf("Your order #%s has been placed successfully.", order.OrderNumber),
-					Data:   map[string]any{"order_uuid": order.OrderUuid.String()},
-				})
-				_ = s.notificationService.NotifyAdminsAsync(ctx, v1dto.AdminNotifyInput{
-					Type:  "order",
-					Title: "New Order Received",
-					Body:  fmt.Sprintf("Order #%s placed for $%.2f", order.OrderNumber, utils.NumericToFloat(order.OrderTotalAmount)),
-					Data: map[string]any{
-						"order_uuid":   order.OrderUuid.String(),
-						"order_number": order.OrderNumber,
-						"link":         fmt.Sprintf("/orders/%s", order.OrderUuid),
-					},
-				})
-			}
-		}
-	}
 
 	dto := v1dto.MapToOrderDTO(order, orderItemsWithDetails)
 	return &dto, nil

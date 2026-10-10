@@ -25,18 +25,17 @@ import (
 )
 
 type orderShippingService struct {
-	txManager           db.TxManager
-	orderRepo           OrderStorePort
-	orderItemRepo       OrderItemStorePort
-	trackingRepo        OrderTrackingPort
-	paymentRepo         ShippingPaymentPort
-	shippingFactory     *shipping.ShippingFactory
-	webhookRepo         ShippingWebhookPort
-	notificationService NotificationService
-	userRepo            OrderCustomerReader
-	cache               cache.RedisCacheService
-	rabbitmq            rabbitmq.RabbitMQService
-	locationService     LocationService
+	txManager       db.TxManager
+	orderRepo       OrderStorePort
+	orderItemRepo   OrderItemStorePort
+	trackingRepo    OrderTrackingPort
+	paymentRepo     ShippingPaymentPort
+	shippingFactory *shipping.ShippingFactory
+	webhookRepo     ShippingWebhookPort
+	userRepo        OrderCustomerReader
+	cache           cache.RedisCacheService
+	rabbitmq        rabbitmq.RabbitMQService
+	locationService LocationService
 }
 
 func NewOrderShippingService(
@@ -47,7 +46,6 @@ func NewOrderShippingService(
 	paymentRepo ShippingPaymentPort,
 	shippingFactory *shipping.ShippingFactory,
 	webhookRepo ShippingWebhookPort,
-	notificationService NotificationService,
 	userRepo OrderCustomerReader,
 	redisClient *redis.Client,
 	rabbitmq rabbitmq.RabbitMQService,
@@ -57,18 +55,17 @@ func NewOrderShippingService(
 		cacheService = cache.NewRedisCacheService(redisClient)
 	}
 	return &orderShippingService{
-		txManager:           txManager,
-		orderRepo:           orderRepo,
-		orderItemRepo:       orderItemRepo,
-		trackingRepo:        trackingRepo,
-		paymentRepo:         paymentRepo,
-		shippingFactory:     shippingFactory,
-		webhookRepo:         webhookRepo,
-		notificationService: notificationService,
-		userRepo:            userRepo,
-		cache:               cacheService,
-		rabbitmq:            rabbitmq,
-		locationService:     NewLocationService(shippingFactory, cacheService),
+		txManager:       txManager,
+		orderRepo:       orderRepo,
+		orderItemRepo:   orderItemRepo,
+		trackingRepo:    trackingRepo,
+		paymentRepo:     paymentRepo,
+		shippingFactory: shippingFactory,
+		webhookRepo:     webhookRepo,
+		userRepo:        userRepo,
+		cache:           cacheService,
+		rabbitmq:        rabbitmq,
+		locationService: NewLocationService(shippingFactory, cacheService),
 	}
 }
 
@@ -253,19 +250,19 @@ func (s *orderShippingService) ProcessShippingOrder(ctx context.Context, msg v1d
 	}
 	logger.Log.Info().Str("order_uuid", msg.OrderUUID).Str("shipping_code", ghnResp.ShippingCode).Msg("Shipping order created successfully via RabbitMQ")
 
-	if s.notificationService != nil {
-		go func() {
-			_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
-				UserID: order.OrderUserID,
-				Type:   "order_shipped",
-				Title:  "Your Order Is On The Way",
-				Body:   fmt.Sprintf("Order #%s has been shipped with tracking code: %s.", order.OrderNumber, ghnResp.ShippingCode),
-				Data: map[string]any{
-					"order_uuid":    orderUUID.String(),
-					"shipping_code": ghnResp.ShippingCode,
-				},
-			})
-		}()
+	if s.rabbitmq != nil {
+		evt := rabbitmq.NewOrderStatusChangedEvent(
+			uuid.New().String(),
+			orderUUID.String(),
+			order.OrderNumber,
+			order.UserUuid.String(),
+			order.OrderID,
+			order.OrderUserID,
+			order.OrderStatus,
+			OrderStatusShipped,
+			ghnResp.ShippingCode,
+		)
+		_ = s.rabbitmq.Publish(ctx, rabbitmq.QueueOrderStatusChanged, evt)
 	}
 
 	return nil
@@ -436,16 +433,19 @@ func (s *orderShippingService) ConfirmOrderDelivery(ctx context.Context, userUUI
 		_ = s.cache.Clear("orders:*")
 	}
 
-	if s.notificationService != nil {
-		go func() {
-			_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
-				UserID: updatedOrder.OrderUserID,
-				Type:   "order_completed",
-				Title:  "Order Completed",
-				Body:   fmt.Sprintf("Thank you! Order #%s is completed. You can now write a review.", updatedOrder.OrderNumber),
-				Data:   map[string]any{"order_uuid": updatedOrder.OrderUuid.String()},
-			})
-		}()
+	if s.rabbitmq != nil {
+		evt := rabbitmq.NewOrderStatusChangedEvent(
+			uuid.New().String(),
+			updatedOrder.OrderUuid.String(),
+			updatedOrder.OrderNumber,
+			order.UserUuid.String(),
+			updatedOrder.OrderID,
+			updatedOrder.OrderUserID,
+			order.OrderStatus,
+			OrderStatusDelivered,
+			"",
+		)
+		_ = s.rabbitmq.Publish(ctx, rabbitmq.QueueOrderStatusChanged, evt)
 	}
 
 	var deliveredAt *time.Time

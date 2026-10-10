@@ -79,4 +79,87 @@ func TestOrderConsumer_Handle(t *testing.T) {
 		assert.True(t, customerNotified)
 		assert.True(t, adminNotified)
 	})
+
+	t.Run("OrderCancelled_NotifiesCustomerAndAdmin", func(t *testing.T) {
+		var customerNotified, adminNotified bool
+		mockNotifService := &testutils.MockNotificationService{
+			SendFunc: func(ctx context.Context, input v1dto.SendNotificationInput) error {
+				customerNotified = true
+				assert.Equal(t, int32(42), input.UserID)
+				assert.Equal(t, "order_cancelled", input.Type)
+				return nil
+			},
+			NotifyAdminsFunc: func(ctx context.Context, input v1dto.AdminNotifyInput) error {
+				adminNotified = true
+				assert.Equal(t, "order", input.Type)
+				return nil
+			},
+		}
+
+		consumer := worker.NewOrderConsumer(nil, mockNotifService, &logger)
+		event := rabbitmq.NewOrderCancelledEvent("evt-1", "order-uuid", "ORD-001", "user-uuid", 1, 42, "Customer request")
+		body, _ := json.Marshal(event)
+
+		err := consumer.HandleOrderCancelled(amqp.Table{}, body)
+		require.NoError(t, err)
+		assert.True(t, customerNotified)
+		assert.True(t, adminNotified)
+	})
+
+	t.Run("OrderStatusChanged_NotifiesCustomer", func(t *testing.T) {
+		var customerNotified bool
+		mockNotifService := &testutils.MockNotificationService{
+			SendFunc: func(ctx context.Context, input v1dto.SendNotificationInput) error {
+				customerNotified = true
+				assert.Equal(t, int32(42), input.UserID)
+				assert.Equal(t, "order_status", input.Type)
+				return nil
+			},
+		}
+
+		consumer := worker.NewOrderConsumer(nil, mockNotifService, &logger)
+		event := rabbitmq.NewOrderStatusChangedEvent("evt-2", "order-uuid", "ORD-001", "user-uuid", 1, 42, 2, 3, "GHN123")
+		body, _ := json.Marshal(event)
+
+		err := consumer.HandleOrderStatusChanged(amqp.Table{}, body)
+		require.NoError(t, err)
+		assert.True(t, customerNotified)
+	})
+
+	t.Run("OrderReturnEvents_NotifiesCustomerAndAdmin", func(t *testing.T) {
+		var reqCustomerNotified, reqAdminNotified bool
+		var updatedCustomerNotified bool
+
+		mockNotifService := &testutils.MockNotificationService{
+			SendFunc: func(ctx context.Context, input v1dto.SendNotificationInput) error {
+				if input.Type == "return_requested" {
+					reqCustomerNotified = true
+				} else if input.Type == "return_approved" {
+					updatedCustomerNotified = true
+				}
+				return nil
+			},
+			NotifyAdminsFunc: func(ctx context.Context, input v1dto.AdminNotifyInput) error {
+				if input.Type == "return" {
+					reqAdminNotified = true
+				}
+				return nil
+			},
+		}
+
+		consumer := worker.NewOrderConsumer(nil, mockNotifService, &logger)
+
+		reqEvent := rabbitmq.NewOrderReturnRequestedEvent("evt-3", "ret-uuid", "order-uuid", "ORD-001", 10, 1, 42, "Defective product")
+		reqBody, _ := json.Marshal(reqEvent)
+		err := consumer.HandleOrderReturnRequested(amqp.Table{}, reqBody)
+		require.NoError(t, err)
+		assert.True(t, reqCustomerNotified)
+		assert.True(t, reqAdminNotified)
+
+		updEvent := rabbitmq.NewOrderReturnUpdatedEvent("evt-4", "ret-uuid", "order-uuid", "ORD-001", 10, 1, 42, 2, "Approved by admin")
+		updBody, _ := json.Marshal(updEvent)
+		err = consumer.HandleOrderReturnUpdated(amqp.Table{}, updBody)
+		require.NoError(t, err)
+		assert.True(t, updatedCustomerNotified)
+	})
 }

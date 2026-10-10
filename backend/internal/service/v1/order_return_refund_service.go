@@ -11,6 +11,7 @@ import (
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/utils"
+	"goshop/pkg/rabbitmq"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -111,6 +112,21 @@ func (s *orderReturnService) AdminUpdateReturnStatus(ctx context.Context, userUU
 				})
 			}
 		}
+
+		if s.outboxStore != nil {
+			event := rabbitmq.NewOrderReturnUpdatedEvent(
+				uuid.NewString(),
+				updatedReturn.ReturnUuid.String(),
+				order.OrderUuid.String(),
+				order.OrderNumber,
+				updatedReturn.ReturnID,
+				order.OrderID,
+				order.OrderUserID,
+				updatedReturn.ReturnStatus,
+				noteStr,
+			)
+			_, _ = s.outboxStore.Insert(ctx, tx, "order", order.OrderUuid.String(), rabbitmq.QueueOrderReturnUpdated, event)
+		}
 		return nil
 	})
 	if err != nil {
@@ -121,35 +137,6 @@ func (s *orderReturnService) AdminUpdateReturnStatus(ctx context.Context, userUU
 		_ = s.cache.Clear(fmt.Sprintf("order:%s", order.OrderUuid.String()))
 		_ = s.cache.Clear("products:*")
 		_ = s.cache.Clear("product:*")
-	}
-
-	if s.notificationService != nil {
-		go func() {
-			var notifType, notifTitle, notifBody string
-			switch updatedReturn.ReturnStatus {
-			case OrderReturnStatusApproved:
-				notifType = "return_approved"
-				notifTitle = "Return Request Approved"
-				notifBody = fmt.Sprintf("Your return request for order #%s has been approved. Please submit the return tracking code.", order.OrderNumber)
-			case OrderReturnStatusRejected:
-				notifType = "return_rejected"
-				notifTitle = "Return Request Rejected"
-				notifBody = fmt.Sprintf("Your return request for order #%s was rejected. Reason: %s", order.OrderNumber, noteStr)
-			default:
-				return
-			}
-
-			_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
-				UserID: order.OrderUserID,
-				Type:   notifType,
-				Title:  notifTitle,
-				Body:   notifBody,
-				Data: map[string]any{
-					"order_uuid":  order.OrderUuid.String(),
-					"return_uuid": updatedReturn.ReturnUuid.String(),
-				},
-			})
-		}()
 	}
 
 	return v1dto.AdminReturnSummaryDTO{
@@ -339,6 +326,21 @@ func (s *orderReturnService) AdminProcessReturnRefund(ctx context.Context, userU
 				return err
 			}
 		}
+
+		if s.outboxStore != nil {
+			event := rabbitmq.NewOrderReturnUpdatedEvent(
+				uuid.NewString(),
+				returnRequest.ReturnUuid.String(),
+				resolved.OrderUUID.String(),
+				resolved.OrderNumber,
+				returnRequest.ReturnID,
+				resolved.OrderID,
+				resolved.OrderUserID,
+				OrderReturnStatusCompleted,
+				fmt.Sprintf("Refund of %.0f VND processed", refundAmt),
+			)
+			_, _ = s.outboxStore.Insert(ctx, tx, "order", resolved.OrderUUID.String(), rabbitmq.QueueOrderReturnUpdated, event)
+		}
 		return nil
 	})
 	if err != nil {
@@ -350,21 +352,6 @@ func (s *orderReturnService) AdminProcessReturnRefund(ctx context.Context, userU
 		_ = s.cache.Clear("orders:*")
 		_ = s.cache.Clear("products:*")
 		_ = s.cache.Clear("product:*")
-	}
-
-	if s.notificationService != nil {
-		go func() {
-			_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
-				UserID: resolved.OrderUserID,
-				Type:   "return_refunded",
-				Title:  "Refund Completed",
-				Body:   fmt.Sprintf("Refund of %.0f VND for order #%s has been processed successfully.", refundAmt, resolved.OrderNumber),
-				Data: map[string]any{
-					"order_uuid":  resolved.OrderUUID.String(),
-					"return_uuid": returnRequest.ReturnUuid.String(),
-				},
-			})
-		}()
 	}
 
 	paymentStatusStr := "REFUNDED"

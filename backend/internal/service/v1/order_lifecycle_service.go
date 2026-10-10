@@ -11,6 +11,7 @@ import (
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
+	"goshop/pkg/rabbitmq"
 	"slices"
 	"strings"
 
@@ -19,14 +20,14 @@ import (
 )
 
 type orderLifecycleService struct {
-	txManager           db.TxManager
-	orderStore          OrderStorePort
-	orderItemStore      OrderItemStorePort
-	trackingStore       OrderTrackingPort
-	userReader          OrderCustomerReader
-	stockPort           OrderStockPort
-	notificationService NotificationService
-	cache               cache.RedisCacheService
+	txManager      db.TxManager
+	orderStore     OrderStorePort
+	orderItemStore OrderItemStorePort
+	trackingStore  OrderTrackingPort
+	userReader     OrderCustomerReader
+	stockPort      OrderStockPort
+	outboxStore    OrderOutboxPort
+	cache          cache.RedisCacheService
 }
 
 func NewOrderLifecycleService(
@@ -36,18 +37,22 @@ func NewOrderLifecycleService(
 	trackingStore OrderTrackingPort,
 	userReader OrderCustomerReader,
 	stockPort OrderStockPort,
-	notificationService NotificationService,
 	cacheService cache.RedisCacheService,
+	outboxStore ...OrderOutboxPort,
 ) OrderLifecycleService {
+	var outboxPort OrderOutboxPort
+	if len(outboxStore) > 0 {
+		outboxPort = outboxStore[0]
+	}
 	return &orderLifecycleService{
-		txManager:           txManager,
-		orderStore:          orderStore,
-		orderItemStore:      orderItemStore,
-		trackingStore:       trackingStore,
-		userReader:          userReader,
-		stockPort:           stockPort,
-		notificationService: notificationService,
-		cache:               cacheService,
+		txManager:      txManager,
+		orderStore:     orderStore,
+		orderItemStore: orderItemStore,
+		trackingStore:  trackingStore,
+		userReader:     userReader,
+		stockPort:      stockPort,
+		outboxStore:    outboxPort,
+		cache:          cacheService,
 	}
 }
 
@@ -102,28 +107,20 @@ func (s *orderLifecycleService) UpdateOrderStatus(ctx context.Context, orderUUID
 		}
 	}
 
-	if input.Status == OrderStatusConfirmed {
-		go func() {
-			logger.Log.Info().
-				Int32("target_customer_id", updatedOrder.OrderUserID).
-				Str("order_number", updatedOrder.OrderNumber).
-				Msg("Dispatching order_confirmed notification")
-
-			if s.notificationService != nil {
-				err := s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
-					UserID: updatedOrder.OrderUserID,
-					Type:   "order_confirmed",
-					Title:  "Order Confirmed",
-					Body:   fmt.Sprintf("Your order #%s has been confirmed and is being packed.", updatedOrder.OrderNumber),
-					Data:   map[string]any{"order_uuid": updatedOrder.OrderUuid.String()},
-				})
-				if err != nil {
-					logger.Log.Error().Err(err).
-						Int32("target_customer_id", updatedOrder.OrderUserID).
-						Msg("Failed to send order_confirmed notification")
-				}
-			}
-		}()
+	// Dispatch OrderStatusChanged event via Outbox
+	if s.outboxStore != nil {
+		evt := rabbitmq.NewOrderStatusChangedEvent(
+			uuid.New().String(),
+			updatedOrder.OrderUuid.String(),
+			updatedOrder.OrderNumber,
+			existingOrder.UserUuid.String(),
+			updatedOrder.OrderID,
+			updatedOrder.OrderUserID,
+			existingOrder.OrderStatus,
+			updatedOrder.OrderStatus,
+			"",
+		)
+		_, _ = s.outboxStore.Insert(ctx, nil, "order", updatedOrder.OrderUuid.String(), rabbitmq.QueueOrderStatusChanged, evt)
 	}
 
 	dto := v1dto.MapToOrderDTO(updatedOrder, orderItems)
@@ -191,6 +188,26 @@ func (s *orderLifecycleService) CancelOrder(ctx context.Context, userUUID uuid.U
 			return err
 		}
 
+		// 4.4. Dispatch OrderCancelled event via Outbox
+		if s.outboxStore != nil {
+			reasonStr := ""
+			if reason != nil {
+				reasonStr = strings.TrimSpace(*reason)
+			}
+			evt := rabbitmq.NewOrderCancelledEvent(
+				uuid.New().String(),
+				orderRow.OrderUuid.String(),
+				orderRow.OrderNumber,
+				user.UserUuid.String(),
+				orderRow.OrderID,
+				orderRow.OrderUserID,
+				reasonStr,
+			)
+			if _, err := s.outboxStore.Insert(txCtx, tx, "order", orderRow.OrderUuid.String(), rabbitmq.QueueOrderCancelled, evt); err != nil {
+				return utils.WrapError(utils.ErrCodeInternal, "failed to insert order cancelled outbox event", err)
+			}
+		}
+
 		return nil
 	})
 
@@ -198,9 +215,8 @@ func (s *orderLifecycleService) CancelOrder(ctx context.Context, userUUID uuid.U
 		return nil, err
 	}
 
-	// 5. Side-effects hậu commit (Cache & Notification)
+	// 5. Invalidate caches
 	InvalidateOrderCachesWithCache(s.cache, user.UserUuid)
-	s.sendCancellationNotification(ctx, orderRow)
 
 	dto := v1dto.MapToOrderSummaryDTO(cancelledOrder)
 	return &dto, nil
@@ -259,6 +275,22 @@ func (s *orderLifecycleService) CancelExpiredOrder(ctx context.Context, orderUUI
 			}
 		}
 
+		// 4. Dispatch OrderCancelled event via Outbox
+		if s.outboxStore != nil {
+			evt := rabbitmq.NewOrderCancelledEvent(
+				uuid.New().String(),
+				orderRow.OrderUuid.String(),
+				orderRow.OrderNumber,
+				orderRow.UserUuid.String(),
+				orderRow.OrderID,
+				orderRow.OrderUserID,
+				cancelReason,
+			)
+			if _, err := s.outboxStore.Insert(txCtx, tx, "order", orderRow.OrderUuid.String(), rabbitmq.QueueOrderCancelled, evt); err != nil {
+				return utils.WrapError(utils.ErrCodeInternal, "failed to insert order cancelled outbox event", err)
+			}
+		}
+
 		return nil
 	})
 
@@ -266,9 +298,8 @@ func (s *orderLifecycleService) CancelExpiredOrder(ctx context.Context, orderUUI
 		return err
 	}
 
-	// 4. Invalidate caches & send cancellation notification
+	// 4. Invalidate caches
 	InvalidateOrderCachesWithCache(s.cache, orderRow.UserUuid)
-	s.sendCancellationNotification(ctx, orderRow)
 
 	return nil
 }
@@ -318,26 +349,6 @@ func (s *orderLifecycleService) recordCancellationTracking(ctx context.Context, 
 		return utils.WrapError(utils.ErrCodeInternal, "failed to insert tracking event", err)
 	}
 	return nil
-}
-
-func (s *orderLifecycleService) sendCancellationNotification(ctx context.Context, order sqlc.GetOrderByUUIDRow) {
-	if s.notificationService == nil {
-		return
-	}
-	err := s.notificationService.Send(ctx, v1dto.SendNotificationInput{
-		UserID: order.OrderUserID,
-		Type:   "order_cancelled",
-		Title:  "Order Cancelled",
-		Body:   fmt.Sprintf("Your order #%s has been cancelled.", order.OrderNumber),
-		Data:   map[string]any{"order_uuid": order.OrderUuid.String()},
-	})
-	if err != nil {
-		logger.Log.Warn().
-			Err(err).
-			Int32("user_id", order.OrderUserID).
-			Str("order_number", order.OrderNumber).
-			Msg("Failed to send order cancellation notification")
-	}
 }
 
 func (s *orderLifecycleService) UpdateOrderShippingInfo(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.UpdateOrderShippingInfoInput) (*v1dto.OrderDTO, error) {

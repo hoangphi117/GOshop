@@ -19,10 +19,16 @@ const (
 	ActionReported  = "reported"
 
 	// Queues
-	QueueOrderCreated     = "order.created"
-	QueuePaymentExpired   = "payment.expired"
-	QueuePaymentSucceeded = "payment.succeeded"
-	QueuePaymentFailed    = "payment.failed"
+	QueueOrderCreated         = "order.created"
+	QueueOrderCancelled       = "order.cancelled"
+	QueueOrderStatusChanged   = "order.status_changed"
+	QueueOrderShipped         = "order.shipped"
+	QueueOrderDelivered       = "order.delivered"
+	QueueOrderReturnRequested = "order_return.requested"
+	QueueOrderReturnUpdated   = "order_return.updated"
+	QueuePaymentExpired       = "payment.expired"
+	QueuePaymentSucceeded     = "payment.succeeded"
+	QueuePaymentFailed        = "payment.failed"
 )
 
 // PaymentExpiredEvent is emitted when a payment transaction exceeds its timeout and expires.
@@ -128,6 +134,120 @@ func NewOrderCreatedEvent(eventID, orderUUID, orderNumber, userUUID string, orde
 		TotalAmount:    totalAmount,
 		PurchasedItems: purchasedItems,
 		Timestamp:      time.Now().UTC(),
+	}
+}
+
+// OrderCancelledEvent is published when an order is cancelled.
+type OrderCancelledEvent struct {
+	EventID     string    `json:"event_id"`
+	OrderID     int32     `json:"order_id"`
+	OrderUUID   string    `json:"order_uuid"`
+	OrderNumber string    `json:"order_number"`
+	UserID      int32     `json:"user_id"`
+	UserUUID    string    `json:"user_uuid"`
+	Reason      string    `json:"reason,omitempty"`
+	Timestamp   time.Time `json:"timestamp"`
+}
+
+// NewOrderCancelledEvent constructs a new OrderCancelledEvent.
+func NewOrderCancelledEvent(eventID, orderUUID, orderNumber, userUUID string, orderID, userID int32, reason string) OrderCancelledEvent {
+	return OrderCancelledEvent{
+		EventID:     eventID,
+		OrderID:     orderID,
+		OrderUUID:   orderUUID,
+		OrderNumber: orderNumber,
+		UserID:      userID,
+		UserUUID:    userUUID,
+		Reason:      reason,
+		Timestamp:   time.Now().UTC(),
+	}
+}
+
+// OrderStatusChangedEvent is published when an order status changes (e.g. Confivered, Shipped, Delivered).
+type OrderStatusChangedEvent struct {
+	EventID      string    `json:"event_id"`
+	OrderID      int32     `json:"order_id"`
+	OrderUUID    string    `json:"order_uuid"`
+	OrderNumber  string    `json:"order_number"`
+	UserID       int32     `json:"user_id"`
+	UserUUID     string    `json:"user_uuid"`
+	OldStatus    int32     `json:"old_status"`
+	NewStatus    int32     `json:"new_status"`
+	ShippingCode string    `json:"shipping_code,omitempty"`
+	Timestamp    time.Time `json:"timestamp"`
+}
+
+// NewOrderStatusChangedEvent constructs a new OrderStatusChangedEvent.
+func NewOrderStatusChangedEvent(eventID, orderUUID, orderNumber, userUUID string, orderID, userID, oldStatus, newStatus int32, shippingCode string) OrderStatusChangedEvent {
+	return OrderStatusChangedEvent{
+		EventID:      eventID,
+		OrderID:      orderID,
+		OrderUUID:    orderUUID,
+		OrderNumber:  orderNumber,
+		UserID:       userID,
+		UserUUID:     userUUID,
+		OldStatus:    oldStatus,
+		NewStatus:    newStatus,
+		ShippingCode: shippingCode,
+		Timestamp:    time.Now().UTC(),
+	}
+}
+
+// OrderReturnRequestedEvent is published when a customer creates a return request.
+type OrderReturnRequestedEvent struct {
+	EventID      string    `json:"event_id"`
+	ReturnID     int32     `json:"return_id"`
+	ReturnUUID   string    `json:"return_uuid"`
+	OrderID      int32     `json:"order_id"`
+	OrderUUID    string    `json:"order_uuid"`
+	OrderNumber  string    `json:"order_number"`
+	UserID       int32     `json:"user_id"`
+	ReturnReason string    `json:"return_reason"`
+	Timestamp    time.Time `json:"timestamp"`
+}
+
+// NewOrderReturnRequestedEvent constructs a new OrderReturnRequestedEvent.
+func NewOrderReturnRequestedEvent(eventID, returnUUID, orderUUID, orderNumber string, returnID, orderID, userID int32, returnReason string) OrderReturnRequestedEvent {
+	return OrderReturnRequestedEvent{
+		EventID:      eventID,
+		ReturnID:     returnID,
+		ReturnUUID:   returnUUID,
+		OrderID:      orderID,
+		OrderUUID:    orderUUID,
+		OrderNumber:  orderNumber,
+		UserID:       userID,
+		ReturnReason: returnReason,
+		Timestamp:    time.Now().UTC(),
+	}
+}
+
+// OrderReturnUpdatedEvent is published when an admin approves/rejects/updates a return request.
+type OrderReturnUpdatedEvent struct {
+	EventID      string    `json:"event_id"`
+	ReturnID     int32     `json:"return_id"`
+	ReturnUUID   string    `json:"return_uuid"`
+	OrderID      int32     `json:"order_id"`
+	OrderUUID    string    `json:"order_uuid"`
+	OrderNumber  string    `json:"order_number"`
+	UserID       int32     `json:"user_id"`
+	ReturnStatus int16     `json:"return_status"`
+	AdminNote    string    `json:"admin_note,omitempty"`
+	Timestamp    time.Time `json:"timestamp"`
+}
+
+// NewOrderReturnUpdatedEvent constructs a new OrderReturnUpdatedEvent.
+func NewOrderReturnUpdatedEvent(eventID, returnUUID, orderUUID, orderNumber string, returnID, orderID, userID int32, returnStatus int16, adminNote string) OrderReturnUpdatedEvent {
+	return OrderReturnUpdatedEvent{
+		EventID:      eventID,
+		ReturnID:     returnID,
+		ReturnUUID:   returnUUID,
+		OrderID:      orderID,
+		OrderUUID:    orderUUID,
+		OrderNumber:  orderNumber,
+		UserID:       userID,
+		ReturnStatus: returnStatus,
+		AdminNote:    adminNote,
+		Timestamp:    time.Now().UTC(),
 	}
 }
 

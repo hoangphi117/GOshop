@@ -6,7 +6,6 @@ import (
 	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/repository"
 	"goshop/pkg/cache"
-	"goshop/pkg/rabbitmq"
 
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
@@ -68,9 +67,7 @@ func NewOrderService(
 	cartService CartService,
 	couponService CouponService,
 	trackingRepo repository.TrackingRepository,
-	notificationService NotificationService,
 	redisClient *redis.Client,
-	rabbitMQ rabbitmq.RabbitMQService,
 	outboxRepo ...repository.OutboxRepository,
 ) OrderService {
 	var cacheService cache.RedisCacheService
@@ -95,9 +92,7 @@ func NewOrderService(
 		cartService,
 		couponService,
 		trackingRepo,
-		notificationService,
 		cacheService,
-		rabbitMQ,
 		outboxStore,
 	)
 
@@ -116,8 +111,8 @@ func NewOrderService(
 		trackingRepo,
 		userRepo,
 		inventoryService,
-		notificationService,
 		cacheService,
+		outboxStore,
 	)
 
 	svc := &orderService{

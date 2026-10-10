@@ -11,7 +11,9 @@ import (
 	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/utils"
 	"goshop/pkg/logger"
+	"goshop/pkg/rabbitmq"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -135,16 +137,19 @@ func (s *orderShippingService) HandleShippingWebhook(ctx context.Context, rawBod
 		}
 		logger.Log.Info().Str("order_number", order.OrderNumber).Str("code", payload.OrderCode).Msg("Order marked as DELIVERED via GHN Webhook")
 
-		if s.notificationService != nil {
-			go func() {
-				_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
-					UserID: updatedOrder.OrderUserID,
-					Type:   "order_delivered",
-					Title:  "Order Delivered",
-					Body:   fmt.Sprintf("Your order #%s has been delivered. Please confirm receipt.", order.OrderNumber),
-					Data:   map[string]any{"order_uuid": updatedOrder.OrderUuid.String()},
-				})
-			}()
+		if s.rabbitmq != nil {
+			evt := rabbitmq.NewOrderStatusChangedEvent(
+				uuid.New().String(),
+				updatedOrder.OrderUuid.String(),
+				order.OrderNumber,
+				"",
+				updatedOrder.OrderID,
+				updatedOrder.OrderUserID,
+				order.OrderStatus,
+				OrderStatusDelivered,
+				payload.OrderCode,
+			)
+			_ = s.rabbitmq.Publish(context.Background(), rabbitmq.QueueOrderStatusChanged, evt)
 		}
 
 	case "delivering":

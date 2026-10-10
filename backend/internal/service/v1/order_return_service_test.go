@@ -13,6 +13,7 @@ import (
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/testutils"
 	"goshop/internal/utils"
+	"goshop/pkg/rabbitmq"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -30,7 +31,7 @@ type testReturnServiceDeps struct {
 	userRepo            *testutils.MockUserRepository
 	trackingRepo        *testutils.MockTrackingRepository
 	paymentService      v1service.PaymentService
-	notificationService *testutils.MockNotificationService
+	outboxStore         v1service.OrderOutboxPort
 }
 
 func newTestReturnService(deps testReturnServiceDeps) v1service.OrderReturnService {
@@ -80,11 +81,11 @@ func newTestReturnService(deps testReturnServiceDeps) v1service.OrderReturnServi
 	} else {
 		paymentSvc = &testutils.MockPaymentService{}
 	}
-	var notifSvc v1service.NotificationService
-	if deps.notificationService != nil {
-		notifSvc = deps.notificationService
+	var outboxStore v1service.OrderOutboxPort
+	if deps.outboxStore != nil {
+		outboxStore = deps.outboxStore
 	} else {
-		notifSvc = &testutils.MockNotificationService{}
+		outboxStore = &testutils.MockOutboxRepository{}
 	}
 
 	return v1service.NewOrderReturnService(
@@ -96,7 +97,7 @@ func newTestReturnService(deps testReturnServiceDeps) v1service.OrderReturnServi
 		userRepo,
 		trackingRepo,
 		paymentSvc,
-		notifSvc,
+		outboxStore,
 		nil,
 	)
 }
@@ -342,21 +343,22 @@ func TestOrderService_RequestOrderReturn(t *testing.T) {
 			},
 		}
 
-		var notificationSent bool
-		mockNotification := &testutils.MockNotificationService{
-			SendFunc: func(ctx context.Context, input v1dto.SendNotificationInput) error {
-				notificationSent = true
-				assert.Equal(t, "return_requested", input.Type)
-				return nil
+		var outboxInserted bool
+		mockOutbox := &testutils.MockOutboxRepository{
+			InsertFunc: func(ctx context.Context, tx pgx.Tx, aggregateType, aggregateID, eventType string, payload any) (sqlc.OutboxEvent, error) {
+				outboxInserted = true
+				assert.Equal(t, "order", aggregateType)
+				assert.Equal(t, rabbitmq.QueueOrderReturnRequested, eventType)
+				return sqlc.OutboxEvent{}, nil
 			},
 		}
 
 		svc := newTestReturnService(testReturnServiceDeps{
-			userRepo:            mockUserRepo,
-			orderRepo:           mockOrderRepo,
-			orderReturnRepo:     mockReturnRepo,
-			trackingRepo:        mockTrackingRepo,
-			notificationService: mockNotification,
+			userRepo:        mockUserRepo,
+			orderRepo:       mockOrderRepo,
+			orderReturnRepo: mockReturnRepo,
+			trackingRepo:    mockTrackingRepo,
+			outboxStore:     mockOutbox,
 		})
 
 		res, err := svc.RequestOrderReturn(ctx, userUUID, orderUUID, input, []string{"img1.png"}, nil)
@@ -364,8 +366,7 @@ func TestOrderService_RequestOrderReturn(t *testing.T) {
 		assert.NotNil(t, res)
 		assert.True(t, returnCreated)
 		assert.True(t, trackingInserted)
-		time.Sleep(25 * time.Millisecond) // Allow async notification to run
-		assert.True(t, notificationSent)
+		assert.True(t, outboxInserted)
 		assert.Equal(t, returnUUID.String(), res.ReturnUUID)
 		assert.Equal(t, orderUUID.String(), res.OrderUUID)
 		assert.Equal(t, "Pending", res.Status)
@@ -826,22 +827,23 @@ func TestOrderService_AdminUpdateReturnStatus(t *testing.T) {
 			},
 		}
 
-		var notificationSent bool
-		mockNotification := &testutils.MockNotificationService{
-			SendFunc: func(ctx context.Context, input v1dto.SendNotificationInput) error {
-				notificationSent = true
-				assert.Equal(t, "return_approved", input.Type)
-				return nil
+		var outboxInserted bool
+		mockOutbox := &testutils.MockOutboxRepository{
+			InsertFunc: func(ctx context.Context, tx pgx.Tx, aggregateType, aggregateID, eventType string, payload any) (sqlc.OutboxEvent, error) {
+				outboxInserted = true
+				assert.Equal(t, "order", aggregateType)
+				assert.Equal(t, rabbitmq.QueueOrderReturnUpdated, eventType)
+				return sqlc.OutboxEvent{}, nil
 			},
 		}
 
 		note := "Return accepted"
 		svc := newTestReturnService(testReturnServiceDeps{
-			userRepo:            mockUserRepo,
-			orderRepo:           mockOrderRepo,
-			orderReturnRepo:     mockReturnRepo,
-			trackingRepo:        mockTrackingRepo,
-			notificationService: mockNotification,
+			userRepo:        mockUserRepo,
+			orderRepo:       mockOrderRepo,
+			orderReturnRepo: mockReturnRepo,
+			trackingRepo:    mockTrackingRepo,
+			outboxStore:     mockOutbox,
 		})
 
 		res, err := svc.AdminUpdateReturnStatus(ctx, adminUUID, returnUUID, v1dto.AdminUpdateReturnInput{
@@ -849,9 +851,8 @@ func TestOrderService_AdminUpdateReturnStatus(t *testing.T) {
 			AdminNote: &note,
 		})
 		require.NoError(t, err)
-		time.Sleep(25 * time.Millisecond)
 		assert.True(t, trackingInserted)
-		assert.True(t, notificationSent)
+		assert.True(t, outboxInserted)
 		assert.Equal(t, v1service.OrderReturnStatusApproved, res.Status)
 	})
 
@@ -1331,22 +1332,23 @@ func TestOrderService_AdminProcessReturnRefund(t *testing.T) {
 			},
 		}
 
-		var notificationSent bool
-		mockNotification := &testutils.MockNotificationService{
-			SendFunc: func(ctx context.Context, input v1dto.SendNotificationInput) error {
-				notificationSent = true
-				assert.Equal(t, "return_refunded", input.Type)
-				return nil
+		var outboxInserted bool
+		mockOutbox := &testutils.MockOutboxRepository{
+			InsertFunc: func(ctx context.Context, tx pgx.Tx, aggregateType, aggregateID, eventType string, payload any) (sqlc.OutboxEvent, error) {
+				outboxInserted = true
+				assert.Equal(t, "order", aggregateType)
+				assert.Equal(t, rabbitmq.QueueOrderReturnUpdated, eventType)
+				return sqlc.OutboxEvent{}, nil
 			},
 		}
 
 		svc := newTestReturnService(testReturnServiceDeps{
-			userRepo:            mockUserRepo,
-			orderRepo:           mockOrderRepo,
-			orderReturnRepo:     mockReturnRepo,
-			trackingRepo:        mockTrackingRepo,
-			paymentService:      mockPaymentService,
-			notificationService: mockNotification,
+			userRepo:        mockUserRepo,
+			orderRepo:       mockOrderRepo,
+			orderReturnRepo: mockReturnRepo,
+			trackingRepo:    mockTrackingRepo,
+			paymentService:  mockPaymentService,
+			outboxStore:     mockOutbox,
 		})
 
 		refundAmt := 300000.0
@@ -1355,10 +1357,9 @@ func TestOrderService_AdminProcessReturnRefund(t *testing.T) {
 			BankTxnRef: "MB123456789",
 		})
 		require.NoError(t, err)
-		time.Sleep(25 * time.Millisecond)
 		assert.False(t, refundCalled)
 		assert.True(t, trackingInserted)
-		assert.True(t, notificationSent)
+		assert.True(t, outboxInserted)
 		assert.Equal(t, 300000.0, res.RefundAmount)
 		assert.Equal(t, "MB123456789", res.RefundTxnID)
 	})

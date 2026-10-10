@@ -131,7 +131,6 @@ func NewWorker(cfg *config.Config) *Worker {
 		paymentRepo,
 		shippingFactory,
 		webhookRepo,
-		notificationService,
 		userRepo,
 		redisClient,
 		rabbitMQ,
@@ -192,9 +191,7 @@ func NewWorker(cfg *config.Config) *Worker {
 		cartService,
 		couponService,
 		trackingRepo,
-		notificationService,
 		redisClient,
-		rabbitMQ,
 		outboxRepo,
 	)
 	paymentExpiredConsumer := worker.NewPaymentExpiredConsumer(orderService, log)
@@ -292,6 +289,38 @@ func (w *Worker) Start(ctx context.Context) error {
 			return err
 		}
 		w.logger.Info().Msgf("Worker consuming queue: %s", rabbitmq.QueueOrderCreated)
+
+		// Consume Order Cancelled Events
+		cancelHandler := w.withIdempotency(rabbitmq.QueueOrderCancelled, w.orderConsumer.HandleOrderCancelled)
+		if err := w.rabbitMQ.Consume(ctx, rabbitmq.QueueOrderCancelled, cancelHandler); err != nil {
+			w.logger.Error().Err(err).Msg("Failed to consume order cancelled events")
+		} else {
+			w.logger.Info().Msgf("Worker consuming queue: %s", rabbitmq.QueueOrderCancelled)
+		}
+
+		// Consume Order Status Changed Events
+		statusChangedHandler := w.withIdempotency(rabbitmq.QueueOrderStatusChanged, w.orderConsumer.HandleOrderStatusChanged)
+		if err := w.rabbitMQ.Consume(ctx, rabbitmq.QueueOrderStatusChanged, statusChangedHandler); err != nil {
+			w.logger.Error().Err(err).Msg("Failed to consume order status changed events")
+		} else {
+			w.logger.Info().Msgf("Worker consuming queue: %s", rabbitmq.QueueOrderStatusChanged)
+		}
+
+		// Consume Order Return Requested Events
+		returnReqHandler := w.withIdempotency(rabbitmq.QueueOrderReturnRequested, w.orderConsumer.HandleOrderReturnRequested)
+		if err := w.rabbitMQ.Consume(ctx, rabbitmq.QueueOrderReturnRequested, returnReqHandler); err != nil {
+			w.logger.Error().Err(err).Msg("Failed to consume order return requested events")
+		} else {
+			w.logger.Info().Msgf("Worker consuming queue: %s", rabbitmq.QueueOrderReturnRequested)
+		}
+
+		// Consume Order Return Updated Events
+		returnUpdatedHandler := w.withIdempotency(rabbitmq.QueueOrderReturnUpdated, w.orderConsumer.HandleOrderReturnUpdated)
+		if err := w.rabbitMQ.Consume(ctx, rabbitmq.QueueOrderReturnUpdated, returnUpdatedHandler); err != nil {
+			w.logger.Error().Err(err).Msg("Failed to consume order return updated events")
+		} else {
+			w.logger.Info().Msgf("Worker consuming queue: %s", rabbitmq.QueueOrderReturnUpdated)
+		}
 	}
 
 	// Consume Shipping Order Create Events

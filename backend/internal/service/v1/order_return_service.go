@@ -12,6 +12,7 @@ import (
 	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
+	"goshop/pkg/rabbitmq"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -27,7 +28,7 @@ type orderReturnService struct {
 	userRepo            OrderCustomerReader
 	trackingRepo        OrderTrackingPort
 	paymentService      OrderPaymentRefundPort
-	notificationService NotificationService
+	outboxStore         OrderOutboxPort
 	cache               cache.RedisCacheService
 }
 
@@ -40,7 +41,7 @@ func NewOrderReturnService(
 	userRepo OrderCustomerReader,
 	trackingRepo OrderTrackingPort,
 	paymentService OrderPaymentRefundPort,
-	notificationService NotificationService,
+	outboxStore OrderOutboxPort,
 	redisClient *redis.Client,
 ) OrderReturnService {
 	var cacheService cache.RedisCacheService
@@ -48,16 +49,16 @@ func NewOrderReturnService(
 		cacheService = cache.NewRedisCacheService(redisClient)
 	}
 	return &orderReturnService{
-		txManager:           txManager,
-		orderRepo:           orderRepo,
-		orderItemRepo:       orderItemRepo,
-		orderReturnRepo:     orderReturnRepo,
-		stockPort:           stockPort,
-		userRepo:            userRepo,
-		trackingRepo:        trackingRepo,
-		paymentService:      paymentService,
-		notificationService: notificationService,
-		cache:               cacheService,
+		txManager:       txManager,
+		orderRepo:       orderRepo,
+		orderItemRepo:   orderItemRepo,
+		orderReturnRepo: orderReturnRepo,
+		stockPort:       stockPort,
+		userRepo:        userRepo,
+		trackingRepo:    trackingRepo,
+		paymentService:  paymentService,
+		outboxStore:     outboxStore,
+		cache:           cacheService,
 	}
 }
 
@@ -157,6 +158,20 @@ func (s *orderReturnService) RequestOrderReturn(ctx context.Context, userUUID uu
 				return err
 			}
 		}
+
+		if s.outboxStore != nil {
+			event := rabbitmq.NewOrderReturnRequestedEvent(
+				uuid.NewString(),
+				createdReturn.ReturnUuid.String(),
+				order.OrderUuid.String(),
+				order.OrderNumber,
+				createdReturn.ReturnID,
+				order.OrderID,
+				order.OrderUserID,
+				createdReturn.ReturnReason,
+			)
+			_, _ = s.outboxStore.Insert(ctx, tx, "order", order.OrderUuid.String(), rabbitmq.QueueOrderReturnRequested, event)
+		}
 		return nil
 	})
 	if err != nil {
@@ -165,32 +180,6 @@ func (s *orderReturnService) RequestOrderReturn(ctx context.Context, userUUID uu
 
 	if s.cache != nil {
 		_ = s.cache.Clear(fmt.Sprintf("order:%s", orderUUID.String()))
-	}
-
-	if s.notificationService != nil {
-		go func() {
-			_ = s.notificationService.SendAsync(context.Background(), v1dto.SendNotificationInput{
-				UserID: order.OrderUserID,
-				Type:   "return_requested",
-				Title:  "Return Request Received",
-				Body:   fmt.Sprintf("Your return request for order #%s is under review.", order.OrderNumber),
-				Data: map[string]any{
-					"order_uuid":  orderUUID.String(),
-					"return_uuid": createdReturn.ReturnUuid.String(),
-				},
-			})
-
-			_ = s.notificationService.NotifyAdminsAsync(context.Background(), v1dto.AdminNotifyInput{
-				Type:  "return",
-				Title: "New Return Requested",
-				Body:  fmt.Sprintf("Return requested for order #%s: %s", order.OrderNumber, createdReturn.ReturnReason),
-				Data: map[string]any{
-					"order_uuid":  orderUUID.String(),
-					"return_uuid": createdReturn.ReturnUuid.String(),
-					"link":        "/returns",
-				},
-			})
-		}()
 	}
 
 	return v1dto.OrderReturnDTO{
@@ -452,6 +441,21 @@ func (s *orderReturnService) CancelOrderReturn(ctx context.Context, userUUID uui
 				return err
 			}
 		}
+
+		if s.outboxStore != nil {
+			event := rabbitmq.NewOrderReturnUpdatedEvent(
+				uuid.NewString(),
+				updatedReturn.ReturnUuid.String(),
+				resolved.OrderUUID.String(),
+				resolved.OrderNumber,
+				updatedReturn.ReturnID,
+				resolved.OrderID,
+				resolved.OrderUserID,
+				updatedReturn.ReturnStatus,
+				"Return request cancelled by customer",
+			)
+			_, _ = s.outboxStore.Insert(ctx, tx, "order", resolved.OrderUUID.String(), rabbitmq.QueueOrderReturnUpdated, event)
+		}
 		return nil
 	})
 	if err != nil {
@@ -460,22 +464,6 @@ func (s *orderReturnService) CancelOrderReturn(ctx context.Context, userUUID uui
 
 	if s.cache != nil {
 		_ = s.cache.Clear(fmt.Sprintf("order:%s", resolved.OrderUUID.String()))
-	}
-
-	if s.notificationService != nil {
-		go func() {
-			_ = s.notificationService.NotifyAdminsAsync(context.Background(), v1dto.AdminNotifyInput{
-				Type:  "return",
-				Title: "Return Request Cancelled",
-				Body:  fmt.Sprintf("Customer cancelled return request for order #%s.", resolved.OrderNumber),
-				Data: map[string]any{
-					"order_uuid":   resolved.OrderUUID.String(),
-					"return_uuid":  updatedReturn.ReturnUuid.String(),
-					"order_number": resolved.OrderNumber,
-					"link":         "/returns",
-				},
-			})
-		}()
 	}
 
 	return v1dto.CancelOrderReturnResponseDTO{

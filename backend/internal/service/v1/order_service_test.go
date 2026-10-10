@@ -95,9 +95,7 @@ func newTestOrderService(deps testOrderServiceDeps) v1service.OrderService {
 		cartSvc,
 		couponSvc,
 		trackingRepo,
-		notifSvc,
 		deps.redisClient,
-		deps.rabbitMQ,
 		outboxArgs...,
 	)
 }
@@ -536,7 +534,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 
 	t.Run("Case 12: Success WITHOUT Coupon - Complete End-to-End Flow", func(t *testing.T) {
 		orderUUIDCreated := uuid.New()
-		var notifiedInput v1dto.SendNotificationInput
 		var deletedCartProductIDs []int32
 		var createdTrackingEvent sqlc.InsertTrackingEventParams
 
@@ -658,22 +655,25 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 
-		mockNotification := &testutils.MockNotificationService{
-			SendFunc: func(ctx context.Context, input v1dto.SendNotificationInput) error {
-				notifiedInput = input
-				return nil
+		var outboxEvent rabbitmq.OrderCreatedEvent
+		mockOutbox := &testutils.MockOutboxRepository{
+			InsertFunc: func(ctx context.Context, tx pgx.Tx, aggType, aggID, eventType string, payload any) (sqlc.OutboxEvent, error) {
+				if ev, ok := payload.(rabbitmq.OrderCreatedEvent); ok {
+					outboxEvent = ev
+				}
+				return sqlc.OutboxEvent{EventID: 1}, nil
 			},
 		}
 
 		svc := newTestOrderService(testOrderServiceDeps{
-			pricingService:      mockPricing,
-			inventoryService:    mockInventory,
-			orderRepo:           mockOrderRepo,
-			orderItemRepo:       mockOrderItemRepo,
-			userRepo:            mockUserRepo,
-			cartService:         mockCartService,
-			trackingRepo:        mockTrackingRepo,
-			notificationService: mockNotification,
+			pricingService:   mockPricing,
+			inventoryService: mockInventory,
+			orderRepo:        mockOrderRepo,
+			orderItemRepo:    mockOrderItemRepo,
+			userRepo:         mockUserRepo,
+			cartService:      mockCartService,
+			trackingRepo:     mockTrackingRepo,
+			outboxRepo:       mockOutbox,
 		})
 
 		orderDTO, err := svc.CreateOrder(ctx, userUUID, baseInput)
@@ -701,24 +701,23 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		assert.Equal(t, "pending", createdTrackingEvent.EventStatus)
 		assert.Equal(t, "user", createdTrackingEvent.EventSource)
 
-		// Assert Notification
-		assert.Equal(t, baseUser.UserID, notifiedInput.UserID)
-		assert.Equal(t, "order_created", notifiedInput.Type)
-		assert.Equal(t, "Order Placed Successfully", notifiedInput.Title)
-		assert.Equal(t, orderUUIDCreated.String(), notifiedInput.Data["order_uuid"])
+		// Assert Outbox event
+		assert.Equal(t, baseUser.UserID, outboxEvent.UserID)
+		assert.Equal(t, int32(501), outboxEvent.OrderID)
+		assert.Equal(t, orderUUIDCreated.String(), outboxEvent.OrderUUID)
 	})
 
-	t.Run("Event-driven: Success WITH RabbitMQ - Publishes OrderCreatedEvent", func(t *testing.T) {
-		var publishedQueue string
-		var publishedEvent rabbitmq.OrderCreatedEvent
+	t.Run("Event-driven: Success WITH Outbox - Publishes OrderCreatedEvent via Outbox", func(t *testing.T) {
+		var outboxQueue string
+		var outboxEvt rabbitmq.OrderCreatedEvent
 
-		mockRabbitMQ := &testutils.MockRabbitMQService{
-			PublishFunc: func(ctx context.Context, queue string, message any) error {
-				publishedQueue = queue
-				if ev, ok := message.(rabbitmq.OrderCreatedEvent); ok {
-					publishedEvent = ev
+		mockOutbox := &testutils.MockOutboxRepository{
+			InsertFunc: func(ctx context.Context, tx pgx.Tx, aggType, aggID, eventType string, payload any) (sqlc.OutboxEvent, error) {
+				outboxQueue = eventType
+				if ev, ok := payload.(rabbitmq.OrderCreatedEvent); ok {
+					outboxEvt = ev
 				}
-				return nil
+				return sqlc.OutboxEvent{EventID: 100}, nil
 			},
 		}
 
@@ -786,18 +785,18 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			orderItemRepo:    mockOrderItemRepo,
 			userRepo:         mockUserRepo,
 			trackingRepo:     mockTrackingRepo,
-			rabbitMQ:         mockRabbitMQ,
+			outboxRepo:       mockOutbox,
 		})
 
 		orderDTO, err := svc.CreateOrder(ctx, userUUID, baseInput)
 		require.NoError(t, err)
 
 		assert.NotEmpty(t, orderDTO.UUID)
-		assert.Equal(t, rabbitmq.QueueOrderCreated, publishedQueue)
-		assert.Equal(t, int32(601), publishedEvent.OrderID)
-		assert.Equal(t, baseUser.UserID, publishedEvent.UserID)
-		assert.Equal(t, []int32{101, 102}, publishedEvent.PurchasedItems)
-		assert.Equal(t, 1280000.0, publishedEvent.TotalAmount)
+		assert.Equal(t, rabbitmq.QueueOrderCreated, outboxQueue)
+		assert.Equal(t, int32(601), outboxEvt.OrderID)
+		assert.Equal(t, baseUser.UserID, outboxEvt.UserID)
+		assert.Equal(t, []int32{101, 102}, outboxEvt.PurchasedItems)
+		assert.Equal(t, 1280000.0, outboxEvt.TotalAmount)
 	})
 
 	t.Run("Transactional Outbox: Success WITH Outbox and RabbitMQ - Inserts to Outbox and SKIPS direct publish", func(t *testing.T) {
@@ -1439,7 +1438,6 @@ func TestOrderService_CancelOrder(t *testing.T) {
 		reason := "Bought by mistake"
 		var restoredItems []v1service.RestoreItem
 		var trackingEvent sqlc.InsertTrackingEventParams
-		var notifiedInput v1dto.SendNotificationInput
 
 		mockUserRepo := &testutils.MockUserRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
@@ -1478,20 +1476,24 @@ func TestOrderService_CancelOrder(t *testing.T) {
 				return sqlc.OrderTrackingEvent{EventID: 1}, nil
 			},
 		}
-		mockNotification := &testutils.MockNotificationService{
-			SendFunc: func(ctx context.Context, input v1dto.SendNotificationInput) error {
-				notifiedInput = input
-				return nil
+
+		var outboxCancelledEvt rabbitmq.OrderCancelledEvent
+		mockOutbox := &testutils.MockOutboxRepository{
+			InsertFunc: func(ctx context.Context, tx pgx.Tx, aggType, aggID, eventType string, payload any) (sqlc.OutboxEvent, error) {
+				if ev, ok := payload.(rabbitmq.OrderCancelledEvent); ok {
+					outboxCancelledEvt = ev
+				}
+				return sqlc.OutboxEvent{EventID: 1}, nil
 			},
 		}
 
 		svc := newTestOrderService(testOrderServiceDeps{
 			inventoryService: mockInventory,
-			orderRepo: mockOrderRepo,
-			orderItemRepo: mockOrderItemRepo,
-			userRepo: mockUserRepo,
-			trackingRepo: mockTracking,
-			notificationService: mockNotification,
+			orderRepo:        mockOrderRepo,
+			orderItemRepo:    mockOrderItemRepo,
+			userRepo:         mockUserRepo,
+			trackingRepo:     mockTracking,
+			outboxRepo:       mockOutbox,
 		})
 
 		cancelledOrder, err := svc.CancelOrder(ctx, userUUID, orderUUID, &reason)
@@ -1514,11 +1516,10 @@ func TestOrderService_CancelOrder(t *testing.T) {
 		require.NotNil(t, trackingEvent.EventNote)
 		assert.Equal(t, "Order cancelled. Reason: Bought by mistake", *trackingEvent.EventNote)
 
-		// Assert Notification
-		assert.Equal(t, baseUser.UserID, notifiedInput.UserID)
-		assert.Equal(t, "order_cancelled", notifiedInput.Type)
-		assert.Equal(t, "Order Cancelled", notifiedInput.Title)
-		assert.Equal(t, orderUUID.String(), notifiedInput.Data["order_uuid"])
+		// Assert Outbox Event
+		assert.Equal(t, baseUser.UserID, outboxCancelledEvt.UserID)
+		assert.Equal(t, int32(500), outboxCancelledEvt.OrderID)
+		assert.Equal(t, orderUUID.String(), outboxCancelledEvt.OrderUUID)
 	})
 
 	t.Run("Case 11: Happy Path - Admin Cancels Confirmed Order Without Reason", func(t *testing.T) {
@@ -1526,7 +1527,7 @@ func TestOrderService_CancelOrder(t *testing.T) {
 		confirmedOrder.OrderStatus = v1service.OrderStatusConfirmed
 
 		var trackingEvent sqlc.InsertTrackingEventParams
-		var notifiedInput v1dto.SendNotificationInput
+		var outboxCancelledEvt rabbitmq.OrderCancelledEvent
 
 		mockUserRepo := &testutils.MockUserRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
@@ -1562,20 +1563,22 @@ func TestOrderService_CancelOrder(t *testing.T) {
 				return sqlc.OrderTrackingEvent{EventID: 1}, nil
 			},
 		}
-		mockNotification := &testutils.MockNotificationService{
-			SendFunc: func(ctx context.Context, input v1dto.SendNotificationInput) error {
-				notifiedInput = input
-				return nil
+		mockOutbox := &testutils.MockOutboxRepository{
+			InsertFunc: func(ctx context.Context, tx pgx.Tx, aggType, aggID, eventType string, payload any) (sqlc.OutboxEvent, error) {
+				if ev, ok := payload.(rabbitmq.OrderCancelledEvent); ok {
+					outboxCancelledEvt = ev
+				}
+				return sqlc.OutboxEvent{EventID: 1}, nil
 			},
 		}
 
 		svc := newTestOrderService(testOrderServiceDeps{
 			inventoryService: mockInventory,
-			orderRepo: mockOrderRepo,
-			orderItemRepo: mockOrderItemRepo,
-			userRepo: mockUserRepo,
-			trackingRepo: mockTracking,
-			notificationService: mockNotification,
+			orderRepo:        mockOrderRepo,
+			orderItemRepo:    mockOrderItemRepo,
+			userRepo:         mockUserRepo,
+			trackingRepo:     mockTracking,
+			outboxRepo:       mockOutbox,
 		})
 
 		cancelledOrder, err := svc.CancelOrder(ctx, adminUUID, orderUUID, nil)
@@ -1587,11 +1590,11 @@ func TestOrderService_CancelOrder(t *testing.T) {
 		require.NotNil(t, trackingEvent.EventNote)
 		assert.Equal(t, "Order cancelled.", *trackingEvent.EventNote)
 
-		// Notification is sent to customer (UserID 1), NOT the admin (UserID 99)
-		assert.Equal(t, baseUser.UserID, notifiedInput.UserID)
+		// Outbox event targets the customer UserID (1)
+		assert.Equal(t, baseUser.UserID, outboxCancelledEvt.UserID)
 	})
 
-	t.Run("Case 12: Notification Failure Does NOT Fail Cancellation", func(t *testing.T) {
+	t.Run("Case 12: Notification Decoupled - Cancellation Succeeds with Outbox", func(t *testing.T) {
 		mockUserRepo := &testutils.MockUserRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
 				return baseUser, nil
@@ -1620,19 +1623,13 @@ func TestOrderService_CancelOrder(t *testing.T) {
 				return sqlc.OrderTrackingEvent{EventID: 1}, nil
 			},
 		}
-		mockNotification := &testutils.MockNotificationService{
-			SendFunc: func(ctx context.Context, input v1dto.SendNotificationInput) error {
-				return errors.New("notification provider timeout")
-			},
-		}
 
 		svc := newTestOrderService(testOrderServiceDeps{
 			inventoryService: mockInventory,
-			orderRepo: mockOrderRepo,
-			orderItemRepo: mockOrderItemRepo,
-			userRepo: mockUserRepo,
-			trackingRepo: mockTracking,
-			notificationService: mockNotification,
+			orderRepo:        mockOrderRepo,
+			orderItemRepo:    mockOrderItemRepo,
+			userRepo:         mockUserRepo,
+			trackingRepo:     mockTracking,
 		})
 
 		cancelledOrder, err := svc.CancelOrder(ctx, userUUID, orderUUID, nil)
@@ -2181,13 +2178,6 @@ func TestOrderService_UpdateOrderStatus(t *testing.T) {
 				return sqlc.OrderTrackingEvent{EventID: 1}, nil
 			},
 		}
-		var notifiedInput v1dto.SendNotificationInput
-		mockNotification := &testutils.MockNotificationService{
-			SendFunc: func(ctx context.Context, input v1dto.SendNotificationInput) error {
-				notifiedInput = input
-				return nil
-			},
-		}
 		mockOrderRepo := &testutils.MockOrderRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
 				return existingOrder, nil
@@ -2204,11 +2194,21 @@ func TestOrderService_UpdateOrderStatus(t *testing.T) {
 			},
 		}
 
+		var outboxStatusEvt rabbitmq.OrderStatusChangedEvent
+		mockOutbox := &testutils.MockOutboxRepository{
+			InsertFunc: func(ctx context.Context, tx pgx.Tx, aggType, aggID, eventType string, payload any) (sqlc.OutboxEvent, error) {
+				if ev, ok := payload.(rabbitmq.OrderStatusChangedEvent); ok {
+					outboxStatusEvt = ev
+				}
+				return sqlc.OutboxEvent{EventID: 1}, nil
+			},
+		}
+
 		svc := newTestOrderService(testOrderServiceDeps{
-			orderRepo: mockOrderRepo,
+			orderRepo:     mockOrderRepo,
 			orderItemRepo: mockOrderItemRepo,
-			trackingRepo: mockTracking,
-			notificationService: mockNotification,
+			trackingRepo:  mockTracking,
+			outboxRepo:    mockOutbox,
 		})
 
 		resOrder, err := svc.UpdateOrderStatus(ctx, orderUUID, v1dto.UpdateOrderStatusInput{
@@ -2223,10 +2223,9 @@ func TestOrderService_UpdateOrderStatus(t *testing.T) {
 		assert.Equal(t, "Confirmed", trackingEvent.EventStatus)
 		assert.Equal(t, "admin", trackingEvent.EventSource)
 
-		// Allow async notification goroutine to complete
-		time.Sleep(50 * time.Millisecond)
-		assert.Equal(t, int32(10), notifiedInput.UserID)
-		assert.Equal(t, "order_confirmed", notifiedInput.Type)
+		// Assert Outbox event was recorded
+		assert.Equal(t, int32(10), outboxStatusEvt.UserID)
+		assert.Equal(t, v1service.OrderStatusConfirmed, outboxStatusEvt.NewStatus)
 	})
 }
 

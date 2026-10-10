@@ -9,6 +9,7 @@ import (
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/utils"
+	"goshop/pkg/rabbitmq"
 
 	"github.com/google/uuid"
 )
@@ -84,6 +85,21 @@ func (s *orderReturnService) SubmitReturnShipping(ctx context.Context, userUUID 
 				return err
 			}
 		}
+
+		if s.outboxStore != nil {
+			event := rabbitmq.NewOrderReturnUpdatedEvent(
+				uuid.NewString(),
+				updatedReturn.ReturnUuid.String(),
+				resolved.OrderUUID.String(),
+				resolved.OrderNumber,
+				updatedReturn.ReturnID,
+				resolved.OrderID,
+				resolved.OrderUserID,
+				updatedReturn.ReturnStatus,
+				fmt.Sprintf("Return shipping submitted: %s (%s)", shippingCode, provider),
+			)
+			_, _ = s.outboxStore.Insert(ctx, tx, "order", resolved.OrderUUID.String(), rabbitmq.QueueOrderReturnUpdated, event)
+		}
 		return nil
 	})
 	if err != nil {
@@ -92,22 +108,6 @@ func (s *orderReturnService) SubmitReturnShipping(ctx context.Context, userUUID 
 
 	if s.cache != nil {
 		_ = s.cache.Clear(fmt.Sprintf("order:%s", resolved.OrderUUID.String()))
-	}
-
-	if s.notificationService != nil {
-		go func() {
-			_ = s.notificationService.NotifyAdminsAsync(context.Background(), v1dto.AdminNotifyInput{
-				Type:  "return",
-				Title: "Return Tracking Submitted",
-				Body:  fmt.Sprintf("Return shipping details submitted for order #%s: %s (%s).", resolved.OrderNumber, shippingCode, provider),
-				Data: map[string]any{
-					"order_uuid":   resolved.OrderUUID.String(),
-					"return_uuid":  updatedReturn.ReturnUuid.String(),
-					"order_number": resolved.OrderNumber,
-					"link":         "/returns",
-				},
-			})
-		}()
 	}
 
 	return v1dto.SubmitReturnShippingResponseDTO{

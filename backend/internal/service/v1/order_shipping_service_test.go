@@ -79,7 +79,6 @@ func newTestShippingService(deps testShippingServiceDeps) v1service.OrderShippin
 		paymentRepo,
 		deps.shippingFactory,
 		webhookRepo,
-		notifService,
 		userRepo,
 		deps.redisClient,
 		deps.rabbitmq,
@@ -360,11 +359,12 @@ func TestOrderService_ProcessShippingOrderMessage(t *testing.T) {
 			},
 		}
 
-		var notificationSent bool
-		mockNotification := &testutils.MockNotificationService{
-			SendFunc: func(ctx context.Context, input v1dto.SendNotificationInput) error {
-				notificationSent = true
-				assert.Equal(t, "order_shipped", input.Type)
+		var eventPublished bool
+		mockRabbitMQ := &testutils.MockRabbitMQService{
+			PublishFunc: func(ctx context.Context, queue string, message any) error {
+				if queue == rabbitmq.QueueOrderStatusChanged {
+					eventPublished = true
+				}
 				return nil
 			},
 		}
@@ -381,18 +381,17 @@ func TestOrderService_ProcessShippingOrderMessage(t *testing.T) {
 		factory := shipping.NewShippingFactory(mockProvider)
 
 		svc := newTestShippingService(testShippingServiceDeps{
-			orderRepo: mockOrderRepo,
-			orderItemRepo: mockOrderItemRepo,
-			trackingRepo: mockTrackingRepo,
+			orderRepo:       mockOrderRepo,
+			orderItemRepo:   mockOrderItemRepo,
+			trackingRepo:    mockTrackingRepo,
 			shippingFactory: factory,
-			notificationService: mockNotification,
+			rabbitmq:        mockRabbitMQ,
 		})
 
 		err := svc.ProcessShippingOrder(context.Background(), msg)
 		require.NoError(t, err)
-		time.Sleep(25 * time.Millisecond)
 		assert.True(t, eventInserted)
-		assert.True(t, notificationSent)
+		assert.True(t, eventPublished)
 	})
 }
 
@@ -1051,27 +1050,27 @@ func TestOrderService_ConfirmOrderDelivery(t *testing.T) {
 			},
 		}
 
-		var notificationSent bool
-		mockNotification := &testutils.MockNotificationService{
-			SendFunc: func(ctx context.Context, input v1dto.SendNotificationInput) error {
-				notificationSent = true
-				assert.Equal(t, "order_completed", input.Type)
+		var eventPublished bool
+		mockRabbitMQ := &testutils.MockRabbitMQService{
+			PublishFunc: func(ctx context.Context, queue string, message any) error {
+				if queue == rabbitmq.QueueOrderStatusChanged {
+					eventPublished = true
+				}
 				return nil
 			},
 		}
 
 		svc := newTestShippingService(testShippingServiceDeps{
-			orderRepo: mockOrderRepo,
+			orderRepo:    mockOrderRepo,
 			trackingRepo: mockTrackingRepo,
-			notificationService: mockNotification,
-			userRepo: mockUserRepo,
+			userRepo:     mockUserRepo,
+			rabbitmq:     mockRabbitMQ,
 		})
 
 		res, err := svc.ConfirmOrderDelivery(ctx, userUUID, orderUUID)
 		require.NoError(t, err)
-		time.Sleep(25 * time.Millisecond)
 		assert.True(t, trackingInserted)
-		assert.True(t, notificationSent)
+		assert.True(t, eventPublished)
 		assert.Equal(t, orderUUID.String(), res.OrderUUID)
 		assert.Equal(t, "Delivered", res.StatusName)
 	})

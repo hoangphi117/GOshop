@@ -11,6 +11,7 @@ import (
 	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/utils"
 	"goshop/pkg/logger"
+	"goshop/pkg/rabbitmq"
 
 	"github.com/google/uuid"
 )
@@ -92,19 +93,19 @@ func (s *orderShippingService) SyncOrderTracking(ctx context.Context, userUUID u
 				_ = s.cache.Clear("orders:*")
 			}
 
-			if s.notificationService != nil {
-				go func() {
-					_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
-						UserID: order.OrderUserID,
-						Type:   "order_delivered",
-						Title:  "Order Delivered Successfully",
-						Body:   fmt.Sprintf("Your order #%s has been delivered by GHN.", order.OrderNumber),
-						Data: map[string]any{
-							"order_uuid":    orderUUID.String(),
-							"shipping_code": shippingCode,
-						},
-					})
-				}()
+			if s.rabbitmq != nil {
+				evt := rabbitmq.NewOrderStatusChangedEvent(
+					uuid.New().String(),
+					orderUUID.String(),
+					order.OrderNumber,
+					userUUID.String(),
+					order.OrderID,
+					order.OrderUserID,
+					order.OrderStatus,
+					OrderStatusDelivered,
+					shippingCode,
+				)
+				_ = s.rabbitmq.Publish(context.Background(), rabbitmq.QueueOrderStatusChanged, evt)
 			}
 		}
 	} else {
@@ -256,19 +257,19 @@ func (s *orderShippingService) SyncActiveShippingOrders(ctx context.Context) (v1
 				_ = s.cache.Clear("orders:*")
 			}
 
-			if s.notificationService != nil {
-				go func(ord sqlc.Order, code string) {
-					_ = s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
-						UserID: ord.OrderUserID,
-						Type:   "order_delivered",
-						Title:  "Order Delivered Successfully",
-						Body:   fmt.Sprintf("Your order #%s has been delivered by GHN.", ord.OrderNumber),
-						Data: map[string]any{
-							"order_uuid":    ord.OrderUuid.String(),
-							"shipping_code": code,
-						},
-					})
-				}(order, shippingCode)
+			if s.rabbitmq != nil {
+				evt := rabbitmq.NewOrderStatusChangedEvent(
+					uuid.New().String(),
+					order.OrderUuid.String(),
+					order.OrderNumber,
+					"",
+					order.OrderID,
+					order.OrderUserID,
+					order.OrderStatus,
+					OrderStatusDelivered,
+					shippingCode,
+				)
+				_ = s.rabbitmq.Publish(context.Background(), rabbitmq.QueueOrderStatusChanged, evt)
 			}
 
 			logger.Log.Info().

@@ -84,9 +84,7 @@ func NewOrderModule(
 		cartService,
 		couponService,
 		trackingRepo,
-		notificationService,
 		ctx.Redis,
-		rabbitmqService,
 		outboxRepo,
 	)
 
@@ -98,7 +96,6 @@ func NewOrderModule(
 		paymentRepo,
 		shippingFactory,
 		webhookRepo,
-		notificationService,
 		userRepo,
 		ctx.Redis,
 		rabbitmqService,
@@ -129,7 +126,7 @@ func NewOrderModule(
 		userRepo,
 		trackingRepo,
 		paymentService,
-		notificationService,
+		outboxRepo,
 		ctx.Redis,
 	)
 
