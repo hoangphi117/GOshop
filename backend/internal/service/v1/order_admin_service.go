@@ -2,7 +2,6 @@ package v1service
 
 import (
 	"context"
-	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
 
 	"github.com/google/uuid"
@@ -23,8 +22,8 @@ func (s *orderAdminService) GetAllOrders(ctx context.Context, input v1dto.GetOrd
 	return s.orderService.GetAllOrders(ctx, input)
 }
 
-func (s *orderAdminService) UpdateOrderStatus(ctx context.Context, input sqlc.UpdateOrderStatusParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
-	return s.orderService.UpdateOrderStatus(ctx, input)
+func (s *orderAdminService) UpdateOrderStatus(ctx context.Context, orderUUID uuid.UUID, input v1dto.UpdateOrderStatusInput) (*v1dto.OrderDTO, error) {
+	return s.orderService.UpdateOrderStatus(ctx, orderUUID, input)
 }
 
 func (s *orderAdminService) BulkUpdateStatus(ctx context.Context, input v1dto.BulkUpdateOrderStatusInput) (*v1dto.BulkOperationResultDTO, error) {
@@ -44,9 +43,8 @@ func (s *orderAdminService) BulkUpdateStatus(ctx context.Context, input v1dto.Bu
 			continue
 		}
 
-		_, _, err = s.orderService.UpdateOrderStatus(ctx, sqlc.UpdateOrderStatusParams{
-			OrderUuid:   parsedUUID,
-			OrderStatus: input.Status,
+		_, err = s.orderService.UpdateOrderStatus(ctx, parsedUUID, v1dto.UpdateOrderStatusInput{
+			Status: input.Status,
 		})
 		if err != nil {
 			result.Failed++

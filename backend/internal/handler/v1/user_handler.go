@@ -1,7 +1,6 @@
 package v1handler
 
 import (
-	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/middleware"
 	v1service "goshop/internal/service/v1"
@@ -46,13 +45,11 @@ func (uh *UserHandler) GetAllUsers(ctx *gin.Context) {
 		return
 	}
 
-	listUser, total, err := uh.service.GetAllUsers(ctx.Request.Context(), params.Search, params.OrderBy, params.Sort, params.Page, params.Limit, false)
+	listUserDTO, total, err := uh.service.GetAllUsers(ctx.Request.Context(), params.Search, params.OrderBy, params.Sort, params.Page, params.Limit, false)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
-
-	listUserDTO := v1dto.MapListUsersToDTO(listUser)
 
 	paginationResponse := utils.NewPaginationResponse(listUserDTO, params.Page, params.Limit, total)
 
@@ -79,15 +76,11 @@ func (uh *UserHandler) CreateUsers(ctx *gin.Context) {
 		return
 	}
 
-	user := input.MapCreateInputToModel()
-
-	createdUser, err := uh.service.CreateUsers(ctx.Request.Context(), user)
+	createdUserDTO, err := uh.service.CreateUsers(ctx.Request.Context(), input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
-
-	createdUserDTO := v1dto.MapUserToDTO(createdUser)
 
 	utils.ResponseSuccess(ctx, http.StatusCreated, "User created successfully", createdUserDTO)
 }
@@ -117,13 +110,11 @@ func (uh *UserHandler) GetUserByUUID(ctx *gin.Context) {
 		return
 	}
 
-	user, err := uh.service.GetUserByUUID(ctx.Request.Context(), userUuid)
+	userDTO, err := uh.service.GetUserByUUID(ctx.Request.Context(), userUuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
-
-	userDTO := v1dto.MapUserToDTO(user)
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Get user successfully", userDTO)
 }
@@ -161,15 +152,11 @@ func (uh *UserHandler) UpdateUser(ctx *gin.Context) {
 		return
 	}
 
-	user := input.MapUpdateInputToModel(userUuid)
-
-	updatedUser, err := uh.service.UpdateUser(ctx.Request.Context(), user)
+	updatedUserDTO, err := uh.service.UpdateUser(ctx.Request.Context(), userUuid, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
-
-	updatedUserDTO := v1dto.MapUserToDTO(updatedUser)
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "User updated successfully", updatedUserDTO)
 }
@@ -226,13 +213,11 @@ func (uh *UserHandler) GetProfile(ctx *gin.Context) {
 		return
 	}
 
-	user, err := uh.service.GetProfile(ctx.Request.Context(), userUuid)
+	userDTO, err := uh.service.GetProfile(ctx.Request.Context(), userUuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
-
-	userDTO := v1dto.MapUserToDTO(user)
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Get profile successfully", userDTO)
 }
@@ -263,19 +248,11 @@ func (uh *UserHandler) UpdateProfile(ctx *gin.Context) {
 		return
 	}
 
-	params := sqlc.UpdateUserParams{
-		UserFullname: input.Name,
-		UserAge:      input.Age,
-		UserPassword: input.Password,
-	}
-
-	updatedUser, err := uh.service.UpdateProfile(ctx.Request.Context(), userUuid, params)
+	updatedUserDTO, err := uh.service.UpdateProfile(ctx.Request.Context(), userUuid, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
-
-	updatedUserDTO := v1dto.MapUserToDTO(updatedUser)
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Profile updated successfully", updatedUserDTO)
 }
@@ -305,13 +282,11 @@ func (uh *UserHandler) SoftDeleteUser(ctx *gin.Context) {
 		return
 	}
 
-	softDeletedUser, err := uh.service.SoftDeleteUser(ctx.Request.Context(), userUuid)
+	softDeletedUserDTO, err := uh.service.SoftDeleteUser(ctx.Request.Context(), userUuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
-
-	softDeletedUserDTO := v1dto.MapUserToDTO(softDeletedUser)
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "User soft deleted successfully", softDeletedUserDTO)
 }
@@ -341,13 +316,11 @@ func (uh *UserHandler) RestoreUser(ctx *gin.Context) {
 		return
 	}
 
-	restoredUser, err := uh.service.RestoreUser(ctx.Request.Context(), userUuid)
+	restoredUserDTO, err := uh.service.RestoreUser(ctx.Request.Context(), userUuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
-
-	restoredUserDTO := v1dto.MapUserToDTO(restoredUser)
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "User restored successfully", restoredUserDTO)
 }
@@ -409,13 +382,11 @@ func (uh *UserHandler) GetSoftDeletedUsers(ctx *gin.Context) {
 		return
 	}
 
-	listUser, total, err := uh.service.GetAllUsers(ctx.Request.Context(), params.Search, params.OrderBy, params.Sort, params.Page, params.Limit, true)
+	listUserDTO, total, err := uh.service.GetAllUsers(ctx.Request.Context(), params.Search, params.OrderBy, params.Sort, params.Page, params.Limit, true)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
-
-	listUserDTO := v1dto.MapListUsersToDTO(listUser)
 
 	paginationResponse := utils.NewPaginationResponse(listUserDTO, params.Page, params.Limit, total)
 

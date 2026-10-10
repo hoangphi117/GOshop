@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"goshop/internal/db/sqlc"
+	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/repository"
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
@@ -69,31 +69,32 @@ func generateUniqueSlug(ctx context.Context, name string, getBySlug func(ctx con
 	return "", utils.NewError(utils.ErrCodeInternal, fmt.Sprintf("Failed to generate unique slug after %d attempts", maxSlugAttempts))
 }
 
-func (cs *categoryService) CreateCategory(ctx context.Context, input sqlc.CreateCategoryParams) (sqlc.Category, error) {
-	if input.CategoryStatus == 0 {
-		input.CategoryStatus = CategoryStatusActive
+func (cs *categoryService) CreateCategory(ctx context.Context, input v1dto.CreateCategoryInput) (*v1dto.CategoryDTO, error) {
+	createParams := input.MapCreateInputToModel()
+	if createParams.CategoryStatus == 0 {
+		createParams.CategoryStatus = CategoryStatusActive
 	}
 
-	slug, err := generateUniqueSlug(ctx, input.CategoryName, func(slugCtx context.Context, slug string) error {
+	slug, err := generateUniqueSlug(ctx, createParams.CategoryName, func(slugCtx context.Context, slug string) error {
 		_, err := cs.repo.GetBySlug(slugCtx, slug)
 		return err
 	})
 	if err != nil {
 		var appErr *utils.AppError
 		if errors.As(err, &appErr) {
-			return sqlc.Category{}, err
+			return nil, err
 		}
-		return sqlc.Category{}, utils.WrapError(utils.ErrCodeInternal, "failed to generate unique slug", err)
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to generate unique slug", err)
 	}
-	input.CategorySlug = slug
+	createParams.CategorySlug = slug
 
-	category, err := cs.repo.Create(ctx, input)
+	category, err := cs.repo.Create(ctx, createParams)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return sqlc.Category{}, utils.NewError(utils.ErrCodeConflict, "category already exists")
+			return nil, utils.NewError(utils.ErrCodeConflict, "category already exists")
 		}
-		return sqlc.Category{}, utils.WrapError(utils.ErrCodeInternal, "failed to create category", err)
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to create category", err)
 	}
 
 	if cs.cache != nil {
@@ -102,10 +103,10 @@ func (cs *categoryService) CreateCategory(ctx context.Context, input sqlc.Create
 		}
 	}
 
-	return category, nil
+	return v1dto.MapCategoryToDTO(category), nil
 }
 
-func (cs *categoryService) GetAllCategories(ctx context.Context, search, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.Category, int32, error) {
+func (cs *categoryService) GetAllCategories(ctx context.Context, search, orderBy, sort string, page, limit int32, deleted bool) ([]v1dto.CategoryDTO, int32, error) {
 	if sort == "" {
 		sort = "desc"
 	}
@@ -127,8 +128,8 @@ func (cs *categoryService) GetAllCategories(ctx context.Context, search, orderBy
 
 	cacheKey := cs.generateCacheKey(search, orderBy, sort, page, limit, deleted)
 	var cacheData struct {
-		Categories []sqlc.Category `json:"categories"`
-		Total      int32           `json:"total"`
+		Categories []v1dto.CategoryDTO `json:"categories"`
+		Total      int32               `json:"total"`
 	}
 
 	if cs.cache != nil {
@@ -138,7 +139,7 @@ func (cs *categoryService) GetAllCategories(ctx context.Context, search, orderBy
 	}
 
 	type fetchResult struct {
-		categories []sqlc.Category
+		categories []v1dto.CategoryDTO
 		total      int64
 	}
 
@@ -146,8 +147,8 @@ func (cs *categoryService) GetAllCategories(ctx context.Context, search, orderBy
 		// Re-check cache inside singleflight
 		if cs.cache != nil {
 			var cd struct {
-				Categories []sqlc.Category `json:"categories"`
-				Total      int32           `json:"total"`
+				Categories []v1dto.CategoryDTO `json:"categories"`
+				Total      int32               `json:"total"`
 			}
 			if err := cs.cache.Get(cacheKey, &cd); err == nil && cd.Categories != nil {
 				return fetchResult{categories: cd.Categories, total: int64(cd.Total)}, nil
@@ -164,18 +165,20 @@ func (cs *categoryService) GetAllCategories(ctx context.Context, search, orderBy
 			return nil, utils.WrapError(utils.ErrCodeInternal, "failed to count categories", err)
 		}
 
+		categoriesDTO := v1dto.MapListCategoriesToDTO(listCategories)
+
 		if cs.cache != nil {
 			cd := struct {
-				Categories []sqlc.Category `json:"categories"`
-				Total      int32           `json:"total"`
+				Categories []v1dto.CategoryDTO `json:"categories"`
+				Total      int32               `json:"total"`
 			}{
-				Categories: listCategories,
+				Categories: categoriesDTO,
 				Total:      int32(total),
 			}
 			cs.cache.Set(cacheKey, cd, 5*time.Minute)
 		}
 
-		return fetchResult{categories: listCategories, total: total}, nil
+		return fetchResult{categories: categoriesDTO, total: total}, nil
 	})
 
 	if err != nil {
@@ -186,25 +189,26 @@ func (cs *categoryService) GetAllCategories(ctx context.Context, search, orderBy
 	return fr.categories, int32(fr.total), nil
 }
 
-func (cs *categoryService) GetCategoryByUUID(ctx context.Context, categoryUUID uuid.UUID) (sqlc.Category, error) {
+func (cs *categoryService) GetCategoryByUUID(ctx context.Context, categoryUUID uuid.UUID) (*v1dto.CategoryDTO, error) {
 	category, err := cs.repo.GetByUUID(ctx, categoryUUID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) || errors.Is(err, sql.ErrNoRows) {
-			return sqlc.Category{}, utils.NewError(utils.ErrCodeNotFound, "category not found")
+			return nil, utils.NewError(utils.ErrCodeNotFound, "category not found")
 		}
-		return sqlc.Category{}, utils.WrapError(utils.ErrCodeInternal, "failed to get category by UUID", err)
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to get category by UUID", err)
 	}
 
-	return category, nil
+	return v1dto.MapCategoryToDTO(category), nil
 }
 
-func (cs *categoryService) UpdateCategory(ctx context.Context, input sqlc.UpdateCategoryParams) (sqlc.Category, error) {
-	category, err := cs.repo.Update(ctx, input)
+func (cs *categoryService) UpdateCategory(ctx context.Context, categoryUUID uuid.UUID, input v1dto.UpdateCategoryInput) (*v1dto.CategoryDTO, error) {
+	updateParams := input.MapUpdateInputToModel(categoryUUID)
+	category, err := cs.repo.Update(ctx, updateParams)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) || errors.Is(err, sql.ErrNoRows) {
-			return sqlc.Category{}, utils.NewError(utils.ErrCodeNotFound, "category not found")
+			return nil, utils.NewError(utils.ErrCodeNotFound, "category not found")
 		}
-		return sqlc.Category{}, utils.WrapError(utils.ErrCodeInternal, "failed to update category", err)
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to update category", err)
 	}
 
 	if cs.cache != nil {
@@ -213,16 +217,16 @@ func (cs *categoryService) UpdateCategory(ctx context.Context, input sqlc.Update
 		}
 	}
 
-	return category, nil
+	return v1dto.MapCategoryToDTO(category), nil
 }
 
-func (cs *categoryService) SoftDeleteCategory(ctx context.Context, categoryUUID uuid.UUID) (sqlc.Category, error) {
+func (cs *categoryService) SoftDeleteCategory(ctx context.Context, categoryUUID uuid.UUID) (*v1dto.CategoryDTO, error) {
 	category, err := cs.repo.SoftDelete(ctx, categoryUUID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) || errors.Is(err, sql.ErrNoRows) {
-			return sqlc.Category{}, utils.NewError(utils.ErrCodeNotFound, "category not found")
+			return nil, utils.NewError(utils.ErrCodeNotFound, "category not found")
 		}
-		return sqlc.Category{}, utils.WrapError(utils.ErrCodeInternal, "failed to soft delete category", err)
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to soft delete category", err)
 	}
 
 	if cs.cache != nil {
@@ -231,16 +235,16 @@ func (cs *categoryService) SoftDeleteCategory(ctx context.Context, categoryUUID 
 		}
 	}
 
-	return category, nil
+	return v1dto.MapCategoryToDTO(category), nil
 }
 
-func (cs *categoryService) RestoreCategory(ctx context.Context, categoryUUID uuid.UUID) (sqlc.Category, error) {
+func (cs *categoryService) RestoreCategory(ctx context.Context, categoryUUID uuid.UUID) (*v1dto.CategoryDTO, error) {
 	category, err := cs.repo.Restore(ctx, categoryUUID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) || errors.Is(err, sql.ErrNoRows) {
-			return sqlc.Category{}, utils.NewError(utils.ErrCodeNotFound, "category not found")
+			return nil, utils.NewError(utils.ErrCodeNotFound, "category not found")
 		}
-		return sqlc.Category{}, utils.WrapError(utils.ErrCodeInternal, "failed to restore category", err)
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to restore category", err)
 	}
 
 	if cs.cache != nil {
@@ -249,7 +253,7 @@ func (cs *categoryService) RestoreCategory(ctx context.Context, categoryUUID uui
 		}
 	}
 
-	return category, nil
+	return v1dto.MapCategoryToDTO(category), nil
 }
 
 func (cs *categoryService) TrashCategory(ctx context.Context, categoryUUID uuid.UUID) error {

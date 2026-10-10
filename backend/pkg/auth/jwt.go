@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
-	"goshop/internal/db/sqlc"
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
 	"time"
@@ -52,15 +51,15 @@ func NewJWTService(cache cache.RedisCacheService) TokenService {
 
 /***************** Access Token (JWT) *****************/
 
-func (js *JWTService) GenerateAccessToken(user sqlc.User) (string, error) {
+func (js *JWTService) GenerateAccessToken(user UserTokenPayload) (string, error) {
 	return js.GenerateAccessTokenWithFamily(user, "")
 }
 
-func (js *JWTService) GenerateAccessTokenWithFamily(user sqlc.User, familyID string) (string, error) {
+func (js *JWTService) GenerateAccessTokenWithFamily(user UserTokenPayload, familyID string) (string, error) {
 	payload := &EncryptedPayload{
-		UserUUID: user.UserUuid.String(),
-		Email:    user.UserEmail,
-		Role:     user.UserLevel,
+		UserUUID: user.UserUUID,
+		Email:    user.Email,
+		Role:     user.Role,
 		FamilyID: familyID,
 	}
 
@@ -131,15 +130,15 @@ func (js *JWTService) DecryptAccessTokenPayload(tokenString string) (*EncryptedP
 
 /***************** Refresh Token & Rotation *****************/
 
-func (js *JWTService) GenerateRefreshToken(user sqlc.User) (RefreshToken, error) {
+func (js *JWTService) GenerateRefreshToken(user UserTokenPayload) (RefreshToken, error) {
 	if js.rotator != nil {
-		rawToken, _, err := js.rotator.CreateSession(user.UserUuid.String())
+		rawToken, _, err := js.rotator.CreateSession(user.UserUUID)
 		if err != nil {
 			return RefreshToken{}, err
 		}
 		return RefreshToken{
 			Token:     rawToken,
-			UserUUID:  user.UserUuid.String(),
+			UserUUID:  user.UserUUID,
 			ExpiresAt: time.Now().Add(RefreshTokenTTL),
 			Revoked:   false,
 		}, nil
@@ -154,7 +153,7 @@ func (js *JWTService) GenerateRefreshToken(user sqlc.User) (RefreshToken, error)
 
 	return RefreshToken{
 		Token:     token,
-		UserUUID:  user.UserUuid.String(),
+		UserUUID:  user.UserUUID,
 		ExpiresAt: time.Now().Add(RefreshTokenTTL),
 		Revoked:   false,
 	}, nil

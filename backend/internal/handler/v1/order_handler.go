@@ -113,13 +113,11 @@ func (oh *OrderHandler) CreateOrder(ctx *gin.Context) {
 		return
 	}
 
-	order, orderItems, err := oh.getCustomerService().CreateOrder(ctx.Request.Context(), userUUID, input)
+	orderDTO, err := oh.getCustomerService().CreateOrder(ctx.Request.Context(), userUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
-
-	orderDTO := v1dto.MapToOrderDTO(order, orderItems)
 
 	utils.ResponseSuccess(ctx, http.StatusCreated, "Order created successfully", orderDTO)
 }
@@ -197,13 +195,12 @@ func (oh *OrderHandler) GetOrderByUUID(ctx *gin.Context) {
 		return
 	}
 
-	order, orderItems, err := oh.getCustomerService().GetOrderByUUID(ctx.Request.Context(), userUUID, orderUUID)
+	orderDTO, err := oh.getCustomerService().GetOrderByUUID(ctx.Request.Context(), userUUID, orderUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
 
-	orderDTO := v1dto.MapGetOrderByUUIDRowToOrderDTO(order, orderItems)
 	utils.ResponseSuccess(ctx, http.StatusOK, "Get order by UUID successfully", orderDTO)
 }
 
@@ -275,15 +272,12 @@ func (oh *OrderHandler) UpdateOrderStatus(ctx *gin.Context) {
 		return
 	}
 
-	order := input.MapUpdateStatusInputToModel(orderUUID)
-
-	updatedOrder, orderItems, err := oh.getAdminService().UpdateOrderStatus(ctx.Request.Context(), order)
+	updatedOrderDTO, err := oh.getAdminService().UpdateOrderStatus(ctx.Request.Context(), orderUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
 
-	updatedOrderDTO := v1dto.MapToOrderDTO(updatedOrder, orderItems)
 	utils.ResponseSuccess(ctx, http.StatusOK, "Order status updated successfully", updatedOrderDTO)
 }
 
@@ -323,13 +317,13 @@ func (oh *OrderHandler) CancelOrder(ctx *gin.Context) {
 	}
 	_ = ctx.ShouldBindJSON(&body)
 
-	cancelledOrder, err := oh.getCustomerService().CancelOrder(ctx.Request.Context(), userUUID, orderUUID, body.Reason)
+	cancelledOrderDTO, err := oh.getCustomerService().CancelOrder(ctx.Request.Context(), userUUID, orderUUID, body.Reason)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
 
-	utils.ResponseSuccess(ctx, http.StatusOK, "Order canceled successfully", v1dto.MapToOrderSummaryDTO(cancelledOrder))
+	utils.ResponseSuccess(ctx, http.StatusOK, "Order canceled successfully", cancelledOrderDTO)
 }
 
 // UpdateOrderShippingInfo godoc
@@ -371,15 +365,11 @@ func (oh *OrderHandler) UpdateOrderShippingInfo(ctx *gin.Context) {
 		return
 	}
 
-	order := input.MapUpdateShippingInputToModel(orderUUID)
-
-	updatedOrder, updatedOrderItems, err := oh.getCustomerService().UpdateOrderShippingInfo(ctx.Request.Context(), userUUID, order)
+	updatedOrderDTO, err := oh.getCustomerService().UpdateOrderShippingInfo(ctx.Request.Context(), userUUID, orderUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
-
-	updatedOrderDTO := v1dto.MapToOrderDTO(updatedOrder, updatedOrderItems)
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Shipping info updated successfully", updatedOrderDTO)
 }
@@ -423,13 +413,12 @@ func (oh *OrderHandler) UpdateOrderPaymentStatus(ctx *gin.Context) {
 		return
 	}
 
-	updatedOrder, updatedOrderItems, err := oh.getCustomerService().UpdateOrderPaymentStatus(ctx.Request.Context(), userUUID, orderUUID, input)
+	updatedOrderDTO, err := oh.getCustomerService().UpdateOrderPaymentStatus(ctx.Request.Context(), userUUID, orderUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
 
-	updatedOrderDTO := v1dto.MapToOrderDTO(updatedOrder, updatedOrderItems)
 	utils.ResponseSuccess(ctx, http.StatusOK, "Payment status updated successfully", updatedOrderDTO)
 }
 

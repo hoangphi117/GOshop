@@ -203,12 +203,12 @@ func TestAuthService_Login(t *testing.T) {
 			},
 		}
 		mockTokenSvc := &testutils.MockTokenService{
-			GenerateAccessTokenWithFamilyFunc: func(u sqlc.User, familyID string) (string, error) {
-				assert.Equal(t, userUUID, u.UserUuid)
+			GenerateAccessTokenWithFamilyFunc: func(u auth.UserTokenPayload, familyID string) (string, error) {
+				assert.Equal(t, userUUID.String(), u.UserUUID)
 				return "generated-access-token", nil
 			},
-			GenerateRefreshTokenFunc: func(u sqlc.User) (auth.RefreshToken, error) {
-				return auth.RefreshToken{Token: "generated-refresh-token", UserUUID: u.UserUuid.String()}, nil
+			GenerateRefreshTokenFunc: func(u auth.UserTokenPayload) (auth.RefreshToken, error) {
+				return auth.RefreshToken{Token: "generated-refresh-token", UserUUID: u.UserUUID}, nil
 			},
 			StoreRefreshTokenFunc: func(token auth.RefreshToken) error {
 				assert.Equal(t, "generated-refresh-token", token.Token)
@@ -340,7 +340,7 @@ func TestAuthService_RefreshToken(t *testing.T) {
 				passedOldToken = token
 				return userUUID.String(), "new-rotated-refresh-token", nil
 			},
-			GenerateAccessTokenWithFamilyFunc: func(u sqlc.User, familyID string) (string, error) {
+			GenerateAccessTokenWithFamilyFunc: func(u auth.UserTokenPayload, familyID string) (string, error) {
 				return "new-access-token", nil
 			},
 		}
@@ -654,7 +654,7 @@ func TestAuthService_VerifyRegisterOTP(t *testing.T) {
 		}
 
 		mockTokenSvc := &testutils.MockTokenService{
-			GenerateRefreshTokenFunc: func(user sqlc.User) (auth.RefreshToken, error) {
+			GenerateRefreshTokenFunc: func(user auth.UserTokenPayload) (auth.RefreshToken, error) {
 				return auth.RefreshToken{Token: "test-refresh-token"}, nil
 			},
 			StoreRefreshTokenFunc: func(refreshToken auth.RefreshToken) error {
@@ -663,7 +663,7 @@ func TestAuthService_VerifyRegisterOTP(t *testing.T) {
 			GetTokenFamilyIDFunc: func(token string) (string, error) {
 				return "family-1", nil
 			},
-			GenerateAccessTokenWithFamilyFunc: func(user sqlc.User, familyID string) (string, error) {
+			GenerateAccessTokenWithFamilyFunc: func(user auth.UserTokenPayload, familyID string) (string, error) {
 				return "test-access-token", nil
 			},
 		}

@@ -66,3 +66,31 @@ func MapStockMovementRowToDTO(row sqlc.ListStockMovementsRow) StockMovementDTO {
 		CreatedAt:       formatVNTime(row.CreatedAt),
 	}
 }
+
+func MapStockMovementToDTO(
+	m sqlc.StockMovement,
+	productUUID string,
+	productName string,
+	productSKU *string,
+	productImageURL *string,
+	actorUUID *string,
+	actorName *string,
+) StockMovementDTO {
+	return StockMovementDTO{
+		MovementUUID:    m.MovementUuid.String(),
+		ProductUUID:     productUUID,
+		ProductName:     productName,
+		ProductSKU:      productSKU,
+		ProductImageURL: productImageURL,
+		ChangeType:      m.ChangeType,
+		QuantityChange:  m.QuantityChange,
+		StockBefore:     m.StockBefore,
+		StockAfter:      m.StockAfter,
+		ReferenceID:     m.ReferenceID,
+		ReferenceType:   m.ReferenceType,
+		ActorUUID:       actorUUID,
+		ActorName:       actorName,
+		Note:            m.Note,
+		CreatedAt:       formatVNTime(m.CreatedAt),
+	}
+}

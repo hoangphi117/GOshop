@@ -2,7 +2,6 @@ package v1service
 
 import (
 	"context"
-	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
 	"io"
 	"time"
@@ -11,15 +10,15 @@ import (
 )
 
 type UserService interface {
-	GetAllUsers(ctx context.Context, search, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.User, int32, error)
-	CreateUsers(ctx context.Context, input sqlc.CreateUserParams) (sqlc.User, error)
-	GetUserByUUID(ctx context.Context, userUUID uuid.UUID) (sqlc.User, error)
-	UpdateUser(ctx context.Context, input sqlc.UpdateUserParams) (sqlc.User, error)
-	GetProfile(ctx context.Context, userUUID uuid.UUID) (sqlc.User, error)
-	UpdateProfile(ctx context.Context, userUUID uuid.UUID, input sqlc.UpdateUserParams) (sqlc.User, error)
+	GetAllUsers(ctx context.Context, search, orderBy, sort string, page, limit int32, deleted bool) ([]v1dto.UserDTO, int32, error)
+	CreateUsers(ctx context.Context, input v1dto.CreateUserInput) (*v1dto.UserDTO, error)
+	GetUserByUUID(ctx context.Context, userUUID uuid.UUID) (*v1dto.UserDTO, error)
+	UpdateUser(ctx context.Context, userUUID uuid.UUID, input v1dto.UpdateUserInput) (*v1dto.UserDTO, error)
+	GetProfile(ctx context.Context, userUUID uuid.UUID) (*v1dto.UserDTO, error)
+	UpdateProfile(ctx context.Context, userUUID uuid.UUID, input v1dto.UpdateProfileInput) (*v1dto.UserDTO, error)
 	ChangePassword(ctx context.Context, userUUID uuid.UUID, input v1dto.ChangePasswordRequest) error
-	SoftDeleteUser(ctx context.Context, userUUID uuid.UUID) (sqlc.User, error)
-	RestoreUser(ctx context.Context, userUUID uuid.UUID) (sqlc.User, error)
+	SoftDeleteUser(ctx context.Context, userUUID uuid.UUID) (*v1dto.UserDTO, error)
+	RestoreUser(ctx context.Context, userUUID uuid.UUID) (*v1dto.UserDTO, error)
 	TrashUser(ctx context.Context, userUUID uuid.UUID) error
 }
 
@@ -37,28 +36,28 @@ type AuthService interface {
 }
 
 type CategoryService interface {
-	CreateCategory(ctx context.Context, input sqlc.CreateCategoryParams) (sqlc.Category, error)
-	GetAllCategories(ctx context.Context, search, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.Category, int32, error)
-	GetCategoryByUUID(ctx context.Context, categoryUUID uuid.UUID) (sqlc.Category, error)
-	UpdateCategory(ctx context.Context, input sqlc.UpdateCategoryParams) (sqlc.Category, error)
-	SoftDeleteCategory(ctx context.Context, categoryUUID uuid.UUID) (sqlc.Category, error)
-	RestoreCategory(ctx context.Context, categoryUUID uuid.UUID) (sqlc.Category, error)
+	CreateCategory(ctx context.Context, input v1dto.CreateCategoryInput) (*v1dto.CategoryDTO, error)
+	GetAllCategories(ctx context.Context, search, orderBy, sort string, page, limit int32, deleted bool) ([]v1dto.CategoryDTO, int32, error)
+	GetCategoryByUUID(ctx context.Context, categoryUUID uuid.UUID) (*v1dto.CategoryDTO, error)
+	UpdateCategory(ctx context.Context, categoryUUID uuid.UUID, input v1dto.UpdateCategoryInput) (*v1dto.CategoryDTO, error)
+	SoftDeleteCategory(ctx context.Context, categoryUUID uuid.UUID) (*v1dto.CategoryDTO, error)
+	RestoreCategory(ctx context.Context, categoryUUID uuid.UUID) (*v1dto.CategoryDTO, error)
 	TrashCategory(ctx context.Context, categoryUUID uuid.UUID) error
 }
 
 type ProductQueryService interface {
-	GetAllProducts(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.GetProductByUUIDRow, int32, error)
-	GetProductByUUID(ctx context.Context, productUUID uuid.UUID) (sqlc.GetProductByUUIDRow, error)
-	GetProductBySlug(ctx context.Context, slug string) (sqlc.GetProductBySlugRow, error)
+	GetAllProducts(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, orderBy, sort string, page, limit int32, deleted bool) ([]v1dto.ProductDTO, int32, error)
+	GetProductByUUID(ctx context.Context, productUUID uuid.UUID) (*v1dto.ProductDTO, error)
+	GetProductBySlug(ctx context.Context, slug string) (*v1dto.ProductDTO, error)
 	SearchProducts(ctx context.Context, q, categoryUUID string, minPrice, maxPrice, minRating float64, sort string, page, limit int32) ([]v1dto.ProductDTO, int64, error)
 	SuggestProducts(ctx context.Context, q string, limit int32) ([]v1dto.ProductSuggestionDTO, error)
 }
 
 type AdminProductService interface {
-	CreateProduct(ctx context.Context, input v1dto.CreateProductInput) (sqlc.CreateProductRow, error)
-	UpdateProduct(ctx context.Context, input v1dto.UpdateProductInput) (sqlc.UpdateProductRow, error)
-	SoftDeleteProduct(ctx context.Context, productUUID uuid.UUID) (sqlc.Product, error)
-	RestoreProduct(ctx context.Context, productUUID uuid.UUID) (sqlc.Product, error)
+	CreateProduct(ctx context.Context, input v1dto.CreateProductInput) (*v1dto.ProductDTO, error)
+	UpdateProduct(ctx context.Context, input v1dto.UpdateProductInput) (*v1dto.ProductDTO, error)
+	SoftDeleteProduct(ctx context.Context, productUUID uuid.UUID) (*v1dto.ProductDTO, error)
+	RestoreProduct(ctx context.Context, productUUID uuid.UUID) (*v1dto.ProductDTO, error)
 	TrashProduct(ctx context.Context, productUUID uuid.UUID) error
 	ImportProductsCSV(ctx context.Context, file io.Reader) (*v1dto.ProductCSVImportResponse, error)
 }
@@ -69,18 +68,18 @@ type ProductService interface {
 }
 
 type CustomerOrderService interface {
-	CreateOrder(ctx context.Context, userUUID uuid.UUID, input v1dto.CreateOrderInput) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error)
+	CreateOrder(ctx context.Context, userUUID uuid.UUID, input v1dto.CreateOrderInput) (*v1dto.OrderDTO, error)
 	GetMyOrders(ctx context.Context, userUUID uuid.UUID, input v1dto.GetOrdersParam) ([]v1dto.OrderSummaryDTO, int32, error)
-	GetOrderByUUID(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (sqlc.GetOrderByUUIDRow, []sqlc.GetOrderItemsByOrderIDRow, error)
-	CancelOrder(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, reason *string) (sqlc.Order, error)
+	GetOrderByUUID(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (*v1dto.OrderDTO, error)
+	CancelOrder(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, reason *string) (*v1dto.OrderSummaryDTO, error)
 	CancelExpiredOrder(ctx context.Context, orderUUID uuid.UUID) error
-	UpdateOrderShippingInfo(ctx context.Context, userUUID uuid.UUID, input sqlc.UpdateOrderShippingInfoParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error)
-	UpdateOrderPaymentStatus(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.UpdateOrderPaymentStatusInput) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error)
+	UpdateOrderShippingInfo(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.UpdateOrderShippingInfoInput) (*v1dto.OrderDTO, error)
+	UpdateOrderPaymentStatus(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.UpdateOrderPaymentStatusInput) (*v1dto.OrderDTO, error)
 }
 
 type OrderAdminService interface {
 	GetAllOrders(ctx context.Context, input v1dto.GetOrdersParam) ([]v1dto.OrderSummaryDTO, int32, error)
-	UpdateOrderStatus(ctx context.Context, input sqlc.UpdateOrderStatusParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error)
+	UpdateOrderStatus(ctx context.Context, orderUUID uuid.UUID, input v1dto.UpdateOrderStatusInput) (*v1dto.OrderDTO, error)
 	BulkUpdateStatus(ctx context.Context, input v1dto.BulkUpdateOrderStatusInput) (*v1dto.BulkOperationResultDTO, error)
 	BulkCancel(ctx context.Context, userUUID uuid.UUID, input v1dto.BulkCancelOrdersInput) (*v1dto.BulkOperationResultDTO, error)
 }
@@ -133,17 +132,27 @@ type OrderReturnService interface {
 
 type OrderPricingService interface {
 	CalculateItems(items []ItemPriceInput) ([]ItemPriceResult, float64, error)
-	ValidateAndCalculateDiscount(coupon *sqlc.Coupon, subtotal float64, now time.Time) (float64, error)
+	ValidateAndCalculateDiscount(coupon *v1dto.CouponDTO, subtotal float64, now time.Time) (float64, error)
 	CalculateOrderTotals(ctx context.Context, items []ItemPriceInput, couponCode *string, userID int32,
 		shippingFee float64, now time.Time) (*OrderPricingResult, error)
 }
 
+type InventoryItemStock struct {
+	ProductID   int32     `json:"product_id"`
+	ProductUUID uuid.UUID `json:"product_uuid"`
+	ProductName string    `json:"product_name"`
+	Price       float64   `json:"price"`
+	Stock       int32     `json:"stock"`
+	Status      int32     `json:"status"`
+	SKU         *string   `json:"sku,omitempty"`
+}
+
 type InventoryService interface {
-	LockAndDeductStock(ctx context.Context, items []DeductItem) (map[string]sqlc.GetByUUIDsForUpdateRow, error)
-	LockAndDeductStockWithRef(ctx context.Context, items []DeductItem, refID string, refType string, actorID *int32, note *string) (map[string]sqlc.GetByUUIDsForUpdateRow, error)
+	LockAndDeductStock(ctx context.Context, items []DeductItem) (map[string]InventoryItemStock, error)
+	LockAndDeductStockWithRef(ctx context.Context, items []DeductItem, refID string, refType string, actorID *int32, note *string) (map[string]InventoryItemStock, error)
 	RestoreStock(ctx context.Context, items []RestoreItem) error
 	RestoreStockWithRef(ctx context.Context, items []RestoreItem, refID string, refType string, actorID *int32, note *string) error
-	AdjustStock(ctx context.Context, actorUUID uuid.UUID, input v1dto.AdjustStockInput) (sqlc.StockMovement, error)
+	AdjustStock(ctx context.Context, actorUUID uuid.UUID, input v1dto.AdjustStockInput) (*v1dto.StockMovementDTO, error)
 	ListStockMovements(ctx context.Context, params v1dto.GetStockMovementsParam) ([]v1dto.StockMovementDTO, int64, error)
 }
 
@@ -253,14 +262,14 @@ type AnalyticsService interface {
 }
 
 type ChatService interface {
-	GetOrCreateConversation(ctx context.Context, userUUID uuid.UUID) (sqlc.ChatConversation, error)
+	GetOrCreateConversation(ctx context.Context, userUUID uuid.UUID) (*v1dto.ConversationDTO, error)
 	SendMessage(ctx context.Context, conversationUUID uuid.UUID, senderUUID uuid.UUID, senderRole string, req v1dto.SendMessageRequest) (v1dto.MessageResponse, error)
 	ListMessages(ctx context.Context, conversationUUID uuid.UUID, callerUUID uuid.UUID, req v1dto.ListMessagesRequest) ([]v1dto.MessageResponse, int64, error)
 	MarkRead(ctx context.Context, conversationUUID uuid.UUID, callerUUID uuid.UUID) error
 	ListConversations(ctx context.Context, callerUUID uuid.UUID, req v1dto.ListConversationsRequest) ([]v1dto.ConversationResponse, int64, error)
 	GetConversationDetails(ctx context.Context, conversationUUID uuid.UUID, callerUUID uuid.UUID) (v1dto.ConversationResponse, error)
-	CloseConversation(ctx context.Context, conversationUUID uuid.UUID) (sqlc.ChatConversation, error)
-	ReopenConversation(ctx context.Context, conversationUUID uuid.UUID) (sqlc.ChatConversation, error)
+	CloseConversation(ctx context.Context, conversationUUID uuid.UUID) (*v1dto.ConversationDTO, error)
+	ReopenConversation(ctx context.Context, conversationUUID uuid.UUID) (*v1dto.ConversationDTO, error)
 	GetTotalUnreadCount(ctx context.Context, callerUUID uuid.UUID) (int64, error)
 	SendTyping(ctx context.Context, conversationUUID uuid.UUID, callerUUID uuid.UUID, isTyping bool) error
 	RecallMessage(ctx context.Context, messageUUID uuid.UUID, callerUUID uuid.UUID) (v1dto.MessageResponse, error)

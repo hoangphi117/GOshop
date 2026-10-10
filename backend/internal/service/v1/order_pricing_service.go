@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"goshop/internal/db/sqlc"
+	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/utils"
 	"strings"
 	"time"
@@ -86,45 +87,61 @@ func (s *orderPricingService) CalculateItems(items []ItemPriceInput) ([]ItemPric
 	return results, totalSubtotal, nil
 }
 
-func (s *orderPricingService) ValidateAndCalculateDiscount(coupon *sqlc.Coupon, subtotal float64, now time.Time) (float64, error) {
+func parseCouponTime(s string) (time.Time, error) {
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t, nil
+	}
+	if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
+		return t, nil
+	}
+	return time.Parse("2006-01-02 15:04:05", s)
+}
+
+func (s *orderPricingService) ValidateAndCalculateDiscount(coupon *v1dto.CouponDTO, subtotal float64, now time.Time) (float64, error) {
 	if coupon == nil {
 		return 0, nil
 	}
 
-	if !coupon.CouponIsActive {
+	if !coupon.IsActive {
 		return 0, utils.NewError(utils.ErrCodeBadRequest, "Coupon is not active")
 	}
 
-	if now.Before(coupon.CouponStartDate) {
-		return 0, utils.NewError(utils.ErrCodeBadRequest, "Coupon is not yet active")
+	if coupon.StartDate != "" {
+		if startDate, err := parseCouponTime(coupon.StartDate); err == nil {
+			if now.Before(startDate) {
+				return 0, utils.NewError(utils.ErrCodeBadRequest, "Coupon is not yet active")
+			}
+		}
 	}
 
-	if now.After(coupon.CouponEndDate) {
-		return 0, utils.NewError(utils.ErrCodeBadRequest, "Coupon has expired")
+	if coupon.EndDate != "" {
+		if endDate, err := parseCouponTime(coupon.EndDate); err == nil {
+			if now.After(endDate) {
+				return 0, utils.NewError(utils.ErrCodeBadRequest, "Coupon has expired")
+			}
+		}
 	}
 
-	if coupon.CouponUsageLimit != nil && coupon.CouponUsedCount >= *coupon.CouponUsageLimit {
+	if coupon.UsageLimit != nil && coupon.UsedCount >= *coupon.UsageLimit {
 		return 0, utils.NewError(utils.ErrCodeBadRequest, "Coupon has reached its maximum total usage limit")
 	}
 
-	minOrderAmount := utils.NumericToFloat(coupon.CouponMinOrderAmount)
-	if subtotal < minOrderAmount {
+	if subtotal < coupon.MinOrderAmount {
 		return 0, utils.NewError(utils.ErrCodeBadRequest,
-			fmt.Sprintf("Order subtotal must be at least %.2f to use this coupon", minOrderAmount))
+			fmt.Sprintf("Order subtotal must be at least %.2f to use this coupon", coupon.MinOrderAmount))
 	}
 
 	var discount float64
-	switch coupon.CouponType {
+	switch coupon.Type {
 	case CouponTypePercentage:
-		discount = utils.RoundFloat(subtotal*utils.NumericToFloat(coupon.CouponDiscountValue)/100, 2)
-		if coupon.CouponMaxDiscountAmount.Valid {
-			maxDiscount := utils.NumericToFloat(coupon.CouponMaxDiscountAmount)
-			if discount > maxDiscount {
-				discount = maxDiscount
+		discount = utils.RoundFloat(subtotal*coupon.DiscountValue/100, 2)
+		if coupon.MaxDiscountAmount != nil && *coupon.MaxDiscountAmount > 0 {
+			if discount > *coupon.MaxDiscountAmount {
+				discount = *coupon.MaxDiscountAmount
 			}
 		}
 	case CouponTypeFixedAmount:
-		discount = utils.NumericToFloat(coupon.CouponDiscountValue)
+		discount = coupon.DiscountValue
 		if discount > subtotal {
 			discount = subtotal
 		}
@@ -166,7 +183,8 @@ func (s *orderPricingService) CalculateOrderTotals(
 			return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to retrieve coupon", err)
 		}
 
-		calculatedDiscount, err := s.ValidateAndCalculateDiscount(&coupon, subtotal, now)
+		couponDTO := v1dto.MapToCouponDTO(coupon)
+		calculatedDiscount, err := s.ValidateAndCalculateDiscount(&couponDTO, subtotal, now)
 		if err != nil {
 			return nil, err
 		}

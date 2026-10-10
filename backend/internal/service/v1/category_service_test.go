@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"goshop/internal/db/sqlc"
+	v1dto "goshop/internal/dto/v1"
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/testutils"
 	"goshop/internal/utils"
@@ -27,8 +28,8 @@ func TestCategoryService_CreateCategory(t *testing.T) {
 		mockRepo := &testutils.MockCategoryRepository{}
 		svc := v1service.NewCategoryService(mockRepo, nil)
 
-		_, err := svc.CreateCategory(ctx, sqlc.CreateCategoryParams{
-			CategoryName: "   ",
+		_, err := svc.CreateCategory(ctx, v1dto.CreateCategoryInput{
+			Name: "   ",
 		})
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeBadRequest)
@@ -66,13 +67,13 @@ func TestCategoryService_CreateCategory(t *testing.T) {
 
 		svc := v1service.NewCategoryService(mockRepo, nil)
 
-		res, err := svc.CreateCategory(ctx, sqlc.CreateCategoryParams{
-			CategoryName: "Smartphones",
+		res, err := svc.CreateCategory(ctx, v1dto.CreateCategoryInput{
+			Name: "Smartphones",
 		})
 		require.NoError(t, err)
-		assert.Equal(t, categoryUUID, res.CategoryUuid)
+		assert.Equal(t, categoryUUID.String(), res.UUID)
 		assert.Equal(t, "smartphones-1", createdSlug)
-		assert.Equal(t, v1service.CategoryStatusActive, res.CategoryStatus)
+		assert.Equal(t, "Active", res.Status)
 	})
 
 	t.Run("Case 3: Slug Generation Collision Exceeds Max Attempts - Returns 500", func(t *testing.T) {
@@ -85,8 +86,8 @@ func TestCategoryService_CreateCategory(t *testing.T) {
 
 		svc := v1service.NewCategoryService(mockRepo, nil)
 
-		_, err := svc.CreateCategory(ctx, sqlc.CreateCategoryParams{
-			CategoryName: "Laptops",
+		_, err := svc.CreateCategory(ctx, v1dto.CreateCategoryInput{
+			Name: "Laptops",
 		})
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeInternal)
@@ -105,8 +106,8 @@ func TestCategoryService_CreateCategory(t *testing.T) {
 
 		svc := v1service.NewCategoryService(mockRepo, nil)
 
-		_, err := svc.CreateCategory(ctx, sqlc.CreateCategoryParams{
-			CategoryName: "Electronics",
+		_, err := svc.CreateCategory(ctx, v1dto.CreateCategoryInput{
+			Name: "Electronics",
 		})
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeConflict)
@@ -125,8 +126,8 @@ func TestCategoryService_CreateCategory(t *testing.T) {
 
 		svc := v1service.NewCategoryService(mockRepo, nil)
 
-		_, err := svc.CreateCategory(ctx, sqlc.CreateCategoryParams{
-			CategoryName: "Audio",
+		_, err := svc.CreateCategory(ctx, v1dto.CreateCategoryInput{
+			Name: "Audio",
 		})
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeInternal)
@@ -158,15 +159,15 @@ func TestCategoryService_CreateCategory(t *testing.T) {
 
 		svc := v1service.NewCategoryService(mockRepo, nil)
 
-		res, err := svc.CreateCategory(ctx, sqlc.CreateCategoryParams{
-			CategoryName:        "Audio",
-			CategoryDescription: &desc,
-			CategoryStatus:      2,
+		res, err := svc.CreateCategory(ctx, v1dto.CreateCategoryInput{
+			Name:        "Audio",
+			Description: &desc,
+			Status:      2,
 		})
 		require.NoError(t, err)
-		assert.Equal(t, categoryUUID, res.CategoryUuid)
-		assert.Equal(t, "audio", res.CategorySlug)
-		assert.Equal(t, int32(2), res.CategoryStatus)
+		assert.Equal(t, categoryUUID.String(), res.UUID)
+		assert.Equal(t, "audio", res.Slug)
+		assert.Equal(t, "Inactive", res.Status)
 	})
 }
 
@@ -203,7 +204,7 @@ func TestCategoryService_GetAllCategories(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, int32(2), total)
 		assert.Len(t, items, 2)
-		assert.Equal(t, catUUID1, items[0].CategoryUuid)
+		assert.Equal(t, catUUID1.String(), items[0].UUID)
 	})
 
 	t.Run("Case 2: Default Fallback Parameters", func(t *testing.T) {
@@ -323,8 +324,8 @@ func TestCategoryService_GetCategoryByUUID(t *testing.T) {
 
 		res, err := svc.GetCategoryByUUID(ctx, categoryUUID)
 		require.NoError(t, err)
-		assert.Equal(t, categoryUUID, res.CategoryUuid)
-		assert.Equal(t, "Keyboards", res.CategoryName)
+		assert.Equal(t, categoryUUID.String(), res.UUID)
+		assert.Equal(t, "Keyboards", res.Name)
 	})
 }
 
@@ -342,9 +343,8 @@ func TestCategoryService_UpdateCategory(t *testing.T) {
 
 		svc := v1service.NewCategoryService(mockRepo, nil)
 
-		_, err := svc.UpdateCategory(ctx, sqlc.UpdateCategoryParams{
-			CategoryUuid: categoryUUID,
-			CategoryName: &newName,
+		_, err := svc.UpdateCategory(ctx, categoryUUID, v1dto.UpdateCategoryInput{
+			Name: &newName,
 		})
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeNotFound)
@@ -359,9 +359,8 @@ func TestCategoryService_UpdateCategory(t *testing.T) {
 
 		svc := v1service.NewCategoryService(mockRepo, nil)
 
-		_, err := svc.UpdateCategory(ctx, sqlc.UpdateCategoryParams{
-			CategoryUuid: categoryUUID,
-			CategoryName: &newName,
+		_, err := svc.UpdateCategory(ctx, categoryUUID, v1dto.UpdateCategoryInput{
+			Name: &newName,
 		})
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeInternal)
@@ -383,13 +382,12 @@ func TestCategoryService_UpdateCategory(t *testing.T) {
 
 		svc := v1service.NewCategoryService(mockRepo, nil)
 
-		res, err := svc.UpdateCategory(ctx, sqlc.UpdateCategoryParams{
-			CategoryUuid: categoryUUID,
-			CategoryName: &newName,
+		res, err := svc.UpdateCategory(ctx, categoryUUID, v1dto.UpdateCategoryInput{
+			Name: &newName,
 		})
 		require.NoError(t, err)
-		assert.Equal(t, categoryUUID, res.CategoryUuid)
-		assert.Equal(t, newName, res.CategoryName)
+		assert.Equal(t, categoryUUID.String(), res.UUID)
+		assert.Equal(t, newName, res.Name)
 	})
 }
 
@@ -432,8 +430,7 @@ func TestCategoryService_SoftDeleteCategory(t *testing.T) {
 
 		res, err := svc.SoftDeleteCategory(ctx, categoryUUID)
 		require.NoError(t, err)
-		assert.Equal(t, categoryUUID, res.CategoryUuid)
-		assert.True(t, res.CategoryDeletedAt.Valid)
+		assert.Equal(t, categoryUUID.String(), res.UUID)
 	})
 }
 
@@ -472,8 +469,7 @@ func TestCategoryService_RestoreCategory(t *testing.T) {
 
 		res, err := svc.RestoreCategory(ctx, categoryUUID)
 		require.NoError(t, err)
-		assert.Equal(t, categoryUUID, res.CategoryUuid)
-		assert.False(t, res.CategoryDeletedAt.Valid)
+		assert.Equal(t, categoryUUID.String(), res.UUID)
 	})
 }
 

@@ -40,7 +40,17 @@ type SendTypingRequest struct {
 	IsTyping bool `json:"is_typing"`
 }
 
-// --- Responses ---
+type ConversationDTO struct {
+	ConversationID   int32      `json:"conversation_id"`
+	ConversationUuid uuid.UUID  `json:"conversation_uuid"`
+	UUID             uuid.UUID  `json:"uuid"`
+	UserID           int32      `json:"user_id"`
+	AdminID          *int32     `json:"admin_id,omitempty"`
+	Status           string     `json:"status"`
+	LastMessageAt    *time.Time `json:"last_message_at,omitempty"`
+	CreatedAt        time.Time  `json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
+}
 
 type ConversationResponse struct {
 	ConversationID     int32      `json:"conversation_id"`
@@ -109,4 +119,23 @@ func MapChatMessageToResponse(m sqlc.ChatMessage) MessageResponse {
 	}
 
 	return resp
+}
+
+func MapChatConversationToDTO(conv sqlc.ChatConversation) *ConversationDTO {
+	var lastMsgAt *time.Time
+	if conv.LastMessageAt.Valid {
+		t := conv.LastMessageAt.Time
+		lastMsgAt = &t
+	}
+	return &ConversationDTO{
+		ConversationID:   conv.ConversationID,
+		ConversationUuid: conv.ConversationUuid,
+		UUID:             conv.ConversationUuid,
+		UserID:           conv.UserID,
+		AdminID:          conv.AdminID,
+		Status:           conv.Status,
+		LastMessageAt:    lastMsgAt,
+		CreatedAt:        conv.CreatedAt,
+		UpdatedAt:        conv.UpdatedAt,
+	}
 }

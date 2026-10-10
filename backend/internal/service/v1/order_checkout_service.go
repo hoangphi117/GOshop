@@ -97,20 +97,20 @@ func NewOrderCheckoutService(
 	}
 }
 
-func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, input v1dto.CreateOrderInput) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
+func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, input v1dto.CreateOrderInput) (*v1dto.OrderDTO, error) {
 	user, err := s.userReader.GetByUUID(ctx, userUUID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeNotFound, "User not found")
+			return nil, utils.NewError(utils.ErrCodeNotFound, "User not found")
 		}
-		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "Failed to get user", err)
+		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to get user", err)
 	}
 
 	// Validate duplicate products in the order
 	productMapInput := make(map[string]int32)
 	for _, item := range input.Items {
 		if _, exists := productMapInput[item.ProductUUID]; exists {
-			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Duplicate product in order")
+			return nil, utils.NewError(utils.ErrCodeBadRequest, "Duplicate product in order")
 		}
 		productMapInput[item.ProductUUID] = item.Quantity
 	}
@@ -131,7 +131,7 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 		if err != nil {
 			logger.Log.Warn().Err(err).Str("coupon_lock_key", couponLockKey).Msg("Failed to check coupon lock")
 		} else if !acquired {
-			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeConflict, "Coupon is currently being applied in another checkout request")
+			return nil, utils.NewError(utils.ErrCodeConflict, "Coupon is currently being applied in another checkout request")
 		}
 		defer func() {
 			if couponLockKey != "" {
@@ -161,7 +161,7 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 			priceInputs[i] = ItemPriceInput{
 				ProductID:   p.ProductID,
 				ProductName: p.ProductName,
-				Price:       utils.NumericToFloat(p.ProductPrice),
+				Price:       p.Price,
 				Quantity:    item.Quantity,
 			}
 		}
@@ -255,14 +255,14 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 	})
 
 	if err != nil {
-		return sqlc.Order{}, nil, err
+		return nil, err
 	}
 	/* ====================== TRANSACTION END ====================== */
 
 	// Get order items with details after transaction is committed
 	orderItemsWithDetails, err := s.orderItemStore.GetByOrderID(ctx, order.OrderID)
 	if err != nil {
-		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "failed to get order items", err)
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to get order items", err)
 	}
 
 	// 1. Immediately clean up purchased items from Cart in DB & Cache (Strong consistency)
@@ -323,5 +323,6 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 		}
 	}
 
-	return order, orderItemsWithDetails, nil
+	dto := v1dto.MapToOrderDTO(order, orderItemsWithDetails)
+	return &dto, nil
 }

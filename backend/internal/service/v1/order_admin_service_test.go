@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/testutils"
@@ -23,11 +22,11 @@ func TestOrderAdminService_BulkOperations(t *testing.T) {
 
 	t.Run("BulkUpdateStatus: Success and Failure Aggregation", func(t *testing.T) {
 		mockOrderService := &testutils.MockOrderService{
-			UpdateOrderStatusFunc: func(ctx context.Context, input sqlc.UpdateOrderStatusParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
-				if input.OrderUuid == orderUUID1 {
-					return sqlc.Order{OrderUuid: orderUUID1}, nil, nil
+			UpdateOrderStatusFunc: func(ctx context.Context, oUUID uuid.UUID, input v1dto.UpdateOrderStatusInput) (*v1dto.OrderDTO, error) {
+				if oUUID == orderUUID1 {
+					return &v1dto.OrderDTO{UUID: orderUUID1.String()}, nil
 				}
-				return sqlc.Order{}, nil, errors.New("order not found")
+				return nil, errors.New("order not found")
 			},
 		}
 
@@ -46,11 +45,11 @@ func TestOrderAdminService_BulkOperations(t *testing.T) {
 
 	t.Run("BulkCancel: Success and Failure Aggregation", func(t *testing.T) {
 		mockOrderService := &testutils.MockOrderService{
-			CancelOrderFunc: func(ctx context.Context, uUUID, oUUID uuid.UUID, reason *string) (sqlc.Order, error) {
+			CancelOrderFunc: func(ctx context.Context, uUUID, oUUID uuid.UUID, reason *string) (*v1dto.OrderSummaryDTO, error) {
 				if oUUID == orderUUID1 {
-					return sqlc.Order{OrderUuid: orderUUID1}, nil
+					return &v1dto.OrderSummaryDTO{UUID: orderUUID1.String()}, nil
 				}
-				return sqlc.Order{}, errors.New("cannot cancel order in current state")
+				return nil, errors.New("cannot cancel order in current state")
 			},
 		}
 
@@ -85,16 +84,16 @@ func TestOrderAdminService_BulkOperations(t *testing.T) {
 
 	t.Run("UpdateOrderStatus: DelegatesToOrderService", func(t *testing.T) {
 		mockOrderService := &testutils.MockOrderService{
-			UpdateOrderStatusFunc: func(ctx context.Context, input sqlc.UpdateOrderStatusParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
-				return sqlc.Order{OrderUuid: orderUUID1, OrderStatus: v1service.OrderStatusDelivered}, nil, nil
+			UpdateOrderStatusFunc: func(ctx context.Context, oUUID uuid.UUID, input v1dto.UpdateOrderStatusInput) (*v1dto.OrderDTO, error) {
+				return &v1dto.OrderDTO{UUID: orderUUID1.String(), Status: "delivered"}, nil
 			},
 		}
 
 		adminSvc := v1service.NewOrderAdminService(mockOrderService)
-		order, _, err := adminSvc.UpdateOrderStatus(ctx, sqlc.UpdateOrderStatusParams{OrderUuid: orderUUID1, OrderStatus: v1service.OrderStatusDelivered})
+		order, err := adminSvc.UpdateOrderStatus(ctx, orderUUID1, v1dto.UpdateOrderStatusInput{Status: v1service.OrderStatusDelivered})
 
 		require.NoError(t, err)
-		assert.Equal(t, orderUUID1, order.OrderUuid)
-		assert.Equal(t, v1service.OrderStatusDelivered, order.OrderStatus)
+		assert.Equal(t, orderUUID1.String(), order.UUID)
+		assert.Equal(t, "delivered", order.Status)
 	})
 }

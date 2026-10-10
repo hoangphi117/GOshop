@@ -163,7 +163,7 @@ func (as *authService) Login(ctx context.Context, ip, userAgent string, email, p
 		return "", "", 0, utils.NewError(utils.ErrCodeUnauthorized, "Invalid email or password")
 	}
 
-	refreshToken, err := as.tokenService.GenerateRefreshToken(user)
+	refreshToken, err := as.tokenService.GenerateRefreshToken(toUserTokenPayload(user))
 	if err != nil {
 		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "Failed to generate refresh token", err)
 	}
@@ -177,7 +177,7 @@ func (as *authService) Login(ctx context.Context, ip, userAgent string, email, p
 		familyID, _ = as.tokenService.GetTokenFamilyID(refreshToken.Token)
 	}
 
-	accessToken, err := as.tokenService.GenerateAccessTokenWithFamily(user, familyID)
+	accessToken, err := as.tokenService.GenerateAccessTokenWithFamily(toUserTokenPayload(user), familyID)
 	if err != nil {
 		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "Failed to generate access token", err)
 	}
@@ -238,7 +238,7 @@ func (as *authService) RefreshToken(ctx context.Context, refreshToken string) (s
 		familyID, _ = as.tokenService.GetTokenFamilyID(newRefreshToken)
 	}
 
-	accessToken, err := as.tokenService.GenerateAccessTokenWithFamily(user, familyID)
+	accessToken, err := as.tokenService.GenerateAccessTokenWithFamily(toUserTokenPayload(user), familyID)
 	if err != nil {
 		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "Failed to generate access token", err)
 	}
@@ -501,7 +501,7 @@ func (as *authService) VerifyRegisterOTP(ctx context.Context, input v1dto.Verify
 	_ = as.cacheService.Del("auth:otp_resend:" + email)
 
 	// Generate access token and refresh token
-	refreshToken, err := as.tokenService.GenerateRefreshToken(createdUser)
+	refreshToken, err := as.tokenService.GenerateRefreshToken(toUserTokenPayload(createdUser))
 	if err != nil {
 		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "Failed to generate refresh token", err)
 	}
@@ -515,7 +515,7 @@ func (as *authService) VerifyRegisterOTP(ctx context.Context, input v1dto.Verify
 		familyID, _ = as.tokenService.GetTokenFamilyID(refreshToken.Token)
 	}
 
-	accessToken, err := as.tokenService.GenerateAccessTokenWithFamily(createdUser, familyID)
+	accessToken, err := as.tokenService.GenerateAccessTokenWithFamily(toUserTokenPayload(createdUser), familyID)
 	if err != nil {
 		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "Failed to generate access token", err)
 	}
@@ -697,7 +697,7 @@ func (as *authService) GoogleLogin(ctx context.Context, ip, userAgent, idToken s
 	}
 
 	// Generate access and refresh tokens
-	refreshToken, err := as.tokenService.GenerateRefreshToken(user)
+	refreshToken, err := as.tokenService.GenerateRefreshToken(toUserTokenPayload(user))
 	if err != nil {
 		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "Failed to generate refresh token", err)
 	}
@@ -711,7 +711,7 @@ func (as *authService) GoogleLogin(ctx context.Context, ip, userAgent, idToken s
 		familyID, _ = as.tokenService.GetTokenFamilyID(refreshToken.Token)
 	}
 
-	accessToken, err := as.tokenService.GenerateAccessTokenWithFamily(user, familyID)
+	accessToken, err := as.tokenService.GenerateAccessTokenWithFamily(toUserTokenPayload(user), familyID)
 	if err != nil {
 		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "Failed to generate access token", err)
 	}
@@ -720,4 +720,12 @@ func (as *authService) GoogleLogin(ctx context.Context, ip, userAgent, idToken s
 	as.resetLoginRateLimit(ip)
 
 	return accessToken, refreshToken.Token, int(auth.AccessTokenTTL.Seconds()), nil
+}
+
+func toUserTokenPayload(user sqlc.User) auth.UserTokenPayload {
+	return auth.UserTokenPayload{
+		UserUUID: user.UserUuid.String(),
+		Email:    user.UserEmail,
+		Role:     user.UserLevel,
+	}
 }

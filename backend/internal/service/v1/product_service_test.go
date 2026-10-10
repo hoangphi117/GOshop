@@ -143,8 +143,8 @@ func TestProductService_CreateProduct(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.Equal(t, "gaming-mouse-1", createdSlug)
-		assert.Equal(t, productUUID, res.ProductUuid)
-		assert.Equal(t, int32(1), res.ProductStatus)
+		assert.Equal(t, productUUID.String(), res.UUID)
+		assert.Equal(t, "Active", res.Status)
 	})
 
 	t.Run("Case 6: Duplicate Conflict 23505 - Returns 409 Conflict", func(t *testing.T) {
@@ -244,10 +244,10 @@ func TestProductService_CreateProduct(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		assert.Equal(t, productUUID, res.ProductUuid)
+		assert.Equal(t, productUUID.String(), res.UUID)
 		require.NotNil(t, storedSKU)
 		assert.Equal(t, "SKU-123-ABC", *storedSKU)
-		assert.Equal(t, int32(2), res.ProductStatus)
+		assert.Equal(t, "Inactive", res.Status)
 	})
 }
 
@@ -284,7 +284,7 @@ func TestProductService_GetAllProducts(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, int32(1), total)
 		assert.Len(t, products, 1)
-		assert.Equal(t, productUUID, products[0].ProductUuid)
+		assert.Equal(t, productUUID.String(), products[0].UUID)
 	})
 
 	t.Run("Case 2: Default Parameter Fallbacks", func(t *testing.T) {
@@ -403,8 +403,8 @@ func TestProductService_GetProductByUUID(t *testing.T) {
 
 		res, err := svc.GetProductByUUID(ctx, productUUID)
 		require.NoError(t, err)
-		assert.Equal(t, productUUID, res.ProductUuid)
-		assert.Equal(t, "Gaming Laptop", res.ProductName)
+		assert.Equal(t, productUUID.String(), res.UUID)
+		assert.Equal(t, "Gaming Laptop", res.Name)
 	})
 }
 
@@ -529,7 +529,7 @@ func TestProductService_UpdateProduct(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		assert.Equal(t, productUUID, res.ProductUuid)
+		assert.Equal(t, productUUID.String(), res.UUID)
 		require.NotNil(t, storedSlug)
 		assert.Equal(t, "updated-gaming-laptop", *storedSlug)
 		require.NotNil(t, storedSKU)
@@ -573,8 +573,7 @@ func TestProductService_SoftDeleteProduct(t *testing.T) {
 
 		res, err := svc.SoftDeleteProduct(ctx, productUUID)
 		require.NoError(t, err)
-		assert.Equal(t, productUUID, res.ProductUuid)
-		assert.True(t, res.ProductDeletedAt.Valid)
+		assert.Equal(t, productUUID.String(), res.UUID)
 	})
 }
 
@@ -613,8 +612,7 @@ func TestProductService_RestoreProduct(t *testing.T) {
 
 		res, err := svc.RestoreProduct(ctx, productUUID)
 		require.NoError(t, err)
-		assert.Equal(t, productUUID, res.ProductUuid)
-		assert.False(t, res.ProductDeletedAt.Valid)
+		assert.Equal(t, productUUID.String(), res.UUID)
 	})
 }
 

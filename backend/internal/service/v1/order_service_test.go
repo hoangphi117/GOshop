@@ -131,7 +131,7 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			userRepo: mockUserRepo,
 		})
 
-		_, _, err := svc.CreateOrder(ctx, userUUID, baseInput)
+		_, err := svc.CreateOrder(ctx, userUUID, baseInput)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "User not found")
 	})
@@ -147,7 +147,7 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			userRepo: mockUserRepo,
 		})
 
-		_, _, err := svc.CreateOrder(ctx, userUUID, baseInput)
+		_, err := svc.CreateOrder(ctx, userUUID, baseInput)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "Failed to get user")
 	})
@@ -169,7 +169,7 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			userRepo: mockUserRepo,
 		})
 
-		_, _, err := svc.CreateOrder(ctx, userUUID, inputWithDuplicate)
+		_, err := svc.CreateOrder(ctx, userUUID, inputWithDuplicate)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "Duplicate product in order")
 	})
@@ -181,7 +181,7 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 		mockInventory := &testutils.MockInventoryService{
-			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]sqlc.GetByUUIDsForUpdateRow, error) {
+			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error) {
 				return nil, utils.NewError(utils.ErrCodeBadRequest, "Insufficient stock for product: iPhone 15")
 			},
 		}
@@ -191,7 +191,7 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			userRepo: mockUserRepo,
 		})
 
-		_, _, err := svc.CreateOrder(ctx, userUUID, baseInput)
+		_, err := svc.CreateOrder(ctx, userUUID, baseInput)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "Insufficient stock for product: iPhone 15")
 	})
@@ -203,10 +203,10 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 		mockInventory := &testutils.MockInventoryService{
-			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]sqlc.GetByUUIDsForUpdateRow, error) {
-				return map[string]sqlc.GetByUUIDsForUpdateRow{
-					productUUID1.String(): {ProductID: 10, ProductName: "P1", ProductPrice: utils.FloatToNumeric(100)},
-					productUUID2.String(): {ProductID: 20, ProductName: "P2", ProductPrice: utils.FloatToNumeric(200)},
+			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error) {
+				return map[string]v1service.InventoryItemStock{
+					productUUID1.String(): {ProductID: 10, ProductName: "P1", Price: 100},
+					productUUID2.String(): {ProductID: 20, ProductName: "P2", Price: 200},
 				}, nil
 			},
 		}
@@ -222,7 +222,7 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			userRepo: mockUserRepo,
 		})
 
-		_, _, err := svc.CreateOrder(ctx, userUUID, baseInput)
+		_, err := svc.CreateOrder(ctx, userUUID, baseInput)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "Coupon has expired")
 	})
@@ -236,10 +236,10 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 		mockInventory := &testutils.MockInventoryService{
-			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]sqlc.GetByUUIDsForUpdateRow, error) {
-				return map[string]sqlc.GetByUUIDsForUpdateRow{
-					productUUID1.String(): {ProductID: 10, ProductName: "P1", ProductPrice: utils.FloatToNumeric(100)},
-					productUUID2.String(): {ProductID: 20, ProductName: "P2", ProductPrice: utils.FloatToNumeric(200)},
+			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error) {
+				return map[string]v1service.InventoryItemStock{
+					productUUID1.String(): {ProductID: 10, ProductName: "P1", Price: 100},
+					productUUID2.String(): {ProductID: 20, ProductName: "P2", Price: 200},
 				}, nil
 			},
 		}
@@ -272,7 +272,7 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			couponService: mockCouponService,
 		})
 
-		_, _, err := svc.CreateOrder(ctx, userUUID, baseInput)
+		_, err := svc.CreateOrder(ctx, userUUID, baseInput)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "Failed to increment coupon usage count")
 	})
@@ -284,10 +284,10 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 		mockInventory := &testutils.MockInventoryService{
-			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]sqlc.GetByUUIDsForUpdateRow, error) {
-				return map[string]sqlc.GetByUUIDsForUpdateRow{
-					productUUID1.String(): {ProductID: 10, ProductName: "P1", ProductPrice: utils.FloatToNumeric(100)},
-					productUUID2.String(): {ProductID: 20, ProductName: "P2", ProductPrice: utils.FloatToNumeric(200)},
+			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error) {
+				return map[string]v1service.InventoryItemStock{
+					productUUID1.String(): {ProductID: 10, ProductName: "P1", Price: 100},
+					productUUID2.String(): {ProductID: 20, ProductName: "P2", Price: 200},
 				}, nil
 			},
 		}
@@ -314,7 +314,7 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			userRepo: mockUserRepo,
 		})
 
-		_, _, err := svc.CreateOrder(ctx, userUUID, baseInput)
+		_, err := svc.CreateOrder(ctx, userUUID, baseInput)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to create order")
 	})
@@ -328,9 +328,9 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 		mockInventory := &testutils.MockInventoryService{
-			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]sqlc.GetByUUIDsForUpdateRow, error) {
-				return map[string]sqlc.GetByUUIDsForUpdateRow{
-					productUUID1.String(): {ProductID: 10, ProductName: "P1", ProductPrice: utils.FloatToNumeric(100)},
+			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error) {
+				return map[string]v1service.InventoryItemStock{
+					productUUID1.String(): {ProductID: 10, ProductName: "P1", Price: 100},
 				}, nil
 			},
 		}
@@ -366,7 +366,7 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			couponService: mockCouponService,
 		})
 
-		_, _, err := svc.CreateOrder(ctx, userUUID, baseInput)
+		_, err := svc.CreateOrder(ctx, userUUID, baseInput)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to record coupon usage")
 	})
@@ -378,9 +378,9 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 		mockInventory := &testutils.MockInventoryService{
-			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]sqlc.GetByUUIDsForUpdateRow, error) {
-				return map[string]sqlc.GetByUUIDsForUpdateRow{
-					productUUID1.String(): {ProductID: 10, ProductName: "P1", ProductPrice: utils.FloatToNumeric(100)},
+			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error) {
+				return map[string]v1service.InventoryItemStock{
+					productUUID1.String(): {ProductID: 10, ProductName: "P1", Price: 100},
 				}, nil
 			},
 		}
@@ -413,7 +413,7 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			userRepo: mockUserRepo,
 		})
 
-		_, _, err := svc.CreateOrder(ctx, userUUID, baseInput)
+		_, err := svc.CreateOrder(ctx, userUUID, baseInput)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to create order item")
 	})
@@ -425,9 +425,9 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 		mockInventory := &testutils.MockInventoryService{
-			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]sqlc.GetByUUIDsForUpdateRow, error) {
-				return map[string]sqlc.GetByUUIDsForUpdateRow{
-					productUUID1.String(): {ProductID: 10, ProductName: "P1", ProductPrice: utils.FloatToNumeric(100)},
+			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error) {
+				return map[string]v1service.InventoryItemStock{
+					productUUID1.String(): {ProductID: 10, ProductName: "P1", Price: 100},
 				}, nil
 			},
 		}
@@ -466,7 +466,7 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			trackingRepo: mockTrackingRepo,
 		})
 
-		_, _, err := svc.CreateOrder(ctx, userUUID, baseInput)
+		_, err := svc.CreateOrder(ctx, userUUID, baseInput)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to insert tracking event")
 	})
@@ -478,9 +478,9 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 		mockInventory := &testutils.MockInventoryService{
-			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]sqlc.GetByUUIDsForUpdateRow, error) {
-				return map[string]sqlc.GetByUUIDsForUpdateRow{
-					productUUID1.String(): {ProductID: 10, ProductName: "P1", ProductPrice: utils.FloatToNumeric(100)},
+			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error) {
+				return map[string]v1service.InventoryItemStock{
+					productUUID1.String(): {ProductID: 10, ProductName: "P1", Price: 100},
 				}, nil
 			},
 		}
@@ -522,7 +522,7 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			trackingRepo: mockTrackingRepo,
 		})
 
-		_, _, err := svc.CreateOrder(ctx, userUUID, baseInput)
+		_, err := svc.CreateOrder(ctx, userUUID, baseInput)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to get order items")
 	})
@@ -541,16 +541,16 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		}
 
 		mockInventory := &testutils.MockInventoryService{
-			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]sqlc.GetByUUIDsForUpdateRow, error) {
+			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error) {
 				require.Len(t, items, 2)
 				assert.Equal(t, productUUID1.String(), items[0].ProductUUID)
 				assert.Equal(t, int32(2), items[0].Quantity)
 				assert.Equal(t, productUUID2.String(), items[1].ProductUUID)
 				assert.Equal(t, int32(1), items[1].Quantity)
 
-				return map[string]sqlc.GetByUUIDsForUpdateRow{
-					productUUID1.String(): {ProductID: 101, ProductName: "Keyboard", ProductPrice: utils.FloatToNumeric(500000)},
-					productUUID2.String(): {ProductID: 102, ProductName: "Mouse", ProductPrice: utils.FloatToNumeric(250000)},
+				return map[string]v1service.InventoryItemStock{
+					productUUID1.String(): {ProductID: 101, ProductName: "Keyboard", Price: 500000},
+					productUUID2.String(): {ProductID: 102, ProductName: "Mouse", Price: 250000},
 				}, nil
 			},
 		}
@@ -669,20 +669,17 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			notificationService: mockNotification,
 		})
 
-		order, items, err := svc.CreateOrder(ctx, userUUID, baseInput)
+		orderDTO, err := svc.CreateOrder(ctx, userUUID, baseInput)
 		require.NoError(t, err)
 
 		// Assert Order details
-		assert.Equal(t, int32(501), order.OrderID)
-		assert.Equal(t, orderUUIDCreated, order.OrderUuid)
-		assert.Equal(t, baseUser.UserID, order.OrderUserID)
-		assert.Equal(t, 1280000.0, utils.NumericToFloat(order.OrderTotalAmount))
+		assert.Equal(t, orderUUIDCreated.String(), orderDTO.UUID)
+		assert.Equal(t, 1280000.0, orderDTO.TotalAmount)
 
 		// Assert Order items
-		require.Len(t, items, 2)
-		assert.Equal(t, int32(101), items[0].OrderItemProductID)
-		assert.Equal(t, "Keyboard", items[0].OrderItemProductName)
-		assert.Equal(t, int32(2), items[0].OrderItemQuantity)
+		require.Len(t, orderDTO.Items, 2)
+		assert.Equal(t, "Keyboard", orderDTO.Items[0].ProductName)
+		assert.Equal(t, int32(2), orderDTO.Items[0].Quantity)
 
 		// Assert Created items params
 		require.Len(t, createdItemParamsList, 2)
@@ -725,10 +722,10 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		}
 
 		mockInventory := &testutils.MockInventoryService{
-			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]sqlc.GetByUUIDsForUpdateRow, error) {
-				return map[string]sqlc.GetByUUIDsForUpdateRow{
-					productUUID1.String(): {ProductID: 101, ProductName: "Keyboard", ProductPrice: utils.FloatToNumeric(500000)},
-					productUUID2.String(): {ProductID: 102, ProductName: "Mouse", ProductPrice: utils.FloatToNumeric(250000)},
+			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error) {
+				return map[string]v1service.InventoryItemStock{
+					productUUID1.String(): {ProductID: 101, ProductName: "Keyboard", Price: 500000},
+					productUUID2.String(): {ProductID: 102, ProductName: "Mouse", Price: 250000},
 				}, nil
 			},
 		}
@@ -785,10 +782,10 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			rabbitMQ:         mockRabbitMQ,
 		})
 
-		order, _, err := svc.CreateOrder(ctx, userUUID, baseInput)
+		orderDTO, err := svc.CreateOrder(ctx, userUUID, baseInput)
 		require.NoError(t, err)
 
-		assert.Equal(t, int32(601), order.OrderID)
+		assert.NotEmpty(t, orderDTO.UUID)
 		assert.Equal(t, rabbitmq.QueueOrderCreated, publishedQueue)
 		assert.Equal(t, int32(601), publishedEvent.OrderID)
 		assert.Equal(t, baseUser.UserID, publishedEvent.UserID)
@@ -809,10 +806,10 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		}
 
 		mockInventory := &testutils.MockInventoryService{
-			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]sqlc.GetByUUIDsForUpdateRow, error) {
-				return map[string]sqlc.GetByUUIDsForUpdateRow{
-					productUUID1.String(): {ProductID: 101, ProductName: "Keyboard", ProductPrice: utils.FloatToNumeric(500000)},
-					productUUID2.String(): {ProductID: 102, ProductName: "Mouse", ProductPrice: utils.FloatToNumeric(250000)},
+			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error) {
+				return map[string]v1service.InventoryItemStock{
+					productUUID1.String(): {ProductID: 101, ProductName: "Keyboard", Price: 500000},
+					productUUID2.String(): {ProductID: 102, ProductName: "Mouse", Price: 250000},
 				}, nil
 			},
 		}
@@ -902,11 +899,10 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			notificationService: mockNotification,
 		})
 
-		order, items, err := svc.CreateOrder(ctx, userUUID, couponInput)
+		orderDTO, err := svc.CreateOrder(ctx, userUUID, couponInput)
 		require.NoError(t, err)
-		assert.Equal(t, int32(601), order.OrderID)
-		assert.Equal(t, &appliedCouponID, order.OrderCouponID)
-		assert.Len(t, items, 1)
+		assert.Equal(t, &appliedCouponCode, orderDTO.CouponCode)
+		assert.Len(t, orderDTO.Items, 1)
 
 		// Assert coupon operations
 		assert.Equal(t, appliedCouponID, appliedCouponIDParam)
@@ -921,9 +917,9 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 		mockInventory := &testutils.MockInventoryService{
-			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]sqlc.GetByUUIDsForUpdateRow, error) {
-				return map[string]sqlc.GetByUUIDsForUpdateRow{
-					productUUID1.String(): {ProductID: 10, ProductName: "P1", ProductPrice: utils.FloatToNumeric(100)},
+			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error) {
+				return map[string]v1service.InventoryItemStock{
+					productUUID1.String(): {ProductID: 10, ProductName: "P1", Price: 100},
 				}, nil
 			},
 		}
@@ -971,10 +967,10 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			notificationService: mockNotification,
 		})
 
-		order, items, err := svc.CreateOrder(ctx, userUUID, baseInput)
+		orderDTO, err := svc.CreateOrder(ctx, userUUID, baseInput)
 		require.NoError(t, err)
-		assert.Equal(t, int32(1001), order.OrderID)
-		assert.Len(t, items, 1)
+		assert.NotEmpty(t, orderDTO.UUID)
+		assert.Len(t, orderDTO.Items, 1)
 	})
 
 	t.Run("Case 15: Cart Missing or Delete Error - Does NOT Fail Order Creation", func(t *testing.T) {
@@ -984,9 +980,9 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 		mockInventory := &testutils.MockInventoryService{
-			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]sqlc.GetByUUIDsForUpdateRow, error) {
-				return map[string]sqlc.GetByUUIDsForUpdateRow{
-					productUUID1.String(): {ProductID: 10, ProductName: "P1", ProductPrice: utils.FloatToNumeric(100)},
+			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error) {
+				return map[string]v1service.InventoryItemStock{
+					productUUID1.String(): {ProductID: 10, ProductName: "P1", Price: 100},
 				}, nil
 			},
 		}
@@ -1027,10 +1023,10 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			trackingRepo: mockTrackingRepo,
 		})
 
-		order, items, err := svc.CreateOrder(ctx, userUUID, baseInput)
+		orderDTO, err := svc.CreateOrder(ctx, userUUID, baseInput)
 		require.NoError(t, err)
-		assert.Equal(t, int32(1001), order.OrderID)
-		assert.Len(t, items, 1)
+		assert.NotEmpty(t, orderDTO.UUID)
+		assert.Len(t, orderDTO.Items, 1)
 	})
 }
 
@@ -1395,8 +1391,7 @@ func TestOrderService_CancelOrder(t *testing.T) {
 		require.NoError(t, err)
 
 		// Assert Order
-		assert.Equal(t, int32(500), cancelledOrder.OrderID)
-		assert.Equal(t, v1service.OrderStatusCancelled, cancelledOrder.OrderStatus)
+		assert.Equal(t, "Cancelled", cancelledOrder.Status)
 
 		// Assert Restored Stock
 		require.Len(t, restoredItems, 2)
@@ -1478,7 +1473,7 @@ func TestOrderService_CancelOrder(t *testing.T) {
 
 		cancelledOrder, err := svc.CancelOrder(ctx, adminUUID, orderUUID, nil)
 		require.NoError(t, err)
-		assert.Equal(t, v1service.OrderStatusCancelled, cancelledOrder.OrderStatus)
+		assert.Equal(t, "Cancelled", cancelledOrder.Status)
 
 		// Assert Admin source in tracking event
 		assert.Equal(t, "admin", trackingEvent.EventSource)
@@ -1535,7 +1530,7 @@ func TestOrderService_CancelOrder(t *testing.T) {
 
 		cancelledOrder, err := svc.CancelOrder(ctx, userUUID, orderUUID, nil)
 		require.NoError(t, err)
-		assert.Equal(t, v1service.OrderStatusCancelled, cancelledOrder.OrderStatus)
+		assert.Equal(t, "Cancelled", cancelledOrder.Status)
 	})
 }
 
@@ -1837,7 +1832,7 @@ func TestOrderService_GetOrderByUUID(t *testing.T) {
 			userRepo: mockUserRepo,
 		})
 
-		_, _, err := svc.GetOrderByUUID(ctx, userUUID, orderUUID)
+		_, err := svc.GetOrderByUUID(ctx, userUUID, orderUUID)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "User not found")
 	})
@@ -1858,7 +1853,7 @@ func TestOrderService_GetOrderByUUID(t *testing.T) {
 			userRepo: mockUserRepo,
 		})
 
-		_, _, err := svc.GetOrderByUUID(ctx, userUUID, orderUUID)
+		_, err := svc.GetOrderByUUID(ctx, userUUID, orderUUID)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "Order not found")
 	})
@@ -1879,7 +1874,7 @@ func TestOrderService_GetOrderByUUID(t *testing.T) {
 			userRepo: mockUserRepo,
 		})
 
-		_, _, err := svc.GetOrderByUUID(ctx, otherUserUUID, orderUUID)
+		_, err := svc.GetOrderByUUID(ctx, otherUserUUID, orderUUID)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "You are not authorized to view this order")
 	})
@@ -1908,10 +1903,10 @@ func TestOrderService_GetOrderByUUID(t *testing.T) {
 			userRepo: mockUserRepo,
 		})
 
-		order, items, err := svc.GetOrderByUUID(ctx, userUUID, orderUUID)
+		order, err := svc.GetOrderByUUID(ctx, userUUID, orderUUID)
 		require.NoError(t, err)
-		assert.Equal(t, orderRow.OrderUuid, order.OrderUuid)
-		require.Len(t, items, 1)
+		assert.Equal(t, orderRow.OrderUuid.String(), order.UUID)
+		require.Len(t, order.Items, 1)
 	})
 
 	t.Run("Case 5: Success - Admin Can View Any Order", func(t *testing.T) {
@@ -1936,10 +1931,10 @@ func TestOrderService_GetOrderByUUID(t *testing.T) {
 			userRepo: mockUserRepo,
 		})
 
-		order, items, err := svc.GetOrderByUUID(ctx, adminUUID, orderUUID)
+		order, err := svc.GetOrderByUUID(ctx, adminUUID, orderUUID)
 		require.NoError(t, err)
-		assert.Equal(t, orderRow.OrderUuid, order.OrderUuid)
-		assert.Empty(t, items)
+		assert.Equal(t, orderRow.OrderUuid.String(), order.UUID)
+		assert.Empty(t, order.Items)
 	})
 }
 
@@ -2029,9 +2024,8 @@ func TestOrderService_UpdateOrderStatus(t *testing.T) {
 			orderRepo: mockOrderRepo,
 		})
 
-		_, _, err := svc.UpdateOrderStatus(ctx, sqlc.UpdateOrderStatusParams{
-			OrderUuid:   orderUUID,
-			OrderStatus: v1service.OrderStatusConfirmed,
+		_, err := svc.UpdateOrderStatus(ctx, orderUUID, v1dto.UpdateOrderStatusInput{
+			Status: v1service.OrderStatusConfirmed,
 		})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "Order not found")
@@ -2051,9 +2045,8 @@ func TestOrderService_UpdateOrderStatus(t *testing.T) {
 			orderRepo: mockOrderRepo,
 		})
 
-		_, _, err := svc.UpdateOrderStatus(ctx, sqlc.UpdateOrderStatusParams{
-			OrderUuid:   orderUUID,
-			OrderStatus: v1service.OrderStatusDelivered,
+		_, err := svc.UpdateOrderStatus(ctx, orderUUID, v1dto.UpdateOrderStatusInput{
+			Status: v1service.OrderStatusDelivered,
 		})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "Cannot change order status")
@@ -2111,13 +2104,12 @@ func TestOrderService_UpdateOrderStatus(t *testing.T) {
 			notificationService: mockNotification,
 		})
 
-		resOrder, items, err := svc.UpdateOrderStatus(ctx, sqlc.UpdateOrderStatusParams{
-			OrderUuid:   orderUUID,
-			OrderStatus: v1service.OrderStatusConfirmed,
+		resOrder, err := svc.UpdateOrderStatus(ctx, orderUUID, v1dto.UpdateOrderStatusInput{
+			Status: v1service.OrderStatusConfirmed,
 		})
 		require.NoError(t, err)
-		assert.Equal(t, v1service.OrderStatusConfirmed, resOrder.OrderStatus)
-		require.Len(t, items, 1)
+		assert.Equal(t, "Confirmed", resOrder.Status)
+		require.Len(t, resOrder.Items, 1)
 
 		// Assert tracking event was recorded
 		assert.Equal(t, int32(1), trackingEvent.EventOrderID)
@@ -2159,7 +2151,7 @@ func TestOrderService_UpdateOrderShippingInfo(t *testing.T) {
 			userRepo: mockUserRepo,
 		})
 
-		_, _, err := svc.UpdateOrderShippingInfo(ctx, userUUID, sqlc.UpdateOrderShippingInfoParams{OrderUuid: orderUUID})
+		_, err := svc.UpdateOrderShippingInfo(ctx, userUUID, orderUUID, v1dto.UpdateOrderShippingInfoInput{})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "User not found")
 	})
@@ -2180,7 +2172,7 @@ func TestOrderService_UpdateOrderShippingInfo(t *testing.T) {
 			userRepo: mockUserRepo,
 		})
 
-		_, _, err := svc.UpdateOrderShippingInfo(ctx, otherUserUUID, sqlc.UpdateOrderShippingInfoParams{OrderUuid: orderUUID})
+		_, err := svc.UpdateOrderShippingInfo(ctx, otherUserUUID, orderUUID, v1dto.UpdateOrderShippingInfoInput{})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "You do not have permission to update this order")
 	})
@@ -2203,7 +2195,7 @@ func TestOrderService_UpdateOrderShippingInfo(t *testing.T) {
 			userRepo: mockUserRepo,
 		})
 
-		_, _, err := svc.UpdateOrderShippingInfo(ctx, userUUID, sqlc.UpdateOrderShippingInfoParams{OrderUuid: orderUUID})
+		_, err := svc.UpdateOrderShippingInfo(ctx, userUUID, orderUUID, v1dto.UpdateOrderShippingInfoInput{})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "You can only update shipping info for Pending orders")
 	})
@@ -2254,15 +2246,14 @@ func TestOrderService_UpdateOrderShippingInfo(t *testing.T) {
 		shippingName := "Tran Van B"
 		shippingPhone := "0912345678"
 		shippingAddress := "456 Nguyen Hue, HCMC"
-		updatedOrder, items, err := svc.UpdateOrderShippingInfo(ctx, userUUID, sqlc.UpdateOrderShippingInfoParams{
-			OrderUuid:            orderUUID,
-			OrderShippingName:    &shippingName,
-			OrderShippingPhone:   &shippingPhone,
-			OrderShippingAddress: &shippingAddress,
+		updatedOrder, err := svc.UpdateOrderShippingInfo(ctx, userUUID, orderUUID, v1dto.UpdateOrderShippingInfoInput{
+			ShippingName:    &shippingName,
+			ShippingPhone:   &shippingPhone,
+			ShippingAddress: &shippingAddress,
 		})
 		require.NoError(t, err)
-		assert.Equal(t, "Tran Van B", updatedOrder.OrderShippingName)
-		assert.Empty(t, items)
+		assert.Equal(t, "Tran Van B", updatedOrder.ShippingName)
+		assert.Empty(t, updatedOrder.Items)
 	})
 
 	t.Run("Case 5: Success for Admin when Confirmed", func(t *testing.T) {
@@ -2307,13 +2298,12 @@ func TestOrderService_UpdateOrderShippingInfo(t *testing.T) {
 
 		shippingName := "Admin Updated Name"
 		shippingAddress := "Admin Updated Address"
-		updatedOrder, _, err := svc.UpdateOrderShippingInfo(ctx, adminUUID, sqlc.UpdateOrderShippingInfoParams{
-			OrderUuid:            orderUUID,
-			OrderShippingName:    &shippingName,
-			OrderShippingAddress: &shippingAddress,
+		updatedOrder, err := svc.UpdateOrderShippingInfo(ctx, adminUUID, orderUUID, v1dto.UpdateOrderShippingInfoInput{
+			ShippingName:    &shippingName,
+			ShippingAddress: &shippingAddress,
 		})
 		require.NoError(t, err)
-		assert.Equal(t, "Admin Updated Name", updatedOrder.OrderShippingName)
+		assert.Equal(t, "Admin Updated Name", updatedOrder.ShippingName)
 	})
 }
 
@@ -2342,7 +2332,7 @@ func TestOrderService_UpdateOrderPaymentStatus(t *testing.T) {
 			orderRepo: mockOrderRepo,
 		})
 
-		_, _, err := svc.UpdateOrderPaymentStatus(ctx, adminUUID, orderUUID, v1dto.UpdateOrderPaymentStatusInput{
+		_, err := svc.UpdateOrderPaymentStatus(ctx, adminUUID, orderUUID, v1dto.UpdateOrderPaymentStatusInput{
 			PaymentStatus: v1service.OrderPaymentStatusPaid,
 		})
 		require.Error(t, err)
@@ -2372,11 +2362,11 @@ func TestOrderService_UpdateOrderPaymentStatus(t *testing.T) {
 			orderItemRepo: mockOrderItemRepo,
 		})
 
-		updatedOrder, _, err := svc.UpdateOrderPaymentStatus(ctx, adminUUID, orderUUID, v1dto.UpdateOrderPaymentStatusInput{
+		updatedOrder, err := svc.UpdateOrderPaymentStatus(ctx, adminUUID, orderUUID, v1dto.UpdateOrderPaymentStatusInput{
 			PaymentStatus: v1service.OrderPaymentStatusPaid,
 		})
 		require.NoError(t, err)
-		assert.Equal(t, v1service.OrderPaymentStatusPaid, updatedOrder.OrderPaymentStatus)
+		assert.Equal(t, "Paid", updatedOrder.PaymentStatus)
 	})
 
 	t.Run("Case 3: Cannot Mark Cancelled Order as Paid", func(t *testing.T) {
@@ -2391,7 +2381,7 @@ func TestOrderService_UpdateOrderPaymentStatus(t *testing.T) {
 			orderRepo: mockOrderRepo,
 		})
 
-		_, _, err := svc.UpdateOrderPaymentStatus(ctx, adminUUID, orderUUID, v1dto.UpdateOrderPaymentStatusInput{
+		_, err := svc.UpdateOrderPaymentStatus(ctx, adminUUID, orderUUID, v1dto.UpdateOrderPaymentStatusInput{
 			PaymentStatus: v1service.OrderPaymentStatusPaid,
 		})
 		require.Error(t, err)
@@ -2412,7 +2402,7 @@ func TestOrderService_UpdateOrderPaymentStatus(t *testing.T) {
 			orderRepo: mockOrderRepo,
 		})
 
-		_, _, err := svc.UpdateOrderPaymentStatus(ctx, adminUUID, orderUUID, v1dto.UpdateOrderPaymentStatusInput{
+		_, err := svc.UpdateOrderPaymentStatus(ctx, adminUUID, orderUUID, v1dto.UpdateOrderPaymentStatusInput{
 			PaymentStatus: v1service.OrderPaymentStatusFullyRefunded,
 		})
 		require.Error(t, err)
@@ -2449,11 +2439,11 @@ func TestOrderService_UpdateOrderPaymentStatus(t *testing.T) {
 			orderItemRepo: mockOrderItemRepo,
 		})
 
-		updatedOrder, _, err := svc.UpdateOrderPaymentStatus(ctx, adminUUID, orderUUID, v1dto.UpdateOrderPaymentStatusInput{
+		updatedOrder, err := svc.UpdateOrderPaymentStatus(ctx, adminUUID, orderUUID, v1dto.UpdateOrderPaymentStatusInput{
 			PaymentStatus: v1service.OrderPaymentStatusFullyRefunded,
 		})
 		require.NoError(t, err)
-		assert.Equal(t, v1service.OrderPaymentStatusFullyRefunded, updatedOrder.OrderPaymentStatus)
+		assert.Equal(t, "Refunded", updatedOrder.PaymentStatus)
 		assert.Equal(t, v1service.OrderPaymentStatusFullyRefunded, capturedParams.PaymentStatus)
 		assert.Equal(t, float64(500000), utils.NumericToFloat(capturedParams.RefundedAmount))
 	})

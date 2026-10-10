@@ -118,27 +118,27 @@ func (s *chatService) getActiveUser(ctx context.Context, userUUID uuid.UUID) (sq
 	return user, nil
 }
 
-func (s *chatService) GetOrCreateConversation(ctx context.Context, userUUID uuid.UUID) (sqlc.ChatConversation, error) {
+func (s *chatService) GetOrCreateConversation(ctx context.Context, userUUID uuid.UUID) (*v1dto.ConversationDTO, error) {
 	user, err := s.getActiveUser(ctx, userUUID)
 	if err != nil {
-		return sqlc.ChatConversation{}, err
+		return nil, err
 	}
 
 	conversation, err := s.chatRepo.GetConversationByUserID(ctx, user.UserID)
 	if err == nil {
-		return conversation, nil
+		return v1dto.MapChatConversationToDTO(conversation), nil
 	}
 
 	if !errors.Is(err, sql.ErrNoRows) && !errors.Is(err, pgx.ErrNoRows) {
-		return sqlc.ChatConversation{}, utils.WrapError(utils.ErrCodeInternal, "failed to get conversation", err)
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to get conversation", err)
 	}
 
 	newConv, err := s.chatRepo.CreateConversation(ctx, user.UserID)
 	if err != nil {
-		return sqlc.ChatConversation{}, utils.WrapError(utils.ErrCodeInternal, "failed to create conversation", err)
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to create conversation", err)
 	}
 
-	return newConv, nil
+	return v1dto.MapChatConversationToDTO(newConv), nil
 }
 
 func (s *chatService) SendMessage(
@@ -496,19 +496,19 @@ func (s *chatService) ListConversations(
 func (s *chatService) CloseConversation(
 	ctx context.Context,
 	conversationUUID uuid.UUID,
-) (sqlc.ChatConversation, error) {
+) (*v1dto.ConversationDTO, error) {
 	conv, err := s.getConversation(ctx, conversationUUID)
 	if err != nil {
-		return sqlc.ChatConversation{}, err
+		return nil, err
 	}
 
 	if conv.Status == "closed" {
-		return conv, nil
+		return v1dto.MapChatConversationToDTO(conv), nil
 	}
 
 	updatedConv, err := s.chatRepo.UpdateConversationStatus(ctx, conv.ConversationID, "closed")
 	if err != nil {
-		return sqlc.ChatConversation{}, utils.WrapError(utils.ErrCodeInternal, "failed to close conversation", err)
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to close conversation", err)
 	}
 
 	// Publish the conversation closed event to the conversation
@@ -519,23 +519,28 @@ func (s *chatService) CloseConversation(
 		},
 	})
 
-	return updatedConv, nil
+	return v1dto.MapChatConversationToDTO(updatedConv), nil
 }
 
 func (s *chatService) ReopenConversation(
 	ctx context.Context,
 	conversationUUID uuid.UUID,
-) (sqlc.ChatConversation, error) {
+) (*v1dto.ConversationDTO, error) {
 	conv, err := s.getConversation(ctx, conversationUUID)
 	if err != nil {
-		return sqlc.ChatConversation{}, err
+		return nil, err
 	}
 
 	if conv.Status == "open" {
-		return conv, nil
+		return v1dto.MapChatConversationToDTO(conv), nil
 	}
 
-	return s.chatRepo.UpdateConversationStatus(ctx, conv.ConversationID, "open")
+	updatedConv, err := s.chatRepo.UpdateConversationStatus(ctx, conv.ConversationID, "open")
+	if err != nil {
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to reopen conversation", err)
+	}
+
+	return v1dto.MapChatConversationToDTO(updatedConv), nil
 }
 
 func (s *chatService) GetConversationDetails(

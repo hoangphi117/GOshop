@@ -5,7 +5,6 @@ import (
 	"io"
 	"time"
 
-	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
 	v1service "goshop/internal/service/v1"
 	"goshop/pkg/auth"
@@ -53,7 +52,7 @@ var (
 
 type MockOrderPricingService struct {
 	CalculateItemsFunc               func(items []v1service.ItemPriceInput) ([]v1service.ItemPriceResult, float64, error)
-	ValidateAndCalculateDiscountFunc func(coupon *sqlc.Coupon, subtotal float64, now time.Time) (float64, error)
+	ValidateAndCalculateDiscountFunc func(coupon *v1dto.CouponDTO, subtotal float64, now time.Time) (float64, error)
 	CalculateOrderTotalsFunc         func(ctx context.Context, items []v1service.ItemPriceInput, couponCode *string, userID int32, shippingFee float64, now time.Time) (*v1service.OrderPricingResult, error)
 }
 
@@ -64,7 +63,7 @@ func (m *MockOrderPricingService) CalculateItems(items []v1service.ItemPriceInpu
 	return nil, 0, nil
 }
 
-func (m *MockOrderPricingService) ValidateAndCalculateDiscount(coupon *sqlc.Coupon, subtotal float64, now time.Time) (float64, error) {
+func (m *MockOrderPricingService) ValidateAndCalculateDiscount(coupon *v1dto.CouponDTO, subtotal float64, now time.Time) (float64, error) {
 	if m.ValidateAndCalculateDiscountFunc != nil {
 		return m.ValidateAndCalculateDiscountFunc(coupon, subtotal, now)
 	}
@@ -79,22 +78,22 @@ func (m *MockOrderPricingService) CalculateOrderTotals(ctx context.Context, item
 }
 
 type MockInventoryService struct {
-	LockAndDeductStockFunc        func(ctx context.Context, items []v1service.DeductItem) (map[string]sqlc.GetByUUIDsForUpdateRow, error)
-	LockAndDeductStockWithRefFunc func(ctx context.Context, items []v1service.DeductItem, refID string, refType string, actorID *int32, note *string) (map[string]sqlc.GetByUUIDsForUpdateRow, error)
+	LockAndDeductStockFunc        func(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error)
+	LockAndDeductStockWithRefFunc func(ctx context.Context, items []v1service.DeductItem, refID string, refType string, actorID *int32, note *string) (map[string]v1service.InventoryItemStock, error)
 	RestoreStockFunc              func(ctx context.Context, items []v1service.RestoreItem) error
 	RestoreStockWithRefFunc       func(ctx context.Context, items []v1service.RestoreItem, refID string, refType string, actorID *int32, note *string) error
-	AdjustStockFunc               func(ctx context.Context, actorUUID uuid.UUID, input v1dto.AdjustStockInput) (sqlc.StockMovement, error)
+	AdjustStockFunc               func(ctx context.Context, actorUUID uuid.UUID, input v1dto.AdjustStockInput) (*v1dto.StockMovementDTO, error)
 	ListStockMovementsFunc        func(ctx context.Context, params v1dto.GetStockMovementsParam) ([]v1dto.StockMovementDTO, int64, error)
 }
 
-func (m *MockInventoryService) LockAndDeductStock(ctx context.Context, items []v1service.DeductItem) (map[string]sqlc.GetByUUIDsForUpdateRow, error) {
+func (m *MockInventoryService) LockAndDeductStock(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error) {
 	if m.LockAndDeductStockFunc != nil {
 		return m.LockAndDeductStockFunc(ctx, items)
 	}
 	return nil, nil
 }
 
-func (m *MockInventoryService) LockAndDeductStockWithRef(ctx context.Context, items []v1service.DeductItem, refID string, refType string, actorID *int32, note *string) (map[string]sqlc.GetByUUIDsForUpdateRow, error) {
+func (m *MockInventoryService) LockAndDeductStockWithRef(ctx context.Context, items []v1service.DeductItem, refID string, refType string, actorID *int32, note *string) (map[string]v1service.InventoryItemStock, error) {
 	if m.LockAndDeductStockWithRefFunc != nil {
 		return m.LockAndDeductStockWithRefFunc(ctx, items, refID, refType, actorID, note)
 	}
@@ -115,11 +114,11 @@ func (m *MockInventoryService) RestoreStockWithRef(ctx context.Context, items []
 	return m.RestoreStock(ctx, items)
 }
 
-func (m *MockInventoryService) AdjustStock(ctx context.Context, actorUUID uuid.UUID, input v1dto.AdjustStockInput) (sqlc.StockMovement, error) {
+func (m *MockInventoryService) AdjustStock(ctx context.Context, actorUUID uuid.UUID, input v1dto.AdjustStockInput) (*v1dto.StockMovementDTO, error) {
 	if m.AdjustStockFunc != nil {
 		return m.AdjustStockFunc(ctx, actorUUID, input)
 	}
-	return sqlc.StockMovement{}, nil
+	return nil, nil
 }
 
 func (m *MockInventoryService) ListStockMovements(ctx context.Context, params v1dto.GetStockMovementsParam) ([]v1dto.StockMovementDTO, int64, error) {
@@ -528,9 +527,9 @@ func (m *MockPaymentProvider) Refund(ctx context.Context, req payment.RefundRequ
 
 // MockTokenService
 type MockTokenService struct {
-	GenerateAccessTokenFunc           func(user sqlc.User) (string, error)
-	GenerateAccessTokenWithFamilyFunc func(user sqlc.User, familyID string) (string, error)
-	GenerateRefreshTokenFunc          func(user sqlc.User) (auth.RefreshToken, error)
+	GenerateAccessTokenFunc           func(user auth.UserTokenPayload) (string, error)
+	GenerateAccessTokenWithFamilyFunc func(user auth.UserTokenPayload, familyID string) (string, error)
+	GenerateRefreshTokenFunc          func(user auth.UserTokenPayload) (auth.RefreshToken, error)
 	ParseTokenFunc                    func(tokenString string) (*jwt.Token, jwt.MapClaims, error)
 	DecryptAccessTokenPayloadFunc     func(tokenString string) (*auth.EncryptedPayload, error)
 	StoreRefreshTokenFunc             func(token auth.RefreshToken) error
@@ -541,14 +540,14 @@ type MockTokenService struct {
 	GetTokenFamilyIDFunc              func(rawToken string) (string, error)
 }
 
-func (m *MockTokenService) GenerateAccessToken(user sqlc.User) (string, error) {
+func (m *MockTokenService) GenerateAccessToken(user auth.UserTokenPayload) (string, error) {
 	if m.GenerateAccessTokenFunc != nil {
 		return m.GenerateAccessTokenFunc(user)
 	}
 	return "mock-access-token", nil
 }
 
-func (m *MockTokenService) GenerateAccessTokenWithFamily(user sqlc.User, familyID string) (string, error) {
+func (m *MockTokenService) GenerateAccessTokenWithFamily(user auth.UserTokenPayload, familyID string) (string, error) {
 	if m.GenerateAccessTokenWithFamilyFunc != nil {
 		return m.GenerateAccessTokenWithFamilyFunc(user, familyID)
 	}
@@ -558,11 +557,11 @@ func (m *MockTokenService) GenerateAccessTokenWithFamily(user sqlc.User, familyI
 	return "mock-access-token", nil
 }
 
-func (m *MockTokenService) GenerateRefreshToken(user sqlc.User) (auth.RefreshToken, error) {
+func (m *MockTokenService) GenerateRefreshToken(user auth.UserTokenPayload) (auth.RefreshToken, error) {
 	if m.GenerateRefreshTokenFunc != nil {
 		return m.GenerateRefreshTokenFunc(user)
 	}
-	return auth.RefreshToken{Token: "mock-refresh-token", UserUUID: user.UserUuid.String()}, nil
+	return auth.RefreshToken{Token: "mock-refresh-token", UserUUID: user.UserUUID}, nil
 }
 
 func (m *MockTokenService) ParseToken(tokenString string) (*jwt.Token, jwt.MapClaims, error) {
@@ -1045,25 +1044,25 @@ func (m *MockPaymentRefundService) RefundPayment(ctx context.Context, idempotenc
 }
 
 type MockOrderService struct {
-	CreateOrderFunc              func(ctx context.Context, userUUID uuid.UUID, input v1dto.CreateOrderInput) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error)
+	CreateOrderFunc              func(ctx context.Context, userUUID uuid.UUID, input v1dto.CreateOrderInput) (*v1dto.OrderDTO, error)
 	GetMyOrdersFunc              func(ctx context.Context, userUUID uuid.UUID, input v1dto.GetOrdersParam) ([]v1dto.OrderSummaryDTO, int32, error)
-	GetOrderByUUIDFunc           func(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (sqlc.GetOrderByUUIDRow, []sqlc.GetOrderItemsByOrderIDRow, error)
+	GetOrderByUUIDFunc           func(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (*v1dto.OrderDTO, error)
 	GetAllOrdersFunc             func(ctx context.Context, input v1dto.GetOrdersParam) ([]v1dto.OrderSummaryDTO, int32, error)
-	UpdateOrderStatusFunc        func(ctx context.Context, input sqlc.UpdateOrderStatusParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error)
-	CancelOrderFunc              func(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, reason *string) (sqlc.Order, error)
+	UpdateOrderStatusFunc        func(ctx context.Context, orderUUID uuid.UUID, input v1dto.UpdateOrderStatusInput) (*v1dto.OrderDTO, error)
+	CancelOrderFunc              func(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, reason *string) (*v1dto.OrderSummaryDTO, error)
 	CancelExpiredOrderFunc       func(ctx context.Context, orderUUID uuid.UUID) error
-	UpdateOrderShippingInfoFunc  func(ctx context.Context, userUUID uuid.UUID, input sqlc.UpdateOrderShippingInfoParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error)
-	UpdateOrderPaymentStatusFunc func(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.UpdateOrderPaymentStatusInput) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error)
+	UpdateOrderShippingInfoFunc  func(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.UpdateOrderShippingInfoInput) (*v1dto.OrderDTO, error)
+	UpdateOrderPaymentStatusFunc func(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.UpdateOrderPaymentStatusInput) (*v1dto.OrderDTO, error)
 	GetOrderInvoicePDFFunc       func(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) ([]byte, string, error)
 	BulkUpdateStatusFunc         func(ctx context.Context, input v1dto.BulkUpdateOrderStatusInput) (*v1dto.BulkOperationResultDTO, error)
 	BulkCancelFunc               func(ctx context.Context, userUUID uuid.UUID, input v1dto.BulkCancelOrdersInput) (*v1dto.BulkOperationResultDTO, error)
 }
 
-func (m *MockOrderService) CreateOrder(ctx context.Context, userUUID uuid.UUID, input v1dto.CreateOrderInput) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
+func (m *MockOrderService) CreateOrder(ctx context.Context, userUUID uuid.UUID, input v1dto.CreateOrderInput) (*v1dto.OrderDTO, error) {
 	if m.CreateOrderFunc != nil {
 		return m.CreateOrderFunc(ctx, userUUID, input)
 	}
-	return sqlc.Order{}, nil, nil
+	return nil, nil
 }
 
 func (m *MockOrderService) GetMyOrders(ctx context.Context, userUUID uuid.UUID, input v1dto.GetOrdersParam) ([]v1dto.OrderSummaryDTO, int32, error) {
@@ -1073,11 +1072,11 @@ func (m *MockOrderService) GetMyOrders(ctx context.Context, userUUID uuid.UUID, 
 	return nil, 0, nil
 }
 
-func (m *MockOrderService) GetOrderByUUID(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (sqlc.GetOrderByUUIDRow, []sqlc.GetOrderItemsByOrderIDRow, error) {
+func (m *MockOrderService) GetOrderByUUID(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (*v1dto.OrderDTO, error) {
 	if m.GetOrderByUUIDFunc != nil {
 		return m.GetOrderByUUIDFunc(ctx, userUUID, orderUUID)
 	}
-	return sqlc.GetOrderByUUIDRow{}, nil, nil
+	return nil, nil
 }
 
 func (m *MockOrderService) GetAllOrders(ctx context.Context, input v1dto.GetOrdersParam) ([]v1dto.OrderSummaryDTO, int32, error) {
@@ -1087,18 +1086,18 @@ func (m *MockOrderService) GetAllOrders(ctx context.Context, input v1dto.GetOrde
 	return nil, 0, nil
 }
 
-func (m *MockOrderService) UpdateOrderStatus(ctx context.Context, input sqlc.UpdateOrderStatusParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
+func (m *MockOrderService) UpdateOrderStatus(ctx context.Context, orderUUID uuid.UUID, input v1dto.UpdateOrderStatusInput) (*v1dto.OrderDTO, error) {
 	if m.UpdateOrderStatusFunc != nil {
-		return m.UpdateOrderStatusFunc(ctx, input)
+		return m.UpdateOrderStatusFunc(ctx, orderUUID, input)
 	}
-	return sqlc.Order{}, nil, nil
+	return nil, nil
 }
 
-func (m *MockOrderService) CancelOrder(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, reason *string) (sqlc.Order, error) {
+func (m *MockOrderService) CancelOrder(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, reason *string) (*v1dto.OrderSummaryDTO, error) {
 	if m.CancelOrderFunc != nil {
 		return m.CancelOrderFunc(ctx, userUUID, orderUUID, reason)
 	}
-	return sqlc.Order{}, nil
+	return nil, nil
 }
 
 func (m *MockOrderService) CancelExpiredOrder(ctx context.Context, orderUUID uuid.UUID) error {
@@ -1108,18 +1107,18 @@ func (m *MockOrderService) CancelExpiredOrder(ctx context.Context, orderUUID uui
 	return nil
 }
 
-func (m *MockOrderService) UpdateOrderShippingInfo(ctx context.Context, userUUID uuid.UUID, input sqlc.UpdateOrderShippingInfoParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
+func (m *MockOrderService) UpdateOrderShippingInfo(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.UpdateOrderShippingInfoInput) (*v1dto.OrderDTO, error) {
 	if m.UpdateOrderShippingInfoFunc != nil {
-		return m.UpdateOrderShippingInfoFunc(ctx, userUUID, input)
+		return m.UpdateOrderShippingInfoFunc(ctx, userUUID, orderUUID, input)
 	}
-	return sqlc.Order{}, nil, nil
+	return nil, nil
 }
 
-func (m *MockOrderService) UpdateOrderPaymentStatus(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.UpdateOrderPaymentStatusInput) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
+func (m *MockOrderService) UpdateOrderPaymentStatus(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.UpdateOrderPaymentStatusInput) (*v1dto.OrderDTO, error) {
 	if m.UpdateOrderPaymentStatusFunc != nil {
 		return m.UpdateOrderPaymentStatusFunc(ctx, userUUID, orderUUID, input)
 	}
-	return sqlc.Order{}, nil, nil
+	return nil, nil
 }
 
 func (m *MockOrderService) GetOrderInvoicePDF(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) ([]byte, string, error) {
@@ -1407,27 +1406,27 @@ func (m *MockLocationService) GetWards(ctx context.Context, districtID int) ([]v
 }
 
 type MockProductService struct {
-	CreateProductFunc     func(ctx context.Context, input v1dto.CreateProductInput) (sqlc.CreateProductRow, error)
-	GetAllProductsFunc    func(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.GetProductByUUIDRow, int32, error)
-	GetProductByUUIDFunc  func(ctx context.Context, productUUID uuid.UUID) (sqlc.GetProductByUUIDRow, error)
-	GetProductBySlugFunc  func(ctx context.Context, slug string) (sqlc.GetProductBySlugRow, error)
+	CreateProductFunc     func(ctx context.Context, input v1dto.CreateProductInput) (*v1dto.ProductDTO, error)
+	GetAllProductsFunc    func(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, orderBy, sort string, page, limit int32, deleted bool) ([]v1dto.ProductDTO, int32, error)
+	GetProductByUUIDFunc  func(ctx context.Context, productUUID uuid.UUID) (*v1dto.ProductDTO, error)
+	GetProductBySlugFunc  func(ctx context.Context, slug string) (*v1dto.ProductDTO, error)
 	SearchProductsFunc    func(ctx context.Context, q, categoryUUID string, minPrice, maxPrice, minRating float64, sort string, page, limit int32) ([]v1dto.ProductDTO, int64, error)
 	SuggestProductsFunc   func(ctx context.Context, q string, limit int32) ([]v1dto.ProductSuggestionDTO, error)
-	UpdateProductFunc     func(ctx context.Context, input v1dto.UpdateProductInput) (sqlc.UpdateProductRow, error)
-	SoftDeleteProductFunc func(ctx context.Context, productUUID uuid.UUID) (sqlc.Product, error)
-	RestoreProductFunc    func(ctx context.Context, productUUID uuid.UUID) (sqlc.Product, error)
+	UpdateProductFunc     func(ctx context.Context, input v1dto.UpdateProductInput) (*v1dto.ProductDTO, error)
+	SoftDeleteProductFunc func(ctx context.Context, productUUID uuid.UUID) (*v1dto.ProductDTO, error)
+	RestoreProductFunc    func(ctx context.Context, productUUID uuid.UUID) (*v1dto.ProductDTO, error)
 	TrashProductFunc      func(ctx context.Context, productUUID uuid.UUID) error
 	ImportProductsCSVFunc func(ctx context.Context, file io.Reader) (*v1dto.ProductCSVImportResponse, error)
 }
 
-func (m *MockProductService) CreateProduct(ctx context.Context, input v1dto.CreateProductInput) (sqlc.CreateProductRow, error) {
+func (m *MockProductService) CreateProduct(ctx context.Context, input v1dto.CreateProductInput) (*v1dto.ProductDTO, error) {
 	if m.CreateProductFunc != nil {
 		return m.CreateProductFunc(ctx, input)
 	}
-	return sqlc.CreateProductRow{}, nil
+	return nil, nil
 }
 
-func (m *MockProductService) GetAllProducts(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.GetProductByUUIDRow, int32, error) {
+func (m *MockProductService) GetAllProducts(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, orderBy, sort string, page, limit int32, deleted bool) ([]v1dto.ProductDTO, int32, error) {
 	if m.GetAllProductsFunc != nil {
 		return m.GetAllProductsFunc(ctx, search, categoryUUID, minPrice, maxPrice, minRating, status, orderBy, sort, page, limit, deleted)
 	}
@@ -1448,39 +1447,39 @@ func (m *MockProductService) SuggestProducts(ctx context.Context, q string, limi
 	return []v1dto.ProductSuggestionDTO{}, nil
 }
 
-func (m *MockProductService) GetProductByUUID(ctx context.Context, productUUID uuid.UUID) (sqlc.GetProductByUUIDRow, error) {
+func (m *MockProductService) GetProductByUUID(ctx context.Context, productUUID uuid.UUID) (*v1dto.ProductDTO, error) {
 	if m.GetProductByUUIDFunc != nil {
 		return m.GetProductByUUIDFunc(ctx, productUUID)
 	}
-	return sqlc.GetProductByUUIDRow{}, nil
+	return nil, nil
 }
 
-func (m *MockProductService) GetProductBySlug(ctx context.Context, slug string) (sqlc.GetProductBySlugRow, error) {
+func (m *MockProductService) GetProductBySlug(ctx context.Context, slug string) (*v1dto.ProductDTO, error) {
 	if m.GetProductBySlugFunc != nil {
 		return m.GetProductBySlugFunc(ctx, slug)
 	}
-	return sqlc.GetProductBySlugRow{}, nil
+	return nil, nil
 }
 
-func (m *MockProductService) UpdateProduct(ctx context.Context, input v1dto.UpdateProductInput) (sqlc.UpdateProductRow, error) {
+func (m *MockProductService) UpdateProduct(ctx context.Context, input v1dto.UpdateProductInput) (*v1dto.ProductDTO, error) {
 	if m.UpdateProductFunc != nil {
 		return m.UpdateProductFunc(ctx, input)
 	}
-	return sqlc.UpdateProductRow{}, nil
+	return nil, nil
 }
 
-func (m *MockProductService) SoftDeleteProduct(ctx context.Context, productUUID uuid.UUID) (sqlc.Product, error) {
+func (m *MockProductService) SoftDeleteProduct(ctx context.Context, productUUID uuid.UUID) (*v1dto.ProductDTO, error) {
 	if m.SoftDeleteProductFunc != nil {
 		return m.SoftDeleteProductFunc(ctx, productUUID)
 	}
-	return sqlc.Product{}, nil
+	return nil, nil
 }
 
-func (m *MockProductService) RestoreProduct(ctx context.Context, productUUID uuid.UUID) (sqlc.Product, error) {
+func (m *MockProductService) RestoreProduct(ctx context.Context, productUUID uuid.UUID) (*v1dto.ProductDTO, error) {
 	if m.RestoreProductFunc != nil {
 		return m.RestoreProductFunc(ctx, productUUID)
 	}
-	return sqlc.Product{}, nil
+	return nil, nil
 }
 
 func (m *MockProductService) TrashProduct(ctx context.Context, productUUID uuid.UUID) error {

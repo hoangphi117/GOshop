@@ -80,13 +80,11 @@ func (ph *ProductHandler) CreateProduct(ctx *gin.Context) {
 
 	mappedInput := input.MapCreateToServiceInput()
 
-	product, err := ph.getAdminService().CreateProduct(ctx.Request.Context(), mappedInput)
+	productDTO, err := ph.getAdminService().CreateProduct(ctx.Request.Context(), mappedInput)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
-
-	productDTO := v1dto.MapCreateProductRowToDTO(product)
 
 	utils.ResponseSuccess(ctx, http.StatusCreated, "Created product successfully", productDTO)
 }
@@ -117,13 +115,11 @@ func (ph *ProductHandler) GetAllProducts(ctx *gin.Context) {
 		return
 	}
 
-	listProducts, total, err := ph.getQueryService().GetAllProducts(ctx.Request.Context(), params.Search, params.CategoryUUID, params.MinPrice, params.MaxPrice, params.MinRating, params.Status, params.OrderBy, params.Sort, params.Page, params.Limit, false)
+	listProductsDTO, total, err := ph.getQueryService().GetAllProducts(ctx.Request.Context(), params.Search, params.CategoryUUID, params.MinPrice, params.MaxPrice, params.MinRating, params.Status, params.OrderBy, params.Sort, params.Page, params.Limit, false)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
-
-	listProductsDTO := v1dto.MapListProductsToDTO(listProducts)
 
 	paginationResponse := utils.NewPaginationResponse(listProductsDTO, params.Page, params.Limit, total)
 
@@ -229,24 +225,22 @@ func (ph *ProductHandler) GetProductByUUID(ctx *gin.Context) {
 
 	productUuid, err := uuid.Parse(params.Uuid)
 	if err == nil {
-		product, err := ph.getQueryService().GetProductByUUID(ctx.Request.Context(), productUuid)
+		productDTO, err := ph.getQueryService().GetProductByUUID(ctx.Request.Context(), productUuid)
 		if err != nil {
 			utils.ResponseError(ctx, err)
 			return
 		}
-		productDTO := v1dto.MapGetProductByUUIDRowToDTO(product)
 		utils.ResponseSuccess(ctx, http.StatusOK, "Product retrieved successfully", productDTO)
 		return
 	}
 
 	// Fallback to query by slug when identifier is not a valid UUID
-	product, err := ph.getQueryService().GetProductBySlug(ctx.Request.Context(), params.Uuid)
+	productDTO, err := ph.getQueryService().GetProductBySlug(ctx.Request.Context(), params.Uuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
 
-	productDTO := v1dto.MapGetProductBySlugRowToDTO(product)
 	utils.ResponseSuccess(ctx, http.StatusOK, "Product retrieved successfully", productDTO)
 }
 
@@ -288,13 +282,12 @@ func (ph *ProductHandler) UpdateProduct(ctx *gin.Context) {
 
 	mappedInput := input.MapUpdateToServiceInput(productUuid)
 
-	updatedProduct, err := ph.getAdminService().UpdateProduct(ctx.Request.Context(), mappedInput)
+	productDTO, err := ph.getAdminService().UpdateProduct(ctx.Request.Context(), mappedInput)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
 
-	productDTO := v1dto.MapUpdateProductRowToDTO(updatedProduct)
 	utils.ResponseSuccess(ctx, http.StatusOK, "Product updated successfully", productDTO)
 }
 
@@ -326,13 +319,12 @@ func (ph *ProductHandler) SoftDeleteProduct(ctx *gin.Context) {
 		return
 	}
 
-	softDeletedProduct, err := ph.getAdminService().SoftDeleteProduct(ctx.Request.Context(), productUuid)
+	softDeletedProductDTO, err := ph.getAdminService().SoftDeleteProduct(ctx.Request.Context(), productUuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
 
-	softDeletedProductDTO := v1dto.MapProductToDTO(softDeletedProduct)
 	utils.ResponseSuccess(ctx, http.StatusOK, "Product soft deleted successfully", softDeletedProductDTO)
 }
 
@@ -364,13 +356,12 @@ func (ph *ProductHandler) RestoreProduct(ctx *gin.Context) {
 		return
 	}
 
-	restoredProduct, err := ph.getAdminService().RestoreProduct(ctx.Request.Context(), productUuid)
+	restoredProductDTO, err := ph.getAdminService().RestoreProduct(ctx.Request.Context(), productUuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
 
-	restoredProductDTO := v1dto.MapProductToDTO(restoredProduct)
 	utils.ResponseSuccess(ctx, http.StatusOK, "Product restored successfully", restoredProductDTO)
 }
 

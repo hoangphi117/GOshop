@@ -139,18 +139,18 @@ func mapProductRowToSearchDoc(product sqlc.GetProductByUUIDRow) search.ProductDo
 	}
 }
 
-func (ps *productService) CreateProduct(ctx context.Context, input v1dto.CreateProductInput) (sqlc.CreateProductRow, error) {
+func (ps *productService) CreateProduct(ctx context.Context, input v1dto.CreateProductInput) (*v1dto.ProductDTO, error) {
 	categoryUuid, err := uuid.Parse(input.CategoryUUID)
 	if err != nil {
-		return sqlc.CreateProductRow{}, utils.NewError(utils.ErrCodeBadRequest, "invalid category uuid")
+		return nil, utils.NewError(utils.ErrCodeBadRequest, "invalid category uuid")
 	}
 
 	category, err := ps.categoryRepo.GetByUUID(ctx, categoryUuid)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
-			return sqlc.CreateProductRow{}, utils.NewError(utils.ErrCodeNotFound, "category not found")
+			return nil, utils.NewError(utils.ErrCodeNotFound, "category not found")
 		}
-		return sqlc.CreateProductRow{}, utils.WrapError(utils.ErrCodeInternal, "failed to get category", err)
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to get category", err)
 	}
 	input.Params.ProductCategoryID = category.CategoryID
 
@@ -165,9 +165,9 @@ func (ps *productService) CreateProduct(ctx context.Context, input v1dto.CreateP
 	if err != nil {
 		var appErr *utils.AppError
 		if errors.As(err, &appErr) {
-			return sqlc.CreateProductRow{}, err
+			return nil, err
 		}
-		return sqlc.CreateProductRow{}, utils.WrapError(utils.ErrCodeInternal, "failed to generate slug", err)
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to generate slug", err)
 	}
 	input.Params.ProductSlug = slug
 
@@ -194,7 +194,7 @@ func (ps *productService) CreateProduct(ctx context.Context, input v1dto.CreateP
 		return ps.enqueueProductUpsertOutbox(txCtx, tx, product.ProductUuid)
 	})
 	if err != nil {
-		return sqlc.CreateProductRow{}, err
+		return nil, err
 	}
 
 	if ps.cache != nil {
@@ -203,10 +203,10 @@ func (ps *productService) CreateProduct(ctx context.Context, input v1dto.CreateP
 		}
 	}
 
-	return product, nil
+	return v1dto.MapCreateProductRowToDTO(product), nil
 }
 
-func (ps *productService) GetAllProducts(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, orderBy, sort string, page, limit int32, deleted bool) ([]sqlc.GetProductByUUIDRow, int32, error) {
+func (ps *productService) GetAllProducts(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, orderBy, sort string, page, limit int32, deleted bool) ([]v1dto.ProductDTO, int32, error) {
 	if sort == "" {
 		sort = "desc"
 	}
@@ -228,8 +228,8 @@ func (ps *productService) GetAllProducts(ctx context.Context, search, categoryUU
 
 	cacheKey := ps.generateCacheKey(search, categoryUUID, minPrice, maxPrice, minRating, status, orderBy, sort, page, limit, deleted)
 	var cacheData struct {
-		Products []sqlc.GetProductByUUIDRow `json:"products"`
-		Total    int32                      `json:"total"`
+		Products []v1dto.ProductDTO `json:"products"`
+		Total    int32              `json:"total"`
 	}
 
 	if ps.cache != nil {
@@ -239,7 +239,7 @@ func (ps *productService) GetAllProducts(ctx context.Context, search, categoryUU
 	}
 
 	type fetchResult struct {
-		products []sqlc.GetProductByUUIDRow
+		products []v1dto.ProductDTO
 		total    int64
 	}
 
@@ -247,8 +247,8 @@ func (ps *productService) GetAllProducts(ctx context.Context, search, categoryUU
 		// Re-check cache inside singleflight
 		if ps.cache != nil {
 			var cd struct {
-				Products []sqlc.GetProductByUUIDRow `json:"products"`
-				Total    int32                      `json:"total"`
+				Products []v1dto.ProductDTO `json:"products"`
+				Total    int32              `json:"total"`
 			}
 			if err := ps.cache.Get(cacheKey, &cd); err == nil && cd.Products != nil {
 				return fetchResult{products: cd.Products, total: int64(cd.Total)}, nil
@@ -265,18 +265,20 @@ func (ps *productService) GetAllProducts(ctx context.Context, search, categoryUU
 			return nil, utils.WrapError(utils.ErrCodeInternal, "failed to count products", err)
 		}
 
+		dtos := v1dto.MapListProductsToDTO(listProducts)
+
 		if ps.cache != nil {
 			cd := struct {
-				Products []sqlc.GetProductByUUIDRow `json:"products"`
-				Total    int32                      `json:"total"`
+				Products []v1dto.ProductDTO `json:"products"`
+				Total    int32              `json:"total"`
 			}{
-				Products: listProducts,
+				Products: dtos,
 				Total:    int32(total),
 			}
 			ps.cache.Set(cacheKey, cd, 5*time.Minute)
 		}
 
-		return fetchResult{products: listProducts, total: total}, nil
+		return fetchResult{products: dtos, total: total}, nil
 	})
 
 	if err != nil {
@@ -287,43 +289,43 @@ func (ps *productService) GetAllProducts(ctx context.Context, search, categoryUU
 	return fr.products, int32(fr.total), nil
 }
 
-func (ps *productService) GetProductByUUID(ctx context.Context, productUUID uuid.UUID) (sqlc.GetProductByUUIDRow, error) {
+func (ps *productService) GetProductByUUID(ctx context.Context, productUUID uuid.UUID) (*v1dto.ProductDTO, error) {
 	product, err := ps.repo.GetByUUID(ctx, productUUID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
-			return sqlc.GetProductByUUIDRow{}, utils.NewError(utils.ErrCodeNotFound, "product not found")
+			return nil, utils.NewError(utils.ErrCodeNotFound, "product not found")
 		}
-		return sqlc.GetProductByUUIDRow{}, utils.WrapError(utils.ErrCodeInternal, "failed to get product", err)
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to get product", err)
 	}
 
-	return product, nil
+	return v1dto.MapGetProductByUUIDRowToDTO(product), nil
 }
 
-func (ps *productService) GetProductBySlug(ctx context.Context, slug string) (sqlc.GetProductBySlugRow, error) {
+func (ps *productService) GetProductBySlug(ctx context.Context, slug string) (*v1dto.ProductDTO, error) {
 	product, err := ps.repo.GetBySlug(ctx, slug)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
-			return sqlc.GetProductBySlugRow{}, utils.NewError(utils.ErrCodeNotFound, "product not found")
+			return nil, utils.NewError(utils.ErrCodeNotFound, "product not found")
 		}
-		return sqlc.GetProductBySlugRow{}, utils.WrapError(utils.ErrCodeInternal, "failed to get product", err)
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to get product", err)
 	}
 
-	return product, nil
+	return v1dto.MapGetProductBySlugRowToDTO(product), nil
 }
 
-func (ps *productService) UpdateProduct(ctx context.Context, input v1dto.UpdateProductInput) (sqlc.UpdateProductRow, error) {
+func (ps *productService) UpdateProduct(ctx context.Context, input v1dto.UpdateProductInput) (*v1dto.ProductDTO, error) {
 	if input.CategoryUUID != nil {
 		categoryUuid, err := uuid.Parse(*input.CategoryUUID)
 		if err != nil {
-			return sqlc.UpdateProductRow{}, utils.NewError(utils.ErrCodeBadRequest, "invalid category uuid")
+			return nil, utils.NewError(utils.ErrCodeBadRequest, "invalid category uuid")
 		}
 
 		category, err := ps.categoryRepo.GetByUUID(ctx, categoryUuid)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
-				return sqlc.UpdateProductRow{}, utils.NewError(utils.ErrCodeNotFound, "category not found")
+				return nil, utils.NewError(utils.ErrCodeNotFound, "category not found")
 			}
-			return sqlc.UpdateProductRow{}, utils.WrapError(utils.ErrCodeInternal, "failed to get category", err)
+			return nil, utils.WrapError(utils.ErrCodeInternal, "failed to get category", err)
 		}
 		input.Params.ProductCategoryID = &category.CategoryID
 	}
@@ -336,9 +338,9 @@ func (ps *productService) UpdateProduct(ctx context.Context, input v1dto.UpdateP
 		if err != nil {
 			var appErr *utils.AppError
 			if errors.As(err, &appErr) {
-				return sqlc.UpdateProductRow{}, err
+				return nil, err
 			}
-			return sqlc.UpdateProductRow{}, utils.WrapError(utils.ErrCodeInternal, "failed to generate slug", err)
+			return nil, utils.WrapError(utils.ErrCodeInternal, "failed to generate slug", err)
 		}
 
 		input.Params.ProductSlug = &slug
@@ -370,7 +372,7 @@ func (ps *productService) UpdateProduct(ctx context.Context, input v1dto.UpdateP
 		return ps.enqueueProductUpsertOutbox(txCtx, tx, product.ProductUuid)
 	})
 	if err != nil {
-		return sqlc.UpdateProductRow{}, err
+		return nil, err
 	}
 
 	if ps.cache != nil {
@@ -379,10 +381,10 @@ func (ps *productService) UpdateProduct(ctx context.Context, input v1dto.UpdateP
 		}
 	}
 
-	return product, nil
+	return v1dto.MapUpdateProductRowToDTO(product), nil
 }
 
-func (ps *productService) SoftDeleteProduct(ctx context.Context, productUUID uuid.UUID) (sqlc.Product, error) {
+func (ps *productService) SoftDeleteProduct(ctx context.Context, productUUID uuid.UUID) (*v1dto.ProductDTO, error) {
 	var product sqlc.Product
 	err := ps.withTx(ctx, func(txCtx context.Context, tx pgx.Tx) error {
 		deleted, err := ps.repo.SoftDelete(txCtx, productUUID)
@@ -396,7 +398,7 @@ func (ps *productService) SoftDeleteProduct(ctx context.Context, productUUID uui
 		return ps.enqueueProductDeleteOutbox(txCtx, tx, productUUID)
 	})
 	if err != nil {
-		return sqlc.Product{}, err
+		return nil, err
 	}
 
 	if ps.cache != nil {
@@ -405,10 +407,10 @@ func (ps *productService) SoftDeleteProduct(ctx context.Context, productUUID uui
 		}
 	}
 
-	return product, nil
+	return v1dto.MapProductToDTO(product), nil
 }
 
-func (ps *productService) RestoreProduct(ctx context.Context, productUUID uuid.UUID) (sqlc.Product, error) {
+func (ps *productService) RestoreProduct(ctx context.Context, productUUID uuid.UUID) (*v1dto.ProductDTO, error) {
 	var product sqlc.Product
 	err := ps.withTx(ctx, func(txCtx context.Context, tx pgx.Tx) error {
 		restored, err := ps.repo.Restore(txCtx, productUUID)
@@ -422,7 +424,7 @@ func (ps *productService) RestoreProduct(ctx context.Context, productUUID uuid.U
 		return ps.enqueueProductUpsertOutbox(txCtx, tx, productUUID)
 	})
 	if err != nil {
-		return sqlc.Product{}, err
+		return nil, err
 	}
 
 	if ps.cache != nil {
@@ -431,7 +433,7 @@ func (ps *productService) RestoreProduct(ctx context.Context, productUUID uuid.U
 		}
 	}
 
-	return product, nil
+	return v1dto.MapProductToDTO(product), nil
 }
 
 func (ps *productService) TrashProduct(ctx context.Context, productUUID uuid.UUID) error {
@@ -884,7 +886,7 @@ func (ps *productService) SearchProducts(ctx context.Context, q, categoryUUID st
 		if err != nil {
 			return nil, 0, err
 		}
-		return v1dto.MapListProductsToDTO(list), int64(total), nil
+		return list, int64(total), nil
 	}
 
 	// 1. Build Meilisearch Filter string
@@ -938,7 +940,7 @@ func (ps *productService) SearchProducts(ctx context.Context, q, categoryUUID st
 		if err != nil {
 			return nil, 0, err
 		}
-		return v1dto.MapListProductsToDTO(list), int64(total), nil
+		return list, int64(total), nil
 	}
 
 	// 4. Map search docs to DTO
@@ -982,17 +984,12 @@ func (ps *productService) SuggestProducts(ctx context.Context, q string, limit i
 		}
 		suggestions := make([]v1dto.ProductSuggestionDTO, 0, len(list))
 		for _, item := range list {
-			price := utils.NumericToFloat(item.ProductPrice)
-			img := ""
-			if item.ProductImageUrl != nil {
-				img = *item.ProductImageUrl
-			}
 			suggestions = append(suggestions, v1dto.ProductSuggestionDTO{
-				UUID:         item.ProductUuid.String(),
-				Name:         item.ProductName,
-				Slug:         item.ProductSlug,
-				Price:        price,
-				ImageURL:     img,
+				UUID:         item.UUID,
+				Name:         item.Name,
+				Slug:         item.Slug,
+				Price:        item.Price,
+				ImageURL:     item.ImageURL,
 				CategoryName: item.CategoryName,
 			})
 		}

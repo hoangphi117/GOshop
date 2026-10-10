@@ -51,30 +51,31 @@ func NewOrderLifecycleService(
 	}
 }
 
-func (s *orderLifecycleService) UpdateOrderStatus(ctx context.Context, input sqlc.UpdateOrderStatusParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
-	existingOrder, err := s.orderStore.GetByUUID(ctx, input.OrderUuid)
+func (s *orderLifecycleService) UpdateOrderStatus(ctx context.Context, orderUUID uuid.UUID, input v1dto.UpdateOrderStatusInput) (*v1dto.OrderDTO, error) {
+	existingOrder, err := s.orderStore.GetByUUID(ctx, orderUUID)
 	if err != nil {
-		return sqlc.Order{}, nil, handleOrderNotFoundError(err)
+		return nil, handleOrderNotFoundError(err)
 	}
 
-	if !isValidStatusTransition(existingOrder.OrderStatus, input.OrderStatus) {
+	if !isValidStatusTransition(existingOrder.OrderStatus, input.Status) {
 		errMsg := fmt.Sprintf("Cannot change order status from '%s' to '%s'",
 			v1dto.MapOrderStatusToString(existingOrder.OrderStatus),
-			v1dto.MapOrderStatusToString(input.OrderStatus),
+			v1dto.MapOrderStatusToString(input.Status),
 		)
-		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, errMsg)
+		return nil, utils.NewError(utils.ErrCodeBadRequest, errMsg)
 	}
 
-	updatedOrder, err := s.orderStore.UpdateStatus(ctx, nil, input)
+	updateParams := input.MapUpdateStatusInputToModel(orderUUID)
+	updatedOrder, err := s.orderStore.UpdateStatus(ctx, nil, updateParams)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
-			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeNotFound, "order not found")
+			return nil, utils.NewError(utils.ErrCodeNotFound, "order not found")
 		}
-		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "failed to update order status", err)
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to update order status", err)
 	}
 
 	var statusNote string
-	switch input.OrderStatus {
+	switch input.Status {
 	case OrderStatusConfirmed:
 		statusNote = "Order was confirmed by shop admin."
 	case OrderStatusDelivered:
@@ -84,7 +85,7 @@ func (s *orderLifecycleService) UpdateOrderStatus(ctx context.Context, input sql
 	if statusNote != "" {
 		_, _ = s.trackingStore.InsertEvent(ctx, nil, sqlc.InsertTrackingEventParams{
 			EventOrderID: updatedOrder.OrderID,
-			EventStatus:  v1dto.MapOrderStatusToString(input.OrderStatus),
+			EventStatus:  v1dto.MapOrderStatusToString(input.Status),
 			EventNote:    &statusNote,
 			EventSource:  "admin",
 		})
@@ -92,7 +93,7 @@ func (s *orderLifecycleService) UpdateOrderStatus(ctx context.Context, input sql
 
 	orderItems, err := s.orderItemStore.GetByOrderID(ctx, updatedOrder.OrderID)
 	if err != nil {
-		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "failed to get order items", err)
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to get order items", err)
 	}
 
 	if s.cache != nil {
@@ -101,7 +102,7 @@ func (s *orderLifecycleService) UpdateOrderStatus(ctx context.Context, input sql
 		}
 	}
 
-	if input.OrderStatus == OrderStatusConfirmed {
+	if input.Status == OrderStatusConfirmed {
 		go func() {
 			logger.Log.Info().
 				Int32("target_customer_id", updatedOrder.OrderUserID).
@@ -125,7 +126,8 @@ func (s *orderLifecycleService) UpdateOrderStatus(ctx context.Context, input sql
 		}()
 	}
 
-	return updatedOrder, orderItems, nil
+	dto := v1dto.MapToOrderDTO(updatedOrder, orderItems)
+	return &dto, nil
 }
 
 func isValidStatusTransition(currentStatus, newStatus int32) bool {
@@ -143,27 +145,27 @@ func isValidStatusTransition(currentStatus, newStatus int32) bool {
 	}
 }
 
-func (s *orderLifecycleService) CancelOrder(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, reason *string) (sqlc.Order, error) {
+func (s *orderLifecycleService) CancelOrder(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, reason *string) (*v1dto.OrderSummaryDTO, error) {
 	// 1. Lấy thông tin User & Order
 	user, err := s.userReader.GetByUUID(ctx, userUUID)
 	if err != nil {
-		return sqlc.Order{}, handleUserNotFoundError(err)
+		return nil, handleUserNotFoundError(err)
 	}
 
 	orderRow, err := s.orderStore.GetByUUID(ctx, orderUUID)
 	if err != nil {
-		return sqlc.Order{}, handleOrderNotFoundError(err)
+		return nil, handleOrderNotFoundError(err)
 	}
 
 	// 2. Validate điều kiện hủy đơn (Domain Rule)
 	if err := s.validateOrderCancellation(user, orderRow); err != nil {
-		return sqlc.Order{}, err
+		return nil, err
 	}
 
 	// 3. Lấy danh sách sản phẩm để chuẩn bị hoàn kho
 	orderItems, err := s.orderItemStore.GetByOrderID(ctx, orderRow.OrderID)
 	if err != nil {
-		return sqlc.Order{}, utils.WrapError(utils.ErrCodeInternal, "failed to get order items", err)
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to get order items", err)
 	}
 
 	var cancelledOrder sqlc.Order
@@ -193,14 +195,15 @@ func (s *orderLifecycleService) CancelOrder(ctx context.Context, userUUID uuid.U
 	})
 
 	if err != nil {
-		return sqlc.Order{}, err
+		return nil, err
 	}
 
 	// 5. Side-effects hậu commit (Cache & Notification)
 	InvalidateOrderCachesWithCache(s.cache, user.UserUuid)
 	s.sendCancellationNotification(ctx, orderRow)
 
-	return cancelledOrder, nil
+	dto := v1dto.MapToOrderSummaryDTO(cancelledOrder)
+	return &dto, nil
 }
 
 func (s *orderLifecycleService) CancelExpiredOrder(ctx context.Context, orderUUID uuid.UUID) error {
@@ -337,31 +340,31 @@ func (s *orderLifecycleService) sendCancellationNotification(ctx context.Context
 	}
 }
 
-func (s *orderLifecycleService) UpdateOrderShippingInfo(ctx context.Context, userUUID uuid.UUID, input sqlc.UpdateOrderShippingInfoParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
+func (s *orderLifecycleService) UpdateOrderShippingInfo(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.UpdateOrderShippingInfoInput) (*v1dto.OrderDTO, error) {
 	user, err := s.userReader.GetByUUID(ctx, userUUID)
 	if err != nil {
-		return sqlc.Order{}, nil, handleUserNotFoundError(err)
+		return nil, handleUserNotFoundError(err)
 	}
 
-	existingOrder, err := s.orderStore.GetByUUID(ctx, input.OrderUuid)
+	existingOrder, err := s.orderStore.GetByUUID(ctx, orderUUID)
 	if err != nil {
-		return sqlc.Order{}, nil, handleOrderNotFoundError(err)
+		return nil, handleOrderNotFoundError(err)
 	}
 
 	isAdmin := user.UserLevel == RoleAdmin
 	isModerator := user.UserLevel == RoleModerator
 
 	if existingOrder.OrderUserID != user.UserID && !isAdmin && !isModerator {
-		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeForbidden, "You do not have permission to update this order")
+		return nil, utils.NewError(utils.ErrCodeForbidden, "You do not have permission to update this order")
 	}
 
 	if isAdmin || isModerator {
 		if existingOrder.OrderStatus != OrderStatusPending && existingOrder.OrderStatus != OrderStatusConfirmed {
-			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Admin or moderator can only update shipping info for Pending or Confirmed orders")
+			return nil, utils.NewError(utils.ErrCodeBadRequest, "Admin or moderator can only update shipping info for Pending or Confirmed orders")
 		}
 	} else {
 		if existingOrder.OrderStatus != OrderStatusPending {
-			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "You can only update shipping info for Pending orders")
+			return nil, utils.NewError(utils.ErrCodeBadRequest, "You can only update shipping info for Pending orders")
 		}
 	}
 
@@ -372,32 +375,34 @@ func (s *orderLifecycleService) UpdateOrderShippingInfo(ctx context.Context, use
 
 	isStatusValid := slices.Contains(allowedStatuses, existingOrder.OrderStatus)
 	if !isStatusValid {
-		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Order status does not allow shipping info update")
+		return nil, utils.NewError(utils.ErrCodeBadRequest, "Order status does not allow shipping info update")
 	}
 
-	input.AllowedStatuses = allowedStatuses
+	updateParams := input.MapUpdateShippingInputToModel(orderUUID)
+	updateParams.AllowedStatuses = allowedStatuses
 
-	updatedOrder, err := s.orderStore.UpdateOrderShippingInfo(ctx, input)
+	updatedOrder, err := s.orderStore.UpdateOrderShippingInfo(ctx, updateParams)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
-			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeConflict, "Order status has changed or order not found, please refresh and try again")
+			return nil, utils.NewError(utils.ErrCodeConflict, "Order status has changed or order not found, please refresh and try again")
 		}
-		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "Failed to update shipping info", err)
+		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to update shipping info", err)
 	}
 
 	orderItems, err := s.orderItemStore.GetByOrderID(ctx, updatedOrder.OrderID)
 	if err != nil {
-		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "Failed to get order items", err)
+		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to get order items", err)
 	}
 
 	InvalidateOrderCachesWithCache(s.cache, existingOrder.UserUuid)
-	return updatedOrder, orderItems, nil
+	dto := v1dto.MapToOrderDTO(updatedOrder, orderItems)
+	return &dto, nil
 }
 
-func (s *orderLifecycleService) UpdateOrderPaymentStatus(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.UpdateOrderPaymentStatusInput) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
+func (s *orderLifecycleService) UpdateOrderPaymentStatus(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.UpdateOrderPaymentStatusInput) (*v1dto.OrderDTO, error) {
 	existingOrder, err := s.orderStore.GetByUUID(ctx, orderUUID)
 	if err != nil {
-		return sqlc.Order{}, nil, handleOrderNotFoundError(err)
+		return nil, handleOrderNotFoundError(err)
 	}
 
 	var allowedFromStatuses []int32
@@ -407,19 +412,19 @@ func (s *orderLifecycleService) UpdateOrderPaymentStatus(ctx context.Context, us
 	switch input.PaymentStatus {
 	case OrderPaymentStatusPaid:
 		if existingOrder.OrderPaymentStatus != OrderPaymentStatusUnpaid {
-			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Only Unpaid orders can be marked as Paid")
+			return nil, utils.NewError(utils.ErrCodeBadRequest, "Only Unpaid orders can be marked as Paid")
 		}
 		if existingOrder.OrderStatus == OrderStatusCancelled || existingOrder.OrderStatus == OrderStatusReturned {
-			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Cannot mark a cancelled or returned order as Paid")
+			return nil, utils.NewError(utils.ErrCodeBadRequest, "Cannot mark a cancelled or returned order as Paid")
 		}
 		allowedFromStatuses = []int32{OrderPaymentStatusUnpaid}
 
 	case OrderPaymentStatusPartiallyRefunded, OrderPaymentStatusFullyRefunded:
 		if existingOrder.OrderPaymentStatus != OrderPaymentStatusPaid && existingOrder.OrderPaymentStatus != OrderPaymentStatusPartiallyRefunded {
-			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Only Paid or Partially Refunded orders can be refunded")
+			return nil, utils.NewError(utils.ErrCodeBadRequest, "Only Paid or Partially Refunded orders can be refunded")
 		}
 		if existingOrder.OrderStatus != OrderStatusCancelled && existingOrder.OrderStatus != OrderStatusReturned {
-			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Can only refund orders that are Cancelled (5) or Returned (6)")
+			return nil, utils.NewError(utils.ErrCodeBadRequest, "Can only refund orders that are Cancelled (5) or Returned (6)")
 		}
 
 		totalAmount := utils.NumericToFloat(existingOrder.OrderTotalAmount)
@@ -432,7 +437,7 @@ func (s *orderLifecycleService) UpdateOrderPaymentStatus(ctx context.Context, us
 
 		newTotalRefunded = utils.RoundFloat(currentRefunded+refundAmountVal, 2)
 		if newTotalRefunded > totalAmount {
-			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, fmt.Sprintf("Total refunded amount (%.2f) cannot exceed order total (%.2f)", newTotalRefunded, totalAmount))
+			return nil, utils.NewError(utils.ErrCodeBadRequest, fmt.Sprintf("Total refunded amount (%.2f) cannot exceed order total (%.2f)", newTotalRefunded, totalAmount))
 		}
 
 		if newTotalRefunded >= totalAmount {
@@ -444,7 +449,7 @@ func (s *orderLifecycleService) UpdateOrderPaymentStatus(ctx context.Context, us
 		allowedFromStatuses = []int32{OrderPaymentStatusPaid, OrderPaymentStatusPartiallyRefunded}
 
 	default:
-		return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeBadRequest, "Invalid target payment status")
+		return nil, utils.NewError(utils.ErrCodeBadRequest, "Invalid target payment status")
 	}
 
 	updateParams := sqlc.UpdateOrderPaymentStatusParams{
@@ -457,14 +462,14 @@ func (s *orderLifecycleService) UpdateOrderPaymentStatus(ctx context.Context, us
 	updatedOrder, err := s.orderStore.UpdateOrderPaymentStatus(ctx, nil, updateParams)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
-			return sqlc.Order{}, nil, utils.NewError(utils.ErrCodeConflict, "Payment status has changed by another request, please refresh")
+			return nil, utils.NewError(utils.ErrCodeConflict, "Payment status has changed by another request, please refresh")
 		}
-		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "Failed to update payment status", err)
+		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to update payment status", err)
 	}
 
 	orderItems, err := s.orderItemStore.GetByOrderID(ctx, updatedOrder.OrderID)
 	if err != nil {
-		return sqlc.Order{}, nil, utils.WrapError(utils.ErrCodeInternal, "Failed to get order items", err)
+		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to get order items", err)
 	}
 
 	trxRef := ""
@@ -493,7 +498,8 @@ func (s *orderLifecycleService) UpdateOrderPaymentStatus(ctx context.Context, us
 		_ = s.cache.Del(fmt.Sprintf("invoice:pdf:%s", existingOrder.OrderUuid.String()))
 	}
 
-	return updatedOrder, orderItems, nil
+	dto := v1dto.MapToOrderDTO(updatedOrder, orderItems)
+	return &dto, nil
 }
 
 func (s *orderLifecycleService) BulkUpdateStatus(ctx context.Context, input v1dto.BulkUpdateOrderStatusInput) (*v1dto.BulkOperationResultDTO, error) {
@@ -513,9 +519,8 @@ func (s *orderLifecycleService) BulkUpdateStatus(ctx context.Context, input v1dt
 			continue
 		}
 
-		_, _, err = s.UpdateOrderStatus(ctx, sqlc.UpdateOrderStatusParams{
-			OrderUuid:   parsedUUID,
-			OrderStatus: input.Status,
+		_, err = s.UpdateOrderStatus(ctx, parsedUUID, v1dto.UpdateOrderStatusInput{
+			Status: input.Status,
 		})
 		if err != nil {
 			result.Failed++

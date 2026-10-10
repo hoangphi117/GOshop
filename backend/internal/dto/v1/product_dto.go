@@ -32,6 +32,8 @@ type ProductDTO struct {
 	ReviewsCount int32   `json:"reviews_count"`
 }
 
+type ProductDetailDTO = ProductDTO
+
 type CSVRowError struct {
 	Row    int    `json:"row"`
 	Field  string `json:"field,omitempty"`

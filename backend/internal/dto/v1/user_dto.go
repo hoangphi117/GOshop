@@ -88,6 +88,15 @@ func (input *UpdateUserInput) MapUpdateInputToModel(userUuid uuid.UUID) sqlc.Upd
 	}
 }
 
+func (input *UpdateProfileInput) MapUpdateProfileToModel(userUuid uuid.UUID) sqlc.UpdateUserParams {
+	return sqlc.UpdateUserParams{
+		UserUuid:     userUuid,
+		UserFullname: input.Name,
+		UserAge:      input.Age,
+		UserPassword: input.Password,
+	}
+}
+
 func MapUserToDTO(user sqlc.User) *UserDTO {
 	dto := &UserDTO{
 		UUID:      user.UserUuid.String(),

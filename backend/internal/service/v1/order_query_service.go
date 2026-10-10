@@ -3,7 +3,6 @@ package v1service
 import (
 	"context"
 	"fmt"
-	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
@@ -116,30 +115,31 @@ func (s *orderQueryService) GetMyOrders(ctx context.Context, userUUID uuid.UUID,
 	return ordersDTO, int32(totalOrders), nil
 }
 
-func (s *orderQueryService) GetOrderByUUID(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (sqlc.GetOrderByUUIDRow, []sqlc.GetOrderItemsByOrderIDRow, error) {
+func (s *orderQueryService) GetOrderByUUID(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (*v1dto.OrderDTO, error) {
 	user, err := s.userReader.GetByUUID(ctx, userUUID)
 	if err != nil {
-		return sqlc.GetOrderByUUIDRow{}, nil, handleUserNotFoundError(err)
+		return nil, handleUserNotFoundError(err)
 	}
 
 	order, err := s.orderStore.GetByUUID(ctx, orderUUID)
 	if err != nil {
-		return sqlc.GetOrderByUUIDRow{}, nil, handleOrderNotFoundError(err)
+		return nil, handleOrderNotFoundError(err)
 	}
 
 	isAdmin := user.UserLevel == RoleAdmin
 	isModerator := user.UserLevel == RoleModerator
 
 	if order.OrderUserID != user.UserID && !isAdmin && !isModerator {
-		return sqlc.GetOrderByUUIDRow{}, nil, utils.NewError(utils.ErrCodeForbidden, "You are not authorized to view this order")
+		return nil, utils.NewError(utils.ErrCodeForbidden, "You are not authorized to view this order")
 	}
 
 	orderItems, err := s.orderItemStore.GetByOrderID(ctx, order.OrderID)
 	if err != nil {
-		return sqlc.GetOrderByUUIDRow{}, nil, utils.WrapError(utils.ErrCodeInternal, "failed to get order items", err)
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to get order items", err)
 	}
 
-	return order, orderItems, nil
+	dto := v1dto.MapGetOrderByUUIDRowToOrderDTO(order, orderItems)
+	return &dto, nil
 }
 
 func (s *orderQueryService) GetAllOrders(ctx context.Context, input v1dto.GetOrdersParam) ([]v1dto.OrderSummaryDTO, int32, error) {

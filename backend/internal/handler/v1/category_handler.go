@@ -40,18 +40,13 @@ func (ch *CategoryHandler) CreateCategory(ctx *gin.Context) {
 		return
 	}
 
-	category := input.MapCreateInputToModel()
-
-	createdCategory, err := ch.service.CreateCategory(ctx.Request.Context(), category)
+	createdCategoryDTO, err := ch.service.CreateCategory(ctx.Request.Context(), input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
 
-	createdCategoryDTO := v1dto.MapCategoryToDTO(createdCategory)
-
 	utils.ResponseSuccess(ctx, http.StatusCreated, "Category created successfully", createdCategoryDTO)
-
 }
 
 // GetAllCategories godoc
@@ -74,13 +69,11 @@ func (ch *CategoryHandler) GetAllCategories(ctx *gin.Context) {
 		return
 	}
 
-	listCategories, total, err := ch.service.GetAllCategories(ctx.Request.Context(), params.Search, params.OrderBy, params.Sort, params.Page, params.Limit, false)
+	listCategoriesDTO, total, err := ch.service.GetAllCategories(ctx.Request.Context(), params.Search, params.OrderBy, params.Sort, params.Page, params.Limit, false)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
-
-	listCategoriesDTO := v1dto.MapListCategoriesToDTO(listCategories)
 
 	paginationResponse := utils.NewPaginationResponse(listCategoriesDTO, params.Page, params.Limit, total)
 
@@ -110,13 +103,12 @@ func (ch *CategoryHandler) GetCategoryByUUID(ctx *gin.Context) {
 		return
 	}
 
-	category, err := ch.service.GetCategoryByUUID(ctx.Request.Context(), categoryUuid)
+	categoryDTO, err := ch.service.GetCategoryByUUID(ctx.Request.Context(), categoryUuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
 
-	categoryDTO := v1dto.MapCategoryToDTO(category)
 	utils.ResponseSuccess(ctx, http.StatusOK, "Category retrieved successfully", categoryDTO)
 }
 
@@ -153,15 +145,12 @@ func (ch *CategoryHandler) UpdateCategory(ctx *gin.Context) {
 		return
 	}
 
-	category := input.MapUpdateInputToModel(categoryUuid)
-
-	updatedCategory, err := ch.service.UpdateCategory(ctx.Request.Context(), category)
+	updatedCategoryDTO, err := ch.service.UpdateCategory(ctx.Request.Context(), categoryUuid, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
 
-	updatedCategoryDTO := v1dto.MapCategoryToDTO(updatedCategory)
 	utils.ResponseSuccess(ctx, http.StatusOK, "Category updated successfully", updatedCategoryDTO)
 }
 
@@ -190,13 +179,12 @@ func (ch *CategoryHandler) SoftDeleteCategory(ctx *gin.Context) {
 		return
 	}
 
-	softDeletedCategory, err := ch.service.SoftDeleteCategory(ctx.Request.Context(), categoryUuid)
+	softDeletedCategoryDTO, err := ch.service.SoftDeleteCategory(ctx.Request.Context(), categoryUuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
 
-	softDeletedCategoryDTO := v1dto.MapCategoryToDTO(softDeletedCategory)
 	utils.ResponseSuccess(ctx, http.StatusOK, "Category soft deleted successfully", softDeletedCategoryDTO)
 }
 
@@ -225,13 +213,12 @@ func (ch *CategoryHandler) RestoreCategory(ctx *gin.Context) {
 		return
 	}
 
-	restoredCategory, err := ch.service.RestoreCategory(ctx.Request.Context(), categoryUuid)
+	restoredCategoryDTO, err := ch.service.RestoreCategory(ctx.Request.Context(), categoryUuid)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
 
-	restoredCategoryDTO := v1dto.MapCategoryToDTO(restoredCategory)
 	utils.ResponseSuccess(ctx, http.StatusOK, "Category restored successfully", restoredCategoryDTO)
 }
 

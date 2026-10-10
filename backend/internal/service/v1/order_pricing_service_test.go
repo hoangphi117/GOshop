@@ -7,12 +7,12 @@ import (
 	"time"
 
 	"goshop/internal/db/sqlc"
+	v1dto "goshop/internal/dto/v1"
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/testutils"
 	"goshop/internal/utils"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -71,14 +71,14 @@ func TestOrderPricingService_ValidateAndCalculateDiscount(t *testing.T) {
 	})
 
 	t.Run("Success - Percentage coupon without cap", func(t *testing.T) {
-		coupon := &sqlc.Coupon{
-			CouponCode:           "SAVE10",
-			CouponType:           v1service.CouponTypePercentage,
-			CouponDiscountValue:  utils.FloatToNumeric(10.0), // 10%
-			CouponIsActive:       true,
-			CouponStartDate:      now.Add(-1 * time.Hour),
-			CouponEndDate:        now.Add(1 * time.Hour),
-			CouponMinOrderAmount: utils.FloatToNumeric(50.0),
+		coupon := &v1dto.CouponDTO{
+			Code:           "SAVE10",
+			Type:           v1service.CouponTypePercentage,
+			DiscountValue:  10.0, // 10%
+			IsActive:       true,
+			StartDate:      now.Add(-1 * time.Hour).Format(time.RFC3339),
+			EndDate:        now.Add(1 * time.Hour).Format(time.RFC3339),
+			MinOrderAmount: 50.0,
 		}
 
 		discount, err := pricingSvc.ValidateAndCalculateDiscount(coupon, 200.0, now)
@@ -87,15 +87,16 @@ func TestOrderPricingService_ValidateAndCalculateDiscount(t *testing.T) {
 	})
 
 	t.Run("Success - Percentage coupon with max cap reached", func(t *testing.T) {
-		coupon := &sqlc.Coupon{
-			CouponCode:              "SAVE50",
-			CouponType:              v1service.CouponTypePercentage,
-			CouponDiscountValue:     utils.FloatToNumeric(50.0), // 50%
-			CouponMaxDiscountAmount: pgtype.Numeric{Int: utils.FloatToNumeric(25.0).Int, Exp: utils.FloatToNumeric(25.0).Exp, Valid: true},
-			CouponIsActive:          true,
-			CouponStartDate:         now.Add(-1 * time.Hour),
-			CouponEndDate:           now.Add(1 * time.Hour),
-			CouponMinOrderAmount:    utils.FloatToNumeric(0),
+		maxDiscount := 25.0
+		coupon := &v1dto.CouponDTO{
+			Code:              "SAVE50",
+			Type:              v1service.CouponTypePercentage,
+			DiscountValue:     50.0, // 50%
+			MaxDiscountAmount: &maxDiscount,
+			IsActive:          true,
+			StartDate:         now.Add(-1 * time.Hour).Format(time.RFC3339),
+			EndDate:           now.Add(1 * time.Hour).Format(time.RFC3339),
+			MinOrderAmount:    0,
 		}
 
 		discount, err := pricingSvc.ValidateAndCalculateDiscount(coupon, 100.0, now)
@@ -104,15 +105,16 @@ func TestOrderPricingService_ValidateAndCalculateDiscount(t *testing.T) {
 	})
 
 	t.Run("Success - Percentage coupon with max cap NOT reached", func(t *testing.T) {
-		coupon := &sqlc.Coupon{
-			CouponCode:              "SAVE10",
-			CouponType:              v1service.CouponTypePercentage,
-			CouponDiscountValue:     utils.FloatToNumeric(10.0), // 10%
-			CouponMaxDiscountAmount: pgtype.Numeric{Int: utils.FloatToNumeric(50.0).Int, Exp: utils.FloatToNumeric(50.0).Exp, Valid: true},
-			CouponIsActive:          true,
-			CouponStartDate:         now.Add(-1 * time.Hour),
-			CouponEndDate:           now.Add(1 * time.Hour),
-			CouponMinOrderAmount:    utils.FloatToNumeric(0),
+		maxDiscount := 50.0
+		coupon := &v1dto.CouponDTO{
+			Code:              "SAVE10",
+			Type:              v1service.CouponTypePercentage,
+			DiscountValue:     10.0, // 10%
+			MaxDiscountAmount: &maxDiscount,
+			IsActive:          true,
+			StartDate:         now.Add(-1 * time.Hour).Format(time.RFC3339),
+			EndDate:           now.Add(1 * time.Hour).Format(time.RFC3339),
+			MinOrderAmount:    0,
 		}
 
 		discount, err := pricingSvc.ValidateAndCalculateDiscount(coupon, 100.0, now)
@@ -121,14 +123,14 @@ func TestOrderPricingService_ValidateAndCalculateDiscount(t *testing.T) {
 	})
 
 	t.Run("Success - Fixed amount coupon", func(t *testing.T) {
-		coupon := &sqlc.Coupon{
-			CouponCode:           "FIXED15",
-			CouponType:           v1service.CouponTypeFixedAmount,
-			CouponDiscountValue:  utils.FloatToNumeric(15.0),
-			CouponIsActive:       true,
-			CouponStartDate:      now.Add(-1 * time.Hour),
-			CouponEndDate:        now.Add(1 * time.Hour),
-			CouponMinOrderAmount: utils.FloatToNumeric(20.0),
+		coupon := &v1dto.CouponDTO{
+			Code:           "FIXED15",
+			Type:           v1service.CouponTypeFixedAmount,
+			DiscountValue:  15.0,
+			IsActive:       true,
+			StartDate:      now.Add(-1 * time.Hour).Format(time.RFC3339),
+			EndDate:        now.Add(1 * time.Hour).Format(time.RFC3339),
+			MinOrderAmount: 20.0,
 		}
 
 		discount, err := pricingSvc.ValidateAndCalculateDiscount(coupon, 100.0, now)
@@ -137,14 +139,14 @@ func TestOrderPricingService_ValidateAndCalculateDiscount(t *testing.T) {
 	})
 
 	t.Run("Success - Fixed amount capped at subtotal (cannot be negative total)", func(t *testing.T) {
-		coupon := &sqlc.Coupon{
-			CouponCode:           "BIG100",
-			CouponType:           v1service.CouponTypeFixedAmount,
-			CouponDiscountValue:  utils.FloatToNumeric(100.0),
-			CouponIsActive:       true,
-			CouponStartDate:      now.Add(-1 * time.Hour),
-			CouponEndDate:        now.Add(1 * time.Hour),
-			CouponMinOrderAmount: utils.FloatToNumeric(0),
+		coupon := &v1dto.CouponDTO{
+			Code:           "BIG100",
+			Type:           v1service.CouponTypeFixedAmount,
+			DiscountValue:  100.0,
+			IsActive:       true,
+			StartDate:      now.Add(-1 * time.Hour).Format(time.RFC3339),
+			EndDate:        now.Add(1 * time.Hour).Format(time.RFC3339),
+			MinOrderAmount: 0,
 		}
 
 		discount, err := pricingSvc.ValidateAndCalculateDiscount(coupon, 40.0, now)
@@ -153,17 +155,17 @@ func TestOrderPricingService_ValidateAndCalculateDiscount(t *testing.T) {
 	})
 
 	t.Run("Error - Inactive coupon", func(t *testing.T) {
-		coupon := &sqlc.Coupon{CouponIsActive: false}
+		coupon := &v1dto.CouponDTO{IsActive: false}
 		_, err := pricingSvc.ValidateAndCalculateDiscount(coupon, 100.0, now)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not active")
 	})
 
 	t.Run("Error - Future coupon (not yet started)", func(t *testing.T) {
-		coupon := &sqlc.Coupon{
-			CouponIsActive:  true,
-			CouponStartDate: now.Add(2 * time.Hour),
-			CouponEndDate:   now.Add(24 * time.Hour),
+		coupon := &v1dto.CouponDTO{
+			IsActive:  true,
+			StartDate: now.Add(2 * time.Hour).Format(time.RFC3339),
+			EndDate:   now.Add(24 * time.Hour).Format(time.RFC3339),
 		}
 		_, err := pricingSvc.ValidateAndCalculateDiscount(coupon, 100.0, now)
 		require.Error(t, err)
@@ -171,10 +173,10 @@ func TestOrderPricingService_ValidateAndCalculateDiscount(t *testing.T) {
 	})
 
 	t.Run("Error - Expired coupon", func(t *testing.T) {
-		coupon := &sqlc.Coupon{
-			CouponIsActive:  true,
-			CouponStartDate: now.Add(-24 * time.Hour),
-			CouponEndDate:   now.Add(-1 * time.Hour),
+		coupon := &v1dto.CouponDTO{
+			IsActive:  true,
+			StartDate: now.Add(-24 * time.Hour).Format(time.RFC3339),
+			EndDate:   now.Add(-1 * time.Hour).Format(time.RFC3339),
 		}
 		_, err := pricingSvc.ValidateAndCalculateDiscount(coupon, 100.0, now)
 		require.Error(t, err)
@@ -182,12 +184,12 @@ func TestOrderPricingService_ValidateAndCalculateDiscount(t *testing.T) {
 	})
 
 	t.Run("Error - Subtotal below minimum order amount", func(t *testing.T) {
-		coupon := &sqlc.Coupon{
-			CouponCode:           "MIN100",
-			CouponIsActive:       true,
-			CouponStartDate:      now.Add(-1 * time.Hour),
-			CouponEndDate:        now.Add(1 * time.Hour),
-			CouponMinOrderAmount: utils.FloatToNumeric(100.0),
+		coupon := &v1dto.CouponDTO{
+			Code:           "MIN100",
+			IsActive:       true,
+			StartDate:      now.Add(-1 * time.Hour).Format(time.RFC3339),
+			EndDate:        now.Add(1 * time.Hour).Format(time.RFC3339),
+			MinOrderAmount: 100.0,
 		}
 		_, err := pricingSvc.ValidateAndCalculateDiscount(coupon, 50.0, now)
 		require.Error(t, err)
@@ -195,13 +197,13 @@ func TestOrderPricingService_ValidateAndCalculateDiscount(t *testing.T) {
 	})
 
 	t.Run("Error - Invalid coupon type", func(t *testing.T) {
-		coupon := &sqlc.Coupon{
-			CouponCode:           "UNKNOWN",
-			CouponType:           999, // Unknown type
-			CouponIsActive:       true,
-			CouponStartDate:      now.Add(-1 * time.Hour),
-			CouponEndDate:        now.Add(1 * time.Hour),
-			CouponMinOrderAmount: utils.FloatToNumeric(0),
+		coupon := &v1dto.CouponDTO{
+			Code:           "UNKNOWN",
+			Type:           999, // Unknown type
+			IsActive:       true,
+			StartDate:      now.Add(-1 * time.Hour).Format(time.RFC3339),
+			EndDate:        now.Add(1 * time.Hour).Format(time.RFC3339),
+			MinOrderAmount: 0,
 		}
 		_, err := pricingSvc.ValidateAndCalculateDiscount(coupon, 50.0, now)
 		require.Error(t, err)

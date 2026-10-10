@@ -55,7 +55,7 @@ func TestUserService_GetAllUsers(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, int32(1), total)
 		assert.Len(t, users, 1)
-		assert.Equal(t, userUUID, users[0].UserUuid)
+		assert.Equal(t, userUUID.String(), users[0].UUID)
 	})
 
 	t.Run("Case 2: Default Parameter Fallbacks", func(t *testing.T) {
@@ -124,10 +124,12 @@ func TestUserService_CreateUsers(t *testing.T) {
 		svc := v1service.NewUserService(mockRepo, nil)
 
 		pass123 := "password123"
-		_, err := svc.CreateUsers(ctx, sqlc.CreateUserParams{
-			UserFullname: "Alice",
-			UserEmail:    "alice@example.com",
-			UserPassword: &pass123,
+		_, err := svc.CreateUsers(ctx, v1dto.CreateUserInput{
+			Name:     "Alice",
+			Email:    "alice@example.com",
+			Password: pass123,
+			Status:   1,
+			Level:    1,
 		})
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeConflict)
@@ -144,10 +146,12 @@ func TestUserService_CreateUsers(t *testing.T) {
 		svc := v1service.NewUserService(mockRepo, nil)
 
 		pass123 := "password123"
-		_, err := svc.CreateUsers(ctx, sqlc.CreateUserParams{
-			UserFullname: "Alice",
-			UserEmail:    "alice@example.com",
-			UserPassword: &pass123,
+		_, err := svc.CreateUsers(ctx, v1dto.CreateUserInput{
+			Name:     "Alice",
+			Email:    "alice@example.com",
+			Password: pass123,
+			Status:   1,
+			Level:    1,
 		})
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeInternal)
@@ -173,13 +177,15 @@ func TestUserService_CreateUsers(t *testing.T) {
 		svc := v1service.NewUserService(mockRepo, nil)
 
 		plainPass := "plainpassword"
-		res, err := svc.CreateUsers(ctx, sqlc.CreateUserParams{
-			UserFullname: "Alice",
-			UserEmail:    "  ALICE@example.com  ",
-			UserPassword: &plainPass,
+		res, err := svc.CreateUsers(ctx, v1dto.CreateUserInput{
+			Name:     "Alice",
+			Email:    "  ALICE@example.com  ",
+			Password: plainPass,
+			Status:   1,
+			Level:    1,
 		})
 		require.NoError(t, err)
-		assert.Equal(t, userUUID, res.UserUuid)
+		assert.Equal(t, userUUID.String(), res.UUID)
 		assert.Equal(t, "alice@example.com", capturedParams.UserEmail)
 		require.NotNil(t, capturedParams.UserPassword)
 		assert.NoError(t, bcrypt.CompareHashAndPassword([]byte(*capturedParams.UserPassword), []byte("plainpassword")))
@@ -235,8 +241,8 @@ func TestUserService_GetUserByUUID(t *testing.T) {
 
 		res, err := svc.GetUserByUUID(ctx, userUUID)
 		require.NoError(t, err)
-		assert.Equal(t, userUUID, res.UserUuid)
-		assert.Equal(t, "Bob", res.UserFullname)
+		assert.Equal(t, userUUID.String(), res.UUID)
+		assert.Equal(t, "Bob", res.Name)
 	})
 }
 
@@ -255,9 +261,7 @@ func TestUserService_UpdateUser(t *testing.T) {
 
 		svc := v1service.NewUserService(mockRepo, nil)
 
-		_, err := svc.UpdateUser(ctx, sqlc.UpdateUserParams{
-			UserUuid: userUUID,
-		})
+		_, err := svc.UpdateUser(ctx, userUUID, v1dto.UpdateUserInput{})
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeNotFound)
 	})
@@ -271,9 +275,7 @@ func TestUserService_UpdateUser(t *testing.T) {
 
 		svc := v1service.NewUserService(mockRepo, nil)
 
-		_, err := svc.UpdateUser(ctx, sqlc.UpdateUserParams{
-			UserUuid: userUUID,
-		})
+		_, err := svc.UpdateUser(ctx, userUUID, v1dto.UpdateUserInput{})
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeConflict)
 	})
@@ -294,14 +296,13 @@ func TestUserService_UpdateUser(t *testing.T) {
 
 		svc := v1service.NewUserService(mockRepo, nil)
 
-		res, err := svc.UpdateUser(ctx, sqlc.UpdateUserParams{
-			UserUuid:     userUUID,
-			UserFullname: &newName,
-			UserPassword: &plainPassword,
+		res, err := svc.UpdateUser(ctx, userUUID, v1dto.UpdateUserInput{
+			Name:     &newName,
+			Password: &plainPassword,
 		})
 		require.NoError(t, err)
-		assert.Equal(t, userUUID, res.UserUuid)
-		assert.Equal(t, newName, res.UserFullname)
+		assert.Equal(t, userUUID.String(), res.UUID)
+		assert.Equal(t, newName, res.Name)
 		require.NotNil(t, capturedParams.UserPassword)
 		assert.NoError(t, bcrypt.CompareHashAndPassword([]byte(*capturedParams.UserPassword), []byte(plainPassword)))
 	})
@@ -341,8 +342,8 @@ func TestUserService_GetProfile(t *testing.T) {
 
 		user, err := svc.GetProfile(ctx, userUUID)
 		require.NoError(t, err)
-		assert.Equal(t, userUUID, user.UserUuid)
-		assert.Equal(t, "Charlie", user.UserFullname)
+		assert.Equal(t, userUUID.String(), user.UUID)
+		assert.Equal(t, "Charlie", user.Name)
 	})
 }
 
@@ -360,8 +361,8 @@ func TestUserService_UpdateProfile(t *testing.T) {
 
 		svc := v1service.NewUserService(mockRepo, nil)
 
-		_, err := svc.UpdateProfile(ctx, userUUID, sqlc.UpdateUserParams{
-			UserFullname: &newName,
+		_, err := svc.UpdateProfile(ctx, userUUID, v1dto.UpdateProfileInput{
+			Name: &newName,
 		})
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeNotFound)
@@ -383,15 +384,11 @@ func TestUserService_UpdateProfile(t *testing.T) {
 
 		svc := v1service.NewUserService(mockRepo, nil)
 
-		fakeStatus := int32(99)
-		fakeLevel := int32(99)
-		res, err := svc.UpdateProfile(ctx, userUUID, sqlc.UpdateUserParams{
-			UserFullname: &newName,
-			UserStatus:   &fakeStatus,
-			UserLevel:    &fakeLevel,
+		res, err := svc.UpdateProfile(ctx, userUUID, v1dto.UpdateProfileInput{
+			Name: &newName,
 		})
 		require.NoError(t, err)
-		assert.Equal(t, userUUID, res.UserUuid)
+		assert.Equal(t, userUUID.String(), res.UUID)
 		assert.Nil(t, capturedParams.UserStatus)
 		assert.Nil(t, capturedParams.UserLevel)
 	})
@@ -533,8 +530,7 @@ func TestUserService_SoftDeleteUser(t *testing.T) {
 
 		res, err := svc.SoftDeleteUser(ctx, userUUID)
 		require.NoError(t, err)
-		assert.Equal(t, userUUID, res.UserUuid)
-		assert.True(t, res.UserDeletedAt.Valid)
+		assert.Equal(t, userUUID.String(), res.UUID)
 	})
 }
 
@@ -572,8 +568,7 @@ func TestUserService_RestoreUser(t *testing.T) {
 
 		res, err := svc.RestoreUser(ctx, userUUID)
 		require.NoError(t, err)
-		assert.Equal(t, userUUID, res.UserUuid)
-		assert.False(t, res.UserDeletedAt.Valid)
+		assert.Equal(t, userUUID.String(), res.UUID)
 	})
 }
 

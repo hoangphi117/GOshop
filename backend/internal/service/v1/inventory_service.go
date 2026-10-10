@@ -53,7 +53,7 @@ func NewInventoryService(
 	}
 }
 
-func (s *inventoryService) LockAndDeductStock(ctx context.Context, items []DeductItem) (map[string]sqlc.GetByUUIDsForUpdateRow, error) {
+func (s *inventoryService) LockAndDeductStock(ctx context.Context, items []DeductItem) (map[string]InventoryItemStock, error) {
 	return s.LockAndDeductStockWithRef(ctx, items, "", "", nil, nil)
 }
 
@@ -64,7 +64,7 @@ func (s *inventoryService) LockAndDeductStockWithRef(
 	refType string,
 	actorID *int32,
 	note *string,
-) (map[string]sqlc.GetByUUIDsForUpdateRow, error) {
+) (map[string]InventoryItemStock, error) {
 	if len(items) == 0 {
 		return nil, utils.NewError(utils.ErrCodeBadRequest, "Item list cannot be empty")
 	}
@@ -98,9 +98,17 @@ func (s *inventoryService) LockAndDeductStockWithRef(
 		return nil, utils.NewError(utils.ErrCodeNotFound, "One or more products not found")
 	}
 
-	productMap := make(map[string]sqlc.GetByUUIDsForUpdateRow, len(products))
+	productMap := make(map[string]InventoryItemStock, len(products))
 	for _, p := range products {
-		productMap[p.ProductUuid.String()] = p
+		productMap[p.ProductUuid.String()] = InventoryItemStock{
+			ProductID:   p.ProductID,
+			ProductUUID: p.ProductUuid,
+			ProductName: p.ProductName,
+			Price:       utils.NumericToFloat(p.ProductPrice),
+			Stock:       utils.Int32Value(p.ProductStock),
+			Status:      p.ProductStatus,
+			SKU:         p.ProductSku,
+		}
 	}
 
 	var defaultRefID *string
@@ -118,11 +126,11 @@ func (s *inventoryService) LockAndDeductStockWithRef(
 			return nil, utils.NewError(utils.ErrCodeNotFound, "Product not found: "+item.ProductUUID)
 		}
 
-		if product.ProductStatus != ProductStatusActive {
+		if product.Status != ProductStatusActive {
 			return nil, utils.NewError(utils.ErrCodeBadRequest, "Product is unavailable: "+item.ProductUUID)
 		}
 
-		currentStock := utils.Int32Value(product.ProductStock)
+		currentStock := product.Stock
 		if currentStock < item.Quantity {
 			return nil, utils.NewError(utils.ErrCodeBadRequest, fmt.Sprintf("Insufficient stock for product: %s (available: %d, requested: %d)", product.ProductName, currentStock, item.Quantity))
 		}
@@ -155,7 +163,7 @@ func (s *inventoryService) LockAndDeductStockWithRef(
 				Title: "Low Stock Alert",
 				Body:  fmt.Sprintf("Product \"%s\" is low on stock (%d units remaining)", product.ProductName, newStock),
 				Data: map[string]any{
-					"product_uuid": product.ProductUuid.String(),
+					"product_uuid": product.ProductUUID.String(),
 					"product_name": product.ProductName,
 					"stock":        newStock,
 					"link":         "/inventory",
@@ -238,29 +246,34 @@ func (s *inventoryService) RestoreStockWithRef(
 	return nil
 }
 
-func (s *inventoryService) AdjustStock(ctx context.Context, actorUUID uuid.UUID, input v1dto.AdjustStockInput) (sqlc.StockMovement, error) {
+func (s *inventoryService) AdjustStock(ctx context.Context, actorUUID uuid.UUID, input v1dto.AdjustStockInput) (*v1dto.StockMovementDTO, error) {
 	var actorID *int32
+	var actorName *string
+	var actorUUIDStr *string
 	if s.userRepo != nil && actorUUID != uuid.Nil {
 		actor, err := s.userRepo.GetByUUID(ctx, actorUUID)
 		if err == nil {
 			actorID = &actor.UserID
+			actorName = &actor.UserFullname
+			uStr := actor.UserUuid.String()
+			actorUUIDStr = &uStr
 		}
 	}
 
 	productUUID, err := uuid.Parse(input.ProductUUID)
 	if err != nil {
-		return sqlc.StockMovement{}, utils.NewError(utils.ErrCodeBadRequest, "Invalid product UUID format")
+		return nil, utils.NewError(utils.ErrCodeBadRequest, "Invalid product UUID format")
 	}
 
 	product, err := s.productRepo.GetByUUID(ctx, productUUID)
 	if err != nil {
-		return sqlc.StockMovement{}, utils.NewError(utils.ErrCodeNotFound, "Product not found")
+		return nil, utils.NewError(utils.ErrCodeNotFound, "Product not found")
 	}
 
 	currentStock := utils.Int32Value(product.ProductStock)
 	newStock := currentStock + input.QuantityChange
 	if newStock < 0 {
-		return sqlc.StockMovement{}, utils.NewError(utils.ErrCodeBadRequest, fmt.Sprintf("Cannot adjust stock below zero (current: %d, adjustment: %d)", currentStock, input.QuantityChange))
+		return nil, utils.NewError(utils.ErrCodeBadRequest, fmt.Sprintf("Cannot adjust stock below zero (current: %d, adjustment: %d)", currentStock, input.QuantityChange))
 	}
 
 	var movement sqlc.StockMovement
@@ -297,7 +310,7 @@ func (s *inventoryService) AdjustStock(ctx context.Context, actorUUID uuid.UUID,
 			return nil
 		})
 		if err != nil {
-			return sqlc.StockMovement{}, err
+			return nil, err
 		}
 	}
 
@@ -316,7 +329,16 @@ func (s *inventoryService) AdjustStock(ctx context.Context, actorUUID uuid.UUID,
 		})
 	}
 
-	return movement, nil
+	dto := v1dto.MapStockMovementToDTO(
+		movement,
+		product.ProductUuid.String(),
+		product.ProductName,
+		product.ProductSku,
+		product.ProductImageUrl,
+		actorUUIDStr,
+		actorName,
+	)
+	return &dto, nil
 }
 
 func (s *inventoryService) ListStockMovements(ctx context.Context, params v1dto.GetStockMovementsParam) ([]v1dto.StockMovementDTO, int64, error) {

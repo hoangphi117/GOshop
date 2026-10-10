@@ -3,7 +3,6 @@ package v1service
 import (
 	"context"
 	"goshop/internal/db"
-	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/repository"
 	"goshop/pkg/cache"
@@ -134,7 +133,7 @@ func NewOrderService(
 
 // ─── CustomerOrderService implementations ────────────────────────────────────
 
-func (s *orderService) CreateOrder(ctx context.Context, userUUID uuid.UUID, input v1dto.CreateOrderInput) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
+func (s *orderService) CreateOrder(ctx context.Context, userUUID uuid.UUID, input v1dto.CreateOrderInput) (*v1dto.OrderDTO, error) {
 	return s.checkoutService.CreateOrder(ctx, userUUID, input)
 }
 
@@ -142,11 +141,11 @@ func (s *orderService) GetMyOrders(ctx context.Context, userUUID uuid.UUID, inpu
 	return s.queryService.GetMyOrders(ctx, userUUID, input)
 }
 
-func (s *orderService) GetOrderByUUID(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (sqlc.GetOrderByUUIDRow, []sqlc.GetOrderItemsByOrderIDRow, error) {
+func (s *orderService) GetOrderByUUID(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (*v1dto.OrderDTO, error) {
 	return s.queryService.GetOrderByUUID(ctx, userUUID, orderUUID)
 }
 
-func (s *orderService) CancelOrder(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, reason *string) (sqlc.Order, error) {
+func (s *orderService) CancelOrder(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, reason *string) (*v1dto.OrderSummaryDTO, error) {
 	return s.lifecycleService.CancelOrder(ctx, userUUID, orderUUID, reason)
 }
 
@@ -154,11 +153,11 @@ func (s *orderService) CancelExpiredOrder(ctx context.Context, orderUUID uuid.UU
 	return s.lifecycleService.CancelExpiredOrder(ctx, orderUUID)
 }
 
-func (s *orderService) UpdateOrderShippingInfo(ctx context.Context, userUUID uuid.UUID, input sqlc.UpdateOrderShippingInfoParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
-	return s.lifecycleService.UpdateOrderShippingInfo(ctx, userUUID, input)
+func (s *orderService) UpdateOrderShippingInfo(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.UpdateOrderShippingInfoInput) (*v1dto.OrderDTO, error) {
+	return s.lifecycleService.UpdateOrderShippingInfo(ctx, userUUID, orderUUID, input)
 }
 
-func (s *orderService) UpdateOrderPaymentStatus(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.UpdateOrderPaymentStatusInput) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
+func (s *orderService) UpdateOrderPaymentStatus(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.UpdateOrderPaymentStatusInput) (*v1dto.OrderDTO, error) {
 	return s.lifecycleService.UpdateOrderPaymentStatus(ctx, userUUID, orderUUID, input)
 }
 
@@ -168,8 +167,8 @@ func (s *orderService) GetAllOrders(ctx context.Context, input v1dto.GetOrdersPa
 	return s.queryService.GetAllOrders(ctx, input)
 }
 
-func (s *orderService) UpdateOrderStatus(ctx context.Context, input sqlc.UpdateOrderStatusParams) (sqlc.Order, []sqlc.GetOrderItemsByOrderIDRow, error) {
-	return s.lifecycleService.UpdateOrderStatus(ctx, input)
+func (s *orderService) UpdateOrderStatus(ctx context.Context, orderUUID uuid.UUID, input v1dto.UpdateOrderStatusInput) (*v1dto.OrderDTO, error) {
+	return s.lifecycleService.UpdateOrderStatus(ctx, orderUUID, input)
 }
 
 func (s *orderService) BulkUpdateStatus(ctx context.Context, input v1dto.BulkUpdateOrderStatusInput) (*v1dto.BulkOperationResultDTO, error) {
