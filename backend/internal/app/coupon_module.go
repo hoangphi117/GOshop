@@ -13,12 +13,15 @@ type CouponModule struct {
 	adminRoutes []routes.Route
 }
 
-func NewCouponModule(ctx *ModuleContext) *CouponModule {
-
-	couponRepo := repository.NewSqlCouponRepository(ctx.DB)
-	userRepo := repository.NewSqlUserRepository(ctx.DB)
-
-	couponService := v1service.NewCouponService(couponRepo, userRepo, ctx.Redis)
+func NewCouponModule(ctx *ModuleContext, svc ...v1service.CouponService) *CouponModule {
+	var couponService v1service.CouponService
+	if len(svc) > 0 && svc[0] != nil {
+		couponService = svc[0]
+	} else {
+		couponRepo := repository.NewSqlCouponRepository(ctx.DB)
+		userRepo := repository.NewSqlUserRepository(ctx.DB)
+		couponService = v1service.NewCouponService(couponRepo, userRepo, ctx.Redis)
+	}
 
 	couponHandler := v1handler.NewCouponHandler(couponService)
 
@@ -29,7 +32,6 @@ func NewCouponModule(ctx *ModuleContext) *CouponModule {
 		routes:      []routes.Route{couponRoutes},
 		adminRoutes: []routes.Route{adminCouponRoutes},
 	}
-
 }
 
 func (m *CouponModule) Routes() []routes.Route {

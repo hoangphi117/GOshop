@@ -14,6 +14,7 @@ import (
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 	"goshop/pkg/mail"
+	"goshop/pkg/payment"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/discord"
 	"goshop/pkg/search"
@@ -193,6 +194,47 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	shippingFactory := shipping.NewShippingFactory(ghnAdapter)
 	locationService := v1service.NewLocationService(shippingFactory, cacheRedisService)
 
+	// Cross-domain Core Repositories & Service Singletons
+	productRepo := repository.NewSqlProductRepository(db.DB)
+	cartRepo := repository.NewSqlCartRepository(db.DB)
+	cartService := v1service.NewCartService(cartRepo, userRepo, productRepo, redisClient)
+
+	couponRepo := repository.NewSqlCouponRepository(db.DB)
+	couponService := v1service.NewCouponService(couponRepo, userRepo, redisClient)
+
+	stockMovementRepo := repository.NewSqlStockMovementRepository(db.DB)
+	inventoryService := v1service.NewInventoryService(productRepo, stockMovementRepo, userRepo, txManager, notificationService)
+
+	paymentRepo := repository.NewSqlPaymentRepository(db.DB)
+	webhookRepo := repository.NewSqlWebhookEventRepository(db.DB)
+	orderRepo := repository.NewSqlOrderRepository(db.DB)
+	orderReader := v1service.NewOrderReaderAdapter(orderRepo)
+	outboxRepo := repository.NewSqlOutboxRepository(db.DB)
+
+	paymentConfig := payment.PaymentConfig{
+		MoMo: payment.MoMoConfig{
+			PartnerCode: utils.GetEnv("MOMO_PARTNER_CODE", ""),
+			AccessKey:   utils.GetEnv("MOMO_ACCESS_KEY", ""),
+			SecretKey:   utils.GetEnv("MOMO_SECRET_KEY", ""),
+			Endpoint:    utils.GetEnv("MOMO_ENDPOINT", ""),
+			QueryURL:    utils.GetEnv("MOMO_QUERY_URL", ""),
+		},
+	}
+	paymentProviders := make(map[string]payment.PaymentProvider)
+	if momoFactory, err := payment.NewProviderFactory(payment.ProviderMoMo, paymentConfig); err == nil {
+		if p, err := momoFactory.CreateProvider(); err == nil {
+			paymentProviders["momo"] = p
+		}
+	}
+	paymentReturnURL := utils.GetEnv("PAYMENT_RETURN_URL", "http://localhost:3001/payment/result")
+	paymentWebhookBaseURL := utils.GetEnv("PAYMENT_WEBHOOK_BASE_URL", "http://localhost:8080")
+	paymentService := v1service.NewPaymentService(
+		paymentRepo, orderReader, userRepo, webhookRepo,
+		paymentProviders, notificationService, cacheRedisService, rabbitmqService,
+		paymentReturnURL, paymentWebhookBaseURL,
+		outboxRepo,
+	)
+
 	ctx := &ModuleContext{
 		DB:        db.DB,
 		ReadDB:    db.GetReadDB(),
@@ -202,13 +244,25 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		Search:    searchClient,
 	}
 
+	orderModuleDeps := OrderModuleDeps{
+		CartService:         cartService,
+		CouponService:       couponService,
+		InventoryService:    inventoryService,
+		PaymentService:      paymentService,
+		LocationService:     locationService,
+		NotificationService: notificationService,
+		ShippingFactory:     shippingFactory,
+		RabbitMQService:     rabbitmqService,
+		CacheService:        cacheRedisService,
+	}
+
 	modules := []Module{
 		NewUserModule(ctx, tokenService),
 		NewProductModule(ctx),
-		NewOrderModule(ctx, wsHub, rabbitmqService, notificationService, locationService),
-		NewCartModule(ctx),
-		NewCouponModule(ctx),
-		NewPaymentModule(ctx, cacheRedisService, rabbitmqService, wsHub, notificationService),
+		NewOrderModule(ctx, orderModuleDeps),
+		NewCartModule(ctx, cartService),
+		NewCouponModule(ctx, couponService),
+		NewPaymentModule(ctx, cacheRedisService, rabbitmqService, wsHub, notificationService, paymentService),
 		NewAddressModule(ctx),
 		NewReviewModule(ctx, notificationService),
 		NewNotificationModule(ctx, notificationService, wsHub, tokenService, cacheRedisService),

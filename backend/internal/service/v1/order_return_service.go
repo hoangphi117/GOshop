@@ -32,32 +32,36 @@ type orderReturnService struct {
 	cache               cache.RedisCacheService
 }
 
-func NewOrderReturnService(
-	txManager db.TxManager,
-	orderRepo OrderStorePort,
-	orderItemRepo OrderItemStorePort,
-	orderReturnRepo OrderReturnStorePort,
-	stockPort OrderStockPort,
-	userRepo OrderCustomerReader,
-	trackingRepo OrderTrackingPort,
-	paymentService OrderPaymentRefundPort,
-	outboxStore OrderOutboxPort,
-	redisClient *redis.Client,
-) OrderReturnService {
-	var cacheService cache.RedisCacheService
-	if redisClient != nil {
-		cacheService = cache.NewRedisCacheService(redisClient)
+// OrderReturnServiceDeps groups the dependencies required by OrderReturnService.
+type OrderReturnServiceDeps struct {
+	TxManager       db.TxManager
+	OrderRepo       OrderStorePort
+	OrderItemRepo   OrderItemStorePort
+	OrderReturnRepo OrderReturnStorePort
+	StockPort       OrderStockPort
+	UserRepo        OrderCustomerReader
+	TrackingRepo    OrderTrackingPort
+	PaymentService  OrderPaymentRefundPort
+	OutboxStore     OrderOutboxPort
+	RedisClient     *redis.Client
+	CacheService    cache.RedisCacheService
+}
+
+func NewOrderReturnService(deps OrderReturnServiceDeps) OrderReturnService {
+	cacheService := deps.CacheService
+	if cacheService == nil && deps.RedisClient != nil {
+		cacheService = cache.NewRedisCacheService(deps.RedisClient)
 	}
 	return &orderReturnService{
-		txManager:       txManager,
-		orderRepo:       orderRepo,
-		orderItemRepo:   orderItemRepo,
-		orderReturnRepo: orderReturnRepo,
-		stockPort:       stockPort,
-		userRepo:        userRepo,
-		trackingRepo:    trackingRepo,
-		paymentService:  paymentService,
-		outboxStore:     outboxStore,
+		txManager:       deps.TxManager,
+		orderRepo:       deps.OrderRepo,
+		orderItemRepo:   deps.OrderItemRepo,
+		orderReturnRepo: deps.OrderReturnRepo,
+		stockPort:       deps.StockPort,
+		userRepo:        deps.UserRepo,
+		trackingRepo:    deps.TrackingRepo,
+		paymentService:  deps.PaymentService,
+		outboxStore:     deps.OutboxStore,
 		cache:           cacheService,
 	}
 }

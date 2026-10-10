@@ -12,15 +12,17 @@ type CartModule struct {
 	routes []routes.Route
 }
 
-func NewCartModule(ctx *ModuleContext) *CartModule {
-
-	// Initialize repository
-	cartRepo := repository.NewSqlCartRepository(ctx.DB)
-	userRepo := repository.NewSqlUserRepository(ctx.DB)
-	productRepo := repository.NewSqlProductRepository(ctx.DB)
-
-	// Initialize service
-	cartService := v1service.NewCartService(cartRepo, userRepo, productRepo, ctx.Redis)
+func NewCartModule(ctx *ModuleContext, svc ...v1service.CartService) *CartModule {
+	var cartService v1service.CartService
+	if len(svc) > 0 && svc[0] != nil {
+		cartService = svc[0]
+	} else {
+		// Initialize repository fallback
+		cartRepo := repository.NewSqlCartRepository(ctx.DB)
+		userRepo := repository.NewSqlUserRepository(ctx.DB)
+		productRepo := repository.NewSqlProductRepository(ctx.DB)
+		cartService = v1service.NewCartService(cartRepo, userRepo, productRepo, ctx.Redis)
+	}
 
 	// Initialize handler
 	cartHandler := v1handler.NewCartHandler(cartService)
@@ -29,7 +31,8 @@ func NewCartModule(ctx *ModuleContext) *CartModule {
 	cartRoutes := v1routes.NewCartRoutes(cartHandler)
 
 	return &CartModule{
-		routes: []routes.Route{cartRoutes}}
+		routes: []routes.Route{cartRoutes},
+	}
 }
 
 func (m *CartModule) Routes() []routes.Route {

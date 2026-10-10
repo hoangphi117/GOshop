@@ -90,18 +90,17 @@ func newTestReturnService(deps testReturnServiceDeps) v1service.OrderReturnServi
 
 	customerReader := v1service.NewOrderCustomerAdapter(userRepo)
 
-	return v1service.NewOrderReturnService(
-		txMgr,
-		orderRepo,
-		orderItemRepo,
-		returnRepo,
-		stockPort,
-		customerReader,
-		trackingRepo,
-		paymentSvc,
-		outboxStore,
-		nil,
-	)
+	return v1service.NewOrderReturnService(v1service.OrderReturnServiceDeps{
+		TxManager:       txMgr,
+		OrderRepo:       orderRepo,
+		OrderItemRepo:   orderItemRepo,
+		OrderReturnRepo: returnRepo,
+		StockPort:       stockPort,
+		UserRepo:        customerReader,
+		TrackingRepo:    trackingRepo,
+		PaymentService:  paymentSvc,
+		OutboxStore:     outboxStore,
+	})
 }
 
 func TestOrderService_RequestOrderReturn(t *testing.T) {

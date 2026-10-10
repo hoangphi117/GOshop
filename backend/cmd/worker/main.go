@@ -125,18 +125,18 @@ func NewWorker(cfg *config.Config) *Worker {
 
 	customerReader := v1service.NewOrderCustomerAdapter(userRepo)
 
-	shippingService := v1service.NewOrderShippingService(
-		txManager,
-		orderRepo,
-		orderItemRepo,
-		trackingRepo,
-		paymentRepo,
-		shippingFactory,
-		webhookRepo,
-		customerReader,
-		redisClient,
-		rabbitMQ,
-	)
+	shippingService := v1service.NewOrderShippingService(v1service.OrderShippingServiceDeps{
+		TxManager:       txManager,
+		OrderRepo:       orderRepo,
+		OrderItemRepo:   orderItemRepo,
+		TrackingRepo:    trackingRepo,
+		PaymentRepo:     paymentRepo,
+		ShippingFactory: shippingFactory,
+		WebhookRepo:     webhookRepo,
+		UserRepo:        customerReader,
+		RedisClient:     redisClient,
+		RabbitMQ:        rabbitMQ,
+	})
 	shippingConsumer := worker.NewShippingConsumer(shippingService, log)
 
 	// Payment Providers & Service

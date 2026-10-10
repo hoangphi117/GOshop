@@ -73,18 +73,18 @@ func newTestShippingService(deps testShippingServiceDeps) v1service.OrderShippin
 
 	customerReader := v1service.NewOrderCustomerAdapter(userRepo)
 
-	return v1service.NewOrderShippingService(
-		txMgr,
-		orderRepo,
-		orderItemRepo,
-		trackingRepo,
-		paymentRepo,
-		deps.shippingFactory,
-		webhookRepo,
-		customerReader,
-		deps.redisClient,
-		deps.rabbitmq,
-	)
+	return v1service.NewOrderShippingService(v1service.OrderShippingServiceDeps{
+		TxManager:       txMgr,
+		OrderRepo:       orderRepo,
+		OrderItemRepo:   orderItemRepo,
+		TrackingRepo:    trackingRepo,
+		PaymentRepo:     paymentRepo,
+		ShippingFactory: deps.shippingFactory,
+		WebhookRepo:     webhookRepo,
+		UserRepo:        customerReader,
+		RedisClient:     deps.redisClient,
+		RabbitMQ:        deps.rabbitmq,
+	})
 }
 
 func assertAppErrorCode(t *testing.T, err error, expectedCode utils.ErrorCode) {

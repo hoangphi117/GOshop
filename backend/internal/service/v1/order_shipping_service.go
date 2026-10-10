@@ -38,34 +38,38 @@ type orderShippingService struct {
 	locationService LocationService
 }
 
-func NewOrderShippingService(
-	txManager db.TxManager,
-	orderRepo OrderStorePort,
-	orderItemRepo OrderItemStorePort,
-	trackingRepo OrderTrackingPort,
-	paymentRepo ShippingPaymentPort,
-	shippingFactory *shipping.ShippingFactory,
-	webhookRepo ShippingWebhookPort,
-	userRepo OrderCustomerReader,
-	redisClient *redis.Client,
-	rabbitmq rabbitmq.RabbitMQService,
-) OrderShippingService {
-	var cacheService cache.RedisCacheService
-	if redisClient != nil {
-		cacheService = cache.NewRedisCacheService(redisClient)
+// OrderShippingServiceDeps groups the dependencies required by OrderShippingService.
+type OrderShippingServiceDeps struct {
+	TxManager       db.TxManager
+	OrderRepo       OrderStorePort
+	OrderItemRepo   OrderItemStorePort
+	TrackingRepo    OrderTrackingPort
+	PaymentRepo     ShippingPaymentPort
+	ShippingFactory *shipping.ShippingFactory
+	WebhookRepo     ShippingWebhookPort
+	UserRepo        OrderCustomerReader
+	RedisClient     *redis.Client
+	CacheService    cache.RedisCacheService
+	RabbitMQ        rabbitmq.RabbitMQService
+}
+
+func NewOrderShippingService(deps OrderShippingServiceDeps) OrderShippingService {
+	cacheService := deps.CacheService
+	if cacheService == nil && deps.RedisClient != nil {
+		cacheService = cache.NewRedisCacheService(deps.RedisClient)
 	}
 	return &orderShippingService{
-		txManager:       txManager,
-		orderRepo:       orderRepo,
-		orderItemRepo:   orderItemRepo,
-		trackingRepo:    trackingRepo,
-		paymentRepo:     paymentRepo,
-		shippingFactory: shippingFactory,
-		webhookRepo:     webhookRepo,
-		userRepo:        userRepo,
+		txManager:       deps.TxManager,
+		orderRepo:       deps.OrderRepo,
+		orderItemRepo:   deps.OrderItemRepo,
+		trackingRepo:    deps.TrackingRepo,
+		paymentRepo:     deps.PaymentRepo,
+		shippingFactory: deps.ShippingFactory,
+		webhookRepo:     deps.WebhookRepo,
+		userRepo:        deps.UserRepo,
 		cache:           cacheService,
-		rabbitmq:        rabbitmq,
-		locationService: NewLocationService(shippingFactory, cacheService),
+		rabbitmq:        deps.RabbitMQ,
+		locationService: NewLocationService(deps.ShippingFactory, cacheService),
 	}
 }
 

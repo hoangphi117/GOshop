@@ -6,13 +6,9 @@ import (
 	"goshop/internal/routes"
 	v1routes "goshop/internal/routes/v1"
 	v1service "goshop/internal/service/v1"
-	"goshop/internal/utils"
 	"goshop/pkg/cache"
-	"goshop/pkg/payment"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/shipping"
-	"goshop/pkg/ws"
-	"strconv"
 )
 
 type OrderModule struct {
@@ -20,121 +16,83 @@ type OrderModule struct {
 	adminRoutes []routes.Route
 }
 
+type OrderModuleDeps struct {
+	CartService         v1service.CartService
+	CouponService       v1service.CouponService
+	InventoryService    v1service.InventoryService
+	PaymentService      v1service.PaymentService
+	LocationService     v1service.LocationService
+	NotificationService v1service.NotificationService
+	ShippingFactory     *shipping.ShippingFactory
+	RabbitMQService     rabbitmq.RabbitMQService
+	CacheService        cache.RedisCacheService
+}
+
 func NewOrderModule(
 	ctx *ModuleContext,
-	wsHub ws.Hub,
-	rabbitmqService rabbitmq.RabbitMQService,
-	notificationService v1service.NotificationService,
-	locationService v1service.LocationService,
+	deps OrderModuleDeps,
 ) *OrderModule {
-
 	orderRepo := repository.NewSqlOrderRepository(ctx.DB)
 	orderItemRepo := repository.NewSqlOrderItemRepository(ctx.DB)
 	orderReturnRepo := repository.NewSqlOrderReturnsRepository(ctx.DB)
 	trackingRepo := repository.NewSqlTrackingRepository(ctx.DB)
-
-	// Giao Hàng Nhanh (GHN) Adapter
-	ghnToken := utils.GetEnv("GHN_TOKEN", "")
-	ghnShopID, _ := strconv.Atoi(utils.GetEnv("GHN_SHOP_ID", "0"))
-	ghnBaseURL := utils.GetEnv("GHN_BASE_URL", "")
-	ghnAdapter := shipping.NewGHNAdapter(ghnToken, ghnShopID, ghnBaseURL)
-	shippingFactory := shipping.NewShippingFactory(ghnAdapter)
-
-	productRepo := repository.NewSqlProductRepository(ctx.DB)
+	paymentRepo := repository.NewSqlPaymentRepository(ctx.DB)
+	webhookRepo := repository.NewSqlWebhookEventRepository(ctx.DB)
+	outboxRepo := repository.NewSqlOutboxRepository(ctx.DB)
+	couponRepo := repository.NewSqlCouponRepository(ctx.DB)
 	userRepo := repository.NewSqlUserRepository(ctx.DB)
 
-	cartRepo := repository.NewSqlCartRepository(ctx.DB)
-	cartService := v1service.NewCartService(cartRepo, userRepo, productRepo, ctx.Redis)
-
-	couponRepo := repository.NewSqlCouponRepository(ctx.DB)
-	webhookRepo := repository.NewSqlWebhookEventRepository(ctx.DB)
-
-	paymentRepo := repository.NewSqlPaymentRepository(ctx.DB)
-	paymentConfig := payment.PaymentConfig{
-		MoMo: payment.MoMoConfig{
-			PartnerCode: utils.GetEnv("MOMO_PARTNER_CODE", ""),
-			AccessKey:   utils.GetEnv("MOMO_ACCESS_KEY", ""),
-			SecretKey:   utils.GetEnv("MOMO_SECRET_KEY", ""),
-			Endpoint:    utils.GetEnv("MOMO_ENDPOINT", ""),
-			QueryURL:    utils.GetEnv("MOMO_QUERY_URL", ""),
-		},
-	}
-
-	paymentProviders := make(map[string]payment.PaymentProvider)
-	if momoFactory, err := payment.NewProviderFactory(payment.ProviderMoMo, paymentConfig); err == nil {
-		if p, err := momoFactory.CreateProvider(); err == nil {
-			paymentProviders["momo"] = p
-		}
-	}
-
-	pricingService := v1service.NewOrderPricingService(couponRepo)
-	couponService := v1service.NewCouponService(couponRepo, userRepo, ctx.Redis)
-	stockMovementRepo := repository.NewSqlStockMovementRepository(ctx.DB)
-	inventoryService := v1service.NewInventoryService(productRepo, stockMovementRepo, userRepo, ctx.TxManager, notificationService)
-
-	outboxRepo := repository.NewSqlOutboxRepository(ctx.DB)
 	customerReader := v1service.NewOrderCustomerAdapter(userRepo)
+	pricingService := v1service.NewOrderPricingService(couponRepo)
 
 	orderService := v1service.NewOrderService(
 		ctx.TxManager,
 		pricingService,
-		inventoryService,
+		deps.InventoryService,
 		orderRepo,
 		orderItemRepo,
 		customerReader,
-		cartService,
-		couponService,
+		deps.CartService,
+		deps.CouponService,
 		trackingRepo,
 		ctx.Redis,
 		outboxRepo,
 	)
 
-	shippingService := v1service.NewOrderShippingService(
-		ctx.TxManager,
-		orderRepo,
-		orderItemRepo,
-		trackingRepo,
-		paymentRepo,
-		shippingFactory,
-		webhookRepo,
-		customerReader,
-		ctx.Redis,
-		rabbitmqService,
-	)
+	shippingService := v1service.NewOrderShippingService(v1service.OrderShippingServiceDeps{
+		TxManager:       ctx.TxManager,
+		OrderRepo:       orderRepo,
+		OrderItemRepo:   orderItemRepo,
+		TrackingRepo:    trackingRepo,
+		PaymentRepo:     paymentRepo,
+		ShippingFactory: deps.ShippingFactory,
+		WebhookRepo:     webhookRepo,
+		UserRepo:        customerReader,
+		CacheService:    deps.CacheService,
+		RedisClient:     ctx.Redis,
+		RabbitMQ:        deps.RabbitMQService,
+	})
 
-	cacheService := cache.NewRedisCacheService(ctx.Redis)
-	orderReader := v1service.NewOrderReaderAdapter(orderRepo)
-	paymentService := v1service.NewPaymentService(
-		paymentRepo,
-		orderReader,
-		userRepo,
-		webhookRepo,
-		paymentProviders,
-		notificationService,
-		cacheService,
-		rabbitmqService,
-		utils.GetEnv("PAYMENT_RETURN_URL", "http://localhost:3001/payment/result"),
-		utils.GetEnv("PAYMENT_WEBHOOK_BASE_URL", "http://localhost:8080"),
-		outboxRepo,
-	)
+	returnService := v1service.NewOrderReturnService(v1service.OrderReturnServiceDeps{
+		TxManager:       ctx.TxManager,
+		OrderRepo:       orderRepo,
+		OrderItemRepo:   orderItemRepo,
+		OrderReturnRepo: orderReturnRepo,
+		StockPort:       deps.InventoryService,
+		UserRepo:        customerReader,
+		TrackingRepo:    trackingRepo,
+		PaymentService:  deps.PaymentService,
+		OutboxStore:     outboxRepo,
+		CacheService:    deps.CacheService,
+		RedisClient:     ctx.Redis,
+	})
 
-	returnService := v1service.NewOrderReturnService(
-		ctx.TxManager,
-		orderRepo,
-		orderItemRepo,
-		orderReturnRepo,
-		inventoryService,
-		customerReader,
-		trackingRepo,
-		paymentService,
-		outboxRepo,
-		ctx.Redis,
-	)
-
-	invoiceService := v1service.NewOrderInvoiceService(orderRepo, orderItemRepo, customerReader, cacheService)
+	invoiceService := v1service.NewOrderInvoiceService(orderRepo, orderItemRepo, customerReader, deps.CacheService)
 	orderAdminService := v1service.NewOrderAdminService(orderService)
-	if locationService == nil {
-		locationService = v1service.NewLocationService(shippingFactory, cacheService)
+
+	locationService := deps.LocationService
+	if locationService == nil && deps.ShippingFactory != nil {
+		locationService = v1service.NewLocationService(deps.ShippingFactory, deps.CacheService)
 	}
 
 	orderHandler := v1handler.NewOrderHandler(orderService, shippingService, returnService).
@@ -144,15 +102,13 @@ func NewOrderModule(
 
 	orderRoutes := v1routes.NewOrderRoutes(orderHandler)
 	adminOrderRoutes := v1routes.NewAdminOrderRoutes(orderHandler)
-	adminInventoryRoutes := v1routes.NewAdminInventoryRoutes(v1handler.NewInventoryHandler(inventoryService))
-
+	adminInventoryRoutes := v1routes.NewAdminInventoryRoutes(v1handler.NewInventoryHandler(deps.InventoryService))
 	shippingWebhookRoutes := v1routes.NewShippingWebhookRoutes(orderHandler)
 
 	return &OrderModule{
 		routes:      []routes.Route{orderRoutes, shippingWebhookRoutes},
 		adminRoutes: []routes.Route{adminOrderRoutes, adminInventoryRoutes},
 	}
-
 }
 
 func (m *OrderModule) Routes() []routes.Route {

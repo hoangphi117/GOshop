@@ -24,39 +24,45 @@ func NewPaymentModule(
 	rabbitmqService rabbitmq.RabbitMQService,
 	wsHub ws.Hub,
 	notificationService v1service.NotificationService,
+	existingPaymentService ...v1service.PaymentService,
 ) *PaymentModule {
-	paymentRepo := repository.NewSqlPaymentRepository(ctx.DB)
-	webhookRepo := repository.NewSqlWebhookEventRepository(ctx.DB)
-	orderRepo := repository.NewSqlOrderRepository(ctx.DB)
-	userRepo := repository.NewSqlUserRepository(ctx.DB)
+	var paymentService v1service.PaymentService
+	if len(existingPaymentService) > 0 && existingPaymentService[0] != nil {
+		paymentService = existingPaymentService[0]
+	} else {
+		paymentRepo := repository.NewSqlPaymentRepository(ctx.DB)
+		webhookRepo := repository.NewSqlWebhookEventRepository(ctx.DB)
+		orderRepo := repository.NewSqlOrderRepository(ctx.DB)
+		userRepo := repository.NewSqlUserRepository(ctx.DB)
 
-	paymentConfig := payment.PaymentConfig{
-		MoMo: payment.MoMoConfig{
-			PartnerCode: utils.GetEnv("MOMO_PARTNER_CODE", ""),
-			AccessKey:   utils.GetEnv("MOMO_ACCESS_KEY", ""),
-			SecretKey:   utils.GetEnv("MOMO_SECRET_KEY", ""),
-			Endpoint:    utils.GetEnv("MOMO_ENDPOINT", ""),
-			QueryURL:    utils.GetEnv("MOMO_QUERY_URL", ""),
-		},
-	}
-
-	providers := make(map[string]payment.PaymentProvider)
-	if momoFactory, err := payment.NewProviderFactory(payment.ProviderMoMo, paymentConfig); err == nil {
-		if p, err := momoFactory.CreateProvider(); err == nil {
-			providers["momo"] = p
+		paymentConfig := payment.PaymentConfig{
+			MoMo: payment.MoMoConfig{
+				PartnerCode: utils.GetEnv("MOMO_PARTNER_CODE", ""),
+				AccessKey:   utils.GetEnv("MOMO_ACCESS_KEY", ""),
+				SecretKey:   utils.GetEnv("MOMO_SECRET_KEY", ""),
+				Endpoint:    utils.GetEnv("MOMO_ENDPOINT", ""),
+				QueryURL:    utils.GetEnv("MOMO_QUERY_URL", ""),
+			},
 		}
+
+		providers := make(map[string]payment.PaymentProvider)
+		if momoFactory, err := payment.NewProviderFactory(payment.ProviderMoMo, paymentConfig); err == nil {
+			if p, err := momoFactory.CreateProvider(); err == nil {
+				providers["momo"] = p
+			}
+		}
+
+		returnURL := utils.GetEnv("PAYMENT_RETURN_URL", "http://localhost:3001/payment/result")
+		webhookBaseURL := utils.GetEnv("PAYMENT_WEBHOOK_BASE_URL", "http://localhost:8080")
+		outboxRepo := repository.NewSqlOutboxRepository(ctx.DB)
+
+		orderReader := v1service.NewOrderReaderAdapter(orderRepo)
+		paymentService = v1service.NewPaymentService(
+			paymentRepo, orderReader, userRepo, webhookRepo,
+			providers, notificationService, cacheService, rabbitmqService, returnURL, webhookBaseURL,
+			outboxRepo,
+		)
 	}
-
-	returnURL := utils.GetEnv("PAYMENT_RETURN_URL", "http://localhost:3001/payment/result")
-	webhookBaseURL := utils.GetEnv("PAYMENT_WEBHOOK_BASE_URL", "http://localhost:8080")
-	outboxRepo := repository.NewSqlOutboxRepository(ctx.DB)
-
-	orderReader := v1service.NewOrderReaderAdapter(orderRepo)
-	paymentService := v1service.NewPaymentService(
-		paymentRepo, orderReader, userRepo, webhookRepo,
-		providers, notificationService, cacheService, rabbitmqService, returnURL, webhookBaseURL,
-		outboxRepo,
-	)
 
 	paymentHandler := v1handler.NewPaymentHandler(paymentService)
 	paymentRoutes := v1routes.NewPaymentRoutes(paymentHandler)
