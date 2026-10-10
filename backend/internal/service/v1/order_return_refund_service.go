@@ -96,8 +96,8 @@ func (s *orderReturnService) AdminUpdateReturnStatus(ctx context.Context, userUU
 				return err
 			}
 
-			// Automatically restock returned items in warehouse inventory
-			if err := s.restockReturnedOrderItems(txCtx, tx, order.OrderID); err != nil {
+			// Automatically restock returned items in warehouse inventory via StockPort
+			if err := s.restockReturnedOrderItems(txCtx, order, returnRequest); err != nil {
 				return err
 			}
 
@@ -161,14 +161,30 @@ func (s *orderReturnService) AdminUpdateReturnStatus(ctx context.Context, userUU
 	}, nil
 }
 
-// restockReturnedOrderItems restores stock quantities in catalog for all items belonging to the returned order.
-func (s *orderReturnService) restockReturnedOrderItems(ctx context.Context, tx pgx.Tx, orderID int32) error {
-	orderItems, err := s.orderItemRepo.GetByOrderID(ctx, orderID)
+// restockReturnedOrderItems restores warehouse inventory for all items in the returned order via OrderStockPort.
+func (s *orderReturnService) restockReturnedOrderItems(ctx context.Context, order sqlc.GetOrderByIDRow, returnRequest sqlc.OrderReturn) error {
+	orderItems, err := s.orderItemRepo.GetByOrderID(ctx, returnRequest.ReturnOrderID)
 	if err != nil {
-		return nil // Non-blocking if no items found
+		return utils.WrapError(utils.ErrCodeInternal, "failed to get order items for return restock", err)
 	}
-	for _, item := range orderItems {
-		_ = s.productRepo.RestoreStock(ctx, tx, item.OrderItemProductID, item.OrderItemQuantity)
+	if len(orderItems) == 0 {
+		return nil
+	}
+
+	restoreItems := make([]RestoreItem, len(orderItems))
+	for i, item := range orderItems {
+		restoreItems[i] = RestoreItem{
+			ProductID: item.OrderItemProductID,
+			Quantity:  item.OrderItemQuantity,
+		}
+	}
+
+	refID := order.OrderNumber
+	note := fmt.Sprintf("Restock from completed return (Order #%s, Return ID #%d)", order.OrderNumber, returnRequest.ReturnID)
+	if s.stockPort != nil {
+		if err := s.stockPort.RestoreStockWithRef(ctx, restoreItems, refID, "order_return", nil, &note); err != nil {
+			return utils.WrapError(utils.ErrCodeInternal, "failed to restore stock for returned order", err)
+		}
 	}
 	return nil
 }

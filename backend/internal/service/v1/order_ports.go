@@ -129,11 +129,6 @@ type ShippingPaymentPort interface {
 	Create(ctx context.Context, tx pgx.Tx, params sqlc.CreatePaymentTransactionParams) (sqlc.PaymentTransaction, error)
 }
 
-// OrderStockRestorer manages restoring catalog stock for returned goods.
-// Satisfied by repository.ProductRepository.
-type OrderStockRestorer interface {
-	RestoreStock(ctx context.Context, tx pgx.Tx, productID int32, quantity int32) error
-}
 
 // OrderPaymentRefundPort handles issuing refunds via payment service.
 // Satisfied by PaymentService.

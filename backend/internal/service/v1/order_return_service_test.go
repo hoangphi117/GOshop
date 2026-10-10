@@ -2,6 +2,7 @@ package v1service_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -25,7 +26,7 @@ type testReturnServiceDeps struct {
 	orderRepo           *testutils.MockOrderRepository
 	orderItemRepo       *testutils.MockOrderItemRepository
 	orderReturnRepo     *testutils.MockOrderReturnsRepository
-	productRepo         *testutils.MockProductRepository
+	stockPort           *testutils.MockInventoryService
 	userRepo            *testutils.MockUserRepository
 	trackingRepo        *testutils.MockTrackingRepository
 	paymentService      v1service.PaymentService
@@ -61,11 +62,11 @@ func newTestReturnService(deps testReturnServiceDeps) v1service.OrderReturnServi
 	} else {
 		returnRepo = &testutils.MockOrderReturnsRepository{}
 	}
-	var productRepo repository.ProductRepository
-	if deps.productRepo != nil {
-		productRepo = deps.productRepo
+	var stockPort v1service.OrderStockPort
+	if deps.stockPort != nil {
+		stockPort = deps.stockPort
 	} else {
-		productRepo = &testutils.MockProductRepository{}
+		stockPort = &testutils.MockInventoryService{}
 	}
 	var trackingRepo repository.TrackingRepository
 	if deps.trackingRepo != nil {
@@ -91,7 +92,7 @@ func newTestReturnService(deps testReturnServiceDeps) v1service.OrderReturnServi
 		orderRepo,
 		orderItemRepo,
 		returnRepo,
-		productRepo,
+		stockPort,
 		userRepo,
 		trackingRepo,
 		paymentSvc,
@@ -904,11 +905,13 @@ func TestOrderService_AdminUpdateReturnStatus(t *testing.T) {
 		}
 
 		var stockRestored bool
-		mockProductRepo := &testutils.MockProductRepository{
-			RestoreStockFunc: func(ctx context.Context, tx pgx.Tx, productID int32, quantity int32) error {
+		mockStockPort := &testutils.MockInventoryService{
+			RestoreStockWithRefFunc: func(ctx context.Context, items []v1service.RestoreItem, refID string, refType string, actorID *int32, note *string) error {
 				stockRestored = true
-				assert.Equal(t, int32(100), productID)
-				assert.Equal(t, int32(2), quantity)
+				require.Len(t, items, 1)
+				assert.Equal(t, int32(100), items[0].ProductID)
+				assert.Equal(t, int32(2), items[0].Quantity)
+				assert.Equal(t, "order_return", refType)
 				return nil
 			},
 		}
@@ -918,7 +921,7 @@ func TestOrderService_AdminUpdateReturnStatus(t *testing.T) {
 			orderRepo:       mockOrderRepo,
 			orderItemRepo:   mockOrderItemRepo,
 			orderReturnRepo: mockReturnRepo,
-			productRepo:     mockProductRepo,
+			stockPort:       mockStockPort,
 		})
 
 		res, err := svc.AdminUpdateReturnStatus(ctx, adminUUID, returnUUID, v1dto.AdminUpdateReturnInput{
@@ -927,6 +930,75 @@ func TestOrderService_AdminUpdateReturnStatus(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, stockRestored)
 		assert.Equal(t, v1service.OrderReturnStatusCompleted, res.Status)
+	})
+
+	t.Run("Case 3: Return Completion Fails When Stock Restoration Fails", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
+				return adminUser, nil
+			},
+		}
+
+		mockReturnRepo := &testutils.MockOrderReturnsRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.OrderReturn, error) {
+				return sqlc.OrderReturn{
+					ReturnID:      1,
+					ReturnUuid:    returnUUID,
+					ReturnOrderID: 10,
+					ReturnStatus:  v1service.OrderReturnStatusApproved,
+				}, nil
+			},
+			UpdateStatusFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReturnStatusParams) (sqlc.OrderReturn, error) {
+				return sqlc.OrderReturn{
+					ReturnID:        1,
+					ReturnUuid:      returnUUID,
+					ReturnStatus:    v1service.OrderReturnStatusCompleted,
+					ReturnAdminNote: params.AdminNote,
+				}, nil
+			},
+		}
+
+		mockOrderRepo := &testutils.MockOrderRepository{
+			GetByIDFunc: func(ctx context.Context, orderID int32) (sqlc.GetOrderByIDRow, error) {
+				return sqlc.GetOrderByIDRow{
+					OrderID:     10,
+					OrderUserID: 2,
+					OrderUuid:   orderUUID,
+					OrderNumber: "ORD-2026-001",
+				}, nil
+			},
+			UpdateStatusFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.UpdateOrderStatusParams) (sqlc.Order, error) {
+				return sqlc.Order{OrderID: 10, OrderStatus: v1service.OrderStatusReturned}, nil
+			},
+		}
+
+		mockOrderItemRepo := &testutils.MockOrderItemRepository{
+			GetByOrderIDFunc: func(ctx context.Context, orderID int32) ([]sqlc.GetOrderItemsByOrderIDRow, error) {
+				return []sqlc.GetOrderItemsByOrderIDRow{
+					{OrderItemProductID: 100, OrderItemQuantity: 2},
+				}, nil
+			},
+		}
+
+		mockStockPort := &testutils.MockInventoryService{
+			RestoreStockWithRefFunc: func(ctx context.Context, items []v1service.RestoreItem, refID string, refType string, actorID *int32, note *string) error {
+				return errors.New("inventory lock acquisition failed")
+			},
+		}
+
+		svc := newTestReturnService(testReturnServiceDeps{
+			userRepo:        mockUserRepo,
+			orderRepo:       mockOrderRepo,
+			orderItemRepo:   mockOrderItemRepo,
+			orderReturnRepo: mockReturnRepo,
+			stockPort:       mockStockPort,
+		})
+
+		_, err := svc.AdminUpdateReturnStatus(ctx, adminUUID, returnUUID, v1dto.AdminUpdateReturnInput{
+			Status: v1service.OrderReturnStatusCompleted,
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to restore stock for returned order")
 	})
 }
 

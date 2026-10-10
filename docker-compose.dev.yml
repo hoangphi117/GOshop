@@ -131,7 +131,7 @@ services:
       - goshop-network
 
   minio:
-    image: minio/minio:latest
+    image: cgr.dev/chainguard/minio:latest
     container_name: goshop-minio
     restart: unless-stopped
     ports:

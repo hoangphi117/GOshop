@@ -23,7 +23,7 @@ type orderReturnService struct {
 	orderRepo           OrderStorePort
 	orderItemRepo       OrderItemStorePort
 	orderReturnRepo     OrderReturnStorePort
-	productRepo         OrderStockRestorer
+	stockPort           OrderStockPort
 	userRepo            OrderCustomerReader
 	trackingRepo        OrderTrackingPort
 	paymentService      OrderPaymentRefundPort
@@ -36,7 +36,7 @@ func NewOrderReturnService(
 	orderRepo OrderStorePort,
 	orderItemRepo OrderItemStorePort,
 	orderReturnRepo OrderReturnStorePort,
-	productRepo OrderStockRestorer,
+	stockPort OrderStockPort,
 	userRepo OrderCustomerReader,
 	trackingRepo OrderTrackingPort,
 	paymentService OrderPaymentRefundPort,
@@ -52,7 +52,7 @@ func NewOrderReturnService(
 		orderRepo:           orderRepo,
 		orderItemRepo:       orderItemRepo,
 		orderReturnRepo:     orderReturnRepo,
-		productRepo:         productRepo,
+		stockPort:           stockPort,
 		userRepo:            userRepo,
 		trackingRepo:        trackingRepo,
 		paymentService:      paymentService,

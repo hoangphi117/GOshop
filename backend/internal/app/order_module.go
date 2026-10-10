@@ -125,7 +125,7 @@ func NewOrderModule(
 		orderRepo,
 		orderItemRepo,
 		orderReturnRepo,
-		productRepo,
+		inventoryService,
 		userRepo,
 		trackingRepo,
 		paymentService,

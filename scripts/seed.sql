@@ -10,6 +10,8 @@ BEGIN;
 
 -- Clean existing data safely (preserving schema)
 TRUNCATE TABLE 
+    outbox_events,
+    oauth_accounts,
     chat_messages,
     chat_conversations,
     notifications,
@@ -34,10 +36,10 @@ TRUNCATE TABLE
 RESTART IDENTITY CASCADE;
 
 -- Default password hash for 'Password123!' (bcrypt cost 10)
--- $2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy
+-- $2a$10$fjiFPJondn6AcV/GOEFjk.oIkOhMlqMHn.qeOlxoVQ6NTXMhV4BMC
 DO $$
 DECLARE
-    v_pwd VARCHAR(90) := '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy';
+    v_pwd VARCHAR(90) := '$2a$10$fjiFPJondn6AcV/GOEFjk.oIkOhMlqMHn.qeOlxoVQ6NTXMhV4BMC';
     -- Quy mô dữ liệu sinh thêm (section 13)
     v_extra_users    INT := 2000;
     v_extra_products INT := 5000;
