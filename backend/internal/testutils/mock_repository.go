@@ -517,16 +517,24 @@ type MockUserRepository struct {
 	GetAllV2Func       func(ctx context.Context, search, orderBy, sort string, limit, offset int32, deleted bool) ([]sqlc.User, error)
 	CountUsersFunc     func(ctx context.Context, search string, deleted bool) (int64, error)
 	CreateFunc         func(ctx context.Context, input sqlc.CreateUserParams) (sqlc.User, error)
-	GetByUUIDFunc      func(ctx context.Context, uuid uuid.UUID) (sqlc.User, error)
-	UpdateFunc         func(ctx context.Context, input sqlc.UpdateUserParams) (sqlc.User, error)
-	SoftDeleteFunc     func(ctx context.Context, uuid uuid.UUID) (sqlc.User, error)
-	RestoreFunc        func(ctx context.Context, uuid uuid.UUID) (sqlc.User, error)
-	TrashFunc          func(ctx context.Context, uuid uuid.UUID) (sqlc.User, error)
+	GetByIDFunc               func(ctx context.Context, id int32) (sqlc.User, error)
+	GetByUUIDFunc             func(ctx context.Context, uuid uuid.UUID) (sqlc.User, error)
+	UpdateFunc                func(ctx context.Context, input sqlc.UpdateUserParams) (sqlc.User, error)
+	SoftDeleteFunc            func(ctx context.Context, uuid uuid.UUID) (sqlc.User, error)
+	RestoreFunc               func(ctx context.Context, uuid uuid.UUID) (sqlc.User, error)
+	TrashFunc                 func(ctx context.Context, uuid uuid.UUID) (sqlc.User, error)
 	GetByEmailFunc            func(ctx context.Context, email string) (sqlc.User, error)
 	GetActiveAdminUserIDsFunc func(ctx context.Context) ([]int32, error)
 	UpdatePasswordFunc        func(ctx context.Context, input sqlc.UpdatePasswordParams) (sqlc.User, error)
 	GetByOAuthFunc            func(ctx context.Context, provider, oauthID string) (sqlc.User, error)
 	CreateOAuthUserFunc       func(ctx context.Context, params sqlc.CreateOAuthUserParams) (sqlc.User, error)
+}
+
+func (m *MockUserRepository) GetByID(ctx context.Context, id int32) (sqlc.User, error) {
+	if m.GetByIDFunc != nil {
+		return m.GetByIDFunc(ctx, id)
+	}
+	return sqlc.User{}, nil
 }
 
 func (m *MockUserRepository) GetAll(ctx context.Context, search, orderBy, sort string, limit, offset int32) ([]sqlc.User, error) {

@@ -145,6 +145,15 @@ func (ur *SqlUserRepository) Create(ctx context.Context, userParams sqlc.CreateU
 	return user, nil
 }
 
+func (ur *SqlUserRepository) GetByID(ctx context.Context, id int32) (sqlc.User, error) {
+	user, err := ur.db.GetUserByID(ctx, id)
+	if err != nil {
+		return sqlc.User{}, err
+	}
+
+	return user, nil
+}
+
 func (ur *SqlUserRepository) GetByUUID(ctx context.Context, uuid uuid.UUID) (sqlc.User, error) {
 	user, err := ur.db.GetUserByUUID(ctx, uuid)
 	if err != nil {

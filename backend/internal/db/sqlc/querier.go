@@ -158,6 +158,7 @@ type Querier interface {
 	GetUserAddressByUUID(ctx context.Context, arg GetUserAddressByUUIDParams) (UserAddress, error)
 	GetUserAddressesByUserID(ctx context.Context, uaUserID int32) ([]UserAddress, error)
 	GetUserByEmail(ctx context.Context, userEmail string) (User, error)
+	GetUserByID(ctx context.Context, userID int32) (User, error)
 	GetUserByOAuth(ctx context.Context, arg GetUserByOAuthParams) (User, error)
 	GetUserByUUID(ctx context.Context, userUuid uuid.UUID) (User, error)
 	// Atomic, có điều kiện chặn ngay trong WHERE — KHÔNG tách rời check-rồi-ghi

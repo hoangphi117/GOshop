@@ -12,6 +12,7 @@ import (
 
 // UserReader provides read-only access to user entities for peripheral domains.
 type UserReader interface {
+	GetByID(ctx context.Context, id int32) (sqlc.User, error)
 	GetByUUID(ctx context.Context, uuid uuid.UUID) (sqlc.User, error)
 	GetActiveAdminUserIDs(ctx context.Context) ([]int32, error)
 }

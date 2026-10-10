@@ -189,6 +189,36 @@ func (q *Queries) GetUserByEmail(ctx context.Context, userEmail string) (User, e
 	return i, err
 }
 
+const getUserByID = `-- name: GetUserByID :one
+SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar, user_oauth_provider, user_oauth_id, user_avatar_url
+FROM users
+WHERE user_id = $1
+AND user_deleted_at IS NULL
+`
+
+func (q *Queries) GetUserByID(ctx context.Context, userID int32) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByID, userID)
+	var i User
+	err := row.Scan(
+		&i.UserID,
+		&i.UserUuid,
+		&i.UserFullname,
+		&i.UserEmail,
+		&i.UserPassword,
+		&i.UserAge,
+		&i.UserStatus,
+		&i.UserLevel,
+		&i.UserDeletedAt,
+		&i.UserCreatedAt,
+		&i.UserUpdatedAt,
+		&i.UserAvatar,
+		&i.UserOauthProvider,
+		&i.UserOauthID,
+		&i.UserAvatarUrl,
+	)
+	return i, err
+}
+
 const getUserByOAuth = `-- name: GetUserByOAuth :one
 SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar, user_oauth_provider, user_oauth_id, user_avatar_url FROM users
 WHERE user_oauth_provider = $1 AND user_oauth_id = $2

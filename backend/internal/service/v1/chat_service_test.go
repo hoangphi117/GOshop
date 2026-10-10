@@ -729,8 +729,23 @@ func TestChatService_GetConversationDetails(t *testing.T) {
 	convUUID := uuid.New()
 	strangerUUID := uuid.New()
 
-	mockUser := sqlc.User{UserID: 10, UserUuid: userUUID, UserLevel: 3, UserStatus: 1, UserFullname: "Alice"}
-	mockAdmin := sqlc.User{UserID: 99, UserUuid: adminUUID, UserLevel: 1, UserStatus: 1}
+	mockUser := sqlc.User{
+		UserID:       10,
+		UserUuid:     userUUID,
+		UserLevel:    3,
+		UserStatus:   1,
+		UserFullname: "Alice",
+		UserEmail:    "alice@example.com",
+		UserAvatar:   "https://example.com/alice.jpg",
+	}
+	mockAdmin := sqlc.User{
+		UserID:       99,
+		UserUuid:     adminUUID,
+		UserLevel:    1,
+		UserStatus:   1,
+		UserFullname: "Admin Bob",
+		UserEmail:    "admin@example.com",
+	}
 	mockStranger := sqlc.User{UserID: 20, UserUuid: strangerUUID, UserLevel: 3, UserStatus: 1}
 	mockConv := sqlc.ChatConversation{
 		ConversationID:   1,
@@ -757,11 +772,14 @@ func TestChatService_GetConversationDetails(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, mockConv.ConversationID, res.ConversationID)
 		assert.Equal(t, "Alice", res.UserFullname)
+		assert.Equal(t, "alice@example.com", res.UserEmail)
+		assert.Equal(t, "https://example.com/alice.jpg", res.UserAvatar)
 	})
 
 	t.Run("Success - Admin views conversation details", func(t *testing.T) {
 		mockUserRepo := &testutils.MockUserRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) { return mockAdmin, nil },
+			GetByIDFunc:   func(ctx context.Context, id int32) (sqlc.User, error) { return mockUser, nil },
 		}
 		mockChatRepo := &testutils.MockChatRepository{
 			GetConversationByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.ChatConversation, error) { return mockConv, nil },
@@ -776,6 +794,9 @@ func TestChatService_GetConversationDetails(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, mockConv.ConversationID, res.ConversationID)
 		assert.Equal(t, int64(2), res.UnreadCount)
+		assert.Equal(t, "Alice", res.UserFullname)
+		assert.Equal(t, "alice@example.com", res.UserEmail)
+		assert.Equal(t, "https://example.com/alice.jpg", res.UserAvatar)
 	})
 
 	t.Run("Forbidden - Stranger cannot view conversation details", func(t *testing.T) {

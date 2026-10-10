@@ -563,7 +563,16 @@ func (s *chatService) GetConversationDetails(
 		return v1dto.ConversationResponse{}, utils.NewError(utils.ErrCodeForbidden, "you are not authorized to view this conversation")
 	}
 
-	convOwner, _ := s.userRepo.GetByUUID(ctx, callerUUID)
+	var convOwner sqlc.User
+	if conv.UserID == caller.UserID {
+		convOwner = caller
+	} else {
+		var ownerErr error
+		convOwner, ownerErr = s.userRepo.GetByID(ctx, conv.UserID)
+		if ownerErr != nil && !errors.Is(ownerErr, sql.ErrNoRows) && !errors.Is(ownerErr, pgx.ErrNoRows) {
+			return v1dto.ConversationResponse{}, utils.WrapError(utils.ErrCodeInternal, "failed to get conversation owner", ownerErr)
+		}
+	}
 	unreadCount, _ := s.chatRepo.CountUnreadMessages(ctx, conv.ConversationID, caller.UserID)
 
 	var lastMsgAt *time.Time
