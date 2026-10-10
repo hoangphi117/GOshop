@@ -173,24 +173,24 @@ type OrderItem struct {
 }
 
 type OrderReturn struct {
-	ReturnID      int32     `json:"return_id"`
-	ReturnUuid    uuid.UUID `json:"return_uuid"`
-	ReturnOrderID int32     `json:"return_order_id"`
-	ReturnUserID  int32     `json:"return_user_id"`
-	ReturnReason  string    `json:"return_reason"`
+	ReturnID       int32     `json:"return_id"`
+	ReturnUuid     uuid.UUID `json:"return_uuid"`
+	ReturnOrderID  int32     `json:"return_order_id"`
+	ReturnUserID   int32     `json:"return_user_id"`
+	ReturnReason   string    `json:"return_reason"`
+	ReturnImages   []string  `json:"return_images"`
+	ReturnVideoUrl *string   `json:"return_video_url"`
 	// 1: Pending, 2: Approved, 3: Rejected, 4: Completed, 5: Cancelled
 	ReturnStatus           int16     `json:"return_status"`
 	ReturnAdminNote        *string   `json:"return_admin_note"`
-	ReturnCreatedAt        time.Time `json:"return_created_at"`
-	ReturnUpdatedAt        time.Time `json:"return_updated_at"`
-	ReturnImages           []string  `json:"return_images"`
-	ReturnVideoUrl         *string   `json:"return_video_url"`
 	ReturnShippingProvider *string   `json:"return_shipping_provider"`
 	ReturnShippingCode     *string   `json:"return_shipping_code"`
 	ReturnShippingNote     *string   `json:"return_shipping_note"`
 	ReturnBankName         *string   `json:"return_bank_name"`
 	ReturnBankAccount      *string   `json:"return_bank_account"`
 	ReturnBankAccountName  *string   `json:"return_bank_account_name"`
+	ReturnCreatedAt        time.Time `json:"return_created_at"`
+	ReturnUpdatedAt        time.Time `json:"return_updated_at"`
 }
 
 type OrderTrackingEvent struct {
@@ -274,11 +274,11 @@ type ProductReview struct {
 	// 1: Visible, 2: Hidden, 3: Reported
 	ReviewStatus       int16              `json:"review_status"`
 	ReviewEditCount    int32              `json:"review_edit_count"`
+	ReviewHelpfulCount int32              `json:"review_helpful_count"`
 	ReviewReply        *string            `json:"review_reply"`
 	ReviewReplyAt      pgtype.Timestamptz `json:"review_reply_at"`
 	ReviewCreatedAt    time.Time          `json:"review_created_at"`
 	ReviewUpdatedAt    time.Time          `json:"review_updated_at"`
-	ReviewHelpfulCount int32              `json:"review_helpful_count"`
 }
 
 type ProductReviewHelpfulVote struct {
@@ -325,15 +325,15 @@ type User struct {
 	// 1: Active, 2: Inactive, 3: Banned
 	UserStatus int32 `json:"user_status"`
 	// 1: Admin, 2: Moderator, 3: Member
-	UserLevel int32 `json:"user_level"`
+	UserLevel         int32   `json:"user_level"`
+	UserOauthProvider *string `json:"user_oauth_provider"`
+	UserOauthID       *string `json:"user_oauth_id"`
+	UserAvatarUrl     *string `json:"user_avatar_url"`
 	// Timestamp of when the user was deleted. (soft delete)
-	UserDeletedAt     pgtype.Timestamptz `json:"user_deleted_at"`
-	UserCreatedAt     time.Time          `json:"user_created_at"`
-	UserUpdatedAt     time.Time          `json:"user_updated_at"`
-	UserAvatar        string             `json:"user_avatar"`
-	UserOauthProvider *string            `json:"user_oauth_provider"`
-	UserOauthID       *string            `json:"user_oauth_id"`
-	UserAvatarUrl     *string            `json:"user_avatar_url"`
+	UserDeletedAt pgtype.Timestamptz `json:"user_deleted_at"`
+	UserCreatedAt time.Time          `json:"user_created_at"`
+	UserUpdatedAt time.Time          `json:"user_updated_at"`
+	UserAvatar    string             `json:"user_avatar"`
 }
 
 type UserAddress struct {
@@ -344,15 +344,15 @@ type UserAddress struct {
 	UaName         string    `json:"ua_name"`
 	UaPhone        string    `json:"ua_phone"`
 	UaAddress      string    `json:"ua_address"`
-	UaIsDefault    bool      `json:"ua_is_default"`
-	UaCreatedAt    time.Time `json:"ua_created_at"`
-	UaUpdatedAt    time.Time `json:"ua_updated_at"`
 	UaProvinceID   *int32    `json:"ua_province_id"`
 	UaProvinceName *string   `json:"ua_province_name"`
 	UaDistrictID   *int32    `json:"ua_district_id"`
 	UaDistrictName *string   `json:"ua_district_name"`
 	UaWardCode     *string   `json:"ua_ward_code"`
 	UaWardName     *string   `json:"ua_ward_name"`
+	UaIsDefault    bool      `json:"ua_is_default"`
+	UaCreatedAt    time.Time `json:"ua_created_at"`
+	UaUpdatedAt    time.Time `json:"ua_updated_at"`
 }
 
 type WebhookEvent struct {

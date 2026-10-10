@@ -2,6 +2,7 @@ DROP TRIGGER IF EXISTS set_return_updated_at ON order_returns;
 DROP FUNCTION IF EXISTS update_return_updated_at();
 DROP INDEX IF EXISTS idx_returns_active_per_order;
 DROP INDEX IF EXISTS idx_returns_status;
+DROP INDEX IF EXISTS idx_returns_shipping_code;
 DROP INDEX IF EXISTS idx_returns_user;
 DROP INDEX IF EXISTS idx_returns_order;
 DROP TABLE IF EXISTS order_returns;

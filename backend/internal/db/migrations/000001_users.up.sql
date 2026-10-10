@@ -7,10 +7,13 @@ CREATE TABLE IF NOT EXISTS users (
 	user_uuid 		UUID DEFAULT gen_random_uuid() NOT NULL UNIQUE,
 	user_fullname 	VARCHAR(100) NOT NULL,
 	user_email 		VARCHAR(150) UNIQUE NOT NULL,
-	user_password 	VARCHAR(90) NOT NULL,
+	user_password 	VARCHAR(90) DEFAULT NULL, -- NULL allowed for OAuth users
 	user_age 		INT CHECK (user_age >= 1 AND user_age <= 150),
 	user_status 	INT DEFAULT 1 CHECK (user_status IN (1, 2, 3)) NOT NULL,
 	user_level 		INT DEFAULT 1 CHECK (user_level IN (1, 2, 3)) NOT NULL,
+	user_oauth_provider VARCHAR(30) DEFAULT NULL,
+	user_oauth_id       VARCHAR(200) DEFAULT NULL,
+	user_avatar_url     TEXT DEFAULT NULL,
 	user_deleted_at TIMESTAMPTZ DEFAULT NULL,
 	user_created_at	TIMESTAMPTZ DEFAULT now() NOT NULL,
 	user_updated_at	TIMESTAMPTZ DEFAULT now() NOT NULL
@@ -28,6 +31,9 @@ CREATE INDEX IF NOT EXISTS idx_users_status ON users(user_status);
 CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(user_created_at);
 CREATE INDEX IF NOT EXISTS idx_users_deleted_at ON users(user_deleted_at);
 CREATE INDEX IF NOT EXISTS idx_users_email_status ON users(user_email, user_status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_oauth
+	ON users(user_oauth_provider, user_oauth_id)
+	WHERE user_oauth_provider IS NOT NULL;
 
 -- Create trigger
 CREATE OR REPLACE FUNCTION update_user_updated_at()

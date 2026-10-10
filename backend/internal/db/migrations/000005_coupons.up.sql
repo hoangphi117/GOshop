@@ -31,6 +31,10 @@ CREATE TABLE IF NOT EXISTS coupon_usages (
 );
 
 CREATE INDEX idx_coupon_usages_user ON coupon_usages(coupon_usage_coupon_id, coupon_usage_user_id);
+-- Prevent applying the same coupon to the same order multiple times
+CREATE UNIQUE INDEX IF NOT EXISTS uq_coupon_usages_coupon_order 
+ON coupon_usages (coupon_usage_coupon_id, coupon_usage_order_id) 
+WHERE coupon_usage_order_id IS NOT NULL;
 CREATE INDEX idx_coupons_active_dates ON coupons(coupon_is_active, coupon_start_date, coupon_end_date)
     WHERE coupon_deleted_at IS NULL;
 

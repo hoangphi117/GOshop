@@ -4,6 +4,8 @@ DROP INDEX IF EXISTS idx_reviews_unique_per_order;
 DROP INDEX IF EXISTS idx_reviews_user;
 DROP INDEX IF EXISTS idx_reviews_product;
 DROP INDEX IF EXISTS idx_reviews_product_filter;
+DROP TABLE IF EXISTS product_review_reports;
+DROP TABLE IF EXISTS product_review_helpful_votes;
 DROP TABLE IF EXISTS product_reviews;
 
 ALTER TABLE products

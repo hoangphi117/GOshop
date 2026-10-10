@@ -42,7 +42,7 @@ INSERT INTO user_addresses (
     ua_ward_code, ua_ward_name,
     ua_is_default
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-RETURNING ua_id, ua_uuid, ua_user_id, ua_label, ua_name, ua_phone, ua_address, ua_is_default, ua_created_at, ua_updated_at, ua_province_id, ua_province_name, ua_district_id, ua_district_name, ua_ward_code, ua_ward_name
+RETURNING ua_id, ua_uuid, ua_user_id, ua_label, ua_name, ua_phone, ua_address, ua_province_id, ua_province_name, ua_district_id, ua_district_name, ua_ward_code, ua_ward_name, ua_is_default, ua_created_at, ua_updated_at
 `
 
 type CreateUserAddressParams struct {
@@ -84,15 +84,15 @@ func (q *Queries) CreateUserAddress(ctx context.Context, arg CreateUserAddressPa
 		&i.UaName,
 		&i.UaPhone,
 		&i.UaAddress,
-		&i.UaIsDefault,
-		&i.UaCreatedAt,
-		&i.UaUpdatedAt,
 		&i.UaProvinceID,
 		&i.UaProvinceName,
 		&i.UaDistrictID,
 		&i.UaDistrictName,
 		&i.UaWardCode,
 		&i.UaWardName,
+		&i.UaIsDefault,
+		&i.UaCreatedAt,
+		&i.UaUpdatedAt,
 	)
 	return i, err
 }
@@ -116,7 +116,7 @@ func (q *Queries) DeleteUserAddress(ctx context.Context, arg DeleteUserAddressPa
 }
 
 const getUserAddressByUUID = `-- name: GetUserAddressByUUID :one
-SELECT ua_id, ua_uuid, ua_user_id, ua_label, ua_name, ua_phone, ua_address, ua_is_default, ua_created_at, ua_updated_at, ua_province_id, ua_province_name, ua_district_id, ua_district_name, ua_ward_code, ua_ward_name FROM user_addresses
+SELECT ua_id, ua_uuid, ua_user_id, ua_label, ua_name, ua_phone, ua_address, ua_province_id, ua_province_name, ua_district_id, ua_district_name, ua_ward_code, ua_ward_name, ua_is_default, ua_created_at, ua_updated_at FROM user_addresses
 WHERE ua_uuid = $1 AND ua_user_id = $2
 `
 
@@ -136,21 +136,21 @@ func (q *Queries) GetUserAddressByUUID(ctx context.Context, arg GetUserAddressBy
 		&i.UaName,
 		&i.UaPhone,
 		&i.UaAddress,
-		&i.UaIsDefault,
-		&i.UaCreatedAt,
-		&i.UaUpdatedAt,
 		&i.UaProvinceID,
 		&i.UaProvinceName,
 		&i.UaDistrictID,
 		&i.UaDistrictName,
 		&i.UaWardCode,
 		&i.UaWardName,
+		&i.UaIsDefault,
+		&i.UaCreatedAt,
+		&i.UaUpdatedAt,
 	)
 	return i, err
 }
 
 const getUserAddressesByUserID = `-- name: GetUserAddressesByUserID :many
-SELECT ua_id, ua_uuid, ua_user_id, ua_label, ua_name, ua_phone, ua_address, ua_is_default, ua_created_at, ua_updated_at, ua_province_id, ua_province_name, ua_district_id, ua_district_name, ua_ward_code, ua_ward_name FROM user_addresses
+SELECT ua_id, ua_uuid, ua_user_id, ua_label, ua_name, ua_phone, ua_address, ua_province_id, ua_province_name, ua_district_id, ua_district_name, ua_ward_code, ua_ward_name, ua_is_default, ua_created_at, ua_updated_at FROM user_addresses
 WHERE ua_user_id = $1
 ORDER BY ua_is_default DESC, ua_created_at DESC
 `
@@ -172,15 +172,15 @@ func (q *Queries) GetUserAddressesByUserID(ctx context.Context, uaUserID int32) 
 			&i.UaName,
 			&i.UaPhone,
 			&i.UaAddress,
-			&i.UaIsDefault,
-			&i.UaCreatedAt,
-			&i.UaUpdatedAt,
 			&i.UaProvinceID,
 			&i.UaProvinceName,
 			&i.UaDistrictID,
 			&i.UaDistrictName,
 			&i.UaWardCode,
 			&i.UaWardName,
+			&i.UaIsDefault,
+			&i.UaCreatedAt,
+			&i.UaUpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -196,7 +196,7 @@ const setDefaultAddress = `-- name: SetDefaultAddress :one
 UPDATE user_addresses
 SET ua_is_default = TRUE
 WHERE ua_uuid = $1 AND ua_user_id = $2
-RETURNING ua_id, ua_uuid, ua_user_id, ua_label, ua_name, ua_phone, ua_address, ua_is_default, ua_created_at, ua_updated_at, ua_province_id, ua_province_name, ua_district_id, ua_district_name, ua_ward_code, ua_ward_name
+RETURNING ua_id, ua_uuid, ua_user_id, ua_label, ua_name, ua_phone, ua_address, ua_province_id, ua_province_name, ua_district_id, ua_district_name, ua_ward_code, ua_ward_name, ua_is_default, ua_created_at, ua_updated_at
 `
 
 type SetDefaultAddressParams struct {
@@ -215,15 +215,15 @@ func (q *Queries) SetDefaultAddress(ctx context.Context, arg SetDefaultAddressPa
 		&i.UaName,
 		&i.UaPhone,
 		&i.UaAddress,
-		&i.UaIsDefault,
-		&i.UaCreatedAt,
-		&i.UaUpdatedAt,
 		&i.UaProvinceID,
 		&i.UaProvinceName,
 		&i.UaDistrictID,
 		&i.UaDistrictName,
 		&i.UaWardCode,
 		&i.UaWardName,
+		&i.UaIsDefault,
+		&i.UaCreatedAt,
+		&i.UaUpdatedAt,
 	)
 	return i, err
 }
@@ -257,7 +257,7 @@ UPDATE user_addresses SET
     ua_ward_code     = COALESCE($11, ua_ward_code),
     ua_ward_name     = COALESCE($12, ua_ward_name)
 WHERE ua_uuid = $1 AND ua_user_id = $2
-RETURNING ua_id, ua_uuid, ua_user_id, ua_label, ua_name, ua_phone, ua_address, ua_is_default, ua_created_at, ua_updated_at, ua_province_id, ua_province_name, ua_district_id, ua_district_name, ua_ward_code, ua_ward_name
+RETURNING ua_id, ua_uuid, ua_user_id, ua_label, ua_name, ua_phone, ua_address, ua_province_id, ua_province_name, ua_district_id, ua_district_name, ua_ward_code, ua_ward_name, ua_is_default, ua_created_at, ua_updated_at
 `
 
 type UpdateUserAddressParams struct {
@@ -299,15 +299,15 @@ func (q *Queries) UpdateUserAddress(ctx context.Context, arg UpdateUserAddressPa
 		&i.UaName,
 		&i.UaPhone,
 		&i.UaAddress,
-		&i.UaIsDefault,
-		&i.UaCreatedAt,
-		&i.UaUpdatedAt,
 		&i.UaProvinceID,
 		&i.UaProvinceName,
 		&i.UaDistrictID,
 		&i.UaDistrictName,
 		&i.UaWardCode,
 		&i.UaWardName,
+		&i.UaIsDefault,
+		&i.UaCreatedAt,
+		&i.UaUpdatedAt,
 	)
 	return i, err
 }

@@ -5,10 +5,16 @@ CREATE TABLE IF NOT EXISTS user_addresses (
     ua_label      VARCHAR(50) NOT NULL,
     ua_name       VARCHAR(100) NOT NULL,
     ua_phone      VARCHAR(20) NOT NULL,
-    ua_address    TEXT NOT NULL,
-    ua_is_default BOOLEAN DEFAULT FALSE NOT NULL,
-    ua_created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
-    ua_updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
+    ua_address       TEXT NOT NULL,
+    ua_province_id   INT,
+    ua_province_name VARCHAR(100),
+    ua_district_id   INT,
+    ua_district_name VARCHAR(100),
+    ua_ward_code     VARCHAR(50),
+    ua_ward_name     VARCHAR(100),
+    ua_is_default    BOOLEAN DEFAULT FALSE NOT NULL,
+    ua_created_at    TIMESTAMPTZ DEFAULT now() NOT NULL,
+    ua_updated_at    TIMESTAMPTZ DEFAULT now() NOT NULL
 );
 
 CREATE INDEX idx_user_addresses_user_id ON user_addresses(ua_user_id);

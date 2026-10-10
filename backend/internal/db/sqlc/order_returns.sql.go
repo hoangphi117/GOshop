@@ -370,7 +370,7 @@ INSERT INTO order_returns (
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, 1 -- 1: Pending
 )
-RETURNING return_id, return_uuid, return_order_id, return_user_id, return_reason, return_status, return_admin_note, return_created_at, return_updated_at, return_images, return_video_url, return_shipping_provider, return_shipping_code, return_shipping_note, return_bank_name, return_bank_account, return_bank_account_name
+RETURNING return_id, return_uuid, return_order_id, return_user_id, return_reason, return_images, return_video_url, return_status, return_admin_note, return_shipping_provider, return_shipping_code, return_shipping_note, return_bank_name, return_bank_account, return_bank_account_name, return_created_at, return_updated_at
 `
 
 type CreateOrderReturnParams struct {
@@ -402,24 +402,24 @@ func (q *Queries) CreateOrderReturn(ctx context.Context, arg CreateOrderReturnPa
 		&i.ReturnOrderID,
 		&i.ReturnUserID,
 		&i.ReturnReason,
-		&i.ReturnStatus,
-		&i.ReturnAdminNote,
-		&i.ReturnCreatedAt,
-		&i.ReturnUpdatedAt,
 		&i.ReturnImages,
 		&i.ReturnVideoUrl,
+		&i.ReturnStatus,
+		&i.ReturnAdminNote,
 		&i.ReturnShippingProvider,
 		&i.ReturnShippingCode,
 		&i.ReturnShippingNote,
 		&i.ReturnBankName,
 		&i.ReturnBankAccount,
 		&i.ReturnBankAccountName,
+		&i.ReturnCreatedAt,
+		&i.ReturnUpdatedAt,
 	)
 	return i, err
 }
 
 const getActiveReturnByOrderID = `-- name: GetActiveReturnByOrderID :one
-SELECT return_id, return_uuid, return_order_id, return_user_id, return_reason, return_status, return_admin_note, return_created_at, return_updated_at, return_images, return_video_url, return_shipping_provider, return_shipping_code, return_shipping_note, return_bank_name, return_bank_account, return_bank_account_name FROM order_returns
+SELECT return_id, return_uuid, return_order_id, return_user_id, return_reason, return_images, return_video_url, return_status, return_admin_note, return_shipping_provider, return_shipping_code, return_shipping_note, return_bank_name, return_bank_account, return_bank_account_name, return_created_at, return_updated_at FROM order_returns
 WHERE return_order_id = $1 
   AND return_status IN (1, 2) -- 1: Pending, 2: Approved
 LIMIT 1
@@ -434,24 +434,24 @@ func (q *Queries) GetActiveReturnByOrderID(ctx context.Context, returnOrderID in
 		&i.ReturnOrderID,
 		&i.ReturnUserID,
 		&i.ReturnReason,
-		&i.ReturnStatus,
-		&i.ReturnAdminNote,
-		&i.ReturnCreatedAt,
-		&i.ReturnUpdatedAt,
 		&i.ReturnImages,
 		&i.ReturnVideoUrl,
+		&i.ReturnStatus,
+		&i.ReturnAdminNote,
 		&i.ReturnShippingProvider,
 		&i.ReturnShippingCode,
 		&i.ReturnShippingNote,
 		&i.ReturnBankName,
 		&i.ReturnBankAccount,
 		&i.ReturnBankAccountName,
+		&i.ReturnCreatedAt,
+		&i.ReturnUpdatedAt,
 	)
 	return i, err
 }
 
 const getLatestReturnByOrderID = `-- name: GetLatestReturnByOrderID :one
-SELECT return_id, return_uuid, return_order_id, return_user_id, return_reason, return_status, return_admin_note, return_created_at, return_updated_at, return_images, return_video_url, return_shipping_provider, return_shipping_code, return_shipping_note, return_bank_name, return_bank_account, return_bank_account_name FROM order_returns
+SELECT return_id, return_uuid, return_order_id, return_user_id, return_reason, return_images, return_video_url, return_status, return_admin_note, return_shipping_provider, return_shipping_code, return_shipping_note, return_bank_name, return_bank_account, return_bank_account_name, return_created_at, return_updated_at FROM order_returns
 WHERE return_order_id = $1
 ORDER BY return_created_at DESC
 LIMIT 1
@@ -466,24 +466,24 @@ func (q *Queries) GetLatestReturnByOrderID(ctx context.Context, returnOrderID in
 		&i.ReturnOrderID,
 		&i.ReturnUserID,
 		&i.ReturnReason,
-		&i.ReturnStatus,
-		&i.ReturnAdminNote,
-		&i.ReturnCreatedAt,
-		&i.ReturnUpdatedAt,
 		&i.ReturnImages,
 		&i.ReturnVideoUrl,
+		&i.ReturnStatus,
+		&i.ReturnAdminNote,
 		&i.ReturnShippingProvider,
 		&i.ReturnShippingCode,
 		&i.ReturnShippingNote,
 		&i.ReturnBankName,
 		&i.ReturnBankAccount,
 		&i.ReturnBankAccountName,
+		&i.ReturnCreatedAt,
+		&i.ReturnUpdatedAt,
 	)
 	return i, err
 }
 
 const getReturnByUUID = `-- name: GetReturnByUUID :one
-SELECT return_id, return_uuid, return_order_id, return_user_id, return_reason, return_status, return_admin_note, return_created_at, return_updated_at, return_images, return_video_url, return_shipping_provider, return_shipping_code, return_shipping_note, return_bank_name, return_bank_account, return_bank_account_name FROM order_returns
+SELECT return_id, return_uuid, return_order_id, return_user_id, return_reason, return_images, return_video_url, return_status, return_admin_note, return_shipping_provider, return_shipping_code, return_shipping_note, return_bank_name, return_bank_account, return_bank_account_name, return_created_at, return_updated_at FROM order_returns
 WHERE return_uuid = $1
 `
 
@@ -496,18 +496,18 @@ func (q *Queries) GetReturnByUUID(ctx context.Context, returnUuid uuid.UUID) (Or
 		&i.ReturnOrderID,
 		&i.ReturnUserID,
 		&i.ReturnReason,
-		&i.ReturnStatus,
-		&i.ReturnAdminNote,
-		&i.ReturnCreatedAt,
-		&i.ReturnUpdatedAt,
 		&i.ReturnImages,
 		&i.ReturnVideoUrl,
+		&i.ReturnStatus,
+		&i.ReturnAdminNote,
 		&i.ReturnShippingProvider,
 		&i.ReturnShippingCode,
 		&i.ReturnShippingNote,
 		&i.ReturnBankName,
 		&i.ReturnBankAccount,
 		&i.ReturnBankAccountName,
+		&i.ReturnCreatedAt,
+		&i.ReturnUpdatedAt,
 	)
 	return i, err
 }
@@ -617,7 +617,7 @@ UPDATE order_returns SET
     return_bank_account_name = $3,
     return_updated_at        = now()
 WHERE return_uuid = $4
-RETURNING return_id, return_uuid, return_order_id, return_user_id, return_reason, return_status, return_admin_note, return_created_at, return_updated_at, return_images, return_video_url, return_shipping_provider, return_shipping_code, return_shipping_note, return_bank_name, return_bank_account, return_bank_account_name
+RETURNING return_id, return_uuid, return_order_id, return_user_id, return_reason, return_images, return_video_url, return_status, return_admin_note, return_shipping_provider, return_shipping_code, return_shipping_note, return_bank_name, return_bank_account, return_bank_account_name, return_created_at, return_updated_at
 `
 
 type UpdateReturnBankAccountParams struct {
@@ -641,18 +641,18 @@ func (q *Queries) UpdateReturnBankAccount(ctx context.Context, arg UpdateReturnB
 		&i.ReturnOrderID,
 		&i.ReturnUserID,
 		&i.ReturnReason,
-		&i.ReturnStatus,
-		&i.ReturnAdminNote,
-		&i.ReturnCreatedAt,
-		&i.ReturnUpdatedAt,
 		&i.ReturnImages,
 		&i.ReturnVideoUrl,
+		&i.ReturnStatus,
+		&i.ReturnAdminNote,
 		&i.ReturnShippingProvider,
 		&i.ReturnShippingCode,
 		&i.ReturnShippingNote,
 		&i.ReturnBankName,
 		&i.ReturnBankAccount,
 		&i.ReturnBankAccountName,
+		&i.ReturnCreatedAt,
+		&i.ReturnUpdatedAt,
 	)
 	return i, err
 }
@@ -664,7 +664,7 @@ UPDATE order_returns SET
     return_shipping_note     = $3,
     return_updated_at        = now()
 WHERE return_uuid = $4
-RETURNING return_id, return_uuid, return_order_id, return_user_id, return_reason, return_status, return_admin_note, return_created_at, return_updated_at, return_images, return_video_url, return_shipping_provider, return_shipping_code, return_shipping_note, return_bank_name, return_bank_account, return_bank_account_name
+RETURNING return_id, return_uuid, return_order_id, return_user_id, return_reason, return_images, return_video_url, return_status, return_admin_note, return_shipping_provider, return_shipping_code, return_shipping_note, return_bank_name, return_bank_account, return_bank_account_name, return_created_at, return_updated_at
 `
 
 type UpdateReturnShippingInfoParams struct {
@@ -688,18 +688,18 @@ func (q *Queries) UpdateReturnShippingInfo(ctx context.Context, arg UpdateReturn
 		&i.ReturnOrderID,
 		&i.ReturnUserID,
 		&i.ReturnReason,
-		&i.ReturnStatus,
-		&i.ReturnAdminNote,
-		&i.ReturnCreatedAt,
-		&i.ReturnUpdatedAt,
 		&i.ReturnImages,
 		&i.ReturnVideoUrl,
+		&i.ReturnStatus,
+		&i.ReturnAdminNote,
 		&i.ReturnShippingProvider,
 		&i.ReturnShippingCode,
 		&i.ReturnShippingNote,
 		&i.ReturnBankName,
 		&i.ReturnBankAccount,
 		&i.ReturnBankAccountName,
+		&i.ReturnCreatedAt,
+		&i.ReturnUpdatedAt,
 	)
 	return i, err
 }
@@ -710,7 +710,7 @@ UPDATE order_returns SET
     return_admin_note = $2,
     return_updated_at = now()
 WHERE return_uuid = $3
-RETURNING return_id, return_uuid, return_order_id, return_user_id, return_reason, return_status, return_admin_note, return_created_at, return_updated_at, return_images, return_video_url, return_shipping_provider, return_shipping_code, return_shipping_note, return_bank_name, return_bank_account, return_bank_account_name
+RETURNING return_id, return_uuid, return_order_id, return_user_id, return_reason, return_images, return_video_url, return_status, return_admin_note, return_shipping_provider, return_shipping_code, return_shipping_note, return_bank_name, return_bank_account, return_bank_account_name, return_created_at, return_updated_at
 `
 
 type UpdateReturnStatusParams struct {
@@ -728,18 +728,18 @@ func (q *Queries) UpdateReturnStatus(ctx context.Context, arg UpdateReturnStatus
 		&i.ReturnOrderID,
 		&i.ReturnUserID,
 		&i.ReturnReason,
-		&i.ReturnStatus,
-		&i.ReturnAdminNote,
-		&i.ReturnCreatedAt,
-		&i.ReturnUpdatedAt,
 		&i.ReturnImages,
 		&i.ReturnVideoUrl,
+		&i.ReturnStatus,
+		&i.ReturnAdminNote,
 		&i.ReturnShippingProvider,
 		&i.ReturnShippingCode,
 		&i.ReturnShippingNote,
 		&i.ReturnBankName,
 		&i.ReturnBankAccount,
 		&i.ReturnBankAccountName,
+		&i.ReturnCreatedAt,
+		&i.ReturnUpdatedAt,
 	)
 	return i, err
 }
