@@ -1,0 +1,31 @@
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  enable:
+    - depguard
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+
+linters-settings:
+  depguard:
+    rules:
+      order_domain_isolation:
+        list-mode: lax
+        files:
+          - "$/internal/service/v1/order*.go"
+          - "!$/**/*_test.go"
+        deny:
+          - pkg: "goshop/pkg/payment"
+            desc: "Order domain must not import concrete Payment package directly; use OrderPaymentRefundPort"
+      payment_domain_isolation:
+        list-mode: lax
+        files:
+          - "$/internal/service/v1/payment*.go"
+          - "!$/**/*_test.go"
+        deny:
+          - pkg: "goshop/internal/repository/order_repository"
+            desc: "Payment domain must not import Order repository directly; use PaymentOrderReaderPort"

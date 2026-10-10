@@ -78,7 +78,18 @@ func (w *OutboxPublisherWorker) ProcessBatch(ctx context.Context) (int, error) {
 				Msg("Failed to publish outbox event to RabbitMQ")
 
 			errMsg := err.Error()
-			_ = w.outboxRepo.MarkFailed(ctx, ev.EventID, &errMsg)
+			if markErr := w.outboxRepo.MarkFailed(ctx, ev.EventID, &errMsg); markErr != nil {
+				w.logger.Error().Err(markErr).Int64("event_id", ev.EventID).Msg("Failed to mark outbox event failed in db")
+			}
+			if ev.RetryCount+1 >= 5 {
+				w.logger.Error().
+					Int64("event_id", ev.EventID).
+					Str("aggregate_type", ev.AggregateType).
+					Str("aggregate_id", ev.AggregateID).
+					Str("event_type", ev.EventType).
+					Int32("retry_count", ev.RetryCount+1).
+					Msg("CRITICAL: Outbox event reached max retry limit (5) and transitioned to FAILED dead-letter status")
+			}
 			continue
 		}
 
