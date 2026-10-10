@@ -121,6 +121,13 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		if remoteBaseURL == "" {
 			remoteBaseURL = cfg.Storage.PublicBaseURL
 		}
+		if remoteBaseURL == "" && cfg.Storage.S3.Endpoint != "" {
+			if cfg.Storage.S3.UsePathStyle {
+				remoteBaseURL = fmt.Sprintf("%s/%s", strings.TrimRight(cfg.Storage.S3.Endpoint, "/"), cfg.Storage.S3.Bucket)
+			} else {
+				remoteBaseURL = cfg.Storage.S3.Endpoint
+			}
+		}
 		if remoteBaseURL != "" {
 			remoteBaseURL = strings.TrimRight(remoteBaseURL, "/")
 			r.GET("/uploads/*filepath", func(c *gin.Context) {

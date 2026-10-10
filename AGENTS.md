@@ -30,7 +30,7 @@ Exceptions: Explain fully when explicitly asked to explain. Confirm before destr
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **GOshop** (13157 symbols, 51768 relationships, 791 execution flows).
+This project is indexed by GitNexus as **GOshop** (13664 symbols, 55599 relationships, 796 execution flows).
 
 > Index stale? Run `node .gitnexus/run.cjs analyze --index-only` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? Bootstrap with `npx`, `bunx`, or `pnpm dlx` — e.g. `bunx gitnexus@latest analyze` (npm 11 npx crash; #1939).
 

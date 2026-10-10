@@ -1,4 +1,4 @@
-﻿package storage
+package storage
 
 import (
 	"context"
@@ -70,6 +70,17 @@ func NewS3StorageService(ctx context.Context, cfg S3Config, logger *zerolog.Logg
 	})
 
 	presignClient := s3.NewPresignClient(client)
+
+	// For MinIO or self-hosted S3 endpoints, auto-create the bucket if it does not exist yet
+	if cfg.Endpoint != "" && !isR2 && cfg.Bucket != "" {
+		checkCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		defer cancel()
+		if _, headErr := client.HeadBucket(checkCtx, &s3.HeadBucketInput{Bucket: aws.String(cfg.Bucket)}); headErr != nil {
+			if _, createErr := client.CreateBucket(checkCtx, &s3.CreateBucketInput{Bucket: aws.String(cfg.Bucket)}); createErr == nil && logger != nil {
+				logger.Info().Str("bucket", cfg.Bucket).Msg("Auto-created S3/MinIO bucket successfully")
+			}
+		}
+	}
 
 	if logger != nil {
 		logger.Info().

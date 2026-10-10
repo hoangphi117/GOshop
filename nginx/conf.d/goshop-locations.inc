@@ -12,21 +12,19 @@ add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 client_max_body_size 50M;
 
 # -----------------------------------------------------------------------------
-# 2. STATIC FILE OFFLOADING (/uploads/)
 # -----------------------------------------------------------------------------
-# Lợi ích: Nginx đọc trực tiếp từ disk và stream file bằng kernel `sendfile`,
-# giải phóng hoàn toàn Go goroutines và bộ nhớ ứng dụng backend.
+# 2. MEDIA & UPLOADS ROUTING (/uploads/)
+# -----------------------------------------------------------------------------
+# Lợi ích: Stateless storage routing. Chuyển tiếp tới backend để redirect 301 sang
+# Cloudflare R2 / S3 / MinIO CDN URL, loại bỏ hoàn toàn phụ thuộc vào local disk volume.
 location /uploads/ {
-    alias /var/www/uploads/;
-    expires 7d;
-    add_header Cache-Control "public, max-age=604800, immutable";
-    
-    # Bảo vệ chống script injection & MIME sniffing
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header Content-Security-Policy "default-src 'none'; img-src 'self'; media-src 'self'" always;
-
-    # Xử lý khi không tìm thấy file
-    try_files $uri =404;
+    proxy_pass http://goshop_backend;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 60s;
 }
 
 # -----------------------------------------------------------------------------
