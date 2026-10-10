@@ -51,12 +51,13 @@ type Application struct {
 }
 
 type ModuleContext struct {
-	DB        sqlc.Querier
-	ReadDB    sqlc.Querier
-	Redis     *redis.Client
-	TxManager db.TxManager
-	Storage   storage.StorageService
-	Search    *search.Client
+	DB         sqlc.Querier
+	ReadDB     sqlc.Querier
+	IdentityDB sqlc.Querier
+	Redis      *redis.Client
+	TxManager  db.TxManager
+	Storage    storage.StorageService
+	Search     *search.Client
 }
 
 func NewApplication(cfg *config.Config) (*Application, error) {
@@ -243,12 +244,13 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	)
 
 	ctx := &ModuleContext{
-		DB:        db.DB,
-		ReadDB:    db.GetReadDB(),
-		Redis:     redisClient,
-		TxManager: txManager,
-		Storage:   storageService,
-		Search:    searchClient,
+		DB:         db.DB,
+		ReadDB:     db.GetReadDB(),
+		IdentityDB: db.GetIdentityDB(),
+		Redis:      redisClient,
+		TxManager:  txManager,
+		Storage:    storageService,
+		Search:     searchClient,
 	}
 
 	orderModuleDeps := OrderModuleDeps{

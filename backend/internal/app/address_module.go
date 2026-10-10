@@ -13,10 +13,14 @@ type AddressModule struct {
 }
 
 func NewAddressModule(ctx *ModuleContext) *AddressModule {
+	querier := ctx.DB
+	if ctx.IdentityDB != nil {
+		querier = ctx.IdentityDB
+	}
 
 	// Initialize repository
-	addressRepo := repository.NewSqlAddressRepository(ctx.DB)
-	userRepo := repository.NewSqlUserRepository(ctx.DB)
+	addressRepo := repository.NewSqlAddressRepository(querier)
+	userRepo := repository.NewSqlUserRepository(querier)
 
 	// Initialize service
 	addressService := v1service.NewAddressService(addressRepo, userRepo)

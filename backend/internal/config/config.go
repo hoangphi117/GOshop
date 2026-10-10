@@ -121,3 +121,7 @@ func (c *Config) ReadDNS() string {
 	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", c.ReadDB.Host, c.ReadDB.Port, c.ReadDB.User, c.ReadDB.Password, c.ReadDB.DBName, c.ReadDB.SSLMode)
 }
 
+func (c *Config) IdentityDNS() string {
+	return utils.GetEnv("DB_IDENTITY_URL", "")
+}
+

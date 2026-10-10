@@ -15,8 +15,11 @@ type UserModule struct {
 }
 
 func NewUserModule(ctx *ModuleContext, tokenService auth.TokenService) *UserModule {
-	// Initialize repository
-	userRepo := repository.NewSqlUserRepository(ctx.DB)
+	querier := ctx.DB
+	if ctx.IdentityDB != nil {
+		querier = ctx.IdentityDB
+	}
+	userRepo := repository.NewSqlUserRepository(querier)
 
 	// Initialize service
 	userService := v1service.NewUserService(userRepo, ctx.Redis)

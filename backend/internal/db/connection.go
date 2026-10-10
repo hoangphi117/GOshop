@@ -21,9 +21,19 @@ var DBPool *pgxpool.Pool
 var ReadDB sqlc.Querier
 var ReadDBPool *pgxpool.Pool
 
+var IdentityDB sqlc.Querier
+var IdentityDBPool *pgxpool.Pool
+
 func GetReadDB() sqlc.Querier {
 	if ReadDB != nil {
 		return ReadDB
+	}
+	return DB
+}
+
+func GetIdentityDB() sqlc.Querier {
+	if IdentityDB != nil {
+		return IdentityDB
 	}
 	return DB
 }
@@ -102,6 +112,40 @@ func InitDB() error {
 					Str("database", readConf.ConnConfig.Database).
 					Int32("max_conns", readConf.MaxConns).
 					Msg("✅ Connected to PostgreSQL Read-Replica database pool")
+			}
+		}
+	}
+
+	// Identity DB initialization (defaults to DBPool if identical or unset)
+	identityDNS := cfg.IdentityDNS()
+	if identityDNS == "" || identityDNS == cfg.DNS() {
+		IdentityDBPool = DBPool
+		IdentityDB = DB
+	} else {
+		identityConf, err := pgxpool.ParseConfig(identityDNS)
+		if err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to parse Identity DB config, falling back to primary DB")
+			IdentityDBPool = DBPool
+			IdentityDB = DB
+		} else {
+			identityConf.MaxConns = int32(utils.GetIntEnv("DB_IDENTITY_MAX_CONNS", 15))
+			identityConf.MinConns = int32(utils.GetIntEnv("DB_IDENTITY_MIN_CONNS", 3))
+			identityConf.MaxConnLifetime = time.Duration(utils.GetIntEnv("DB_MAX_CONN_LIFETIME_MIN", 30)) * time.Minute
+			identityConf.MaxConnIdleTime = time.Duration(utils.GetIntEnv("DB_MAX_CONN_IDLE_MIN", 5)) * time.Minute
+			identityConf.HealthCheckPeriod = 1 * time.Minute
+
+			IdentityDBPool, err = pgxpool.NewWithConfig(ctx, identityConf)
+			if err != nil {
+				logger.Log.Warn().Err(err).Msg("Failed to connect to Identity DB pool, falling back to primary DB")
+				IdentityDBPool = DBPool
+				IdentityDB = DB
+			} else {
+				IdentityDB = sqlc.New(IdentityDBPool)
+				logger.Log.Info().
+					Str("host", identityConf.ConnConfig.Host).
+					Str("database", identityConf.ConnConfig.Database).
+					Int32("max_conns", identityConf.MaxConns).
+					Msg("✅ Connected to PostgreSQL Identity database pool")
 			}
 		}
 	}

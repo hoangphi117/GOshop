@@ -18,8 +18,11 @@ type AuthModule struct {
 }
 
 func NewAuthModule(ctx *ModuleContext, tokenService auth.TokenService, cacheService cache.RedisCacheService, mailService mail.EmailProviderService, rabbitmqService rabbitmq.RabbitMQService, wsHub ws.Hub, redisBridge ws.RedisBridge, storefrontURL string) *AuthModule {
-	// Initialize repository
-	userRepo := repository.NewSqlUserRepository(ctx.DB)
+	querier := ctx.DB
+	if ctx.IdentityDB != nil {
+		querier = ctx.IdentityDB
+	}
+	userRepo := repository.NewSqlUserRepository(querier)
 	notificationRepo := repository.NewSqlNotificationRepository(ctx.DB)
 
 	// Initialize service
