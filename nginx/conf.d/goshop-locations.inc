@@ -129,6 +129,14 @@ location /api/v1/addresses {
 }
 
 # -----------------------------------------------------------------------------
+# 4.1. BLOCK EXTERNAL ACCESS TO INTERNAL MICROSERVICE ENDPOINTS (/internal/)
+# -----------------------------------------------------------------------------
+# Các endpoint /internal/* chỉ dành riêng cho giao tiếp IPC nội bộ giữa các services
+location /internal/ {
+    return 403;
+}
+
+# -----------------------------------------------------------------------------
 # 5. CORE BACKEND REVERSE PROXY & LOAD BALANCER (/api/v1/)
 # -----------------------------------------------------------------------------
 # Điều hướng tất cả API còn lại tới core-backend:8080

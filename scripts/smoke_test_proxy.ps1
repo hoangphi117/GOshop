@@ -7,7 +7,7 @@ param (
 )
 
 Write-Host "========================================================" -ForegroundColor Cyan
-Write-Host "  GOSHOP REVERSE PROXY & LOAD BALANCER SMOKE TEST" -ForegroundColor Cyan
+Write-Host "  GOSHOP MICROSERVICES SMOKE & ROUTING TEST" -ForegroundColor Cyan
 Write-Host "  Target Base URL: $BaseUrl" -ForegroundColor Cyan
 Write-Host "========================================================" -ForegroundColor Cyan
 
@@ -45,9 +45,21 @@ Test-Check -Name "WebSocket Upgrade Route (/api/v1/ws)" -ResponseHeaders $resWs 
 $resSec = (curl.exe -s -I "$BaseUrl/api/v1/categories") -join "`n"
 Test-Check -Name "Global Security Headers (X-Frame-Options: SAMEORIGIN)" -ResponseHeaders $resSec -Pattern "X-Frame-Options:\s*SAMEORIGIN"
 
-# 4. Test REST API Proxying
+# 4. Test Core Backend REST API Proxying
 $resApi = (curl.exe -s -I "$BaseUrl/api/v1/categories") -join "`n"
-Test-Check -Name "REST API Proxying (/api/v1/categories)" -ResponseHeaders $resApi -Pattern "(200 OK|401 Unauthorized|403 Forbidden|404 Not Found)"
+Test-Check -Name "Core REST API Proxying (/api/v1/categories)" -ResponseHeaders $resApi -Pattern "(200 OK|401 Unauthorized|403 Forbidden|404 Not Found)"
+
+# 5. Test Identity Service Reverse Proxy (/api/v1/auth/login)
+$resAuth = (curl.exe -s -I -X POST "$BaseUrl/api/v1/auth/login") -join "`n"
+Test-Check -Name "Identity Service Route (/api/v1/auth/login)" -ResponseHeaders $resAuth -Pattern "(400 Bad Request|422 Unprocessable|200 OK)"
+
+# 6. Test Products Route
+$resProd = (curl.exe -s -I "$BaseUrl/api/v1/products") -join "`n"
+Test-Check -Name "Products Catalog Route (/api/v1/products)" -ResponseHeaders $resProd -Pattern "(200 OK|404 Not Found)"
+
+# 7. Test Internal API Isolation (Direct external call must be blocked or unauthorized)
+$resInternal = (curl.exe -s -I -X POST "$BaseUrl/internal/v1/users/batch") -join "`n"
+Test-Check -Name "Internal API Protected/Blocked (/internal/v1/users/batch)" -ResponseHeaders $resInternal -Pattern "(401 Unauthorized|403 Forbidden|404 Not Found)"
 
 Write-Host "`n========================================================" -ForegroundColor Cyan
 Write-Host "  SMOKE TEST SUMMARY: $passed Passed, $failed Failed" -ForegroundColor $(if ($failed -eq 0) { "Green" } else { "Red" })
