@@ -365,12 +365,30 @@ func (as *authService) Register(ctx context.Context, input v1dto.RegisterInput) 
 		UserLevel:    UserLevelUser,
 	}
 
-	if _, err := as.userRepo.Create(ctx, user); err != nil {
+	createdUser, err := as.userRepo.Create(ctx, user)
+	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return utils.NewError(utils.ErrCodeConflict, "email already exists")
 		}
 		return utils.WrapError(utils.ErrCodeInternal, "failed to register user", err)
+	}
+
+	if as.rabbitmq != nil {
+		syncEvent := rabbitmq.NewUserSyncEvent(
+			rabbitmq.QueueUserCreated,
+			createdUser.UserID,
+			createdUser.UserUuid.String(),
+			createdUser.UserFullname,
+			createdUser.UserEmail,
+			createdUser.UserAvatar,
+			createdUser.UserAvatarUrl,
+			createdUser.UserStatus,
+			createdUser.UserLevel,
+		)
+		if err := as.rabbitmq.Publish(ctx, rabbitmq.QueueUserCreated, syncEvent); err != nil {
+			logger.Log.Error().Err(err).Int32("user_id", createdUser.UserID).Msg("Failed to publish user.created event")
+		}
 	}
 
 	return nil

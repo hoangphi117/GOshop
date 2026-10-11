@@ -169,3 +169,18 @@ func BeginTx(ctx context.Context) (pgxv5.Tx, error) {
 	}
 	return DBPool.Begin(ctx)
 }
+
+func GetIdentityDBPool() *pgxpool.Pool {
+	if IdentityDBPool != nil {
+		return IdentityDBPool
+	}
+	return DBPool
+}
+
+func BeginIdentityTx(ctx context.Context) (pgxv5.Tx, error) {
+	pool := GetIdentityDBPool()
+	if pool == nil {
+		return nil, fmt.Errorf("identity database connection pool is not initialized")
+	}
+	return pool.Begin(ctx)
+}

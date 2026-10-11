@@ -2,20 +2,31 @@ package repository
 
 import (
 	"context"
+	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type SqlAddressRepository struct {
-	db sqlc.Querier
+	db   sqlc.Querier
+	pool *pgxpool.Pool
 }
 
-func NewSqlAddressRepository(db sqlc.Querier) AddressRepository {
+func NewSqlAddressRepository(db sqlc.Querier, pool *pgxpool.Pool) AddressRepository {
 	return &SqlAddressRepository{
-		db: db,
+		db:   db,
+		pool: pool,
 	}
+}
+
+func (uar *SqlAddressRepository) BeginTx(ctx context.Context) (pgx.Tx, error) {
+	if uar.pool != nil {
+		return uar.pool.Begin(ctx)
+	}
+	return db.BeginIdentityTx(ctx)
 }
 
 func (uar *SqlAddressRepository) Create(ctx context.Context, tx pgx.Tx, params sqlc.CreateUserAddressParams) (sqlc.UserAddress, error) {

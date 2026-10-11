@@ -98,18 +98,22 @@ func (q *Queries) CountOrders(ctx context.Context, arg CountOrdersParams) (int64
 const createOrder = `-- name: CreateOrder :one
 INSERT INTO orders (
     order_number, order_user_id,
+    order_user_uuid, order_customer_name, order_customer_email,
     order_shipping_name, order_shipping_phone, order_shipping_address,
     order_coupon_id, order_coupon_code,
     order_subtotal_amount, order_discount_amount, order_shipping_fee, order_total_amount,
     order_payment_method, order_payment_status,
     order_note, order_status
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
 RETURNING order_id, order_uuid, order_number, order_user_id, order_user_uuid, order_customer_name, order_customer_email, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at, order_coupon_id, order_coupon_code, order_subtotal_amount, order_discount_amount, order_shipping_provider, order_shipping_code, order_shipping_fee, order_expected_delivery, order_delivered_at, order_returned_at
 `
 
 type CreateOrderParams struct {
 	OrderNumber          string         `json:"order_number"`
 	OrderUserID          int32          `json:"order_user_id"`
+	OrderUserUuid        uuid.UUID      `json:"order_user_uuid"`
+	OrderCustomerName    string         `json:"order_customer_name"`
+	OrderCustomerEmail   string         `json:"order_customer_email"`
 	OrderShippingName    string         `json:"order_shipping_name"`
 	OrderShippingPhone   string         `json:"order_shipping_phone"`
 	OrderShippingAddress string         `json:"order_shipping_address"`
@@ -129,6 +133,9 @@ func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) (Order
 	row := q.db.QueryRow(ctx, createOrder,
 		arg.OrderNumber,
 		arg.OrderUserID,
+		arg.OrderUserUuid,
+		arg.OrderCustomerName,
+		arg.OrderCustomerEmail,
 		arg.OrderShippingName,
 		arg.OrderShippingPhone,
 		arg.OrderShippingAddress,

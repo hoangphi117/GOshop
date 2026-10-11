@@ -1225,6 +1225,7 @@ func (m *MockBannerRepository) Trash(ctx context.Context, bannerUUID uuid.UUID) 
 // =========================================================================
 
 type MockAddressRepository struct {
+	BeginTxFunc            func(ctx context.Context) (pgx.Tx, error)
 	CreateFunc             func(ctx context.Context, tx pgx.Tx, params sqlc.CreateUserAddressParams) (sqlc.UserAddress, error)
 	CountFunc              func(ctx context.Context, userID int32) (int64, error)
 	ClearDefaultFunc       func(ctx context.Context, tx pgx.Tx, userID int32) error
@@ -1234,6 +1235,13 @@ type MockAddressRepository struct {
 	SetLatestAsDefaultFunc func(ctx context.Context, tx pgx.Tx, userID int32) error
 	GetByUserIDFunc        func(ctx context.Context, userID int32) ([]sqlc.UserAddress, error)
 	GetByUUIDFunc          func(ctx context.Context, userID int32, addressUUID uuid.UUID) (sqlc.UserAddress, error)
+}
+
+func (m *MockAddressRepository) BeginTx(ctx context.Context) (pgx.Tx, error) {
+	if m.BeginTxFunc != nil {
+		return m.BeginTxFunc(ctx)
+	}
+	return nil, nil
 }
 
 func (m *MockAddressRepository) Create(ctx context.Context, tx pgx.Tx, params sqlc.CreateUserAddressParams) (sqlc.UserAddress, error) {

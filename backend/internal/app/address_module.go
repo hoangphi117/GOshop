@@ -1,6 +1,7 @@
 package app
 
 import (
+	"goshop/internal/db"
 	v1handler "goshop/internal/handler/v1"
 	"goshop/internal/repository"
 	"goshop/internal/routes"
@@ -14,12 +15,14 @@ type AddressModule struct {
 
 func NewAddressModule(ctx *ModuleContext) *AddressModule {
 	querier := ctx.DB
+	pool := db.DBPool
 	if ctx.IdentityDB != nil {
 		querier = ctx.IdentityDB
+		pool = db.GetIdentityDBPool()
 	}
 
 	// Initialize repository
-	addressRepo := repository.NewSqlAddressRepository(querier)
+	addressRepo := repository.NewSqlAddressRepository(querier, pool)
 	userRepo := repository.NewSqlUserRepository(querier)
 
 	// Initialize service

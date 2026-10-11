@@ -156,6 +156,7 @@ type WebhookEventRepository interface {
 }
 
 type AddressRepository interface {
+	BeginTx(ctx context.Context) (pgx.Tx, error)
 	Create(ctx context.Context, tx pgx.Tx, params sqlc.CreateUserAddressParams) (sqlc.UserAddress, error)
 	GetByUUID(ctx context.Context, userID int32, addressUUID uuid.UUID) (sqlc.UserAddress, error)
 	GetByUserID(ctx context.Context, userID int32) ([]sqlc.UserAddress, error)

@@ -70,15 +70,6 @@ func (s *orderLifecycleService) UpdateOrderStatus(ctx context.Context, orderUUID
 		return nil, utils.NewError(utils.ErrCodeBadRequest, errMsg)
 	}
 
-	updateParams := input.MapUpdateStatusInputToModel(orderUUID)
-	updatedOrder, err := s.orderStore.UpdateStatus(ctx, nil, updateParams)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
-			return nil, utils.NewError(utils.ErrCodeNotFound, "order not found")
-		}
-		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to update order status", err)
-	}
-
 	var statusNote string
 	switch input.Status {
 	case OrderStatusConfirmed:
@@ -87,13 +78,60 @@ func (s *orderLifecycleService) UpdateOrderStatus(ctx context.Context, orderUUID
 		statusNote = "Order was marked as delivered."
 	}
 
-	if statusNote != "" {
-		_, _ = s.trackingStore.InsertEvent(ctx, nil, sqlc.InsertTrackingEventParams{
-			EventOrderID: updatedOrder.OrderID,
-			EventStatus:  v1dto.MapOrderStatusToString(input.Status),
-			EventNote:    &statusNote,
-			EventSource:  "admin",
-		})
+	updateParams := input.MapUpdateStatusInputToModel(orderUUID)
+	var updatedOrder sqlc.Order
+
+	executeUpdates := func(txCtx context.Context, tx pgx.Tx) error {
+		var updateErr error
+		updatedOrder, updateErr = s.orderStore.UpdateStatus(txCtx, tx, updateParams)
+		if updateErr != nil {
+			if errors.Is(updateErr, sql.ErrNoRows) || errors.Is(updateErr, pgx.ErrNoRows) {
+				return utils.NewError(utils.ErrCodeNotFound, "order not found")
+			}
+			return utils.WrapError(utils.ErrCodeInternal, "failed to update order status", updateErr)
+		}
+
+		if statusNote != "" {
+			if _, trackErr := s.trackingStore.InsertEvent(txCtx, tx, sqlc.InsertTrackingEventParams{
+				EventOrderID: updatedOrder.OrderID,
+				EventStatus:  v1dto.MapOrderStatusToString(input.Status),
+				EventNote:    &statusNote,
+				EventSource:  "admin",
+			}); trackErr != nil {
+				logger.Log.Warn().Err(trackErr).Int32("order_id", updatedOrder.OrderID).Msg("Failed to insert tracking event for order status change")
+			}
+		}
+
+		if s.outboxStore != nil {
+			evt := rabbitmq.NewOrderStatusChangedEvent(
+				uuid.New().String(),
+				updatedOrder.OrderUuid.String(),
+				updatedOrder.OrderNumber,
+				existingOrder.UserUuid.String(),
+				updatedOrder.OrderID,
+				updatedOrder.OrderUserID,
+				existingOrder.OrderStatus,
+				updatedOrder.OrderStatus,
+				"",
+			)
+			if _, outboxErr := s.outboxStore.Insert(txCtx, tx, "order", updatedOrder.OrderUuid.String(), rabbitmq.QueueOrderStatusChanged, evt); outboxErr != nil {
+				return utils.WrapError(utils.ErrCodeInternal, "failed to insert outbox event for order status change", outboxErr)
+			}
+		}
+		return nil
+	}
+
+	if s.txManager != nil {
+		if err := s.txManager.WithTx(ctx, func(txCtx context.Context) error {
+			tx, _ := db.GetTx(txCtx)
+			return executeUpdates(txCtx, tx)
+		}); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := executeUpdates(ctx, nil); err != nil {
+			return nil, err
+		}
 	}
 
 	orderItems, err := s.orderItemStore.GetByOrderID(ctx, updatedOrder.OrderID)
@@ -105,22 +143,6 @@ func (s *orderLifecycleService) UpdateOrderStatus(ctx context.Context, orderUUID
 		if err := s.cache.Clear("orders:*"); err != nil {
 			logger.Log.Warn().Err(err).Msg("Failed to clear order cache")
 		}
-	}
-
-	// Dispatch OrderStatusChanged event via Outbox
-	if s.outboxStore != nil {
-		evt := rabbitmq.NewOrderStatusChangedEvent(
-			uuid.New().String(),
-			updatedOrder.OrderUuid.String(),
-			updatedOrder.OrderNumber,
-			existingOrder.UserUuid.String(),
-			updatedOrder.OrderID,
-			updatedOrder.OrderUserID,
-			existingOrder.OrderStatus,
-			updatedOrder.OrderStatus,
-			"",
-		)
-		_, _ = s.outboxStore.Insert(ctx, nil, "order", updatedOrder.OrderUuid.String(), rabbitmq.QueueOrderStatusChanged, evt)
 	}
 
 	dto := v1dto.MapToOrderDTO(updatedOrder, orderItems)

@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
 	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/repository"
@@ -50,11 +49,13 @@ func (as *addressService) CreateUserAddress(ctx context.Context, userUUID uuid.U
 	txCtx, cancel := context.WithTimeout(ctx, addressTxTimeout)
 	defer cancel()
 
-	tx, err := db.BeginTx(txCtx)
+	tx, err := as.repo.BeginTx(txCtx)
 	if err != nil {
 		return v1dto.AddressDTO{}, utils.NewError(utils.ErrCodeInternal, "Failed to begin transaction")
 	}
-	defer tx.Rollback(txCtx)
+	if tx != nil {
+		defer tx.Rollback(txCtx)
+	}
 
 	count, err := as.repo.Count(txCtx, user.UserID)
 	if err != nil {
@@ -78,8 +79,10 @@ func (as *addressService) CreateUserAddress(ctx context.Context, userUUID uuid.U
 		return v1dto.AddressDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to create address", err)
 	}
 
-	if err := tx.Commit(txCtx); err != nil {
-		return v1dto.AddressDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
+	if tx != nil {
+		if err := tx.Commit(txCtx); err != nil {
+			return v1dto.AddressDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
+		}
 	}
 
 	return v1dto.MapToAddressDTO(address), nil
@@ -151,11 +154,13 @@ func (as *addressService) SetDefaultUserAddress(ctx context.Context, userUUID uu
 	txCtx, cancel := context.WithTimeout(ctx, addressTxTimeout)
 	defer cancel()
 
-	tx, err := db.BeginTx(txCtx)
+	tx, err := as.repo.BeginTx(txCtx)
 	if err != nil {
 		return utils.NewError(utils.ErrCodeInternal, "Failed to begin transaction")
 	}
-	defer tx.Rollback(txCtx)
+	if tx != nil {
+		defer tx.Rollback(txCtx)
+	}
 
 	if err := as.repo.ClearDefault(txCtx, tx, user.UserID); err != nil {
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to clear default address", err)
@@ -168,8 +173,10 @@ func (as *addressService) SetDefaultUserAddress(ctx context.Context, userUUID uu
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to set default address", err)
 	}
 
-	if err := tx.Commit(txCtx); err != nil {
-		return utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
+	if tx != nil {
+		if err := tx.Commit(txCtx); err != nil {
+			return utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
+		}
 	}
 
 	return nil
@@ -184,11 +191,13 @@ func (as *addressService) DeleteUserAddress(ctx context.Context, userUUID uuid.U
 	txCtx, cancel := context.WithTimeout(ctx, addressTxTimeout)
 	defer cancel()
 
-	tx, err := db.BeginTx(txCtx)
+	tx, err := as.repo.BeginTx(txCtx)
 	if err != nil {
 		return utils.NewError(utils.ErrCodeInternal, "Failed to begin transaction")
 	}
-	defer tx.Rollback(txCtx)
+	if tx != nil {
+		defer tx.Rollback(txCtx)
+	}
 
 	wasDefault, err := as.repo.Delete(txCtx, tx, user.UserID, addressUUID)
 	if err != nil {
@@ -204,8 +213,10 @@ func (as *addressService) DeleteUserAddress(ctx context.Context, userUUID uuid.U
 		}
 	}
 
-	if err := tx.Commit(txCtx); err != nil {
-		return utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
+	if tx != nil {
+		if err := tx.Commit(txCtx); err != nil {
+			return utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
+		}
 	}
 
 	return nil

@@ -43,7 +43,6 @@ type RefreshToken struct {
 }
 
 var (
-	jwtSecret     = []byte(utils.GetEnv("JWT_SECRET", "I-am-the-bone-of-my-sword-unknown-to-death-nor-known-to-life"))
 	jwtEncryptKey = []byte(utils.GetEnv("JWT_ENCRYPT_KEY", "12345678901234561234567890123456")) // 32 bytes key for AES-256 encryption
 )
 
@@ -93,8 +92,36 @@ func loadOrGenerateRSAKeys() (*rsa.PrivateKey, *rsa.PublicKey, string) {
 		}
 	}
 
+	// Try default key file locations if not explicitly configured via env
+	if privKey == nil {
+		for _, path := range []string{"certs/jwt_private.pem", "/app/certs/jwt_private.pem", "../certs/jwt_private.pem"} {
+			if data, err := os.ReadFile(path); err == nil && len(data) > 0 {
+				if k, err := jwt.ParseRSAPrivateKeyFromPEM(data); err == nil {
+					privKey = k
+					if pubKey == nil {
+						pubKey = &k.PublicKey
+					}
+					break
+				}
+			}
+		}
+	}
+	if pubKey == nil {
+		for _, path := range []string{"certs/jwt_public.pem", "/app/certs/jwt_public.pem", "../certs/jwt_public.pem"} {
+			if data, err := os.ReadFile(path); err == nil && len(data) > 0 {
+				if k, err := jwt.ParseRSAPublicKeyFromPEM(data); err == nil {
+					pubKey = k
+					break
+				}
+			}
+		}
+	}
+
 	// Ephemeral generation if neither private key nor public key is configured
 	if privKey == nil && pubKey == nil {
+		if utils.GetEnv("APP_ENV", "development") == "production" {
+			logger.Log.Fatal().Msg("FATAL: JWT_PRIVATE_KEY or JWT_PUBLIC_KEY must be configured in production environment")
+		}
 		generated, err := rsa.GenerateKey(rand.Reader, 2048)
 		if err == nil {
 			privKey = generated
@@ -164,35 +191,26 @@ func (js *JWTService) GenerateAccessTokenWithFamily(user UserTokenPayload, famil
 		}
 	}
 
-	// Use RS256 asymmetric signing if private key is available
-	if js.privateKey != nil {
-		token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-		token.Header["kid"] = js.keyID
-		return token.SignedString(js.privateKey)
+	// Strictly use RS256 asymmetric signing
+	if js.privateKey == nil {
+		return "", utils.NewError(utils.ErrCodeInternal, "Private key not configured for RS256 signing")
 	}
-
-	// Fallback to symmetric HS256 if private key is not present
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(jwtSecret)
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	token.Header["kid"] = js.keyID
+	return token.SignedString(js.privateKey)
 }
 
 func (js *JWTService) ParseToken(tokenString string) (*jwt.Token, jwt.MapClaims, error) {
 	token, err := jwt.Parse(tokenString, func(t *jwt.Token) (any, error) {
-		// Asymmetric RS256 verification
-		if _, ok := t.Method.(*jwt.SigningMethodRSA); ok {
-			if js.publicKey == nil {
-				return nil, utils.NewError(utils.ErrCodeUnauthorized, "Public key not configured for RS256 verification")
-			}
-			return js.publicKey, nil
+		// Strictly enforce RS256 verification
+		if _, ok := t.Method.(*jwt.SigningMethodRSA); !ok {
+			return nil, utils.NewError(utils.ErrCodeUnauthorized, fmt.Sprintf("Unexpected signing method: %v, only RS256 is supported", t.Header["alg"]))
 		}
-
-		// Backward-compatibility: HS256 verification
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); ok {
-			return jwtSecret, nil
+		if js.publicKey == nil {
+			return nil, utils.NewError(utils.ErrCodeUnauthorized, "Public key not configured for RS256 verification")
 		}
-
-		return nil, utils.NewError(utils.ErrCodeUnauthorized, fmt.Sprintf("Unexpected signing method: %v", t.Header["alg"]))
-	})
+		return js.publicKey, nil
+	}, jwt.WithValidMethods([]string{jwt.SigningMethodRS256.Alg()}))
 
 	if err != nil || !token.Valid {
 		return nil, nil, utils.NewError(utils.ErrCodeUnauthorized, "Invalid token")

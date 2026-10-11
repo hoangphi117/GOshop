@@ -177,6 +177,9 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 		createOrderParams := sqlc.CreateOrderParams{
 			OrderNumber:          orderNumber,
 			OrderUserID:          user.UserID,
+			OrderUserUuid:        user.UserUuid,
+			OrderCustomerName:    user.UserFullname,
+			OrderCustomerEmail:   user.UserEmail,
 			OrderShippingName:    input.ShippingName,
 			OrderShippingPhone:   input.ShippingPhone,
 			OrderShippingAddress: input.ShippingAddress,

@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"goshop/internal/utils"
+	"goshop/pkg/logger"
 	"goshop/pkg/storage"
 	"strconv"
 )
@@ -107,7 +108,16 @@ func NewConfig() *Config {
 		MailProviderConfig: mailProviderConfig,
 		Storage:            storageConfig,
 		IdentityServiceURL: utils.GetEnv("IDENTITY_SERVICE_URL", "http://localhost:8081"),
-		InternalSecret:     utils.GetEnv("INTERNAL_API_SECRET", "goshop-internal-secret-token"),
+		InternalSecret: func() string {
+			secret := utils.GetEnv("INTERNAL_API_SECRET", "")
+			if utils.GetEnv("APP_ENV", "development") == "production" && secret == "" {
+				logger.Log.Fatal().Msg("FATAL: INTERNAL_API_SECRET must be explicitly configured in production environment")
+			}
+			if secret == "" {
+				return "goshop-internal-secret-token"
+			}
+			return secret
+		}(),
 	}
 }
 

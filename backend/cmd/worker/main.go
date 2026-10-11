@@ -217,7 +217,7 @@ func NewWorker(cfg *config.Config) *Worker {
 		utils.GetIntEnv("NOTIFICATION_RETENTION_DAYS", 30),
 	)
 
-	userSyncConsumer := worker.NewUserSyncConsumer(redisClient)
+	userSyncConsumer := worker.NewUserSyncConsumer(redisClient, db.DBPool)
 
 	return &Worker{
 		rabbitMQ:               rabbitMQ,
