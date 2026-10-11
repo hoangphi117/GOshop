@@ -41,6 +41,12 @@ build-worker:
 build-ws-gateway:
 	cd backend && go build -o bin/ws-gateway ./cmd/ws-gateway
 
+identity:
+	cd backend && go run ./cmd/identity
+
+build-identity:
+	cd backend && go build -o bin/identity ./cmd/identity
+
 run-binary:
 	./backend/bin/goshop
 

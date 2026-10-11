@@ -1,0 +1,51 @@
+package main
+
+import (
+	"goshop/internal/app"
+	"goshop/internal/config"
+	"goshop/internal/utils"
+	"goshop/pkg/logger"
+	"path/filepath"
+
+	"github.com/joho/godotenv"
+)
+
+// @title           GOshop Identity Service API
+// @version         1.0
+// @description     Dedicated Identity microservice hosting AuthModule, UserModule, and AddressModule.
+// @host            localhost:8081
+// @BasePath        /
+
+func main() {
+	rootDir := utils.MustGetwd()
+
+	logFile := filepath.Join(rootDir, "internal/logs/identity.log")
+	logger.InitLogger(logger.LoggerConfig{
+		Level:      "info",
+		Filename:   logFile,
+		MaxSize:    1,
+		MaxBackups: 5,
+		MaxAge:     5,
+		Compress:   true,
+		IsDev:      utils.GetEnv("APP_ENV", "development"),
+	})
+
+	if err := godotenv.Load(filepath.Join(rootDir, ".env")); err != nil {
+		logger.Log.Warn().Msg("⚠️ No .env found")
+	} else {
+		logger.Log.Info().Msg("Loaded .env successfully in Identity Service!")
+	}
+
+	cfg := config.NewConfig()
+	port := utils.GetEnv("IDENTITY_SERVER_PORT", "8081")
+	cfg.ServerAddress = ":" + port
+
+	application, err := app.NewIdentityApplication(cfg)
+	if err != nil {
+		logger.Log.Fatal().Err(err).Msg("Failed to create identity application")
+	}
+
+	if err := application.Run(); err != nil {
+		logger.Log.Fatal().Err(err).Msg("Identity application failed to run")
+	}
+}

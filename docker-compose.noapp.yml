@@ -29,7 +29,7 @@ services:
       - goshop-network
 
   redis:
-    image: redis:7-alpine
+    image: redis:alpine
     container_name: goshop-redis
     restart: unless-stopped
     ports:
@@ -48,6 +48,9 @@ services:
     image: rabbitmq:3-management-alpine
     container_name: goshop-rabbitmq
     restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-goshop}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-goshop}
     ports:
       - "5672:5672"
       - "15672:15672"
