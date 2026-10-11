@@ -53,9 +53,8 @@ func (rr *SqlReviewRepository) GetByProduct(ctx context.Context, productID int32
 				r.review_id, r.review_uuid, r.review_rating, r.review_title, 
 				r.review_comment, r.review_images, r.review_video_url, r.review_has_media,
 				r.review_reply, r.review_reply_at, r.review_created_at, r.review_updated_at,
-				r.review_helpful_count, u.user_fullname AS reviewer_name
+				r.review_helpful_count, r.review_user_name AS reviewer_name
 			FROM product_reviews r
-			JOIN users u ON u.user_id = r.review_user_id
 			WHERE r.review_product_id = $1 AND r.review_status = 1`
 
 	args := []any{productID}
@@ -193,7 +192,7 @@ func (rr *SqlReviewRepository) AdminGetAll(ctx context.Context, status *int16, r
 				r.review_id, r.review_uuid, 
 				p.product_uuid, p.product_name,
 				o.order_uuid,
-				u.user_fullname AS reviewer_name, u.user_email AS reviewer_email,
+				r.review_user_name AS reviewer_name, r.review_user_email AS reviewer_email,
 				r.review_rating, r.review_title, r.review_comment,
 				r.review_images, r.review_video_url, r.review_has_media,
 				r.review_status, r.review_reply, r.review_reply_at,
@@ -202,7 +201,6 @@ func (rr *SqlReviewRepository) AdminGetAll(ctx context.Context, status *int16, r
 			FROM product_reviews r
 			JOIN products p ON p.product_id = r.review_product_id
 			JOIN orders o ON o.order_id = r.review_order_id
-			JOIN users u ON u.user_id = r.review_user_id
 			WHERE 1=1`
 	args := []any{}
 	argIdx := 1

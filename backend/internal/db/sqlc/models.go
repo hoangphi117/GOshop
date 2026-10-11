@@ -281,6 +281,9 @@ type ProductReview struct {
 	ReviewStatus       int16              `json:"review_status"`
 	ReviewEditCount    int32              `json:"review_edit_count"`
 	ReviewHelpfulCount int32              `json:"review_helpful_count"`
+	ReviewUserName     string             `json:"review_user_name"`
+	ReviewUserEmail    string             `json:"review_user_email"`
+	ReviewUserAvatar   string             `json:"review_user_avatar"`
 	ReviewReply        *string            `json:"review_reply"`
 	ReviewReplyAt      pgtype.Timestamptz `json:"review_reply_at"`
 	ReviewCreatedAt    time.Time          `json:"review_created_at"`

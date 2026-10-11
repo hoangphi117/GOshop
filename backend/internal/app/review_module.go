@@ -20,9 +20,10 @@ func NewReviewModule(ctx *ModuleContext, rabbitmqService rabbitmq.RabbitMQServic
 	reviewRepo := repository.NewSqlReviewRepository(ctx.DB)
 	productRepo := repository.NewSqlProductRepository(ctx.DB)
 	orderRepo := repository.NewSqlOrderRepository(ctx.DB)
+	userRepo := repository.NewSqlUserRepository(ctx.DB)
 
 	// Initialize service
-	reviewService := v1service.NewReviewService(reviewRepo, productRepo, orderRepo, rabbitmqService, ctx.Redis)
+	reviewService := v1service.NewReviewService(reviewRepo, productRepo, orderRepo, rabbitmqService, ctx.Redis, userRepo)
 
 	// Initialize handler
 	reviewHandler := v1handler.NewReviewHandler(reviewService)

@@ -31,6 +31,7 @@ type reviewService struct {
 	repo        repository.ReviewRepository
 	productRepo repository.ProductRepository
 	orderRepo   repository.OrderRepository
+	userRepo    repository.UserReader
 	rabbitMQ    rabbitmq.RabbitMQService
 	cache       cache.RedisCacheService
 }
@@ -41,15 +42,21 @@ func NewReviewService(
 	orderRepo repository.OrderRepository,
 	rabbitMQ rabbitmq.RabbitMQService,
 	redisClient *redis.Client,
+	userReader ...repository.UserReader,
 ) ReviewService {
 	var cacheService cache.RedisCacheService
 	if redisClient != nil {
 		cacheService = cache.NewRedisCacheService(redisClient)
 	}
+	var uRepo repository.UserReader
+	if len(userReader) > 0 {
+		uRepo = userReader[0]
+	}
 	return &reviewService{
 		repo:        repo,
 		productRepo: productRepo,
 		orderRepo:   orderRepo,
+		userRepo:    uRepo,
 		rabbitMQ:    rabbitMQ,
 		cache:       cacheService,
 	}
@@ -246,16 +253,43 @@ func (rs *reviewService) CreateReview(ctx context.Context, userID int32, input v
 		imageURLs = []string{}
 	}
 
+	userName := order.OrderCustomerName
+	userEmail := order.OrderCustomerEmail
+	var userAvatar string
+
+	if rs.userRepo != nil && userID > 0 {
+		if u, err := rs.userRepo.GetByID(ctx, userID); err == nil {
+			if u.UserFullname != "" {
+				userName = u.UserFullname
+			}
+			if u.UserEmail != "" {
+				userEmail = u.UserEmail
+			}
+			if u.UserAvatarUrl != nil && *u.UserAvatarUrl != "" {
+				userAvatar = *u.UserAvatarUrl
+			} else if u.UserAvatar != "" {
+				userAvatar = u.UserAvatar
+			}
+		}
+	}
+
+	if userName == "" {
+		userName = "Customer"
+	}
+
 	createParams := sqlc.CreateReviewParams{
-		ReviewUserID:    userID,
-		ReviewProductID: product.ProductID,
-		ReviewOrderID:   order.OrderID,
-		ReviewRating:    int16(input.Rating),
-		ReviewTitle:     input.Title,
-		ReviewComment:   input.Comment,
-		ReviewImages:    imageURLs,
-		ReviewVideoUrl:  videoURL,
-		ReviewHasMedia:  hasMedia,
+		ReviewUserID:     userID,
+		ReviewProductID:  product.ProductID,
+		ReviewOrderID:    order.OrderID,
+		ReviewRating:     int16(input.Rating),
+		ReviewTitle:      input.Title,
+		ReviewComment:    input.Comment,
+		ReviewImages:     imageURLs,
+		ReviewVideoUrl:   videoURL,
+		ReviewHasMedia:   hasMedia,
+		ReviewUserName:   userName,
+		ReviewUserEmail:  userEmail,
+		ReviewUserAvatar: userAvatar,
 	}
 
 	review, err := rs.repo.Create(txCtx, tx, createParams)
