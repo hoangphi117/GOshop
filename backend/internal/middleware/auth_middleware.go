@@ -97,6 +97,14 @@ func GetUserID(ctx *gin.Context) (int32, bool) {
 	return 0, false
 }
 
+func MustGetUserID(ctx *gin.Context) (int32, error) {
+	id, ok := GetUserID(ctx)
+	if !ok || id <= 0 {
+		return 0, utils.NewError(utils.ErrCodeUnauthorized, "Unauthorized")
+	}
+	return id, nil
+}
+
 func GetUserRole(ctx *gin.Context) (int32, bool) {
 	val, exists := ctx.Get("user_role")
 	if !exists || val == nil {

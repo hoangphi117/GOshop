@@ -28,7 +28,6 @@ const (
 
 type reviewService struct {
 	repo                repository.ReviewRepository
-	userRepo            repository.UserReader
 	productRepo         repository.ProductRepository
 	orderRepo           repository.OrderRepository
 	notificationService NotificationService
@@ -37,7 +36,6 @@ type reviewService struct {
 
 func NewReviewService(
 	repo repository.ReviewRepository,
-	userRepo repository.UserReader,
 	productRepo repository.ProductRepository,
 	orderRepo repository.OrderRepository,
 	notificationService NotificationService,
@@ -49,7 +47,6 @@ func NewReviewService(
 	}
 	return &reviewService{
 		repo:                repo,
-		userRepo:            userRepo,
 		productRepo:         productRepo,
 		orderRepo:           orderRepo,
 		notificationService: notificationService,
@@ -60,17 +57,6 @@ func NewReviewService(
 // -------------------------------------------------------------------------
 // Single Responsibility Helpers
 // -------------------------------------------------------------------------
-
-func (rs *reviewService) getUser(ctx context.Context, userUUID uuid.UUID) (sqlc.User, error) {
-	user, err := rs.userRepo.GetByUUID(ctx, userUUID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
-			return sqlc.User{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
-		}
-		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get user", err)
-	}
-	return user, nil
-}
 
 func (rs *reviewService) getProduct(ctx context.Context, productUUID uuid.UUID) (sqlc.GetProductByUUIDRow, error) {
 	product, err := rs.productRepo.GetByUUID(ctx, productUUID)
@@ -210,12 +196,7 @@ func (rs *reviewService) generateReviewCacheKey(productUUID string, rating *int3
 // ReviewService Implementation
 // -------------------------------------------------------------------------
 
-func (rs *reviewService) CreateReview(ctx context.Context, userUUID uuid.UUID, input v1dto.CreateReviewInput, imageURLs []string, videoURL *string) (v1dto.ReviewDTO, error) {
-	user, err := rs.getUser(ctx, userUUID)
-	if err != nil {
-		return v1dto.ReviewDTO{}, err
-	}
-
+func (rs *reviewService) CreateReview(ctx context.Context, userID int32, input v1dto.CreateReviewInput, imageURLs []string, videoURL *string) (v1dto.ReviewDTO, error) {
 	productUUID, err := uuid.Parse(input.ProductUUID)
 	if err != nil {
 		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Invalid product UUID")
@@ -236,7 +217,7 @@ func (rs *reviewService) CreateReview(ctx context.Context, userUUID uuid.UUID, i
 		return v1dto.ReviewDTO{}, err
 	}
 
-	if err := rs.validateReviewEligibility(ctx, order, user.UserID, product.ProductID); err != nil {
+	if err := rs.validateReviewEligibility(ctx, order, userID, product.ProductID); err != nil {
 		return v1dto.ReviewDTO{}, err
 	}
 
@@ -259,7 +240,7 @@ func (rs *reviewService) CreateReview(ctx context.Context, userUUID uuid.UUID, i
 	}
 
 	createParams := sqlc.CreateReviewParams{
-		ReviewUserID:    user.UserID,
+		ReviewUserID:    userID,
 		ReviewProductID: product.ProductID,
 		ReviewOrderID:   order.OrderID,
 		ReviewRating:    int16(input.Rating),
@@ -307,7 +288,7 @@ func (rs *reviewService) CreateReview(ctx context.Context, userUUID uuid.UUID, i
 		})
 	}
 
-	return v1dto.MapCreatedReviewToDTO(review, user.UserFullname, product.ProductUuid.String(), order.OrderUuid.String()), nil
+	return v1dto.MapCreatedReviewToDTO(review, order.OrderShippingName, product.ProductUuid.String(), order.OrderUuid.String()), nil
 }
 
 func (rs *reviewService) GetProductReviews(ctx context.Context, productUUID uuid.UUID, query v1dto.GetReviewsQuery) ([]v1dto.ReviewDTO, int32, error) {
@@ -434,12 +415,7 @@ func (rs *reviewService) GetProductRatingSummary(ctx context.Context, productUUI
 	return summaryDTO, nil
 }
 
-func (rs *reviewService) GetMyReviews(ctx context.Context, userUUID uuid.UUID, query v1dto.GetMyReviewsQuery) ([]v1dto.MyReviewDTO, int32, error) {
-	user, err := rs.getUser(ctx, userUUID)
-	if err != nil {
-		return nil, 0, err
-	}
-
+func (rs *reviewService) GetMyReviews(ctx context.Context, userID int32, query v1dto.GetMyReviewsQuery) ([]v1dto.MyReviewDTO, int32, error) {
 	page := query.Page
 	if page <= 0 {
 		page = 1
@@ -451,7 +427,7 @@ func (rs *reviewService) GetMyReviews(ctx context.Context, userUUID uuid.UUID, q
 
 	offset := (page - 1) * limit
 
-	total, err := rs.repo.CountByUserID(ctx, user.UserID)
+	total, err := rs.repo.CountByUserID(ctx, userID)
 	if err != nil {
 		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "Failed to count user reviews", err)
 	}
@@ -459,7 +435,7 @@ func (rs *reviewService) GetMyReviews(ctx context.Context, userUUID uuid.UUID, q
 		return []v1dto.MyReviewDTO{}, 0, nil
 	}
 
-	rows, err := rs.repo.GetByUserID(ctx, user.UserID, limit, offset)
+	rows, err := rs.repo.GetByUserID(ctx, userID, limit, offset)
 	if err != nil {
 		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "Failed to get user reviews", err)
 	}
@@ -467,18 +443,13 @@ func (rs *reviewService) GetMyReviews(ctx context.Context, userUUID uuid.UUID, q
 	return v1dto.MapToMyReviewDTOs(rows), int32(total), nil
 }
 
-func (rs *reviewService) UpdateReview(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID, input v1dto.UpdateReviewInput) (v1dto.ReviewDTO, error) {
-	user, err := rs.getUser(ctx, userUUID)
-	if err != nil {
-		return v1dto.ReviewDTO{}, err
-	}
-
+func (rs *reviewService) UpdateReview(ctx context.Context, userID int32, reviewUUID uuid.UUID, input v1dto.UpdateReviewInput) (v1dto.ReviewDTO, error) {
 	review, err := rs.getReview(ctx, reviewUUID)
 	if err != nil {
 		return v1dto.ReviewDTO{}, err
 	}
 
-	if err := rs.validateReviewEditEligibility(review, user.UserID); err != nil {
+	if err := rs.validateReviewEditEligibility(review, userID); err != nil {
 		return v1dto.ReviewDTO{}, err
 	}
 
@@ -524,7 +495,7 @@ func (rs *reviewService) UpdateReview(ctx context.Context, userUUID uuid.UUID, r
 
 	return v1dto.ReviewDTO{
 		UUID:         updatedReview.ReviewUuid.String(),
-		ReviewerName: user.UserFullname,
+		ReviewerName: "",
 		Rating:       int32(updatedReview.ReviewRating),
 		Title:        updatedReview.ReviewTitle,
 		Comment:      updatedReview.ReviewComment,
@@ -594,18 +565,13 @@ func (rs *reviewService) UpdateReviewStatus(ctx context.Context, reviewUUID uuid
 	}, nil
 }
 
-func (rs *reviewService) DeleteReview(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID) error {
-	user, err := rs.getUser(ctx, userUUID)
-	if err != nil {
-		return err
-	}
-
+func (rs *reviewService) DeleteReview(ctx context.Context, userID int32, reviewUUID uuid.UUID) error {
 	review, err := rs.getReview(ctx, reviewUUID)
 	if err != nil {
 		return err
 	}
 
-	if review.ReviewUserID != user.UserID {
+	if review.ReviewUserID != userID {
 		return utils.NewError(utils.ErrCodeForbidden, "You do not have permission to delete this review")
 	}
 
@@ -644,18 +610,13 @@ func (rs *reviewService) DeleteReview(ctx context.Context, userUUID uuid.UUID, r
 	return nil
 }
 
-func (rs *reviewService) ToggleHelpfulVote(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID) (v1dto.ToggleHelpfulResponseDTO, error) {
-	user, err := rs.getUser(ctx, userUUID)
-	if err != nil {
-		return v1dto.ToggleHelpfulResponseDTO{}, err
-	}
-
+func (rs *reviewService) ToggleHelpfulVote(ctx context.Context, userID int32, reviewUUID uuid.UUID) (v1dto.ToggleHelpfulResponseDTO, error) {
 	review, err := rs.getReview(ctx, reviewUUID)
 	if err != nil {
 		return v1dto.ToggleHelpfulResponseDTO{}, err
 	}
 
-	if review.ReviewUserID == user.UserID {
+	if review.ReviewUserID == userID {
 		return v1dto.ToggleHelpfulResponseDTO{}, utils.NewError(utils.ErrCodeBadRequest, "You cannot vote for your own review")
 	}
 
@@ -668,7 +629,7 @@ func (rs *reviewService) ToggleHelpfulVote(ctx context.Context, userUUID uuid.UU
 	}
 	defer tx.Rollback(txCtx)
 
-	hasVoted, err := rs.repo.HasHelpfulVote(txCtx, user.UserID, review.ReviewID)
+	hasVoted, err := rs.repo.HasHelpfulVote(txCtx, userID, review.ReviewID)
 	if err != nil {
 		return v1dto.ToggleHelpfulResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to check vote status", err)
 	}
@@ -677,13 +638,13 @@ func (rs *reviewService) ToggleHelpfulVote(ctx context.Context, userUUID uuid.UU
 	var voted bool
 
 	if hasVoted {
-		newCount, err = rs.repo.RemoveHelpfulVote(txCtx, tx, user.UserID, review.ReviewID)
+		newCount, err = rs.repo.RemoveHelpfulVote(txCtx, tx, userID, review.ReviewID)
 		if err != nil {
 			return v1dto.ToggleHelpfulResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to remove helpful vote", err)
 		}
 		voted = false
 	} else {
-		newCount, err = rs.repo.AddHelpfulVote(txCtx, tx, user.UserID, review.ReviewID)
+		newCount, err = rs.repo.AddHelpfulVote(txCtx, tx, userID, review.ReviewID)
 		if err != nil {
 			return v1dto.ToggleHelpfulResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to add helpful vote", err)
 		}
@@ -704,22 +665,17 @@ func (rs *reviewService) ToggleHelpfulVote(ctx context.Context, userUUID uuid.UU
 	}, nil
 }
 
-func (rs *reviewService) ReportReview(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID, input v1dto.ReportReviewInput) error {
-	user, err := rs.getUser(ctx, userUUID)
-	if err != nil {
-		return err
-	}
-
+func (rs *reviewService) ReportReview(ctx context.Context, userID int32, reviewUUID uuid.UUID, input v1dto.ReportReviewInput) error {
 	review, err := rs.getReview(ctx, reviewUUID)
 	if err != nil {
 		return err
 	}
 
-	if review.ReviewUserID == user.UserID {
+	if review.ReviewUserID == userID {
 		return utils.NewError(utils.ErrCodeBadRequest, "You cannot report your own review")
 	}
 
-	reported, err := rs.repo.HasReported(ctx, user.UserID, review.ReviewID)
+	reported, err := rs.repo.HasReported(ctx, userID, review.ReviewID)
 	if err != nil {
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to check report status", err)
 	}
@@ -737,7 +693,7 @@ func (rs *reviewService) ReportReview(ctx context.Context, userUUID uuid.UUID, r
 	defer tx.Rollback(txCtx)
 
 	if err := rs.repo.CreateReport(txCtx, tx, sqlc.InsertReviewReportParams{
-		UserID:   user.UserID,
+		UserID:   userID,
 		ReviewID: review.ReviewID,
 		Reason:   input.Reason,
 	}); err != nil {

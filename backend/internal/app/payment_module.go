@@ -33,7 +33,6 @@ func NewPaymentModule(
 		paymentRepo := repository.NewSqlPaymentRepository(ctx.DB)
 		webhookRepo := repository.NewSqlWebhookEventRepository(ctx.DB)
 		orderRepo := repository.NewSqlOrderRepository(ctx.DB)
-		userRepo := repository.NewSqlUserRepository(ctx.DB)
 
 		paymentConfig := payment.PaymentConfig{
 			MoMo: payment.MoMoConfig{
@@ -58,7 +57,7 @@ func NewPaymentModule(
 
 		orderReader := v1service.NewOrderReaderAdapter(orderRepo)
 		paymentService = v1service.NewPaymentService(
-			paymentRepo, orderReader, userRepo, webhookRepo,
+			paymentRepo, orderReader, webhookRepo,
 			providers, notificationService, cacheService, rabbitmqService, returnURL, webhookBaseURL,
 			outboxRepo,
 		)

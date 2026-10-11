@@ -17,9 +17,9 @@ import (
 )
 
 func (s *orderShippingService) SyncOrderTracking(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (v1dto.SyncTrackingResponseDTO, error) {
-	user, err := s.userRepo.GetByUUID(ctx, userUUID)
+	user, err := s.getCustomer(ctx, userUUID)
 	if err != nil {
-		return v1dto.SyncTrackingResponseDTO{}, s.handleUserNotFoundError(err)
+		return v1dto.SyncTrackingResponseDTO{}, err
 	}
 
 	order, err := s.orderRepo.GetByUUID(ctx, orderUUID)
@@ -146,9 +146,9 @@ func (s *orderShippingService) SyncOrderTracking(ctx context.Context, userUUID u
 }
 
 func (s *orderShippingService) AdminSyncActiveShippingOrders(ctx context.Context, userUUID uuid.UUID) (v1dto.SyncActiveShippingStatsDTO, error) {
-	user, err := s.userRepo.GetByUUID(ctx, userUUID)
+	user, err := s.getCustomer(ctx, userUUID)
 	if err != nil {
-		return v1dto.SyncActiveShippingStatsDTO{}, s.handleUserNotFoundError(err)
+		return v1dto.SyncActiveShippingStatsDTO{}, err
 	}
 
 	if user.UserLevel != RoleAdmin && user.UserLevel != RoleModerator {

@@ -164,7 +164,6 @@ func NewWorker(cfg *config.Config) *Worker {
 	paymentService := v1service.NewPaymentService(
 		paymentRepo,
 		orderReader,
-		userRepo,
 		webhookRepo,
 		paymentProviders,
 		notificationService,

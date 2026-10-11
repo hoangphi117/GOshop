@@ -43,12 +43,20 @@ func NewOrderInvoiceService(
 }
 
 func (s *orderInvoiceService) GetOrderInvoicePDF(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) ([]byte, string, error) {
-	user, err := s.userRepo.GetByUUID(ctx, userUUID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, "", utils.NewError(utils.ErrCodeNotFound, "User not found")
+	var user *OrderCustomer
+	if cust, ok := GetOrderCustomerFromContext(ctx); ok && cust.UserUUID == userUUID && cust.UserID > 0 {
+		user = cust
+	} else if s.userRepo != nil {
+		var err error
+		user, err = s.userRepo.GetByUUID(ctx, userUUID)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil, "", utils.NewError(utils.ErrCodeNotFound, "User not found")
+			}
+			return nil, "", utils.WrapError(utils.ErrCodeInternal, "Failed to get user", err)
 		}
-		return nil, "", utils.WrapError(utils.ErrCodeInternal, "Failed to get user", err)
+	} else {
+		return nil, "", utils.NewError(utils.ErrCodeNotFound, "User not found")
 	}
 
 	order, err := s.orderRepo.GetByUUID(ctx, orderUUID)

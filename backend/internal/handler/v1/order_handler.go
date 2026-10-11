@@ -1,6 +1,7 @@
 package v1handler
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	v1dto "goshop/internal/dto/v1"
@@ -86,6 +87,16 @@ func (oh *OrderHandler) getAdminService() v1service.OrderAdminService {
 	return oh.adminService
 }
 
+func (oh *OrderHandler) getRequestContext(ctx *gin.Context, userUUID uuid.UUID) context.Context {
+	reqCtx := ctx.Request.Context()
+	if userID, ok := middleware.GetUserID(ctx); ok && userID > 0 {
+		role, _ := middleware.GetUserRole(ctx)
+		customer := v1service.NewOrderCustomer(userID, userUUID, "", "", role, 1)
+		reqCtx = v1service.WithOrderCustomer(reqCtx, customer)
+	}
+	return reqCtx
+}
+
 // CreateOrder godoc
 // @Summary      Create order
 // @Description  Place a new order for current user
@@ -113,12 +124,7 @@ func (oh *OrderHandler) CreateOrder(ctx *gin.Context) {
 		return
 	}
 
-	reqCtx := ctx.Request.Context()
-	if userID, ok := middleware.GetUserID(ctx); ok && userID > 0 {
-		role, _ := middleware.GetUserRole(ctx)
-		customer := v1service.NewOrderCustomer(userID, userUUID, "", "", role, 1)
-		reqCtx = v1service.WithOrderCustomer(reqCtx, customer)
-	}
+	reqCtx := oh.getRequestContext(ctx, userUUID)
 
 	orderDTO, err := oh.getCustomerService().CreateOrder(reqCtx, userUUID, input)
 	if err != nil {
@@ -159,7 +165,8 @@ func (oh *OrderHandler) GetMyOrders(ctx *gin.Context) {
 		return
 	}
 
-	orders, totalOrders, err := oh.getCustomerService().GetMyOrders(ctx.Request.Context(), userUUID, input)
+	reqCtx := oh.getRequestContext(ctx, userUUID)
+	orders, totalOrders, err := oh.getCustomerService().GetMyOrders(reqCtx, userUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -202,7 +209,8 @@ func (oh *OrderHandler) GetOrderByUUID(ctx *gin.Context) {
 		return
 	}
 
-	orderDTO, err := oh.getCustomerService().GetOrderByUUID(ctx.Request.Context(), userUUID, orderUUID)
+	reqCtx := oh.getRequestContext(ctx, userUUID)
+	orderDTO, err := oh.getCustomerService().GetOrderByUUID(reqCtx, userUUID, orderUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -324,7 +332,8 @@ func (oh *OrderHandler) CancelOrder(ctx *gin.Context) {
 	}
 	_ = ctx.ShouldBindJSON(&body)
 
-	cancelledOrderDTO, err := oh.getCustomerService().CancelOrder(ctx.Request.Context(), userUUID, orderUUID, body.Reason)
+	reqCtx := oh.getRequestContext(ctx, userUUID)
+	cancelledOrderDTO, err := oh.getCustomerService().CancelOrder(reqCtx, userUUID, orderUUID, body.Reason)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -372,7 +381,8 @@ func (oh *OrderHandler) UpdateOrderShippingInfo(ctx *gin.Context) {
 		return
 	}
 
-	updatedOrderDTO, err := oh.getCustomerService().UpdateOrderShippingInfo(ctx.Request.Context(), userUUID, orderUUID, input)
+	reqCtx := oh.getRequestContext(ctx, userUUID)
+	updatedOrderDTO, err := oh.getCustomerService().UpdateOrderShippingInfo(reqCtx, userUUID, orderUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -420,7 +430,8 @@ func (oh *OrderHandler) UpdateOrderPaymentStatus(ctx *gin.Context) {
 		return
 	}
 
-	updatedOrderDTO, err := oh.getCustomerService().UpdateOrderPaymentStatus(ctx.Request.Context(), userUUID, orderUUID, input)
+	reqCtx := oh.getRequestContext(ctx, userUUID)
+	updatedOrderDTO, err := oh.getCustomerService().UpdateOrderPaymentStatus(reqCtx, userUUID, orderUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -461,7 +472,8 @@ func (oh *OrderHandler) DownloadInvoice(ctx *gin.Context) {
 		return
 	}
 
-	pdfBytes, fileName, err := oh.invoiceService.GetOrderInvoicePDF(ctx.Request.Context(), userUUID, orderUUID)
+	reqCtx := oh.getRequestContext(ctx, userUUID)
+	pdfBytes, fileName, err := oh.invoiceService.GetOrderInvoicePDF(reqCtx, userUUID, orderUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -554,7 +566,8 @@ func (oh *OrderHandler) GetOrderTimeline(ctx *gin.Context) {
 		return
 	}
 
-	timeline, err := oh.shippingService.GetOrderTimeline(ctx.Request.Context(), userUUID, orderUUID)
+	reqCtx := oh.getRequestContext(ctx, userUUID)
+	timeline, err := oh.shippingService.GetOrderTimeline(reqCtx, userUUID, orderUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -846,7 +859,8 @@ func (oh *OrderHandler) RequestOrderReturn(ctx *gin.Context) {
 		return
 	}
 
-	returnDTO, err := oh.returnService.RequestOrderReturn(ctx.Request.Context(), userUUID, orderUUID, input, input.Images, input.VideoURL)
+	reqCtx := oh.getRequestContext(ctx, userUUID)
+	returnDTO, err := oh.returnService.RequestOrderReturn(reqCtx, userUUID, orderUUID, input, input.Images, input.VideoURL)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -886,7 +900,8 @@ func (oh *OrderHandler) GetOrderReturnDetails(ctx *gin.Context) {
 		return
 	}
 
-	res, err := oh.returnService.GetOrderReturnDetails(ctx.Request.Context(), userUUID, orderUUID)
+	reqCtx := oh.getRequestContext(ctx, userUUID)
+	res, err := oh.returnService.GetOrderReturnDetails(reqCtx, userUUID, orderUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -923,7 +938,8 @@ func (oh *OrderHandler) GetMyOrderReturns(ctx *gin.Context) {
 		return
 	}
 
-	returns, total, err := oh.returnService.GetMyOrderReturns(ctx.Request.Context(), userUUID, query)
+	reqCtx := oh.getRequestContext(ctx, userUUID)
+	returns, total, err := oh.returnService.GetMyOrderReturns(reqCtx, userUUID, query)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -973,7 +989,8 @@ func (oh *OrderHandler) AdminGetReturns(ctx *gin.Context) {
 		return
 	}
 
-	returns, total, err := oh.returnService.AdminGetReturns(ctx.Request.Context(), userUUID, query)
+	reqCtx := oh.getRequestContext(ctx, userUUID)
+	returns, total, err := oh.returnService.AdminGetReturns(reqCtx, userUUID, query)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -1024,7 +1041,8 @@ func (oh *OrderHandler) AdminGetReturnDetail(ctx *gin.Context) {
 		return
 	}
 
-	res, err := oh.returnService.AdminGetReturnDetail(ctx.Request.Context(), userUUID, returnUUID)
+	reqCtx := oh.getRequestContext(ctx, userUUID)
+	res, err := oh.returnService.AdminGetReturnDetail(reqCtx, userUUID, returnUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -1072,7 +1090,8 @@ func (oh *OrderHandler) AdminUpdateReturnStatus(ctx *gin.Context) {
 		return
 	}
 
-	res, err := oh.returnService.AdminUpdateReturnStatus(ctx.Request.Context(), userUUID, returnUUID, input)
+	reqCtx := oh.getRequestContext(ctx, userUUID)
+	res, err := oh.returnService.AdminUpdateReturnStatus(reqCtx, userUUID, returnUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -1117,7 +1136,8 @@ func (oh *OrderHandler) CancelOrderReturn(ctx *gin.Context) {
 	var input v1dto.CancelOrderReturnInput
 	_ = ctx.ShouldBindJSON(&input)
 
-	res, err := oh.returnService.CancelOrderReturn(ctx.Request.Context(), userUUID, orderUUID, input)
+	reqCtx := oh.getRequestContext(ctx, userUUID)
+	res, err := oh.returnService.CancelOrderReturn(reqCtx, userUUID, orderUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -1165,7 +1185,8 @@ func (oh *OrderHandler) SubmitReturnShipping(ctx *gin.Context) {
 		return
 	}
 
-	res, err := oh.returnService.SubmitReturnShipping(ctx.Request.Context(), userUUID, orderUUID, input)
+	reqCtx := oh.getRequestContext(ctx, userUUID)
+	res, err := oh.returnService.SubmitReturnShipping(reqCtx, userUUID, orderUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -1213,7 +1234,8 @@ func (oh *OrderHandler) UpdateReturnBankAccount(ctx *gin.Context) {
 		return
 	}
 
-	res, err := oh.returnService.UpdateReturnBankAccount(ctx.Request.Context(), userUUID, orderUUID, input)
+	reqCtx := oh.getRequestContext(ctx, userUUID)
+	res, err := oh.returnService.UpdateReturnBankAccount(reqCtx, userUUID, orderUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -1258,7 +1280,8 @@ func (oh *OrderHandler) AdminProcessReturnRefund(ctx *gin.Context) {
 	var input v1dto.AdminReturnRefundInput
 	_ = ctx.ShouldBindJSON(&input)
 
-	res, err := oh.returnService.AdminProcessReturnRefund(ctx.Request.Context(), userUUID, returnUUID, input)
+	reqCtx := oh.getRequestContext(ctx, userUUID)
+	res, err := oh.returnService.AdminProcessReturnRefund(reqCtx, userUUID, returnUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -1298,7 +1321,8 @@ func (oh *OrderHandler) ConfirmOrderDelivery(ctx *gin.Context) {
 		return
 	}
 
-	res, err := oh.shippingService.ConfirmOrderDelivery(ctx.Request.Context(), userUUID, orderUUID)
+	reqCtx := oh.getRequestContext(ctx, userUUID)
+	res, err := oh.shippingService.ConfirmOrderDelivery(reqCtx, userUUID, orderUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -1338,7 +1362,8 @@ func (oh *OrderHandler) SyncOrderTracking(ctx *gin.Context) {
 		return
 	}
 
-	result, err := oh.shippingService.SyncOrderTracking(ctx.Request.Context(), userUUID, orderUUID)
+	reqCtx := oh.getRequestContext(ctx, userUUID)
+	result, err := oh.shippingService.SyncOrderTracking(reqCtx, userUUID, orderUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -1365,7 +1390,8 @@ func (oh *OrderHandler) AdminSyncActiveTracking(ctx *gin.Context) {
 		return
 	}
 
-	stats, err := oh.shippingService.AdminSyncActiveShippingOrders(ctx.Request.Context(), userUUID)
+	reqCtx := oh.getRequestContext(ctx, userUUID)
+	stats, err := oh.shippingService.AdminSyncActiveShippingOrders(reqCtx, userUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -1429,7 +1455,8 @@ func (oh *OrderHandler) BulkCancelOrders(ctx *gin.Context) {
 		return
 	}
 
-	result, err := oh.adminService.BulkCancel(ctx.Request.Context(), userUUID, input)
+	reqCtx := oh.getRequestContext(ctx, userUUID)
+	result, err := oh.adminService.BulkCancel(reqCtx, userUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return

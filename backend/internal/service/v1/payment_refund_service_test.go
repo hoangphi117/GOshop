@@ -49,7 +49,7 @@ func TestPaymentService_RefundPayment_Delegation(t *testing.T) {
 			},
 		}
 
-		baseSvc := v1service.NewPaymentService(nil, nil, nil, nil, nil, nil, nil, nil, "", "")
+		baseSvc := v1service.NewPaymentService(nil, nil, nil, nil, nil, nil, nil, "", "")
 		if concrete, ok := baseSvc.(interface{ WithRefundService(v1service.PaymentRefundService) *v1service.PaymentService }); ok {
 			// type assertion via concrete method
 			_ = concrete

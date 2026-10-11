@@ -25,13 +25,8 @@ import (
 // Step 3: Call external gateway with stable, deterministic merchant reference (txnRef).
 // Step 4: Persist gateway URL and provider transaction info into DB & Redis cache.
 // Step 5: On gateway timeout/uncertainty, preserve Pending status for background reconciliation.
-func (s *paymentService) CreatePaymentIntent(ctx context.Context, userUUID uuid.UUID, clientIP, idempotencyKey string, input v1dto.CreatePaymentIntentInput) (v1dto.PaymentIntentDTO, error) {
+func (s *paymentService) CreatePaymentIntent(ctx context.Context, userID int32, clientIP, idempotencyKey string, input v1dto.CreatePaymentIntentInput) (v1dto.PaymentIntentDTO, error) {
 	startTime := time.Now()
-
-	user, err := s.getUser(ctx, userUUID)
-	if err != nil {
-		return v1dto.PaymentIntentDTO{}, err
-	}
 
 	order, err := s.orderReader.GetByUUID(ctx, input.OrderUUID)
 	if err != nil {
@@ -41,7 +36,7 @@ func (s *paymentService) CreatePaymentIntent(ctx context.Context, userUUID uuid.
 		return v1dto.PaymentIntentDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to get order", err)
 	}
 
-	if err := s.validateOrderForPayment(order, user); err != nil {
+	if err := s.validateOrderForPayment(order, userID); err != nil {
 		return v1dto.PaymentIntentDTO{}, err
 	}
 
@@ -246,8 +241,8 @@ func (s *paymentService) CreatePaymentIntent(ctx context.Context, userUUID uuid.
 	return responseDTO, nil
 }
 
-func (s *paymentService) validateOrderForPayment(order *PaymentOrderSummary, user sqlc.User) error {
-	if order.UserID != user.UserID {
+func (s *paymentService) validateOrderForPayment(order *PaymentOrderSummary, userID int32) error {
+	if order.UserID != userID {
 		return utils.NewError(utils.ErrCodeForbidden, "You are not authorized to pay for this order")
 	}
 

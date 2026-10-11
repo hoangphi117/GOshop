@@ -142,11 +142,25 @@ func isValidStatusTransition(currentStatus, newStatus int32) bool {
 	}
 }
 
-func (s *orderLifecycleService) CancelOrder(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, reason *string) (*v1dto.OrderSummaryDTO, error) {
-	// 1. Lấy thông tin User & Order
+func (s *orderLifecycleService) getCustomer(ctx context.Context, userUUID uuid.UUID) (*OrderCustomer, error) {
+	if cust, ok := GetOrderCustomerFromContext(ctx); ok && cust.UserUUID == userUUID && cust.UserID > 0 {
+		return cust, nil
+	}
+	if s.userReader == nil {
+		return nil, utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
 	user, err := s.userReader.GetByUUID(ctx, userUUID)
 	if err != nil {
 		return nil, handleUserNotFoundError(err)
+	}
+	return user, nil
+}
+
+func (s *orderLifecycleService) CancelOrder(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, reason *string) (*v1dto.OrderSummaryDTO, error) {
+	// 1. Lấy thông tin User & Order
+	user, err := s.getCustomer(ctx, userUUID)
+	if err != nil {
+		return nil, err
 	}
 
 	orderRow, err := s.orderStore.GetByUUID(ctx, orderUUID)
@@ -352,9 +366,9 @@ func (s *orderLifecycleService) recordCancellationTracking(ctx context.Context, 
 }
 
 func (s *orderLifecycleService) UpdateOrderShippingInfo(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.UpdateOrderShippingInfoInput) (*v1dto.OrderDTO, error) {
-	user, err := s.userReader.GetByUUID(ctx, userUUID)
+	user, err := s.getCustomer(ctx, userUUID)
 	if err != nil {
-		return nil, handleUserNotFoundError(err)
+		return nil, err
 	}
 
 	existingOrder, err := s.orderStore.GetByUUID(ctx, orderUUID)

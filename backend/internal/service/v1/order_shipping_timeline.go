@@ -17,9 +17,9 @@ import (
 
 // GetOrderTimeline retrieves the full tracking event history or synthesizes a baseline timeline.
 func (s *orderShippingService) GetOrderTimeline(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (v1dto.OrderTimelineResponseDTO, error) {
-	user, err := s.userRepo.GetByUUID(ctx, userUUID)
+	user, err := s.getCustomer(ctx, userUUID)
 	if err != nil {
-		return v1dto.OrderTimelineResponseDTO{}, s.handleUserNotFoundError(err)
+		return v1dto.OrderTimelineResponseDTO{}, err
 	}
 
 	order, err := s.orderRepo.GetByUUID(ctx, orderUUID)

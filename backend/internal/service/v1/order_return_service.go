@@ -73,6 +73,20 @@ func (s *orderReturnService) handleUserNotFoundError(err error) error {
 	return utils.WrapError(utils.ErrCodeInternal, "Failed to get user", err)
 }
 
+func (s *orderReturnService) getCustomer(ctx context.Context, userUUID uuid.UUID) (*OrderCustomer, error) {
+	if cust, ok := GetOrderCustomerFromContext(ctx); ok && cust.UserUUID == userUUID && cust.UserID > 0 {
+		return cust, nil
+	}
+	if s.userRepo == nil {
+		return nil, utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
+	user, err := s.userRepo.GetByUUID(ctx, userUUID)
+	if err != nil {
+		return nil, s.handleUserNotFoundError(err)
+	}
+	return user, nil
+}
+
 func (s *orderReturnService) handleOrderNotFoundError(err error) error {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return utils.NewError(utils.ErrCodeNotFound, "Order not found")
@@ -81,9 +95,9 @@ func (s *orderReturnService) handleOrderNotFoundError(err error) error {
 }
 
 func (s *orderReturnService) RequestOrderReturn(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.CreateOrderReturnInput, imageURLs []string, videoURL *string) (v1dto.OrderReturnDTO, error) {
-	user, err := s.userRepo.GetByUUID(ctx, userUUID)
+	user, err := s.getCustomer(ctx, userUUID)
 	if err != nil {
-		return v1dto.OrderReturnDTO{}, s.handleUserNotFoundError(err)
+		return v1dto.OrderReturnDTO{}, err
 	}
 
 	order, err := s.orderRepo.GetByUUID(ctx, orderUUID)
@@ -267,9 +281,9 @@ func isReturnAccessibleByUser(user *OrderCustomer, res *resolvedOrderReturn) boo
 }
 
 func (s *orderReturnService) GetOrderReturnDetails(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (v1dto.OrderReturnDetailDTO, error) {
-	user, err := s.userRepo.GetByUUID(ctx, userUUID)
+	user, err := s.getCustomer(ctx, userUUID)
 	if err != nil {
-		return v1dto.OrderReturnDetailDTO{}, s.handleUserNotFoundError(err)
+		return v1dto.OrderReturnDetailDTO{}, err
 	}
 
 	resolved, err := s.resolveOrderReturn(ctx, orderUUID)
@@ -329,9 +343,9 @@ func (s *orderReturnService) GetOrderReturnDetails(ctx context.Context, userUUID
 }
 
 func (s *orderReturnService) GetMyOrderReturns(ctx context.Context, userUUID uuid.UUID, query v1dto.GetMyOrderReturnsQuery) ([]v1dto.UserReturnSummaryDTO, int64, error) {
-	user, err := s.userRepo.GetByUUID(ctx, userUUID)
+	user, err := s.getCustomer(ctx, userUUID)
 	if err != nil {
-		return nil, 0, s.handleUserNotFoundError(err)
+		return nil, 0, err
 	}
 
 	page := query.Page
@@ -393,9 +407,9 @@ func (s *orderReturnService) GetMyOrderReturns(ctx context.Context, userUUID uui
 }
 
 func (s *orderReturnService) CancelOrderReturn(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.CancelOrderReturnInput) (v1dto.CancelOrderReturnResponseDTO, error) {
-	user, err := s.userRepo.GetByUUID(ctx, userUUID)
+	user, err := s.getCustomer(ctx, userUUID)
 	if err != nil {
-		return v1dto.CancelOrderReturnResponseDTO{}, s.handleUserNotFoundError(err)
+		return v1dto.CancelOrderReturnResponseDTO{}, err
 	}
 
 	resolved, err := s.resolveOrderReturn(ctx, orderUUID)

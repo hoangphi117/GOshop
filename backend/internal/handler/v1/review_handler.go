@@ -36,7 +36,7 @@ func NewReviewHandler(service v1service.ReviewService) *ReviewHandler {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /reviews [post]
 func (rh *ReviewHandler) CreateReview(ctx *gin.Context) {
-	userUUID, err := middleware.GetUserUUID(ctx)
+	userID, err := middleware.MustGetUserID(ctx)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -53,7 +53,7 @@ func (rh *ReviewHandler) CreateReview(ctx *gin.Context) {
 		return
 	}
 
-	review, err := rh.service.CreateReview(ctx.Request.Context(), userUUID, input, input.Images, input.VideoURL)
+	review, err := rh.service.CreateReview(ctx.Request.Context(), userID, input, input.Images, input.VideoURL)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -161,7 +161,7 @@ func (rh *ReviewHandler) GetProductRatingSummary(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /reviews/me [get]
 func (rh *ReviewHandler) GetMyReviews(ctx *gin.Context) {
-	userUUID, err := middleware.GetUserUUID(ctx)
+	userID, err := middleware.MustGetUserID(ctx)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -173,7 +173,7 @@ func (rh *ReviewHandler) GetMyReviews(ctx *gin.Context) {
 		return
 	}
 
-	reviews, total, err := rh.service.GetMyReviews(ctx.Request.Context(), userUUID, query)
+	reviews, total, err := rh.service.GetMyReviews(ctx.Request.Context(), userID, query)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -207,7 +207,7 @@ func (rh *ReviewHandler) GetMyReviews(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /reviews/{uuid} [put]
 func (rh *ReviewHandler) UpdateReview(ctx *gin.Context) {
-	userUUID, err := middleware.GetUserUUID(ctx)
+	userID, err := middleware.MustGetUserID(ctx)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -231,7 +231,7 @@ func (rh *ReviewHandler) UpdateReview(ctx *gin.Context) {
 		return
 	}
 
-	updatedReview, err := rh.service.UpdateReview(ctx.Request.Context(), userUUID, reviewUUID, input)
+	updatedReview, err := rh.service.UpdateReview(ctx.Request.Context(), userID, reviewUUID, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -253,7 +253,7 @@ func (rh *ReviewHandler) UpdateReview(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /reviews/{uuid} [delete]
 func (rh *ReviewHandler) DeleteReview(ctx *gin.Context) {
-	userUUID, err := middleware.GetUserUUID(ctx)
+	userID, err := middleware.MustGetUserID(ctx)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -271,7 +271,7 @@ func (rh *ReviewHandler) DeleteReview(ctx *gin.Context) {
 		return
 	}
 
-	if err := rh.service.DeleteReview(ctx.Request.Context(), userUUID, reviewUUID); err != nil {
+	if err := rh.service.DeleteReview(ctx.Request.Context(), userID, reviewUUID); err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
@@ -422,7 +422,7 @@ func (rh *ReviewHandler) AdminReplyReview(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /reviews/{uuid}/helpful [post]
 func (rh *ReviewHandler) ToggleHelpfulVote(ctx *gin.Context) {
-	userUUID, err := middleware.GetUserUUID(ctx)
+	userID, err := middleware.MustGetUserID(ctx)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -440,7 +440,7 @@ func (rh *ReviewHandler) ToggleHelpfulVote(ctx *gin.Context) {
 		return
 	}
 
-	response, err := rh.service.ToggleHelpfulVote(ctx.Request.Context(), userUUID, reviewUUID)
+	response, err := rh.service.ToggleHelpfulVote(ctx.Request.Context(), userID, reviewUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -464,7 +464,7 @@ func (rh *ReviewHandler) ToggleHelpfulVote(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /reviews/{uuid}/report [post]
 func (rh *ReviewHandler) ReportReview(ctx *gin.Context) {
-	userUUID, err := middleware.GetUserUUID(ctx)
+	userID, err := middleware.MustGetUserID(ctx)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -488,7 +488,7 @@ func (rh *ReviewHandler) ReportReview(ctx *gin.Context) {
 		return
 	}
 
-	if err := rh.service.ReportReview(ctx.Request.Context(), userUUID, reviewUUID, input); err != nil {
+	if err := rh.service.ReportReview(ctx.Request.Context(), userID, reviewUUID, input); err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}

@@ -38,7 +38,7 @@ func NewPaymentHandler(paymentService v1service.PaymentService) *PaymentHandler 
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /payments/create-intent [post]
 func (h *PaymentHandler) CreatePaymentIntent(ctx *gin.Context) {
-	userUUID, err := middleware.GetUserUUID(ctx)
+	userID, err := middleware.MustGetUserID(ctx)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -53,7 +53,7 @@ func (h *PaymentHandler) CreatePaymentIntent(ctx *gin.Context) {
 	clientIP := ctx.ClientIP()
 	idempotencyKey := ctx.GetHeader("X-Idempotency-Key")
 
-	result, err := h.paymentService.CreatePaymentIntent(ctx.Request.Context(), userUUID, clientIP, idempotencyKey, input)
+	result, err := h.paymentService.CreatePaymentIntent(ctx.Request.Context(), userID, clientIP, idempotencyKey, input)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -116,11 +116,12 @@ func (h *PaymentHandler) HandleWebhook(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /payments/order/{order_uuid} [get]
 func (h *PaymentHandler) GetPaymentHistory(ctx *gin.Context) {
-	userUUID, err := middleware.GetUserUUID(ctx)
+	userID, err := middleware.MustGetUserID(ctx)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
 	}
+	userRole, _ := middleware.GetUserRole(ctx)
 
 	var params v1dto.GetTransactionHistoryByOrderUUID
 	if err := ctx.ShouldBindUri(&params); err != nil {
@@ -134,7 +135,7 @@ func (h *PaymentHandler) GetPaymentHistory(ctx *gin.Context) {
 		return
 	}
 
-	paymentHistory, err := h.paymentService.GetPaymentHistory(ctx.Request.Context(), userUUID, orderUUID)
+	paymentHistory, err := h.paymentService.GetPaymentHistory(ctx.Request.Context(), userID, userRole, orderUUID)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return

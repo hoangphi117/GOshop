@@ -16,9 +16,9 @@ import (
 
 // SubmitReturnShipping submits customer shipping courier and tracking code for an approved return.
 func (s *orderReturnService) SubmitReturnShipping(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.SubmitReturnShippingInput) (v1dto.SubmitReturnShippingResponseDTO, error) {
-	user, err := s.userRepo.GetByUUID(ctx, userUUID)
+	user, err := s.getCustomer(ctx, userUUID)
 	if err != nil {
-		return v1dto.SubmitReturnShippingResponseDTO{}, s.handleUserNotFoundError(err)
+		return v1dto.SubmitReturnShippingResponseDTO{}, err
 	}
 
 	resolved, err := s.resolveOrderReturn(ctx, orderUUID)
@@ -127,9 +127,9 @@ func (s *orderReturnService) SubmitReturnShipping(ctx context.Context, userUUID 
 
 // UpdateReturnBankAccount updates customer refund bank details for pending or approved return requests.
 func (s *orderReturnService) UpdateReturnBankAccount(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID, input v1dto.UpdateReturnBankAccountInput) (v1dto.UpdateReturnBankAccountResponseDTO, error) {
-	user, err := s.userRepo.GetByUUID(ctx, userUUID)
+	user, err := s.getCustomer(ctx, userUUID)
 	if err != nil {
-		return v1dto.UpdateReturnBankAccountResponseDTO{}, s.handleUserNotFoundError(err)
+		return v1dto.UpdateReturnBankAccountResponseDTO{}, err
 	}
 
 	resolved, err := s.resolveOrderReturn(ctx, orderUUID)

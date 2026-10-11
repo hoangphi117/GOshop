@@ -716,25 +716,25 @@ func (m *MockRedisCacheService) TTL(key string) (time.Duration, error) {
 // MockReviewService
 // =========================================================================
 type MockReviewService struct {
-	CreateReviewFunc            func(ctx context.Context, userUUID uuid.UUID, input v1dto.CreateReviewInput, imageURLs []string, videoURL *string) (v1dto.ReviewDTO, error)
+	CreateReviewFunc            func(ctx context.Context, userID int32, input v1dto.CreateReviewInput, imageURLs []string, videoURL *string) (v1dto.ReviewDTO, error)
 	GetProductReviewsFunc       func(ctx context.Context, productUUID uuid.UUID, query v1dto.GetReviewsQuery) ([]v1dto.ReviewDTO, int32, error)
 	GetProductRatingSummaryFunc func(ctx context.Context, productUUID uuid.UUID) (v1dto.RatingSummaryRow, error)
-	GetMyReviewsFunc            func(ctx context.Context, userUUID uuid.UUID, query v1dto.GetMyReviewsQuery) ([]v1dto.MyReviewDTO, int32, error)
-	UpdateReviewFunc            func(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID, input v1dto.UpdateReviewInput) (v1dto.ReviewDTO, error)
+	GetMyReviewsFunc            func(ctx context.Context, userID int32, query v1dto.GetMyReviewsQuery) ([]v1dto.MyReviewDTO, int32, error)
+	UpdateReviewFunc            func(ctx context.Context, userID int32, reviewUUID uuid.UUID, input v1dto.UpdateReviewInput) (v1dto.ReviewDTO, error)
 	UpdateReviewStatusFunc      func(ctx context.Context, reviewUUID uuid.UUID, input v1dto.UpdateReviewStatusInput) (v1dto.ReviewDTO, error)
-	DeleteReviewFunc            func(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID) error
+	DeleteReviewFunc            func(ctx context.Context, userID int32, reviewUUID uuid.UUID) error
 	AdminGetAllReviewsFunc      func(ctx context.Context, query v1dto.AdminGetReviewsQuery) ([]v1dto.AdminReviewDTO, int32, error)
 	AdminReplyReviewFunc        func(ctx context.Context, reviewUUID uuid.UUID, input v1dto.ReplyReviewInput) (v1dto.ReviewDTO, error)
-	ToggleHelpfulVoteFunc       func(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID) (v1dto.ToggleHelpfulResponseDTO, error)
-	ReportReviewFunc            func(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID, input v1dto.ReportReviewInput) error
+	ToggleHelpfulVoteFunc       func(ctx context.Context, userID int32, reviewUUID uuid.UUID) (v1dto.ToggleHelpfulResponseDTO, error)
+	ReportReviewFunc            func(ctx context.Context, userID int32, reviewUUID uuid.UUID, input v1dto.ReportReviewInput) error
 	AdminForceDeleteReviewFunc  func(ctx context.Context, reviewUUID uuid.UUID) error
 	GetReviewReportsFunc        func(ctx context.Context, reviewUUID uuid.UUID) ([]v1dto.ReviewReportDTO, error)
 	AdminDismissReportsFunc     func(ctx context.Context, reviewUUID uuid.UUID) error
 }
 
-func (m *MockReviewService) CreateReview(ctx context.Context, userUUID uuid.UUID, input v1dto.CreateReviewInput, imageURLs []string, videoURL *string) (v1dto.ReviewDTO, error) {
+func (m *MockReviewService) CreateReview(ctx context.Context, userID int32, input v1dto.CreateReviewInput, imageURLs []string, videoURL *string) (v1dto.ReviewDTO, error) {
 	if m.CreateReviewFunc != nil {
-		return m.CreateReviewFunc(ctx, userUUID, input, imageURLs, videoURL)
+		return m.CreateReviewFunc(ctx, userID, input, imageURLs, videoURL)
 	}
 	return v1dto.ReviewDTO{}, nil
 }
@@ -753,16 +753,16 @@ func (m *MockReviewService) GetProductRatingSummary(ctx context.Context, product
 	return v1dto.RatingSummaryRow{}, nil
 }
 
-func (m *MockReviewService) GetMyReviews(ctx context.Context, userUUID uuid.UUID, query v1dto.GetMyReviewsQuery) ([]v1dto.MyReviewDTO, int32, error) {
+func (m *MockReviewService) GetMyReviews(ctx context.Context, userID int32, query v1dto.GetMyReviewsQuery) ([]v1dto.MyReviewDTO, int32, error) {
 	if m.GetMyReviewsFunc != nil {
-		return m.GetMyReviewsFunc(ctx, userUUID, query)
+		return m.GetMyReviewsFunc(ctx, userID, query)
 	}
 	return nil, 0, nil
 }
 
-func (m *MockReviewService) UpdateReview(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID, input v1dto.UpdateReviewInput) (v1dto.ReviewDTO, error) {
+func (m *MockReviewService) UpdateReview(ctx context.Context, userID int32, reviewUUID uuid.UUID, input v1dto.UpdateReviewInput) (v1dto.ReviewDTO, error) {
 	if m.UpdateReviewFunc != nil {
-		return m.UpdateReviewFunc(ctx, userUUID, reviewUUID, input)
+		return m.UpdateReviewFunc(ctx, userID, reviewUUID, input)
 	}
 	return v1dto.ReviewDTO{}, nil
 }
@@ -774,9 +774,9 @@ func (m *MockReviewService) UpdateReviewStatus(ctx context.Context, reviewUUID u
 	return v1dto.ReviewDTO{}, nil
 }
 
-func (m *MockReviewService) DeleteReview(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID) error {
+func (m *MockReviewService) DeleteReview(ctx context.Context, userID int32, reviewUUID uuid.UUID) error {
 	if m.DeleteReviewFunc != nil {
-		return m.DeleteReviewFunc(ctx, userUUID, reviewUUID)
+		return m.DeleteReviewFunc(ctx, userID, reviewUUID)
 	}
 	return nil
 }
@@ -795,16 +795,16 @@ func (m *MockReviewService) AdminReplyReview(ctx context.Context, reviewUUID uui
 	return v1dto.ReviewDTO{}, nil
 }
 
-func (m *MockReviewService) ToggleHelpfulVote(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID) (v1dto.ToggleHelpfulResponseDTO, error) {
+func (m *MockReviewService) ToggleHelpfulVote(ctx context.Context, userID int32, reviewUUID uuid.UUID) (v1dto.ToggleHelpfulResponseDTO, error) {
 	if m.ToggleHelpfulVoteFunc != nil {
-		return m.ToggleHelpfulVoteFunc(ctx, userUUID, reviewUUID)
+		return m.ToggleHelpfulVoteFunc(ctx, userID, reviewUUID)
 	}
 	return v1dto.ToggleHelpfulResponseDTO{}, nil
 }
 
-func (m *MockReviewService) ReportReview(ctx context.Context, userUUID uuid.UUID, reviewUUID uuid.UUID, input v1dto.ReportReviewInput) error {
+func (m *MockReviewService) ReportReview(ctx context.Context, userID int32, reviewUUID uuid.UUID, input v1dto.ReportReviewInput) error {
 	if m.ReportReviewFunc != nil {
-		return m.ReportReviewFunc(ctx, userUUID, reviewUUID, input)
+		return m.ReportReviewFunc(ctx, userID, reviewUUID, input)
 	}
 	return nil
 }
@@ -969,19 +969,19 @@ func (m *MockAddressService) DeleteUserAddress(ctx context.Context, userUUID uui
 // =========================================================================
 
 type MockPaymentService struct {
-	CreatePaymentIntentFunc      func(ctx context.Context, userUUID uuid.UUID, clientIP, idempotencyKey string, input v1dto.CreatePaymentIntentInput) (v1dto.PaymentIntentDTO, error)
+	CreatePaymentIntentFunc      func(ctx context.Context, userID int32, clientIP, idempotencyKey string, input v1dto.CreatePaymentIntentInput) (v1dto.PaymentIntentDTO, error)
 	HandleWebhookFunc            func(ctx context.Context, provider string, rawPayload []byte, headers map[string]string) error
 	ProcessWebhookFunc           func(ctx context.Context, msg v1dto.PaymentWebhookMessage) error
 	ProcessWebhookMessageFunc    func(headers amqp.Table, body []byte) error
-	GetPaymentHistoryFunc        func(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) ([]v1dto.PaymentTransactionDTO, error)
+	GetPaymentHistoryFunc        func(ctx context.Context, userID int32, userRole int32, orderUUID uuid.UUID) ([]v1dto.PaymentTransactionDTO, error)
 	ConfirmCODPaymentFunc        func(ctx context.Context, orderUUID uuid.UUID) error
 	RefundPaymentFunc            func(ctx context.Context, idempotencyKey string, input v1dto.RefundPaymentInput) (v1dto.PaymentTransactionDTO, error)
 	ReconcilePendingPaymentsFunc func(ctx context.Context) error
 }
 
-func (m *MockPaymentService) CreatePaymentIntent(ctx context.Context, userUUID uuid.UUID, clientIP, idempotencyKey string, input v1dto.CreatePaymentIntentInput) (v1dto.PaymentIntentDTO, error) {
+func (m *MockPaymentService) CreatePaymentIntent(ctx context.Context, userID int32, clientIP, idempotencyKey string, input v1dto.CreatePaymentIntentInput) (v1dto.PaymentIntentDTO, error) {
 	if m.CreatePaymentIntentFunc != nil {
-		return m.CreatePaymentIntentFunc(ctx, userUUID, clientIP, idempotencyKey, input)
+		return m.CreatePaymentIntentFunc(ctx, userID, clientIP, idempotencyKey, input)
 	}
 	return v1dto.PaymentIntentDTO{}, nil
 }
@@ -1007,9 +1007,9 @@ func (m *MockPaymentService) ProcessWebhookMessage(headers amqp.Table, body []by
 	return nil
 }
 
-func (m *MockPaymentService) GetPaymentHistory(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) ([]v1dto.PaymentTransactionDTO, error) {
+func (m *MockPaymentService) GetPaymentHistory(ctx context.Context, userID int32, userRole int32, orderUUID uuid.UUID) ([]v1dto.PaymentTransactionDTO, error) {
 	if m.GetPaymentHistoryFunc != nil {
-		return m.GetPaymentHistoryFunc(ctx, userUUID, orderUUID)
+		return m.GetPaymentHistoryFunc(ctx, userID, userRole, orderUUID)
 	}
 	return nil, nil
 }

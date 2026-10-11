@@ -17,12 +17,11 @@ func NewReviewModule(ctx *ModuleContext, notificationService v1service.Notificat
 
 	// Initialize repository
 	reviewRepo := repository.NewSqlReviewRepository(ctx.DB)
-	userRepo := repository.NewSqlUserRepository(ctx.DB)
 	productRepo := repository.NewSqlProductRepository(ctx.DB)
 	orderRepo := repository.NewSqlOrderRepository(ctx.DB)
 
 	// Initialize service
-	reviewService := v1service.NewReviewService(reviewRepo, userRepo, productRepo, orderRepo, notificationService, ctx.Redis)
+	reviewService := v1service.NewReviewService(reviewRepo, productRepo, orderRepo, notificationService, ctx.Redis)
 
 	// Initialize handler
 	reviewHandler := v1handler.NewReviewHandler(reviewService)

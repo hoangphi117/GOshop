@@ -37,10 +37,24 @@ func NewOrderQueryService(
 	}
 }
 
-func (s *orderQueryService) GetMyOrders(ctx context.Context, userUUID uuid.UUID, input v1dto.GetOrdersParam) ([]v1dto.OrderSummaryDTO, int32, error) {
+func (s *orderQueryService) getCustomer(ctx context.Context, userUUID uuid.UUID) (*OrderCustomer, error) {
+	if cust, ok := GetOrderCustomerFromContext(ctx); ok && cust.UserUUID == userUUID && cust.UserID > 0 {
+		return cust, nil
+	}
+	if s.userReader == nil {
+		return nil, utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
 	user, err := s.userReader.GetByUUID(ctx, userUUID)
 	if err != nil {
-		return []v1dto.OrderSummaryDTO{}, 0, handleUserNotFoundError(err)
+		return nil, handleUserNotFoundError(err)
+	}
+	return user, nil
+}
+
+func (s *orderQueryService) GetMyOrders(ctx context.Context, userUUID uuid.UUID, input v1dto.GetOrdersParam) ([]v1dto.OrderSummaryDTO, int32, error) {
+	user, err := s.getCustomer(ctx, userUUID)
+	if err != nil {
+		return []v1dto.OrderSummaryDTO{}, 0, err
 	}
 
 	if input.Sort == "" {
@@ -116,9 +130,9 @@ func (s *orderQueryService) GetMyOrders(ctx context.Context, userUUID uuid.UUID,
 }
 
 func (s *orderQueryService) GetOrderByUUID(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (*v1dto.OrderDTO, error) {
-	user, err := s.userReader.GetByUUID(ctx, userUUID)
+	user, err := s.getCustomer(ctx, userUUID)
 	if err != nil {
-		return nil, handleUserNotFoundError(err)
+		return nil, err
 	}
 
 	order, err := s.orderStore.GetByUUID(ctx, orderUUID)

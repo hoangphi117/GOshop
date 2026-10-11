@@ -19,9 +19,9 @@ import (
 
 // AdminUpdateReturnStatus handles Admin inspection, approval, rejection, and receiving of returned goods with automatic inventory restock.
 func (s *orderReturnService) AdminUpdateReturnStatus(ctx context.Context, userUUID uuid.UUID, returnUUID uuid.UUID, input v1dto.AdminUpdateReturnInput) (v1dto.AdminReturnSummaryDTO, error) {
-	user, err := s.userRepo.GetByUUID(ctx, userUUID)
+	user, err := s.getCustomer(ctx, userUUID)
 	if err != nil {
-		return v1dto.AdminReturnSummaryDTO{}, s.handleUserNotFoundError(err)
+		return v1dto.AdminReturnSummaryDTO{}, err
 	}
 
 	if user.UserLevel != RoleAdmin && user.UserLevel != RoleModerator {
@@ -178,9 +178,9 @@ func (s *orderReturnService) restockReturnedOrderItems(ctx context.Context, orde
 
 // AdminProcessReturnRefund executes refund payout (either online payment gateway refund or manual bank transfer).
 func (s *orderReturnService) AdminProcessReturnRefund(ctx context.Context, userUUID uuid.UUID, returnUUID uuid.UUID, input v1dto.AdminReturnRefundInput) (v1dto.AdminReturnRefundResponseDTO, error) {
-	user, err := s.userRepo.GetByUUID(ctx, userUUID)
+	user, err := s.getCustomer(ctx, userUUID)
 	if err != nil {
-		return v1dto.AdminReturnRefundResponseDTO{}, s.handleUserNotFoundError(err)
+		return v1dto.AdminReturnRefundResponseDTO{}, err
 	}
 
 	if user.UserLevel != RoleAdmin && user.UserLevel != RoleModerator {

@@ -237,7 +237,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	paymentReturnURL := utils.GetEnv("PAYMENT_RETURN_URL", "http://localhost:3001/payment/result")
 	paymentWebhookBaseURL := utils.GetEnv("PAYMENT_WEBHOOK_BASE_URL", "http://localhost:8080")
 	paymentService := v1service.NewPaymentService(
-		paymentRepo, orderReader, userRepo, webhookRepo,
+		paymentRepo, orderReader, webhookRepo,
 		paymentProviders, notificationService, cacheRedisService, rabbitmqService,
 		paymentReturnURL, paymentWebhookBaseURL,
 		outboxRepo,

@@ -80,6 +80,20 @@ func (s *orderShippingService) handleUserNotFoundError(err error) error {
 	return utils.WrapError(utils.ErrCodeInternal, "Failed to get user", err)
 }
 
+func (s *orderShippingService) getCustomer(ctx context.Context, userUUID uuid.UUID) (*OrderCustomer, error) {
+	if cust, ok := GetOrderCustomerFromContext(ctx); ok && cust.UserUUID == userUUID && cust.UserID > 0 {
+		return cust, nil
+	}
+	if s.userRepo == nil {
+		return nil, utils.NewError(utils.ErrCodeNotFound, "User not found")
+	}
+	user, err := s.userRepo.GetByUUID(ctx, userUUID)
+	if err != nil {
+		return nil, s.handleUserNotFoundError(err)
+	}
+	return user, nil
+}
+
 func (s *orderShippingService) handleOrderNotFoundError(err error) error {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return utils.NewError(utils.ErrCodeNotFound, "Order not found")
@@ -369,9 +383,9 @@ func (s *orderShippingService) CancelShipping(ctx context.Context, orderUUID uui
 }
 
 func (s *orderShippingService) ConfirmOrderDelivery(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (v1dto.ConfirmDeliveryResponseDTO, error) {
-	user, err := s.userRepo.GetByUUID(ctx, userUUID)
+	user, err := s.getCustomer(ctx, userUUID)
 	if err != nil {
-		return v1dto.ConfirmDeliveryResponseDTO{}, s.handleUserNotFoundError(err)
+		return v1dto.ConfirmDeliveryResponseDTO{}, err
 	}
 
 	order, err := s.orderRepo.GetByUUID(ctx, orderUUID)

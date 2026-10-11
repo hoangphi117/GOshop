@@ -31,7 +31,6 @@ const (
 type paymentService struct {
 	paymentRepo         repository.PaymentRepository
 	orderReader         PaymentOrderReaderPort
-	userRepo            repository.UserReader
 	webhookRepo         repository.WebhookEventRepository
 	providers           map[string]payment.PaymentProvider
 	notificationService NotificationService
@@ -47,7 +46,6 @@ type paymentService struct {
 func NewPaymentService(
 	paymentRepo repository.PaymentRepository,
 	orderReader PaymentOrderReaderPort,
-	userRepo repository.UserReader,
 	webhookRepo repository.WebhookEventRepository,
 	providers map[string]payment.PaymentProvider,
 	notificationService NotificationService,
@@ -69,7 +67,6 @@ func NewPaymentService(
 	return &paymentService{
 		paymentRepo:         paymentRepo,
 		orderReader:         orderReader,
-		userRepo:            userRepo,
 		webhookRepo:         webhookRepo,
 		providers:           providers,
 		notificationService: notificationService,
@@ -89,12 +86,7 @@ func (s *paymentService) WithRefundService(refundService PaymentRefundService) *
 }
 
 // GetPaymentHistory returns all payment transactions associated with an order.
-func (s *paymentService) GetPaymentHistory(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) ([]v1dto.PaymentTransactionDTO, error) {
-	user, err := s.getUser(ctx, userUUID)
-	if err != nil {
-		return nil, err
-	}
-
+func (s *paymentService) GetPaymentHistory(ctx context.Context, userID int32, userRole int32, orderUUID uuid.UUID) ([]v1dto.PaymentTransactionDTO, error) {
 	order, err := s.orderReader.GetByUUID(ctx, orderUUID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -103,7 +95,7 @@ func (s *paymentService) GetPaymentHistory(ctx context.Context, userUUID uuid.UU
 		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to get order", err)
 	}
 
-	if order.UserID != user.UserID && user.UserLevel != RoleAdmin && user.UserLevel != RoleModerator {
+	if order.UserID != userID && userRole != RoleAdmin && userRole != RoleModerator {
 		return nil, utils.NewError(utils.ErrCodeForbidden, "You are not authorized to view payment history for this order")
 	}
 
@@ -217,15 +209,4 @@ func (s *paymentService) RefundPayment(ctx context.Context, idempotencyKey strin
 		return s.refundService.RefundPayment(ctx, idempotencyKey, input)
 	}
 	return v1dto.PaymentTransactionDTO{}, utils.NewError(utils.ErrCodeInternal, "refund service not initialized")
-}
-
-func (s *paymentService) getUser(ctx context.Context, userUUID uuid.UUID) (sqlc.User, error) {
-	user, err := s.userRepo.GetByUUID(ctx, userUUID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return sqlc.User{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
-		}
-		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to get user", err)
-	}
-	return user, nil
 }

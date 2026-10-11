@@ -21,37 +21,12 @@ import (
 
 func TestReviewService_CreateReview(t *testing.T) {
 	ctx := context.Background()
-	userUUID := uuid.New()
 	productUUID := uuid.New()
 	orderUUID := uuid.New()
 
-	t.Run("Case 1: User Not Found -> Returns 404", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{}, pgx.ErrNoRows
-			},
-		}
-
-		svc := v1service.NewReviewService(nil, mockUserRepo, nil, nil, nil, nil)
-		_, err := svc.CreateReview(ctx, userUUID, v1dto.CreateReviewInput{
-			ProductUUID: productUUID.String(),
-			OrderUUID:   orderUUID.String(),
-			Rating:      5,
-		}, nil, nil)
-
-		require.Error(t, err)
-		assertAppErrorCode(t, err, utils.ErrCodeNotFound)
-	})
-
-	t.Run("Case 2: Invalid Product UUID -> Returns 400", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
-			},
-		}
-
-		svc := v1service.NewReviewService(nil, mockUserRepo, nil, nil, nil, nil)
-		_, err := svc.CreateReview(ctx, userUUID, v1dto.CreateReviewInput{
+	t.Run("Case 1: Invalid Product UUID -> Returns 400", func(t *testing.T) {
+		svc := v1service.NewReviewService(nil, nil, nil, nil, nil)
+		_, err := svc.CreateReview(ctx, int32(1), v1dto.CreateReviewInput{
 			ProductUUID: "invalid-uuid",
 			OrderUUID:   orderUUID.String(),
 			Rating:      5,
@@ -61,20 +36,15 @@ func TestReviewService_CreateReview(t *testing.T) {
 		assertAppErrorCode(t, err, utils.ErrCodeBadRequest)
 	})
 
-	t.Run("Case 3: Product Not Found -> Returns 404", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
-			},
-		}
+	t.Run("Case 2: Product Not Found -> Returns 404", func(t *testing.T) {
 		mockProductRepo := &testutils.MockProductRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetProductByUUIDRow, error) {
 				return sqlc.GetProductByUUIDRow{}, sql.ErrNoRows
 			},
 		}
 
-		svc := v1service.NewReviewService(nil, mockUserRepo, mockProductRepo, nil, nil, nil)
-		_, err := svc.CreateReview(ctx, userUUID, v1dto.CreateReviewInput{
+		svc := v1service.NewReviewService(nil, mockProductRepo, nil, nil, nil)
+		_, err := svc.CreateReview(ctx, int32(1), v1dto.CreateReviewInput{
 			ProductUUID: productUUID.String(),
 			OrderUUID:   orderUUID.String(),
 			Rating:      5,
@@ -84,12 +54,7 @@ func TestReviewService_CreateReview(t *testing.T) {
 		assertAppErrorCode(t, err, utils.ErrCodeNotFound)
 	})
 
-	t.Run("Case 4: User Has Not Purchased Product -> Returns 400", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
-			},
-		}
+	t.Run("Case 3: User Has Not Purchased Product -> Returns 400", func(t *testing.T) {
 		mockProductRepo := &testutils.MockProductRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetProductByUUIDRow, error) {
 				return sqlc.GetProductByUUIDRow{ProductID: 10, ProductUuid: productUUID}, nil
@@ -106,8 +71,8 @@ func TestReviewService_CreateReview(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewReviewService(mockReviewRepo, mockUserRepo, mockProductRepo, mockOrderRepo, nil, nil)
-		_, err := svc.CreateReview(ctx, userUUID, v1dto.CreateReviewInput{
+		svc := v1service.NewReviewService(mockReviewRepo, mockProductRepo, mockOrderRepo, nil, nil)
+		_, err := svc.CreateReview(ctx, int32(1), v1dto.CreateReviewInput{
 			ProductUUID: productUUID.String(),
 			OrderUUID:   orderUUID.String(),
 			Rating:      5,
@@ -118,12 +83,7 @@ func TestReviewService_CreateReview(t *testing.T) {
 		assert.Contains(t, err.Error(), "not purchased")
 	})
 
-	t.Run("Case 5: Review Already Exists -> Returns 400", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
-			},
-		}
+	t.Run("Case 4: Review Already Exists -> Returns 400", func(t *testing.T) {
 		mockProductRepo := &testutils.MockProductRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetProductByUUIDRow, error) {
 				return sqlc.GetProductByUUIDRow{ProductID: 10, ProductUuid: productUUID}, nil
@@ -143,8 +103,8 @@ func TestReviewService_CreateReview(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewReviewService(mockReviewRepo, mockUserRepo, mockProductRepo, mockOrderRepo, nil, nil)
-		_, err := svc.CreateReview(ctx, userUUID, v1dto.CreateReviewInput{
+		svc := v1service.NewReviewService(mockReviewRepo, mockProductRepo, mockOrderRepo, nil, nil)
+		_, err := svc.CreateReview(ctx, int32(1), v1dto.CreateReviewInput{
 			ProductUUID: productUUID.String(),
 			OrderUUID:   orderUUID.String(),
 			Rating:      5,
@@ -155,12 +115,7 @@ func TestReviewService_CreateReview(t *testing.T) {
 		assert.Contains(t, err.Error(), "already exists")
 	})
 
-	t.Run("Case 6: Review Window Expired (> 30 days after delivery) -> Returns 400", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
-			},
-		}
+	t.Run("Case 5: Review Window Expired (> 30 days after delivery) -> Returns 400", func(t *testing.T) {
 		mockProductRepo := &testutils.MockProductRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetProductByUUIDRow, error) {
 				return sqlc.GetProductByUUIDRow{ProductID: 10, ProductUuid: productUUID}, nil
@@ -179,8 +134,8 @@ func TestReviewService_CreateReview(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewReviewService(nil, mockUserRepo, mockProductRepo, mockOrderRepo, nil, nil)
-		_, err := svc.CreateReview(ctx, userUUID, v1dto.CreateReviewInput{
+		svc := v1service.NewReviewService(nil, mockProductRepo, mockOrderRepo, nil, nil)
+		_, err := svc.CreateReview(ctx, int32(1), v1dto.CreateReviewInput{
 			ProductUUID: productUUID.String(),
 			OrderUUID:   orderUUID.String(),
 			Rating:      5,
@@ -204,7 +159,7 @@ func TestReviewService_GetProductReviews(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewReviewService(nil, nil, mockProductRepo, nil, nil, nil)
+		svc := v1service.NewReviewService(nil, mockProductRepo, nil, nil, nil)
 		_, _, err := svc.GetProductReviews(ctx, productUUID, v1dto.GetReviewsQuery{})
 
 		require.Error(t, err)
@@ -239,7 +194,7 @@ func TestReviewService_GetProductReviews(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewReviewService(mockReviewRepo, nil, mockProductRepo, nil, nil, nil)
+		svc := v1service.NewReviewService(mockReviewRepo, mockProductRepo, nil, nil, nil)
 		reviews, total, err := svc.GetProductReviews(ctx, productUUID, v1dto.GetReviewsQuery{})
 
 		require.NoError(t, err)
@@ -261,7 +216,7 @@ func TestReviewService_GetProductRatingSummary(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewReviewService(nil, nil, mockProductRepo, nil, nil, nil)
+		svc := v1service.NewReviewService(nil, mockProductRepo, nil, nil, nil)
 		_, err := svc.GetProductRatingSummary(ctx, productUUID)
 
 		require.Error(t, err)
@@ -286,7 +241,7 @@ func TestReviewService_GetProductRatingSummary(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewReviewService(mockReviewRepo, nil, mockProductRepo, nil, nil, nil)
+		svc := v1service.NewReviewService(mockReviewRepo, mockProductRepo, nil, nil, nil)
 		summary, err := svc.GetProductRatingSummary(ctx, productUUID)
 
 		require.NoError(t, err)
@@ -298,49 +253,24 @@ func TestReviewService_GetProductRatingSummary(t *testing.T) {
 
 func TestReviewService_GetMyReviews(t *testing.T) {
 	ctx := context.Background()
-	userUUID := uuid.New()
 	reviewUUID := uuid.New()
 
-	t.Run("Case 1: User Not Found -> Returns 404", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{}, pgx.ErrNoRows
-			},
-		}
-
-		svc := v1service.NewReviewService(nil, mockUserRepo, nil, nil, nil, nil)
-		_, _, err := svc.GetMyReviews(ctx, userUUID, v1dto.GetMyReviewsQuery{})
-
-		require.Error(t, err)
-		assertAppErrorCode(t, err, utils.ErrCodeNotFound)
-	})
-
-	t.Run("Case 2: Zero Reviews -> Returns Empty Slice", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
-			},
-		}
+	t.Run("Case 1: Zero Reviews -> Returns Empty Slice", func(t *testing.T) {
 		mockReviewRepo := &testutils.MockReviewRepository{
 			CountByUserIDFunc: func(ctx context.Context, userID int32) (int64, error) {
 				return 0, nil
 			},
 		}
 
-		svc := v1service.NewReviewService(mockReviewRepo, mockUserRepo, nil, nil, nil, nil)
-		reviews, total, err := svc.GetMyReviews(ctx, userUUID, v1dto.GetMyReviewsQuery{})
+		svc := v1service.NewReviewService(mockReviewRepo, nil, nil, nil, nil)
+		reviews, total, err := svc.GetMyReviews(ctx, int32(1), v1dto.GetMyReviewsQuery{})
 
 		require.NoError(t, err)
 		assert.Equal(t, int32(0), total)
 		assert.Empty(t, reviews)
 	})
 
-	t.Run("Case 3: Happy Path -> Returns MyReviewDTOs", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
-			},
-		}
+	t.Run("Case 2: Happy Path -> Returns MyReviewDTOs", func(t *testing.T) {
 		mockReviewRepo := &testutils.MockReviewRepository{
 			CountByUserIDFunc: func(ctx context.Context, userID int32) (int64, error) {
 				return 1, nil
@@ -358,8 +288,8 @@ func TestReviewService_GetMyReviews(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewReviewService(mockReviewRepo, mockUserRepo, nil, nil, nil, nil)
-		reviews, total, err := svc.GetMyReviews(ctx, userUUID, v1dto.GetMyReviewsQuery{})
+		svc := v1service.NewReviewService(mockReviewRepo, nil, nil, nil, nil)
+		reviews, total, err := svc.GetMyReviews(ctx, int32(1), v1dto.GetMyReviewsQuery{})
 
 		require.NoError(t, err)
 		assert.Equal(t, int32(1), total)
@@ -370,15 +300,9 @@ func TestReviewService_GetMyReviews(t *testing.T) {
 
 func TestReviewService_UpdateReview_Eligibility(t *testing.T) {
 	ctx := context.Background()
-	userUUID := uuid.New()
 	reviewUUID := uuid.New()
 
 	t.Run("Case 1: Forbidden When Updating Others Review -> Returns 403", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
-			},
-		}
 		mockReviewRepo := &testutils.MockReviewRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetReviewByUUIDRow, error) {
 				return sqlc.GetReviewByUUIDRow{
@@ -389,19 +313,14 @@ func TestReviewService_UpdateReview_Eligibility(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewReviewService(mockReviewRepo, mockUserRepo, nil, nil, nil, nil)
-		_, err := svc.UpdateReview(ctx, userUUID, reviewUUID, v1dto.UpdateReviewInput{Rating: 4})
+		svc := v1service.NewReviewService(mockReviewRepo, nil, nil, nil, nil)
+		_, err := svc.UpdateReview(ctx, int32(1), reviewUUID, v1dto.UpdateReviewInput{Rating: 4})
 
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeForbidden)
 	})
 
 	t.Run("Case 2: Edit Count Exceeded (>= 1) -> Returns 400", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
-			},
-		}
 		mockReviewRepo := &testutils.MockReviewRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetReviewByUUIDRow, error) {
 				return sqlc.GetReviewByUUIDRow{
@@ -414,8 +333,8 @@ func TestReviewService_UpdateReview_Eligibility(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewReviewService(mockReviewRepo, mockUserRepo, nil, nil, nil, nil)
-		_, err := svc.UpdateReview(ctx, userUUID, reviewUUID, v1dto.UpdateReviewInput{Rating: 4})
+		svc := v1service.NewReviewService(mockReviewRepo, nil, nil, nil, nil)
+		_, err := svc.UpdateReview(ctx, int32(1), reviewUUID, v1dto.UpdateReviewInput{Rating: 4})
 
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeBadRequest)
@@ -423,11 +342,6 @@ func TestReviewService_UpdateReview_Eligibility(t *testing.T) {
 	})
 
 	t.Run("Case 3: Edit Time Exceeded (> 30 days) -> Returns 400", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
-			},
-		}
 		mockReviewRepo := &testutils.MockReviewRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetReviewByUUIDRow, error) {
 				return sqlc.GetReviewByUUIDRow{
@@ -440,8 +354,8 @@ func TestReviewService_UpdateReview_Eligibility(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewReviewService(mockReviewRepo, mockUserRepo, nil, nil, nil, nil)
-		_, err := svc.UpdateReview(ctx, userUUID, reviewUUID, v1dto.UpdateReviewInput{Rating: 4})
+		svc := v1service.NewReviewService(mockReviewRepo, nil, nil, nil, nil)
+		_, err := svc.UpdateReview(ctx, int32(1), reviewUUID, v1dto.UpdateReviewInput{Rating: 4})
 
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeBadRequest)
@@ -451,15 +365,9 @@ func TestReviewService_UpdateReview_Eligibility(t *testing.T) {
 
 func TestReviewService_DeleteReview_Authorization(t *testing.T) {
 	ctx := context.Background()
-	userUUID := uuid.New()
 	reviewUUID := uuid.New()
 
 	t.Run("Case 1: Forbidden When Deleting Others Review -> Returns 403", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
-			},
-		}
 		mockReviewRepo := &testutils.MockReviewRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetReviewByUUIDRow, error) {
 				return sqlc.GetReviewByUUIDRow{
@@ -470,8 +378,8 @@ func TestReviewService_DeleteReview_Authorization(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewReviewService(mockReviewRepo, mockUserRepo, nil, nil, nil, nil)
-		err := svc.DeleteReview(ctx, userUUID, reviewUUID)
+		svc := v1service.NewReviewService(mockReviewRepo, nil, nil, nil, nil)
+		err := svc.DeleteReview(ctx, int32(1), reviewUUID)
 
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeForbidden)
@@ -480,15 +388,9 @@ func TestReviewService_DeleteReview_Authorization(t *testing.T) {
 
 func TestReviewService_ToggleHelpfulVote(t *testing.T) {
 	ctx := context.Background()
-	userUUID := uuid.New()
 	reviewUUID := uuid.New()
 
 	t.Run("Case 1: Cannot Vote Own Review -> Returns 400", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
-			},
-		}
 		mockReviewRepo := &testutils.MockReviewRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetReviewByUUIDRow, error) {
 				return sqlc.GetReviewByUUIDRow{
@@ -499,8 +401,8 @@ func TestReviewService_ToggleHelpfulVote(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewReviewService(mockReviewRepo, mockUserRepo, nil, nil, nil, nil)
-		_, err := svc.ToggleHelpfulVote(ctx, userUUID, reviewUUID)
+		svc := v1service.NewReviewService(mockReviewRepo, nil, nil, nil, nil)
+		_, err := svc.ToggleHelpfulVote(ctx, int32(1), reviewUUID)
 
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeBadRequest)
@@ -510,15 +412,9 @@ func TestReviewService_ToggleHelpfulVote(t *testing.T) {
 
 func TestReviewService_ReportReview(t *testing.T) {
 	ctx := context.Background()
-	userUUID := uuid.New()
 	reviewUUID := uuid.New()
 
 	t.Run("Case 1: Cannot Report Own Review -> Returns 400", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
-			},
-		}
 		mockReviewRepo := &testutils.MockReviewRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetReviewByUUIDRow, error) {
 				return sqlc.GetReviewByUUIDRow{
@@ -529,8 +425,8 @@ func TestReviewService_ReportReview(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewReviewService(mockReviewRepo, mockUserRepo, nil, nil, nil, nil)
-		err := svc.ReportReview(ctx, userUUID, reviewUUID, v1dto.ReportReviewInput{Reason: "Spam"})
+		svc := v1service.NewReviewService(mockReviewRepo, nil, nil, nil, nil)
+		err := svc.ReportReview(ctx, int32(1), reviewUUID, v1dto.ReportReviewInput{Reason: "Spam"})
 
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeBadRequest)
@@ -538,11 +434,6 @@ func TestReviewService_ReportReview(t *testing.T) {
 	})
 
 	t.Run("Case 2: Already Reported -> Returns 400", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
-			},
-		}
 		mockReviewRepo := &testutils.MockReviewRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetReviewByUUIDRow, error) {
 				return sqlc.GetReviewByUUIDRow{
@@ -556,8 +447,8 @@ func TestReviewService_ReportReview(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewReviewService(mockReviewRepo, mockUserRepo, nil, nil, nil, nil)
-		err := svc.ReportReview(ctx, userUUID, reviewUUID, v1dto.ReportReviewInput{Reason: "Spam"})
+		svc := v1service.NewReviewService(mockReviewRepo, nil, nil, nil, nil)
+		err := svc.ReportReview(ctx, int32(1), reviewUUID, v1dto.ReportReviewInput{Reason: "Spam"})
 
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeBadRequest)
@@ -572,7 +463,7 @@ func TestReviewService_AdminGetAllReviews(t *testing.T) {
 
 	t.Run("Case 1: Invalid Product UUID -> Returns 400", func(t *testing.T) {
 		invalidUUID := "invalid-uuid"
-		svc := v1service.NewReviewService(nil, nil, nil, nil, nil, nil)
+		svc := v1service.NewReviewService(nil, nil, nil, nil, nil)
 		_, _, err := svc.AdminGetAllReviews(ctx, v1dto.AdminGetReviewsQuery{
 			ProductUUID: &invalidUUID,
 		})
@@ -589,7 +480,7 @@ func TestReviewService_AdminGetAllReviews(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewReviewService(nil, nil, mockProductRepo, nil, nil, nil)
+		svc := v1service.NewReviewService(nil, mockProductRepo, nil, nil, nil)
 		_, _, err := svc.AdminGetAllReviews(ctx, v1dto.AdminGetReviewsQuery{
 			ProductUUID: &pUUIDStr,
 		})
@@ -605,7 +496,7 @@ func TestReviewService_AdminGetAllReviews(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewReviewService(mockReviewRepo, nil, nil, nil, nil, nil)
+		svc := v1service.NewReviewService(mockReviewRepo, nil, nil, nil, nil)
 		rows, total, err := svc.AdminGetAllReviews(ctx, v1dto.AdminGetReviewsQuery{})
 
 		require.NoError(t, err)
@@ -631,7 +522,7 @@ func TestReviewService_AdminGetAllReviews(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewReviewService(mockReviewRepo, nil, nil, nil, nil, nil)
+		svc := v1service.NewReviewService(mockReviewRepo, nil, nil, nil, nil)
 		rows, total, err := svc.AdminGetAllReviews(ctx, v1dto.AdminGetReviewsQuery{})
 
 		require.NoError(t, err)
@@ -652,7 +543,7 @@ func TestReviewService_AdminReplyReview(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewReviewService(mockReviewRepo, nil, nil, nil, nil, nil)
+		svc := v1service.NewReviewService(mockReviewRepo, nil, nil, nil, nil)
 		_, err := svc.AdminReplyReview(ctx, reviewUUID, v1dto.ReplyReviewInput{
 			Reply: "Thank you for your feedback!",
 		})
@@ -673,7 +564,7 @@ func TestReviewService_AdminForceDeleteReview(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewReviewService(mockReviewRepo, nil, nil, nil, nil, nil)
+		svc := v1service.NewReviewService(mockReviewRepo, nil, nil, nil, nil)
 		err := svc.AdminForceDeleteReview(ctx, reviewUUID)
 
 		require.Error(t, err)
@@ -692,7 +583,7 @@ func TestReviewService_UpdateReviewStatus(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewReviewService(mockReviewRepo, nil, nil, nil, nil, nil)
+		svc := v1service.NewReviewService(mockReviewRepo, nil, nil, nil, nil)
 		_, err := svc.UpdateReviewStatus(ctx, reviewUUID, v1dto.UpdateReviewStatusInput{
 			Status: 2,
 		})
@@ -713,7 +604,7 @@ func TestReviewService_GetReviewReports(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewReviewService(mockReviewRepo, nil, nil, nil, nil, nil)
+		svc := v1service.NewReviewService(mockReviewRepo, nil, nil, nil, nil)
 		_, err := svc.GetReviewReports(ctx, reviewUUID)
 
 		require.Error(t, err)
@@ -742,7 +633,7 @@ func TestReviewService_GetReviewReports(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewReviewService(mockReviewRepo, nil, nil, nil, nil, nil)
+		svc := v1service.NewReviewService(mockReviewRepo, nil, nil, nil, nil)
 		reports, err := svc.GetReviewReports(ctx, reviewUUID)
 
 		require.NoError(t, err)
@@ -764,7 +655,7 @@ func TestReviewService_AdminDismissReports(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewReviewService(mockReviewRepo, nil, nil, nil, nil, nil)
+		svc := v1service.NewReviewService(mockReviewRepo, nil, nil, nil, nil)
 		err := svc.AdminDismissReports(ctx, reviewUUID)
 
 		require.Error(t, err)

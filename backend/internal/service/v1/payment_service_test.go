@@ -30,40 +30,17 @@ func toOrderReader(repo repository.OrderRepository) v1service.PaymentOrderReader
 
 func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 	ctx := context.Background()
-	userUUID := uuid.New()
 	orderUUID := uuid.New()
 
-	t.Run("Case 1: User Not Found -> Returns 404", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{}, pgx.ErrNoRows
-			},
-		}
-
-		svc := v1service.NewPaymentService(nil, nil, mockUserRepo, nil, nil, nil, nil, nil, "", "")
-		_, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
-			OrderUUID: orderUUID,
-			Provider:  "momo",
-		})
-
-		require.Error(t, err)
-		assertAppErrorCode(t, err, utils.ErrCodeNotFound)
-	})
-
-	t.Run("Case 2: Order Not Found -> Returns 404", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
-			},
-		}
+	t.Run("Case 1: Order Not Found -> Returns 404", func(t *testing.T) {
 		mockOrderRepo := &testutils.MockOrderRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
 				return sqlc.GetOrderByUUIDRow{}, pgx.ErrNoRows
 			},
 		}
 
-		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), mockUserRepo, nil, nil, nil, nil, nil, "", "")
-		_, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
+		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, nil, nil, nil, nil, "", "")
+		_, err := svc.CreatePaymentIntent(ctx, int32(1), "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
 		})
@@ -72,12 +49,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 		assertAppErrorCode(t, err, utils.ErrCodeNotFound)
 	})
 
-	t.Run("Case 3: Forbidden When User Does Not Own Order -> Returns 403", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
-			},
-		}
+	t.Run("Case 2: Forbidden When User Does Not Own Order -> Returns 403", func(t *testing.T) {
 		mockOrderRepo := &testutils.MockOrderRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
 				return sqlc.GetOrderByUUIDRow{
@@ -88,8 +60,8 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), mockUserRepo, nil, nil, nil, nil, nil, "", "")
-		_, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
+		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, nil, nil, nil, nil, "", "")
+		_, err := svc.CreatePaymentIntent(ctx, int32(1), "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
 		})
@@ -98,12 +70,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 		assertAppErrorCode(t, err, utils.ErrCodeForbidden)
 	})
 
-	t.Run("Case 4: Order Already Paid -> Returns 400", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
-			},
-		}
+	t.Run("Case 3: Order Already Paid -> Returns 400", func(t *testing.T) {
 		mockOrderRepo := &testutils.MockOrderRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
 				return sqlc.GetOrderByUUIDRow{
@@ -115,8 +82,8 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), mockUserRepo, nil, nil, nil, nil, nil, "", "")
-		_, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
+		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, nil, nil, nil, nil, "", "")
+		_, err := svc.CreatePaymentIntent(ctx, int32(1), "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
 		})
@@ -126,12 +93,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 		assert.Contains(t, err.Error(), "already been paid")
 	})
 
-	t.Run("Case 5: Order Status Disallowed -> Returns 400", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
-			},
-		}
+	t.Run("Case 4: Order Status Disallowed -> Returns 400", func(t *testing.T) {
 		mockOrderRepo := &testutils.MockOrderRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
 				return sqlc.GetOrderByUUIDRow{
@@ -144,8 +106,8 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), mockUserRepo, nil, nil, nil, nil, nil, "", "")
-		_, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
+		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, nil, nil, nil, nil, "", "")
+		_, err := svc.CreatePaymentIntent(ctx, int32(1), "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
 		})
@@ -155,12 +117,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 		assert.Contains(t, err.Error(), "does not allow payment")
 	})
 
-	t.Run("Case 6: COD Order -> Returns 400", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
-			},
-		}
+	t.Run("Case 5: COD Order -> Returns 400", func(t *testing.T) {
 		mockOrderRepo := &testutils.MockOrderRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
 				return sqlc.GetOrderByUUIDRow{
@@ -174,8 +131,8 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), mockUserRepo, nil, nil, nil, nil, nil, "", "")
-		_, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
+		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, nil, nil, nil, nil, "", "")
+		_, err := svc.CreatePaymentIntent(ctx, int32(1), "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
 		})
@@ -185,12 +142,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 		assert.Contains(t, err.Error(), "COD orders")
 	})
 
-	t.Run("Case 7: Zero Amount -> Returns 400", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
-			},
-		}
+	t.Run("Case 6: Zero Amount -> Returns 400", func(t *testing.T) {
 		mockOrderRepo := &testutils.MockOrderRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
 				return sqlc.GetOrderByUUIDRow{
@@ -205,8 +157,8 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), mockUserRepo, nil, nil, nil, nil, nil, "", "")
-		_, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
+		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, nil, nil, nil, nil, "", "")
+		_, err := svc.CreatePaymentIntent(ctx, int32(1), "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
 		})
@@ -216,12 +168,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 		assert.Contains(t, err.Error(), "amount is 0")
 	})
 
-	t.Run("Case 8: Missing Idempotency Key -> Returns 400", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
-			},
-		}
+	t.Run("Case 7: Missing Idempotency Key -> Returns 400", func(t *testing.T) {
 		mockOrderRepo := &testutils.MockOrderRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
 				return sqlc.GetOrderByUUIDRow{
@@ -236,8 +183,8 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), mockUserRepo, nil, nil, nil, nil, nil, "", "")
-		_, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "   ", v1dto.CreatePaymentIntentInput{
+		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, nil, nil, nil, nil, "", "")
+		_, err := svc.CreatePaymentIntent(ctx, int32(1), "127.0.0.1", "   ", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
 		})
@@ -247,12 +194,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 		assert.Contains(t, err.Error(), "Missing X-Idempotency-Key")
 	})
 
-	t.Run("Case 9: Unsupported Provider -> Returns 400", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
-			},
-		}
+	t.Run("Case 8: Unsupported Provider -> Returns 400", func(t *testing.T) {
 		mockOrderRepo := &testutils.MockOrderRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
 				return sqlc.GetOrderByUUIDRow{
@@ -272,8 +214,8 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), mockUserRepo, nil, map[string]payment.PaymentProvider{}, nil, nil, nil, "", "")
-		_, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
+		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), nil, map[string]payment.PaymentProvider{}, nil, nil, nil, "", "")
+		_, err := svc.CreatePaymentIntent(ctx, int32(1), "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "unknown_gateway",
 		})
@@ -283,12 +225,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 		assert.Contains(t, err.Error(), "Unsupported payment provider")
 	})
 
-	t.Run("Case 10: Happy Path -> Generates Payment URL & Returns DTO", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
-			},
-		}
+	t.Run("Case 9: Happy Path -> Generates Payment URL & Returns DTO", func(t *testing.T) {
 		mockOrderRepo := &testutils.MockOrderRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
 				return sqlc.GetOrderByUUIDRow{
@@ -335,8 +272,8 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			"momo": mockProvider,
 		}
 
-		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), mockUserRepo, nil, providers, nil, nil, nil, "https://store.com/return", "https://api.com/webhooks")
-		dto, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
+		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), nil, providers, nil, nil, nil, "https://store.com/return", "https://api.com/webhooks")
+		dto, err := svc.CreatePaymentIntent(ctx, int32(1), "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
 		})
@@ -348,12 +285,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 		assert.Equal(t, "https://gateway.com/pay/123", dto.PaymentURL)
 	})
 
-	t.Run("Case 11: Payment Gateway Circuit Breaker Open -> Returns 503 Service Unavailable", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
-			},
-		}
+	t.Run("Case 10: Payment Gateway Circuit Breaker Open -> Returns 503 Service Unavailable", func(t *testing.T) {
 		mockOrderRepo := &testutils.MockOrderRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
 				return sqlc.GetOrderByUUIDRow{
@@ -393,14 +325,14 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			"momo": cbProvider,
 		}
 
-		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), mockUserRepo, nil, providers, nil, nil, nil, "https://store.com/return", "https://api.com/webhooks")
+		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), nil, providers, nil, nil, nil, "https://store.com/return", "https://api.com/webhooks")
 
 		// First 2 failures trip the breaker
-		_, _ = svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "key1", v1dto.CreatePaymentIntentInput{OrderUUID: orderUUID, Provider: "momo"})
-		_, _ = svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "key2", v1dto.CreatePaymentIntentInput{OrderUUID: orderUUID, Provider: "momo"})
+		_, _ = svc.CreatePaymentIntent(ctx, int32(1), "127.0.0.1", "key1", v1dto.CreatePaymentIntentInput{OrderUUID: orderUUID, Provider: "momo"})
+		_, _ = svc.CreatePaymentIntent(ctx, int32(1), "127.0.0.1", "key2", v1dto.CreatePaymentIntentInput{OrderUUID: orderUUID, Provider: "momo"})
 
 		// 3rd call must immediately fail with ErrCodeServiceUnavailable (503)
-		_, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "key3", v1dto.CreatePaymentIntentInput{
+		_, err := svc.CreatePaymentIntent(ctx, int32(1), "127.0.0.1", "key3", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
 		})
@@ -410,12 +342,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 		assert.Contains(t, err.Error(), "temporarily unavailable")
 	})
 
-	t.Run("Case 12: Step 1, 3, 4 Verification -> DB Record Created First, Stable TxnRef Sent To Gateway, URL Saved", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
-			},
-		}
+	t.Run("Case 11: Step 1, 3, 4 Verification -> DB Record Created First, Stable TxnRef Sent To Gateway, URL Saved", func(t *testing.T) {
 		mockOrderRepo := &testutils.MockOrderRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
 				return sqlc.GetOrderByUUIDRow{
@@ -484,8 +411,8 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), mockUserRepo, nil, map[string]payment.PaymentProvider{"momo": mockProvider}, nil, nil, nil, "https://store.com/return", "https://api.com/webhooks")
-		dto, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "idem-step-test", v1dto.CreatePaymentIntentInput{
+		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), nil, map[string]payment.PaymentProvider{"momo": mockProvider}, nil, nil, nil, "https://store.com/return", "https://api.com/webhooks")
+		dto, err := svc.CreatePaymentIntent(ctx, int32(1), "127.0.0.1", "idem-step-test", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
 		})
@@ -495,12 +422,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 		assert.Equal(t, []string{"db_create", "gateway_call", "db_update_url"}, executionOrder)
 	})
 
-	t.Run("Case 13: Step 2 Duplicate Key (23505) -> Returns Existing DTO Without Re-invoking Gateway", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
-			},
-		}
+	t.Run("Case 12: Step 2 Duplicate Key (23505) -> Returns Existing DTO Without Re-invoking Gateway", func(t *testing.T) {
 		mockOrderRepo := &testutils.MockOrderRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
 				return sqlc.GetOrderByUUIDRow{
@@ -543,8 +465,8 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), mockUserRepo, nil, map[string]payment.PaymentProvider{"momo": mockProvider}, nil, nil, nil, "https://store.com/return", "https://api.com/webhooks")
-		dto, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "idem-dup-key", v1dto.CreatePaymentIntentInput{
+		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), nil, map[string]payment.PaymentProvider{"momo": mockProvider}, nil, nil, nil, "https://store.com/return", "https://api.com/webhooks")
+		dto, err := svc.CreatePaymentIntent(ctx, int32(1), "127.0.0.1", "idem-dup-key", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
 		})
@@ -554,12 +476,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 		assert.False(t, gatewayCalled, "Gateway must not be called when another request already generated the URL")
 	})
 
-	t.Run("Case 14: Step 2 Duplicate Key (23505) -> Returns 409 Conflict When Initialization In Progress", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
-			},
-		}
+	t.Run("Case 13: Step 2 Duplicate Key (23505) -> Returns 409 Conflict When Initialization In Progress", func(t *testing.T) {
 		mockOrderRepo := &testutils.MockOrderRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
 				return sqlc.GetOrderByUUIDRow{
@@ -599,8 +516,8 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), mockUserRepo, nil, map[string]payment.PaymentProvider{"momo": mockProvider}, nil, nil, nil, "https://store.com/return", "https://api.com/webhooks")
-		_, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "idem-in-progress", v1dto.CreatePaymentIntentInput{
+		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), nil, map[string]payment.PaymentProvider{"momo": mockProvider}, nil, nil, nil, "https://store.com/return", "https://api.com/webhooks")
+		_, err := svc.CreatePaymentIntent(ctx, int32(1), "127.0.0.1", "idem-in-progress", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
 		})
@@ -610,12 +527,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 		assert.Contains(t, err.Error(), "initialization is currently in progress")
 	})
 
-	t.Run("Case 15: Step 5 Gateway Timeout -> Preserves Pending Status For Reconciliation Without Marking Failed", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
-			},
-		}
+	t.Run("Case 14: Step 5 Gateway Timeout -> Preserves Pending Status For Reconciliation Without Marking Failed", func(t *testing.T) {
 		mockOrderRepo := &testutils.MockOrderRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
 				return sqlc.GetOrderByUUIDRow{
@@ -665,8 +577,8 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), mockUserRepo, nil, map[string]payment.PaymentProvider{"momo": mockProvider}, nil, nil, nil, "https://store.com/return", "https://api.com/webhooks")
-		_, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "idem-timeout-test", v1dto.CreatePaymentIntentInput{
+		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), nil, map[string]payment.PaymentProvider{"momo": mockProvider}, nil, nil, nil, "https://store.com/return", "https://api.com/webhooks")
+		_, err := svc.CreatePaymentIntent(ctx, int32(1), "127.0.0.1", "idem-timeout-test", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
 		})
@@ -682,7 +594,7 @@ func TestPaymentService_HandleWebhook(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("Case 1: Unsupported Provider -> Returns 400", func(t *testing.T) {
-		svc := v1service.NewPaymentService(nil, nil, nil, nil, map[string]payment.PaymentProvider{}, nil, nil, nil, "", "")
+		svc := v1service.NewPaymentService(nil, nil, nil, map[string]payment.PaymentProvider{}, nil, nil, nil, "", "")
 		err := svc.HandleWebhook(ctx, "invalid_provider", []byte("{}"), map[string]string{})
 
 		require.Error(t, err)
@@ -697,7 +609,7 @@ func TestPaymentService_HandleWebhook(t *testing.T) {
 		}
 
 		providers := map[string]payment.PaymentProvider{"momo": mockProvider}
-		svc := v1service.NewPaymentService(nil, nil, nil, nil, providers, nil, nil, nil, "", "")
+		svc := v1service.NewPaymentService(nil, nil, nil, providers, nil, nil, nil, "", "")
 		err := svc.HandleWebhook(ctx, "momo", []byte("{}"), map[string]string{})
 
 		require.Error(t, err)
@@ -724,7 +636,7 @@ func TestPaymentService_HandleWebhook(t *testing.T) {
 		}
 
 		providers := map[string]payment.PaymentProvider{"momo": mockProvider}
-		svc := v1service.NewPaymentService(nil, nil, nil, mockWebhookRepo, providers, nil, nil, nil, "", "")
+		svc := v1service.NewPaymentService(nil, nil, mockWebhookRepo, providers, nil, nil, nil, "", "")
 		err := svc.HandleWebhook(ctx, "momo", []byte("{}"), map[string]string{})
 
 		require.NoError(t, err)
@@ -773,7 +685,7 @@ func TestPaymentService_HandleWebhook(t *testing.T) {
 		}
 
 		providers := map[string]payment.PaymentProvider{"momo": mockProvider}
-		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, mockWebhookRepo, providers, nil, nil, mockRabbitMQ, "", "")
+		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), mockWebhookRepo, providers, nil, nil, mockRabbitMQ, "", "")
 		err := svc.HandleWebhook(ctx, "momo", []byte(`{"event":"test"}`), map[string]string{})
 
 		require.NoError(t, err)
@@ -783,48 +695,23 @@ func TestPaymentService_HandleWebhook(t *testing.T) {
 
 func TestPaymentService_GetPaymentHistory(t *testing.T) {
 	ctx := context.Background()
-	userUUID := uuid.New()
 	orderUUID := uuid.New()
 
-	t.Run("Case 1: User Not Found -> Returns 404", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{}, pgx.ErrNoRows
-			},
-		}
-
-		svc := v1service.NewPaymentService(nil, nil, mockUserRepo, nil, nil, nil, nil, nil, "", "")
-		_, err := svc.GetPaymentHistory(ctx, userUUID, orderUUID)
-
-		require.Error(t, err)
-		assertAppErrorCode(t, err, utils.ErrCodeNotFound)
-	})
-
-	t.Run("Case 2: Order Not Found -> Returns 404", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{UserID: 1, UserUuid: userUUID}, nil
-			},
-		}
+	t.Run("Case 1: Order Not Found -> Returns 404", func(t *testing.T) {
 		mockOrderRepo := &testutils.MockOrderRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
 				return sqlc.GetOrderByUUIDRow{}, pgx.ErrNoRows
 			},
 		}
 
-		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), mockUserRepo, nil, nil, nil, nil, nil, "", "")
-		_, err := svc.GetPaymentHistory(ctx, userUUID, orderUUID)
+		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, nil, nil, nil, nil, "", "")
+		_, err := svc.GetPaymentHistory(ctx, int32(1), v1service.RoleMember, orderUUID)
 
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeNotFound)
 	})
 
-	t.Run("Case 3: Forbidden for non-owner and non-admin -> Returns 403", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{UserID: 1, UserUuid: userUUID, UserLevel: v1service.RoleMember}, nil
-			},
-		}
+	t.Run("Case 2: Forbidden for non-owner and non-admin -> Returns 403", func(t *testing.T) {
 		mockOrderRepo := &testutils.MockOrderRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
 				return sqlc.GetOrderByUUIDRow{
@@ -835,19 +722,14 @@ func TestPaymentService_GetPaymentHistory(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), mockUserRepo, nil, nil, nil, nil, nil, "", "")
-		_, err := svc.GetPaymentHistory(ctx, userUUID, orderUUID)
+		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, nil, nil, nil, nil, "", "")
+		_, err := svc.GetPaymentHistory(ctx, int32(1), v1service.RoleMember, orderUUID)
 
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeForbidden)
 	})
 
-	t.Run("Case 4: Happy Path (Owner) -> Returns Transactions", func(t *testing.T) {
-		mockUserRepo := &testutils.MockUserRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{UserID: 1, UserUuid: userUUID, UserLevel: v1service.RoleMember}, nil
-			},
-		}
+	t.Run("Case 3: Happy Path (Owner) -> Returns Transactions", func(t *testing.T) {
 		mockOrderRepo := &testutils.MockOrderRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
 				return sqlc.GetOrderByUUIDRow{
@@ -874,8 +756,8 @@ func TestPaymentService_GetPaymentHistory(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), mockUserRepo, nil, nil, nil, nil, nil, "", "")
-		history, err := svc.GetPaymentHistory(ctx, userUUID, orderUUID)
+		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), nil, nil, nil, nil, nil, "", "")
+		history, err := svc.GetPaymentHistory(ctx, int32(1), v1service.RoleMember, orderUUID)
 
 		require.NoError(t, err)
 		assert.Len(t, history, 1)
@@ -888,7 +770,7 @@ func TestPaymentService_RefundPayment_Validation(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("Case 1: Invalid Order UUID -> Returns 400", func(t *testing.T) {
-		svc := v1service.NewPaymentService(nil, nil, nil, nil, nil, nil, nil, nil, "", "")
+		svc := v1service.NewPaymentService(nil, nil, nil, nil, nil, nil, nil, "", "")
 		_, err := svc.RefundPayment(ctx, "key123", v1dto.RefundPaymentInput{
 			OrderUUID: "not-a-valid-uuid",
 			Amount:    50000,
@@ -902,14 +784,7 @@ func TestPaymentService_RefundPayment_Validation(t *testing.T) {
 
 func TestPaymentService_CreatePaymentIntent_OrderExpired(t *testing.T) {
 	ctx := context.Background()
-	userUUID := uuid.New()
 	orderUUID := uuid.New()
-
-	mockUserRepo := &testutils.MockUserRepository{
-		GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-			return sqlc.User{UserID: 10, UserUuid: userUUID}, nil
-		},
-	}
 
 	mockOrderRepo := &testutils.MockOrderRepository{
 		GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
@@ -926,8 +801,8 @@ func TestPaymentService_CreatePaymentIntent_OrderExpired(t *testing.T) {
 		},
 	}
 
-	svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), mockUserRepo, nil, nil, nil, nil, nil, "", "")
-	_, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "key-123", v1dto.CreatePaymentIntentInput{
+	svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, nil, nil, nil, nil, "", "")
+	_, err := svc.CreatePaymentIntent(ctx, int32(10), "127.0.0.1", "key-123", v1dto.CreatePaymentIntentInput{
 		OrderUUID: orderUUID,
 		Provider:  "momo",
 	})
@@ -958,14 +833,7 @@ func (s *standaloneOrderReader) GetByOrderNumber(ctx context.Context, orderNumbe
 
 func TestPaymentService_DecoupledOrderReaderPort(t *testing.T) {
 	ctx := context.Background()
-	userUUID := uuid.New()
 	orderUUID := uuid.New()
-
-	mockUserRepo := &testutils.MockUserRepository{
-		GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-			return sqlc.User{UserID: 10, UserUuid: userUUID}, nil
-		},
-	}
 
 	reader := &standaloneOrderReader{
 		order: &v1service.PaymentOrderSummary{
@@ -973,7 +841,6 @@ func TestPaymentService_DecoupledOrderReaderPort(t *testing.T) {
 			OrderUUID:     orderUUID,
 			OrderNumber:   "ORD-DECOUPLE-001",
 			UserID:        10,
-			UserUUID:      userUUID,
 			TotalAmount:   250000,
 			PaymentStatus: v1service.OrderPaymentStatusUnpaid,
 			OrderStatus:   v1service.OrderStatusPending,
@@ -1009,9 +876,9 @@ func TestPaymentService_DecoupledOrderReaderPort(t *testing.T) {
 	}
 
 	// Note: reader is a pure PaymentOrderReaderPort, NOT an OrderRepository
-	svc := v1service.NewPaymentService(mockPaymentRepo, reader, mockUserRepo, nil, map[string]payment.PaymentProvider{"momo": mockProvider}, nil, nil, nil, "", "")
+	svc := v1service.NewPaymentService(mockPaymentRepo, reader, nil, map[string]payment.PaymentProvider{"momo": mockProvider}, nil, nil, nil, "", "")
 
-	intent, err := svc.CreatePaymentIntent(ctx, userUUID, "127.0.0.1", "idem-decouple-1", v1dto.CreatePaymentIntentInput{
+	intent, err := svc.CreatePaymentIntent(ctx, int32(10), "127.0.0.1", "idem-decouple-1", v1dto.CreatePaymentIntentInput{
 		OrderUUID: orderUUID,
 		Provider:  "momo",
 	})

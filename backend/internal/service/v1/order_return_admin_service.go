@@ -15,9 +15,9 @@ import (
 
 // AdminGetReturns retrieves paginated list of all customer return requests for backoffice moderation.
 func (s *orderReturnService) AdminGetReturns(ctx context.Context, userUUID uuid.UUID, query v1dto.AdminGetReturnsQuery) ([]v1dto.AdminReturnSummaryDTO, int64, error) {
-	user, err := s.userRepo.GetByUUID(ctx, userUUID)
+	user, err := s.getCustomer(ctx, userUUID)
 	if err != nil {
-		return nil, 0, s.handleUserNotFoundError(err)
+		return nil, 0, err
 	}
 
 	if user.UserLevel != RoleAdmin && user.UserLevel != RoleModerator {
@@ -91,9 +91,9 @@ func (s *orderReturnService) AdminGetReturns(ctx context.Context, userUUID uuid.
 
 // AdminGetReturnDetail retrieves comprehensive metadata of a single return ticket including timeline and line items.
 func (s *orderReturnService) AdminGetReturnDetail(ctx context.Context, userUUID uuid.UUID, returnUUID uuid.UUID) (v1dto.AdminReturnDetailDTO, error) {
-	user, err := s.userRepo.GetByUUID(ctx, userUUID)
+	user, err := s.getCustomer(ctx, userUUID)
 	if err != nil {
-		return v1dto.AdminReturnDetailDTO{}, s.handleUserNotFoundError(err)
+		return v1dto.AdminReturnDetailDTO{}, err
 	}
 
 	if user.UserLevel != RoleAdmin && user.UserLevel != RoleModerator {
