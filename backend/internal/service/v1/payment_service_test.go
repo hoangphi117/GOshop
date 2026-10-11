@@ -39,7 +39,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, nil, nil, nil, nil, "", "")
+		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, nil, nil, nil, "", "")
 		_, err := svc.CreatePaymentIntent(ctx, int32(1), "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
@@ -60,7 +60,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, nil, nil, nil, nil, "", "")
+		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, nil, nil, nil, "", "")
 		_, err := svc.CreatePaymentIntent(ctx, int32(1), "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
@@ -82,7 +82,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, nil, nil, nil, nil, "", "")
+		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, nil, nil, nil, "", "")
 		_, err := svc.CreatePaymentIntent(ctx, int32(1), "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
@@ -106,7 +106,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, nil, nil, nil, nil, "", "")
+		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, nil, nil, nil, "", "")
 		_, err := svc.CreatePaymentIntent(ctx, int32(1), "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
@@ -131,7 +131,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, nil, nil, nil, nil, "", "")
+		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, nil, nil, nil, "", "")
 		_, err := svc.CreatePaymentIntent(ctx, int32(1), "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
@@ -157,7 +157,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, nil, nil, nil, nil, "", "")
+		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, nil, nil, nil, "", "")
 		_, err := svc.CreatePaymentIntent(ctx, int32(1), "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
@@ -183,7 +183,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, nil, nil, nil, nil, "", "")
+		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, nil, nil, nil, "", "")
 		_, err := svc.CreatePaymentIntent(ctx, int32(1), "127.0.0.1", "   ", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
@@ -214,7 +214,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), nil, map[string]payment.PaymentProvider{}, nil, nil, nil, "", "")
+		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), nil, map[string]payment.PaymentProvider{}, nil, nil, "", "")
 		_, err := svc.CreatePaymentIntent(ctx, int32(1), "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "unknown_gateway",
@@ -272,7 +272,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			"momo": mockProvider,
 		}
 
-		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), nil, providers, nil, nil, nil, "https://store.com/return", "https://api.com/webhooks")
+		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), nil, providers, nil, nil, "https://store.com/return", "https://api.com/webhooks")
 		dto, err := svc.CreatePaymentIntent(ctx, int32(1), "127.0.0.1", "key123", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
@@ -325,7 +325,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			"momo": cbProvider,
 		}
 
-		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), nil, providers, nil, nil, nil, "https://store.com/return", "https://api.com/webhooks")
+		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), nil, providers, nil, nil, "https://store.com/return", "https://api.com/webhooks")
 
 		// First 2 failures trip the breaker
 		_, _ = svc.CreatePaymentIntent(ctx, int32(1), "127.0.0.1", "key1", v1dto.CreatePaymentIntentInput{OrderUUID: orderUUID, Provider: "momo"})
@@ -411,7 +411,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), nil, map[string]payment.PaymentProvider{"momo": mockProvider}, nil, nil, nil, "https://store.com/return", "https://api.com/webhooks")
+		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), nil, map[string]payment.PaymentProvider{"momo": mockProvider}, nil, nil, "https://store.com/return", "https://api.com/webhooks")
 		dto, err := svc.CreatePaymentIntent(ctx, int32(1), "127.0.0.1", "idem-step-test", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
@@ -465,7 +465,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), nil, map[string]payment.PaymentProvider{"momo": mockProvider}, nil, nil, nil, "https://store.com/return", "https://api.com/webhooks")
+		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), nil, map[string]payment.PaymentProvider{"momo": mockProvider}, nil, nil, "https://store.com/return", "https://api.com/webhooks")
 		dto, err := svc.CreatePaymentIntent(ctx, int32(1), "127.0.0.1", "idem-dup-key", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
@@ -516,7 +516,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), nil, map[string]payment.PaymentProvider{"momo": mockProvider}, nil, nil, nil, "https://store.com/return", "https://api.com/webhooks")
+		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), nil, map[string]payment.PaymentProvider{"momo": mockProvider}, nil, nil, "https://store.com/return", "https://api.com/webhooks")
 		_, err := svc.CreatePaymentIntent(ctx, int32(1), "127.0.0.1", "idem-in-progress", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
@@ -577,7 +577,7 @@ func TestPaymentService_CreatePaymentIntent(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), nil, map[string]payment.PaymentProvider{"momo": mockProvider}, nil, nil, nil, "https://store.com/return", "https://api.com/webhooks")
+		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), nil, map[string]payment.PaymentProvider{"momo": mockProvider}, nil, nil, "https://store.com/return", "https://api.com/webhooks")
 		_, err := svc.CreatePaymentIntent(ctx, int32(1), "127.0.0.1", "idem-timeout-test", v1dto.CreatePaymentIntentInput{
 			OrderUUID: orderUUID,
 			Provider:  "momo",
@@ -594,7 +594,7 @@ func TestPaymentService_HandleWebhook(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("Case 1: Unsupported Provider -> Returns 400", func(t *testing.T) {
-		svc := v1service.NewPaymentService(nil, nil, nil, map[string]payment.PaymentProvider{}, nil, nil, nil, "", "")
+		svc := v1service.NewPaymentService(nil, nil, nil, map[string]payment.PaymentProvider{}, nil, nil, "", "")
 		err := svc.HandleWebhook(ctx, "invalid_provider", []byte("{}"), map[string]string{})
 
 		require.Error(t, err)
@@ -609,7 +609,7 @@ func TestPaymentService_HandleWebhook(t *testing.T) {
 		}
 
 		providers := map[string]payment.PaymentProvider{"momo": mockProvider}
-		svc := v1service.NewPaymentService(nil, nil, nil, providers, nil, nil, nil, "", "")
+		svc := v1service.NewPaymentService(nil, nil, nil, providers, nil, nil, "", "")
 		err := svc.HandleWebhook(ctx, "momo", []byte("{}"), map[string]string{})
 
 		require.Error(t, err)
@@ -636,7 +636,7 @@ func TestPaymentService_HandleWebhook(t *testing.T) {
 		}
 
 		providers := map[string]payment.PaymentProvider{"momo": mockProvider}
-		svc := v1service.NewPaymentService(nil, nil, mockWebhookRepo, providers, nil, nil, nil, "", "")
+		svc := v1service.NewPaymentService(nil, nil, mockWebhookRepo, providers, nil, nil, "", "")
 		err := svc.HandleWebhook(ctx, "momo", []byte("{}"), map[string]string{})
 
 		require.NoError(t, err)
@@ -685,7 +685,7 @@ func TestPaymentService_HandleWebhook(t *testing.T) {
 		}
 
 		providers := map[string]payment.PaymentProvider{"momo": mockProvider}
-		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), mockWebhookRepo, providers, nil, nil, mockRabbitMQ, "", "")
+		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), mockWebhookRepo, providers, nil, mockRabbitMQ, "", "")
 		err := svc.HandleWebhook(ctx, "momo", []byte(`{"event":"test"}`), map[string]string{})
 
 		require.NoError(t, err)
@@ -704,7 +704,7 @@ func TestPaymentService_GetPaymentHistory(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, nil, nil, nil, nil, "", "")
+		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, nil, nil, nil, "", "")
 		_, err := svc.GetPaymentHistory(ctx, int32(1), v1service.RoleMember, orderUUID)
 
 		require.Error(t, err)
@@ -722,7 +722,7 @@ func TestPaymentService_GetPaymentHistory(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, nil, nil, nil, nil, "", "")
+		svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, nil, nil, nil, "", "")
 		_, err := svc.GetPaymentHistory(ctx, int32(1), v1service.RoleMember, orderUUID)
 
 		require.Error(t, err)
@@ -756,7 +756,7 @@ func TestPaymentService_GetPaymentHistory(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), nil, nil, nil, nil, nil, "", "")
+		svc := v1service.NewPaymentService(mockPaymentRepo, toOrderReader(mockOrderRepo), nil, nil, nil, nil, "", "")
 		history, err := svc.GetPaymentHistory(ctx, int32(1), v1service.RoleMember, orderUUID)
 
 		require.NoError(t, err)
@@ -770,7 +770,7 @@ func TestPaymentService_RefundPayment_Validation(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("Case 1: Invalid Order UUID -> Returns 400", func(t *testing.T) {
-		svc := v1service.NewPaymentService(nil, nil, nil, nil, nil, nil, nil, "", "")
+		svc := v1service.NewPaymentService(nil, nil, nil, nil, nil, nil, "", "")
 		_, err := svc.RefundPayment(ctx, "key123", v1dto.RefundPaymentInput{
 			OrderUUID: "not-a-valid-uuid",
 			Amount:    50000,
@@ -801,7 +801,7 @@ func TestPaymentService_CreatePaymentIntent_OrderExpired(t *testing.T) {
 		},
 	}
 
-	svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, nil, nil, nil, nil, "", "")
+	svc := v1service.NewPaymentService(nil, toOrderReader(mockOrderRepo), nil, nil, nil, nil, "", "")
 	_, err := svc.CreatePaymentIntent(ctx, int32(10), "127.0.0.1", "key-123", v1dto.CreatePaymentIntentInput{
 		OrderUUID: orderUUID,
 		Provider:  "momo",
@@ -876,7 +876,7 @@ func TestPaymentService_DecoupledOrderReaderPort(t *testing.T) {
 	}
 
 	// Note: reader is a pure PaymentOrderReaderPort, NOT an OrderRepository
-	svc := v1service.NewPaymentService(mockPaymentRepo, reader, nil, map[string]payment.PaymentProvider{"momo": mockProvider}, nil, nil, nil, "", "")
+	svc := v1service.NewPaymentService(mockPaymentRepo, reader, nil, map[string]payment.PaymentProvider{"momo": mockProvider}, nil, nil, "", "")
 
 	intent, err := svc.CreatePaymentIntent(ctx, int32(10), "127.0.0.1", "idem-decouple-1", v1dto.CreatePaymentIntentInput{
 		OrderUUID: orderUUID,

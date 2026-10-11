@@ -282,19 +282,22 @@ func (s *paymentService) ProcessWebhook(ctx context.Context, msg v1dto.PaymentWe
 }
 
 func (s *paymentService) dispatchSuccessNotification(paidOrder PaymentOrderSummary, providerTxnID string) {
-	if s.notificationService != nil {
+	if s.rabbitmq != nil {
 		go func() {
-			if notifErr := s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
-				UserID: paidOrder.UserID,
-				Type:   "payment_success",
-				Title:  "Payment Received",
-				Body:   fmt.Sprintf("Payment for order #%s was successfully received.", paidOrder.OrderNumber),
-				Data: map[string]any{
+			event := rabbitmq.NewCustomerNotificationEvent(
+				uuid.New().String(),
+				paidOrder.UserID,
+				"payment_success",
+				"success",
+				"Payment Received",
+				fmt.Sprintf("Payment for order #%s was successfully received.", paidOrder.OrderNumber),
+				map[string]any{
 					"order_uuid":      paidOrder.OrderUUID.String(),
 					"provider_txn_id": providerTxnID,
 				},
-			}); notifErr != nil {
-				logger.Log.Warn().Err(notifErr).Str("order_number", paidOrder.OrderNumber).Msg("Failed to dispatch payment success notification")
+			)
+			if err := s.rabbitmq.Publish(context.Background(), rabbitmq.QueueNotificationEvents, event); err != nil {
+				logger.Log.Warn().Err(err).Str("order_number", paidOrder.OrderNumber).Msg("Failed to dispatch payment success notification event")
 			}
 		}()
 	}

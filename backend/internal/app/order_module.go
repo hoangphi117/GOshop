@@ -17,15 +17,14 @@ type OrderModule struct {
 }
 
 type OrderModuleDeps struct {
-	CartService         v1service.CartService
-	CouponService       v1service.CouponService
-	InventoryService    v1service.InventoryService
-	PaymentService      v1service.PaymentService
-	LocationService     v1service.LocationService
-	NotificationService v1service.NotificationService
-	ShippingFactory     *shipping.ShippingFactory
-	RabbitMQService     rabbitmq.RabbitMQService
-	CacheService        cache.RedisCacheService
+	CartService      v1service.CartService
+	CouponService    v1service.CouponService
+	InventoryService v1service.InventoryService
+	PaymentService   v1service.PaymentService
+	LocationService  v1service.LocationService
+	ShippingFactory  *shipping.ShippingFactory
+	RabbitMQService  rabbitmq.RabbitMQService
+	CacheService     cache.RedisCacheService
 }
 
 func NewOrderModule(

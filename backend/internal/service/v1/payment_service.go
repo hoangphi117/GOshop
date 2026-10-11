@@ -29,17 +29,16 @@ const (
 )
 
 type paymentService struct {
-	paymentRepo         repository.PaymentRepository
-	orderReader         PaymentOrderReaderPort
-	webhookRepo         repository.WebhookEventRepository
-	providers           map[string]payment.PaymentProvider
-	notificationService NotificationService
-	cache               cache.RedisCacheService
-	rabbitmq            rabbitmq.RabbitMQService
-	returnURL           string
-	webhookBaseURL      string
-	refundService       PaymentRefundService
-	outboxRepo          repository.OutboxRepository
+	paymentRepo    repository.PaymentRepository
+	orderReader    PaymentOrderReaderPort
+	webhookRepo    repository.WebhookEventRepository
+	providers      map[string]payment.PaymentProvider
+	cache          cache.RedisCacheService
+	rabbitmq       rabbitmq.RabbitMQService
+	returnURL      string
+	webhookBaseURL string
+	refundService  PaymentRefundService
+	outboxRepo     repository.OutboxRepository
 }
 
 // NewPaymentService creates a new instance of PaymentService.
@@ -48,7 +47,6 @@ func NewPaymentService(
 	orderReader PaymentOrderReaderPort,
 	webhookRepo repository.WebhookEventRepository,
 	providers map[string]payment.PaymentProvider,
-	notificationService NotificationService,
 	cache cache.RedisCacheService,
 	rabbitmq rabbitmq.RabbitMQService,
 	returnURL string,
@@ -59,23 +57,22 @@ func NewPaymentService(
 	if repoProvider, ok := orderReader.(interface{ OrderRepository() repository.OrderRepository }); ok {
 		orderRepo = repoProvider.OrderRepository()
 	}
-	refundService := NewPaymentRefundService(paymentRepo, orderRepo, providers, notificationService, cache)
+	refundService := NewPaymentRefundService(paymentRepo, orderRepo, providers, rabbitmq, cache)
 	var obRepo repository.OutboxRepository
 	if len(outboxRepo) > 0 {
 		obRepo = outboxRepo[0]
 	}
 	return &paymentService{
-		paymentRepo:         paymentRepo,
-		orderReader:         orderReader,
-		webhookRepo:         webhookRepo,
-		providers:           providers,
-		notificationService: notificationService,
-		cache:               cache,
-		rabbitmq:            rabbitmq,
-		returnURL:           returnURL,
-		webhookBaseURL:      webhookBaseURL,
-		refundService:       refundService,
-		outboxRepo:          obRepo,
+		paymentRepo:    paymentRepo,
+		orderReader:    orderReader,
+		webhookRepo:    webhookRepo,
+		providers:      providers,
+		cache:          cache,
+		rabbitmq:       rabbitmq,
+		returnURL:      returnURL,
+		webhookBaseURL: webhookBaseURL,
+		refundService:  refundService,
+		outboxRepo:     obRepo,
 	}
 }
 

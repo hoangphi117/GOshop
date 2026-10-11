@@ -6,6 +6,7 @@ import (
 	"goshop/internal/routes"
 	v1routes "goshop/internal/routes/v1"
 	v1service "goshop/internal/service/v1"
+	"goshop/pkg/rabbitmq"
 )
 
 type ReviewModule struct {
@@ -13,7 +14,7 @@ type ReviewModule struct {
 	adminRoutes []routes.Route
 }
 
-func NewReviewModule(ctx *ModuleContext, notificationService v1service.NotificationService) *ReviewModule {
+func NewReviewModule(ctx *ModuleContext, rabbitmqService rabbitmq.RabbitMQService) *ReviewModule {
 
 	// Initialize repository
 	reviewRepo := repository.NewSqlReviewRepository(ctx.DB)
@@ -21,7 +22,7 @@ func NewReviewModule(ctx *ModuleContext, notificationService v1service.Notificat
 	orderRepo := repository.NewSqlOrderRepository(ctx.DB)
 
 	// Initialize service
-	reviewService := v1service.NewReviewService(reviewRepo, productRepo, orderRepo, notificationService, ctx.Redis)
+	reviewService := v1service.NewReviewService(reviewRepo, productRepo, orderRepo, rabbitmqService, ctx.Redis)
 
 	// Initialize handler
 	reviewHandler := v1handler.NewReviewHandler(reviewService)

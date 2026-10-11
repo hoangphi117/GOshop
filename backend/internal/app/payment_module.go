@@ -23,7 +23,6 @@ func NewPaymentModule(
 	cacheService cache.RedisCacheService,
 	rabbitmqService rabbitmq.RabbitMQService,
 	wsHub ws.Hub,
-	notificationService v1service.NotificationService,
 	existingPaymentService ...v1service.PaymentService,
 ) *PaymentModule {
 	var paymentService v1service.PaymentService
@@ -58,7 +57,7 @@ func NewPaymentModule(
 		orderReader := v1service.NewOrderReaderAdapter(orderRepo)
 		paymentService = v1service.NewPaymentService(
 			paymentRepo, orderReader, webhookRepo,
-			providers, notificationService, cacheService, rabbitmqService, returnURL, webhookBaseURL,
+			providers, cacheService, rabbitmqService, returnURL, webhookBaseURL,
 			outboxRepo,
 		)
 	}

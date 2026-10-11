@@ -238,7 +238,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	paymentWebhookBaseURL := utils.GetEnv("PAYMENT_WEBHOOK_BASE_URL", "http://localhost:8080")
 	paymentService := v1service.NewPaymentService(
 		paymentRepo, orderReader, webhookRepo,
-		paymentProviders, notificationService, cacheRedisService, rabbitmqService,
+		paymentProviders, cacheRedisService, rabbitmqService,
 		paymentReturnURL, paymentWebhookBaseURL,
 		outboxRepo,
 	)
@@ -254,15 +254,14 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	}
 
 	orderModuleDeps := OrderModuleDeps{
-		CartService:         cartService,
-		CouponService:       couponService,
-		InventoryService:    inventoryService,
-		PaymentService:      paymentService,
-		LocationService:     locationService,
-		NotificationService: notificationService,
-		ShippingFactory:     shippingFactory,
-		RabbitMQService:     rabbitmqService,
-		CacheService:        cacheRedisService,
+		CartService:     cartService,
+		CouponService:   couponService,
+		InventoryService: inventoryService,
+		PaymentService:  paymentService,
+		LocationService: locationService,
+		ShippingFactory: shippingFactory,
+		RabbitMQService: rabbitmqService,
+		CacheService:    cacheRedisService,
 	}
 
 	modules := []Module{
@@ -271,9 +270,9 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		NewOrderModule(ctx, orderModuleDeps),
 		NewCartModule(ctx, cartService),
 		NewCouponModule(ctx, couponService),
-		NewPaymentModule(ctx, cacheRedisService, rabbitmqService, wsHub, notificationService, paymentService),
+		NewPaymentModule(ctx, cacheRedisService, rabbitmqService, wsHub, paymentService),
 		NewAddressModule(ctx),
-		NewReviewModule(ctx, notificationService),
+		NewReviewModule(ctx, rabbitmqService),
 		NewNotificationModule(ctx, notificationService, wsHub, tokenService, cacheRedisService),
 		NewLocationModule(locationService),
 		NewAuthModule(ctx, tokenService, cacheRedisService, mailService, rabbitmqService, wsHub, redisBridge, cfg.StorefrontURL),

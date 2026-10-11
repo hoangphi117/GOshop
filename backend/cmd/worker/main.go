@@ -166,7 +166,6 @@ func NewWorker(cfg *config.Config) *Worker {
 		orderReader,
 		webhookRepo,
 		paymentProviders,
-		notificationService,
 		cacheService,
 		rabbitMQ,
 		returnURL,

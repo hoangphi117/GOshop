@@ -21,14 +21,15 @@ import (
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 	"goshop/pkg/payment"
+	"goshop/pkg/rabbitmq"
 )
 
 type paymentRefundService struct {
-	paymentRepo         repository.PaymentRepository
-	orderRepo           repository.OrderRepository
-	providers           map[string]payment.PaymentProvider
-	notificationService NotificationService
-	cache               cache.RedisCacheService
+	paymentRepo repository.PaymentRepository
+	orderRepo   repository.OrderRepository
+	providers   map[string]payment.PaymentProvider
+	rabbitMQ    rabbitmq.RabbitMQService
+	cache       cache.RedisCacheService
 }
 
 // NewPaymentRefundService constructs a new instance of PaymentRefundService.
@@ -36,15 +37,15 @@ func NewPaymentRefundService(
 	paymentRepo repository.PaymentRepository,
 	orderRepo repository.OrderRepository,
 	providers map[string]payment.PaymentProvider,
-	notificationService NotificationService,
+	rabbitMQ rabbitmq.RabbitMQService,
 	cache cache.RedisCacheService,
 ) PaymentRefundService {
 	return &paymentRefundService{
-		paymentRepo:         paymentRepo,
-		orderRepo:           orderRepo,
-		providers:           providers,
-		notificationService: notificationService,
-		cache:               cache,
+		paymentRepo: paymentRepo,
+		orderRepo:   orderRepo,
+		providers:   providers,
+		rabbitMQ:    rabbitMQ,
+		cache:       cache,
 	}
 }
 
@@ -276,19 +277,22 @@ func (s *paymentRefundService) RefundPayment(ctx context.Context, idempotencyKey
 }
 
 func (s *paymentRefundService) dispatchRefundNotification(order sqlc.Order, finalRefundTxn sqlc.PaymentTransaction, amount float64) {
-	if s.notificationService != nil {
+	if s.rabbitMQ != nil {
 		go func() {
-			if notifErr := s.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
-				UserID: order.OrderUserID,
-				Type:   "payment_refunded",
-				Title:  "Payment Refunded",
-				Body:   fmt.Sprintf("A refund of %.0f VND for order #%s has been successfully processed.", amount, order.OrderNumber),
-				Data: map[string]any{
+			event := rabbitmq.NewCustomerNotificationEvent(
+				uuid.New().String(),
+				order.OrderUserID,
+				"payment_refunded",
+				"refunded",
+				"Payment Refunded",
+				fmt.Sprintf("A refund of %.0f VND for order #%s has been successfully processed.", amount, order.OrderNumber),
+				map[string]any{
 					"order_uuid":      order.OrderUuid.String(),
 					"refund_txn_uuid": finalRefundTxn.PtUuid.String(),
 				},
-			}); notifErr != nil {
-				logger.Log.Warn().Err(notifErr).Str("order_number", order.OrderNumber).Msg("Failed to dispatch refund notification")
+			)
+			if err := s.rabbitMQ.Publish(context.Background(), rabbitmq.QueueNotificationEvents, event); err != nil {
+				logger.Log.Warn().Err(err).Str("order_number", order.OrderNumber).Msg("Failed to dispatch refund notification event")
 			}
 		}()
 	}

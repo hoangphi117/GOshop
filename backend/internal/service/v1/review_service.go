@@ -14,6 +14,7 @@ import (
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
+	"goshop/pkg/rabbitmq"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -27,18 +28,18 @@ const (
 )
 
 type reviewService struct {
-	repo                repository.ReviewRepository
-	productRepo         repository.ProductRepository
-	orderRepo           repository.OrderRepository
-	notificationService NotificationService
-	cache               cache.RedisCacheService
+	repo        repository.ReviewRepository
+	productRepo repository.ProductRepository
+	orderRepo   repository.OrderRepository
+	rabbitMQ    rabbitmq.RabbitMQService
+	cache       cache.RedisCacheService
 }
 
 func NewReviewService(
 	repo repository.ReviewRepository,
 	productRepo repository.ProductRepository,
 	orderRepo repository.OrderRepository,
-	notificationService NotificationService,
+	rabbitMQ rabbitmq.RabbitMQService,
 	redisClient *redis.Client,
 ) ReviewService {
 	var cacheService cache.RedisCacheService
@@ -46,11 +47,11 @@ func NewReviewService(
 		cacheService = cache.NewRedisCacheService(redisClient)
 	}
 	return &reviewService{
-		repo:                repo,
-		productRepo:         productRepo,
-		orderRepo:           orderRepo,
-		notificationService: notificationService,
-		cache:               cacheService,
+		repo:        repo,
+		productRepo: productRepo,
+		orderRepo:   orderRepo,
+		rabbitMQ:    rabbitMQ,
+		cache:       cacheService,
 	}
 }
 
@@ -153,28 +154,34 @@ func (rs *reviewService) invalidateProductReviewCache(productUUID string) {
 }
 
 func (rs *reviewService) dispatchReplyNotification(review sqlc.GetReviewByUUIDRow, reply string) {
-	if rs.notificationService != nil {
+	if rs.rabbitMQ != nil {
 		go func() {
 			logger.Log.Info().
 				Int32("recipient_user_id", review.ReviewUserID).
 				Str("review_uuid", review.ReviewUuid.String()).
-				Msg("Dispatching review_reply notification")
+				Msg("Dispatching review_reply notification event")
 
 			replySnippet := reply
 			if len(replySnippet) > 100 {
 				replySnippet = replySnippet[:97] + "..."
 			}
 
-			_ = rs.notificationService.Send(context.Background(), v1dto.SendNotificationInput{
-				UserID: review.ReviewUserID,
-				Type:   "review_reply",
-				Title:  "Shop replied to your review",
-				Body:   fmt.Sprintf("Shop has replied to your review: \"%s\"", replySnippet),
-				Data: map[string]any{
+			event := rabbitmq.NewCustomerNotificationEvent(
+				uuid.New().String(),
+				review.ReviewUserID,
+				"review_reply",
+				"reply",
+				"Shop replied to your review",
+				fmt.Sprintf("Shop has replied to your review: \"%s\"", replySnippet),
+				map[string]any{
 					"review_uuid":  review.ReviewUuid.String(),
 					"product_uuid": review.ProductUuid.String(),
 				},
-			})
+			)
+
+			if err := rs.rabbitMQ.Publish(context.Background(), rabbitmq.QueueNotificationEvents, event); err != nil {
+				logger.Log.Warn().Err(err).Str("review_uuid", review.ReviewUuid.String()).Msg("Failed to publish review_reply notification event")
+			}
 		}()
 	}
 }
@@ -266,8 +273,8 @@ func (rs *reviewService) CreateReview(ctx context.Context, userID int32, input v
 
 	rs.invalidateProductReviewCache(input.ProductUUID)
 
-	// Notify admins asynchronously of new customer review
-	if rs.notificationService != nil {
+	// Notify admins asynchronously of new customer review via RabbitMQ
+	if rs.rabbitMQ != nil {
 		commentSnippet := ""
 		if input.Comment != nil {
 			commentSnippet = *input.Comment
@@ -275,17 +282,20 @@ func (rs *reviewService) CreateReview(ctx context.Context, userID int32, input v
 				commentSnippet = commentSnippet[:77] + "..."
 			}
 		}
-		_ = rs.notificationService.NotifyAdminsAsync(ctx, v1dto.AdminNotifyInput{
-			Type:  "review",
-			Title: "New Product Review",
-			Body:  fmt.Sprintf("Rating %d/5 on \"%s\": %s", input.Rating, product.ProductName, commentSnippet),
-			Data: map[string]any{
+		event := rabbitmq.NewAdminNotificationEvent(
+			uuid.New().String(),
+			"review",
+			"new_review",
+			"New Product Review",
+			fmt.Sprintf("Rating %d/5 on \"%s\": %s", input.Rating, product.ProductName, commentSnippet),
+			map[string]any{
 				"review_uuid":  review.ReviewUuid.String(),
 				"product_uuid": product.ProductUuid.String(),
 				"rating":       input.Rating,
 				"link":         "/reviews",
 			},
-		})
+		)
+		_ = rs.rabbitMQ.Publish(ctx, rabbitmq.QueueNotificationEvents, event)
 	}
 
 	return v1dto.MapCreatedReviewToDTO(review, order.OrderShippingName, product.ProductUuid.String(), order.OrderUuid.String()), nil
