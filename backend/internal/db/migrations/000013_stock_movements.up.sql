@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS stock_movements (
     stock_after       INT NOT NULL,
     reference_id      VARCHAR(100),
     reference_type    VARCHAR(30),
-    actor_id          INT REFERENCES users(user_id) ON DELETE SET NULL,
+    actor_id          INT,
     actor_uuid        UUID,
     actor_name        VARCHAR(100),
     note              TEXT,
@@ -23,4 +23,5 @@ COMMENT ON COLUMN stock_movements.reference_type IS 'order, return, manual, prod
 CREATE INDEX IF NOT EXISTS idx_stock_movements_product_created ON stock_movements(product_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_stock_movements_type_created ON stock_movements(change_type, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_stock_movements_reference ON stock_movements(reference_type, reference_id);
+CREATE INDEX IF NOT EXISTS idx_stock_movements_actor_id ON stock_movements(actor_id);
 CREATE INDEX IF NOT EXISTS idx_stock_movements_created ON stock_movements(created_at DESC);

@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS orders (
     order_uuid              UUID DEFAULT gen_random_uuid() NOT NULL UNIQUE,
     order_number            VARCHAR(20) NOT NULL UNIQUE,
 
-    order_user_id           INT NOT NULL REFERENCES users(user_id),
+    order_user_id           INT NOT NULL,
     order_user_uuid         UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
     order_customer_name     VARCHAR(100) NOT NULL DEFAULT '',
     order_customer_email    VARCHAR(255) NOT NULL DEFAULT '',
@@ -48,6 +48,7 @@ COMMENT ON COLUMN orders.order_payment_method IS '1: COD, 2: Bank Transfer, 3: E
 COMMENT ON COLUMN orders.order_payment_status IS '1: Unpaid, 2: Paid, 3: Partially Refunded, 4: Refunded';
 
 CREATE INDEX idx_orders_user ON orders(order_user_id, order_status, order_created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_order_user_id ON orders(order_user_id);
 CREATE INDEX idx_orders_user_uuid ON orders(order_user_uuid);
 CREATE INDEX idx_orders_status ON orders(order_status, order_created_at DESC);
 CREATE INDEX idx_orders_number ON orders(order_number);
