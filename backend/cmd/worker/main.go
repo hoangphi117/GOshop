@@ -49,6 +49,7 @@ type Worker struct {
 	outboxPublisherWorker  *worker.OutboxPublisherWorker
 	shippingService        v1service.OrderShippingService
 	paymentService         v1service.PaymentService
+	userSyncConsumer       *worker.UserSyncConsumer
 	redisBridge            ws.RedisBridge
 }
 
@@ -216,6 +217,8 @@ func NewWorker(cfg *config.Config) *Worker {
 		utils.GetIntEnv("NOTIFICATION_RETENTION_DAYS", 30),
 	)
 
+	userSyncConsumer := worker.NewUserSyncConsumer(redisClient)
+
 	return &Worker{
 		rabbitMQ:               rabbitMQ,
 		mailService:            mailService,
@@ -234,6 +237,7 @@ func NewWorker(cfg *config.Config) *Worker {
 		outboxPublisherWorker:  outboxPublisherWorker,
 		shippingService:        shippingService,
 		paymentService:         paymentService,
+		userSyncConsumer:       userSyncConsumer,
 		redisBridge:            redisBridge,
 	}
 }
@@ -360,6 +364,18 @@ func (w *Worker) Start(ctx context.Context) error {
 			w.logger.Error().Err(err).Msg("Failed to consume payment succeeded events")
 		} else {
 			w.logger.Info().Msgf("Worker consuming queue: %s", rabbitmq.QueuePaymentSucceeded)
+		}
+	}
+
+	// Consume User Sync Events (Cache invalidation & cross-service sync)
+	if w.userSyncConsumer != nil {
+		for _, queueName := range []string{rabbitmq.QueueUserCreated, rabbitmq.QueueUserUpdated, rabbitmq.QueueUserDeleted} {
+			syncHandler := w.withIdempotency(queueName, w.userSyncConsumer.Handle)
+			if err := w.rabbitMQ.Consume(ctx, queueName, syncHandler); err != nil {
+				w.logger.Error().Err(err).Str("queue", queueName).Msg("Failed to consume user sync queue")
+				return err
+			}
+			w.logger.Info().Msgf("Worker consuming queue: %s", queueName)
 		}
 	}
 

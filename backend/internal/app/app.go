@@ -60,6 +60,7 @@ type ModuleContext struct {
 	Storage        storage.StorageService
 	Search         *search.Client
 	IdentityClient client.IdentityClient
+	RabbitMQ       rabbitmq.RabbitMQService
 }
 
 func NewApplication(cfg *config.Config) (*Application, error) {
@@ -256,6 +257,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		Storage:        storageService,
 		Search:         searchClient,
 		IdentityClient: identityClient,
+		RabbitMQ:       rabbitmqService,
 	}
 
 	orderModuleDeps := OrderModuleDeps{

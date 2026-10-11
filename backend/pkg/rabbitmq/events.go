@@ -1,6 +1,10 @@
 package rabbitmq
 
-import "time"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 const (
 	QueueNotificationEvents       = "notification_events"
@@ -29,6 +33,11 @@ const (
 	QueuePaymentExpired       = "payment.expired"
 	QueuePaymentSucceeded     = "payment.succeeded"
 	QueuePaymentFailed        = "payment.failed"
+
+	// User Sync Queues (Inter-Service Eventual Consistency)
+	QueueUserCreated = "user.created"
+	QueueUserUpdated = "user.updated"
+	QueueUserDeleted = "user.deleted"
 )
 
 // PaymentExpiredEvent is emitted when a payment transaction exceeds its timeout and expires.
@@ -291,5 +300,37 @@ func NewCustomerNotificationEvent(eventID string, userID int32, eventType, actio
 		Body:      body,
 		Data:      data,
 		Timestamp: time.Now().UTC(),
+	}
+}
+
+// UserSyncEvent is emitted when a user profile is created, updated, or deleted in Identity Service.
+type UserSyncEvent struct {
+	EventID       string    `json:"event_id"`
+	EventType     string    `json:"event_type"` // "user.created", "user.updated", "user.deleted"
+	UserID        int32     `json:"user_id"`
+	UserUUID      string    `json:"user_uuid"`
+	UserFullname  string    `json:"user_fullname"`
+	UserEmail     string    `json:"user_email"`
+	UserAvatar    string    `json:"user_avatar"`
+	UserAvatarUrl *string   `json:"user_avatar_url,omitempty"`
+	UserStatus    int32     `json:"user_status"`
+	UserLevel     int32     `json:"user_level"`
+	Timestamp     time.Time `json:"timestamp"`
+}
+
+// NewUserSyncEvent creates an event for inter-service user data synchronization.
+func NewUserSyncEvent(eventType string, userID int32, userUUID, fullname, email, avatar string, avatarURL *string, status, level int32) UserSyncEvent {
+	return UserSyncEvent{
+		EventID:       uuid.New().String(),
+		EventType:     eventType,
+		UserID:        userID,
+		UserUUID:      userUUID,
+		UserFullname:  fullname,
+		UserEmail:     email,
+		UserAvatar:    avatar,
+		UserAvatarUrl: avatarURL,
+		UserStatus:    status,
+		UserLevel:     level,
+		Timestamp:     time.Now().UTC(),
 	}
 }

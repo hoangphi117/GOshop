@@ -11,6 +11,7 @@ import (
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
+	"goshop/pkg/rabbitmq"
 	"strings"
 	"time"
 
@@ -22,18 +23,65 @@ import (
 )
 
 type userService struct {
-	repo  repository.UserRepository
-	cache cache.RedisCacheService
+	repo     repository.UserRepository
+	cache    cache.RedisCacheService
+	redis    *redis.Client
+	rabbitmq rabbitmq.RabbitMQService
 }
 
-func NewUserService(repo repository.UserRepository, redisClient *redis.Client) UserService {
+func NewUserService(repo repository.UserRepository, redisClient *redis.Client, rmq ...rabbitmq.RabbitMQService) UserService {
 	var cacheService cache.RedisCacheService
 	if redisClient != nil {
 		cacheService = cache.NewRedisCacheService(redisClient)
 	}
+	var rabbitMQ rabbitmq.RabbitMQService
+	if len(rmq) > 0 {
+		rabbitMQ = rmq[0]
+	}
 	return &userService{
-		repo:  repo,
-		cache: cacheService,
+		repo:     repo,
+		cache:    cacheService,
+		redis:    redisClient,
+		rabbitmq: rabbitMQ,
+	}
+}
+
+func (us *userService) publishUserSyncEvent(ctx context.Context, eventType string, user sqlc.User) {
+	// 1. Invalidate Redis single profile cache
+	if us.redis != nil && user.UserID > 0 {
+		cacheKey := fmt.Sprintf("user:profile:%d", user.UserID)
+		if err := us.redis.Del(ctx, cacheKey).Err(); err != nil {
+			logger.Log.Warn().Err(err).Str("cache_key", cacheKey).Msg("Failed to invalidate user profile cache")
+		}
+	}
+
+	// 2. Publish event to RabbitMQ
+	if us.rabbitmq != nil {
+		event := rabbitmq.NewUserSyncEvent(
+			eventType,
+			user.UserID,
+			user.UserUuid.String(),
+			user.UserFullname,
+			user.UserEmail,
+			user.UserAvatar,
+			user.UserAvatarUrl,
+			user.UserStatus,
+			user.UserLevel,
+		)
+		var queueName string
+		switch eventType {
+		case rabbitmq.QueueUserCreated:
+			queueName = rabbitmq.QueueUserCreated
+		case rabbitmq.QueueUserDeleted:
+			queueName = rabbitmq.QueueUserDeleted
+		default:
+			queueName = rabbitmq.QueueUserUpdated
+		}
+		if err := us.rabbitmq.Publish(ctx, queueName, event); err != nil {
+			logger.Log.Error().Err(err).Str("queue", queueName).Int32("user_id", user.UserID).Msg("Failed to publish user sync event to RabbitMQ")
+		} else {
+			logger.Log.Info().Str("queue", queueName).Int32("user_id", user.UserID).Msg("Published user sync event to RabbitMQ")
+		}
 	}
 }
 
@@ -123,6 +171,8 @@ func (us *userService) CreateUsers(ctx context.Context, input v1dto.CreateUserIn
 		}
 	}
 
+	us.publishUserSyncEvent(ctx, rabbitmq.QueueUserCreated, user)
+
 	return v1dto.MapUserToDTO(user), nil
 }
 
@@ -166,6 +216,8 @@ func (us *userService) UpdateUser(ctx context.Context, userUUID uuid.UUID, input
 			logger.Log.Warn().Err(err).Msg("Failed to clear cache")
 		}
 	}
+
+	us.publishUserSyncEvent(ctx, rabbitmq.QueueUserUpdated, updatedUser)
 
 	return v1dto.MapUserToDTO(updatedUser), nil
 }
@@ -211,6 +263,8 @@ func (us *userService) UpdateProfile(ctx context.Context, userUUID uuid.UUID, in
 		}
 	}
 
+	us.publishUserSyncEvent(ctx, rabbitmq.QueueUserUpdated, user)
+
 	return v1dto.MapUserToDTO(user), nil
 }
 
@@ -250,8 +304,12 @@ func (us *userService) ChangePassword(ctx context.Context, userUUID uuid.UUID, i
 	}
 
 	if us.cache != nil {
-		_ = us.cache.Clear(fmt.Sprintf("user:%s", user.UserUuid.String()))
-		_ = us.cache.Clear("users:*")
+		if err := us.cache.Clear(fmt.Sprintf("user:%s", user.UserUuid.String())); err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to clear user cache")
+		}
+		if err := us.cache.Clear("users:*"); err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to clear users cache")
+		}
 	}
 	logger.Log.Info().Str("user_uuid", user.UserUuid.String()).Msg("User password changed successfully")
 	return nil
@@ -272,6 +330,8 @@ func (us *userService) SoftDeleteUser(ctx context.Context, userUUID uuid.UUID) (
 		}
 	}
 
+	us.publishUserSyncEvent(ctx, rabbitmq.QueueUserDeleted, user)
+
 	return v1dto.MapUserToDTO(user), nil
 }
 
@@ -290,11 +350,13 @@ func (us *userService) RestoreUser(ctx context.Context, userUUID uuid.UUID) (*v1
 		}
 	}
 
+	us.publishUserSyncEvent(ctx, rabbitmq.QueueUserUpdated, user)
+
 	return v1dto.MapUserToDTO(user), nil
 }
 
 func (us *userService) TrashUser(ctx context.Context, userUUID uuid.UUID) error {
-	_, err := us.repo.Trash(ctx, userUUID)
+	trashedUser, err := us.repo.Trash(ctx, userUUID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
 			return utils.NewError(utils.ErrCodeNotFound, "user not found or not soft deleted for permanent deletion")
@@ -306,6 +368,10 @@ func (us *userService) TrashUser(ctx context.Context, userUUID uuid.UUID) error 
 		if err := us.cache.Clear("users:*"); err != nil {
 			logger.Log.Warn().Err(err).Msg("Failed to clear cache")
 		}
+	}
+
+	if trashedUser.UserID > 0 {
+		us.publishUserSyncEvent(ctx, rabbitmq.QueueUserDeleted, trashedUser)
 	}
 
 	return nil

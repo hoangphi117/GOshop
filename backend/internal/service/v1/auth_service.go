@@ -13,6 +13,7 @@ import (
 	"goshop/internal/utils"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
+	"goshop/pkg/logger"
 	"goshop/pkg/mail"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/ws"
@@ -496,9 +497,30 @@ func (as *authService) VerifyRegisterOTP(ctx context.Context, input v1dto.Verify
 		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "failed to register user", err)
 	}
 
+	if as.rabbitmq != nil {
+		syncEvent := rabbitmq.NewUserSyncEvent(
+			rabbitmq.QueueUserCreated,
+			createdUser.UserID,
+			createdUser.UserUuid.String(),
+			createdUser.UserFullname,
+			createdUser.UserEmail,
+			createdUser.UserAvatar,
+			createdUser.UserAvatarUrl,
+			createdUser.UserStatus,
+			createdUser.UserLevel,
+		)
+		if err := as.rabbitmq.Publish(ctx, rabbitmq.QueueUserCreated, syncEvent); err != nil {
+			logger.Log.Error().Err(err).Int32("user_id", createdUser.UserID).Msg("Failed to publish user.created event")
+		}
+	}
+
 	// Clean up Redis session
-	_ = as.cacheService.Del(regKey)
-	_ = as.cacheService.Del("auth:otp_resend:" + email)
+	if err := as.cacheService.Del(regKey); err != nil {
+		logger.Log.Warn().Err(err).Str("key", regKey).Msg("Failed to delete registration session key")
+	}
+	if err := as.cacheService.Del("auth:otp_resend:" + email); err != nil {
+		logger.Log.Warn().Err(err).Str("email", email).Msg("Failed to delete otp resend key")
+	}
 
 	// Generate access token and refresh token
 	refreshToken, err := as.tokenService.GenerateRefreshToken(toUserTokenPayload(createdUser))
@@ -670,6 +692,23 @@ func (as *authService) findOrCreateGoogleUser(ctx context.Context, payload *v1dt
 	})
 	if err != nil {
 		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to create new OAuth user", err)
+	}
+
+	if as.rabbitmq != nil {
+		syncEvent := rabbitmq.NewUserSyncEvent(
+			rabbitmq.QueueUserCreated,
+			newUser.UserID,
+			newUser.UserUuid.String(),
+			newUser.UserFullname,
+			newUser.UserEmail,
+			newUser.UserAvatar,
+			newUser.UserAvatarUrl,
+			newUser.UserStatus,
+			newUser.UserLevel,
+		)
+		if err := as.rabbitmq.Publish(ctx, rabbitmq.QueueUserCreated, syncEvent); err != nil {
+			logger.Log.Error().Err(err).Int32("user_id", newUser.UserID).Msg("Failed to publish user.created event for oauth user")
+		}
 	}
 
 	return newUser, nil

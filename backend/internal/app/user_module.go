@@ -22,7 +22,7 @@ func NewUserModule(ctx *ModuleContext, tokenService auth.TokenService) *UserModu
 	userRepo := repository.NewSqlUserRepository(querier)
 
 	// Initialize service
-	userService := v1service.NewUserService(userRepo, ctx.Redis)
+	userService := v1service.NewUserService(userRepo, ctx.Redis, ctx.RabbitMQ)
 
 	// Initialize handler
 	userHandler := v1handler.NewUserHandler(userService)

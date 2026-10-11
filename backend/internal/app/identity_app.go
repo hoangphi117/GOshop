@@ -82,6 +82,7 @@ func NewIdentityApplication(cfg *config.Config) (*Application, error) {
 		ReadDB:     db.GetReadDB(),
 		IdentityDB: db.GetIdentityDB(),
 		Redis:      redisClient,
+		RabbitMQ:   rabbitmqService,
 	}
 
 	modules := []Module{
