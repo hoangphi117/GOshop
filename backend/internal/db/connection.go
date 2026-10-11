@@ -39,7 +39,13 @@ func GetIdentityDB() sqlc.Querier {
 }
 
 func InitDB() error {
-	cfg := config.NewConfig()
+	return InitDBWithConfig(config.NewConfig())
+}
+
+func InitDBWithConfig(cfg *config.Config) error {
+	if cfg == nil {
+		cfg = config.NewConfig()
+	}
 	connStr := cfg.DNS()
 
 	conf, err := pgxpool.ParseConfig(connStr)

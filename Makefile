@@ -93,6 +93,9 @@ migrate-down-n:
 migrate-force:
 	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" force ${VERSION}
 
+migrate-identity-force:
+	migrate -path ${MIGRATION_IDENTITY_DIR} -database "${IDENTITY_CONNECTION_STRING}" force ${VERSION}
+
 # Drop all tables in the database
 migrate-drop:
 	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" drop 

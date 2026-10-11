@@ -29,6 +29,7 @@ services:
       - ./backend/.env
     environment:
       - DB_HOST=postgres
+      - DB_NAME=shopping
       - REDIS_ADDR=redis:6379
       - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
       - MEILISEARCH_HOST=http://meilisearch:7700
@@ -57,6 +58,7 @@ services:
       - ./backend/.env
     environment:
       - DB_HOST=postgres
+      - DB_NAME=shopping
       - REDIS_ADDR=redis:6379
       - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
       - MEILISEARCH_HOST=http://meilisearch:7700
@@ -114,6 +116,7 @@ services:
       - ./backend/.env
     environment:
       - DB_HOST=postgres
+      - DB_NAME=shopping
       - REDIS_ADDR=redis:6379
       - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
       - MEILISEARCH_HOST=http://meilisearch:7700
@@ -137,6 +140,7 @@ services:
       - ./backend/.env
     environment:
       - DB_HOST=postgres
+      - DB_NAME=shopping
       - REDIS_ADDR=redis:6379
       - WS_GATEWAY_PORT=8085
       - APP_ENV=production

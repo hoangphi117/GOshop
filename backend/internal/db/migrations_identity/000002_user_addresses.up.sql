@@ -33,6 +33,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS set_ua_updated_at ON user_addresses;
 CREATE TRIGGER set_ua_updated_at
     BEFORE UPDATE ON user_addresses
     FOR EACH ROW

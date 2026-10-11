@@ -44,7 +44,7 @@ func NewIdentityApplication(cfg *config.Config) (*Application, error) {
 
 	r.MaxMultipartMemory = 8 << 20
 
-	if err := db.InitDB(); err != nil {
+	if err := db.InitDBWithConfig(cfg); err != nil {
 		logger.Log.Fatal().Err(err).Msg("Failed to initialize database")
 		return nil, err
 	}
