@@ -122,11 +122,10 @@ SELECT
     o.order_payment_status,
     o.order_status,
     o.order_created_at,
-    u.user_uuid,
-    u.user_fullname,
-    u.user_email
+    o.order_user_uuid AS user_uuid,
+    o.order_customer_name AS user_fullname,
+    o.order_customer_email AS user_email
 FROM orders o
-JOIN users u ON u.user_id = o.order_user_id
 ORDER BY o.order_created_at DESC
 LIMIT sqlc.arg('limit_count')::int;
 

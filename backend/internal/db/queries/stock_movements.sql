@@ -31,11 +31,10 @@ SELECT
     p.product_name,
     p.product_sku,
     p.product_image_url,
-    u.user_uuid AS actor_uuid,
-    u.user_fullname AS actor_name
+    sm.actor_uuid,
+    sm.actor_name
 FROM stock_movements sm
 JOIN products p ON p.product_id = sm.product_id
-LEFT JOIN users u ON u.user_id = sm.actor_id
 WHERE (
     sqlc.narg(product_uuid)::uuid IS NULL
     OR p.product_uuid = sqlc.narg(product_uuid)::uuid
@@ -61,7 +60,6 @@ LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');
 SELECT count(*)
 FROM stock_movements sm
 JOIN products p ON p.product_id = sm.product_id
-LEFT JOIN users u ON u.user_id = sm.actor_id
 WHERE (
     sqlc.narg(product_uuid)::uuid IS NULL
     OR p.product_uuid = sqlc.narg(product_uuid)::uuid

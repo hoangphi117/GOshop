@@ -333,13 +333,12 @@ const getReviewReportsByReviewID = `-- name: GetReviewReportsByReviewID :many
 SELECT 
     prr.report_id,
     prr.user_id,
-    u.user_fullname AS user_name,
-    u.user_email,
+    prr.user_name,
+    prr.user_email,
     prr.reason,
     prr.details,
     prr.created_at
 FROM product_review_reports prr
-JOIN users u ON u.user_id = prr.user_id
 WHERE prr.review_id = $1
 ORDER BY prr.created_at DESC
 `

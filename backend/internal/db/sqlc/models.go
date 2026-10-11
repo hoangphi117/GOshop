@@ -64,6 +64,9 @@ type ChatConversation struct {
 	ConversationUuid uuid.UUID          `json:"conversation_uuid"`
 	UserID           int32              `json:"user_id"`
 	AdminID          *int32             `json:"admin_id"`
+	UserFullname     string             `json:"user_fullname"`
+	UserEmail        string             `json:"user_email"`
+	UserAvatar       string             `json:"user_avatar"`
 	Status           string             `json:"status"`
 	LastMessageAt    pgtype.Timestamptz `json:"last_message_at"`
 	CreatedAt        time.Time          `json:"created_at"`
@@ -133,6 +136,9 @@ type Order struct {
 	OrderUuid            uuid.UUID      `json:"order_uuid"`
 	OrderNumber          string         `json:"order_number"`
 	OrderUserID          int32          `json:"order_user_id"`
+	OrderUserUuid        uuid.UUID      `json:"order_user_uuid"`
+	OrderCustomerName    string         `json:"order_customer_name"`
+	OrderCustomerEmail   string         `json:"order_customer_email"`
 	OrderShippingName    string         `json:"order_shipping_name"`
 	OrderShippingPhone   string         `json:"order_shipping_phone"`
 	OrderShippingAddress string         `json:"order_shipping_address"`
@@ -292,6 +298,8 @@ type ProductReviewReport struct {
 	ReportID  int32     `json:"report_id"`
 	ReviewID  int32     `json:"review_id"`
 	UserID    int32     `json:"user_id"`
+	UserName  string    `json:"user_name"`
+	UserEmail string    `json:"user_email"`
 	Reason    string    `json:"reason"`
 	Details   *string   `json:"details"`
 	CreatedAt time.Time `json:"created_at"`
@@ -308,10 +316,12 @@ type StockMovement struct {
 	StockAfter     int32   `json:"stock_after"`
 	ReferenceID    *string `json:"reference_id"`
 	// order, return, manual, product_edit
-	ReferenceType *string   `json:"reference_type"`
-	ActorID       *int32    `json:"actor_id"`
-	Note          *string   `json:"note"`
-	CreatedAt     time.Time `json:"created_at"`
+	ReferenceType *string     `json:"reference_type"`
+	ActorID       *int32      `json:"actor_id"`
+	ActorUuid     pgtype.UUID `json:"actor_uuid"`
+	ActorName     *string     `json:"actor_name"`
+	Note          *string     `json:"note"`
+	CreatedAt     time.Time   `json:"created_at"`
 }
 
 type User struct {

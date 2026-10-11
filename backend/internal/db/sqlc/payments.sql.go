@@ -325,11 +325,10 @@ SELECT
     o.order_uuid,
     o.order_number,
     o.order_total_amount,
-    u.user_uuid,
-    u.user_fullname
+    o.order_user_uuid AS user_uuid,
+    o.order_customer_name AS user_fullname
 FROM payment_transactions pt
 JOIN orders o ON o.order_id = pt.pt_order_id
-JOIN users u ON u.user_id = o.order_user_id
 WHERE pt.pt_status = 1
   AND pt.pt_provider != 'cod'
   AND pt.pt_created_at < $1

@@ -17,7 +17,6 @@ const countStockMovements = `-- name: CountStockMovements :one
 SELECT count(*)
 FROM stock_movements sm
 JOIN products p ON p.product_id = sm.product_id
-LEFT JOIN users u ON u.user_id = sm.actor_id
 WHERE (
     $1::uuid IS NULL
     OR p.product_uuid = $1::uuid
@@ -72,7 +71,7 @@ INSERT INTO stock_movements (
     note
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING movement_id, movement_uuid, product_id, change_type, quantity_change, stock_before, stock_after, reference_id, reference_type, actor_id, note, created_at
+RETURNING movement_id, movement_uuid, product_id, change_type, quantity_change, stock_before, stock_after, reference_id, reference_type, actor_id, actor_uuid, actor_name, note, created_at
 `
 
 type CreateStockMovementParams struct {
@@ -111,6 +110,8 @@ func (q *Queries) CreateStockMovement(ctx context.Context, arg CreateStockMoveme
 		&i.ReferenceID,
 		&i.ReferenceType,
 		&i.ActorID,
+		&i.ActorUuid,
+		&i.ActorName,
 		&i.Note,
 		&i.CreatedAt,
 	)
@@ -135,11 +136,10 @@ SELECT
     p.product_name,
     p.product_sku,
     p.product_image_url,
-    u.user_uuid AS actor_uuid,
-    u.user_fullname AS actor_name
+    sm.actor_uuid,
+    sm.actor_name
 FROM stock_movements sm
 JOIN products p ON p.product_id = sm.product_id
-LEFT JOIN users u ON u.user_id = sm.actor_id
 WHERE (
     $1::uuid IS NULL
     OR p.product_uuid = $1::uuid

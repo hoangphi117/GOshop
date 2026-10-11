@@ -17,13 +17,12 @@ const adminCountReturns = `-- name: AdminCountReturns :one
 SELECT COUNT(*)
 FROM order_returns r
 JOIN orders o ON o.order_id = r.return_order_id
-JOIN users u ON u.user_id = r.return_user_id
 WHERE ($1::smallint IS NULL OR r.return_status = $1)
   AND ($2::text IS NULL OR (
       o.order_number ILIKE '%' || $2 || '%'
       OR o.order_shipping_name ILIKE '%' || $2 || '%'
       OR o.order_shipping_phone ILIKE '%' || $2 || '%'
-      OR u.user_email ILIKE '%' || $2 || '%'
+      OR o.order_customer_email ILIKE '%' || $2 || '%'
   ))
 `
 
@@ -50,10 +49,11 @@ SELECT
     o.order_payment_method, o.order_payment_status, o.order_status,
     o.order_shipping_name, o.order_shipping_phone, o.order_shipping_address,
     o.order_created_at,
-    u.user_uuid, u.user_fullname, u.user_email
+    o.order_user_uuid AS user_uuid,
+    o.order_customer_name AS user_fullname,
+    o.order_customer_email AS user_email
 FROM order_returns r
 JOIN orders o ON o.order_id = r.return_order_id
-JOIN users u ON u.user_id = r.return_user_id
 WHERE r.return_order_id = $1
 ORDER BY r.return_created_at DESC
 LIMIT 1
@@ -145,10 +145,11 @@ SELECT
     o.order_payment_method, o.order_payment_status, o.order_status,
     o.order_shipping_name, o.order_shipping_phone, o.order_shipping_address,
     o.order_created_at,
-    u.user_uuid, u.user_fullname, u.user_email
+    o.order_user_uuid AS user_uuid,
+    o.order_customer_name AS user_fullname,
+    o.order_customer_email AS user_email
 FROM order_returns r
 JOIN orders o ON o.order_id = r.return_order_id
-JOIN users u ON u.user_id = r.return_user_id
 WHERE r.return_uuid = $1
 `
 
@@ -235,16 +236,17 @@ SELECT
     r.return_shipping_note, r.return_created_at, r.return_updated_at,
     o.order_uuid, o.order_number, o.order_shipping_name, o.order_shipping_phone,
     o.order_total_amount, o.order_payment_method, o.order_payment_status,
-    u.user_uuid, u.user_fullname, u.user_email
+    o.order_user_uuid AS user_uuid,
+    o.order_customer_name AS user_fullname,
+    o.order_customer_email AS user_email
 FROM order_returns r
 JOIN orders o ON o.order_id = r.return_order_id
-JOIN users u ON u.user_id = r.return_user_id
 WHERE ($1::smallint IS NULL OR r.return_status = $1)
   AND ($2::text IS NULL OR (
       o.order_number ILIKE '%' || $2 || '%'
       OR o.order_shipping_name ILIKE '%' || $2 || '%'
       OR o.order_shipping_phone ILIKE '%' || $2 || '%'
-      OR u.user_email ILIKE '%' || $2 || '%'
+      OR COALESCE(o.order_customer_email, '') ILIKE '%' || $2 || '%'
   ))
 ORDER BY r.return_created_at DESC
 LIMIT $4 OFFSET $3

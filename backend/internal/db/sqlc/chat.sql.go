@@ -16,12 +16,11 @@ import (
 const countConversations = `-- name: CountConversations :one
 SELECT COUNT(*) 
 FROM chat_conversations c
-JOIN users u ON u.user_id = c.user_id
 WHERE ($1::text = '' OR c.status = $1)
   AND (
       $2::text = '' 
-      OR u.user_fullname ILIKE '%' || $2 || '%' 
-      OR u.user_email ILIKE '%' || $2 || '%'
+      OR c.user_fullname ILIKE '%' || $2 || '%' 
+      OR c.user_email ILIKE '%' || $2 || '%'
   )
 `
 
@@ -71,7 +70,7 @@ func (q *Queries) CountUnreadMessages(ctx context.Context, arg CountUnreadMessag
 const createConversation = `-- name: CreateConversation :one
 INSERT INTO chat_conversations (user_id)
 VALUES ($1)
-RETURNING conversation_id, conversation_uuid, user_id, admin_id, status, last_message_at, created_at, updated_at
+RETURNING conversation_id, conversation_uuid, user_id, admin_id, user_fullname, user_email, user_avatar, status, last_message_at, created_at, updated_at
 `
 
 func (q *Queries) CreateConversation(ctx context.Context, userID int32) (ChatConversation, error) {
@@ -82,6 +81,9 @@ func (q *Queries) CreateConversation(ctx context.Context, userID int32) (ChatCon
 		&i.ConversationUuid,
 		&i.UserID,
 		&i.AdminID,
+		&i.UserFullname,
+		&i.UserEmail,
+		&i.UserAvatar,
 		&i.Status,
 		&i.LastMessageAt,
 		&i.CreatedAt,
@@ -142,7 +144,7 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (C
 }
 
 const getConversationByID = `-- name: GetConversationByID :one
-SELECT conversation_id, conversation_uuid, user_id, admin_id, status, last_message_at, created_at, updated_at FROM chat_conversations WHERE conversation_id = $1
+SELECT conversation_id, conversation_uuid, user_id, admin_id, user_fullname, user_email, user_avatar, status, last_message_at, created_at, updated_at FROM chat_conversations WHERE conversation_id = $1
 `
 
 func (q *Queries) GetConversationByID(ctx context.Context, conversationID int32) (ChatConversation, error) {
@@ -153,6 +155,9 @@ func (q *Queries) GetConversationByID(ctx context.Context, conversationID int32)
 		&i.ConversationUuid,
 		&i.UserID,
 		&i.AdminID,
+		&i.UserFullname,
+		&i.UserEmail,
+		&i.UserAvatar,
 		&i.Status,
 		&i.LastMessageAt,
 		&i.CreatedAt,
@@ -162,7 +167,7 @@ func (q *Queries) GetConversationByID(ctx context.Context, conversationID int32)
 }
 
 const getConversationByUUID = `-- name: GetConversationByUUID :one
-SELECT conversation_id, conversation_uuid, user_id, admin_id, status, last_message_at, created_at, updated_at FROM chat_conversations WHERE conversation_uuid = $1
+SELECT conversation_id, conversation_uuid, user_id, admin_id, user_fullname, user_email, user_avatar, status, last_message_at, created_at, updated_at FROM chat_conversations WHERE conversation_uuid = $1
 `
 
 func (q *Queries) GetConversationByUUID(ctx context.Context, conversationUuid uuid.UUID) (ChatConversation, error) {
@@ -173,6 +178,9 @@ func (q *Queries) GetConversationByUUID(ctx context.Context, conversationUuid uu
 		&i.ConversationUuid,
 		&i.UserID,
 		&i.AdminID,
+		&i.UserFullname,
+		&i.UserEmail,
+		&i.UserAvatar,
 		&i.Status,
 		&i.LastMessageAt,
 		&i.CreatedAt,
@@ -182,7 +190,7 @@ func (q *Queries) GetConversationByUUID(ctx context.Context, conversationUuid uu
 }
 
 const getConversationByUserID = `-- name: GetConversationByUserID :one
-SELECT conversation_id, conversation_uuid, user_id, admin_id, status, last_message_at, created_at, updated_at FROM chat_conversations 
+SELECT conversation_id, conversation_uuid, user_id, admin_id, user_fullname, user_email, user_avatar, status, last_message_at, created_at, updated_at FROM chat_conversations 
 WHERE user_id = $1 AND status != 'closed' 
 ORDER BY created_at DESC 
 LIMIT 1
@@ -196,6 +204,9 @@ func (q *Queries) GetConversationByUserID(ctx context.Context, userID int32) (Ch
 		&i.ConversationUuid,
 		&i.UserID,
 		&i.AdminID,
+		&i.UserFullname,
+		&i.UserEmail,
+		&i.UserAvatar,
 		&i.Status,
 		&i.LastMessageAt,
 		&i.CreatedAt,
@@ -268,9 +279,9 @@ SELECT
     c.last_message_at,
     c.created_at,
     c.updated_at,
-    u.user_email,
-    u.user_fullname,
-    u.user_avatar,
+    c.user_email,
+    c.user_fullname,
+    c.user_avatar,
     COALESCE((
         SELECT COUNT(*) 
         FROM chat_messages m 
@@ -294,12 +305,11 @@ SELECT
         LIMIT 1
     ), '')::text AS last_message_content
 FROM chat_conversations c
-JOIN users u ON u.user_id = c.user_id
 WHERE ($1::text = '' OR c.status = $1)
   AND (
       $2::text = '' 
-      OR u.user_fullname ILIKE '%' || $2 || '%' 
-      OR u.user_email ILIKE '%' || $2 || '%'
+      OR c.user_fullname ILIKE '%' || $2 || '%' 
+      OR c.user_email ILIKE '%' || $2 || '%'
   )
 ORDER BY c.last_message_at DESC NULLS LAST
 LIMIT $4 OFFSET $3
@@ -516,7 +526,7 @@ const updateConversationStatus = `-- name: UpdateConversationStatus :one
 UPDATE chat_conversations
 SET status = $1, updated_at = now()
 WHERE conversation_id = $2
-RETURNING conversation_id, conversation_uuid, user_id, admin_id, status, last_message_at, created_at, updated_at
+RETURNING conversation_id, conversation_uuid, user_id, admin_id, user_fullname, user_email, user_avatar, status, last_message_at, created_at, updated_at
 `
 
 type UpdateConversationStatusParams struct {
@@ -532,6 +542,9 @@ func (q *Queries) UpdateConversationStatus(ctx context.Context, arg UpdateConver
 		&i.ConversationUuid,
 		&i.UserID,
 		&i.AdminID,
+		&i.UserFullname,
+		&i.UserEmail,
+		&i.UserAvatar,
 		&i.Status,
 		&i.LastMessageAt,
 		&i.CreatedAt,

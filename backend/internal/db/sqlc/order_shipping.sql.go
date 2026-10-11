@@ -20,7 +20,7 @@ UPDATE orders SET
     order_updated_at        = now()
 WHERE order_uuid = $1
   AND order_status = 3        -- Optimistic lock: Chỉ cho phép hủy khi đơn đang ở trạng thái Shipped
-RETURNING order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at, order_coupon_id, order_coupon_code, order_subtotal_amount, order_discount_amount, order_shipping_provider, order_shipping_code, order_shipping_fee, order_expected_delivery, order_delivered_at, order_returned_at
+RETURNING order_id, order_uuid, order_number, order_user_id, order_user_uuid, order_customer_name, order_customer_email, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at, order_coupon_id, order_coupon_code, order_subtotal_amount, order_discount_amount, order_shipping_provider, order_shipping_code, order_shipping_fee, order_expected_delivery, order_delivered_at, order_returned_at
 `
 
 func (q *Queries) CancelOrderShipping(ctx context.Context, orderUuid uuid.UUID) (Order, error) {
@@ -31,6 +31,9 @@ func (q *Queries) CancelOrderShipping(ctx context.Context, orderUuid uuid.UUID) 
 		&i.OrderUuid,
 		&i.OrderNumber,
 		&i.OrderUserID,
+		&i.OrderUserUuid,
+		&i.OrderCustomerName,
+		&i.OrderCustomerEmail,
 		&i.OrderShippingName,
 		&i.OrderShippingPhone,
 		&i.OrderShippingAddress,
@@ -58,7 +61,7 @@ func (q *Queries) CancelOrderShipping(ctx context.Context, orderUuid uuid.UUID) 
 }
 
 const getActiveShippedOrders = `-- name: GetActiveShippedOrders :many
-SELECT order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at, order_coupon_id, order_coupon_code, order_subtotal_amount, order_discount_amount, order_shipping_provider, order_shipping_code, order_shipping_fee, order_expected_delivery, order_delivered_at, order_returned_at FROM orders
+SELECT order_id, order_uuid, order_number, order_user_id, order_user_uuid, order_customer_name, order_customer_email, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at, order_coupon_id, order_coupon_code, order_subtotal_amount, order_discount_amount, order_shipping_provider, order_shipping_code, order_shipping_fee, order_expected_delivery, order_delivered_at, order_returned_at FROM orders
 WHERE order_status = 3
   AND order_shipping_code IS NOT NULL
   AND order_shipping_code != ''
@@ -81,6 +84,9 @@ func (q *Queries) GetActiveShippedOrders(ctx context.Context, limit int32) ([]Or
 			&i.OrderUuid,
 			&i.OrderNumber,
 			&i.OrderUserID,
+			&i.OrderUserUuid,
+			&i.OrderCustomerName,
+			&i.OrderCustomerEmail,
 			&i.OrderShippingName,
 			&i.OrderShippingPhone,
 			&i.OrderShippingAddress,
@@ -159,7 +165,7 @@ UPDATE orders SET
     order_updated_at = now()
 WHERE order_shipping_code = $1
   AND order_status = 3 -- Chỉ update nếu đơn đang ở trạng thái Shipped (Idempotent)
-RETURNING order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at, order_coupon_id, order_coupon_code, order_subtotal_amount, order_discount_amount, order_shipping_provider, order_shipping_code, order_shipping_fee, order_expected_delivery, order_delivered_at, order_returned_at
+RETURNING order_id, order_uuid, order_number, order_user_id, order_user_uuid, order_customer_name, order_customer_email, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at, order_coupon_id, order_coupon_code, order_subtotal_amount, order_discount_amount, order_shipping_provider, order_shipping_code, order_shipping_fee, order_expected_delivery, order_delivered_at, order_returned_at
 `
 
 func (q *Queries) MarkOrderDeliveredByShippingCode(ctx context.Context, shippingCode *string) (Order, error) {
@@ -170,6 +176,9 @@ func (q *Queries) MarkOrderDeliveredByShippingCode(ctx context.Context, shipping
 		&i.OrderUuid,
 		&i.OrderNumber,
 		&i.OrderUserID,
+		&i.OrderUserUuid,
+		&i.OrderCustomerName,
+		&i.OrderCustomerEmail,
 		&i.OrderShippingName,
 		&i.OrderShippingPhone,
 		&i.OrderShippingAddress,
@@ -207,7 +216,7 @@ UPDATE orders SET
     order_updated_at = now()
 WHERE order_uuid = $1
   AND order_status = 3 -- Chỉ update nếu đơn đang ở trạng thái Shipped
-RETURNING order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at, order_coupon_id, order_coupon_code, order_subtotal_amount, order_discount_amount, order_shipping_provider, order_shipping_code, order_shipping_fee, order_expected_delivery, order_delivered_at, order_returned_at
+RETURNING order_id, order_uuid, order_number, order_user_id, order_user_uuid, order_customer_name, order_customer_email, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at, order_coupon_id, order_coupon_code, order_subtotal_amount, order_discount_amount, order_shipping_provider, order_shipping_code, order_shipping_fee, order_expected_delivery, order_delivered_at, order_returned_at
 `
 
 func (q *Queries) MarkOrderDeliveredByUUID(ctx context.Context, orderUuid uuid.UUID) (Order, error) {
@@ -218,6 +227,9 @@ func (q *Queries) MarkOrderDeliveredByUUID(ctx context.Context, orderUuid uuid.U
 		&i.OrderUuid,
 		&i.OrderNumber,
 		&i.OrderUserID,
+		&i.OrderUserUuid,
+		&i.OrderCustomerName,
+		&i.OrderCustomerEmail,
 		&i.OrderShippingName,
 		&i.OrderShippingPhone,
 		&i.OrderShippingAddress,
@@ -254,7 +266,7 @@ UPDATE orders SET
     order_updated_at        = now()
 WHERE order_uuid = $6
   AND order_status = 2  -- Optimistic lock: chỉ cập nhật nếu đơn vẫn đang là Confirmed
-RETURNING order_id, order_uuid, order_number, order_user_id, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at, order_coupon_id, order_coupon_code, order_subtotal_amount, order_discount_amount, order_shipping_provider, order_shipping_code, order_shipping_fee, order_expected_delivery, order_delivered_at, order_returned_at
+RETURNING order_id, order_uuid, order_number, order_user_id, order_user_uuid, order_customer_name, order_customer_email, order_shipping_name, order_shipping_phone, order_shipping_address, order_total_amount, order_refunded_amount, order_payment_method, order_payment_status, order_note, order_status, order_cancelled_at, order_created_at, order_updated_at, order_coupon_id, order_coupon_code, order_subtotal_amount, order_discount_amount, order_shipping_provider, order_shipping_code, order_shipping_fee, order_expected_delivery, order_delivered_at, order_returned_at
 `
 
 type UpdateOrderShippingAndStatusParams struct {
@@ -281,6 +293,9 @@ func (q *Queries) UpdateOrderShippingAndStatus(ctx context.Context, arg UpdateOr
 		&i.OrderUuid,
 		&i.OrderNumber,
 		&i.OrderUserID,
+		&i.OrderUserUuid,
+		&i.OrderCustomerName,
+		&i.OrderCustomerEmail,
 		&i.OrderShippingName,
 		&i.OrderShippingPhone,
 		&i.OrderShippingAddress,

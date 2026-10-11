@@ -36,9 +36,9 @@ SELECT
     c.last_message_at,
     c.created_at,
     c.updated_at,
-    u.user_email,
-    u.user_fullname,
-    u.user_avatar,
+    c.user_email,
+    c.user_fullname,
+    c.user_avatar,
     COALESCE((
         SELECT COUNT(*) 
         FROM chat_messages m 
@@ -62,12 +62,11 @@ SELECT
         LIMIT 1
     ), '')::text AS last_message_content
 FROM chat_conversations c
-JOIN users u ON u.user_id = c.user_id
 WHERE (@status::text = '' OR c.status = @status)
   AND (
       @search::text = '' 
-      OR u.user_fullname ILIKE '%' || @search || '%' 
-      OR u.user_email ILIKE '%' || @search || '%'
+      OR c.user_fullname ILIKE '%' || @search || '%' 
+      OR c.user_email ILIKE '%' || @search || '%'
   )
 ORDER BY c.last_message_at DESC NULLS LAST
 LIMIT @limit_count OFFSET @offset_count;
@@ -75,12 +74,11 @@ LIMIT @limit_count OFFSET @offset_count;
 -- name: CountConversations :one
 SELECT COUNT(*) 
 FROM chat_conversations c
-JOIN users u ON u.user_id = c.user_id
 WHERE (@status::text = '' OR c.status = @status)
   AND (
       @search::text = '' 
-      OR u.user_fullname ILIKE '%' || @search || '%' 
-      OR u.user_email ILIKE '%' || @search || '%'
+      OR c.user_fullname ILIKE '%' || @search || '%' 
+      OR c.user_email ILIKE '%' || @search || '%'
   );
 
 -- name: CreateMessage :one

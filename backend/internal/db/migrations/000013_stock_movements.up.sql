@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS stock_movements (
     reference_id      VARCHAR(100),
     reference_type    VARCHAR(30),
     actor_id          INT REFERENCES users(user_id) ON DELETE SET NULL,
+    actor_uuid        UUID,
+    actor_name        VARCHAR(100),
     note              TEXT,
     created_at        TIMESTAMPTZ DEFAULT now() NOT NULL
 );

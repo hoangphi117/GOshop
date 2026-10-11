@@ -10,15 +10,17 @@ INSERT INTO orders (
 RETURNING *;
 
 -- name: GetOrderByUUID :one
-SELECT o.*, u.user_uuid, u.user_fullname
+SELECT o.*,
+    o.order_user_uuid AS user_uuid,
+    o.order_customer_name AS user_fullname
 FROM orders o
-JOIN users u ON u.user_id = o.order_user_id
 WHERE o.order_uuid = $1;
 
 -- name: GetOrderByID :one
-SELECT o.*, u.user_uuid, u.user_fullname
+SELECT o.*,
+    o.order_user_uuid AS user_uuid,
+    o.order_customer_name AS user_fullname
 FROM orders o
-JOIN users u ON u.user_id = o.order_user_id
 WHERE o.order_id = $1;
 
 -- name: GetOrderByUUIDForUpdate :one
@@ -34,9 +36,10 @@ ORDER BY order_id DESC
 LIMIT 1;
 
 -- name: GetOrderByOrderNumber :one
-SELECT o.*, u.user_uuid, u.user_fullname
+SELECT o.*,
+    o.order_user_uuid AS user_uuid,
+    o.order_customer_name AS user_fullname
 FROM orders o
-JOIN users u ON u.user_id = o.order_user_id
 WHERE o.order_number = $1;
 
 -- name: UpdateOrderStatus :one
