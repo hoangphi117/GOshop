@@ -1,6 +1,7 @@
 package app
 
 import (
+	"goshop/internal/client"
 	v1handler "goshop/internal/handler/v1"
 	"goshop/internal/repository"
 	"goshop/internal/routes"
@@ -21,9 +22,10 @@ func NewReviewModule(ctx *ModuleContext, rabbitmqService rabbitmq.RabbitMQServic
 	productRepo := repository.NewSqlProductRepository(ctx.DB)
 	orderRepo := repository.NewSqlOrderRepository(ctx.DB)
 	userRepo := repository.NewSqlUserRepository(ctx.DB)
+	userReader := client.NewIdentityUserReader(ctx.IdentityClient, userRepo)
 
 	// Initialize service
-	reviewService := v1service.NewReviewService(reviewRepo, productRepo, orderRepo, rabbitmqService, ctx.Redis, userRepo)
+	reviewService := v1service.NewReviewService(reviewRepo, productRepo, orderRepo, rabbitmqService, ctx.Redis, userReader)
 
 	// Initialize handler
 	reviewHandler := v1handler.NewReviewHandler(reviewService)

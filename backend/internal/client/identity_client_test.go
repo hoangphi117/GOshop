@@ -120,3 +120,127 @@ func TestHTTPIdentityClient_GetUsersBatch(t *testing.T) {
 		assert.Empty(t, users)
 	})
 }
+
+func TestHTTPIdentityClient_GetUserByUUID(t *testing.T) {
+	testUUID := uuid.New()
+	secret := "test-secret"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, secret, r.Header.Get("X-Internal-Token"))
+		if r.URL.Path == "/internal/v1/users/uuid/"+testUUID.String() {
+			user := v1dto.InternalUserDTO{
+				UserID:       10,
+				UserUUID:     testUUID,
+				UserFullname: "UUID User",
+				UserEmail:    "uuid@example.com",
+				UserStatus:   1,
+				UserLevel:    2,
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(user)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	client := NewHTTPIdentityClient(server.URL, secret, nil)
+
+	t.Run("success", func(t *testing.T) {
+		user, err := client.GetUserByUUID(context.Background(), testUUID)
+		assert.NoError(t, err)
+		assert.NotNil(t, user)
+		assert.Equal(t, int32(10), user.UserID)
+		assert.Equal(t, "UUID User", user.UserFullname)
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		user, err := client.GetUserByUUID(context.Background(), uuid.New())
+		assert.Error(t, err)
+		assert.Nil(t, user)
+	})
+
+	t.Run("nil uuid", func(t *testing.T) {
+		user, err := client.GetUserByUUID(context.Background(), uuid.Nil)
+		assert.Error(t, err)
+		assert.Nil(t, user)
+	})
+}
+
+func TestHTTPIdentityClient_GetActiveAdminUserIDs(t *testing.T) {
+	secret := "test-secret"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, secret, r.Header.Get("X-Internal-Token"))
+		if r.URL.Path == "/internal/v1/users/admins" {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"admin_ids": []int32{1, 5, 9}})
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	client := NewHTTPIdentityClient(server.URL, secret, nil)
+
+	t.Run("success", func(t *testing.T) {
+		admins, err := client.GetActiveAdminUserIDs(context.Background())
+		assert.NoError(t, err)
+		assert.Equal(t, []int32{1, 5, 9}, admins)
+	})
+}
+
+func TestHTTPIdentityClient_Addresses(t *testing.T) {
+	testAddrUUID := uuid.New()
+	secret := "test-secret"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, secret, r.Header.Get("X-Internal-Token"))
+		if r.URL.Path == "/internal/v1/addresses/"+testAddrUUID.String() {
+			addr := v1dto.AddressDTO{
+				UUID:        testAddrUUID.String(),
+				Name:        "Receiver",
+				Phone:       "0912345678",
+				Address:     "123 Street",
+				FullAddress: "123 Street, District 1, HCMC",
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(addr)
+			return
+		}
+		if r.URL.Path == "/internal/v1/users/1/addresses" {
+			res := map[string]any{
+				"addresses": []v1dto.AddressDTO{
+					{
+						UUID:        testAddrUUID.String(),
+						Name:        "Receiver",
+						Phone:       "0912345678",
+						Address:     "123 Street",
+						FullAddress: "123 Street, District 1, HCMC",
+					},
+				},
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(res)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	client := NewHTTPIdentityClient(server.URL, secret, nil)
+
+	t.Run("get address by uuid", func(t *testing.T) {
+		addr, err := client.GetAddressByUUID(context.Background(), 1, testAddrUUID)
+		assert.NoError(t, err)
+		assert.NotNil(t, addr)
+		assert.Equal(t, "Receiver", addr.Name)
+	})
+
+	t.Run("get addresses by user id", func(t *testing.T) {
+		addrs, err := client.GetAddressesByUserID(context.Background(), 1)
+		assert.NoError(t, err)
+		assert.Len(t, addrs, 1)
+		assert.Equal(t, "Receiver", addrs[0].Name)
+	})
+}

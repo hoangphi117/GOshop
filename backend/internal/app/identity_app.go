@@ -100,6 +100,13 @@ func NewIdentityApplication(cfg *config.Config) (*Application, error) {
 	internalUserHandler := v1handler.NewInternalUserHandler(userRepo, ctx.Redis)
 	internalGroup.POST("/users/batch", internalUserHandler.GetBatchUsers)
 	internalGroup.GET("/users/:id", internalUserHandler.GetUserByID)
+	internalGroup.GET("/users/uuid/:uuid", internalUserHandler.GetUserByUUID)
+	internalGroup.GET("/users/admins", internalUserHandler.GetActiveAdmins)
+
+	addressRepo := repository.NewSqlAddressRepository(ctx.IdentityDB, db.GetIdentityDBPool())
+	internalAddressHandler := v1handler.NewInternalAddressHandler(addressRepo, ctx.Redis)
+	internalGroup.GET("/addresses/:uuid", internalAddressHandler.GetAddressByUUID)
+	internalGroup.GET("/users/:id/addresses", internalAddressHandler.GetAddressesByUserID)
 
 	return &Application{
 		config:      cfg,

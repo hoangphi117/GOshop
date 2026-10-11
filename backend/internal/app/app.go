@@ -189,9 +189,12 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 
 	notificationRepo := repository.NewSqlNotificationRepository(db.DB)
 	userRepo := repository.NewSqlUserRepository(db.DB)
+	identityClient := client.NewHTTPIdentityClient(cfg.IdentityServiceURL, cfg.InternalSecret, redisClient)
+	userReader := client.NewIdentityUserReader(identityClient, userRepo)
+
 	notificationService := v1service.NewNotificationServiceWithTransports(
 		notificationRepo,
-		userRepo,
+		userReader,
 		wsHub,
 		rabbitmqService,
 		redisBridge,
@@ -208,13 +211,13 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	// Cross-domain Core Repositories & Service Singletons
 	productRepo := repository.NewSqlProductRepository(db.DB)
 	cartRepo := repository.NewSqlCartRepository(db.DB)
-	cartService := v1service.NewCartService(cartRepo, userRepo, productRepo, redisClient)
+	cartService := v1service.NewCartService(cartRepo, userReader, productRepo, redisClient)
 
 	couponRepo := repository.NewSqlCouponRepository(db.DB)
-	couponService := v1service.NewCouponService(couponRepo, userRepo, redisClient)
+	couponService := v1service.NewCouponService(couponRepo, userReader, redisClient)
 
 	stockMovementRepo := repository.NewSqlStockMovementRepository(db.DB)
-	inventoryService := v1service.NewInventoryService(productRepo, stockMovementRepo, userRepo, txManager, notificationService)
+	inventoryService := v1service.NewInventoryService(productRepo, stockMovementRepo, userReader, txManager, notificationService)
 
 	paymentRepo := repository.NewSqlPaymentRepository(db.DB)
 	webhookRepo := repository.NewSqlWebhookEventRepository(db.DB)
@@ -245,8 +248,6 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		paymentReturnURL, paymentWebhookBaseURL,
 		outboxRepo,
 	)
-
-	identityClient := client.NewHTTPIdentityClient(cfg.IdentityServiceURL, cfg.InternalSecret, redisClient)
 
 	ctx := &ModuleContext{
 		DB:             db.DB,

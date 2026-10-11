@@ -1,6 +1,7 @@
 package app
 
 import (
+	"goshop/internal/client"
 	v1handler "goshop/internal/handler/v1"
 	"goshop/internal/repository"
 	"goshop/internal/routes"
@@ -40,8 +41,9 @@ func NewOrderModule(
 	outboxRepo := repository.NewSqlOutboxRepository(ctx.DB)
 	couponRepo := repository.NewSqlCouponRepository(ctx.DB)
 	userRepo := repository.NewSqlUserRepository(ctx.DB)
+	userReader := client.NewIdentityUserReader(ctx.IdentityClient, userRepo)
 
-	customerReader := v1service.NewOrderCustomerAdapter(userRepo)
+	customerReader := v1service.NewOrderCustomerAdapter(userReader)
 	pricingService := v1service.NewOrderPricingService(couponRepo)
 
 	orderService := v1service.NewOrderService(
