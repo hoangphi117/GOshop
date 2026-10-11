@@ -37,6 +37,9 @@ func main() {
 	}
 
 	cfg := config.NewConfig()
+	if identityDBName := utils.GetEnv("IDENTITY_DB_NAME", utils.GetEnv("DB_IDENTITY_NAME", "shopping_identity")); identityDBName != "" {
+		cfg.DB.DBName = identityDBName
+	}
 	port := utils.GetEnv("IDENTITY_SERVER_PORT", "8081")
 	cfg.ServerAddress = ":" + port
 

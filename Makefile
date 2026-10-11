@@ -2,8 +2,11 @@ include ./backend/.env
 export
 
 MIGRATION_DIR=backend/internal/db/migrations
+MIGRATION_IDENTITY_DIR=backend/internal/db/migrations_identity
+IDENTITY_DB_NAME?=shopping_identity
 
 CONNECTION_STRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=${DB_SSL_MODE}
+IDENTITY_CONNECTION_STRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${IDENTITY_DB_NAME}?sslmode=${DB_SSL_MODE}
 
 PROD_COMPOSE=docker-compose.prod.yml
 NOAPP_COMPOSE=docker-compose.noapp.yml
@@ -63,9 +66,15 @@ migrate-create:
 migrate-up:
 	migrate -path ${MIGRATION_DIR} -database "${CONNECTION_STRING}" up
 
+migrate-identity-up:
+	migrate -path ${MIGRATION_IDENTITY_DIR} -database "${IDENTITY_CONNECTION_STRING}" up
+
 # Rollback the last migration
 migrate-down:
 	migrate -path ${MIGRATION_DIR} -database "${CONNECTION_STRING}" down 1
+
+migrate-identity-down:
+	migrate -path ${MIGRATION_IDENTITY_DIR} -database "${IDENTITY_CONNECTION_STRING}" down 1
 
 # Rollback the last N migrations
 migrate-down-n:

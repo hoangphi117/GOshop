@@ -122,6 +122,18 @@ func (c *Config) ReadDNS() string {
 }
 
 func (c *Config) IdentityDNS() string {
-	return utils.GetEnv("DB_IDENTITY_URL", "")
+	if identityURL := utils.GetEnv("IDENTITY_DB_URL", utils.GetEnv("DB_IDENTITY_URL", "")); identityURL != "" {
+		return identityURL
+	}
+	identityDBName := utils.GetEnv("IDENTITY_DB_NAME", utils.GetEnv("DB_IDENTITY_NAME", ""))
+	if identityDBName == "" {
+		return ""
+	}
+	host := utils.GetEnv("IDENTITY_DB_HOST", utils.GetEnv("DB_IDENTITY_HOST", c.DB.Host))
+	port := utils.GetEnv("IDENTITY_DB_PORT", utils.GetEnv("DB_IDENTITY_PORT", c.DB.Port))
+	user := utils.GetEnv("IDENTITY_DB_USER", utils.GetEnv("DB_IDENTITY_USER", c.DB.User))
+	password := utils.GetEnv("IDENTITY_DB_PASSWORD", utils.GetEnv("DB_IDENTITY_PASSWORD", c.DB.Password))
+	sslMode := utils.GetEnv("IDENTITY_DB_SSL_MODE", utils.GetEnv("DB_IDENTITY_SSL_MODE", c.DB.SSLMode))
+	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", host, port, user, password, identityDBName, sslMode)
 }
 
