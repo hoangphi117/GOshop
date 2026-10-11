@@ -45,14 +45,18 @@ func (c *UserSyncConsumer) Handle(headers amqp.Table, body []byte) error {
 		Str("user_uuid", event.UserUUID).
 		Msg("Processing user sync event from Identity Service")
 
-	// 1. Invalidate Redis single user profile cache
-	if c.redisClient != nil && event.UserID > 0 {
-		cacheKey := fmt.Sprintf("user:profile:%d", event.UserID)
-		if err := c.redisClient.Del(context.Background(), cacheKey).Err(); err != nil {
-			logger.Log.Warn().Err(err).Str("cache_key", cacheKey).Msg("Failed to invalidate user profile cache")
-			return err
+	// 1. Invalidate Redis single user profile cache (by ID and UUID)
+	if c.redisClient != nil {
+		if event.UserID > 0 {
+			cacheKey := fmt.Sprintf("user:profile:%d", event.UserID)
+			_ = c.redisClient.Del(context.Background(), cacheKey).Err()
+			logger.Log.Info().Str("cache_key", cacheKey).Msg("Successfully invalidated user profile cache on event")
 		}
-		logger.Log.Info().Str("cache_key", cacheKey).Msg("Successfully invalidated user profile cache on event")
+		if event.UserUUID != "" {
+			cacheKeyUUID := fmt.Sprintf("user:profile:uuid:%s", event.UserUUID)
+			_ = c.redisClient.Del(context.Background(), cacheKeyUUID).Err()
+			logger.Log.Info().Str("cache_key", cacheKeyUUID).Msg("Successfully invalidated user profile uuid cache on event")
+		}
 	}
 
 	// 2. Synchronize minimal user projection into Core DB (shopping)

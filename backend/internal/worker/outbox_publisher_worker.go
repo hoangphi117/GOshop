@@ -12,11 +12,12 @@ import (
 )
 
 type OutboxPublisherWorker struct {
-	outboxRepo repository.OutboxRepository
-	rabbitMQ   rabbitmq.RabbitMQService
-	interval   time.Duration
-	batchSize  int32
-	logger     *zerolog.Logger
+	outboxRepo     repository.OutboxRepository
+	rabbitMQ       rabbitmq.RabbitMQService
+	interval       time.Duration
+	batchSize      int32
+	aggregateTypes []string
+	logger         *zerolog.Logger
 }
 
 func NewOutboxPublisherWorker(
@@ -26,6 +27,17 @@ func NewOutboxPublisherWorker(
 	batchSize int32,
 	logger *zerolog.Logger,
 ) *OutboxPublisherWorker {
+	return NewOutboxPublisherWorkerWithAggregates(outboxRepo, rabbitMQ, interval, batchSize, logger, []string{"order", "payment"})
+}
+
+func NewOutboxPublisherWorkerWithAggregates(
+	outboxRepo repository.OutboxRepository,
+	rabbitMQ rabbitmq.RabbitMQService,
+	interval time.Duration,
+	batchSize int32,
+	logger *zerolog.Logger,
+	aggregateTypes []string,
+) *OutboxPublisherWorker {
 	if interval <= 0 {
 		interval = 1 * time.Second
 	}
@@ -33,22 +45,28 @@ func NewOutboxPublisherWorker(
 		batchSize = 50
 	}
 	return &OutboxPublisherWorker{
-		outboxRepo: outboxRepo,
-		rabbitMQ:   rabbitMQ,
-		interval:   interval,
-		batchSize:  batchSize,
-		logger:     logger,
+		outboxRepo:     outboxRepo,
+		rabbitMQ:       rabbitMQ,
+		interval:       interval,
+		batchSize:      batchSize,
+		aggregateTypes: aggregateTypes,
+		logger:         logger,
 	}
 }
 
-// ProcessBatch fetches pending outbox events for order and payment aggregates,
+// ProcessBatch fetches pending outbox events for configured aggregate types,
 // publishes each to RabbitMQ using the event type as queue/topic, and marks them processed.
 func (w *OutboxPublisherWorker) ProcessBatch(ctx context.Context) (int, error) {
 	if w.rabbitMQ == nil || w.outboxRepo == nil {
 		return 0, nil
 	}
 
-	events, err := w.outboxRepo.GetPendingByAggregateTypes(ctx, []string{"order", "payment"}, w.batchSize)
+	types := w.aggregateTypes
+	if len(types) == 0 {
+		types = []string{"order", "payment"}
+	}
+
+	events, err := w.outboxRepo.GetPendingByAggregateTypes(ctx, types, w.batchSize)
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch pending order/payment outbox events: %w", err)
 	}

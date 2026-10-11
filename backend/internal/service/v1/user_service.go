@@ -27,6 +27,7 @@ type userService struct {
 	cache    cache.RedisCacheService
 	redis    *redis.Client
 	rabbitmq rabbitmq.RabbitMQService
+	outbox   repository.OutboxRepository
 }
 
 func NewUserService(repo repository.UserRepository, redisClient *redis.Client, rmq ...rabbitmq.RabbitMQService) UserService {
@@ -46,41 +47,73 @@ func NewUserService(repo repository.UserRepository, redisClient *redis.Client, r
 	}
 }
 
+func NewUserServiceWithOutbox(repo repository.UserRepository, redisClient *redis.Client, rmq rabbitmq.RabbitMQService, outbox repository.OutboxRepository) UserService {
+	var cacheService cache.RedisCacheService
+	if redisClient != nil {
+		cacheService = cache.NewRedisCacheService(redisClient)
+	}
+	return &userService{
+		repo:     repo,
+		cache:    cacheService,
+		redis:    redisClient,
+		rabbitmq: rmq,
+		outbox:   outbox,
+	}
+}
+
 func (us *userService) publishUserSyncEvent(ctx context.Context, eventType string, user sqlc.User) {
-	// 1. Invalidate Redis single profile cache
-	if us.redis != nil && user.UserID > 0 {
-		cacheKey := fmt.Sprintf("user:profile:%d", user.UserID)
-		if err := us.redis.Del(ctx, cacheKey).Err(); err != nil {
-			logger.Log.Warn().Err(err).Str("cache_key", cacheKey).Msg("Failed to invalidate user profile cache")
+	// 1. Invalidate Redis single profile cache (by ID and UUID)
+	if us.redis != nil {
+		if user.UserID > 0 {
+			_ = us.redis.Del(ctx, fmt.Sprintf("user:profile:%d", user.UserID)).Err()
+		}
+		if user.UserUuid != uuid.Nil {
+			_ = us.redis.Del(ctx, fmt.Sprintf("user:profile:uuid:%s", user.UserUuid.String())).Err()
 		}
 	}
 
-	// 2. Publish event to RabbitMQ
-	if us.rabbitmq != nil {
-		event := rabbitmq.NewUserSyncEvent(
-			eventType,
-			user.UserID,
-			user.UserUuid.String(),
-			user.UserFullname,
-			user.UserEmail,
-			user.UserAvatar,
-			user.UserAvatarUrl,
-			user.UserStatus,
-			user.UserLevel,
-		)
-		var queueName string
-		switch eventType {
-		case rabbitmq.QueueUserCreated:
-			queueName = rabbitmq.QueueUserCreated
-		case rabbitmq.QueueUserDeleted:
-			queueName = rabbitmq.QueueUserDeleted
-		default:
-			queueName = rabbitmq.QueueUserUpdated
+	event := rabbitmq.NewUserSyncEvent(
+		eventType,
+		user.UserID,
+		user.UserUuid.String(),
+		user.UserFullname,
+		user.UserEmail,
+		user.UserAvatar,
+		user.UserAvatarUrl,
+		user.UserStatus,
+		user.UserLevel,
+	)
+
+	var queueName string
+	switch eventType {
+	case rabbitmq.QueueUserCreated:
+		queueName = rabbitmq.QueueUserCreated
+	case rabbitmq.QueueUserDeleted:
+		queueName = rabbitmq.QueueUserDeleted
+	default:
+		queueName = rabbitmq.QueueUserUpdated
+	}
+
+	// 2. Transactional Outbox Pattern: Save event to outbox table first for guaranteed delivery
+	var outboxEventID int64
+	if us.outbox != nil && user.UserID > 0 {
+		outboxRecord, err := us.outbox.Insert(ctx, nil, "user", fmt.Sprintf("%d", user.UserID), queueName, event)
+		if err != nil {
+			logger.Log.Error().Err(err).Int32("user_id", user.UserID).Msg("Failed to persist user sync event to outbox")
+		} else {
+			outboxEventID = outboxRecord.EventID
 		}
+	}
+
+	// 3. Fast-path publish to RabbitMQ if available
+	if us.rabbitmq != nil {
 		if err := us.rabbitmq.Publish(ctx, queueName, event); err != nil {
-			logger.Log.Error().Err(err).Str("queue", queueName).Int32("user_id", user.UserID).Msg("Failed to publish user sync event to RabbitMQ")
+			logger.Log.Warn().Err(err).Str("queue", queueName).Int32("user_id", user.UserID).Msg("Fast-path RabbitMQ publish failed, will be retried by Outbox Worker")
 		} else {
 			logger.Log.Info().Str("queue", queueName).Int32("user_id", user.UserID).Msg("Published user sync event to RabbitMQ")
+			if us.outbox != nil && outboxEventID > 0 {
+				_ = us.outbox.MarkProcessed(ctx, []int64{outboxEventID})
+			}
 		}
 	}
 }

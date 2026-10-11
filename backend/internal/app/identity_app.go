@@ -10,12 +10,14 @@ import (
 	"goshop/internal/routes"
 	"goshop/internal/utils"
 	"goshop/internal/validation"
+	"goshop/internal/worker"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 	"goshop/pkg/mail"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/ws"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -107,6 +109,21 @@ func NewIdentityApplication(cfg *config.Config) (*Application, error) {
 	internalAddressHandler := v1handler.NewInternalAddressHandler(addressRepo, ctx.Redis)
 	internalGroup.GET("/addresses/:uuid", internalAddressHandler.GetAddressByUUID)
 	internalGroup.GET("/users/:id/addresses", internalAddressHandler.GetAddressesByUserID)
+
+	// Transactional Outbox Publisher for Identity Service (Guaranteed At-Least-Once Delivery)
+	outboxRepo := repository.NewSqlOutboxRepository(ctx.IdentityDB)
+	if rabbitmqService != nil {
+		identityOutboxWorker := worker.NewOutboxPublisherWorkerWithAggregates(
+			outboxRepo,
+			rabbitmqService,
+			1*time.Second,
+			50,
+			logger.Log,
+			[]string{"user"},
+		)
+		go identityOutboxWorker.Start(context.Background())
+		logger.Log.Info().Msg("Identity Transactional Outbox Publisher Worker started")
+	}
 
 	return &Application{
 		config:      cfg,

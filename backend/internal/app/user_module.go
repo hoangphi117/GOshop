@@ -20,9 +20,10 @@ func NewUserModule(ctx *ModuleContext, tokenService auth.TokenService) *UserModu
 		querier = ctx.IdentityDB
 	}
 	userRepo := repository.NewSqlUserRepository(querier)
+	outboxRepo := repository.NewSqlOutboxRepository(querier)
 
 	// Initialize service
-	userService := v1service.NewUserService(userRepo, ctx.Redis, ctx.RabbitMQ)
+	userService := v1service.NewUserServiceWithOutbox(userRepo, ctx.Redis, ctx.RabbitMQ, outboxRepo)
 
 	// Initialize handler
 	userHandler := v1handler.NewUserHandler(userService)

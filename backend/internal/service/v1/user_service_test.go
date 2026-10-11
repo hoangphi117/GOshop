@@ -607,3 +607,101 @@ func TestUserService_TrashUser(t *testing.T) {
 		require.NoError(t, err)
 	})
 }
+
+func TestUserService_OutboxIntegration(t *testing.T) {
+	ctx := context.Background()
+	userUUID := uuid.New()
+	newName := "Updated Name"
+	newAvatar := "https://example.com/new-avatar.png"
+
+	t.Run("UpdateProfile persists event to Outbox and publishes to RabbitMQ", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			UpdateFunc: func(ctx context.Context, input sqlc.UpdateUserParams) (sqlc.User, error) {
+				return sqlc.User{
+					UserID:       10,
+					UserUuid:     userUUID,
+					UserFullname: newName,
+					UserEmail:    "user@example.com",
+					UserAvatar:   newAvatar,
+					UserStatus:   1,
+					UserLevel:    2,
+				}, nil
+			},
+		}
+
+		outboxInserted := false
+		outboxProcessed := false
+		mockOutbox := &testutils.MockOutboxRepository{
+			InsertFunc: func(ctx context.Context, tx pgx.Tx, aggType, aggID, eventType string, payload any) (sqlc.OutboxEvent, error) {
+				assert.Equal(t, "user", aggType)
+				assert.Equal(t, "10", aggID)
+				assert.Equal(t, "user.updated", eventType)
+				outboxInserted = true
+				return sqlc.OutboxEvent{EventID: 99}, nil
+			},
+			MarkProcessedFunc: func(ctx context.Context, eventIDs []int64) error {
+				assert.Equal(t, []int64{99}, eventIDs)
+				outboxProcessed = true
+				return nil
+			},
+		}
+
+		rmqPublished := false
+		mockRabbitMQ := &testutils.MockRabbitMQService{
+			PublishFunc: func(ctx context.Context, queue string, message any) error {
+				assert.Equal(t, "user.updated", queue)
+				rmqPublished = true
+				return nil
+			},
+		}
+
+		svc := v1service.NewUserServiceWithOutbox(mockUserRepo, nil, mockRabbitMQ, mockOutbox)
+
+		res, err := svc.UpdateProfile(ctx, userUUID, v1dto.UpdateProfileInput{
+			Name: &newName,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, newName, res.Name)
+		assert.True(t, outboxInserted, "Event must be inserted into outbox table")
+		assert.True(t, rmqPublished, "Event must be published to RabbitMQ")
+		assert.True(t, outboxProcessed, "Outbox event must be marked processed")
+	})
+
+	t.Run("UpdateProfile saves to Outbox even when RabbitMQ fails", func(t *testing.T) {
+		mockUserRepo := &testutils.MockUserRepository{
+			UpdateFunc: func(ctx context.Context, input sqlc.UpdateUserParams) (sqlc.User, error) {
+				return sqlc.User{
+					UserID:       10,
+					UserUuid:     userUUID,
+					UserFullname: newName,
+					UserEmail:    "user@example.com",
+					UserAvatar:   newAvatar,
+				}, nil
+			},
+		}
+
+		outboxInserted := false
+		mockOutbox := &testutils.MockOutboxRepository{
+			InsertFunc: func(ctx context.Context, tx pgx.Tx, aggType, aggID, eventType string, payload any) (sqlc.OutboxEvent, error) {
+				outboxInserted = true
+				return sqlc.OutboxEvent{EventID: 100}, nil
+			},
+		}
+
+		mockRabbitMQ := &testutils.MockRabbitMQService{
+			PublishFunc: func(ctx context.Context, queue string, message any) error {
+				return errors.New("rabbitmq network down")
+			},
+		}
+
+		svc := v1service.NewUserServiceWithOutbox(mockUserRepo, nil, mockRabbitMQ, mockOutbox)
+
+		res, err := svc.UpdateProfile(ctx, userUUID, v1dto.UpdateProfileInput{
+			Name: &newName,
+		})
+		require.NoError(t, err, "UpdateProfile should succeed even when RabbitMQ fails (Outbox guarantees delivery)")
+		assert.Equal(t, newName, res.Name)
+		assert.True(t, outboxInserted, "Outbox event must be persisted for background retry")
+	})
+}
+
