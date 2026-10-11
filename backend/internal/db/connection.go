@@ -105,6 +105,11 @@ func InitDB() error {
 				logger.Log.Warn().Err(err).Msg("Failed to connect to Read DB pool, falling back to primary DB")
 				ReadDBPool = DBPool
 				ReadDB = DB
+			} else if err = ReadDBPool.Ping(ctx); err != nil {
+				logger.Log.Warn().Err(err).Msg("Failed to ping Read DB pool, falling back to primary DB")
+				ReadDBPool.Close()
+				ReadDBPool = DBPool
+				ReadDB = DB
 			} else {
 				ReadDB = sqlc.New(ReadDBPool)
 				logger.Log.Info().
@@ -137,6 +142,11 @@ func InitDB() error {
 			IdentityDBPool, err = pgxpool.NewWithConfig(ctx, identityConf)
 			if err != nil {
 				logger.Log.Warn().Err(err).Msg("Failed to connect to Identity DB pool, falling back to primary DB")
+				IdentityDBPool = DBPool
+				IdentityDB = DB
+			} else if err = IdentityDBPool.Ping(ctx); err != nil {
+				logger.Log.Warn().Err(err).Msg("Failed to ping Identity DB pool, falling back to primary DB")
+				IdentityDBPool.Close()
 				IdentityDBPool = DBPool
 				IdentityDB = DB
 			} else {

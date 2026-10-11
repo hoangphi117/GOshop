@@ -114,7 +114,7 @@ func ResponseError(ctx *gin.Context, err error) {
 		return
 	}
 	ctx.JSON(http.StatusInternalServerError, gin.H{
-		"error": err,
+		"error": err.Error(),
 		"code":  ErrCodeInternal,
 	})
 }
