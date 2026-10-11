@@ -284,6 +284,53 @@ func (q *Queries) GetUserByUUID(ctx context.Context, userUuid uuid.UUID) (User, 
 	return i, err
 }
 
+const getUsersByIDs = `-- name: GetUsersByIDs :many
+SELECT user_id, user_uuid, user_fullname, user_email, user_avatar, user_avatar_url, user_status, user_level
+FROM users
+WHERE user_id = ANY($1::int[])
+  AND user_deleted_at IS NULL
+`
+
+type GetUsersByIDsRow struct {
+	UserID        int32     `json:"user_id"`
+	UserUuid      uuid.UUID `json:"user_uuid"`
+	UserFullname  string    `json:"user_fullname"`
+	UserEmail     string    `json:"user_email"`
+	UserAvatar    string    `json:"user_avatar"`
+	UserAvatarUrl *string   `json:"user_avatar_url"`
+	UserStatus    int32     `json:"user_status"`
+	UserLevel     int32     `json:"user_level"`
+}
+
+func (q *Queries) GetUsersByIDs(ctx context.Context, dollar_1 []int32) ([]GetUsersByIDsRow, error) {
+	rows, err := q.db.Query(ctx, getUsersByIDs, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetUsersByIDsRow{}
+	for rows.Next() {
+		var i GetUsersByIDsRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.UserUuid,
+			&i.UserFullname,
+			&i.UserEmail,
+			&i.UserAvatar,
+			&i.UserAvatarUrl,
+			&i.UserStatus,
+			&i.UserLevel,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUserUserCreatedAtAsc = `-- name: ListUserUserCreatedAtAsc :many
 SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_oauth_provider, user_oauth_id, user_avatar_url, user_deleted_at, user_created_at, user_updated_at, user_avatar
 FROM users

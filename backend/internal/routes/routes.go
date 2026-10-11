@@ -80,7 +80,7 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 
 	r.NoRoute(func(ctx *gin.Context) {
 		p := ctx.Request.URL.Path
-		if !strings.HasPrefix(p, "/api/v1") && !strings.HasPrefix(p, "/swagger") && !strings.HasPrefix(p, "/.well-known") {
+		if !strings.HasPrefix(p, "/api/v1") && !strings.HasPrefix(p, "/internal") && !strings.HasPrefix(p, "/swagger") && !strings.HasPrefix(p, "/.well-known") {
 			ctx.Request.URL.Path = "/api/v1" + p
 			r.HandleContext(ctx)
 			return

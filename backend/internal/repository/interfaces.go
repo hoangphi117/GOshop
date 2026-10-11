@@ -19,6 +19,7 @@ type UserReader interface {
 
 type UserRepository interface {
 	UserReader
+	GetByIDs(ctx context.Context, ids []int32) ([]sqlc.GetUsersByIDsRow, error)
 	GetAll(ctx context.Context, search, orderBy, sort string, limit, offset int32) ([]sqlc.User, error)
 	GetAllV2(ctx context.Context, search, orderBy, sort string, limit, offset int32, deleted bool) ([]sqlc.User, error)
 	CountUsers(ctx context.Context, search string, deleted bool) (int64, error)

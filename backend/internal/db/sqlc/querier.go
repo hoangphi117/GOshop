@@ -161,6 +161,7 @@ type Querier interface {
 	GetUserByID(ctx context.Context, userID int32) (User, error)
 	GetUserByOAuth(ctx context.Context, arg GetUserByOAuthParams) (User, error)
 	GetUserByUUID(ctx context.Context, userUuid uuid.UUID) (User, error)
+	GetUsersByIDs(ctx context.Context, dollar_1 []int32) ([]GetUsersByIDsRow, error)
 	// Atomic, có điều kiện chặn ngay trong WHERE — KHÔNG tách rời check-rồi-ghi
 	// như bản v1. Nếu không còn row trả về (sql.ErrNoRows), nghĩa là mã đã hết
 	// lượt dùng đúng tại thời điểm ghi, dù đã pass check trước đó (race condition

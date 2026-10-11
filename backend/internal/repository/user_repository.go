@@ -242,3 +242,10 @@ func (ur *SqlUserRepository) CreateOAuthUser(ctx context.Context, params sqlc.Cr
 	}
 	return user, nil
 }
+
+func (ur *SqlUserRepository) GetByIDs(ctx context.Context, ids []int32) ([]sqlc.GetUsersByIDsRow, error) {
+	if len(ids) == 0 {
+		return []sqlc.GetUsersByIDsRow{}, nil
+	}
+	return ur.db.GetUsersByIDs(ctx, ids)
+}

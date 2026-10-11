@@ -150,3 +150,25 @@ func mapLevelText(level int) string {
 		return "None"
 	}
 }
+
+// InternalUserDTO is used for lightweight inter-service REST IPC
+type InternalUserDTO struct {
+	UserID        int32     `json:"user_id"`
+	UserUUID      uuid.UUID `json:"user_uuid"`
+	UserFullname  string    `json:"user_fullname"`
+	UserEmail     string    `json:"user_email"`
+	UserAvatar    string    `json:"user_avatar"`
+	UserAvatarUrl *string   `json:"user_avatar_url,omitempty"`
+	UserStatus    int32     `json:"user_status"`
+	UserLevel     int32     `json:"user_level"`
+}
+
+// InternalBatchUsersRequest is the payload for batch fetching users
+type InternalBatchUsersRequest struct {
+	UserIDs []int32 `json:"user_ids" binding:"required"`
+}
+
+// InternalBatchUsersResponse is the payload returned by internal batch endpoint
+type InternalBatchUsersResponse struct {
+	Users map[int32]InternalUserDTO `json:"users"`
+}

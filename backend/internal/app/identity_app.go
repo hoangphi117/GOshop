@@ -4,6 +4,9 @@ import (
 	"context"
 	"goshop/internal/config"
 	"goshop/internal/db"
+	v1handler "goshop/internal/handler/v1"
+	"goshop/internal/middleware"
+	"goshop/internal/repository"
 	"goshop/internal/routes"
 	"goshop/internal/utils"
 	"goshop/internal/validation"
@@ -88,6 +91,14 @@ func NewIdentityApplication(cfg *config.Config) (*Application, error) {
 	}
 
 	routes.RegisterRoutes(r, tokenService, cacheRedisService, getModuleRoutes(modules), getAdminModuleRoutes(modules))
+
+	// Internal Inter-Service REST Endpoints (Lightweight REST IPC)
+	internalGroup := r.Group("/internal/v1")
+	internalGroup.Use(middleware.InternalAuthMiddleware(cfg.InternalSecret))
+	userRepo := repository.NewSqlUserRepository(ctx.IdentityDB)
+	internalUserHandler := v1handler.NewInternalUserHandler(userRepo, ctx.Redis)
+	internalGroup.POST("/users/batch", internalUserHandler.GetBatchUsers)
+	internalGroup.GET("/users/:id", internalUserHandler.GetUserByID)
 
 	return &Application{
 		config:      cfg,

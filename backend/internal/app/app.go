@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"goshop/internal/client"
 	"goshop/internal/config"
 	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
@@ -51,13 +52,14 @@ type Application struct {
 }
 
 type ModuleContext struct {
-	DB         sqlc.Querier
-	ReadDB     sqlc.Querier
-	IdentityDB sqlc.Querier
-	Redis      *redis.Client
-	TxManager  db.TxManager
-	Storage    storage.StorageService
-	Search     *search.Client
+	DB             sqlc.Querier
+	ReadDB         sqlc.Querier
+	IdentityDB     sqlc.Querier
+	Redis          *redis.Client
+	TxManager      db.TxManager
+	Storage        storage.StorageService
+	Search         *search.Client
+	IdentityClient client.IdentityClient
 }
 
 func NewApplication(cfg *config.Config) (*Application, error) {
@@ -243,14 +245,17 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		outboxRepo,
 	)
 
+	identityClient := client.NewHTTPIdentityClient(cfg.IdentityServiceURL, cfg.InternalSecret, redisClient)
+
 	ctx := &ModuleContext{
-		DB:         db.DB,
-		ReadDB:     db.GetReadDB(),
-		IdentityDB: db.GetIdentityDB(),
-		Redis:      redisClient,
-		TxManager:  txManager,
-		Storage:    storageService,
-		Search:     searchClient,
+		DB:             db.DB,
+		ReadDB:         db.GetReadDB(),
+		IdentityDB:     db.GetIdentityDB(),
+		Redis:          redisClient,
+		TxManager:      txManager,
+		Storage:        storageService,
+		Search:         searchClient,
+		IdentityClient: identityClient,
 	}
 
 	orderModuleDeps := OrderModuleDeps{

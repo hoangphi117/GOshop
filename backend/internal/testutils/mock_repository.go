@@ -528,6 +528,14 @@ type MockUserRepository struct {
 	UpdatePasswordFunc        func(ctx context.Context, input sqlc.UpdatePasswordParams) (sqlc.User, error)
 	GetByOAuthFunc            func(ctx context.Context, provider, oauthID string) (sqlc.User, error)
 	CreateOAuthUserFunc       func(ctx context.Context, params sqlc.CreateOAuthUserParams) (sqlc.User, error)
+	GetByIDsFunc              func(ctx context.Context, ids []int32) ([]sqlc.GetUsersByIDsRow, error)
+}
+
+func (m *MockUserRepository) GetByIDs(ctx context.Context, ids []int32) ([]sqlc.GetUsersByIDsRow, error) {
+	if m.GetByIDsFunc != nil {
+		return m.GetByIDsFunc(ctx, ids)
+	}
+	return []sqlc.GetUsersByIDsRow{}, nil
 }
 
 func (m *MockUserRepository) GetByID(ctx context.Context, id int32) (sqlc.User, error) {

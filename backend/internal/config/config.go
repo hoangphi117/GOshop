@@ -33,6 +33,8 @@ type Config struct {
 	MailProviderType   string
 	MailProviderConfig map[string]any
 	Storage            storage.StorageConfig
+	IdentityServiceURL string
+	InternalSecret     string
 }
 
 func NewConfig() *Config {
@@ -104,6 +106,8 @@ func NewConfig() *Config {
 		MailProviderType:   mailProviderType,
 		MailProviderConfig: mailProviderConfig,
 		Storage:            storageConfig,
+		IdentityServiceURL: utils.GetEnv("IDENTITY_SERVICE_URL", "http://localhost:8081"),
+		InternalSecret:     utils.GetEnv("INTERNAL_API_SECRET", "goshop-internal-secret-token"),
 	}
 }
 

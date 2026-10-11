@@ -156,3 +156,9 @@ RETURNING *;
 UPDATE users SET user_avatar_url = @avatar_url
 WHERE user_uuid = @user_uuid
 RETURNING *;
+
+-- name: GetUsersByIDs :many
+SELECT user_id, user_uuid, user_fullname, user_email, user_avatar, user_avatar_url, user_status, user_level
+FROM users
+WHERE user_id = ANY($1::int[])
+  AND user_deleted_at IS NULL;
