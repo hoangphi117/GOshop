@@ -1,7 +1,7 @@
 include ./backend/.env
 export
 
-MIGRATION_DIR=backend/internal/db/migrations
+MIGRATION_CORE_DIR=backend/internal/db/migrations_core
 MIGRATION_IDENTITY_DIR=backend/internal/db/migrations_identity
 IDENTITY_DB_NAME?=shopping_identity
 
@@ -61,36 +61,45 @@ swagger:
 	npx --yes swagger2openapi ./backend/docs/swagger.json -o ./backend/docs/openapi.json
 
 migrate-create:
-	migrate create -ext sql -dir ${MIGRATION_DIR} -seq ${NAME}
+	migrate create -ext sql -dir ${MIGRATION_CORE_DIR} -seq ${NAME}
+
+migrate-identity-create:
+	migrate create -ext sql -dir ${MIGRATION_IDENTITY_DIR} -seq ${NAME}
 
 migrate-up:
-	migrate -path ${MIGRATION_DIR} -database "${CONNECTION_STRING}" up
+	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" up
+
+migrate-core-up:
+	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" up
 
 migrate-identity-up:
 	migrate -path ${MIGRATION_IDENTITY_DIR} -database "${IDENTITY_CONNECTION_STRING}" up
 
 # Rollback the last migration
 migrate-down:
-	migrate -path ${MIGRATION_DIR} -database "${CONNECTION_STRING}" down 1
+	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" down 1
+
+migrate-core-down:
+	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" down 1
 
 migrate-identity-down:
 	migrate -path ${MIGRATION_IDENTITY_DIR} -database "${IDENTITY_CONNECTION_STRING}" down 1
 
 # Rollback the last N migrations
 migrate-down-n:
-	migrate -path ${MIGRATION_DIR} -database "${CONNECTION_STRING}" down ${N}
+	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" down ${N}
 
 # Force the migration version to a specific version when the database is in a dirty state
 migrate-force:
-	migrate -path ${MIGRATION_DIR} -database "${CONNECTION_STRING}" force ${VERSION}
+	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" force ${VERSION}
 
 # Drop all tables in the database
 migrate-drop:
-	migrate -path ${MIGRATION_DIR} -database "${CONNECTION_STRING}" drop 
+	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" drop 
 
 # Migrate to a specific version
 migrate-goto:
-	migrate -path ${MIGRATION_DIR} -database "${CONNECTION_STRING}" goto ${VERSION}
+	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" goto ${VERSION}
 
 # Build container for noapp
 noapp:
