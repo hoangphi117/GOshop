@@ -2,12 +2,14 @@ package routes
 
 import (
 	_ "goshop/docs"
-	"goshop/internal/middleware"
+	"goshop/pkg/middleware"
 	v1routes "goshop/internal/routes/v1"
 	"goshop/internal/utils"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"strings"
 
 	"github.com/gin-contrib/gzip"
@@ -53,6 +55,40 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 	v1api := r.Group("/api/v1")
 	v1api.GET("/.well-known/jwks.json", jwksHandler)
 
+	// API Gateway reverse proxy for Identity microservice endpoints
+	identityURL := utils.GetEnv("IDENTITY_SERVICE_URL", "http://localhost:8081")
+	if parsedIdentityURL, err := url.Parse(identityURL); err == nil && parsedIdentityURL.Scheme != "" {
+		identityProxy := httputil.NewSingleHostReverseProxy(parsedIdentityURL)
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.DisableCompression = true
+		identityProxy.Transport = transport
+
+		identityProxy.ModifyResponse = func(resp *http.Response) error {
+			// Strip upstream CORS headers to prevent duplicate values when combined with Gateway CORS middleware
+			resp.Header.Del("Access-Control-Allow-Origin")
+			resp.Header.Del("Access-Control-Allow-Credentials")
+			resp.Header.Del("Access-Control-Allow-Methods")
+			resp.Header.Del("Access-Control-Allow-Headers")
+			resp.Header.Del("Access-Control-Max-Age")
+			return nil
+		}
+		identityProxyHandler := func(ctx *gin.Context) {
+			ctx.Request.Host = parsedIdentityURL.Host
+			// Strip Accept-Encoding to prevent upstream double gzip compression
+			ctx.Request.Header.Del("Accept-Encoding")
+			identityProxy.ServeHTTP(ctx.Writer, ctx.Request)
+		}
+
+		v1api.Any("/auth", identityProxyHandler)
+		v1api.Any("/auth/*any", identityProxyHandler)
+		v1api.Any("/users", identityProxyHandler)
+		v1api.Any("/users/*any", identityProxyHandler)
+		v1api.Any("/addresses", identityProxyHandler)
+		v1api.Any("/addresses/*any", identityProxyHandler)
+		v1api.Any("/admin/users", identityProxyHandler)
+		v1api.Any("/admin/users/*any", identityProxyHandler)
+	}
+
 	public := v1api.Group("")
 
 	protected := v1api.Group("")
@@ -64,7 +100,7 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 
 	for _, route := range normalRoutes {
 		switch r := route.(type) {
-		case *v1routes.AuthRoutes, *v1routes.CategoryRoutes, *v1routes.ProductRoutes,
+		case *v1routes.CategoryRoutes, *v1routes.ProductRoutes,
 			*v1routes.PaymentWebhookRoutes, *v1routes.ReviewPublicRoutes,
 			*v1routes.ShippingWebhookRoutes, *v1routes.WSRoutes, *v1routes.BannerRoutes, *v1routes.HealthRoutes,
 			*v1routes.LocationRoutes:

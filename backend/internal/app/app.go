@@ -14,7 +14,6 @@ import (
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
-	"goshop/pkg/mail"
 	"goshop/pkg/payment"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/discord"
@@ -149,18 +148,6 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	redisClient := config.NewRedisClient()
 	cacheRedisService := cache.NewRedisCacheService(redisClient)
 	tokenService := auth.NewJWTService(cacheRedisService)
-	mailLogger := utils.NewLoggerWithPath("mail.log", "info")
-	factory, err := mail.NewProviderFactory(mail.ProviderMailtrap)
-	if err != nil {
-		mailLogger.Error().Err(err).Msg("Failed to create mail provider factory")
-		return nil, err
-	}
-
-	mailService, err := mail.NewMailService(cfg, mailLogger, factory)
-	if err != nil {
-		mailLogger.Error().Err(err).Msg("Failed to create mail service")
-		return nil, err
-	}
 
 	storageLogger := utils.NewLoggerWithPath("storage.log", "info")
 	storageService, err := storage.NewStorageService(context.Background(), cfg.Storage, storageLogger)
@@ -189,7 +176,11 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 
 	notificationRepo := repository.NewSqlNotificationRepository(db.DB)
 	userRepo := repository.NewSqlUserRepository(db.DB)
-	identityClient := client.NewHTTPIdentityClient(cfg.IdentityServiceURL, cfg.InternalSecret, redisClient)
+	identityClient, err := client.NewGRPCIdentityClient(cfg.IdentityGRPCAddr, redisClient)
+	if err != nil {
+		logger.Log.Fatal().Err(err).Str("addr", cfg.IdentityGRPCAddr).Msg("Failed to initialize Identity gRPC client")
+		return nil, err
+	}
 	userReader := client.NewIdentityUserReader(identityClient, userRepo)
 
 	notificationService := v1service.NewNotificationServiceWithTransports(
@@ -273,17 +264,14 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	}
 
 	modules := []Module{
-		NewUserModule(ctx, tokenService),
 		NewProductModule(ctx),
 		NewOrderModule(ctx, orderModuleDeps),
 		NewCartModule(ctx, cartService),
 		NewCouponModule(ctx, couponService),
 		NewPaymentModule(ctx, cacheRedisService, rabbitmqService, wsHub, paymentService),
-		NewAddressModule(ctx),
 		NewReviewModule(ctx, rabbitmqService),
 		NewNotificationModule(ctx, notificationService, wsHub, tokenService, cacheRedisService),
 		NewLocationModule(locationService),
-		NewAuthModule(ctx, tokenService, cacheRedisService, mailService, rabbitmqService, wsHub, redisBridge, cfg.StorefrontURL),
 		NewUploadModule(ctx),
 		NewBannerModule(ctx, cacheRedisService),
 		NewAnalyticsModule(ctx),
