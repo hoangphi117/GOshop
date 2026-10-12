@@ -36,15 +36,13 @@ type Worker struct {
 	mailService          mail.EmailProviderService
 	cache                cache.RedisCacheService
 	redisClient          *redis.Client
-	cfg                  *config.Config
-	logger               *zerolog.Logger
-	notificationConsumer *worker.NotificationConsumer
-	orderConsumer        *worker.OrderConsumer
-	shippingConsumer       *worker.ShippingConsumer
+	cfg                      *config.Config
+	logger                   *zerolog.Logger
+	orderConsumer            *worker.OrderConsumer
+	shippingConsumer         *worker.ShippingConsumer
 	paymentConsumer          *worker.PaymentConsumer
 	paymentExpiredConsumer   *worker.PaymentExpiredConsumer
 	paymentSucceededConsumer *worker.PaymentSucceededConsumer
-	retentionJob           *worker.NotificationRetentionJob
 	syncWorker             *worker.MeilisearchSyncWorker
 	outboxPublisherWorker  *worker.OutboxPublisherWorker
 	shippingService        v1service.OrderShippingService
@@ -93,7 +91,6 @@ func NewWorker(cfg *config.Config) *Worker {
 		log.Fatal().Err(err).Msg("Failed to initialize database for worker")
 	}
 
-	notificationRepo := repository.NewSqlNotificationRepository(db.DB)
 	userRepo := repository.NewSqlUserRepository(db.DB)
 	cartRepo := repository.NewSqlCartRepository(db.DB)
 	productRepo := repository.NewSqlProductRepository(db.DB)
@@ -105,17 +102,9 @@ func NewWorker(cfg *config.Config) *Worker {
 	txManager := db.NewTxManager(db.DBPool)
 
 	redisBridge := ws.NewRedisBridge(redisClient, nil)
-	notificationService := v1service.NewNotificationServiceWithTransports(
-		notificationRepo,
-		userRepo,
-		nil,
-		rabbitMQ,
-		redisBridge,
-	)
 
 	cartService := v1service.NewCartService(cartRepo, userRepo, productRepo, redisClient)
-	notificationConsumer := worker.NewNotificationConsumer(notificationService, log)
-	orderConsumer := worker.NewOrderConsumer(cartService, notificationService, log)
+	orderConsumer := worker.NewOrderConsumer(cartService, nil, log)
 
 	// Shipping Factory & Service
 	ghnToken := utils.GetEnv("GHN_TOKEN", "")
@@ -180,7 +169,7 @@ func NewWorker(cfg *config.Config) *Worker {
 	pricingService := v1service.NewOrderPricingService(couponRepo)
 	couponService := v1service.NewCouponService(couponRepo, userRepo, redisClient)
 	stockMovementRepo := repository.NewSqlStockMovementRepository(db.DB)
-	inventoryService := v1service.NewInventoryService(productRepo, stockMovementRepo, userRepo, txManager, notificationService)
+	inventoryService := v1service.NewInventoryService(productRepo, stockMovementRepo, userRepo, txManager)
 
 	orderService := v1service.NewOrderService(
 		txManager,
@@ -210,29 +199,20 @@ func NewWorker(cfg *config.Config) *Worker {
 		syncWorker = worker.NewMeilisearchSyncWorker(outboxRepo, searchClient, 2*time.Second, 50, log)
 	}
 
-	retentionJob := worker.NewNotificationRetentionJob(
-		notificationService,
-		log,
-		24*time.Hour,
-		utils.GetIntEnv("NOTIFICATION_RETENTION_DAYS", 30),
-	)
-
 	userSyncConsumer := worker.NewUserSyncConsumer(redisClient, db.DBPool)
 
 	return &Worker{
-		rabbitMQ:               rabbitMQ,
-		mailService:            mailService,
-		cache:                  cacheService,
-		redisClient:            redisClient,
-		cfg:                    cfg,
-		logger:                 log,
-		notificationConsumer:   notificationConsumer,
-		orderConsumer:          orderConsumer,
-		shippingConsumer:       shippingConsumer,
+		rabbitMQ:                 rabbitMQ,
+		mailService:              mailService,
+		cache:                    cacheService,
+		redisClient:              redisClient,
+		cfg:                      cfg,
+		logger:                   log,
+		orderConsumer:            orderConsumer,
+		shippingConsumer:         shippingConsumer,
 		paymentConsumer:          paymentConsumer,
 		paymentExpiredConsumer:   paymentExpiredConsumer,
 		paymentSucceededConsumer: paymentSucceededConsumer,
-		retentionJob:             retentionJob,
 		syncWorker:             syncWorker,
 		outboxPublisherWorker:  outboxPublisherWorker,
 		shippingService:        shippingService,
@@ -277,15 +257,7 @@ func (w *Worker) Start(ctx context.Context) error {
 
 	w.logger.Info().Msgf("Worker started and consuming email queue: %s", emailQueueName)
 
-	// Consume Unified Notification Events (Customer & Admin) - can be disabled when Notification microservice is running
-	if utils.GetEnv("DISABLE_LEGACY_NOTIFICATION_WORKER", "false") != "true" && w.notificationConsumer != nil {
-		notifHandler := w.withIdempotency(rabbitmq.QueueNotificationEvents, w.notificationConsumer.Handle)
-		if err := w.rabbitMQ.Consume(ctx, rabbitmq.QueueNotificationEvents, notifHandler); err != nil {
-			w.logger.Error().Err(err).Msg("Failed to consume notification events")
-			return err
-		}
-		w.logger.Info().Msgf("Worker consuming queue: %s", rabbitmq.QueueNotificationEvents)
-	}
+
 
 	// Consume Order Created Events (Cart cleanup & Order notifications)
 	if w.orderConsumer != nil {
@@ -441,10 +413,7 @@ func (w *Worker) Start(ctx context.Context) error {
 		}()
 	}
 
-	if w.retentionJob != nil {
-		go w.retentionJob.Start(ctx)
-		w.logger.Info().Msg("Notification retention job started (interval: 24h, retention: 30d)")
-	}
+
 
 	<-ctx.Done()
 

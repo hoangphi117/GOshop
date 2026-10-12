@@ -127,11 +127,6 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 	admin.Use(middleware.RequireRole(middleware.RoleAdmin, middleware.RoleModerator))
 
 	for _, route := range normalRoutes {
-		if notificationURL != "" {
-			if _, ok := route.(*v1routes.NotificationRoutes); ok {
-				continue
-			}
-		}
 		switch r := route.(type) {
 		case *v1routes.CategoryRoutes, *v1routes.ProductRoutes,
 			*v1routes.PaymentWebhookRoutes, *v1routes.ReviewPublicRoutes,
@@ -144,11 +139,6 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 	}
 
 	for _, route := range adminRoutes {
-		if notificationURL != "" {
-			if _, ok := route.(*v1routes.AdminNotificationRoutes); ok {
-				continue
-			}
-		}
 		route.Register(admin)
 	}
 

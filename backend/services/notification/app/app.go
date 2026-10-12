@@ -34,9 +34,10 @@ import (
 
 // App encapsulates the Notification microservice runtime
 type App struct {
-	cfg      *config.Config
-	server   *http.Server
-	rabbitMQ rabbitmq.RabbitMQService
+	cfg                 *config.Config
+	server              *http.Server
+	rabbitMQ            rabbitmq.RabbitMQService
+	notificationService service.NotificationService
 }
 
 // New constructs and wires the Notification application
@@ -83,8 +84,14 @@ func New(cfg *config.Config) (*App, error) {
 	factory, err := mail.NewProviderFactory(mail.ProviderMailtrap)
 	var mailService mail.EmailProviderService
 	if err == nil {
-		mailService, _ = mail.NewMailService(cfg, mailLogger, factory)
+		var mailErr error
+		if mailService, mailErr = mail.NewMailService(cfg, mailLogger, factory); mailErr != nil {
+			logger.Log.Warn().Err(mailErr).Msg("Failed to initialize mail service, email delivery disabled")
+		}
+	} else {
+		logger.Log.Warn().Err(err).Msg("Failed to initialize mail factory, email delivery disabled")
 	}
+	
 	discordLogger := utils.NewLoggerWithPath("notification_discord.log", "info")
 	discordWebhookURL := utils.GetEnv("DISCORD_WEBHOOK_URL", "")
 	discordNotifier := discord.NewDiscordNotifier(discordWebhookURL, discordLogger)
@@ -149,9 +156,10 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	return &App{
-		cfg:      cfg,
-		server:   server,
-		rabbitMQ: rabbitmqService,
+		cfg:                 cfg,
+		server:              server,
+		rabbitMQ:            rabbitmqService,
+		notificationService: notificationService,
 	}, nil
 }
 
@@ -162,6 +170,29 @@ func (a *App) Run(ctx context.Context) error {
 	go func() {
 		logger.Log.Info().Str("addr", a.server.Addr).Msg("Notification service listening and serving HTTP")
 		serverErrors <- a.server.ListenAndServe()
+	}()
+
+	// Periodic notification retention purge job (runs every 24h)
+	retentionDays := utils.GetIntEnv("NOTIFICATION_RETENTION_DAYS", 30)
+	go func() {
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		logger.Log.Info().Int("retention_days", retentionDays).Msg("Notification retention job started (interval: 24h)")
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if a.notificationService != nil {
+					if count, err := a.notificationService.PurgeStaleNotifications(context.Background(), retentionDays); err != nil {
+						logger.Log.Error().Err(err).Msg("Failed to execute retention purge job")
+					} else {
+						logger.Log.Info().Int64("purged_count", count).Msg("Retention purge completed successfully")
+					}
+				}
+			}
+		}
 	}()
 
 	shutdown := make(chan os.Signal, 1)
@@ -179,7 +210,9 @@ func (a *App) Run(ctx context.Context) error {
 		defer cancel()
 
 		if a.rabbitMQ != nil {
-			_ = a.rabbitMQ.Close()
+			if err := a.rabbitMQ.Close(); err != nil {
+				logger.Log.Warn().Err(err).Msg("Failed to close RabbitMQ connection cleanly")
+			}
 		}
 
 		if err := a.server.Shutdown(shutdownCtx); err != nil {

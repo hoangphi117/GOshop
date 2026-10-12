@@ -174,7 +174,6 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		logger.Log.Warn().Err(err).Msg("Failed to initialize Meilisearch client")
 	}
 
-	notificationRepo := repository.NewSqlNotificationRepository(db.DB)
 	userRepo := repository.NewSqlUserRepository(db.DB)
 	identityClient, err := client.NewGRPCIdentityClient(cfg.IdentityGRPCAddr, redisClient)
 	if err != nil {
@@ -182,14 +181,6 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		return nil, err
 	}
 	userReader := client.NewIdentityUserReader(identityClient, userRepo)
-
-	notificationService := v1service.NewNotificationServiceWithTransports(
-		notificationRepo,
-		userReader,
-		wsHub,
-		rabbitmqService,
-		redisBridge,
-	)
 
 	// Location Domain Initialization
 	ghnToken := utils.GetEnv("GHN_TOKEN", "")
@@ -208,7 +199,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	couponService := v1service.NewCouponService(couponRepo, userReader, redisClient)
 
 	stockMovementRepo := repository.NewSqlStockMovementRepository(db.DB)
-	inventoryService := v1service.NewInventoryService(productRepo, stockMovementRepo, userReader, txManager, notificationService)
+	inventoryService := v1service.NewInventoryService(productRepo, stockMovementRepo, userReader, txManager)
 
 	paymentRepo := repository.NewSqlPaymentRepository(db.DB)
 	webhookRepo := repository.NewSqlWebhookEventRepository(db.DB)
@@ -270,7 +261,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		NewCouponModule(ctx, couponService),
 		NewPaymentModule(ctx, cacheRedisService, rabbitmqService, wsHub, paymentService),
 		NewReviewModule(ctx, rabbitmqService),
-		NewNotificationModule(ctx, notificationService, wsHub, tokenService, cacheRedisService),
+		NewWSModule(ctx, wsHub, tokenService, cacheRedisService),
 		NewLocationModule(locationService),
 		NewUploadModule(ctx),
 		NewBannerModule(ctx, cacheRedisService),
