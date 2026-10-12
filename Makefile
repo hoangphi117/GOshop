@@ -126,6 +126,10 @@ dev:
 stop-dev:
 	docker-compose -f ${DEV_COMPOSE} down
 
+# Run lightweight hybrid development (Infra in Docker, Go apps on Host)
+dev-host:
+	powershell -ExecutionPolicy Bypass -File ./scripts/dev.ps1
+
 # Build container for production
 prod:
 	docker-compose -f ${PROD_COMPOSE} down
@@ -153,4 +157,4 @@ stresstest:
 spiketest:
 	docker run --rm -i --network=shopping_goshop-network -v "./loadtest:/loadtest" -e BASE_URL=http://goshop-nginx -e API_KEY=abcd-1234-1111 grafana/k6 run /loadtest/spike_test.js
 
-.PHONY: importdb exportdb server worker ws-gateway identity notification build-identity build-notification migrate-create migrate-up migrate-down migrate-force migrate-drop migrate-goto migrate-down-n sqlc build build-worker build-ws-gateway run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev swagger loadtest stresstest spiketest seed seed-docker
+.PHONY: importdb exportdb server worker ws-gateway identity notification build-identity build-notification migrate-create migrate-up migrate-down migrate-force migrate-drop migrate-goto migrate-down-n sqlc build build-worker build-ws-gateway run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev dev-host swagger loadtest stresstest spiketest seed seed-docker
