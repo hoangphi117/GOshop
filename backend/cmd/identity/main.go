@@ -1,18 +1,20 @@
 package main
 
 import (
-	"goshop/internal/app"
-	"goshop/internal/config"
-	"goshop/internal/utils"
-	"goshop/pkg/logger"
+	"context"
 	"path/filepath"
+
+	"goshop/internal/config"
+	"goshop/pkg/utils"
+	"goshop/pkg/logger"
+	identityapp "goshop/services/identity/app"
 
 	"github.com/joho/godotenv"
 )
 
 // @title           GOshop Identity Service API
 // @version         1.0
-// @description     Dedicated Identity microservice hosting AuthModule, UserModule, and AddressModule.
+// @description     Dedicated Identity microservice hosting Auth, User, and Address modules.
 // @host            localhost:8081
 // @BasePath        /
 
@@ -43,12 +45,12 @@ func main() {
 	port := utils.GetEnv("IDENTITY_SERVER_PORT", "8081")
 	cfg.ServerAddress = ":" + port
 
-	application, err := app.NewIdentityApplication(cfg)
+	application, err := identityapp.New(cfg)
 	if err != nil {
 		logger.Log.Fatal().Err(err).Msg("Failed to create identity application")
 	}
 
-	if err := application.Run(); err != nil {
+	if err := application.Run(context.Background()); err != nil {
 		logger.Log.Fatal().Err(err).Msg("Identity application failed to run")
 	}
 }

@@ -22,6 +22,6 @@ COPY --from=builder /app/identity .
 
 COPY .env .
 
-EXPOSE 8081
+EXPOSE 8081 50051
 
 CMD ["./identity"]
