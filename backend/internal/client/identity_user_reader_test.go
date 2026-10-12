@@ -6,29 +6,28 @@ import (
 	"testing"
 
 	"goshop/internal/db/sqlc"
-	v1dto "goshop/internal/dto/v1"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
 type mockIdentityClient struct {
-	getUserByIDFunc           func(ctx context.Context, userID int32) (*v1dto.InternalUserDTO, error)
-	getUserByUUIDFunc         func(ctx context.Context, userUUID uuid.UUID) (*v1dto.InternalUserDTO, error)
+	getUserByIDFunc           func(ctx context.Context, userID int32) (*InternalUserDTO, error)
+	getUserByUUIDFunc         func(ctx context.Context, userUUID uuid.UUID) (*InternalUserDTO, error)
 	getActiveAdminUserIDsFunc func(ctx context.Context) ([]int32, error)
-	getUsersBatchFunc         func(ctx context.Context, userIDs []int32) (map[int32]v1dto.InternalUserDTO, error)
-	getAddressByUUIDFunc      func(ctx context.Context, userID int32, addressUUID uuid.UUID) (*v1dto.AddressDTO, error)
-	getAddressesByUserIDFunc  func(ctx context.Context, userID int32) ([]v1dto.AddressDTO, error)
+	getUsersBatchFunc         func(ctx context.Context, userIDs []int32) (map[int32]InternalUserDTO, error)
+	getAddressByUUIDFunc      func(ctx context.Context, userID int32, addressUUID uuid.UUID) (*AddressDTO, error)
+	getAddressesByUserIDFunc  func(ctx context.Context, userID int32) ([]AddressDTO, error)
 }
 
-func (m *mockIdentityClient) GetUserByID(ctx context.Context, userID int32) (*v1dto.InternalUserDTO, error) {
+func (m *mockIdentityClient) GetUserByID(ctx context.Context, userID int32) (*InternalUserDTO, error) {
 	if m.getUserByIDFunc != nil {
 		return m.getUserByIDFunc(ctx, userID)
 	}
 	return nil, errors.New("not implemented")
 }
 
-func (m *mockIdentityClient) GetUserByUUID(ctx context.Context, userUUID uuid.UUID) (*v1dto.InternalUserDTO, error) {
+func (m *mockIdentityClient) GetUserByUUID(ctx context.Context, userUUID uuid.UUID) (*InternalUserDTO, error) {
 	if m.getUserByUUIDFunc != nil {
 		return m.getUserByUUIDFunc(ctx, userUUID)
 	}
@@ -42,21 +41,21 @@ func (m *mockIdentityClient) GetActiveAdminUserIDs(ctx context.Context) ([]int32
 	return nil, errors.New("not implemented")
 }
 
-func (m *mockIdentityClient) GetUsersBatch(ctx context.Context, userIDs []int32) (map[int32]v1dto.InternalUserDTO, error) {
+func (m *mockIdentityClient) GetUsersBatch(ctx context.Context, userIDs []int32) (map[int32]InternalUserDTO, error) {
 	if m.getUsersBatchFunc != nil {
 		return m.getUsersBatchFunc(ctx, userIDs)
 	}
 	return nil, errors.New("not implemented")
 }
 
-func (m *mockIdentityClient) GetAddressByUUID(ctx context.Context, userID int32, addressUUID uuid.UUID) (*v1dto.AddressDTO, error) {
+func (m *mockIdentityClient) GetAddressByUUID(ctx context.Context, userID int32, addressUUID uuid.UUID) (*AddressDTO, error) {
 	if m.getAddressByUUIDFunc != nil {
 		return m.getAddressByUUIDFunc(ctx, userID, addressUUID)
 	}
 	return nil, errors.New("not implemented")
 }
 
-func (m *mockIdentityClient) GetAddressesByUserID(ctx context.Context, userID int32) ([]v1dto.AddressDTO, error) {
+func (m *mockIdentityClient) GetAddressesByUserID(ctx context.Context, userID int32) ([]AddressDTO, error) {
 	if m.getAddressesByUserIDFunc != nil {
 		return m.getAddressesByUserIDFunc(ctx, userID)
 	}
@@ -95,8 +94,8 @@ func TestIdentityUserReader_GetByID(t *testing.T) {
 
 	t.Run("primary client succeeds", func(t *testing.T) {
 		mockClient := &mockIdentityClient{
-			getUserByIDFunc: func(ctx context.Context, userID int32) (*v1dto.InternalUserDTO, error) {
-				return &v1dto.InternalUserDTO{
+			getUserByIDFunc: func(ctx context.Context, userID int32) (*InternalUserDTO, error) {
+				return &InternalUserDTO{
 					UserID:       1,
 					UserUUID:     testUUID,
 					UserFullname: "Primary User",
@@ -116,7 +115,7 @@ func TestIdentityUserReader_GetByID(t *testing.T) {
 
 	t.Run("fallback when client fails", func(t *testing.T) {
 		mockClient := &mockIdentityClient{
-			getUserByIDFunc: func(ctx context.Context, userID int32) (*v1dto.InternalUserDTO, error) {
+			getUserByIDFunc: func(ctx context.Context, userID int32) (*InternalUserDTO, error) {
 				return nil, errors.New("network down")
 			},
 		}
@@ -143,8 +142,8 @@ func TestIdentityUserReader_GetByUUID(t *testing.T) {
 
 	t.Run("primary client succeeds", func(t *testing.T) {
 		mockClient := &mockIdentityClient{
-			getUserByUUIDFunc: func(ctx context.Context, userUUID uuid.UUID) (*v1dto.InternalUserDTO, error) {
-				return &v1dto.InternalUserDTO{
+			getUserByUUIDFunc: func(ctx context.Context, userUUID uuid.UUID) (*InternalUserDTO, error) {
+				return &InternalUserDTO{
 					UserID:       5,
 					UserUUID:     testUUID,
 					UserFullname: "UUID Primary",
@@ -160,7 +159,7 @@ func TestIdentityUserReader_GetByUUID(t *testing.T) {
 
 	t.Run("fallback when client fails", func(t *testing.T) {
 		mockClient := &mockIdentityClient{
-			getUserByUUIDFunc: func(ctx context.Context, userUUID uuid.UUID) (*v1dto.InternalUserDTO, error) {
+			getUserByUUIDFunc: func(ctx context.Context, userUUID uuid.UUID) (*InternalUserDTO, error) {
 				return nil, errors.New("service timeout")
 			},
 		}

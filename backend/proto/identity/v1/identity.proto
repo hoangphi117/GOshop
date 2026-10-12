@@ -1,0 +1,91 @@
+syntax = "proto3";
+
+package identity.v1;
+
+option go_package = "goshop/proto/identity/v1;identityv1";
+
+message UserDTO {
+  int32 user_id = 1;
+  string user_uuid = 2;
+  string user_fullname = 3;
+  string user_email = 4;
+  string user_avatar = 5;
+  optional string user_avatar_url = 6;
+  int32 user_status = 7;
+  int32 user_level = 8;
+}
+
+message AddressDTO {
+  string uuid = 1;
+  string name = 2;
+  string phone = 3;
+  string address = 4;
+  optional int32 province_id = 5;
+  optional int32 district_id = 6;
+  optional string ward_code = 7;
+  string full_address = 8;
+  bool is_default = 9;
+  string address_type = 10;
+  optional string delivery_note = 11;
+  optional string created_at = 12;
+  string label = 13;
+  string province_name = 14;
+  string district_name = 15;
+  string ward_name = 16;
+}
+
+message GetUserByIDRequest {
+  int32 user_id = 1;
+}
+
+message GetUserByIDResponse {
+  UserDTO user = 1;
+}
+
+message GetUserByUUIDRequest {
+  string user_uuid = 1;
+}
+
+message GetUserByUUIDResponse {
+  UserDTO user = 1;
+}
+
+message GetBatchUsersRequest {
+  repeated int32 user_ids = 1;
+}
+
+message GetBatchUsersResponse {
+  map<int32, UserDTO> users = 1;
+}
+
+message GetActiveAdminUserIDsRequest {}
+
+message GetActiveAdminUserIDsResponse {
+  repeated int32 admin_user_ids = 1;
+}
+
+message GetAddressByUUIDRequest {
+  int32 user_id = 1;
+  string address_uuid = 2;
+}
+
+message GetAddressByUUIDResponse {
+  AddressDTO address = 1;
+}
+
+message GetAddressesByUserIDRequest {
+  int32 user_id = 1;
+}
+
+message GetAddressesByUserIDResponse {
+  repeated AddressDTO addresses = 1;
+}
+
+service IdentityService {
+  rpc GetUserByID(GetUserByIDRequest) returns (GetUserByIDResponse);
+  rpc GetUserByUUID(GetUserByUUIDRequest) returns (GetUserByUUIDResponse);
+  rpc GetBatchUsers(GetBatchUsersRequest) returns (GetBatchUsersResponse);
+  rpc GetActiveAdminUserIDs(GetActiveAdminUserIDsRequest) returns (GetActiveAdminUserIDsResponse);
+  rpc GetAddressByUUID(GetAddressByUUIDRequest) returns (GetAddressByUUIDResponse);
+  rpc GetAddressesByUserID(GetAddressesByUserIDRequest) returns (GetAddressesByUserIDResponse);
+}

@@ -7,8 +7,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	v1dto "goshop/internal/dto/v1"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
@@ -21,7 +19,7 @@ func TestHTTPIdentityClient_GetUserByID(t *testing.T) {
 		assert.Equal(t, secret, r.Header.Get("X-Internal-Token"))
 
 		if r.URL.Path == "/internal/v1/users/42" {
-			user := v1dto.InternalUserDTO{
+			user := InternalUserDTO{
 				UserID:       42,
 				UserUUID:     testUUID,
 				UserFullname: "John Doe",
@@ -73,12 +71,14 @@ func TestHTTPIdentityClient_GetUsersBatch(t *testing.T) {
 		assert.Equal(t, http.MethodPost, r.Method)
 		assert.Equal(t, "/internal/v1/users/batch", r.URL.Path)
 
-		var req v1dto.InternalBatchUsersRequest
+		var req struct {
+			UserIDs []int32 `json:"user_ids"`
+		}
 		err := json.NewDecoder(r.Body).Decode(&req)
 		assert.NoError(t, err)
 
-		resp := v1dto.InternalBatchUsersResponse{
-			Users: map[int32]v1dto.InternalUserDTO{
+		resp := InternalBatchUsersResponse{
+			Users: map[int32]InternalUserDTO{
 				1: {
 					UserID:       1,
 					UserUUID:     testUUID1,
@@ -128,7 +128,7 @@ func TestHTTPIdentityClient_GetUserByUUID(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, secret, r.Header.Get("X-Internal-Token"))
 		if r.URL.Path == "/internal/v1/users/uuid/"+testUUID.String() {
-			user := v1dto.InternalUserDTO{
+			user := InternalUserDTO{
 				UserID:       10,
 				UserUUID:     testUUID,
 				UserFullname: "UUID User",
@@ -197,7 +197,7 @@ func TestHTTPIdentityClient_Addresses(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, secret, r.Header.Get("X-Internal-Token"))
 		if r.URL.Path == "/internal/v1/addresses/"+testAddrUUID.String() {
-			addr := v1dto.AddressDTO{
+			addr := AddressDTO{
 				UUID:        testAddrUUID.String(),
 				Name:        "Receiver",
 				Phone:       "0912345678",
@@ -210,7 +210,7 @@ func TestHTTPIdentityClient_Addresses(t *testing.T) {
 		}
 		if r.URL.Path == "/internal/v1/users/1/addresses" {
 			res := map[string]any{
-				"addresses": []v1dto.AddressDTO{
+				"addresses": []AddressDTO{
 					{
 						UUID:        testAddrUUID.String(),
 						Name:        "Receiver",
@@ -243,4 +243,10 @@ func TestHTTPIdentityClient_Addresses(t *testing.T) {
 		assert.Len(t, addrs, 1)
 		assert.Equal(t, "Receiver", addrs[0].Name)
 	})
+}
+
+func TestGRPCIdentityClient_Interface(t *testing.T) {
+	c, err := NewGRPCIdentityClient("localhost:50051", nil)
+	assert.NoError(t, err)
+	assert.Implements(t, (*IdentityClient)(nil), c)
 }

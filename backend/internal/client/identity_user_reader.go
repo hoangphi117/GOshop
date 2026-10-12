@@ -5,19 +5,20 @@ import (
 	"fmt"
 	"goshop/internal/db/sqlc"
 	"goshop/internal/repository"
+	"goshop/services/identity/contract"
 
 	"github.com/google/uuid"
 )
 
-// IdentityUserReader implements repository.UserReader by querying the remote Identity microservice
-// through IdentityClient (cached by Redis), with graceful fallback to a local projection reader.
+// IdentityUserReader implements repository.UserReader by calling IdentityClient first,
+// with graceful fallback to a local projection reader (e.g. SqlUserRepository) if IdentityClient fails.
 type IdentityUserReader struct {
-	identityClient IdentityClient
+	identityClient contract.IdentityClient
 	localFallback  repository.UserReader
 }
 
 // NewIdentityUserReader creates a new UserReader backed by IdentityClient.
-func NewIdentityUserReader(client IdentityClient, fallback repository.UserReader) repository.UserReader {
+func NewIdentityUserReader(client contract.IdentityClient, fallback repository.UserReader) repository.UserReader {
 	return &IdentityUserReader{
 		identityClient: client,
 		localFallback:  fallback,

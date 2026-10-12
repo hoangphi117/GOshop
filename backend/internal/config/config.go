@@ -35,6 +35,7 @@ type Config struct {
 	MailProviderConfig map[string]any
 	Storage            storage.StorageConfig
 	IdentityServiceURL string
+	IdentityGRPCAddr   string
 	InternalSecret     string
 }
 
@@ -108,6 +109,7 @@ func NewConfig() *Config {
 		MailProviderConfig: mailProviderConfig,
 		Storage:            storageConfig,
 		IdentityServiceURL: utils.GetEnv("IDENTITY_SERVICE_URL", "http://localhost:8081"),
+		IdentityGRPCAddr:   utils.GetEnv("IDENTITY_GRPC_ADDR", "localhost:50051"),
 		InternalSecret: func() string {
 			secret := utils.GetEnv("INTERNAL_API_SECRET", "")
 			if utils.GetEnv("APP_ENV", "development") == "production" && secret == "" {
