@@ -2,7 +2,7 @@ package v1routes
 
 import (
 	v1handler "goshop/internal/handler/v1"
-	"goshop/internal/middleware"
+	"goshop/pkg/middleware"
 
 	"github.com/gin-gonic/gin"
 )

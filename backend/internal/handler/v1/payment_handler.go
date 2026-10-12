@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	v1dto "goshop/internal/dto/v1"
-	"goshop/internal/middleware"
+	"goshop/pkg/middleware"
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/utils"
 	"goshop/internal/validation"

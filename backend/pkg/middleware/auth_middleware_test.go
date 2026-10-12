@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"goshop/internal/middleware"
+	"goshop/pkg/middleware"
 	"goshop/internal/testutils"
 	"goshop/pkg/auth"
 

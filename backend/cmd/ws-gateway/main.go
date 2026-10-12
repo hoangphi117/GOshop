@@ -13,7 +13,7 @@ import (
 	"goshop/internal/config"
 	"goshop/internal/db"
 	v1handler "goshop/internal/handler/v1"
-	"goshop/internal/middleware"
+	"goshop/pkg/middleware"
 	"goshop/internal/repository"
 	"goshop/internal/utils"
 	"goshop/pkg/auth"

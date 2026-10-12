@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"goshop/internal/middleware"
+	"goshop/pkg/middleware"
 	"goshop/internal/testutils"
 
 	"github.com/gin-gonic/gin"

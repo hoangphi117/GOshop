@@ -1,13 +1,12 @@
 package middleware
 
 import (
+	"context"
 	"database/sql"
 	"errors"
-	"goshop/internal/db/sqlc"
-	"goshop/internal/repository"
-	"goshop/internal/utils"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
+	"goshop/pkg/utils"
 	"net/http"
 	"strings"
 
@@ -143,19 +142,24 @@ func GetUserUUID(ctx *gin.Context) (uuid.UUID, error) {
 	return userUUID, nil
 }
 
-func GetUserFromContext(ctx *gin.Context, userRepo repository.UserRepository) (sqlc.User, error) {
+type UserByUUIDFetcher[T any] interface {
+	GetByUUID(ctx context.Context, u uuid.UUID) (T, error)
+}
+
+func GetUserFromContext[T any](ctx *gin.Context, userRepo UserByUUIDFetcher[T]) (T, error) {
+	var zero T
 	userUUID, err := GetUserUUID(ctx)
 	if err != nil {
-		return sqlc.User{}, err
+		return zero, err
 	}
 
 	reqCtx := ctx.Request.Context()
 	user, err := userRepo.GetByUUID(reqCtx, userUUID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
-			return sqlc.User{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+			return zero, utils.NewError(utils.ErrCodeNotFound, "User not found")
 		}
-		return sqlc.User{}, utils.NewError(utils.ErrCodeNotFound, "User not found")
+		return zero, utils.NewError(utils.ErrCodeNotFound, "User not found")
 	}
 
 	return user, nil
