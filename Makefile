@@ -66,8 +66,7 @@ migrate-create:
 migrate-identity-create:
 	migrate create -ext sql -dir ${MIGRATION_IDENTITY_DIR} -seq ${NAME}
 
-migrate-up:
-	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" up
+migrate-up: migrate-core-up migrate-identity-up
 
 migrate-core-up:
 	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" up
@@ -76,8 +75,7 @@ migrate-identity-up:
 	migrate -path ${MIGRATION_IDENTITY_DIR} -database "${IDENTITY_CONNECTION_STRING}" up
 
 # Rollback the last migration
-migrate-down:
-	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" down 1
+migrate-down: migrate-core-down migrate-identity-down
 
 migrate-core-down:
 	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" down 1
