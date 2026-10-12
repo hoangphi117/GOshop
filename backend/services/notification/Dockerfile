@@ -1,0 +1,26 @@
+# ============= STAGE 1: BUILD GO BINARY =============
+FROM golang:1.26.6-alpine AS builder
+
+RUN apk update && apk add --no-cache git curl ca-certificates tzdata
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o notification ./cmd/notification
+
+# ============= STAGE 2: RUNTIME CONTAINER =============
+FROM alpine:3.19
+
+RUN apk --no-cache add ca-certificates tzdata
+
+WORKDIR /app
+
+COPY --from=builder /app/notification .
+
+EXPOSE 8082
+
+CMD ["./notification"]

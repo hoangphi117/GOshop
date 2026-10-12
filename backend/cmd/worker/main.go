@@ -277,13 +277,15 @@ func (w *Worker) Start(ctx context.Context) error {
 
 	w.logger.Info().Msgf("Worker started and consuming email queue: %s", emailQueueName)
 
-	// Consume Unified Notification Events (Customer & Admin)
-	notifHandler := w.withIdempotency(rabbitmq.QueueNotificationEvents, w.notificationConsumer.Handle)
-	if err := w.rabbitMQ.Consume(ctx, rabbitmq.QueueNotificationEvents, notifHandler); err != nil {
-		w.logger.Error().Err(err).Msg("Failed to consume notification events")
-		return err
+	// Consume Unified Notification Events (Customer & Admin) - can be disabled when Notification microservice is running
+	if utils.GetEnv("DISABLE_LEGACY_NOTIFICATION_WORKER", "false") != "true" && w.notificationConsumer != nil {
+		notifHandler := w.withIdempotency(rabbitmq.QueueNotificationEvents, w.notificationConsumer.Handle)
+		if err := w.rabbitMQ.Consume(ctx, rabbitmq.QueueNotificationEvents, notifHandler); err != nil {
+			w.logger.Error().Err(err).Msg("Failed to consume notification events")
+			return err
+		}
+		w.logger.Info().Msgf("Worker consuming queue: %s", rabbitmq.QueueNotificationEvents)
 	}
-	w.logger.Info().Msgf("Worker consuming queue: %s", rabbitmq.QueueNotificationEvents)
 
 	// Consume Order Created Events (Cart cleanup & Order notifications)
 	if w.orderConsumer != nil {

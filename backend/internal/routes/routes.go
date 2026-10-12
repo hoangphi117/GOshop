@@ -89,6 +89,34 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 		v1api.Any("/admin/users/*any", identityProxyHandler)
 	}
 
+	// API Gateway reverse proxy for Notification microservice endpoints
+	notificationURL := utils.GetEnv("NOTIFICATION_SERVICE_URL", "")
+	if parsedNotifURL, err := url.Parse(notificationURL); err == nil && parsedNotifURL.Scheme != "" {
+		notifProxy := httputil.NewSingleHostReverseProxy(parsedNotifURL)
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.DisableCompression = true
+		notifProxy.Transport = transport
+
+		notifProxy.ModifyResponse = func(resp *http.Response) error {
+			resp.Header.Del("Access-Control-Allow-Origin")
+			resp.Header.Del("Access-Control-Allow-Credentials")
+			resp.Header.Del("Access-Control-Allow-Methods")
+			resp.Header.Del("Access-Control-Allow-Headers")
+			resp.Header.Del("Access-Control-Max-Age")
+			return nil
+		}
+		notifProxyHandler := func(ctx *gin.Context) {
+			ctx.Request.Host = parsedNotifURL.Host
+			ctx.Request.Header.Del("Accept-Encoding")
+			notifProxy.ServeHTTP(ctx.Writer, ctx.Request)
+		}
+
+		v1api.Any("/notifications", notifProxyHandler)
+		v1api.Any("/notifications/*any", notifProxyHandler)
+		v1api.Any("/admin/notifications", notifProxyHandler)
+		v1api.Any("/admin/notifications/*any", notifProxyHandler)
+	}
+
 	public := v1api.Group("")
 
 	protected := v1api.Group("")
