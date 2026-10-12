@@ -22,22 +22,24 @@ const (
 )
 
 type rabbitMQService struct {
-	url            string
-	conn           *amqp.Connection
-	channel        *amqp.Channel
-	logger         *zerolog.Logger
-	mu             sync.RWMutex
-	declareMu      sync.Mutex
-	declaredQueues map[string]struct{}
-	quit           chan struct{}
+	url               string
+	conn              *amqp.Connection
+	channel           *amqp.Channel
+	logger            *zerolog.Logger
+	mu                sync.RWMutex
+	declareMu         sync.Mutex
+	declaredQueues    map[string]struct{}
+	declaredExchanges map[string]struct{}
+	quit              chan struct{}
 }
 
 func NewRabbitMQService(amqpURL string, logger *zerolog.Logger) (RabbitMQService, error) {
 	r := &rabbitMQService{
-		url:            amqpURL,
-		logger:         logger,
-		declaredQueues: make(map[string]struct{}),
-		quit:           make(chan struct{}),
+		url:               amqpURL,
+		logger:            logger,
+		declaredQueues:    make(map[string]struct{}),
+		declaredExchanges: make(map[string]struct{}),
+		quit:              make(chan struct{}),
 	}
 
 	if err := r.connect(); err != nil {
@@ -75,6 +77,7 @@ func (r *rabbitMQService) connect() error {
 	r.conn = conn
 	r.channel = ch
 	r.declaredQueues = make(map[string]struct{})
+	r.declaredExchanges = make(map[string]struct{})
 	r.mu.Unlock()
 
 	r.logger.Info().Msg("Connected to RabbitMQ")
@@ -263,6 +266,115 @@ func (r *rabbitMQService) Publish(ctx context.Context, queue string, message any
 	return nil
 }
 
+func (r *rabbitMQService) ensureExchange(exchange string, kind string) error {
+	r.declareMu.Lock()
+	defer r.declareMu.Unlock()
+
+	if _, ok := r.declaredExchanges[exchange]; ok {
+		return nil
+	}
+
+	ch, err := r.getChannel()
+	if err != nil {
+		return err
+	}
+
+	err = ch.ExchangeDeclare(
+		exchange,
+		kind,
+		true,  // durable
+		false, // auto-delete
+		false, // internal
+		false, // no-wait
+		nil,   // args
+	)
+	if err != nil {
+		return fmt.Errorf("failed to declare exchange %s (%s): %w", exchange, kind, err)
+	}
+
+	r.declaredExchanges[exchange] = struct{}{}
+	return nil
+}
+
+func (r *rabbitMQService) ensureTopicQueue(exchange, queue string, routingKeys []string) error {
+	if err := r.ensureExchange(exchange, amqp.ExchangeTopic); err != nil {
+		return err
+	}
+
+	if err := r.ensureQueues(queue); err != nil {
+		return err
+	}
+
+	ch, err := r.getChannel()
+	if err != nil {
+		return err
+	}
+
+	r.declareMu.Lock()
+	defer r.declareMu.Unlock()
+
+	for _, key := range routingKeys {
+		if err := ch.QueueBind(queue, key, exchange, false, nil); err != nil {
+			return fmt.Errorf("failed to bind queue %s to exchange %s with key %s: %w", queue, exchange, key, err)
+		}
+	}
+
+	return nil
+}
+
+func (r *rabbitMQService) PublishToExchange(ctx context.Context, exchange, routingKey string, message any) error {
+	if err := r.ensureExchange(exchange, amqp.ExchangeTopic); err != nil {
+		return err
+	}
+
+	body, err := json.Marshal(message)
+	if err != nil {
+		return fmt.Errorf("failed to marshal message: %w", err)
+	}
+
+	traceID := logger.GetTraceId(ctx)
+	messageID := fmt.Sprintf("%d", time.Now().UnixNano())
+	ttlMs := utils.GetIntEnv("RABBITMQ_MESSAGE_TTL_MS", defaultMessageTTL)
+
+	ch, err := r.getChannel()
+	if err != nil {
+		return err
+	}
+
+	err = ch.PublishWithContext(ctx,
+		exchange,
+		routingKey,
+		false,
+		false,
+		amqp.Publishing{
+			ContentType:   "application/json",
+			DeliveryMode:  amqp.Persistent,
+			MessageId:     messageID,
+			CorrelationId: traceID,
+			Timestamp:     time.Now(),
+			Expiration:    strconv.Itoa(ttlMs),
+			Headers: amqp.Table{
+				"trace_id":      traceID,
+				"x-message-id":  messageID,
+				"x-routing-key": routingKey,
+				"x-retry-count": int32(0),
+				"x-max-retries": int32(utils.GetIntEnv("RABBITMQ_MAX_RETRIES", defaultMaxRetries)),
+			},
+			Body: body,
+		})
+
+	if err != nil {
+		return fmt.Errorf("failed to publish message to exchange %s with key %s: %w", exchange, routingKey, err)
+	}
+
+	return nil
+}
+
+func (r *rabbitMQService) PublishTopic(ctx context.Context, routingKey string, message any) error {
+	exchange := utils.GetEnv("RABBITMQ_TOPIC_EXCHANGE", DefaultTopicExchange)
+	return r.PublishToExchange(ctx, exchange, routingKey, message)
+}
+
 func (r *rabbitMQService) republish(ctx context.Context, queue string, body []byte, headers amqp.Table) error {
 	traceID := logger.GetTraceId(ctx)
 	messageID := fmt.Sprintf("%d", time.Now().UnixNano())
@@ -324,6 +436,40 @@ func (r *rabbitMQService) Consume(ctx context.Context, queue string, handler fun
 
 	return nil
 }
+
+func (r *rabbitMQService) SubscribeToExchange(ctx context.Context, exchange, queue string, routingKeys []string, handler func(amqp.Table, []byte) error) error {
+	if err := r.ensureTopicQueue(exchange, queue, routingKeys); err != nil {
+		return err
+	}
+
+	ch, err := r.getChannel()
+	if err != nil {
+		return err
+	}
+
+	consumerCount := utils.GetIntEnv("RABBITMQ_CONSUMER_COUNT", defaultConsumerCount)
+	if consumerCount < 1 {
+		consumerCount = 1
+	}
+
+	for i := 0; i < consumerCount; i++ {
+		tag := fmt.Sprintf("%s-c%d", queue, i)
+		msgs, err := ch.Consume(queue, tag, false, false, false, false, nil)
+		if err != nil {
+			return fmt.Errorf("failed to register topic consumer %s: %w", tag, err)
+		}
+		go r.startConsumer(ctx, queue, tag, msgs, handler)
+		r.logger.Info().Str("exchange", exchange).Str("queue", queue).Str("consumer", tag).Msg("Topic consumer registered")
+	}
+
+	return nil
+}
+
+func (r *rabbitMQService) SubscribeTopic(ctx context.Context, queue string, routingKeys []string, handler func(amqp.Table, []byte) error) error {
+	exchange := utils.GetEnv("RABBITMQ_TOPIC_EXCHANGE", DefaultTopicExchange)
+	return r.SubscribeToExchange(ctx, exchange, queue, routingKeys, handler)
+}
+
 
 func (r *rabbitMQService) startConsumer(ctx context.Context, queue, consumerTag string, msgs <-chan amqp.Delivery, handler func(amqp.Table, []byte) error) {
 	currentMsgs := msgs

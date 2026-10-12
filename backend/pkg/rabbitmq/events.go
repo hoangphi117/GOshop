@@ -22,7 +22,7 @@ const (
 	ActionRequested = "requested"
 	ActionReported  = "reported"
 
-	// Queues
+	// Queues (Work Queue Point-to-Point)
 	QueueOrderCreated         = "order.created"
 	QueueOrderCancelled       = "order.cancelled"
 	QueueOrderStatusChanged   = "order.status_changed"
@@ -38,6 +38,31 @@ const (
 	QueueUserCreated = "user.created"
 	QueueUserUpdated = "user.updated"
 	QueueUserDeleted = "user.deleted"
+
+	// Topic Exchange Routing Keys (Pub/Sub)
+	RoutingKeyOrderCreated         = "order.created"
+	RoutingKeyOrderCancelled       = "order.cancelled"
+	RoutingKeyOrderStatusChanged   = "order.status_changed"
+	RoutingKeyOrderShipped         = "order.shipped"
+	RoutingKeyOrderDelivered       = "order.delivered"
+	RoutingKeyOrderReturnRequested = "order_return.requested"
+	RoutingKeyOrderReturnUpdated   = "order_return.updated"
+	RoutingKeyPaymentExpired       = "payment.expired"
+	RoutingKeyPaymentSucceeded     = "payment.succeeded"
+	RoutingKeyPaymentFailed        = "payment.failed"
+	RoutingKeyUserCreated          = "user.created"
+	RoutingKeyUserUpdated          = "user.updated"
+	RoutingKeyUserDeleted          = "user.deleted"
+	RoutingKeyInventoryStockLow    = "inventory.stock_low"
+	RoutingKeyReviewReported       = "review.reported"
+
+	// Topic Exchange Routing Patterns (Wildcards)
+	PatternOrderAll     = "order.*"
+	PatternOrderReturns = "order_return.*"
+	PatternPaymentAll   = "payment.*"
+	PatternUserAll      = "user.*"
+	PatternInventoryAll = "inventory.*"
+	PatternAllEvents    = "*.*"
 )
 
 // PaymentExpiredEvent is emitted when a payment transaction exceeds its timeout and expires.

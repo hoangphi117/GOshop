@@ -391,10 +391,14 @@ func (m *MockCouponService) LockAndApplyCoupon(ctx context.Context, couponID int
 // MockRabbitMQService
 // =========================================================================
 type MockRabbitMQService struct {
-	PublishFunc   func(ctx context.Context, queue string, message any) error
-	ConsumeFunc   func(ctx context.Context, queue string, handler func(amqp.Table, []byte) error) error
-	CloseFunc     func() error
-	IsHealthyFunc func() bool
+	PublishFunc             func(ctx context.Context, queue string, message any) error
+	ConsumeFunc             func(ctx context.Context, queue string, handler func(amqp.Table, []byte) error) error
+	PublishTopicFunc        func(ctx context.Context, routingKey string, message any) error
+	PublishToExchangeFunc   func(ctx context.Context, exchange, routingKey string, message any) error
+	SubscribeTopicFunc      func(ctx context.Context, queueName string, routingKeys []string, handler func(amqp.Table, []byte) error) error
+	SubscribeToExchangeFunc func(ctx context.Context, exchange, queueName string, routingKeys []string, handler func(amqp.Table, []byte) error) error
+	CloseFunc               func() error
+	IsHealthyFunc           func() bool
 }
 
 func (m *MockRabbitMQService) Publish(ctx context.Context, queue string, message any) error {
@@ -407,6 +411,34 @@ func (m *MockRabbitMQService) Publish(ctx context.Context, queue string, message
 func (m *MockRabbitMQService) Consume(ctx context.Context, queue string, handler func(amqp.Table, []byte) error) error {
 	if m.ConsumeFunc != nil {
 		return m.ConsumeFunc(ctx, queue, handler)
+	}
+	return nil
+}
+
+func (m *MockRabbitMQService) PublishTopic(ctx context.Context, routingKey string, message any) error {
+	if m.PublishTopicFunc != nil {
+		return m.PublishTopicFunc(ctx, routingKey, message)
+	}
+	return nil
+}
+
+func (m *MockRabbitMQService) PublishToExchange(ctx context.Context, exchange, routingKey string, message any) error {
+	if m.PublishToExchangeFunc != nil {
+		return m.PublishToExchangeFunc(ctx, exchange, routingKey, message)
+	}
+	return nil
+}
+
+func (m *MockRabbitMQService) SubscribeTopic(ctx context.Context, queueName string, routingKeys []string, handler func(amqp.Table, []byte) error) error {
+	if m.SubscribeTopicFunc != nil {
+		return m.SubscribeTopicFunc(ctx, queueName, routingKeys, handler)
+	}
+	return nil
+}
+
+func (m *MockRabbitMQService) SubscribeToExchange(ctx context.Context, exchange, queueName string, routingKeys []string, handler func(amqp.Table, []byte) error) error {
+	if m.SubscribeToExchangeFunc != nil {
+		return m.SubscribeToExchangeFunc(ctx, exchange, queueName, routingKeys, handler)
 	}
 	return nil
 }
@@ -424,6 +456,7 @@ func (m *MockRabbitMQService) IsHealthy() bool {
 	}
 	return true
 }
+
 
 // =========================================================================
 // MockShippingProvider

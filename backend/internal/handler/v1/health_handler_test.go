@@ -1,4 +1,4 @@
-﻿package v1handler
+package v1handler
 
 import (
 	"context"
@@ -28,9 +28,26 @@ func (m *MockRabbitMQ) Consume(ctx context.Context, queue string, handler func(a
 	return nil
 }
 
+func (m *MockRabbitMQ) PublishTopic(ctx context.Context, routingKey string, message any) error {
+	return nil
+}
+
+func (m *MockRabbitMQ) PublishToExchange(ctx context.Context, exchange, routingKey string, message any) error {
+	return nil
+}
+
+func (m *MockRabbitMQ) SubscribeTopic(ctx context.Context, queueName string, routingKeys []string, handler func(amqp.Table, []byte) error) error {
+	return nil
+}
+
+func (m *MockRabbitMQ) SubscribeToExchange(ctx context.Context, exchange, queueName string, routingKeys []string, handler func(amqp.Table, []byte) error) error {
+	return nil
+}
+
 func (m *MockRabbitMQ) Close() error {
 	return nil
 }
+
 
 func (m *MockRabbitMQ) IsHealthy() bool {
 	args := m.Called()
