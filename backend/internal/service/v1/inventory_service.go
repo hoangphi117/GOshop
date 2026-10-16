@@ -8,6 +8,7 @@ import (
 	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/repository"
 	"goshop/internal/utils"
+	"goshop/pkg/rabbitmq"
 	"sort"
 	"time"
 
@@ -26,11 +27,11 @@ type RestoreItem struct {
 }
 
 type inventoryService struct {
-	productRepo         repository.ProductRepository
-	stockMovementRepo   repository.StockMovementRepository
-	userRepo            repository.UserReader
-	txManager           db.TxManager
-	notificationService NotificationService
+	productRepo       repository.ProductRepository
+	stockMovementRepo repository.StockMovementRepository
+	userRepo          repository.UserReader
+	txManager         db.TxManager
+	rabbitMQ          rabbitmq.RabbitMQService
 }
 
 func NewInventoryService(
@@ -38,18 +39,18 @@ func NewInventoryService(
 	stockMovementRepo repository.StockMovementRepository,
 	userRepo repository.UserReader,
 	txManager db.TxManager,
-	notificationService ...NotificationService,
+	rabbitMQ ...rabbitmq.RabbitMQService,
 ) InventoryService {
-	var notifSvc NotificationService
-	if len(notificationService) > 0 {
-		notifSvc = notificationService[0]
+	var rmq rabbitmq.RabbitMQService
+	if len(rabbitMQ) > 0 {
+		rmq = rabbitMQ[0]
 	}
 	return &inventoryService{
-		productRepo:         productRepo,
-		stockMovementRepo:   stockMovementRepo,
-		userRepo:            userRepo,
-		txManager:           txManager,
-		notificationService: notifSvc,
+		productRepo:       productRepo,
+		stockMovementRepo: stockMovementRepo,
+		userRepo:          userRepo,
+		txManager:         txManager,
+		rabbitMQ:          rmq,
 	}
 }
 
@@ -157,17 +158,11 @@ func (s *inventoryService) LockAndDeductStockWithRef(
 		}
 
 		// Trigger low stock alert if inventory drops to or below threshold
-		if s.notificationService != nil && newStock <= 5 {
-			_ = s.notificationService.NotifyAdminsAsync(ctx, v1dto.AdminNotifyInput{
-				Type:  "stock",
-				Title: "Low Stock Alert",
-				Body:  fmt.Sprintf("Product \"%s\" is low on stock (%d units remaining)", product.ProductName, newStock),
-				Data: map[string]any{
-					"product_uuid": product.ProductUUID.String(),
-					"product_name": product.ProductName,
-					"stock":        newStock,
-					"link":         "/inventory",
-				},
+		if s.rabbitMQ != nil && newStock <= 5 {
+			_ = s.rabbitMQ.PublishTopic(ctx, rabbitmq.RoutingKeyInventoryStockLow, map[string]any{
+				"product_id": product.ProductID,
+				"name":       product.ProductName,
+				"stock":      newStock,
 			})
 		}
 	}
@@ -315,17 +310,11 @@ func (s *inventoryService) AdjustStock(ctx context.Context, actorUUID uuid.UUID,
 	}
 
 	// Trigger low stock alert if inventory drops to or below threshold
-	if s.notificationService != nil && newStock <= 5 {
-		_ = s.notificationService.NotifyAdminsAsync(ctx, v1dto.AdminNotifyInput{
-			Type:  "stock",
-			Title: "Low Stock Alert",
-			Body:  fmt.Sprintf("Product \"%s\" is low on stock (%d units remaining)", product.ProductName, newStock),
-			Data: map[string]any{
-				"product_uuid": product.ProductUuid.String(),
-				"product_name": product.ProductName,
-				"stock":        newStock,
-				"link":         "/inventory",
-			},
+	if s.rabbitMQ != nil && newStock <= 5 {
+		_ = s.rabbitMQ.PublishTopic(ctx, rabbitmq.RoutingKeyInventoryStockLow, map[string]any{
+			"product_id": product.ProductID,
+			"name":       product.ProductName,
+			"stock":      newStock,
 		})
 	}
 

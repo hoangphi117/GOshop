@@ -198,7 +198,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	couponService := v1service.NewCouponService(couponRepo, userReader, redisClient)
 
 	stockMovementRepo := repository.NewSqlStockMovementRepository(db.DB)
-	inventoryService := v1service.NewInventoryService(productRepo, stockMovementRepo, userReader, txManager)
+	inventoryService := v1service.NewInventoryService(productRepo, stockMovementRepo, userReader, txManager, rabbitmqService)
 
 	grpcPaymentClient, err := client.NewGRPCPaymentClient(cfg.PaymentGRPCAddr)
 	if err != nil {

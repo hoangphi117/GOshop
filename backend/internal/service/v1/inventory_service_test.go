@@ -5,10 +5,10 @@ import (
 	"testing"
 
 	"goshop/internal/db/sqlc"
-	v1dto "goshop/internal/dto/v1"
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/testutils"
 	"goshop/internal/utils"
+	"goshop/pkg/rabbitmq"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -184,25 +184,28 @@ func TestInventoryService_LockAndDeductStock(t *testing.T) {
 			},
 		}
 
-		notified := false
-		mockNotif := &testutils.MockNotificationService{
-			NotifyAdminsAsyncFunc: func(ctx context.Context, input v1dto.AdminNotifyInput) error {
-				assert.Equal(t, "stock", input.Type)
-				assert.Equal(t, "Low Stock Alert", input.Title)
-				assert.Equal(t, int32(4), input.Data["stock"])
-				notified = true
+		published := false
+		mockRabbitMQ := &testutils.MockRabbitMQService{
+			PublishTopicFunc: func(ctx context.Context, routingKey string, message any) error {
+				assert.Equal(t, rabbitmq.RoutingKeyInventoryStockLow, routingKey)
+				payload, ok := message.(map[string]any)
+				require.True(t, ok)
+				assert.Equal(t, int32(105), payload["product_id"])
+				assert.Equal(t, "Keychron Q1", payload["name"])
+				assert.Equal(t, int32(4), payload["stock"])
+				published = true
 				return nil
 			},
 		}
 
-		svc := v1service.NewInventoryService(mockRepo, nil, nil, nil, mockNotif)
+		svc := v1service.NewInventoryService(mockRepo, nil, nil, nil, mockRabbitMQ)
 		items := []v1service.DeductItem{
 			{ProductUUID: productUUID1.String(), Quantity: 2}, // 6 - 2 = 4 (<= 5)
 		}
 
 		_, err := svc.LockAndDeductStock(ctx, items)
 		require.NoError(t, err)
-		assert.True(t, notified, "Expected admin low stock notification to be sent")
+		assert.True(t, published, "Expected low stock event to be published to RabbitMQ")
 	})
 }
 

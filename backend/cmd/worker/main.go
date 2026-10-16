@@ -144,7 +144,7 @@ func NewWorker(cfg *config.Config) *Worker {
 	pricingService := v1service.NewOrderPricingService(couponRepo)
 	couponService := v1service.NewCouponService(couponRepo, userRepo, redisClient)
 	stockMovementRepo := repository.NewSqlStockMovementRepository(db.DB)
-	inventoryService := v1service.NewInventoryService(productRepo, stockMovementRepo, userRepo, txManager)
+	inventoryService := v1service.NewInventoryService(productRepo, stockMovementRepo, userRepo, txManager, rabbitMQ)
 
 	orderService := v1service.NewOrderService(
 		txManager,
