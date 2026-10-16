@@ -564,12 +564,15 @@ function MyOrdersPageContent() {
     });
   };
 
-  // MoMo Pay Now handler
+  // Online Pay Now handler (MoMo / VNPAY)
   const handlePayNow = async (order: Order) => {
     setPayingOrderUuid(order.uuid);
     try {
       const baseUrl =
         process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+      const isVnPay = (order.payment_method || "").toUpperCase().includes("VNPAY");
+      const provider = isVnPay ? "vnpay" : "momo";
+      const providerLabel = isVnPay ? "VNPAY" : "MoMo";
       const res = await authFetch(`${baseUrl}/api/v1/payments/create-intent`, {
         method: "POST",
         headers: {
@@ -578,18 +581,18 @@ function MyOrdersPageContent() {
         },
         body: JSON.stringify({
           order_uuid: order.uuid,
-          provider: "momo",
+          provider: provider,
         }),
       });
       if (res.ok) {
         const json = await res.json();
         const payUrl = json?.data?.payment_url || json?.data?.pay_url;
         if (payUrl) {
-          toast.success("Redirecting to MoMo payment gateway...");
+          toast.success(`Redirecting to ${providerLabel} payment gateway...`);
           window.location.href = payUrl;
         } else {
           toast.error(
-            "Unable to initialize MoMo payment. Please contact support.",
+            `Unable to initialize ${providerLabel} payment. Please contact support.`,
           );
         }
       } else {
@@ -1507,7 +1510,13 @@ function MyOrdersPageContent() {
                 ) : (
                   <CreditCard className="w-4 h-4" />
                 )}
-                <span>Pay Now (MoMo)</span>
+                <span>
+                  {selectedOrder.payment_method?.toUpperCase().includes("VNPAY")
+                    ? "Pay Now (VNPAY)"
+                    : selectedOrder.payment_method?.toUpperCase().includes("MOMO")
+                    ? "Pay Now (MoMo)"
+                    : "Pay Now"}
+                </span>
               </button>
             )}
 

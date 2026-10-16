@@ -28,7 +28,6 @@ type testShippingServiceDeps struct {
 	orderRepo           repository.OrderRepository
 	orderItemRepo       repository.OrderItemRepository
 	trackingRepo        repository.TrackingRepository
-	paymentRepo         repository.PaymentRepository
 	shippingFactory     *shipping.ShippingFactory
 	webhookRepo         repository.WebhookEventRepository
 	notificationService v1service.NotificationService
@@ -54,10 +53,6 @@ func newTestShippingService(deps testShippingServiceDeps) v1service.OrderShippin
 	if trackingRepo == nil {
 		trackingRepo = &testutils.MockTrackingRepository{}
 	}
-	paymentRepo := deps.paymentRepo
-	if paymentRepo == nil {
-		paymentRepo = &testutils.MockPaymentRepository{}
-	}
 	webhookRepo := deps.webhookRepo
 	if webhookRepo == nil {
 		webhookRepo = &testutils.MockWebhookEventRepository{}
@@ -78,7 +73,6 @@ func newTestShippingService(deps testShippingServiceDeps) v1service.OrderShippin
 		OrderRepo:       orderRepo,
 		OrderItemRepo:   orderItemRepo,
 		TrackingRepo:    trackingRepo,
-		PaymentRepo:     paymentRepo,
 		ShippingFactory: deps.shippingFactory,
 		WebhookRepo:     webhookRepo,
 		UserRepo:        customerReader,
@@ -628,18 +622,6 @@ func TestOrderService_HandleShippingWebhook(t *testing.T) {
 			},
 		}
 
-		var paymentTransactionCreated bool
-		mockPaymentRepo := &testutils.MockPaymentRepository{
-			CreateFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.CreatePaymentTransactionParams) (sqlc.PaymentTransaction, error) {
-				paymentTransactionCreated = true
-				assert.Equal(t, int32(10), params.PtOrderID)
-				assert.Equal(t, "ghn_cod", params.PtProvider)
-				assert.Equal(t, v1service.PaymentStatusPaid, params.PtStatus)
-				assert.Equal(t, 250000.0, utils.NumericToFloat(params.PtAmount))
-				return sqlc.PaymentTransaction{PtID: 1}, nil
-			},
-		}
-
 		mockNotification := &testutils.MockNotificationService{
 			SendFunc: func(ctx context.Context, input v1dto.SendNotificationInput) error {
 				assert.Equal(t, "order_delivered", input.Type)
@@ -650,7 +632,6 @@ func TestOrderService_HandleShippingWebhook(t *testing.T) {
 		svc := newTestShippingService(testShippingServiceDeps{
 			orderRepo:           mockOrderRepo,
 			trackingRepo:        mockTrackingRepo,
-			paymentRepo:         mockPaymentRepo,
 			webhookRepo:         mockWebhookRepo,
 			notificationService: mockNotification,
 		})
@@ -659,7 +640,6 @@ func TestOrderService_HandleShippingWebhook(t *testing.T) {
 		require.NoError(t, err)
 		time.Sleep(25 * time.Millisecond)
 		assert.True(t, trackingInserted)
-		assert.True(t, paymentTransactionCreated)
 		assert.True(t, webhookMarkedProcessed)
 	})
 

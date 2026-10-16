@@ -15,7 +15,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // HandleShippingWebhook processes incoming status updates from GHN shipping gateway.
@@ -85,35 +84,6 @@ func (s *orderShippingService) HandleShippingWebhook(ctx context.Context, rawBod
 			if err != nil {
 				return err
 			}
-
-			// If COD order (PaymentMethod == 1), create a successful payment transaction record for financial ledger
-			if order.OrderPaymentMethod == OrderPaymentMethodCOD && s.paymentRepo != nil {
-				codTxnRef := fmt.Sprintf("COD_%s", payload.OrderCode)
-				codIdempotencyKey := fmt.Sprintf("cod_delivered_%d_%s", order.OrderID, payload.OrderCode)
-				_, err = s.paymentRepo.Create(txCtx, tx, sqlc.CreatePaymentTransactionParams{
-					PtOrderID:        order.OrderID,
-					PtIdempotencyKey: codIdempotencyKey,
-					PtProvider:       "ghn_cod",
-					PtTxnRef:         &codTxnRef,
-					PtProviderTxnID:  &payload.OrderCode,
-					PtProviderUrl:    nil,
-					PtAmount:         order.OrderTotalAmount,
-					PtCurrency:       "VND",
-					PtStatus:         PaymentStatusPaid, // 2: Paid
-				})
-				if err != nil {
-					var pgErr *pgconn.PgError
-					if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-						logger.Log.Info().
-							Str("order_number", order.OrderNumber).
-							Str("code", payload.OrderCode).
-							Msg("COD payment transaction already exists, skipping duplicate insert")
-					} else {
-						return err
-					}
-				}
-			}
-
 			if s.trackingRepo != nil {
 				eventNote := "Order delivered successfully via shipping provider."
 				_, err = s.trackingRepo.InsertEvent(txCtx, tx, sqlc.InsertTrackingEventParams{

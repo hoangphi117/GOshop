@@ -209,16 +209,24 @@ type OrderTrackingEvent struct {
 }
 
 type OutboxEvent struct {
-	EventID       int64              `json:"event_id"`
-	AggregateType string             `json:"aggregate_type"`
-	AggregateID   string             `json:"aggregate_id"`
-	EventType     string             `json:"event_type"`
-	Payload       json.RawMessage    `json:"payload"`
-	Status        string             `json:"status"`
-	RetryCount    int32              `json:"retry_count"`
-	LastError     *string            `json:"last_error"`
-	CreatedAt     time.Time          `json:"created_at"`
-	ProcessedAt   pgtype.Timestamptz `json:"processed_at"`
+	EventID         int64              `json:"event_id"`
+	AggregateType   string             `json:"aggregate_type"`
+	AggregateID     string             `json:"aggregate_id"`
+	EventType       string             `json:"event_type"`
+	Payload         json.RawMessage    `json:"payload"`
+	Status          string             `json:"status"`
+	RetryCount      int32              `json:"retry_count"`
+	LastError       *string            `json:"last_error"`
+	CreatedAt       time.Time          `json:"created_at"`
+	ProcessedAt     pgtype.Timestamptz `json:"processed_at"`
+	OeID            *int64             `json:"oe_id"`
+	OeAggregateType *string            `json:"oe_aggregate_type"`
+	OeAggregateID   *string            `json:"oe_aggregate_id"`
+	OeEventType     *string            `json:"oe_event_type"`
+	OePayload       []byte             `json:"oe_payload"`
+	OeStatus        *string            `json:"oe_status"`
+	OeCreatedAt     pgtype.Timestamptz `json:"oe_created_at"`
+	OeProcessedAt   pgtype.Timestamptz `json:"oe_processed_at"`
 }
 
 type PaymentTransaction struct {
@@ -243,6 +251,7 @@ type PaymentTransaction struct {
 	PtMetadata     []byte             `json:"pt_metadata"`
 	PtCreatedAt    time.Time          `json:"pt_created_at"`
 	PtUpdatedAt    time.Time          `json:"pt_updated_at"`
+	PtOrderUuid    pgtype.UUID        `json:"pt_order_uuid"`
 }
 
 type Product struct {
@@ -376,4 +385,5 @@ type WebhookEvent struct {
 	WeRawBody         string    `json:"we_raw_body"`
 	WeProcessed       bool      `json:"we_processed"`
 	WeReceivedAt      time.Time `json:"we_received_at"`
+	WeCreatedAt       time.Time `json:"we_created_at"`
 }

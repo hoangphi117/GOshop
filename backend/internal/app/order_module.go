@@ -36,7 +36,6 @@ func NewOrderModule(
 	orderItemRepo := repository.NewSqlOrderItemRepository(ctx.DB)
 	orderReturnRepo := repository.NewSqlOrderReturnsRepository(ctx.DB)
 	trackingRepo := repository.NewSqlTrackingRepository(ctx.DB)
-	paymentRepo := repository.NewSqlPaymentRepository(ctx.DB)
 	webhookRepo := repository.NewSqlWebhookEventRepository(ctx.DB)
 	outboxRepo := repository.NewSqlOutboxRepository(ctx.DB)
 	couponRepo := repository.NewSqlCouponRepository(ctx.DB)
@@ -65,7 +64,6 @@ func NewOrderModule(
 		OrderRepo:       orderRepo,
 		OrderItemRepo:   orderItemRepo,
 		TrackingRepo:    trackingRepo,
-		PaymentRepo:     paymentRepo,
 		ShippingFactory: deps.ShippingFactory,
 		WebhookRepo:     webhookRepo,
 		UserRepo:        customerReader,

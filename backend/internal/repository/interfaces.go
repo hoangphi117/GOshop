@@ -138,18 +138,6 @@ type CouponRepository interface {
 	IncrementUsedCount(ctx context.Context, tx pgx.Tx, couponID int32) error
 }
 
-type PaymentRepository interface {
-	Create(ctx context.Context, tx pgx.Tx, params sqlc.CreatePaymentTransactionParams) (sqlc.PaymentTransaction, error)
-	GetByIdempotencyKey(ctx context.Context, tx pgx.Tx, idempotencyKey string) (sqlc.PaymentTransaction, error)
-	GetByTxnRef(ctx context.Context, tx pgx.Tx, provider, txnRef string) (sqlc.PaymentTransaction, error)
-	GetByProviderTxnID(ctx context.Context, tx pgx.Tx, provider, providerTxnID string) (sqlc.PaymentTransaction, error)
-	GetByOrderID(ctx context.Context, tx pgx.Tx, orderID int32) ([]sqlc.PaymentTransaction, error)
-	UpdateStatusAtomically(ctx context.Context, tx pgx.Tx, params sqlc.UpdatePaymentStatusAtomicallyParams) (sqlc.PaymentTransaction, error)
-	UpdateProviderInfo(ctx context.Context, tx pgx.Tx, params sqlc.UpdatePaymentProviderInfoParams) (sqlc.PaymentTransaction, error)
-	CreateRefund(ctx context.Context, tx pgx.Tx, params sqlc.CreateRefundTransactionParams) (sqlc.PaymentTransaction, error)
-	GetPendingTransactionsOlderThan(ctx context.Context, tx pgx.Tx, params sqlc.GetPendingTransactionsOlderThanParams) ([]sqlc.GetPendingTransactionsOlderThanRow, error)
-}
-
 type WebhookEventRepository interface {
 	InsertEvent(ctx context.Context, tx pgx.Tx, params sqlc.InsertWebhookEventParams) (sqlc.WebhookEvent, error)
 	MarkProcessed(ctx context.Context, tx pgx.Tx, eventID int32) error

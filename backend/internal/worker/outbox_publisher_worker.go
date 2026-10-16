@@ -111,6 +111,11 @@ func (w *OutboxPublisherWorker) ProcessBatch(ctx context.Context) (int, error) {
 			continue
 		}
 
+		// Also broadcast to topic exchange for decoupled microservices (e.g. notification service)
+		if topicErr := w.rabbitMQ.PublishTopic(ctx, queue, rawPayload); topicErr != nil {
+			w.logger.Warn().Err(topicErr).Str("topic", queue).Msg("Failed to broadcast outbox event to topic exchange")
+		}
+
 		processedIDs = append(processedIDs, ev.EventID)
 	}
 

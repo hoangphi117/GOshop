@@ -14,7 +14,6 @@ import (
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
-	"goshop/pkg/payment"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/discord"
 	"goshop/pkg/search"
@@ -201,35 +200,12 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	stockMovementRepo := repository.NewSqlStockMovementRepository(db.DB)
 	inventoryService := v1service.NewInventoryService(productRepo, stockMovementRepo, userReader, txManager)
 
-	paymentRepo := repository.NewSqlPaymentRepository(db.DB)
-	webhookRepo := repository.NewSqlWebhookEventRepository(db.DB)
-	orderRepo := repository.NewSqlOrderRepository(db.DB)
-	orderReader := v1service.NewOrderReaderAdapter(orderRepo)
-	outboxRepo := repository.NewSqlOutboxRepository(db.DB)
-
-	paymentConfig := payment.PaymentConfig{
-		MoMo: payment.MoMoConfig{
-			PartnerCode: utils.GetEnv("MOMO_PARTNER_CODE", ""),
-			AccessKey:   utils.GetEnv("MOMO_ACCESS_KEY", ""),
-			SecretKey:   utils.GetEnv("MOMO_SECRET_KEY", ""),
-			Endpoint:    utils.GetEnv("MOMO_ENDPOINT", ""),
-			QueryURL:    utils.GetEnv("MOMO_QUERY_URL", ""),
-		},
+	grpcPaymentClient, err := client.NewGRPCPaymentClient(cfg.PaymentGRPCAddr)
+	if err != nil {
+		logger.Log.Fatal().Err(err).Str("addr", cfg.PaymentGRPCAddr).Msg("Failed to initialize Payment gRPC client")
+		return nil, err
 	}
-	paymentProviders := make(map[string]payment.PaymentProvider)
-	if momoFactory, err := payment.NewProviderFactory(payment.ProviderMoMo, paymentConfig); err == nil {
-		if p, err := momoFactory.CreateProvider(); err == nil {
-			paymentProviders["momo"] = p
-		}
-	}
-	paymentReturnURL := utils.GetEnv("PAYMENT_RETURN_URL", "http://localhost:3001/payment/result")
-	paymentWebhookBaseURL := utils.GetEnv("PAYMENT_WEBHOOK_BASE_URL", "http://localhost:8080")
-	paymentService := v1service.NewPaymentService(
-		paymentRepo, orderReader, webhookRepo,
-		paymentProviders, cacheRedisService, rabbitmqService,
-		paymentReturnURL, paymentWebhookBaseURL,
-		outboxRepo,
-	)
+	paymentService := client.NewPaymentServiceAdapter(grpcPaymentClient)
 
 	ctx := &ModuleContext{
 		DB:             db.DB,
@@ -259,7 +235,8 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		NewOrderModule(ctx, orderModuleDeps),
 		NewCartModule(ctx, cartService),
 		NewCouponModule(ctx, couponService),
-		NewPaymentModule(ctx, cacheRedisService, rabbitmqService, wsHub, paymentService),
+	}
+	modules = append(modules,
 		NewReviewModule(ctx, rabbitmqService),
 		NewWSModule(ctx, wsHub, tokenService, cacheRedisService),
 		NewLocationModule(locationService),
@@ -268,7 +245,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		NewAnalyticsModule(ctx),
 		NewChatModule(ctx, wsHub, redisBridge),
 		NewHealthModule(db.DBPool, redisClient, rabbitmqService, storageService, discord.NewDiscordNotifier(utils.GetEnv("DISCORD_WEBHOOK_URL", ""), logger.Log), logger.Log),
-	}
+	)
 
 	routes.RegisterRoutes(r, tokenService, cacheRedisService, getModuleRoutes(modules), getAdminModuleRoutes(modules))
 

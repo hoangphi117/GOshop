@@ -33,10 +33,20 @@ func NewPaymentSucceededConsumer(orderService v1service.OrderService, logger *ze
 func (c *PaymentSucceededConsumer) Handle(headers amqp.Table, body []byte) error {
 	var event rabbitmq.PaymentSucceededEvent
 	if err := json.Unmarshal(body, &event); err != nil {
-		if c.logger != nil {
-			c.logger.Error().Err(err).Msg("Failed to unmarshal payment succeeded event")
+		var rawStr string
+		if unquoteErr := json.Unmarshal(body, &rawStr); unquoteErr == nil {
+			if retryErr := json.Unmarshal([]byte(rawStr), &event); retryErr != nil {
+				if c.logger != nil {
+					c.logger.Error().Err(err).Msg("Failed to unmarshal payment succeeded event")
+				}
+				return err
+			}
+		} else {
+			if c.logger != nil {
+				c.logger.Error().Err(err).Msg("Failed to unmarshal payment succeeded event")
+			}
+			return err
 		}
-		return err
 	}
 
 	orderUUID, err := uuid.Parse(event.OrderUUID)

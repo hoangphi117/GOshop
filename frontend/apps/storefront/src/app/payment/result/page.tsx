@@ -27,18 +27,24 @@ function PaymentResultContent() {
     (state) => state.removeSelectedItems,
   );
 
-  // MoMo return URL parameters
+  // Payment gateway return URL parameters (Supports MoMo & VNPAY)
+  const vnpResponseCode = searchParams.get("vnp_ResponseCode");
+  const isVnPay = vnpResponseCode !== null;
   const resultCode = searchParams.get("resultCode");
-  const orderId = searchParams.get("orderId") || "";
-  const transId = searchParams.get("transId") || "";
+
+  const orderId = searchParams.get("vnp_TxnRef") || searchParams.get("orderId") || "";
+  const transId = searchParams.get("vnp_TransactionNo") || searchParams.get("transId") || "";
+  const vnpAmount = searchParams.get("vnp_Amount");
   const amountStr = searchParams.get("amount") || "0";
   const message = searchParams.get("message") || "";
-  const orderInfo = searchParams.get("orderInfo") || "";
-  const payType = searchParams.get("payType") || "";
-  const responseTime = searchParams.get("responseTime") || "";
+  const orderInfo = searchParams.get("vnp_OrderInfo") || searchParams.get("orderInfo") || "";
+  const payType = searchParams.get("vnp_CardType") || searchParams.get("vnp_BankCode") || searchParams.get("payType") || "";
+  const responseTime = searchParams.get("vnp_PayDate") || searchParams.get("responseTime") || "";
 
-  const isSuccess = resultCode === "0";
-  const amount = parseInt(amountStr, 10) || 0;
+  const isSuccess = isVnPay ? vnpResponseCode === "00" : resultCode === "0";
+  const amount = isVnPay && vnpAmount ? parseInt(vnpAmount, 10) / 100 : (parseInt(amountStr, 10) || 0);
+  const provider = isVnPay ? "vnpay" : "momo";
+  const providerName = isVnPay ? "VNPAY" : "MoMo";
 
   // If orderId is in format "ORDERNUMBER_TIMESTAMP", extract clean order number
   const displayOrderNumber = orderId.includes("_")
@@ -48,12 +54,28 @@ function PaymentResultContent() {
   // Clean formatted date from responseTime if available
   let formattedDate = "";
   if (responseTime) {
-    const timestamp = parseInt(responseTime, 10);
-    if (!isNaN(timestamp)) {
-      formattedDate = new Date(timestamp).toLocaleString("en-US", {
-        dateStyle: "medium",
-        timeStyle: "short",
-      });
+    if (isVnPay && responseTime.length === 14) {
+      const year = responseTime.substring(0, 4);
+      const month = responseTime.substring(4, 6);
+      const day = responseTime.substring(6, 8);
+      const hour = responseTime.substring(8, 10);
+      const min = responseTime.substring(10, 12);
+      const sec = responseTime.substring(12, 14);
+      const d = new Date(`${year}-${month}-${day}T${hour}:${min}:${sec}`);
+      if (!isNaN(d.getTime())) {
+        formattedDate = d.toLocaleString("en-US", {
+          dateStyle: "medium",
+          timeStyle: "short",
+        });
+      }
+    } else {
+      const timestamp = parseInt(responseTime, 10);
+      if (!isNaN(timestamp)) {
+        formattedDate = new Date(timestamp).toLocaleString("en-US", {
+          dateStyle: "medium",
+          timeStyle: "short",
+        });
+      }
     }
   }
 
@@ -65,6 +87,24 @@ function PaymentResultContent() {
   useEffect(() => {
     if (isSuccess) {
       removeSelectedItems();
+      // Synchronize with payment service to verify return signature and finalize order status to Paid
+      const confirmPayment = async () => {
+        try {
+          const baseUrl =
+            process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+          const query = window.location.search.startsWith("?")
+            ? window.location.search.slice(1)
+            : window.location.search;
+          if (query) {
+            await authFetch(`${baseUrl}/api/v1/payments/webhook/${provider}?${query}`, {
+              method: "GET",
+            });
+          }
+        } catch {
+          // Ignore background sync errors
+        }
+      };
+      confirmPayment();
     } else if (displayOrderNumber) {
       // Resolve Order UUID in background to prepare for instant retry
       const fetchOrderUuid = async () => {
@@ -152,7 +192,7 @@ function PaymentResultContent() {
           },
           body: JSON.stringify({
             order_uuid: targetUuid,
-            provider: "momo",
+            provider: provider,
           }),
         }
       );
@@ -161,7 +201,7 @@ function PaymentResultContent() {
         const paymentData = await paymentRes.json();
         const paymentUrl = paymentData?.data?.payment_url;
         if (paymentUrl) {
-          toast.success("Redirecting to MoMo payment gateway...");
+          toast.success(`Redirecting to ${providerName} payment gateway...`);
           window.location.href = paymentUrl;
           return;
         }
@@ -170,7 +210,7 @@ function PaymentResultContent() {
       const errJson = await paymentRes.json().catch(() => null);
       const errMsg = extractErrorMessage(
         errJson,
-        "Unable to create MoMo payment link."
+        `Unable to create ${providerName} payment link.`
       );
       toast.error(errMsg);
     } catch {
@@ -226,7 +266,7 @@ function PaymentResultContent() {
             </h1>
             <p className="text-sm text-slate-600 max-w-sm mx-auto">
               {isSuccess
-                ? "Your transaction has been processed securely via MoMo E-Wallet."
+                ? `Your transaction has been processed securely via ${providerName}.`
                 : message ||
                   "The transaction was cancelled or could not be completed. No funds have been deducted."}
             </p>
@@ -241,7 +281,14 @@ function PaymentResultContent() {
               Receipt Details
             </span>
             <span className="text-xs font-semibold text-slate-500">
-              Provider: <span className="font-bold text-[#A50064]">MoMo</span>
+              Provider:{" "}
+              <span
+                className={`font-bold ${
+                  isVnPay ? "text-[#005BAA]" : "text-[#A50064]"
+                }`}
+              >
+                {providerName}
+              </span>
             </span>
           </div>
 
@@ -257,7 +304,7 @@ function PaymentResultContent() {
 
             {transId && (
               <div className="flex justify-between items-center py-1 border-b border-slate-100">
-                <span className="text-slate-500">MoMo Transaction ID</span>
+                <span className="text-slate-500">{providerName} Transaction ID</span>
                 <span className="font-mono font-medium text-slate-700">
                   {transId}
                 </span>
@@ -337,14 +384,22 @@ function PaymentResultContent() {
                   type="button"
                   onClick={handleRetryPayment}
                   disabled={isRetrying}
-                  className="px-6 py-3 rounded-xl bg-[#A50064] text-white text-xs font-bold hover:bg-[#850050] transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                  className={`px-6 py-3 rounded-xl text-white text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 ${
+                    isVnPay
+                      ? "bg-[#005BAA] hover:bg-[#004A8B]"
+                      : "bg-[#A50064] hover:bg-[#850050]"
+                  }`}
                 >
                   {isRetrying ? (
                     <RefreshCw className="w-4 h-4 animate-spin" />
                   ) : (
                     <RotateCcw className="w-4 h-4" />
                   )}
-                  <span>{isRetrying ? "Connecting MoMo..." : "Retry Payment"}</span>
+                  <span>
+                    {isRetrying
+                      ? `Connecting ${providerName}...`
+                      : "Retry Payment"}
+                  </span>
                 </button>
               )}
 

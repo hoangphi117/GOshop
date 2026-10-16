@@ -172,13 +172,6 @@ type ShippingWebhookPort interface {
 	MarkProcessed(ctx context.Context, tx pgx.Tx, eventID int32) error
 }
 
-// ShippingPaymentPort is the narrow persistence port for recording COD payments from shipping carriers.
-// Satisfied by repository.PaymentRepository.
-type ShippingPaymentPort interface {
-	Create(ctx context.Context, tx pgx.Tx, params sqlc.CreatePaymentTransactionParams) (sqlc.PaymentTransaction, error)
-}
-
-
 // OrderPaymentRefundPort handles issuing refunds via payment service.
 // Satisfied by PaymentService.
 type OrderPaymentRefundPort interface {

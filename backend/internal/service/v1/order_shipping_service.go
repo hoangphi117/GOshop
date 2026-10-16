@@ -29,7 +29,6 @@ type orderShippingService struct {
 	orderRepo       OrderStorePort
 	orderItemRepo   OrderItemStorePort
 	trackingRepo    OrderTrackingPort
-	paymentRepo     ShippingPaymentPort
 	shippingFactory *shipping.ShippingFactory
 	webhookRepo     ShippingWebhookPort
 	userRepo        OrderCustomerReader
@@ -44,7 +43,6 @@ type OrderShippingServiceDeps struct {
 	OrderRepo       OrderStorePort
 	OrderItemRepo   OrderItemStorePort
 	TrackingRepo    OrderTrackingPort
-	PaymentRepo     ShippingPaymentPort
 	ShippingFactory *shipping.ShippingFactory
 	WebhookRepo     ShippingWebhookPort
 	UserRepo        OrderCustomerReader
@@ -63,7 +61,6 @@ func NewOrderShippingService(deps OrderShippingServiceDeps) OrderShippingService
 		orderRepo:       deps.OrderRepo,
 		orderItemRepo:   deps.OrderItemRepo,
 		trackingRepo:    deps.TrackingRepo,
-		paymentRepo:     deps.PaymentRepo,
 		shippingFactory: deps.ShippingFactory,
 		webhookRepo:     deps.WebhookRepo,
 		userRepo:        deps.UserRepo,

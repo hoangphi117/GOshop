@@ -223,9 +223,18 @@ func (r *rabbitMQService) Publish(ctx context.Context, queue string, message any
 		return err
 	}
 
-	body, err := json.Marshal(message)
-	if err != nil {
-		return fmt.Errorf("failed to marshal message: %w", err)
+	var body []byte
+	switch m := message.(type) {
+	case []byte:
+		body = m
+	case json.RawMessage:
+		body = m
+	default:
+		var err error
+		body, err = json.Marshal(message)
+		if err != nil {
+			return fmt.Errorf("failed to marshal message: %w", err)
+		}
 	}
 
 	traceID := logger.GetTraceId(ctx)
@@ -327,9 +336,18 @@ func (r *rabbitMQService) PublishToExchange(ctx context.Context, exchange, routi
 		return err
 	}
 
-	body, err := json.Marshal(message)
-	if err != nil {
-		return fmt.Errorf("failed to marshal message: %w", err)
+	var body []byte
+	switch m := message.(type) {
+	case []byte:
+		body = m
+	case json.RawMessage:
+		body = m
+	default:
+		var err error
+		body, err = json.Marshal(message)
+		if err != nil {
+			return fmt.Errorf("failed to marshal message: %w", err)
+		}
 	}
 
 	traceID := logger.GetTraceId(ctx)

@@ -10,7 +10,6 @@ import (
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
 	"goshop/pkg/mail"
-	"goshop/pkg/payment"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/shipping"
 
@@ -44,7 +43,6 @@ var (
 	_ v1service.AuthService          = (*MockAuthService)(nil)
 	_ rabbitmq.RabbitMQService       = (*MockRabbitMQService)(nil)
 	_ shipping.ShippingProvider      = (*MockShippingProvider)(nil)
-	_ payment.PaymentProvider        = (*MockPaymentProvider)(nil)
 	_ auth.TokenService              = (*MockTokenService)(nil)
 	_ mail.EmailProviderService      = (*MockEmailProviderService)(nil)
 	_ cache.RedisCacheService        = (*MockRedisCacheService)(nil)
@@ -512,52 +510,6 @@ func (m *MockShippingProvider) GetPrintBillURL(ctx context.Context, shippingCode
 	return &shipping.PrintBillResponse{}, nil
 }
 
-// =========================================================================
-// MockPaymentProvider
-// =========================================================================
-type MockPaymentProvider struct {
-	CreatePaymentURLFunc       func(ctx context.Context, req payment.CreatePaymentRequest) (payment.CreatePaymentResponse, error)
-	VerifyWebhookFunc          func(payload []byte, headers map[string]string) error
-	ParseWebhookPayloadFunc    func(payload []byte) (payment.WebhookResult, error)
-	QueryTransactionStatusFunc func(ctx context.Context, providerTxnID string) (payment.TransactionStatus, error)
-	RefundFunc                 func(ctx context.Context, req payment.RefundRequest) (payment.RefundResponse, error)
-}
-
-func (m *MockPaymentProvider) CreatePaymentURL(ctx context.Context, req payment.CreatePaymentRequest) (payment.CreatePaymentResponse, error) {
-	if m.CreatePaymentURLFunc != nil {
-		return m.CreatePaymentURLFunc(ctx, req)
-	}
-	return payment.CreatePaymentResponse{}, nil
-}
-
-func (m *MockPaymentProvider) VerifyWebhook(payload []byte, headers map[string]string) error {
-	if m.VerifyWebhookFunc != nil {
-		return m.VerifyWebhookFunc(payload, headers)
-	}
-	return nil
-}
-
-func (m *MockPaymentProvider) ParseWebhookPayload(payload []byte) (payment.WebhookResult, error) {
-	if m.ParseWebhookPayloadFunc != nil {
-		return m.ParseWebhookPayloadFunc(payload)
-	}
-	return payment.WebhookResult{}, nil
-}
-
-func (m *MockPaymentProvider) QueryTransactionStatus(ctx context.Context, providerTxnID string) (payment.TransactionStatus, error) {
-	if m.QueryTransactionStatusFunc != nil {
-		return m.QueryTransactionStatusFunc(ctx, providerTxnID)
-	}
-	return payment.TxnStatusSuccess, nil
-}
-
-func (m *MockPaymentProvider) Refund(ctx context.Context, req payment.RefundRequest) (payment.RefundResponse, error) {
-	if m.RefundFunc != nil {
-		return m.RefundFunc(ctx, req)
-	}
-	return payment.RefundResponse{}, nil
-}
-
 // MockTokenService
 type MockTokenService struct {
 	GenerateAccessTokenFunc           func(user auth.UserTokenPayload) (string, error)
@@ -1002,14 +954,9 @@ func (m *MockAddressService) DeleteUserAddress(ctx context.Context, userUUID uui
 // =========================================================================
 
 type MockPaymentService struct {
-	CreatePaymentIntentFunc      func(ctx context.Context, userID int32, clientIP, idempotencyKey string, input v1dto.CreatePaymentIntentInput) (v1dto.PaymentIntentDTO, error)
-	HandleWebhookFunc            func(ctx context.Context, provider string, rawPayload []byte, headers map[string]string) error
-	ProcessWebhookFunc           func(ctx context.Context, msg v1dto.PaymentWebhookMessage) error
-	ProcessWebhookMessageFunc    func(headers amqp.Table, body []byte) error
-	GetPaymentHistoryFunc        func(ctx context.Context, userID int32, userRole int32, orderUUID uuid.UUID) ([]v1dto.PaymentTransactionDTO, error)
-	ConfirmCODPaymentFunc        func(ctx context.Context, orderUUID uuid.UUID) error
-	RefundPaymentFunc            func(ctx context.Context, idempotencyKey string, input v1dto.RefundPaymentInput) (v1dto.PaymentTransactionDTO, error)
-	ReconcilePendingPaymentsFunc func(ctx context.Context) error
+	CreatePaymentIntentFunc func(ctx context.Context, userID int32, clientIP, idempotencyKey string, input v1dto.CreatePaymentIntentInput) (v1dto.PaymentIntentDTO, error)
+	ConfirmCODPaymentFunc   func(ctx context.Context, orderUUID uuid.UUID) error
+	RefundPaymentFunc       func(ctx context.Context, idempotencyKey string, input v1dto.RefundPaymentInput) (v1dto.PaymentTransactionDTO, error)
 }
 
 func (m *MockPaymentService) CreatePaymentIntent(ctx context.Context, userID int32, clientIP, idempotencyKey string, input v1dto.CreatePaymentIntentInput) (v1dto.PaymentIntentDTO, error) {
@@ -1017,34 +964,6 @@ func (m *MockPaymentService) CreatePaymentIntent(ctx context.Context, userID int
 		return m.CreatePaymentIntentFunc(ctx, userID, clientIP, idempotencyKey, input)
 	}
 	return v1dto.PaymentIntentDTO{}, nil
-}
-
-func (m *MockPaymentService) HandleWebhook(ctx context.Context, provider string, rawPayload []byte, headers map[string]string) error {
-	if m.HandleWebhookFunc != nil {
-		return m.HandleWebhookFunc(ctx, provider, rawPayload, headers)
-	}
-	return nil
-}
-
-func (m *MockPaymentService) ProcessWebhook(ctx context.Context, msg v1dto.PaymentWebhookMessage) error {
-	if m.ProcessWebhookFunc != nil {
-		return m.ProcessWebhookFunc(ctx, msg)
-	}
-	return nil
-}
-
-func (m *MockPaymentService) ProcessWebhookMessage(headers amqp.Table, body []byte) error {
-	if m.ProcessWebhookMessageFunc != nil {
-		return m.ProcessWebhookMessageFunc(headers, body)
-	}
-	return nil
-}
-
-func (m *MockPaymentService) GetPaymentHistory(ctx context.Context, userID int32, userRole int32, orderUUID uuid.UUID) ([]v1dto.PaymentTransactionDTO, error) {
-	if m.GetPaymentHistoryFunc != nil {
-		return m.GetPaymentHistoryFunc(ctx, userID, userRole, orderUUID)
-	}
-	return nil, nil
 }
 
 func (m *MockPaymentService) ConfirmCODPayment(ctx context.Context, orderUUID uuid.UUID) error {
@@ -1059,13 +978,6 @@ func (m *MockPaymentService) RefundPayment(ctx context.Context, idempotencyKey s
 		return m.RefundPaymentFunc(ctx, idempotencyKey, input)
 	}
 	return v1dto.PaymentTransactionDTO{}, nil
-}
-
-func (m *MockPaymentService) ReconcilePendingPayments(ctx context.Context) error {
-	if m.ReconcilePendingPaymentsFunc != nil {
-		return m.ReconcilePendingPaymentsFunc(ctx)
-	}
-	return nil
 }
 
 // MockPaymentRefundService

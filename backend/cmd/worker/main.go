@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"goshop/internal/client"
 	"goshop/internal/config"
 	"goshop/internal/db"
 	"goshop/internal/repository"
@@ -13,7 +14,6 @@ import (
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 	"goshop/pkg/mail"
-	"goshop/pkg/payment"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/search"
 	"goshop/pkg/shipping"
@@ -40,7 +40,6 @@ type Worker struct {
 	logger                   *zerolog.Logger
 	orderConsumer            *worker.OrderConsumer
 	shippingConsumer         *worker.ShippingConsumer
-	paymentConsumer          *worker.PaymentConsumer
 	paymentExpiredConsumer   *worker.PaymentExpiredConsumer
 	paymentSucceededConsumer *worker.PaymentSucceededConsumer
 	syncWorker             *worker.MeilisearchSyncWorker
@@ -97,7 +96,6 @@ func NewWorker(cfg *config.Config) *Worker {
 	orderRepo := repository.NewSqlOrderRepository(db.DB)
 	orderItemRepo := repository.NewSqlOrderItemRepository(db.DB)
 	trackingRepo := repository.NewSqlTrackingRepository(db.DB)
-	paymentRepo := repository.NewSqlPaymentRepository(db.DB)
 	webhookRepo := repository.NewSqlWebhookEventRepository(db.DB)
 	txManager := db.NewTxManager(db.DBPool)
 
@@ -120,7 +118,6 @@ func NewWorker(cfg *config.Config) *Worker {
 		OrderRepo:       orderRepo,
 		OrderItemRepo:   orderItemRepo,
 		TrackingRepo:    trackingRepo,
-		PaymentRepo:     paymentRepo,
 		ShippingFactory: shippingFactory,
 		WebhookRepo:     webhookRepo,
 		UserRepo:        customerReader,
@@ -129,40 +126,18 @@ func NewWorker(cfg *config.Config) *Worker {
 	})
 	shippingConsumer := worker.NewShippingConsumer(shippingService, log)
 
-	// Payment Providers & Service
-	paymentConfig := payment.PaymentConfig{
-		MoMo: payment.MoMoConfig{
-			PartnerCode: utils.GetEnv("MOMO_PARTNER_CODE", ""),
-			AccessKey:   utils.GetEnv("MOMO_ACCESS_KEY", ""),
-			SecretKey:   utils.GetEnv("MOMO_SECRET_KEY", ""),
-			Endpoint:    utils.GetEnv("MOMO_ENDPOINT", ""),
-			QueryURL:    utils.GetEnv("MOMO_QUERY_URL", ""),
-		},
-	}
-	paymentProviders := make(map[string]payment.PaymentProvider)
-	if momoFactory, err := payment.NewProviderFactory(payment.ProviderMoMo, paymentConfig); err == nil {
-		if p, err := momoFactory.CreateProvider(); err == nil {
-			paymentProviders["momo"] = p
+	// Payment Service via gRPC
+	var paymentService v1service.PaymentService
+	if cfg.PaymentGRPCAddr != "" {
+		grpcPaymentClient, err := client.NewGRPCPaymentClient(cfg.PaymentGRPCAddr)
+		if err != nil {
+			log.Warn().Err(err).Str("addr", cfg.PaymentGRPCAddr).Msg("Failed to initialize Payment gRPC client in worker")
+		} else {
+			paymentService = client.NewPaymentServiceAdapter(grpcPaymentClient)
 		}
 	}
 
 	outboxRepo := repository.NewSqlOutboxRepository(db.DB)
-
-	returnURL := utils.GetEnv("PAYMENT_RETURN_URL", "http://localhost:3001/payment/result")
-	webhookBaseURL := utils.GetEnv("PAYMENT_WEBHOOK_BASE_URL", "http://localhost:8080")
-	orderReader := v1service.NewOrderReaderAdapter(orderRepo)
-	paymentService := v1service.NewPaymentService(
-		paymentRepo,
-		orderReader,
-		webhookRepo,
-		paymentProviders,
-		cacheService,
-		rabbitMQ,
-		returnURL,
-		webhookBaseURL,
-		outboxRepo,
-	)
-	paymentConsumer := worker.NewPaymentConsumer(paymentService, log)
 
 	// Order Service & Payment Expired Consumer
 	couponRepo := repository.NewSqlCouponRepository(db.DB)
@@ -210,7 +185,6 @@ func NewWorker(cfg *config.Config) *Worker {
 		logger:                   log,
 		orderConsumer:            orderConsumer,
 		shippingConsumer:         shippingConsumer,
-		paymentConsumer:          paymentConsumer,
 		paymentExpiredConsumer:   paymentExpiredConsumer,
 		paymentSucceededConsumer: paymentSucceededConsumer,
 		syncWorker:             syncWorker,
@@ -311,16 +285,6 @@ func (w *Worker) Start(ctx context.Context) error {
 		}
 	}
 
-	// Consume Payment Webhook Events
-	if w.paymentConsumer != nil {
-		paymentHandler := w.withIdempotency("payment.webhook", w.paymentConsumer.Handle)
-		if err := w.rabbitMQ.Consume(ctx, "payment.webhook", paymentHandler); err != nil {
-			w.logger.Error().Err(err).Msg("Failed to consume payment webhook events")
-		} else {
-			w.logger.Info().Msg("Worker consuming queue: payment.webhook")
-		}
-	}
-
 	// Consume Payment Expired Events (Order cancellation & Inventory restoration)
 	if w.paymentExpiredConsumer != nil {
 		expiredHandler := w.withIdempotency(rabbitmq.QueuePaymentExpired, w.paymentExpiredConsumer.Handle)
@@ -391,27 +355,7 @@ func (w *Worker) Start(ctx context.Context) error {
 		}()
 	}
 
-	// Periodic Payment Reconciliation (Cronjob with Redis Distributed Lock)
-	if w.paymentService != nil {
-		go func() {
-			ticker := time.NewTicker(5 * time.Minute)
-			defer ticker.Stop()
-			w.logger.Info().Msg("Payment reconciliation cron job started (interval: 5m, with Redis lock)")
 
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-					runWithDistributedLock(ctx, w.redisClient, "lock:cron:payment_reconciliation", 4*time.Minute, func() {
-						if err := w.paymentService.ReconcilePendingPayments(ctx); err != nil {
-							w.logger.Error().Err(err).Msg("Error during periodic payment reconciliation cron job")
-						}
-					})
-				}
-			}
-		}()
-	}
 
 
 

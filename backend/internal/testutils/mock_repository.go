@@ -24,7 +24,6 @@ var (
 	_ repository.UserReader             = (*MockUserRepository)(nil)
 	_ repository.WebhookEventRepository = (*MockWebhookEventRepository)(nil)
 	_ repository.OrderReturnsRepository = (*MockOrderReturnsRepository)(nil)
-	_ repository.PaymentRepository      = (*MockPaymentRepository)(nil)
 	_ repository.CategoryRepository     = (*MockCategoryRepository)(nil)
 	_ repository.ReviewRepository       = (*MockReviewRepository)(nil)
 	_ repository.AddressRepository      = (*MockAddressRepository)(nil)
@@ -776,89 +775,7 @@ func (m *MockOrderReturnsRepository) UpdateReturnBankAccount(ctx context.Context
 }
 
 // =========================================================================
-// 10. MockPaymentRepository
-// =========================================================================
-type MockPaymentRepository struct {
-	CreateFunc                          func(ctx context.Context, tx pgx.Tx, params sqlc.CreatePaymentTransactionParams) (sqlc.PaymentTransaction, error)
-	GetByIdempotencyKeyFunc             func(ctx context.Context, tx pgx.Tx, idempotencyKey string) (sqlc.PaymentTransaction, error)
-	GetByTxnRefFunc                     func(ctx context.Context, tx pgx.Tx, provider, txnRef string) (sqlc.PaymentTransaction, error)
-	GetByProviderTxnIDFunc              func(ctx context.Context, tx pgx.Tx, provider, providerTxnID string) (sqlc.PaymentTransaction, error)
-	GetByOrderIDFunc                    func(ctx context.Context, tx pgx.Tx, orderID int32) ([]sqlc.PaymentTransaction, error)
-	UpdateStatusAtomicallyFunc          func(ctx context.Context, tx pgx.Tx, params sqlc.UpdatePaymentStatusAtomicallyParams) (sqlc.PaymentTransaction, error)
-	UpdateProviderInfoFunc              func(ctx context.Context, tx pgx.Tx, params sqlc.UpdatePaymentProviderInfoParams) (sqlc.PaymentTransaction, error)
-	CreateRefundFunc                    func(ctx context.Context, tx pgx.Tx, params sqlc.CreateRefundTransactionParams) (sqlc.PaymentTransaction, error)
-	GetPendingTransactionsOlderThanFunc func(ctx context.Context, tx pgx.Tx, params sqlc.GetPendingTransactionsOlderThanParams) ([]sqlc.GetPendingTransactionsOlderThanRow, error)
-}
-
-func (m *MockPaymentRepository) Create(ctx context.Context, tx pgx.Tx, params sqlc.CreatePaymentTransactionParams) (sqlc.PaymentTransaction, error) {
-	if m.CreateFunc != nil {
-		return m.CreateFunc(ctx, tx, params)
-	}
-	return sqlc.PaymentTransaction{}, nil
-}
-
-func (m *MockPaymentRepository) GetByIdempotencyKey(ctx context.Context, tx pgx.Tx, idempotencyKey string) (sqlc.PaymentTransaction, error) {
-	if m.GetByIdempotencyKeyFunc != nil {
-		return m.GetByIdempotencyKeyFunc(ctx, tx, idempotencyKey)
-	}
-	return sqlc.PaymentTransaction{}, nil
-}
-
-func (m *MockPaymentRepository) GetByTxnRef(ctx context.Context, tx pgx.Tx, provider, txnRef string) (sqlc.PaymentTransaction, error) {
-	if m.GetByTxnRefFunc != nil {
-		return m.GetByTxnRefFunc(ctx, tx, provider, txnRef)
-	}
-	return sqlc.PaymentTransaction{}, nil
-}
-
-func (m *MockPaymentRepository) GetByProviderTxnID(ctx context.Context, tx pgx.Tx, provider, providerTxnID string) (sqlc.PaymentTransaction, error) {
-	if m.GetByProviderTxnIDFunc != nil {
-		return m.GetByProviderTxnIDFunc(ctx, tx, provider, providerTxnID)
-	}
-	return sqlc.PaymentTransaction{}, nil
-}
-
-func (m *MockPaymentRepository) GetByOrderID(ctx context.Context, tx pgx.Tx, orderID int32) ([]sqlc.PaymentTransaction, error) {
-	if m.GetByOrderIDFunc != nil {
-		return m.GetByOrderIDFunc(ctx, tx, orderID)
-	}
-	return nil, nil
-}
-
-func (m *MockPaymentRepository) UpdateStatusAtomically(ctx context.Context, tx pgx.Tx, params sqlc.UpdatePaymentStatusAtomicallyParams) (sqlc.PaymentTransaction, error) {
-	if m.UpdateStatusAtomicallyFunc != nil {
-		return m.UpdateStatusAtomicallyFunc(ctx, tx, params)
-	}
-	return sqlc.PaymentTransaction{}, nil
-}
-
-func (m *MockPaymentRepository) UpdateProviderInfo(ctx context.Context, tx pgx.Tx, params sqlc.UpdatePaymentProviderInfoParams) (sqlc.PaymentTransaction, error) {
-	if m.UpdateProviderInfoFunc != nil {
-		return m.UpdateProviderInfoFunc(ctx, tx, params)
-	}
-	return sqlc.PaymentTransaction{
-		PtUuid:          params.PtUuid,
-		PtProviderUrl:   params.ProviderUrl,
-		PtProviderTxnID: params.ProviderTxnID,
-	}, nil
-}
-
-func (m *MockPaymentRepository) CreateRefund(ctx context.Context, tx pgx.Tx, params sqlc.CreateRefundTransactionParams) (sqlc.PaymentTransaction, error) {
-	if m.CreateRefundFunc != nil {
-		return m.CreateRefundFunc(ctx, tx, params)
-	}
-	return sqlc.PaymentTransaction{}, nil
-}
-
-func (m *MockPaymentRepository) GetPendingTransactionsOlderThan(ctx context.Context, tx pgx.Tx, params sqlc.GetPendingTransactionsOlderThanParams) ([]sqlc.GetPendingTransactionsOlderThanRow, error) {
-	if m.GetPendingTransactionsOlderThanFunc != nil {
-		return m.GetPendingTransactionsOlderThanFunc(ctx, tx, params)
-	}
-	return nil, nil
-}
-
-// =========================================================================
-// 11. MockCategoryRepository
+// 10. MockCategoryRepository
 // =========================================================================
 type MockCategoryRepository struct {
 	CreateFunc          func(ctx context.Context, categoryParams sqlc.CreateCategoryParams) (sqlc.Category, error)

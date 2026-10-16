@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useMounted } from "@/hooks/use-mounted";
+import { useNotificationStore } from "@/stores/notification-store";
 
 interface Province {
   province_id: number;
@@ -107,7 +108,9 @@ function CheckoutContent() {
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [note, setNote] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<"COD" | "MOMO">("COD");
+  const [paymentMethod, setPaymentMethod] = useState<"COD" | "MOMO" | "VNPAY">(
+    "COD",
+  );
 
   // Cascading Address State (GHN Data for current selection)
   const [provinces, setProvinces] = useState<Province[]>([]);
@@ -746,7 +749,7 @@ function CheckoutContent() {
         shipping_phone: phone.trim(),
         shipping_address: fullShippingAddress,
         shipping_fee: effectiveShippingFee,
-        payment_method: paymentMethod === "COD" ? 1 : 3,
+        payment_method: paymentMethod === "COD" ? 1 : paymentMethod === "VNPAY" ? 2 : 3,
         note: note.trim() || undefined,
         coupon_code: appliedCoupon ? appliedCoupon.code : undefined,
         items: selectedItems.map((item) => ({
@@ -776,6 +779,8 @@ function CheckoutContent() {
           if (typeof data.data.shipping_fee === "number") {
             finalShippingFee = data.data.shipping_fee;
           }
+          useNotificationStore.getState().fetchNotifications();
+          useNotificationStore.getState().fetchUnreadCount();
         }
       } else if (res && !res.ok) {
         const errJson = await res.json().catch(() => null);
@@ -785,9 +790,14 @@ function CheckoutContent() {
         return;
       }
 
-      // If MoMo payment method is selected and order was created, initiate MoMo payment intent
-      if (paymentMethod === "MOMO" && createdOrderUuid) {
+      // If online payment method (MoMo or VNPAY) is selected and order was created, initiate payment intent
+      if (
+        (paymentMethod === "MOMO" || paymentMethod === "VNPAY") &&
+        createdOrderUuid
+      ) {
         let paymentFailed = false;
+        const provider = paymentMethod.toLowerCase();
+        const providerLabel = paymentMethod === "VNPAY" ? "VNPAY" : "MoMo";
         try {
           const paymentRes = await authFetch("/api/v1/payments/create-intent", {
             method: "POST",
@@ -797,7 +807,7 @@ function CheckoutContent() {
             },
             body: JSON.stringify({
               order_uuid: createdOrderUuid,
-              provider: "momo",
+              provider: provider,
             }),
           }).catch(() => null);
 
@@ -811,7 +821,9 @@ function CheckoutContent() {
                 removeSelectedItems();
               }
               setAppliedCoupon(null);
-              toast.success("Redirecting to MoMo payment gateway...");
+              toast.success(
+                `Redirecting to ${providerLabel} payment gateway...`,
+              );
               window.location.href = paymentUrl;
               return;
             } else {
@@ -869,6 +881,12 @@ function CheckoutContent() {
   const handleRetryPayment = async (orderUuid?: string) => {
     if (!orderUuid) return;
     setRetryingPayment(true);
+    const provider = (
+      orderPlaced?.paymentMethod ||
+      paymentMethod ||
+      "vnpay"
+    ).toLowerCase();
+    const providerLabel = provider === "vnpay" ? "VNPAY" : "MoMo";
     try {
       const baseUrl =
         process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
@@ -880,7 +898,7 @@ function CheckoutContent() {
         },
         body: JSON.stringify({
           order_uuid: orderUuid,
-          provider: "momo",
+          provider: provider,
         }),
       });
 
@@ -888,7 +906,7 @@ function CheckoutContent() {
         const data = await res.json();
         const paymentUrl = data?.data?.payment_url;
         if (paymentUrl) {
-          toast.success("Redirecting to MoMo payment gateway...");
+          toast.success(`Redirecting to ${providerLabel} payment gateway...`);
           window.location.href = paymentUrl;
           return;
         }
@@ -1014,9 +1032,9 @@ function CheckoutContent() {
                 <span>Payment pending (15-minute window)</span>
               </div>
               <p className="text-amber-700 leading-relaxed text-[11px]">
-                We could not connect to the MoMo gateway automatically. You can
-                retry paying now. Unpaid orders will automatically expire and
-                release reserved stock after 15 minutes.
+                We could not connect to the Payment gateway automatically. You
+                can retry paying now. Unpaid orders will automatically expire
+                and release reserved stock after 15 minutes.
               </p>
             </div>
           )}
@@ -1027,7 +1045,9 @@ function CheckoutContent() {
               <span className="font-bold text-[#0F172A]">
                 {orderPlaced.paymentMethod === "COD"
                   ? "Cash on Delivery (COD)"
-                  : "MoMo E-Wallet"}
+                  : orderPlaced.paymentMethod === "VNPAY"
+                    ? "VNPAY QR & Cards"
+                    : "MoMo E-Wallet"}
               </span>
             </div>
             <div className="flex justify-between">
@@ -1061,7 +1081,11 @@ function CheckoutContent() {
                 ) : (
                   <CreditCard className="w-3.5 h-3.5" />
                 )}
-                <span>Pay Now (MoMo)</span>
+                <span>
+                  {orderPlaced.paymentMethod === "VNPAY"
+                    ? "Pay Now (VNPAY)"
+                    : "Pay Now (MoMo)"}
+                </span>
               </button>
             )}
             <Link
@@ -1481,6 +1505,41 @@ function CheckoutContent() {
                       </p>
                     </div>
                   </label>
+
+                  {/* VNPAY */}
+                  <label
+                    onClick={() => setPaymentMethod("VNPAY")}
+                    className={`flex items-start gap-3 p-3.5 rounded-md border cursor-pointer transition-colors ${
+                      paymentMethod === "VNPAY"
+                        ? "border-2 border-[#007D9C] bg-[#F0F9FB]"
+                        : "border-[#E2E8F0] bg-white hover:border-[#CBD5E1]"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="payment"
+                      checked={paymentMethod === "VNPAY"}
+                      onChange={() => setPaymentMethod("VNPAY")}
+                      className="mt-0.5 text-[#007D9C] focus:ring-[#007D9C]"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 rounded-xs bg-[#005BAA] text-white font-bold text-[9px] flex items-center justify-center shrink-0">
+                          V
+                        </div>
+                        <span className="text-xs font-bold text-[#0F172A]">
+                          VNPAY QR & Banking Cards
+                        </span>
+                        <span className="text-[10px] font-semibold px-2 py-0.2 rounded-md bg-slate-100 text-[#64748B] border border-slate-200">
+                          Instant Online
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#64748B] mt-0.5">
+                        Pay securely with VNPAY-QR, domestic ATM cards, or
+                        international cards.
+                      </p>
+                    </div>
+                  </label>
                 </div>
               </div>
             </div>
@@ -1701,7 +1760,9 @@ function CheckoutContent() {
                       <span>
                         {paymentMethod === "MOMO"
                           ? `Pay with MoMo (${formatCurrency(grandTotal)})`
-                          : `Place Order Now (${formatCurrency(grandTotal)})`}
+                          : paymentMethod === "VNPAY"
+                            ? `Pay with VNPAY (${formatCurrency(grandTotal)})`
+                            : `Place Order Now (${formatCurrency(grandTotal)})`}
                       </span>
                     </>
                   )}

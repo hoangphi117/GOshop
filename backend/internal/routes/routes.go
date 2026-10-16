@@ -90,7 +90,7 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 	}
 
 	// API Gateway reverse proxy for Notification microservice endpoints
-	notificationURL := utils.GetEnv("NOTIFICATION_SERVICE_URL", "")
+	notificationURL := utils.GetEnv("NOTIFICATION_SERVICE_URL", "http://localhost:8082")
 	if parsedNotifURL, err := url.Parse(notificationURL); err == nil && parsedNotifURL.Scheme != "" {
 		notifProxy := httputil.NewSingleHostReverseProxy(parsedNotifURL)
 		transport := http.DefaultTransport.(*http.Transport).Clone()
@@ -117,6 +117,36 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 		v1api.Any("/admin/notifications/*any", notifProxyHandler)
 	}
 
+	// API Gateway reverse proxy for Payment microservice endpoints
+	paymentURL := utils.GetEnv("PAYMENT_SERVICE_URL", "http://localhost:8083")
+	if parsedPaymentURL, err := url.Parse(paymentURL); err == nil && parsedPaymentURL.Scheme != "" {
+		paymentProxy := httputil.NewSingleHostReverseProxy(parsedPaymentURL)
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.DisableCompression = true
+		paymentProxy.Transport = transport
+
+		paymentProxy.ModifyResponse = func(resp *http.Response) error {
+			resp.Header.Del("Access-Control-Allow-Origin")
+			resp.Header.Del("Access-Control-Allow-Credentials")
+			resp.Header.Del("Access-Control-Allow-Methods")
+			resp.Header.Del("Access-Control-Allow-Headers")
+			resp.Header.Del("Access-Control-Max-Age")
+			return nil
+		}
+		paymentProxyHandler := func(ctx *gin.Context) {
+			ctx.Request.Host = parsedPaymentURL.Host
+			ctx.Request.Header.Del("Accept-Encoding")
+			paymentProxy.ServeHTTP(ctx.Writer, ctx.Request)
+		}
+
+		v1api.Any("/payments", paymentProxyHandler)
+		v1api.Any("/payments/*any", paymentProxyHandler)
+		v1api.Any("/admin/payments", paymentProxyHandler)
+		v1api.Any("/admin/payments/*any", paymentProxyHandler)
+		v1api.Any("/webhooks/payment", paymentProxyHandler)
+		v1api.Any("/webhooks/payment/*any", paymentProxyHandler)
+	}
+
 	public := v1api.Group("")
 
 	protected := v1api.Group("")
@@ -129,7 +159,7 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 	for _, route := range normalRoutes {
 		switch r := route.(type) {
 		case *v1routes.CategoryRoutes, *v1routes.ProductRoutes,
-			*v1routes.PaymentWebhookRoutes, *v1routes.ReviewPublicRoutes,
+			*v1routes.ReviewPublicRoutes,
 			*v1routes.ShippingWebhookRoutes, *v1routes.WSRoutes, *v1routes.BannerRoutes, *v1routes.HealthRoutes,
 			*v1routes.LocationRoutes:
 			r.Register(public)

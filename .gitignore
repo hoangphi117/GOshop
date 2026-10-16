@@ -74,6 +74,7 @@ coverage.*
 .codex/
 .gemini/
 .claude/
+skills-lock.json
 
 .gitnexus/
 

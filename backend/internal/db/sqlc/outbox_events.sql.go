@@ -11,7 +11,7 @@ import (
 )
 
 const getPendingOutboxEvents = `-- name: GetPendingOutboxEvents :many
-SELECT event_id, aggregate_type, aggregate_id, event_type, payload, status, retry_count, last_error, created_at, processed_at FROM outbox_events
+SELECT event_id, aggregate_type, aggregate_id, event_type, payload, status, retry_count, last_error, created_at, processed_at, oe_id, oe_aggregate_type, oe_aggregate_id, oe_event_type, oe_payload, oe_status, oe_created_at, oe_processed_at FROM outbox_events
 WHERE status = 'PENDING' AND retry_count < 5
 ORDER BY created_at ASC
 LIMIT $1
@@ -38,6 +38,14 @@ func (q *Queries) GetPendingOutboxEvents(ctx context.Context, limit int32) ([]Ou
 			&i.LastError,
 			&i.CreatedAt,
 			&i.ProcessedAt,
+			&i.OeID,
+			&i.OeAggregateType,
+			&i.OeAggregateID,
+			&i.OeEventType,
+			&i.OePayload,
+			&i.OeStatus,
+			&i.OeCreatedAt,
+			&i.OeProcessedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -50,7 +58,7 @@ func (q *Queries) GetPendingOutboxEvents(ctx context.Context, limit int32) ([]Ou
 }
 
 const getPendingOutboxEventsByAggregateTypes = `-- name: GetPendingOutboxEventsByAggregateTypes :many
-SELECT event_id, aggregate_type, aggregate_id, event_type, payload, status, retry_count, last_error, created_at, processed_at FROM outbox_events
+SELECT event_id, aggregate_type, aggregate_id, event_type, payload, status, retry_count, last_error, created_at, processed_at, oe_id, oe_aggregate_type, oe_aggregate_id, oe_event_type, oe_payload, oe_status, oe_created_at, oe_processed_at FROM outbox_events
 WHERE status = 'PENDING' AND retry_count < 5 AND aggregate_type = ANY($2::varchar[])
 ORDER BY created_at ASC
 LIMIT $1
@@ -82,6 +90,14 @@ func (q *Queries) GetPendingOutboxEventsByAggregateTypes(ctx context.Context, ar
 			&i.LastError,
 			&i.CreatedAt,
 			&i.ProcessedAt,
+			&i.OeID,
+			&i.OeAggregateType,
+			&i.OeAggregateID,
+			&i.OeEventType,
+			&i.OePayload,
+			&i.OeStatus,
+			&i.OeCreatedAt,
+			&i.OeProcessedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -98,7 +114,7 @@ INSERT INTO outbox_events (
     aggregate_type, aggregate_id, event_type, payload
 ) VALUES (
     $1, $2, $3, $4
-) RETURNING event_id, aggregate_type, aggregate_id, event_type, payload, status, retry_count, last_error, created_at, processed_at
+) RETURNING event_id, aggregate_type, aggregate_id, event_type, payload, status, retry_count, last_error, created_at, processed_at, oe_id, oe_aggregate_type, oe_aggregate_id, oe_event_type, oe_payload, oe_status, oe_created_at, oe_processed_at
 `
 
 type InsertOutboxEventParams struct {
@@ -127,6 +143,14 @@ func (q *Queries) InsertOutboxEvent(ctx context.Context, arg InsertOutboxEventPa
 		&i.LastError,
 		&i.CreatedAt,
 		&i.ProcessedAt,
+		&i.OeID,
+		&i.OeAggregateType,
+		&i.OeAggregateID,
+		&i.OeEventType,
+		&i.OePayload,
+		&i.OeStatus,
+		&i.OeCreatedAt,
+		&i.OeProcessedAt,
 	)
 	return i, err
 }

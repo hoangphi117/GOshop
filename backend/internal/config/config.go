@@ -36,6 +36,8 @@ type Config struct {
 	Storage            storage.StorageConfig
 	IdentityServiceURL string
 	IdentityGRPCAddr   string
+	PaymentServiceURL  string
+	PaymentGRPCAddr    string
 	InternalSecret     string
 }
 
@@ -110,6 +112,8 @@ func NewConfig() *Config {
 		Storage:            storageConfig,
 		IdentityServiceURL: utils.GetEnv("IDENTITY_SERVICE_URL", "http://localhost:8081"),
 		IdentityGRPCAddr:   utils.GetEnv("IDENTITY_GRPC_ADDR", "localhost:50051"),
+		PaymentServiceURL:  utils.GetEnv("PAYMENT_SERVICE_URL", "http://localhost:8083"),
+		PaymentGRPCAddr:    utils.GetEnv("PAYMENT_GRPC_ADDR", "localhost:50052"),
 		InternalSecret: func() string {
 			secret := utils.GetEnv("INTERNAL_API_SECRET", "")
 			if utils.GetEnv("APP_ENV", "development") == "production" && secret == "" {
