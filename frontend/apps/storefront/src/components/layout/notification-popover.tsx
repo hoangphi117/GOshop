@@ -100,16 +100,8 @@ export function NotificationPopover({
             if (msg?.type === "notification" && msg?.data) {
               const isAdminNotif =
                 Boolean(msg.data.is_admin) ||
-                [
-                  "order",
-                  "inventory",
-                  "refund",
-                  "review",
-                  "admin_order",
-                  "admin_inventory",
-                  "admin_refund",
-                  "admin_review",
-                ].includes(msg.data.type);
+                (typeof msg.data.type === "string" &&
+                  msg.data.type.startsWith("admin_"));
 
               if (!isAdminNotif) {
                 useNotificationStore.getState().addNotification(msg.data);
@@ -192,14 +184,19 @@ export function NotificationPopover({
     switch (type) {
       case "ORDER_CREATED":
       case "ORDER_UPDATED":
+      case "order":
+      case "order_status":
         return <Package className="w-4 h-4 text-[#00ADD8]" />;
       case "ORDER_SHIPPED":
         return <Truck className="w-4 h-4 text-emerald-500" />;
       case "ORDER_DELIVERED":
         return <CheckCircle2 className="w-4 h-4 text-emerald-600" />;
       case "PAYMENT_SUCCESS":
+      case "payment":
+      case "payment_succeeded":
         return <CreditCard className="w-4 h-4 text-emerald-600" />;
       case "PAYMENT_FAILED":
+      case "payment_failed":
         return <ShieldAlert className="w-4 h-4 text-red-500" />;
       case "RETURN_REQUESTED":
       case "RETURN_UPDATED":

@@ -10,6 +10,8 @@ import (
 	"goshop/services/notification/internal/dto"
 	"goshop/services/notification/internal/service"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
 )
@@ -19,6 +21,7 @@ type TopicConsumer struct {
 	mailService         mail.EmailProviderService
 	discordNotifier     discord.Notifier
 	logger              *zerolog.Logger
+	db                  *pgxpool.Pool
 }
 
 func NewTopicConsumer(
@@ -26,13 +29,19 @@ func NewTopicConsumer(
 	mailService mail.EmailProviderService,
 	discordNotifier discord.Notifier,
 	logger *zerolog.Logger,
+	dbPool ...*pgxpool.Pool,
 ) *TopicConsumer {
+	var pool *pgxpool.Pool
+	if len(dbPool) > 0 {
+		pool = dbPool[0]
+	}
 
 	return &TopicConsumer{
 		notificationService: notificationService,
 		mailService:         mailService,
 		discordNotifier:     discordNotifier,
 		logger:              logger,
+		db:                  pool,
 	}
 }
 
@@ -70,7 +79,7 @@ func (c *TopicConsumer) HandleEvent(headers amqp.Table, body []byte) error {
 
 func (c *TopicConsumer) handleOrderCreated(body []byte) error {
 	var payload struct {
-		OrderID     string  `json:"order_id"`
+		OrderID     any     `json:"order_id"`
 		OrderNumber string  `json:"order_number"`
 		UserUUID    string  `json:"user_uuid"`
 		UserID      *int32  `json:"user_id"`
@@ -84,7 +93,7 @@ func (c *TopicConsumer) handleOrderCreated(body []byte) error {
 	title := "Order Placed Successfully"
 	msgBody := fmt.Sprintf("Your order #%s has been placed successfully.", payload.OrderNumber)
 
-	if payload.UserID != nil {
+	if payload.UserID != nil && *payload.UserID > 0 {
 		_ = c.notificationService.Send(context.Background(), dto.SendNotificationInput{
 			UserID: *payload.UserID,
 			Type:   "order",
@@ -92,6 +101,30 @@ func (c *TopicConsumer) handleOrderCreated(body []byte) error {
 			Body:   msgBody,
 			Data:   map[string]any{"order_number": payload.OrderNumber, "total": payload.TotalAmount},
 		})
+	} else if payload.UserUUID != "" {
+		if uUUID, err := uuid.Parse(payload.UserUUID); err == nil && uUUID != uuid.Nil {
+			_, _ = c.notificationService.CreateNotification(context.Background(), dto.CreateNotificationInput{
+				UserUUID: uUUID,
+				Type:     "order",
+				Title:    title,
+				Body:     msgBody,
+				Data:     map[string]any{"order_number": payload.OrderNumber, "total": payload.TotalAmount},
+			})
+		}
+	} else if c.db != nil && payload.OrderNumber != "" {
+		var uUUID uuid.UUID
+		_ = c.db.QueryRow(context.Background(),
+			"SELECT order_user_uuid FROM orders WHERE order_number = $1 LIMIT 1",
+			payload.OrderNumber).Scan(&uUUID)
+		if uUUID != uuid.Nil {
+			_, _ = c.notificationService.CreateNotification(context.Background(), dto.CreateNotificationInput{
+				UserUUID: uUUID,
+				Type:     "order",
+				Title:    title,
+				Body:     msgBody,
+				Data:     map[string]any{"order_number": payload.OrderNumber, "total": payload.TotalAmount},
+			})
+		}
 	}
 
 	// Notify admins
@@ -131,20 +164,34 @@ func (c *TopicConsumer) handleOrderStatusChanged(routingKey string, body []byte)
 func (c *TopicConsumer) handlePaymentSucceeded(body []byte) error {
 	var event rabbitmq.PaymentSucceededEvent
 	if err := json.Unmarshal(body, &event); err != nil {
-		return err
+		var rawStr string
+		if unquoteErr := json.Unmarshal(body, &rawStr); unquoteErr == nil {
+			if retryErr := json.Unmarshal([]byte(rawStr), &event); retryErr != nil {
+				return err
+			}
+		} else {
+			return err
+		}
 	}
 
-	c.logger.Info().Str("order_number", event.OrderNumber).Float64("amount", event.Amount).Msg("Payment succeeded notification recorded")
+	c.logger.Info().Str("order_number", event.OrderNumber).Float64("amount", event.Amount).Msg("Payment succeeded event received (customer notification skipped)")
 	return nil
 }
 
 func (c *TopicConsumer) handlePaymentFailed(body []byte) error {
 	var event rabbitmq.PaymentFailedEvent
 	if err := json.Unmarshal(body, &event); err != nil {
-		return err
+		var rawStr string
+		if unquoteErr := json.Unmarshal(body, &rawStr); unquoteErr == nil {
+			if retryErr := json.Unmarshal([]byte(rawStr), &event); retryErr != nil {
+				return err
+			}
+		} else {
+			return err
+		}
 	}
 
-	c.logger.Warn().Str("order_number", event.OrderNumber).Str("reason", event.Reason).Msg("Payment failed notification recorded")
+	c.logger.Warn().Str("order_number", event.OrderNumber).Str("reason", event.Reason).Msg("Payment failed event received (customer notification skipped)")
 	return nil
 }
 

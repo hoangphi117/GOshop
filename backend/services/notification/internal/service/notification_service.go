@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"goshop/pkg/discord"
@@ -220,10 +221,15 @@ func (s *notificationService) NotifyAdmins(ctx context.Context, input dto.AdminN
 		}
 	}
 
+	adminType := input.Type
+	if !strings.HasPrefix(adminType, "admin_") {
+		adminType = "admin_" + adminType
+	}
+
 	for _, adminID := range adminIDs {
 		params := sqlc.CreateNotificationParams{
 			NotificationUserID: adminID,
-			NotificationType:   input.Type,
+			NotificationType:   adminType,
 			NotificationTitle:  input.Title,
 			NotificationBody:   input.Body,
 			NotificationData:   dataBytes,
@@ -235,7 +241,7 @@ func (s *notificationService) NotifyAdmins(ctx context.Context, input dto.AdminN
 
 	s.broadcastToAdmins(dto.NotificationDTO{
 		UUID:      uuid.New(),
-		Type:      input.Type,
+		Type:      adminType,
 		Title:     input.Title,
 		Body:      input.Body,
 		Data:      input.Data,

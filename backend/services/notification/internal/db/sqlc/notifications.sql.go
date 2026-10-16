@@ -15,8 +15,17 @@ import (
 const countAdminNotifications = `-- name: CountAdminNotifications :one
 SELECT COUNT(*) FROM notifications
 WHERE notification_user_id = $1
-  AND notification_type IN ('order', 'stock', 'inventory', 'return', 'order_return', 'refund', 'review', 'system', 'admin_order', 'admin_stock', 'admin_inventory', 'admin_return', 'admin_refund', 'admin_review', 'admin_system')
-  AND ($2::TEXT IS NULL OR notification_type = $2::TEXT OR ($2::TEXT = 'return' AND notification_type = 'order_return') OR ($2::TEXT = 'stock' AND notification_type = 'inventory'))
+  AND (
+    notification_type LIKE 'admin_%'
+    OR notification_type IN ('order', 'stock', 'inventory', 'return', 'order_return', 'refund', 'review', 'system')
+  )
+  AND (
+    $2::TEXT IS NULL
+    OR notification_type = $2::TEXT
+    OR notification_type = 'admin_' || $2::TEXT
+    OR ($2::TEXT = 'return' AND notification_type IN ('order_return', 'admin_return', 'admin_order_return'))
+    OR ($2::TEXT = 'stock' AND notification_type IN ('inventory', 'admin_stock', 'admin_inventory'))
+  )
   AND ($3::BOOLEAN IS NULL OR notification_is_read = $3::BOOLEAN)
 `
 
@@ -36,7 +45,7 @@ func (q *Queries) CountAdminNotifications(ctx context.Context, arg CountAdminNot
 const countNotificationsByUserID = `-- name: CountNotificationsByUserID :one
 SELECT COUNT(*) FROM notifications
 WHERE notification_user_id = $1
-  AND notification_type NOT IN ('order', 'stock', 'inventory', 'return', 'order_return', 'refund', 'review', 'system', 'admin_order', 'admin_stock', 'admin_inventory', 'admin_return', 'admin_refund', 'admin_review', 'admin_system')
+  AND notification_type NOT LIKE 'admin_%'
 `
 
 func (q *Queries) CountNotificationsByUserID(ctx context.Context, notificationUserID int32) (int64, error) {
@@ -50,7 +59,7 @@ const countUnreadNotificationsByUserID = `-- name: CountUnreadNotificationsByUse
 SELECT COUNT(*) FROM notifications
 WHERE notification_user_id = $1
   AND notification_is_read = FALSE
-  AND notification_type NOT IN ('order', 'stock', 'inventory', 'return', 'order_return', 'refund', 'review', 'system', 'admin_order', 'admin_stock', 'admin_inventory', 'admin_return', 'admin_refund', 'admin_review', 'admin_system')
+  AND notification_type NOT LIKE 'admin_%'
 `
 
 func (q *Queries) CountUnreadNotificationsByUserID(ctx context.Context, notificationUserID int32) (int64, error) {
@@ -137,8 +146,17 @@ func (q *Queries) DeleteOldNotifications(ctx context.Context, notificationCreate
 const getAdminNotifications = `-- name: GetAdminNotifications :many
 SELECT notification_id, notification_uuid, notification_user_id, notification_type, notification_title, notification_body, notification_data, notification_is_read, notification_read_at, notification_created_at FROM notifications
 WHERE notification_user_id = $1
-  AND notification_type IN ('order', 'stock', 'inventory', 'return', 'order_return', 'refund', 'review', 'system', 'admin_order', 'admin_stock', 'admin_inventory', 'admin_return', 'admin_refund', 'admin_review', 'admin_system')
-  AND ($2::TEXT IS NULL OR notification_type = $2::TEXT OR ($2::TEXT = 'return' AND notification_type = 'order_return') OR ($2::TEXT = 'stock' AND notification_type = 'inventory'))
+  AND (
+    notification_type LIKE 'admin_%'
+    OR notification_type IN ('order', 'stock', 'inventory', 'return', 'order_return', 'refund', 'review', 'system')
+  )
+  AND (
+    $2::TEXT IS NULL
+    OR notification_type = $2::TEXT
+    OR notification_type = 'admin_' || $2::TEXT
+    OR ($2::TEXT = 'return' AND notification_type IN ('order_return', 'admin_return', 'admin_order_return'))
+    OR ($2::TEXT = 'stock' AND notification_type IN ('inventory', 'admin_stock', 'admin_inventory'))
+  )
   AND ($3::BOOLEAN IS NULL OR notification_is_read = $3::BOOLEAN)
 ORDER BY notification_created_at DESC
 LIMIT $5 OFFSET $4
@@ -192,7 +210,7 @@ func (q *Queries) GetAdminNotifications(ctx context.Context, arg GetAdminNotific
 const getNotificationsByUserId = `-- name: GetNotificationsByUserId :many
 SELECT notification_id, notification_uuid, notification_user_id, notification_type, notification_title, notification_body, notification_data, notification_is_read, notification_read_at, notification_created_at FROM notifications
 WHERE notification_user_id = $1
-  AND notification_type NOT IN ('order', 'stock', 'inventory', 'return', 'order_return', 'refund', 'review', 'system', 'admin_order', 'admin_stock', 'admin_inventory', 'admin_return', 'admin_refund', 'admin_review', 'admin_system')
+  AND notification_type NOT LIKE 'admin_%'
 ORDER BY notification_created_at DESC
 LIMIT $2 OFFSET $3
 `
@@ -239,7 +257,10 @@ UPDATE notifications SET
     notification_is_read = TRUE,
     notification_read_at  = now()
 WHERE notification_user_id = $1
-  AND notification_type IN ('order', 'stock', 'inventory', 'return', 'order_return', 'refund', 'review', 'system', 'admin_order', 'admin_stock', 'admin_inventory', 'admin_return', 'admin_refund', 'admin_review', 'admin_system')
+  AND (
+    notification_type LIKE 'admin_%'
+    OR notification_type IN ('order', 'stock', 'inventory', 'return', 'order_return', 'refund', 'review', 'system')
+  )
   AND notification_is_read = FALSE
 `
 
@@ -253,7 +274,7 @@ UPDATE notifications SET
     notification_is_read = TRUE,
     notification_read_at  = now()
 WHERE notification_user_id = $1
-  AND notification_type NOT IN ('order', 'stock', 'inventory', 'return', 'order_return', 'refund', 'review', 'system', 'admin_order', 'admin_stock', 'admin_inventory', 'admin_return', 'admin_refund', 'admin_review', 'admin_system')
+  AND notification_type NOT LIKE 'admin_%'
   AND notification_is_read = FALSE
 `
 

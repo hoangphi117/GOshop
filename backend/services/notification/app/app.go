@@ -122,6 +122,7 @@ func New(cfg *config.Config) (*App, error) {
 			mailService,
 			discordNotifier,
 			rabbitmqLogger,
+			dbPool,
 		)
 		topicPatterns := []string{
 			rabbitmq.PatternOrderAll,
