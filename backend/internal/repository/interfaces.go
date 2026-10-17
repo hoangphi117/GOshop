@@ -224,12 +224,6 @@ type AnalyticsRepository interface {
 	GetCouponCampaignBreakdown(ctx context.Context, fromDate, toDate time.Time, limit int32) ([]sqlc.GetCouponCampaignBreakdownRow, error)
 }
 
-type StockMovementRepository interface {
-	Create(ctx context.Context, tx pgx.Tx, params sqlc.CreateStockMovementParams) (sqlc.StockMovement, error)
-	List(ctx context.Context, params sqlc.ListStockMovementsParams) ([]sqlc.ListStockMovementsRow, error)
-	Count(ctx context.Context, params sqlc.CountStockMovementsParams) (int64, error)
-}
-
 type ChatRepository interface {
 	CreateConversation(ctx context.Context, userID int32) (sqlc.ChatConversation, error)
 	GetConversationByUUID(ctx context.Context, conversationUUID uuid.UUID) (sqlc.ChatConversation, error)

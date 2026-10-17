@@ -15,6 +15,7 @@ import (
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 	"goshop/pkg/search"
+	inventorycontract "goshop/services/inventory/contract"
 	"io"
 	"strconv"
 	"strings"
@@ -34,13 +35,14 @@ const (
 )
 
 type productService struct {
-	repo         repository.ProductRepository
-	categoryRepo repository.CategoryRepository
-	outboxRepo   repository.OutboxRepository
-	cache        cache.RedisCacheService
-	search       *search.Client
-	txManager    db.TxManager
-	sf           singleflight.Group
+	repo            repository.ProductRepository
+	categoryRepo    repository.CategoryRepository
+	outboxRepo      repository.OutboxRepository
+	cache           cache.RedisCacheService
+	search          *search.Client
+	txManager       db.TxManager
+	inventoryClient inventorycontract.InventoryClient
+	sf              singleflight.Group
 }
 
 func NewProductService(
@@ -49,24 +51,75 @@ func NewProductService(
 	outboxRepo repository.OutboxRepository,
 	redisClient *redis.Client,
 	searchClient *search.Client,
-	txManager ...db.TxManager,
+	extras ...any,
 ) ProductService {
 	var cacheService cache.RedisCacheService
 	if redisClient != nil {
 		cacheService = cache.NewRedisCacheService(redisClient)
 	}
 	var txMgr db.TxManager
-	if len(txManager) > 0 {
-		txMgr = txManager[0]
+	var invClient inventorycontract.InventoryClient
+	for _, extra := range extras {
+		switch v := extra.(type) {
+		case db.TxManager:
+			txMgr = v
+		case inventorycontract.InventoryClient:
+			invClient = v
+		}
 	}
 	return &productService{
-		repo:         repo,
-		categoryRepo: categoryRepo,
-		outboxRepo:   outboxRepo,
-		cache:        cacheService,
-		search:       searchClient,
-		txManager:    txMgr,
+		repo:            repo,
+		categoryRepo:    categoryRepo,
+		outboxRepo:      outboxRepo,
+		cache:           cacheService,
+		search:          searchClient,
+		txManager:       txMgr,
+		inventoryClient: invClient,
 	}
+}
+
+func (ps *productService) enrichStockForDTO(ctx context.Context, dto *v1dto.ProductDTO) {
+	if ps.inventoryClient == nil || dto == nil || dto.UUID == "" {
+		return
+	}
+	stocks, err := ps.inventoryClient.GetStock(ctx, []string{dto.UUID}, nil)
+	if err != nil {
+		logger.Log.Warn().Err(err).Str("uuid", dto.UUID).Msg("Failed to fetch stock from inventory service")
+		return
+	}
+	if len(stocks) > 0 {
+		dto.Stock = stocks[0].Quantity
+	}
+}
+
+func (ps *productService) enrichStockForDTOs(ctx context.Context, dtos []v1dto.ProductDTO) []v1dto.ProductDTO {
+	if ps.inventoryClient == nil || len(dtos) == 0 {
+		return dtos
+	}
+	uuids := make([]string, 0, len(dtos))
+	for _, d := range dtos {
+		if d.UUID != "" {
+			uuids = append(uuids, d.UUID)
+		}
+	}
+	if len(uuids) == 0 {
+		return dtos
+	}
+	stocks, err := ps.inventoryClient.GetStock(ctx, uuids, nil)
+	if err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to batch fetch stocks from inventory service")
+		return dtos
+	}
+	stockMap := make(map[string]int32, len(stocks))
+	for _, s := range stocks {
+		stockMap[s.ProductUUID] = s.Quantity
+	}
+	for i := range dtos {
+		if qty, ok := stockMap[dtos[i].UUID]; ok {
+			dtos[i].Stock = qty
+		}
+	}
+	return dtos
 }
 
 func (ps *productService) withTx(ctx context.Context, fn func(txCtx context.Context, tx pgx.Tx) error) error {
@@ -203,7 +256,21 @@ func (ps *productService) CreateProduct(ctx context.Context, input v1dto.CreateP
 		}
 	}
 
-	return v1dto.MapCreateProductRowToDTO(product), nil
+	if ps.inventoryClient != nil && product.ProductStock != nil && *product.ProductStock > 0 {
+		_, err := ps.inventoryClient.AdjustStock(ctx, inventorycontract.AdjustStockInput{
+			ProductUUID:    product.ProductUuid.String(),
+			ProductID:      product.ProductID,
+			QuantityChange: *product.ProductStock,
+			ChangeType:     "INITIAL_STOCK",
+		})
+		if err != nil {
+			logger.Log.Warn().Err(err).Str("uuid", product.ProductUuid.String()).Msg("Failed to initialize stock in inventory service")
+		}
+	}
+
+	dto := v1dto.MapCreateProductRowToDTO(product)
+	ps.enrichStockForDTO(ctx, dto)
+	return dto, nil
 }
 
 func (ps *productService) GetAllProducts(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, orderBy, sort string, page, limit int32, deleted bool) ([]v1dto.ProductDTO, int32, error) {
@@ -234,6 +301,7 @@ func (ps *productService) GetAllProducts(ctx context.Context, search, categoryUU
 
 	if ps.cache != nil {
 		if err := ps.cache.Get(cacheKey, &cacheData); err == nil && cacheData.Products != nil {
+			cacheData.Products = ps.enrichStockForDTOs(ctx, cacheData.Products)
 			return cacheData.Products, cacheData.Total, nil
 		}
 	}
@@ -251,6 +319,7 @@ func (ps *productService) GetAllProducts(ctx context.Context, search, categoryUU
 				Total    int32              `json:"total"`
 			}
 			if err := ps.cache.Get(cacheKey, &cd); err == nil && cd.Products != nil {
+				cd.Products = ps.enrichStockForDTOs(ctx, cd.Products)
 				return fetchResult{products: cd.Products, total: int64(cd.Total)}, nil
 			}
 		}
@@ -266,6 +335,7 @@ func (ps *productService) GetAllProducts(ctx context.Context, search, categoryUU
 		}
 
 		dtos := v1dto.MapListProductsToDTO(listProducts)
+		dtos = ps.enrichStockForDTOs(ctx, dtos)
 
 		if ps.cache != nil {
 			cd := struct {
@@ -286,6 +356,7 @@ func (ps *productService) GetAllProducts(ctx context.Context, search, categoryUU
 	}
 
 	fr := res.(fetchResult)
+	fr.products = ps.enrichStockForDTOs(ctx, fr.products)
 	return fr.products, int32(fr.total), nil
 }
 
@@ -298,7 +369,9 @@ func (ps *productService) GetProductByUUID(ctx context.Context, productUUID uuid
 		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to get product", err)
 	}
 
-	return v1dto.MapGetProductByUUIDRowToDTO(product), nil
+	dto := v1dto.MapGetProductByUUIDRowToDTO(product)
+	ps.enrichStockForDTO(ctx, dto)
+	return dto, nil
 }
 
 func (ps *productService) GetProductBySlug(ctx context.Context, slug string) (*v1dto.ProductDTO, error) {
@@ -310,7 +383,9 @@ func (ps *productService) GetProductBySlug(ctx context.Context, slug string) (*v
 		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to get product", err)
 	}
 
-	return v1dto.MapGetProductBySlugRowToDTO(product), nil
+	dto := v1dto.MapGetProductBySlugRowToDTO(product)
+	ps.enrichStockForDTO(ctx, dto)
+	return dto, nil
 }
 
 func (ps *productService) UpdateProduct(ctx context.Context, input v1dto.UpdateProductInput) (*v1dto.ProductDTO, error) {
@@ -381,7 +456,34 @@ func (ps *productService) UpdateProduct(ctx context.Context, input v1dto.UpdateP
 		}
 	}
 
-	return v1dto.MapUpdateProductRowToDTO(product), nil
+	if ps.inventoryClient != nil && input.Params.ProductStock != nil {
+		newStock := *input.Params.ProductStock
+		currentStock := int32(0)
+		stocks, err := ps.inventoryClient.GetStock(ctx, []string{product.ProductUuid.String()}, nil)
+		if err == nil && len(stocks) > 0 {
+			currentStock = stocks[0].Quantity
+		} else if product.ProductStock != nil {
+			currentStock = *product.ProductStock
+		}
+		delta := newStock - currentStock
+		if delta != 0 {
+			note := fmt.Sprintf("Admin updated stock from %d to %d", currentStock, newStock)
+			_, err := ps.inventoryClient.AdjustStock(ctx, inventorycontract.AdjustStockInput{
+				ProductUUID:    product.ProductUuid.String(),
+				ProductID:      product.ProductID,
+				QuantityChange: delta,
+				ChangeType:     "ADMIN_ADJUSTMENT",
+				Note:           &note,
+			})
+			if err != nil {
+				logger.Log.Warn().Err(err).Str("uuid", product.ProductUuid.String()).Msg("Failed to adjust stock in inventory service")
+			}
+		}
+	}
+
+	dto := v1dto.MapUpdateProductRowToDTO(product)
+	ps.enrichStockForDTO(ctx, dto)
+	return dto, nil
 }
 
 func (ps *productService) SoftDeleteProduct(ctx context.Context, productUUID uuid.UUID) (*v1dto.ProductDTO, error) {
@@ -967,6 +1069,7 @@ func (ps *productService) SearchProducts(ctx context.Context, q, categoryUUID st
 		})
 	}
 
+	products = ps.enrichStockForDTOs(ctx, products)
 	return products, totalHits, nil
 }
 

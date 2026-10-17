@@ -15,12 +15,13 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host ">>> [2/2] Starting Go Services on Host" -ForegroundColor Green
 npx -y concurrently `
-  -n "api,identity,notif,payment,worker,coupon" `
-  -c "cyan,green,magenta,blue,yellow,pink" `
+  -n "api,identity,notif,payment,worker,coupon,inventory" `
+  -c "cyan,green,magenta,blue,yellow,pink,red" `
   --kill-others-on-fail `
   "cd backend && go run ./cmd/api" `
   "cd backend && go run ./cmd/identity" `
   "cd backend && go run ./cmd/notification" `
   "cd backend && go run ./cmd/payment" `
   "cd backend && go run ./cmd/worker" `
-  "cd backend && go run ./cmd/coupon"
+  "cd backend && go run ./cmd/coupon" `
+  "cd backend && go run ./cmd/inventory"

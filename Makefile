@@ -4,12 +4,15 @@ export
 MIGRATION_CORE_DIR=backend/internal/db/migrations_core
 MIGRATION_IDENTITY_DIR=backend/internal/db/migrations_identity
 MIGRATION_COUPON_DIR=backend/services/coupon/internal/migrations
+MIGRATION_INVENTORY_DIR=backend/services/inventory/internal/migrations
 IDENTITY_DB_NAME?=shopping_identity
 COUPON_DB_NAME?=shopping_coupon
+INVENTORY_DB_NAME?=shopping_inventory
 
 CONNECTION_STRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=${DB_SSL_MODE}
 IDENTITY_CONNECTION_STRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${IDENTITY_DB_NAME}?sslmode=${DB_SSL_MODE}
 COUPON_CONNECTION_STRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${COUPON_DB_NAME}?sslmode=${DB_SSL_MODE}
+INVENTORY_CONNECTION_STRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${INVENTORY_DB_NAME}?sslmode=${DB_SSL_MODE}
 
 PROD_COMPOSE=docker-compose.prod.yml
 NOAPP_COMPOSE=docker-compose.noapp.yml
@@ -71,6 +74,12 @@ coupon:
 build-coupon:
 	cd backend && go build -o bin/coupon ./cmd/coupon
 
+inventory:
+	cd backend && go run ./cmd/inventory
+
+build-inventory:
+	cd backend && go build -o bin/inventory ./cmd/inventory
+
 
 run-binary:
 	./backend/bin/goshop
@@ -88,7 +97,7 @@ migrate-create:
 migrate-identity-create:
 	migrate create -ext sql -dir ${MIGRATION_IDENTITY_DIR} -seq ${NAME}
 
-migrate-up: migrate-core-up migrate-identity-up migrate-coupon-up
+migrate-up: migrate-core-up migrate-identity-up migrate-coupon-up migrate-inventory-up
 
 migrate-core-up:
 	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" up
@@ -99,8 +108,11 @@ migrate-identity-up:
 migrate-coupon-up:
 	migrate -path ${MIGRATION_COUPON_DIR} -database "${COUPON_CONNECTION_STRING}" up
 
+migrate-inventory-up:
+	migrate -path ${MIGRATION_INVENTORY_DIR} -database "${INVENTORY_CONNECTION_STRING}" up
+
 # Rollback the last migration
-migrate-down: migrate-core-down migrate-identity-down migrate-coupon-down
+migrate-down: migrate-core-down migrate-identity-down migrate-coupon-down migrate-inventory-down
 
 migrate-core-down:
 	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" down 1
@@ -110,6 +122,9 @@ migrate-identity-down:
 
 migrate-coupon-down:
 	migrate -path ${MIGRATION_COUPON_DIR} -database "${COUPON_CONNECTION_STRING}" down 1
+
+migrate-inventory-down:
+	migrate -path ${MIGRATION_INVENTORY_DIR} -database "${INVENTORY_CONNECTION_STRING}" down 1
 
 # Rollback the last N migrations
 migrate-down-n:

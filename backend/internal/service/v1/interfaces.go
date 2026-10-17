@@ -136,27 +136,6 @@ type OrderPricingService interface {
 		shippingFee float64, now time.Time) (*OrderPricingResult, error)
 }
 
-type InventoryItemStock struct {
-	ProductID   int32     `json:"product_id"`
-	ProductUUID uuid.UUID `json:"product_uuid"`
-	ProductName string    `json:"product_name"`
-	Price       float64   `json:"price"`
-	Stock       int32     `json:"stock"`
-	Status          int32     `json:"status"`
-	SKU             *string   `json:"sku,omitempty"`
-	ProductSlug     string    `json:"product_slug,omitempty"`
-	ProductImageURL *string   `json:"product_image_url,omitempty"`
-}
-
-type InventoryService interface {
-	LockAndDeductStock(ctx context.Context, items []DeductItem) (map[string]InventoryItemStock, error)
-	LockAndDeductStockWithRef(ctx context.Context, items []DeductItem, refID string, refType string, actorID *int32, note *string) (map[string]InventoryItemStock, error)
-	RestoreStock(ctx context.Context, items []RestoreItem) error
-	RestoreStockWithRef(ctx context.Context, items []RestoreItem, refID string, refType string, actorID *int32, note *string) error
-	AdjustStock(ctx context.Context, actorUUID uuid.UUID, input v1dto.AdjustStockInput) (*v1dto.StockMovementDTO, error)
-	ListStockMovements(ctx context.Context, params v1dto.GetStockMovementsParam) ([]v1dto.StockMovementDTO, int64, error)
-}
-
 type CartService interface {
 	GetMyCart(ctx context.Context, userUUID uuid.UUID) (v1dto.CartDTO, error)
 	AddItemToCart(ctx context.Context, userUUID uuid.UUID, input v1dto.AddCartItemInput) (v1dto.CartDTO, error)

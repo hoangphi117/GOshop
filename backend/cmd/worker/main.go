@@ -19,6 +19,7 @@ import (
 	"goshop/pkg/shipping"
 	"goshop/pkg/ws"
 	couponcontract "goshop/services/coupon/contract"
+	inventorycontract "goshop/services/inventory/contract"
 	"os/signal"
 	"path/filepath"
 	"strconv"
@@ -149,11 +150,14 @@ func NewWorker(cfg *config.Config) *Worker {
 	defer grpcCouponClient.Close()
 	couponPort := v1service.NewOrderCouponGRPCAdapter(grpcCouponClient)
 
-	stockMovementRepo := repository.NewSqlStockMovementRepository(db.DB)
-	inventoryService := v1service.NewInventoryService(productRepo, stockMovementRepo, userRepo, txManager, rabbitMQ)
-
 	catalogPort := v1service.NewOrderCatalogAdapter(productRepo)
-	stockPort := v1service.NewOrderStockAdapter(inventoryService)
+	inventoryTarget := utils.GetEnv("INVENTORY_GRPC_TARGET", "localhost:50054")
+	grpcInventoryClient, err := inventorycontract.NewGRPCInventoryClient(inventoryTarget)
+	if err != nil {
+		log.Fatal().Err(err).Str("target", inventoryTarget).Msg("Failed to initialize Inventory gRPC client")
+	}
+	defer grpcInventoryClient.Close()
+	stockPort := v1service.NewOrderStockGRPCAdapter(grpcInventoryClient)
 	pricingService := v1service.NewOrderPricingService(couponPort)
 
 	orderService := v1service.NewOrderService(

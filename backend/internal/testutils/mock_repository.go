@@ -29,7 +29,6 @@ var (
 	_ repository.NotificationRepository = (*MockNotificationRepository)(nil)
 	_ repository.ChatRepository         = (*MockChatRepository)(nil)
 	_ repository.OutboxRepository       = (*MockOutboxRepository)(nil)
-	_ repository.StockMovementRepository = (*MockStockMovementRepository)(nil)
 )
 
 // =========================================================================
@@ -1586,36 +1585,6 @@ func (m *MockOutboxRepository) MarkFailed(ctx context.Context, eventID int64, la
 		return m.MarkFailedFunc(ctx, eventID, lastErr)
 	}
 	return nil
-}
-
-// =========================================================================
-// MockStockMovementRepository
-// =========================================================================
-type MockStockMovementRepository struct {
-	CreateFunc func(ctx context.Context, tx pgx.Tx, params sqlc.CreateStockMovementParams) (sqlc.StockMovement, error)
-	ListFunc   func(ctx context.Context, params sqlc.ListStockMovementsParams) ([]sqlc.ListStockMovementsRow, error)
-	CountFunc  func(ctx context.Context, params sqlc.CountStockMovementsParams) (int64, error)
-}
-
-func (m *MockStockMovementRepository) Create(ctx context.Context, tx pgx.Tx, params sqlc.CreateStockMovementParams) (sqlc.StockMovement, error) {
-	if m.CreateFunc != nil {
-		return m.CreateFunc(ctx, tx, params)
-	}
-	return sqlc.StockMovement{}, nil
-}
-
-func (m *MockStockMovementRepository) List(ctx context.Context, params sqlc.ListStockMovementsParams) ([]sqlc.ListStockMovementsRow, error) {
-	if m.ListFunc != nil {
-		return m.ListFunc(ctx, params)
-	}
-	return nil, nil
-}
-
-func (m *MockStockMovementRepository) Count(ctx context.Context, params sqlc.CountStockMovementsParams) (int64, error) {
-	if m.CountFunc != nil {
-		return m.CountFunc(ctx, params)
-	}
-	return 0, nil
 }
 
 

@@ -24,7 +24,6 @@ var (
 	_ v1service.CatalogPort          = (*MockCatalogPort)(nil)
 	_ v1service.OrderStockPort       = (*MockOrderStockPort)(nil)
 	_ v1service.OrderCouponPort      = (*MockOrderCouponPort)(nil)
-	_ v1service.InventoryService     = (*MockInventoryService)(nil)
 	_ v1service.NotificationService  = (*MockNotificationService)(nil)
 	_ v1service.CartService          = (*MockCartService)(nil)
 	_ v1service.ReviewService        = (*MockReviewService)(nil)
@@ -116,57 +115,6 @@ func (m *MockOrderCouponPort) LockAndApplyCoupon(ctx context.Context, couponID i
 		return m.LockAndApplyCouponFunc(ctx, couponID, userID, orderID)
 	}
 	return nil
-}
-
-type MockInventoryService struct {
-	LockAndDeductStockFunc        func(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error)
-	LockAndDeductStockWithRefFunc func(ctx context.Context, items []v1service.DeductItem, refID string, refType string, actorID *int32, note *string) (map[string]v1service.InventoryItemStock, error)
-	RestoreStockFunc              func(ctx context.Context, items []v1service.RestoreItem) error
-	RestoreStockWithRefFunc       func(ctx context.Context, items []v1service.RestoreItem, refID string, refType string, actorID *int32, note *string) error
-	AdjustStockFunc               func(ctx context.Context, actorUUID uuid.UUID, input v1dto.AdjustStockInput) (*v1dto.StockMovementDTO, error)
-	ListStockMovementsFunc        func(ctx context.Context, params v1dto.GetStockMovementsParam) ([]v1dto.StockMovementDTO, int64, error)
-}
-
-func (m *MockInventoryService) LockAndDeductStock(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error) {
-	if m.LockAndDeductStockFunc != nil {
-		return m.LockAndDeductStockFunc(ctx, items)
-	}
-	return nil, nil
-}
-
-func (m *MockInventoryService) LockAndDeductStockWithRef(ctx context.Context, items []v1service.DeductItem, refID string, refType string, actorID *int32, note *string) (map[string]v1service.InventoryItemStock, error) {
-	if m.LockAndDeductStockWithRefFunc != nil {
-		return m.LockAndDeductStockWithRefFunc(ctx, items, refID, refType, actorID, note)
-	}
-	return m.LockAndDeductStock(ctx, items)
-}
-
-func (m *MockInventoryService) RestoreStock(ctx context.Context, items []v1service.RestoreItem) error {
-	if m.RestoreStockFunc != nil {
-		return m.RestoreStockFunc(ctx, items)
-	}
-	return nil
-}
-
-func (m *MockInventoryService) RestoreStockWithRef(ctx context.Context, items []v1service.RestoreItem, refID string, refType string, actorID *int32, note *string) error {
-	if m.RestoreStockWithRefFunc != nil {
-		return m.RestoreStockWithRefFunc(ctx, items, refID, refType, actorID, note)
-	}
-	return m.RestoreStock(ctx, items)
-}
-
-func (m *MockInventoryService) AdjustStock(ctx context.Context, actorUUID uuid.UUID, input v1dto.AdjustStockInput) (*v1dto.StockMovementDTO, error) {
-	if m.AdjustStockFunc != nil {
-		return m.AdjustStockFunc(ctx, actorUUID, input)
-	}
-	return nil, nil
-}
-
-func (m *MockInventoryService) ListStockMovements(ctx context.Context, params v1dto.GetStockMovementsParam) ([]v1dto.StockMovementDTO, int64, error) {
-	if m.ListStockMovementsFunc != nil {
-		return m.ListStockMovementsFunc(ctx, params)
-	}
-	return []v1dto.StockMovementDTO{}, 0, nil
 }
 
 

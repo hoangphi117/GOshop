@@ -25,7 +25,7 @@ import (
 type testOrderServiceDeps struct {
 	txManager           db.TxManager
 	pricingService      v1service.OrderPricingService
-	inventoryService    v1service.InventoryService
+	stockPort           v1service.OrderStockPort
 	orderRepo           repository.OrderRepository
 	orderItemRepo       repository.OrderItemRepository
 	userRepo            repository.UserRepository
@@ -47,9 +47,9 @@ func newTestOrderService(deps testOrderServiceDeps) v1service.OrderService {
 	if pricingSvc == nil {
 		pricingSvc = &testutils.MockOrderPricingService{}
 	}
-	invSvc := deps.inventoryService
-	if invSvc == nil {
-		invSvc = &testutils.MockInventoryService{}
+	stockPort := deps.stockPort
+	if stockPort == nil {
+		stockPort = &testutils.MockOrderStockPort{}
 	}
 	orderRepo := deps.orderRepo
 	if orderRepo == nil {
@@ -102,7 +102,6 @@ func newTestOrderService(deps testOrderServiceDeps) v1service.OrderService {
 			return res, nil
 		},
 	}
-	stockPort := v1service.NewOrderStockAdapter(invSvc)
 
 	return v1service.NewOrderService(
 		txMgr,
@@ -205,15 +204,15 @@ func TestOrderService_CreateOrder(t *testing.T) {
 				return baseUser, nil
 			},
 		}
-		mockInventory := &testutils.MockInventoryService{
-			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error) {
-				return nil, utils.NewError(utils.ErrCodeBadRequest, "Insufficient stock for product: iPhone 15")
+		mockStockPort := &testutils.MockOrderStockPort{
+			LockAndDeductStockWithRefFunc: func(ctx context.Context, items []v1service.DeductItem, refID string, refType string, actorID *int32, note *string) error {
+				return utils.NewError(utils.ErrCodeBadRequest, "Insufficient stock for product: iPhone 15")
 			},
 		}
 
 		svc := newTestOrderService(testOrderServiceDeps{
-			inventoryService: mockInventory,
-			userRepo: mockUserRepo,
+			stockPort: mockStockPort,
+			userRepo:  mockUserRepo,
 		})
 
 		_, err := svc.CreateOrder(ctx, userUUID, baseInput)
@@ -227,14 +226,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 				return baseUser, nil
 			},
 		}
-		mockInventory := &testutils.MockInventoryService{
-			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error) {
-				return map[string]v1service.InventoryItemStock{
-					productUUID1.String(): {ProductID: 10, ProductName: "P1", Price: 100},
-					productUUID2.String(): {ProductID: 20, ProductName: "P2", Price: 200},
-				}, nil
-			},
-		}
 		mockPricing := &testutils.MockOrderPricingService{
 			CalculateOrderTotalsFunc: func(ctx context.Context, items []v1service.ItemPriceInput, couponCode *string, userID int32, shippingFee float64, now time.Time) (*v1service.OrderPricingResult, error) {
 				return nil, utils.NewError(utils.ErrCodeBadRequest, "Coupon has expired")
@@ -243,7 +234,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 
 		svc := newTestOrderService(testOrderServiceDeps{
 			pricingService: mockPricing,
-			inventoryService: mockInventory,
 			userRepo: mockUserRepo,
 		})
 
@@ -258,14 +248,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		mockUserRepo := &testutils.MockUserRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
 				return baseUser, nil
-			},
-		}
-		mockInventory := &testutils.MockInventoryService{
-			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error) {
-				return map[string]v1service.InventoryItemStock{
-					productUUID1.String(): {ProductID: 10, ProductName: "P1", Price: 100},
-					productUUID2.String(): {ProductID: 20, ProductName: "P2", Price: 200},
-				}, nil
 			},
 		}
 		mockPricing := &testutils.MockOrderPricingService{
@@ -292,7 +274,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 
 		svc := newTestOrderService(testOrderServiceDeps{
 			pricingService:   mockPricing,
-			inventoryService: mockInventory,
 			userRepo:         mockUserRepo,
 			couponPort:       mockCouponPort,
 		})
@@ -306,14 +287,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		mockUserRepo := &testutils.MockUserRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
 				return baseUser, nil
-			},
-		}
-		mockInventory := &testutils.MockInventoryService{
-			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error) {
-				return map[string]v1service.InventoryItemStock{
-					productUUID1.String(): {ProductID: 10, ProductName: "P1", Price: 100},
-					productUUID2.String(): {ProductID: 20, ProductName: "P2", Price: 200},
-				}, nil
 			},
 		}
 		mockPricing := &testutils.MockOrderPricingService{
@@ -334,7 +307,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 
 		svc := newTestOrderService(testOrderServiceDeps{
 			pricingService: mockPricing,
-			inventoryService: mockInventory,
 			orderRepo: mockOrderRepo,
 			userRepo: mockUserRepo,
 		})
@@ -350,13 +322,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		mockUserRepo := &testutils.MockUserRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
 				return baseUser, nil
-			},
-		}
-		mockInventory := &testutils.MockInventoryService{
-			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error) {
-				return map[string]v1service.InventoryItemStock{
-					productUUID1.String(): {ProductID: 10, ProductName: "P1", Price: 100},
-				}, nil
 			},
 		}
 		mockPricing := &testutils.MockOrderPricingService{
@@ -385,7 +350,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 
 		svc := newTestOrderService(testOrderServiceDeps{
 			pricingService:   mockPricing,
-			inventoryService: mockInventory,
 			orderRepo:        mockOrderRepo,
 			userRepo:         mockUserRepo,
 			couponPort:       mockCouponPort,
@@ -400,13 +364,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		mockUserRepo := &testutils.MockUserRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
 				return baseUser, nil
-			},
-		}
-		mockInventory := &testutils.MockInventoryService{
-			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error) {
-				return map[string]v1service.InventoryItemStock{
-					productUUID1.String(): {ProductID: 10, ProductName: "P1", Price: 100},
-				}, nil
 			},
 		}
 		mockPricing := &testutils.MockOrderPricingService{
@@ -432,7 +389,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 
 		svc := newTestOrderService(testOrderServiceDeps{
 			pricingService: mockPricing,
-			inventoryService: mockInventory,
 			orderRepo: mockOrderRepo,
 			orderItemRepo: mockOrderItemRepo,
 			userRepo: mockUserRepo,
@@ -447,13 +403,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		mockUserRepo := &testutils.MockUserRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
 				return baseUser, nil
-			},
-		}
-		mockInventory := &testutils.MockInventoryService{
-			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error) {
-				return map[string]v1service.InventoryItemStock{
-					productUUID1.String(): {ProductID: 10, ProductName: "P1", Price: 100},
-				}, nil
 			},
 		}
 		mockPricing := &testutils.MockOrderPricingService{
@@ -484,7 +433,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 
 		svc := newTestOrderService(testOrderServiceDeps{
 			pricingService: mockPricing,
-			inventoryService: mockInventory,
 			orderRepo: mockOrderRepo,
 			orderItemRepo: mockOrderItemRepo,
 			userRepo: mockUserRepo,
@@ -500,13 +448,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		mockUserRepo := &testutils.MockUserRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
 				return baseUser, nil
-			},
-		}
-		mockInventory := &testutils.MockInventoryService{
-			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error) {
-				return map[string]v1service.InventoryItemStock{
-					productUUID1.String(): {ProductID: 10, ProductName: "P1", Price: 100},
-				}, nil
 			},
 		}
 		mockPricing := &testutils.MockOrderPricingService{
@@ -537,7 +478,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 
 		svc := newTestOrderService(testOrderServiceDeps{
 			pricingService:   mockPricing,
-			inventoryService: mockInventory,
 			orderRepo:        mockOrderRepo,
 			orderItemRepo:    mockOrderItemRepo,
 			userRepo:         mockUserRepo,
@@ -561,20 +501,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 
-		mockInventory := &testutils.MockInventoryService{
-			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error) {
-				require.Len(t, items, 2)
-				assert.Equal(t, productUUID1.String(), items[0].ProductUUID)
-				assert.Equal(t, int32(2), items[0].Quantity)
-				assert.Equal(t, productUUID2.String(), items[1].ProductUUID)
-				assert.Equal(t, int32(1), items[1].Quantity)
-
-				return map[string]v1service.InventoryItemStock{
-					productUUID1.String(): {ProductID: 101, ProductName: "Keyboard", Price: 500000},
-					productUUID2.String(): {ProductID: 102, ProductName: "Mouse", Price: 250000},
-				}, nil
-			},
-		}
 
 		mockPricing := &testutils.MockOrderPricingService{
 			CalculateOrderTotalsFunc: func(ctx context.Context, items []v1service.ItemPriceInput, couponCode *string, userID int32, shippingFee float64, now time.Time) (*v1service.OrderPricingResult, error) {
@@ -684,7 +610,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 
 		svc := newTestOrderService(testOrderServiceDeps{
 			pricingService:   mockPricing,
-			inventoryService: mockInventory,
 			orderRepo:        mockOrderRepo,
 			orderItemRepo:    mockOrderItemRepo,
 			userRepo:         mockUserRepo,
@@ -744,14 +669,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 
-		mockInventory := &testutils.MockInventoryService{
-			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error) {
-				return map[string]v1service.InventoryItemStock{
-					productUUID1.String(): {ProductID: 101, ProductName: "Keyboard", Price: 500000},
-					productUUID2.String(): {ProductID: 102, ProductName: "Mouse", Price: 250000},
-				}, nil
-			},
-		}
 
 		mockPricing := &testutils.MockOrderPricingService{
 			CalculateOrderTotalsFunc: func(ctx context.Context, items []v1service.ItemPriceInput, couponCode *string, userID int32, shippingFee float64, now time.Time) (*v1service.OrderPricingResult, error) {
@@ -797,7 +714,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 
 		svc := newTestOrderService(testOrderServiceDeps{
 			pricingService:   mockPricing,
-			inventoryService: mockInventory,
 			orderRepo:        mockOrderRepo,
 			orderItemRepo:    mockOrderItemRepo,
 			userRepo:         mockUserRepo,
@@ -844,14 +760,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 
-		mockInventory := &testutils.MockInventoryService{
-			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error) {
-				return map[string]v1service.InventoryItemStock{
-					productUUID1.String(): {ProductID: 101, ProductName: "Keyboard", Price: 500000},
-					productUUID2.String(): {ProductID: 102, ProductName: "Mouse", Price: 250000},
-				}, nil
-			},
-		}
 
 		mockPricing := &testutils.MockOrderPricingService{
 			CalculateOrderTotalsFunc: func(ctx context.Context, items []v1service.ItemPriceInput, couponCode *string, userID int32, shippingFee float64, now time.Time) (*v1service.OrderPricingResult, error) {
@@ -897,7 +805,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 
 		svc := newTestOrderService(testOrderServiceDeps{
 			pricingService:   mockPricing,
-			inventoryService: mockInventory,
 			orderRepo:        mockOrderRepo,
 			orderItemRepo:    mockOrderItemRepo,
 			userRepo:         mockUserRepo,
@@ -928,14 +835,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 
-		mockInventory := &testutils.MockInventoryService{
-			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error) {
-				return map[string]v1service.InventoryItemStock{
-					productUUID1.String(): {ProductID: 101, ProductName: "Keyboard", Price: 500000},
-					productUUID2.String(): {ProductID: 102, ProductName: "Mouse", Price: 250000},
-				}, nil
-			},
-		}
 
 		mockPricing := &testutils.MockOrderPricingService{
 			CalculateOrderTotalsFunc: func(ctx context.Context, items []v1service.ItemPriceInput, couponCode *string, userID int32, shippingFee float64, now time.Time) (*v1service.OrderPricingResult, error) {
@@ -1013,7 +912,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 
 		svc := newTestOrderService(testOrderServiceDeps{
 			pricingService:      mockPricing,
-			inventoryService:    mockInventory,
 			orderRepo:           mockOrderRepo,
 			orderItemRepo:       mockOrderItemRepo,
 			userRepo:            mockUserRepo,
@@ -1037,13 +935,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		mockUserRepo := &testutils.MockUserRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
 				return baseUser, nil
-			},
-		}
-		mockInventory := &testutils.MockInventoryService{
-			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error) {
-				return map[string]v1service.InventoryItemStock{
-					productUUID1.String(): {ProductID: 10, ProductName: "P1", Price: 100},
-				}, nil
 			},
 		}
 		mockPricing := &testutils.MockOrderPricingService{
@@ -1082,7 +973,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 
 		svc := newTestOrderService(testOrderServiceDeps{
 			pricingService: mockPricing,
-			inventoryService: mockInventory,
 			orderRepo: mockOrderRepo,
 			orderItemRepo: mockOrderItemRepo,
 			userRepo: mockUserRepo,
@@ -1100,13 +990,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		mockUserRepo := &testutils.MockUserRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
 				return baseUser, nil
-			},
-		}
-		mockInventory := &testutils.MockInventoryService{
-			LockAndDeductStockFunc: func(ctx context.Context, items []v1service.DeductItem) (map[string]v1service.InventoryItemStock, error) {
-				return map[string]v1service.InventoryItemStock{
-					productUUID1.String(): {ProductID: 10, ProductName: "P1", Price: 100},
-				}, nil
 			},
 		}
 		mockPricing := &testutils.MockOrderPricingService{
@@ -1139,7 +1022,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		}
 		svc := newTestOrderService(testOrderServiceDeps{
 			pricingService: mockPricing,
-			inventoryService: mockInventory,
 			orderRepo: mockOrderRepo,
 			orderItemRepo: mockOrderItemRepo,
 			userRepo: mockUserRepo,
@@ -1390,17 +1272,17 @@ func TestOrderService_CancelOrder(t *testing.T) {
 				return baseOrderItems, nil
 			},
 		}
-		mockInventory := &testutils.MockInventoryService{
-			RestoreStockFunc: func(ctx context.Context, items []v1service.RestoreItem) error {
+		mockStockPort := &testutils.MockOrderStockPort{
+			RestoreStockWithRefFunc: func(ctx context.Context, items []v1service.RestoreItem, refID string, refType string, actorID *int32, note *string) error {
 				return errors.New("cannot restore stock for deleted product")
 			},
 		}
 
 		svc := newTestOrderService(testOrderServiceDeps{
-			inventoryService: mockInventory,
-			orderRepo: mockOrderRepo,
+			stockPort:     mockStockPort,
+			orderRepo:     mockOrderRepo,
 			orderItemRepo: mockOrderItemRepo,
-			userRepo: mockUserRepo,
+			userRepo:      mockUserRepo,
 		})
 
 		_, err := svc.CancelOrder(ctx, userUUID, orderUUID, nil)
@@ -1427,11 +1309,6 @@ func TestOrderService_CancelOrder(t *testing.T) {
 				return baseOrderItems, nil
 			},
 		}
-		mockInventory := &testutils.MockInventoryService{
-			RestoreStockFunc: func(ctx context.Context, items []v1service.RestoreItem) error {
-				return nil
-			},
-		}
 		mockTracking := &testutils.MockTrackingRepository{
 			InsertEventFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.InsertTrackingEventParams) (sqlc.OrderTrackingEvent, error) {
 				return sqlc.OrderTrackingEvent{}, errors.New("tracking insert failed")
@@ -1439,7 +1316,6 @@ func TestOrderService_CancelOrder(t *testing.T) {
 		}
 
 		svc := newTestOrderService(testOrderServiceDeps{
-			inventoryService: mockInventory,
 			orderRepo: mockOrderRepo,
 			orderItemRepo: mockOrderItemRepo,
 			userRepo: mockUserRepo,
@@ -1481,12 +1357,6 @@ func TestOrderService_CancelOrder(t *testing.T) {
 				return baseOrderItems, nil
 			},
 		}
-		mockInventory := &testutils.MockInventoryService{
-			RestoreStockFunc: func(ctx context.Context, items []v1service.RestoreItem) error {
-				restoredItems = items
-				return nil
-			},
-		}
 		mockTracking := &testutils.MockTrackingRepository{
 			InsertEventFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.InsertTrackingEventParams) (sqlc.OrderTrackingEvent, error) {
 				trackingEvent = params
@@ -1504,8 +1374,15 @@ func TestOrderService_CancelOrder(t *testing.T) {
 			},
 		}
 
+		mockStockPort := &testutils.MockOrderStockPort{
+			RestoreStockWithRefFunc: func(ctx context.Context, items []v1service.RestoreItem, refID string, refType string, actorID *int32, note *string) error {
+				restoredItems = items
+				return nil
+			},
+		}
+
 		svc := newTestOrderService(testOrderServiceDeps{
-			inventoryService: mockInventory,
+			stockPort:        mockStockPort,
 			orderRepo:        mockOrderRepo,
 			orderItemRepo:    mockOrderItemRepo,
 			userRepo:         mockUserRepo,
@@ -1569,11 +1446,6 @@ func TestOrderService_CancelOrder(t *testing.T) {
 				return baseOrderItems, nil
 			},
 		}
-		mockInventory := &testutils.MockInventoryService{
-			RestoreStockFunc: func(ctx context.Context, items []v1service.RestoreItem) error {
-				return nil
-			},
-		}
 		mockTracking := &testutils.MockTrackingRepository{
 			InsertEventFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.InsertTrackingEventParams) (sqlc.OrderTrackingEvent, error) {
 				trackingEvent = params
@@ -1590,7 +1462,6 @@ func TestOrderService_CancelOrder(t *testing.T) {
 		}
 
 		svc := newTestOrderService(testOrderServiceDeps{
-			inventoryService: mockInventory,
 			orderRepo:        mockOrderRepo,
 			orderItemRepo:    mockOrderItemRepo,
 			userRepo:         mockUserRepo,
@@ -1630,11 +1501,6 @@ func TestOrderService_CancelOrder(t *testing.T) {
 				return baseOrderItems, nil
 			},
 		}
-		mockInventory := &testutils.MockInventoryService{
-			RestoreStockFunc: func(ctx context.Context, items []v1service.RestoreItem) error {
-				return nil
-			},
-		}
 		mockTracking := &testutils.MockTrackingRepository{
 			InsertEventFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.InsertTrackingEventParams) (sqlc.OrderTrackingEvent, error) {
 				return sqlc.OrderTrackingEvent{EventID: 1}, nil
@@ -1642,7 +1508,6 @@ func TestOrderService_CancelOrder(t *testing.T) {
 		}
 
 		svc := newTestOrderService(testOrderServiceDeps{
-			inventoryService: mockInventory,
 			orderRepo:        mockOrderRepo,
 			orderItemRepo:    mockOrderItemRepo,
 			userRepo:         mockUserRepo,
@@ -1729,20 +1594,6 @@ func TestOrderService_CancelExpiredOrder(t *testing.T) {
 			},
 		}
 
-		mockInventory := &testutils.MockInventoryService{
-			RestoreStockWithRefFunc: func(ctx context.Context, items []v1service.RestoreItem, refID, refType string, actorID *int32, note *string) error {
-				stockRestored = true
-				assert.Equal(t, "ORD-EXP-123", refID)
-				assert.Equal(t, "order_cancel", refType)
-				assert.Nil(t, actorID)
-				assert.NotNil(t, note)
-				assert.Contains(t, *note, "Payment expired")
-				assert.Len(t, items, 1)
-				assert.Equal(t, int32(101), items[0].ProductID)
-				assert.Equal(t, int32(2), items[0].Quantity)
-				return nil
-			},
-		}
 
 		mockTracking := &testutils.MockTrackingRepository{
 			InsertEventFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.InsertTrackingEventParams) (sqlc.OrderTrackingEvent, error) {
@@ -1762,10 +1613,17 @@ func TestOrderService_CancelExpiredOrder(t *testing.T) {
 			},
 		}
 
+		mockStockPort := &testutils.MockOrderStockPort{
+			RestoreStockWithRefFunc: func(ctx context.Context, items []v1service.RestoreItem, refID string, refType string, actorID *int32, note *string) error {
+				stockRestored = true
+				return nil
+			},
+		}
+
 		svc := newTestOrderService(testOrderServiceDeps{
+			stockPort:           mockStockPort,
 			orderRepo:           mockOrderRepo,
 			orderItemRepo:       mockOrderItemRepo,
-			inventoryService:    mockInventory,
 			trackingRepo:        mockTracking,
 			notificationService: mockNotification,
 		})

@@ -106,8 +106,18 @@ type CatalogPort interface {
 	GetProductsForCheckout(ctx context.Context, productUUIDs []uuid.UUID) (map[string]CheckoutProductSnapshot, error)
 }
 
+type DeductItem struct {
+	ProductUUID string
+	Quantity    int32
+}
+
+type RestoreItem struct {
+	ProductID int32
+	Quantity  int32
+}
+
 // OrderStockPort manages stock reservation and restoration.
-// Satisfied by InventoryService (or OrderStockAdapter).
+// Satisfied by OrderStockGRPCAdapter.
 type OrderStockPort interface {
 	LockAndDeductStockWithRef(ctx context.Context, items []DeductItem, refID string, refType string, actorID *int32, note *string) error
 	RestoreStockWithRef(ctx context.Context, items []RestoreItem, refID string, refType string, actorID *int32, note *string) error
