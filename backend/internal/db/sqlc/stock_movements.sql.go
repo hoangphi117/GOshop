@@ -61,6 +61,7 @@ func (q *Queries) CountStockMovements(ctx context.Context, arg CountStockMovemen
 const createStockMovement = `-- name: CreateStockMovement :one
 INSERT INTO stock_movements (
     product_id,
+    product_uuid,
     change_type,
     quantity_change,
     stock_before,
@@ -70,7 +71,7 @@ INSERT INTO stock_movements (
     actor_id,
     note
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+VALUES ($1, (SELECT product_uuid FROM products WHERE product_id = $1), $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING movement_id, movement_uuid, product_id, change_type, quantity_change, stock_before, stock_after, reference_id, reference_type, actor_id, actor_uuid, actor_name, note, created_at, product_uuid
 `
 

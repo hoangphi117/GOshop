@@ -2,6 +2,7 @@ package v1service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -70,17 +72,28 @@ func (s *inventoryService) LockAndDeductStockWithRef(
 		return nil, utils.NewError(utils.ErrCodeBadRequest, "Item list cannot be empty")
 	}
 
-	sortedItems := make([]DeductItem, len(items))
-	copy(sortedItems, items)
+	// Consolidate duplicate products if any
+	consolidatedMap := make(map[string]int32)
+	for _, item := range items {
+		if item.Quantity <= 0 {
+			return nil, utils.NewError(utils.ErrCodeBadRequest, "Quantity must be greater than zero")
+		}
+		consolidatedMap[item.ProductUUID] += item.Quantity
+	}
+
+	sortedItems := make([]DeductItem, 0, len(consolidatedMap))
+	for pUUID, qty := range consolidatedMap {
+		sortedItems = append(sortedItems, DeductItem{
+			ProductUUID: pUUID,
+			Quantity:    qty,
+		})
+	}
 	sort.Slice(sortedItems, func(i, j int) bool {
 		return sortedItems[i].ProductUUID < sortedItems[j].ProductUUID
 	})
 
 	uuids := make([]uuid.UUID, len(sortedItems))
 	for i, item := range sortedItems {
-		if item.Quantity <= 0 {
-			return nil, utils.NewError(utils.ErrCodeBadRequest, "Quantity must be greater than zero")
-		}
 		parsed, err := uuid.Parse(item.ProductUUID)
 		if err != nil {
 			return nil, utils.NewError(utils.ErrCodeBadRequest, "Invalid product UUID format: "+item.ProductUUID)
@@ -95,18 +108,18 @@ func (s *inventoryService) LockAndDeductStockWithRef(
 		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to fetch products", err)
 	}
 
-	if len(products) != len(items) {
+	if len(products) != len(sortedItems) {
 		return nil, utils.NewError(utils.ErrCodeNotFound, "One or more products not found")
 	}
 
 	productMap := make(map[string]InventoryItemStock, len(products))
 	for _, p := range products {
 		productMap[p.ProductUuid.String()] = InventoryItemStock{
-			ProductID:   p.ProductID,
-			ProductUUID: p.ProductUuid,
-			ProductName: p.ProductName,
-			Price:       utils.NumericToFloat(p.ProductPrice),
-			Stock:       utils.Int32Value(p.ProductStock),
+			ProductID:       p.ProductID,
+			ProductUUID:     p.ProductUuid,
+			ProductName:     p.ProductName,
+			Price:           utils.NumericToFloat(p.ProductPrice),
+			Stock:           utils.Int32Value(p.ProductStock),
 			Status:          p.ProductStatus,
 			SKU:             p.ProductSku,
 			ProductSlug:     p.ProductSlug,
@@ -146,7 +159,7 @@ func (s *inventoryService) LockAndDeductStockWithRef(
 
 		// Record stock movement if repository is available
 		if s.stockMovementRepo != nil {
-			_, _ = s.stockMovementRepo.Create(ctx, tx, sqlc.CreateStockMovementParams{
+			_, err := s.stockMovementRepo.Create(ctx, tx, sqlc.CreateStockMovementParams{
 				ProductID:      product.ProductID,
 				ChangeType:     "ORDER_PLACED",
 				QuantityChange: -item.Quantity,
@@ -157,6 +170,13 @@ func (s *inventoryService) LockAndDeductStockWithRef(
 				ActorID:        actorID,
 				Note:           note,
 			})
+			if err != nil {
+				var pgErr *pgconn.PgError
+				if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+					return nil, utils.NewError(utils.ErrCodeConflict, fmt.Sprintf("Stock already deducted for reference %s and product %s", utils.NilToString(defaultRefID), item.ProductUUID))
+				}
+				return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to record stock movement", err)
+			}
 		}
 
 		// Trigger low stock alert if inventory drops to or below threshold
@@ -186,9 +206,24 @@ func (s *inventoryService) RestoreStockWithRef(
 	if len(items) == 0 {
 		return nil
 	}
+
+	// Consolidate duplicate products if any
+	consolidatedMap := make(map[int32]int32)
+	for _, item := range items {
+		if item.Quantity <= 0 {
+			continue
+		}
+		consolidatedMap[item.ProductID] += item.Quantity
+	}
+
 	// Sort items by ProductID to avoid deadlocks
-	sortedItems := make([]RestoreItem, len(items))
-	copy(sortedItems, items)
+	sortedItems := make([]RestoreItem, 0, len(consolidatedMap))
+	for pID, qty := range consolidatedMap {
+		sortedItems = append(sortedItems, RestoreItem{
+			ProductID: pID,
+			Quantity:  qty,
+		})
+	}
 	sort.Slice(sortedItems, func(i, j int) bool {
 		return sortedItems[i].ProductID < sortedItems[j].ProductID
 	})
@@ -210,10 +245,6 @@ func (s *inventoryService) RestoreStockWithRef(
 	}
 
 	for _, item := range sortedItems {
-		if item.Quantity <= 0 {
-			continue
-		}
-
 		// Fetch current stock for audit trail
 		var currentStock int32
 		if s.stockMovementRepo != nil {
@@ -227,7 +258,7 @@ func (s *inventoryService) RestoreStockWithRef(
 		}
 
 		if s.stockMovementRepo != nil {
-			_, _ = s.stockMovementRepo.Create(ctx, tx, sqlc.CreateStockMovementParams{
+			_, err := s.stockMovementRepo.Create(ctx, tx, sqlc.CreateStockMovementParams{
 				ProductID:      item.ProductID,
 				ChangeType:     changeType,
 				QuantityChange: item.Quantity,
@@ -238,6 +269,13 @@ func (s *inventoryService) RestoreStockWithRef(
 				ActorID:        actorID,
 				Note:           note,
 			})
+			if err != nil {
+				var pgErr *pgconn.PgError
+				if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+					return utils.NewError(utils.ErrCodeConflict, fmt.Sprintf("Stock already restored for reference %s and product ID %d", utils.NilToString(defaultRefID), item.ProductID))
+				}
+				return utils.WrapError(utils.ErrCodeInternal, "Failed to record stock movement", err)
+			}
 		}
 	}
 	return nil

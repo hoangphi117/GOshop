@@ -1,6 +1,7 @@
 -- name: CreateStockMovement :one
 INSERT INTO stock_movements (
     product_id,
+    product_uuid,
     change_type,
     quantity_change,
     stock_before,
@@ -10,7 +11,7 @@ INSERT INTO stock_movements (
     actor_id,
     note
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+VALUES ($1, (SELECT product_uuid FROM products WHERE product_id = $1), $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING *;
 
 -- name: ListStockMovements :many

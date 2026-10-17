@@ -88,8 +88,22 @@ SELECT count(*) FROM coupon_usages
 WHERE coupon_usage_coupon_id = $1 AND coupon_usage_user_id = $2;
 
 -- name: RecordCouponUsage :one
-INSERT INTO coupon_usages (coupon_usage_coupon_id, coupon_usage_user_id, coupon_usage_order_id)
-VALUES ($1, $2, $3)
+INSERT INTO coupon_usages (
+    coupon_usage_coupon_id,
+    coupon_usage_user_id,
+    coupon_usage_order_id,
+    coupon_usage_coupon_uuid,
+    coupon_usage_user_uuid,
+    coupon_usage_order_uuid
+)
+VALUES (
+    $1,
+    $2,
+    $3,
+    (SELECT coupon_uuid FROM coupons WHERE coupon_id = $1),
+    (SELECT user_uuid FROM users WHERE user_id = $2),
+    (SELECT order_uuid FROM orders WHERE order_id = $3)
+)
 RETURNING *;
 
 -- name: IncrementCouponUsedCount :one

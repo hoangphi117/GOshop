@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -207,6 +208,75 @@ func TestInventoryService_LockAndDeductStock(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, published, "Expected low stock event to be published to RabbitMQ")
 	})
+
+	t.Run("Case 8: Idempotency conflict (23505) - returns conflict error", func(t *testing.T) {
+		mockProductRepo := &testutils.MockProductRepository{
+			GetByUUIDsFunc: func(ctx context.Context, tx pgx.Tx, uuids []uuid.UUID) ([]sqlc.GetByUUIDsForUpdateRow, error) {
+				return []sqlc.GetByUUIDsForUpdateRow{
+					{
+						ProductID:     106,
+						ProductUuid:   productUUID1,
+						ProductName:   "Test Item",
+						ProductStock:  utils.ConvertToInt32Pointer(10),
+						ProductStatus: v1service.ProductStatusActive,
+					},
+				}, nil
+			},
+			DeductStockFunc: func(ctx context.Context, tx pgx.Tx, productID int32, quantity int32) error {
+				return nil
+			},
+		}
+
+		mockStockMovementRepo := &testutils.MockStockMovementRepository{
+			CreateFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.CreateStockMovementParams) (sqlc.StockMovement, error) {
+				return sqlc.StockMovement{}, &pgconn.PgError{Code: "23505"}
+			},
+		}
+
+		svc := v1service.NewInventoryService(mockProductRepo, mockStockMovementRepo, nil, nil)
+		items := []v1service.DeductItem{
+			{ProductUUID: productUUID1.String(), Quantity: 1},
+		}
+
+		_, err := svc.LockAndDeductStockWithRef(ctx, items, "ORD-12345", "order", nil, nil)
+		require.Error(t, err)
+		appErr, ok := err.(*utils.AppError)
+		require.True(t, ok)
+		assert.Equal(t, utils.ErrCodeConflict, appErr.Code)
+		assert.Contains(t, err.Error(), "Stock already deducted")
+	})
+
+	t.Run("Case 9: Consolidate duplicate products before deduct", func(t *testing.T) {
+		var deductedQty int32
+		mockProductRepo := &testutils.MockProductRepository{
+			GetByUUIDsFunc: func(ctx context.Context, tx pgx.Tx, uuids []uuid.UUID) ([]sqlc.GetByUUIDsForUpdateRow, error) {
+				assert.Len(t, uuids, 1) // deduplicated
+				return []sqlc.GetByUUIDsForUpdateRow{
+					{
+						ProductID:     107,
+						ProductUuid:   productUUID1,
+						ProductName:   "Consolidated Item",
+						ProductStock:  utils.ConvertToInt32Pointer(20),
+						ProductStatus: v1service.ProductStatusActive,
+					},
+				}, nil
+			},
+			DeductStockFunc: func(ctx context.Context, tx pgx.Tx, productID int32, quantity int32) error {
+				deductedQty = quantity
+				return nil
+			},
+		}
+
+		svc := v1service.NewInventoryService(mockProductRepo, nil, nil, nil)
+		items := []v1service.DeductItem{
+			{ProductUUID: productUUID1.String(), Quantity: 2},
+			{ProductUUID: productUUID1.String(), Quantity: 3},
+		}
+
+		_, err := svc.LockAndDeductStock(ctx, items)
+		require.NoError(t, err)
+		assert.Equal(t, int32(5), deductedQty)
+	})
 }
 
 func TestInventoryService_RestoreStock(t *testing.T) {
@@ -233,4 +303,51 @@ func TestInventoryService_RestoreStock(t *testing.T) {
 		assert.Equal(t, int32(2), restored[101])
 		assert.Equal(t, int32(3), restored[102])
 	})
+
+	t.Run("Idempotency conflict (23505) - returns conflict error", func(t *testing.T) {
+		mockProductRepo := &testutils.MockProductRepository{
+			RestoreStockFunc: func(ctx context.Context, tx pgx.Tx, productID int32, quantity int32) error {
+				return nil
+			},
+		}
+
+		mockStockMovementRepo := &testutils.MockStockMovementRepository{
+			CreateFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.CreateStockMovementParams) (sqlc.StockMovement, error) {
+				return sqlc.StockMovement{}, &pgconn.PgError{Code: "23505"}
+			},
+		}
+
+		svc := v1service.NewInventoryService(mockProductRepo, mockStockMovementRepo, nil, nil)
+		items := []v1service.RestoreItem{
+			{ProductID: 101, Quantity: 2},
+		}
+
+		err := svc.RestoreStockWithRef(ctx, items, "ORD-12345", "order_cancel", nil, nil)
+		require.Error(t, err)
+		appErr, ok := err.(*utils.AppError)
+		require.True(t, ok)
+		assert.Equal(t, utils.ErrCodeConflict, appErr.Code)
+		assert.Contains(t, err.Error(), "Stock already restored")
+	})
+
+	t.Run("Consolidates duplicate items on restore", func(t *testing.T) {
+		restored := make(map[int32]int32)
+		mockRepo := &testutils.MockProductRepository{
+			RestoreStockFunc: func(ctx context.Context, tx pgx.Tx, productID int32, quantity int32) error {
+				restored[productID] += quantity
+				return nil
+			},
+		}
+
+		svc := v1service.NewInventoryService(mockRepo, nil, nil, nil)
+		items := []v1service.RestoreItem{
+			{ProductID: 101, Quantity: 2},
+			{ProductID: 101, Quantity: 3},
+		}
+
+		err := svc.RestoreStock(ctx, items)
+		require.NoError(t, err)
+		assert.Equal(t, int32(5), restored[101])
+	})
 }
+
