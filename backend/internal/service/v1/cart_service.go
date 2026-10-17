@@ -11,6 +11,7 @@ import (
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
+	catalogcontract "goshop/services/catalog/contract"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,22 +20,34 @@ import (
 )
 
 type cartService struct {
-	repo        repository.CartRepository
-	userRepo    repository.UserReader
-	productRepo repository.ProductRepository
-	cache       cache.RedisCacheService
+	repo          repository.CartRepository
+	userRepo      repository.UserReader
+	productRepo   repository.ProductRepository
+	catalogClient catalogcontract.CatalogClient
+	cache         cache.RedisCacheService
 }
 
-func NewCartService(repo repository.CartRepository, userRepo repository.UserReader, productRepo repository.ProductRepository, redisClient *redis.Client) CartService {
+func NewCartService(
+	repo repository.CartRepository,
+	userRepo repository.UserReader,
+	productRepo repository.ProductRepository,
+	redisClient *redis.Client,
+	catalogClient ...catalogcontract.CatalogClient,
+) CartService {
 	var cacheService cache.RedisCacheService
 	if redisClient != nil {
 		cacheService = cache.NewRedisCacheService(redisClient)
 	}
+	var cClient catalogcontract.CatalogClient
+	if len(catalogClient) > 0 {
+		cClient = catalogClient[0]
+	}
 	return &cartService{
-		repo:        repo,
-		userRepo:    userRepo,
-		productRepo: productRepo,
-		cache:       cacheService,
+		repo:          repo,
+		userRepo:      userRepo,
+		productRepo:   productRepo,
+		catalogClient: cClient,
+		cache:         cacheService,
 	}
 }
 
@@ -89,19 +102,41 @@ func (cs *cartService) invalidateCartCache(userUUID uuid.UUID) {
 }
 
 func (cs *cartService) validateProductForCart(ctx context.Context, productUUID uuid.UUID) (sqlc.GetProductByUUIDRow, error) {
-	product, err := cs.productRepo.GetByUUID(ctx, productUUID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+	if cs.catalogClient != nil {
+		p, err := cs.catalogClient.GetProductByUUID(ctx, productUUID.String())
+		if err != nil {
 			return sqlc.GetProductByUUIDRow{}, utils.NewError(utils.ErrCodeNotFound, "product not found")
 		}
-		return sqlc.GetProductByUUIDRow{}, utils.WrapError(utils.ErrCodeInternal, "failed to get product", err)
+		if p.ProductStatus != 1 {
+			return sqlc.GetProductByUUIDRow{}, utils.NewError(utils.ErrCodeBadRequest, "product is unavailable for purchase")
+		}
+		stock := p.ProductStock
+		return sqlc.GetProductByUUIDRow{
+			ProductID:     p.ProductID,
+			ProductUuid:   productUUID,
+			ProductName:   p.ProductName,
+			ProductStatus: p.ProductStatus,
+			ProductStock:  &stock,
+		}, nil
 	}
 
-	if product.ProductStatus != ProductStatusActive {
-		return sqlc.GetProductByUUIDRow{}, utils.NewError(utils.ErrCodeBadRequest, "product is unavailable for purchase")
+	if cs.productRepo != nil {
+		product, err := cs.productRepo.GetByUUID(ctx, productUUID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+				return sqlc.GetProductByUUIDRow{}, utils.NewError(utils.ErrCodeNotFound, "product not found")
+			}
+			return sqlc.GetProductByUUIDRow{}, utils.WrapError(utils.ErrCodeInternal, "failed to get product", err)
+		}
+
+		if product.ProductStatus != ProductStatusActive {
+			return sqlc.GetProductByUUIDRow{}, utils.NewError(utils.ErrCodeBadRequest, "product is unavailable for purchase")
+		}
+
+		return product, nil
 	}
 
-	return product, nil
+	return sqlc.GetProductByUUIDRow{}, utils.NewError(utils.ErrCodeInternal, "no product repository or catalog client available")
 }
 
 // -------------------------------------------------------------------------

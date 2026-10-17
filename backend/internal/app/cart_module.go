@@ -21,7 +21,7 @@ func NewCartModule(ctx *ModuleContext, svc ...v1service.CartService) *CartModule
 		cartRepo := repository.NewSqlCartRepository(ctx.DB)
 		userRepo := repository.NewSqlUserRepository(ctx.DB)
 		productRepo := repository.NewSqlProductRepository(ctx.DB)
-		cartService = v1service.NewCartService(cartRepo, userRepo, productRepo, ctx.Redis)
+		cartService = v1service.NewCartService(cartRepo, userRepo, productRepo, ctx.Redis, ctx.CatalogClient)
 	}
 
 	// Initialize handler

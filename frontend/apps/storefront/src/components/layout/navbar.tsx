@@ -115,8 +115,8 @@ export function Navbar() {
       .then((json) => {
         if (json?.data && Array.isArray(json.data)) {
           const cats = json.data.slice(0, 5).map((c: any, idx: number) => ({
-            name: c.category_name,
-            href: `/products?category=${c.slug}`,
+            name: c.category_name || c.name || `Category ${idx}`,
+            href: `/products?category=${c.slug || c.uuid || idx}`,
             badge: idx === 0 ? "Popular" : undefined,
           }));
           setApiCategories(cats);
@@ -416,11 +416,11 @@ export function Navbar() {
               <span>All Collections</span>
             </Link>
 
-            {navCategories.map((cat) => {
+            {navCategories.map((cat, idx) => {
               const Icon = cat.icon;
               return (
                 <Link
-                  key={cat.name}
+                  key={`${cat.href}-${cat.name}-${idx}`}
                   href={cat.href}
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all font-body shrink-0 ${
                     cat.isHighlight
@@ -462,11 +462,11 @@ export function Navbar() {
                 Shop Collections
               </p>
               <div className="grid grid-cols-2 gap-2">
-                {navCategories.map((cat) => {
+                {navCategories.map((cat, idx) => {
                   const Icon = cat.icon;
                   return (
                     <Link
-                      key={cat.name}
+                      key={`mobile-${cat.href}-${cat.name}-${idx}`}
                       href={cat.href}
                       onClick={() => setMobileMenuOpen(false)}
                       className="p-3 rounded-xl bg-slate-50 hover:bg-[#E6F7FB] border border-slate-200/80 flex items-center gap-2.5 text-xs font-bold text-slate-800"

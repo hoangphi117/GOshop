@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"goshop/pkg/storage"
 	"goshop/pkg/ws"
+	catalogcontract "goshop/services/catalog/contract"
 	inventorycontract "goshop/services/inventory/contract"
 	"net/http"
 	"os"
@@ -51,16 +52,17 @@ type Application struct {
 }
 
 type ModuleContext struct {
-	DB             sqlc.Querier
-	ReadDB         sqlc.Querier
-	IdentityDB     sqlc.Querier
-	Redis          *redis.Client
-	TxManager      db.TxManager
-	Storage        storage.StorageService
-	Search         *search.Client
-	IdentityClient client.IdentityClient
-	RabbitMQ       rabbitmq.RabbitMQService
+	DB              sqlc.Querier
+	ReadDB          sqlc.Querier
+	IdentityDB      sqlc.Querier
+	Redis           *redis.Client
+	TxManager       db.TxManager
+	Storage         storage.StorageService
+	Search          *search.Client
+	IdentityClient  client.IdentityClient
+	RabbitMQ        rabbitmq.RabbitMQService
 	InventoryClient inventorycontract.InventoryClient
+	CatalogClient   catalogcontract.CatalogClient
 }
 
 func NewApplication(cfg *config.Config) (*Application, error) {
@@ -194,7 +196,14 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	// Cross-domain Core Repositories & Service Singletons
 	productRepo := repository.NewSqlProductRepository(db.DB)
 	cartRepo := repository.NewSqlCartRepository(db.DB)
-	cartService := v1service.NewCartService(cartRepo, userReader, productRepo, redisClient)
+
+	catalogTarget := utils.GetEnv("CATALOG_GRPC_TARGET", "localhost:50055")
+	grpcCatalogClient, err := catalogcontract.NewGRPCCatalogClient(catalogTarget)
+	if err != nil {
+		logger.Log.Warn().Err(err).Str("addr", catalogTarget).Msg("Failed to initialize Catalog gRPC client")
+	}
+
+	cartService := v1service.NewCartService(cartRepo, userReader, productRepo, redisClient, grpcCatalogClient)
 
 	grpcPaymentClient, err := client.NewGRPCPaymentClient(cfg.PaymentGRPCAddr)
 	if err != nil {
@@ -211,16 +220,17 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	}
 
 	ctx := &ModuleContext{
-		DB:             db.DB,
-		ReadDB:         db.GetReadDB(),
-		IdentityDB:     db.GetIdentityDB(),
-		Redis:          redisClient,
-		TxManager:      txManager,
-		Storage:        storageService,
-		Search:         searchClient,
-		IdentityClient: identityClient,
-		RabbitMQ:       rabbitmqService,
+		DB:              db.DB,
+		ReadDB:          db.GetReadDB(),
+		IdentityDB:      db.GetIdentityDB(),
+		Redis:           redisClient,
+		TxManager:       txManager,
+		Storage:         storageService,
+		Search:          searchClient,
+		IdentityClient:  identityClient,
+		RabbitMQ:        rabbitmqService,
 		InventoryClient: grpcInventoryClient,
+		CatalogClient:   grpcCatalogClient,
 	}
 
 	orderModuleDeps := OrderModuleDeps{

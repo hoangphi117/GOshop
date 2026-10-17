@@ -44,7 +44,7 @@ func NewOrderModule(
 	userReader := client.NewIdentityUserReader(ctx.IdentityClient, userRepo)
 
 	customerReader := v1service.NewOrderCustomerAdapter(userReader)
-	catalogPort := v1service.NewOrderCatalogAdapter(productRepo)
+	catalogPort := v1service.NewOrderCatalogAdapter(productRepo, ctx.CatalogClient)
 	couponTarget := utils.GetEnv("COUPON_GRPC_TARGET", "localhost:50053")
 	grpcClient, err := couponcontract.NewGRPCCouponClient(couponTarget)
 	if err != nil {

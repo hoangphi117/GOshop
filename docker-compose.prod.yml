@@ -39,6 +39,7 @@ services:
       - PAYMENT_SERVICE_URL=http://payment-service:8083
       - PAYMENT_GRPC_ADDR=payment-service:50052
       - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:?INTERNAL_API_SECRET must be set in production}
+      - S3_ENDPOINT=${S3_ENDPOINT:-http://minio:9000}
     depends_on:
       postgres:
         condition: service_healthy
@@ -72,6 +73,7 @@ services:
       - PAYMENT_SERVICE_URL=http://payment-service:8083
       - PAYMENT_GRPC_ADDR=payment-service:50052
       - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:?INTERNAL_API_SECRET must be set in production}
+      - S3_ENDPOINT=${S3_ENDPOINT:-http://minio:9000}
     depends_on:
       postgres:
         condition: service_healthy

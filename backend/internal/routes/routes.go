@@ -207,6 +207,43 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 		}
 	}
 
+	// API Gateway reverse proxy for Catalog microservice endpoints
+	catalogURL := utils.GetEnv("CATALOG_SERVICE_URL", "")
+	isCatalogProxied := false
+	var catalogProxyHandler func(ctx *gin.Context)
+	if catalogURL != "" {
+		if parsedCatalogURL, err := url.Parse(catalogURL); err == nil && parsedCatalogURL.Scheme != "" {
+			catalogProxy := httputil.NewSingleHostReverseProxy(parsedCatalogURL)
+			transport := http.DefaultTransport.(*http.Transport).Clone()
+			transport.DisableCompression = true
+			catalogProxy.Transport = transport
+
+			catalogProxy.ModifyResponse = func(resp *http.Response) error {
+				resp.Header.Del("Access-Control-Allow-Origin")
+				resp.Header.Del("Access-Control-Allow-Credentials")
+				resp.Header.Del("Access-Control-Allow-Methods")
+				resp.Header.Del("Access-Control-Allow-Headers")
+				resp.Header.Del("Access-Control-Max-Age")
+				return nil
+			}
+			catalogProxyHandler = func(ctx *gin.Context) {
+				ctx.Request.Host = parsedCatalogURL.Host
+				ctx.Request.Header.Del("Accept-Encoding")
+				catalogProxy.ServeHTTP(ctx.Writer, ctx.Request)
+			}
+
+			// Proxy categories & admin endpoints directly (no sub-route conflicts)
+			v1api.Any("/categories", catalogProxyHandler)
+			v1api.Any("/categories/*any", catalogProxyHandler)
+			v1api.Any("/admin/products", catalogProxyHandler)
+			v1api.Any("/admin/products/*any", catalogProxyHandler)
+			v1api.Any("/admin/categories", catalogProxyHandler)
+			v1api.Any("/admin/categories/*any", catalogProxyHandler)
+			// Public /products is routed in NoRoute to avoid wildcard conflict with ReviewPublicRoutes (/:uuid/reviews)
+			isCatalogProxied = true
+		}
+	}
+
 	public := v1api.Group("")
 
 	protected := v1api.Group("")
@@ -217,6 +254,14 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 	admin.Use(middleware.RequireRole(middleware.RoleAdmin, middleware.RoleModerator))
 
 	for _, route := range normalRoutes {
+		if isCatalogProxied {
+			if _, ok := route.(*v1routes.CategoryRoutes); ok {
+				continue
+			}
+			if _, ok := route.(*v1routes.ProductRoutes); ok {
+				continue
+			}
+		}
 		switch r := route.(type) {
 		case *v1routes.CategoryRoutes, *v1routes.ProductRoutes,
 			*v1routes.ReviewPublicRoutes,
@@ -229,11 +274,27 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 	}
 
 	for _, route := range adminRoutes {
+		if isCatalogProxied {
+			if _, ok := route.(*v1routes.AdminCategoryRoutes); ok {
+				continue
+			}
+			if _, ok := route.(*v1routes.AdminProductRoutes); ok {
+				continue
+			}
+		}
 		route.Register(admin)
 	}
 
 	r.NoRoute(func(ctx *gin.Context) {
 		p := ctx.Request.URL.Path
+		if isCatalogProxied && catalogProxyHandler != nil && (strings.HasPrefix(p, "/api/v1/products") || strings.HasPrefix(p, "/products")) {
+			if !strings.HasPrefix(p, "/api/v1") {
+				ctx.Request.URL.Path = "/api/v1" + p
+			}
+			catalogProxyHandler(ctx)
+			return
+		}
+
 		if !strings.HasPrefix(p, "/api/v1") && !strings.HasPrefix(p, "/internal") && !strings.HasPrefix(p, "/swagger") && !strings.HasPrefix(p, "/.well-known") {
 			ctx.Request.URL.Path = "/api/v1" + p
 			r.HandleContext(ctx)

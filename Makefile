@@ -5,14 +5,17 @@ MIGRATION_CORE_DIR=backend/internal/db/migrations_core
 MIGRATION_IDENTITY_DIR=backend/internal/db/migrations_identity
 MIGRATION_COUPON_DIR=backend/services/coupon/internal/migrations
 MIGRATION_INVENTORY_DIR=backend/services/inventory/internal/migrations
+MIGRATION_CATALOG_DIR=backend/services/catalog/internal/migrations
 IDENTITY_DB_NAME?=shopping_identity
 COUPON_DB_NAME?=shopping_coupon
 INVENTORY_DB_NAME?=shopping_inventory
+CATALOG_DB_NAME?=shopping_catalog
 
 CONNECTION_STRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=${DB_SSL_MODE}
 IDENTITY_CONNECTION_STRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${IDENTITY_DB_NAME}?sslmode=${DB_SSL_MODE}
 COUPON_CONNECTION_STRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${COUPON_DB_NAME}?sslmode=${DB_SSL_MODE}
 INVENTORY_CONNECTION_STRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${INVENTORY_DB_NAME}?sslmode=${DB_SSL_MODE}
+CATALOG_CONNECTION_STRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${CATALOG_DB_NAME}?sslmode=${DB_SSL_MODE}
 
 PROD_COMPOSE=docker-compose.prod.yml
 NOAPP_COMPOSE=docker-compose.noapp.yml
@@ -80,6 +83,12 @@ inventory:
 build-inventory:
 	cd backend && go build -o bin/inventory ./cmd/inventory
 
+catalog:
+	cd backend && go run ./cmd/catalog
+
+build-catalog:
+	cd backend && go build -o bin/catalog ./cmd/catalog
+
 
 run-binary:
 	./backend/bin/goshop
@@ -97,7 +106,7 @@ migrate-create:
 migrate-identity-create:
 	migrate create -ext sql -dir ${MIGRATION_IDENTITY_DIR} -seq ${NAME}
 
-migrate-up: migrate-core-up migrate-identity-up migrate-coupon-up migrate-inventory-up
+migrate-up: migrate-core-up migrate-identity-up migrate-coupon-up migrate-inventory-up migrate-catalog-up
 
 migrate-core-up:
 	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" up
@@ -111,8 +120,11 @@ migrate-coupon-up:
 migrate-inventory-up:
 	migrate -path ${MIGRATION_INVENTORY_DIR} -database "${INVENTORY_CONNECTION_STRING}" up
 
+migrate-catalog-up:
+	migrate -path ${MIGRATION_CATALOG_DIR} -database "${CATALOG_CONNECTION_STRING}" up
+
 # Rollback the last migration
-migrate-down: migrate-core-down migrate-identity-down migrate-coupon-down migrate-inventory-down
+migrate-down: migrate-core-down migrate-identity-down migrate-coupon-down migrate-inventory-down migrate-catalog-down
 
 migrate-core-down:
 	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" down 1
@@ -125,6 +137,9 @@ migrate-coupon-down:
 
 migrate-inventory-down:
 	migrate -path ${MIGRATION_INVENTORY_DIR} -database "${INVENTORY_CONNECTION_STRING}" down 1
+
+migrate-catalog-down:
+	migrate -path ${MIGRATION_CATALOG_DIR} -database "${CATALOG_CONNECTION_STRING}" down 1
 
 # Rollback the last N migrations
 migrate-down-n:
@@ -194,4 +209,4 @@ stresstest:
 spiketest:
 	docker run --rm -i --network=shopping_goshop-network -v "./loadtest:/loadtest" -e BASE_URL=http://goshop-nginx -e API_KEY=abcd-1234-1111 grafana/k6 run /loadtest/spike_test.js
 
-.PHONY: importdb exportdb server worker ws-gateway identity notification payment build-identity build-notification build-payment migrate-create migrate-up migrate-down migrate-force migrate-drop migrate-goto migrate-down-n sqlc build build-worker build-ws-gateway run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev dev-host swagger loadtest stresstest spiketest seed seed-docker
+.PHONY: importdb exportdb server worker ws-gateway identity notification payment coupon inventory catalog build-identity build-notification build-payment build-coupon build-inventory build-catalog migrate-create migrate-up migrate-down migrate-force migrate-drop migrate-goto migrate-down-n sqlc build build-worker build-ws-gateway run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev dev-host swagger loadtest stresstest spiketest seed seed-docker

@@ -15,6 +15,7 @@ import (
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 	"goshop/pkg/rabbitmq"
+	catalogcontract "goshop/services/catalog/contract"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -28,12 +29,13 @@ const (
 )
 
 type reviewService struct {
-	repo        repository.ReviewRepository
-	productRepo repository.ProductRepository
-	orderRepo   repository.OrderRepository
-	userRepo    repository.UserReader
-	rabbitMQ    rabbitmq.RabbitMQService
-	cache       cache.RedisCacheService
+	repo          repository.ReviewRepository
+	productRepo   repository.ProductRepository
+	catalogClient catalogcontract.CatalogClient
+	orderRepo     repository.OrderRepository
+	userRepo      repository.UserReader
+	rabbitMQ      rabbitmq.RabbitMQService
+	cache         cache.RedisCacheService
 }
 
 func NewReviewService(
@@ -42,6 +44,18 @@ func NewReviewService(
 	orderRepo repository.OrderRepository,
 	rabbitMQ rabbitmq.RabbitMQService,
 	redisClient *redis.Client,
+	userReader ...repository.UserReader,
+) ReviewService {
+	return NewReviewServiceWithCatalog(repo, productRepo, orderRepo, rabbitMQ, redisClient, nil, userReader...)
+}
+
+func NewReviewServiceWithCatalog(
+	repo repository.ReviewRepository,
+	productRepo repository.ProductRepository,
+	orderRepo repository.OrderRepository,
+	rabbitMQ rabbitmq.RabbitMQService,
+	redisClient *redis.Client,
+	catalogClient catalogcontract.CatalogClient,
 	userReader ...repository.UserReader,
 ) ReviewService {
 	var cacheService cache.RedisCacheService
@@ -53,12 +67,13 @@ func NewReviewService(
 		uRepo = userReader[0]
 	}
 	return &reviewService{
-		repo:        repo,
-		productRepo: productRepo,
-		orderRepo:   orderRepo,
-		userRepo:    uRepo,
-		rabbitMQ:    rabbitMQ,
-		cache:       cacheService,
+		repo:          repo,
+		productRepo:   productRepo,
+		catalogClient: catalogClient,
+		orderRepo:     orderRepo,
+		userRepo:      uRepo,
+		rabbitMQ:      rabbitMQ,
+		cache:         cacheService,
 	}
 }
 
@@ -67,14 +82,31 @@ func NewReviewService(
 // -------------------------------------------------------------------------
 
 func (rs *reviewService) getProduct(ctx context.Context, productUUID uuid.UUID) (sqlc.GetProductByUUIDRow, error) {
-	product, err := rs.productRepo.GetByUUID(ctx, productUUID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+	if rs.catalogClient != nil {
+		p, err := rs.catalogClient.GetProductByUUID(ctx, productUUID.String())
+		if err != nil {
 			return sqlc.GetProductByUUIDRow{}, utils.NewError(utils.ErrCodeNotFound, "Product not found")
 		}
-		return sqlc.GetProductByUUIDRow{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get product", err)
+		return sqlc.GetProductByUUIDRow{
+			ProductID:          p.ProductID,
+			ProductUuid:        productUUID,
+			ProductName:        p.ProductName,
+			ProductReviewCount: p.ProductReviewCount,
+		}, nil
 	}
-	return product, nil
+
+	if rs.productRepo != nil {
+		product, err := rs.productRepo.GetByUUID(ctx, productUUID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+				return sqlc.GetProductByUUIDRow{}, utils.NewError(utils.ErrCodeNotFound, "Product not found")
+			}
+			return sqlc.GetProductByUUIDRow{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get product", err)
+		}
+		return product, nil
+	}
+
+	return sqlc.GetProductByUUIDRow{}, utils.NewError(utils.ErrCodeInternal, "No product repository or catalog client available")
 }
 
 func (rs *reviewService) getOrder(ctx context.Context, orderUUID uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {

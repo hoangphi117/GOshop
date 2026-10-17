@@ -79,6 +79,7 @@ export function SearchAutocomplete({
                   q: trimmed,
                   limit: 6,
                   attributesToRetrieve: [
+                    "id",
                     "product_id",
                     "product_uuid",
                     "product_name",
@@ -94,7 +95,7 @@ export function SearchAutocomplete({
               const meiliJson = await meiliRes.json();
               const hits: ProductSuggestion[] = (meiliJson?.hits || []).map(
                 (hit: any) => ({
-                  uuid: hit.product_uuid || String(hit.product_id),
+                  uuid: hit.id || hit.product_uuid || String(hit.product_id),
                   name: hit.product_name,
                   slug: hit.product_slug,
                   price: hit.product_price,

@@ -80,6 +80,22 @@ services:
     networks:
       - goshop-network
 
+  minio:
+    image: cgr.dev/chainguard/minio:latest
+    container_name: goshop-minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-goshop_admin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-goshop_secret_key}
+    volumes:
+      - minio-data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - goshop-network
+
 volumes:
   postgres-data:
     driver: local
@@ -88,6 +104,8 @@ volumes:
   rabbitmq-data:
     driver: local
   meilisearch-data:
+    driver: local
+  minio-data:
     driver: local
 
 networks:
