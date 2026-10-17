@@ -48,7 +48,7 @@ func main() {
 	_ = config.NewConfig()
 
 	// 1. Initialize Database for User & Chat authentication
-	if err := db.InitDB(); err != nil {
+	if err := db.InitDB("ws_gateway"); err != nil {
 		logger.Log.Fatal().Err(err).Msg("Failed to initialize database for WS Gateway")
 	}
 

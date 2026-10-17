@@ -32,7 +32,7 @@ func main() {
 	fmt.Println("🚀 Starting GOshop Database Seeder...")
 
 	// 3. Connect to PostgreSQL
-	if err := db.InitDB(); err != nil {
+	if err := db.InitDB("seed"); err != nil {
 		fmt.Printf("❌ Failed to connect to database: %v\n", err)
 		os.Exit(1)
 	}

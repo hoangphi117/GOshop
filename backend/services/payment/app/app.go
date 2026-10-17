@@ -68,7 +68,7 @@ func New(cfg *config.Config) (*App, error) {
 
 	r.MaxMultipartMemory = 8 << 20
 
-	if err := db.InitDBWithConfig(cfg); err != nil {
+	if err := db.InitDBWithConfig(cfg, "payment"); err != nil {
 		logger.Log.Fatal().Err(err).Msg("Failed to initialize database for payment service")
 		return nil, fmt.Errorf("database init failed: %w", err)
 	}

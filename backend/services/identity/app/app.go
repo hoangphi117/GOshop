@@ -65,7 +65,7 @@ func New(cfg *config.Config) (*App, error) {
 
 	r.MaxMultipartMemory = 8 << 20
 
-	if err := db.InitDBWithConfig(cfg); err != nil {
+	if err := db.InitDBWithConfig(cfg, "identity"); err != nil {
 		logger.Log.Fatal().Err(err).Msg("Failed to initialize database for identity service")
 		return nil, err
 	}
@@ -74,7 +74,7 @@ func New(cfg *config.Config) (*App, error) {
 	cacheRedisService := cache.NewRedisCacheService(redisClient)
 	tokenService := auth.NewJWTService(cacheRedisService)
 
-	mailLogger := utils.NewLoggerWithPath("mail.log", "info")
+	mailLogger := utils.NewLoggerWithPath("identity_mail.log", "info")
 	factory, err := mail.NewProviderFactory(mail.ProviderMailtrap)
 	if err != nil {
 		mailLogger.Error().Err(err).Msg("Failed to create mail provider factory")
@@ -87,7 +87,7 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, err
 	}
 
-	rabbitmqLogger := utils.NewLoggerWithPath("worker.log", "info")
+	rabbitmqLogger := utils.NewLoggerWithPath("identity_rabbitmq.log", "info")
 	rabbitmqService, err := rabbitmq.NewRabbitMQService(utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"), rabbitmqLogger)
 	if err != nil {
 		logger.Log.Fatal().Err(err).Msg("Failed to create RabbitMQ service")

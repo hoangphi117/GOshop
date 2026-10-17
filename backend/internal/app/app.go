@@ -139,7 +139,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		}
 	}
 
-	if err := db.InitDBWithConfig(cfg); err != nil {
+	if err := db.InitDBWithConfig(cfg, "api"); err != nil {
 		logger.Log.Fatal().Err(err).Msg("Failed to initialize database")
 		return nil, err
 	}

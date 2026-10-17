@@ -86,7 +86,7 @@ func NewWorker(cfg *config.Config) *Worker {
 	}
 
 	// Add DB & NotificationConsumer initialization into worker
-	if err := db.InitDB(); err != nil {
+	if err := db.InitDB("worker"); err != nil {
 		log.Fatal().Err(err).Msg("Failed to initialize database for worker")
 	}
 

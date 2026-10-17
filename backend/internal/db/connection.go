@@ -38,11 +38,11 @@ func GetIdentityDB() sqlc.Querier {
 	return DB
 }
 
-func InitDB() error {
-	return InitDBWithConfig(config.NewConfig())
+func InitDB(serviceName ...string) error {
+	return InitDBWithConfig(config.NewConfig(), serviceName...)
 }
 
-func InitDBWithConfig(cfg *config.Config) error {
+func InitDBWithConfig(cfg *config.Config, serviceName ...string) error {
 	if cfg == nil {
 		cfg = config.NewConfig()
 	}
@@ -53,7 +53,14 @@ func InitDBWithConfig(cfg *config.Config) error {
 		return fmt.Errorf("error parsing DB config: %w", err)
 	}
 
-	sqlLogger := utils.NewLoggerWithPath("sql.log", "info")
+	sqlLogFile := "sql.log"
+	if len(serviceName) > 0 && serviceName[0] != "" {
+		sqlLogFile = fmt.Sprintf("%s_sql.log", serviceName[0])
+	} else if svc := utils.GetEnv("SERVICE_NAME", ""); svc != "" {
+		sqlLogFile = fmt.Sprintf("%s_sql.log", svc)
+	}
+
+	sqlLogger := utils.NewLoggerWithPath(sqlLogFile, "info")
 
 	conf.ConnConfig.Tracer = &tracelog.TraceLog{
 		Logger: &pgx.PgxZerologTracer{

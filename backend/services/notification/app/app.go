@@ -58,7 +58,7 @@ func New(cfg *config.Config) (*App, error) {
 		_ = r.SetTrustedProxies([]string{"127.0.0.1", "::1"})
 	}
 
-	if err := db.InitDBWithConfig(cfg); err != nil {
+	if err := db.InitDBWithConfig(cfg, "notification"); err != nil {
 		logger.Log.Fatal().Err(err).Msg("Failed to initialize database for notification service")
 		return nil, err
 	}
