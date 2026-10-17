@@ -17,18 +17,24 @@ const createOrderItem = `-- name: CreateOrderItem :one
 INSERT INTO order_items (
     order_item_order_id, order_item_product_id,
     order_item_product_name, order_item_price,
-    order_item_quantity, order_item_subtotal
-) VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING order_item_id, order_item_uuid, order_item_order_id, order_item_product_id, order_item_product_name, order_item_price, order_item_quantity, order_item_subtotal, order_item_created_at
+    order_item_quantity, order_item_subtotal,
+    order_item_product_uuid, order_item_product_slug,
+    order_item_product_image_url, order_item_order_uuid
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING order_item_id, order_item_uuid, order_item_order_id, order_item_product_id, order_item_product_name, order_item_price, order_item_quantity, order_item_subtotal, order_item_created_at, order_item_product_uuid, order_item_product_slug, order_item_product_image_url, order_item_order_uuid
 `
 
 type CreateOrderItemParams struct {
-	OrderItemOrderID     int32          `json:"order_item_order_id"`
-	OrderItemProductID   int32          `json:"order_item_product_id"`
-	OrderItemProductName string         `json:"order_item_product_name"`
-	OrderItemPrice       pgtype.Numeric `json:"order_item_price"`
-	OrderItemQuantity    int32          `json:"order_item_quantity"`
-	OrderItemSubtotal    pgtype.Numeric `json:"order_item_subtotal"`
+	OrderItemOrderID         int32          `json:"order_item_order_id"`
+	OrderItemProductID       int32          `json:"order_item_product_id"`
+	OrderItemProductName     string         `json:"order_item_product_name"`
+	OrderItemPrice           pgtype.Numeric `json:"order_item_price"`
+	OrderItemQuantity        int32          `json:"order_item_quantity"`
+	OrderItemSubtotal        pgtype.Numeric `json:"order_item_subtotal"`
+	OrderItemProductUuid     uuid.UUID      `json:"order_item_product_uuid"`
+	OrderItemProductSlug     string         `json:"order_item_product_slug"`
+	OrderItemProductImageUrl *string        `json:"order_item_product_image_url"`
+	OrderItemOrderUuid       uuid.UUID      `json:"order_item_order_uuid"`
 }
 
 func (q *Queries) CreateOrderItem(ctx context.Context, arg CreateOrderItemParams) (OrderItem, error) {
@@ -39,6 +45,10 @@ func (q *Queries) CreateOrderItem(ctx context.Context, arg CreateOrderItemParams
 		arg.OrderItemPrice,
 		arg.OrderItemQuantity,
 		arg.OrderItemSubtotal,
+		arg.OrderItemProductUuid,
+		arg.OrderItemProductSlug,
+		arg.OrderItemProductImageUrl,
+		arg.OrderItemOrderUuid,
 	)
 	var i OrderItem
 	err := row.Scan(
@@ -51,35 +61,54 @@ func (q *Queries) CreateOrderItem(ctx context.Context, arg CreateOrderItemParams
 		&i.OrderItemQuantity,
 		&i.OrderItemSubtotal,
 		&i.OrderItemCreatedAt,
+		&i.OrderItemProductUuid,
+		&i.OrderItemProductSlug,
+		&i.OrderItemProductImageUrl,
+		&i.OrderItemOrderUuid,
 	)
 	return i, err
 }
 
 const getOrderItemsByOrderID = `-- name: GetOrderItemsByOrderID :many
 SELECT
-    oi.order_item_id, oi.order_item_uuid, oi.order_item_order_id, oi.order_item_product_id, oi.order_item_product_name, oi.order_item_price, oi.order_item_quantity, oi.order_item_subtotal, oi.order_item_created_at,
-    p.product_uuid AS product_uuid,
-    p.product_slug AS product_slug,
-    p.product_image_url AS product_image_url
+    oi.order_item_id,
+    oi.order_item_uuid,
+    oi.order_item_order_id,
+    oi.order_item_product_id,
+    oi.order_item_product_name,
+    oi.order_item_price,
+    oi.order_item_quantity,
+    oi.order_item_subtotal,
+    oi.order_item_created_at,
+    oi.order_item_product_uuid,
+    oi.order_item_product_slug,
+    oi.order_item_product_image_url,
+    oi.order_item_order_uuid,
+    oi.order_item_product_uuid AS product_uuid,
+    oi.order_item_product_slug AS product_slug,
+    oi.order_item_product_image_url AS product_image_url
 FROM order_items oi
-JOIN products p ON p.product_id = oi.order_item_product_id
 WHERE oi.order_item_order_id = $1
 ORDER BY oi.order_item_id ASC
 `
 
 type GetOrderItemsByOrderIDRow struct {
-	OrderItemID          int32          `json:"order_item_id"`
-	OrderItemUuid        uuid.UUID      `json:"order_item_uuid"`
-	OrderItemOrderID     int32          `json:"order_item_order_id"`
-	OrderItemProductID   int32          `json:"order_item_product_id"`
-	OrderItemProductName string         `json:"order_item_product_name"`
-	OrderItemPrice       pgtype.Numeric `json:"order_item_price"`
-	OrderItemQuantity    int32          `json:"order_item_quantity"`
-	OrderItemSubtotal    pgtype.Numeric `json:"order_item_subtotal"`
-	OrderItemCreatedAt   time.Time      `json:"order_item_created_at"`
-	ProductUuid          uuid.UUID      `json:"product_uuid"`
-	ProductSlug          string         `json:"product_slug"`
-	ProductImageUrl      *string        `json:"product_image_url"`
+	OrderItemID              int32          `json:"order_item_id"`
+	OrderItemUuid            uuid.UUID      `json:"order_item_uuid"`
+	OrderItemOrderID         int32          `json:"order_item_order_id"`
+	OrderItemProductID       int32          `json:"order_item_product_id"`
+	OrderItemProductName     string         `json:"order_item_product_name"`
+	OrderItemPrice           pgtype.Numeric `json:"order_item_price"`
+	OrderItemQuantity        int32          `json:"order_item_quantity"`
+	OrderItemSubtotal        pgtype.Numeric `json:"order_item_subtotal"`
+	OrderItemCreatedAt       time.Time      `json:"order_item_created_at"`
+	OrderItemProductUuid     uuid.UUID      `json:"order_item_product_uuid"`
+	OrderItemProductSlug     string         `json:"order_item_product_slug"`
+	OrderItemProductImageUrl *string        `json:"order_item_product_image_url"`
+	OrderItemOrderUuid       uuid.UUID      `json:"order_item_order_uuid"`
+	ProductUuid              uuid.UUID      `json:"product_uuid"`
+	ProductSlug              string         `json:"product_slug"`
+	ProductImageUrl          *string        `json:"product_image_url"`
 }
 
 func (q *Queries) GetOrderItemsByOrderID(ctx context.Context, orderItemOrderID int32) ([]GetOrderItemsByOrderIDRow, error) {
@@ -101,6 +130,10 @@ func (q *Queries) GetOrderItemsByOrderID(ctx context.Context, orderItemOrderID i
 			&i.OrderItemQuantity,
 			&i.OrderItemSubtotal,
 			&i.OrderItemCreatedAt,
+			&i.OrderItemProductUuid,
+			&i.OrderItemProductSlug,
+			&i.OrderItemProductImageUrl,
+			&i.OrderItemOrderUuid,
 			&i.ProductUuid,
 			&i.ProductSlug,
 			&i.ProductImageUrl,

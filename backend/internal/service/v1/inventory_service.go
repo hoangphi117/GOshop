@@ -107,8 +107,10 @@ func (s *inventoryService) LockAndDeductStockWithRef(
 			ProductName: p.ProductName,
 			Price:       utils.NumericToFloat(p.ProductPrice),
 			Stock:       utils.Int32Value(p.ProductStock),
-			Status:      p.ProductStatus,
-			SKU:         p.ProductSku,
+			Status:          p.ProductStatus,
+			SKU:             p.ProductSku,
+			ProductSlug:     p.ProductSlug,
+			ProductImageURL: p.ProductImageUrl,
 		}
 	}
 

@@ -157,7 +157,7 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 		}
 
 		priceInputs := make([]ItemPriceInput, len(input.Items))
-		prodIDToUUID := make(map[int32]uuid.UUID, len(input.Items))
+		prodIDToStock := make(map[int32]InventoryItemStock, len(input.Items))
 		for i, item := range input.Items {
 			p := productMap[item.ProductUUID]
 			priceInputs[i] = ItemPriceInput{
@@ -166,7 +166,7 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 				Price:       p.Price,
 				Quantity:    item.Quantity,
 			}
-			prodIDToUUID[p.ProductID] = p.ProductUUID
+			prodIDToStock[p.ProductID] = p
 		}
 
 		pricingResult, err := s.pricingService.CalculateOrderTotals(txCtx, priceInputs, input.CouponCode, user.UserID, input.ShippingFee, time.Now())
@@ -212,14 +212,19 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 		createdOrderItems = make([]sqlc.GetOrderItemsByOrderIDRow, len(pricingResult.Items))
 
 		for i, item := range pricingResult.Items {
+			stockItem := prodIDToStock[item.ProductID]
 			purchasedProductIDs[i] = item.ProductID
 			createdItemParams := sqlc.CreateOrderItemParams{
-				OrderItemOrderID:     order.OrderID,
-				OrderItemProductID:   item.ProductID,
-				OrderItemProductName: item.ProductName,
-				OrderItemPrice:       utils.FloatToNumeric(item.Price),
-				OrderItemQuantity:    item.Quantity,
-				OrderItemSubtotal:    utils.FloatToNumeric(item.Subtotal),
+				OrderItemOrderID:         order.OrderID,
+				OrderItemProductID:       item.ProductID,
+				OrderItemProductName:     item.ProductName,
+				OrderItemPrice:           utils.FloatToNumeric(item.Price),
+				OrderItemQuantity:        item.Quantity,
+				OrderItemSubtotal:        utils.FloatToNumeric(item.Subtotal),
+				OrderItemProductUuid:     stockItem.ProductUUID,
+				OrderItemProductSlug:     stockItem.ProductSlug,
+				OrderItemProductImageUrl: stockItem.ProductImageURL,
+				OrderItemOrderUuid:       order.OrderUuid,
 			}
 
 			createdItem, err := s.orderItemStore.Create(txCtx, tx, createdItemParams)
@@ -252,18 +257,23 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 				createdAt = time.Now()
 			}
 
-			prodUUID := prodIDToUUID[item.ProductID]
 			createdOrderItems[i] = sqlc.GetOrderItemsByOrderIDRow{
-				OrderItemID:          createdItem.OrderItemID,
-				OrderItemUuid:        orderItemUuid,
-				OrderItemOrderID:     order.OrderID,
-				OrderItemProductID:   item.ProductID,
-				OrderItemProductName: prodName,
-				OrderItemPrice:       price,
-				OrderItemQuantity:    qty,
-				OrderItemSubtotal:    subtotal,
-				OrderItemCreatedAt:   createdAt,
-				ProductUuid:          prodUUID,
+				OrderItemID:              createdItem.OrderItemID,
+				OrderItemUuid:            orderItemUuid,
+				OrderItemOrderID:         order.OrderID,
+				OrderItemProductID:       item.ProductID,
+				OrderItemProductName:     prodName,
+				OrderItemPrice:           price,
+				OrderItemQuantity:        qty,
+				OrderItemSubtotal:        subtotal,
+				OrderItemCreatedAt:       createdAt,
+				OrderItemProductUuid:     stockItem.ProductUUID,
+				OrderItemProductSlug:     stockItem.ProductSlug,
+				OrderItemProductImageUrl: stockItem.ProductImageURL,
+				OrderItemOrderUuid:       order.OrderUuid,
+				ProductUuid:              stockItem.ProductUUID,
+				ProductSlug:              stockItem.ProductSlug,
+				ProductImageUrl:          stockItem.ProductImageURL,
 			}
 		}
 

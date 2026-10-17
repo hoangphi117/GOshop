@@ -143,8 +143,10 @@ type InventoryItemStock struct {
 	ProductName string    `json:"product_name"`
 	Price       float64   `json:"price"`
 	Stock       int32     `json:"stock"`
-	Status      int32     `json:"status"`
-	SKU         *string   `json:"sku,omitempty"`
+	Status          int32     `json:"status"`
+	SKU             *string   `json:"sku,omitempty"`
+	ProductSlug     string    `json:"product_slug,omitempty"`
+	ProductImageURL *string   `json:"product_image_url,omitempty"`
 }
 
 type InventoryService interface {

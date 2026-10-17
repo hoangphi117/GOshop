@@ -239,7 +239,7 @@ func (q *Queries) IncrementCouponUsedCount(ctx context.Context, couponID int32) 
 const recordCouponUsage = `-- name: RecordCouponUsage :one
 INSERT INTO coupon_usages (coupon_usage_coupon_id, coupon_usage_user_id, coupon_usage_order_id)
 VALUES ($1, $2, $3)
-RETURNING coupon_usage_id, coupon_usage_coupon_id, coupon_usage_user_id, coupon_usage_order_id, coupon_usage_used_at
+RETURNING coupon_usage_id, coupon_usage_coupon_id, coupon_usage_user_id, coupon_usage_order_id, coupon_usage_used_at, coupon_usage_order_uuid, coupon_usage_user_uuid, coupon_usage_coupon_uuid
 `
 
 type RecordCouponUsageParams struct {
@@ -257,6 +257,9 @@ func (q *Queries) RecordCouponUsage(ctx context.Context, arg RecordCouponUsagePa
 		&i.CouponUsageUserID,
 		&i.CouponUsageOrderID,
 		&i.CouponUsageUsedAt,
+		&i.CouponUsageOrderUuid,
+		&i.CouponUsageUserUuid,
+		&i.CouponUsageCouponUuid,
 	)
 	return i, err
 }

@@ -71,7 +71,7 @@ INSERT INTO stock_movements (
     note
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING movement_id, movement_uuid, product_id, change_type, quantity_change, stock_before, stock_after, reference_id, reference_type, actor_id, actor_uuid, actor_name, note, created_at
+RETURNING movement_id, movement_uuid, product_id, change_type, quantity_change, stock_before, stock_after, reference_id, reference_type, actor_id, actor_uuid, actor_name, note, created_at, product_uuid
 `
 
 type CreateStockMovementParams struct {
@@ -114,6 +114,7 @@ func (q *Queries) CreateStockMovement(ctx context.Context, arg CreateStockMoveme
 		&i.ActorName,
 		&i.Note,
 		&i.CreatedAt,
+		&i.ProductUuid,
 	)
 	return i, err
 }

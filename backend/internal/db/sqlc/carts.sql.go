@@ -18,7 +18,7 @@ INSERT INTO cart_items (cart_item_cart_id, cart_item_product_id, cart_item_quant
 VALUES ($1, $2, $3)
 ON CONFLICT (cart_item_cart_id, cart_item_product_id)
 DO UPDATE SET cart_item_quantity = LEAST(cart_items.cart_item_quantity + excluded.cart_item_quantity, 99)
-RETURNING cart_item_id, cart_item_uuid, cart_item_cart_id, cart_item_product_id, cart_item_quantity, cart_item_created_at, cart_item_updated_at
+RETURNING cart_item_id, cart_item_uuid, cart_item_cart_id, cart_item_product_id, cart_item_quantity, cart_item_created_at, cart_item_updated_at, cart_item_product_uuid
 `
 
 type AddOrUpdateCartItemParams struct {
@@ -42,6 +42,7 @@ func (q *Queries) AddOrUpdateCartItem(ctx context.Context, arg AddOrUpdateCartIt
 		&i.CartItemQuantity,
 		&i.CartItemCreatedAt,
 		&i.CartItemUpdatedAt,
+		&i.CartItemProductUuid,
 	)
 	return i, err
 }
@@ -72,7 +73,7 @@ const deleteCartItemByUUID = `-- name: DeleteCartItemByUUID :one
 DELETE FROM cart_items
 WHERE cart_item_uuid = $1
 AND cart_item_cart_id = $2
-RETURNING cart_item_id, cart_item_uuid, cart_item_cart_id, cart_item_product_id, cart_item_quantity, cart_item_created_at, cart_item_updated_at
+RETURNING cart_item_id, cart_item_uuid, cart_item_cart_id, cart_item_product_id, cart_item_quantity, cart_item_created_at, cart_item_updated_at, cart_item_product_uuid
 `
 
 type DeleteCartItemByUUIDParams struct {
@@ -91,6 +92,7 @@ func (q *Queries) DeleteCartItemByUUID(ctx context.Context, arg DeleteCartItemBy
 		&i.CartItemQuantity,
 		&i.CartItemCreatedAt,
 		&i.CartItemUpdatedAt,
+		&i.CartItemProductUuid,
 	)
 	return i, err
 }
@@ -248,7 +250,7 @@ UPDATE cart_items
 SET cart_item_quantity = $1
 WHERE cart_item_uuid = $2
 AND cart_item_cart_id = $3
-RETURNING cart_item_id, cart_item_uuid, cart_item_cart_id, cart_item_product_id, cart_item_quantity, cart_item_created_at, cart_item_updated_at
+RETURNING cart_item_id, cart_item_uuid, cart_item_cart_id, cart_item_product_id, cart_item_quantity, cart_item_created_at, cart_item_updated_at, cart_item_product_uuid
 `
 
 type SetCartItemQuantityParams struct {
@@ -269,6 +271,7 @@ func (q *Queries) SetCartItemQuantity(ctx context.Context, arg SetCartItemQuanti
 		&i.CartItemQuantity,
 		&i.CartItemCreatedAt,
 		&i.CartItemUpdatedAt,
+		&i.CartItemProductUuid,
 	)
 	return i, err
 }
