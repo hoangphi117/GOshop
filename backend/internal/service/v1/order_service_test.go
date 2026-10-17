@@ -30,7 +30,7 @@ type testOrderServiceDeps struct {
 	orderItemRepo       repository.OrderItemRepository
 	userRepo            repository.UserRepository
 	cartService         v1service.CartService
-	couponService       v1service.CouponService
+	couponPort          v1service.OrderCouponPort
 	trackingRepo        repository.TrackingRepository
 	notificationService v1service.NotificationService
 	redisClient         *redis.Client
@@ -67,9 +67,9 @@ func newTestOrderService(deps testOrderServiceDeps) v1service.OrderService {
 	if cartSvc == nil {
 		cartSvc = &testutils.MockCartService{}
 	}
-	couponSvc := deps.couponService
-	if couponSvc == nil {
-		couponSvc = &testutils.MockCouponService{}
+	couponPort := deps.couponPort
+	if couponPort == nil {
+		couponPort = &testutils.MockOrderCouponPort{}
 	}
 	trackingRepo := deps.trackingRepo
 	if trackingRepo == nil {
@@ -103,7 +103,6 @@ func newTestOrderService(deps testOrderServiceDeps) v1service.OrderService {
 		},
 	}
 	stockPort := v1service.NewOrderStockAdapter(invSvc)
-	couponPort := v1service.NewOrderCouponAdapter(couponSvc)
 
 	return v1service.NewOrderService(
 		txMgr,
@@ -285,17 +284,17 @@ func TestOrderService_CreateOrder(t *testing.T) {
 				}, nil
 			},
 		}
-		mockCouponService := &testutils.MockCouponService{
+		mockCouponPort := &testutils.MockOrderCouponPort{
 			LockAndApplyCouponFunc: func(ctx context.Context, cID, uID, oID int32) error {
 				return utils.NewError(utils.ErrCodeBadRequest, "Failed to increment coupon usage count")
 			},
 		}
 
 		svc := newTestOrderService(testOrderServiceDeps{
-			pricingService: mockPricing,
+			pricingService:   mockPricing,
 			inventoryService: mockInventory,
-			userRepo: mockUserRepo,
-			couponService: mockCouponService,
+			userRepo:         mockUserRepo,
+			couponPort:       mockCouponPort,
 		})
 
 		_, err := svc.CreateOrder(ctx, userUUID, baseInput)
@@ -378,18 +377,18 @@ func TestOrderService_CreateOrder(t *testing.T) {
 				return sqlc.Order{OrderID: 1001, OrderNumber: params.OrderNumber, OrderUserID: baseUser.UserID}, nil
 			},
 		}
-		mockCouponService := &testutils.MockCouponService{
+		mockCouponPort := &testutils.MockOrderCouponPort{
 			LockAndApplyCouponFunc: func(ctx context.Context, cID, uID, oID int32) error {
 				return utils.NewError(utils.ErrCodeInternal, "failed to record coupon usage")
 			},
 		}
 
 		svc := newTestOrderService(testOrderServiceDeps{
-			pricingService: mockPricing,
+			pricingService:   mockPricing,
 			inventoryService: mockInventory,
-			orderRepo: mockOrderRepo,
-			userRepo: mockUserRepo,
-			couponService: mockCouponService,
+			orderRepo:        mockOrderRepo,
+			userRepo:         mockUserRepo,
+			couponPort:       mockCouponPort,
 		})
 
 		_, err := svc.CreateOrder(ctx, userUUID, baseInput)
@@ -962,7 +961,7 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		var appliedUserIDParam int32
 		var appliedOrderIDParam int32
 
-		mockCouponService := &testutils.MockCouponService{
+		mockCouponPort := &testutils.MockOrderCouponPort{
 			LockAndApplyCouponFunc: func(ctx context.Context, cID, uID, oID int32) error {
 				appliedCouponIDParam = cID
 				appliedUserIDParam = uID
@@ -1013,13 +1012,13 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		}
 
 		svc := newTestOrderService(testOrderServiceDeps{
-			pricingService: mockPricing,
-			inventoryService: mockInventory,
-			orderRepo: mockOrderRepo,
-			orderItemRepo: mockOrderItemRepo,
-			userRepo: mockUserRepo,
-			couponService: mockCouponService,
-			trackingRepo: mockTrackingRepo,
+			pricingService:      mockPricing,
+			inventoryService:    mockInventory,
+			orderRepo:           mockOrderRepo,
+			orderItemRepo:       mockOrderItemRepo,
+			userRepo:            mockUserRepo,
+			couponPort:          mockCouponPort,
+			trackingRepo:        mockTrackingRepo,
 			notificationService: mockNotification,
 		})
 

@@ -17,7 +17,6 @@ var (
 	_ repository.OrderRepository        = (*MockOrderRepository)(nil)
 	_ repository.OrderItemRepository    = (*MockOrderItemRepository)(nil)
 	_ repository.ProductRepository      = (*MockProductRepository)(nil)
-	_ repository.CouponRepository       = (*MockCouponRepository)(nil)
 	_ repository.CartRepository         = (*MockCartRepository)(nil)
 	_ repository.TrackingRepository     = (*MockTrackingRepository)(nil)
 	_ repository.UserRepository         = (*MockUserRepository)(nil)
@@ -303,108 +302,6 @@ func (m *MockProductRepository) DeductStock(ctx context.Context, tx pgx.Tx, prod
 func (m *MockProductRepository) RestoreStock(ctx context.Context, tx pgx.Tx, productID int32, quantity int32) error {
 	if m.RestoreStockFunc != nil {
 		return m.RestoreStockFunc(ctx, tx, productID, quantity)
-	}
-	return nil
-}
-
-// =========================================================================
-// 4. MockCouponRepository
-// =========================================================================
-type MockCouponRepository struct {
-	CreateFunc             func(ctx context.Context, params sqlc.CreateCouponParams) (sqlc.Coupon, error)
-	GetAllFunc             func(ctx context.Context, search, orderBy, sort string, coupon_type *int32, isActive *bool, limit, offset int32, deleted bool) ([]sqlc.Coupon, error)
-	GetByCodeFunc          func(ctx context.Context, code string) (sqlc.Coupon, error)
-	GetByUUIDFunc          func(ctx context.Context, uuid uuid.UUID) (sqlc.Coupon, error)
-	UpdateFunc             func(ctx context.Context, params sqlc.UpdateCouponParams) (sqlc.Coupon, error)
-	CountCouponsFunc       func(ctx context.Context, search string, coupon_type *int32, isActive *bool, deleted bool) (int64, error)
-	SoftDeleteFunc         func(ctx context.Context, uuid uuid.UUID) (sqlc.Coupon, error)
-	RestoreFunc            func(ctx context.Context, uuid uuid.UUID) (sqlc.Coupon, error)
-	TrashFunc              func(ctx context.Context, uuid uuid.UUID) (sqlc.Coupon, error)
-	CountUserUsagesFunc    func(ctx context.Context, userID, couponID int32) (int64, error)
-	RecordUserUsageFunc    func(ctx context.Context, tx pgx.Tx, params sqlc.RecordCouponUsageParams) (sqlc.CouponUsage, error)
-	IncrementUsedCountFunc func(ctx context.Context, tx pgx.Tx, couponID int32) error
-}
-
-func (m *MockCouponRepository) Create(ctx context.Context, params sqlc.CreateCouponParams) (sqlc.Coupon, error) {
-	if m.CreateFunc != nil {
-		return m.CreateFunc(ctx, params)
-	}
-	return sqlc.Coupon{}, nil
-}
-
-func (m *MockCouponRepository) GetAll(ctx context.Context, search, orderBy, sort string, coupon_type *int32, isActive *bool, limit, offset int32, deleted bool) ([]sqlc.Coupon, error) {
-	if m.GetAllFunc != nil {
-		return m.GetAllFunc(ctx, search, orderBy, sort, coupon_type, isActive, limit, offset, deleted)
-	}
-	return nil, nil
-}
-
-func (m *MockCouponRepository) GetByCode(ctx context.Context, code string) (sqlc.Coupon, error) {
-	if m.GetByCodeFunc != nil {
-		return m.GetByCodeFunc(ctx, code)
-	}
-	return sqlc.Coupon{}, nil
-}
-
-func (m *MockCouponRepository) GetByUUID(ctx context.Context, uuid uuid.UUID) (sqlc.Coupon, error) {
-	if m.GetByUUIDFunc != nil {
-		return m.GetByUUIDFunc(ctx, uuid)
-	}
-	return sqlc.Coupon{}, nil
-}
-
-func (m *MockCouponRepository) Update(ctx context.Context, params sqlc.UpdateCouponParams) (sqlc.Coupon, error) {
-	if m.UpdateFunc != nil {
-		return m.UpdateFunc(ctx, params)
-	}
-	return sqlc.Coupon{}, nil
-}
-
-func (m *MockCouponRepository) CountCoupons(ctx context.Context, search string, coupon_type *int32, isActive *bool, deleted bool) (int64, error) {
-	if m.CountCouponsFunc != nil {
-		return m.CountCouponsFunc(ctx, search, coupon_type, isActive, deleted)
-	}
-	return 0, nil
-}
-
-func (m *MockCouponRepository) SoftDelete(ctx context.Context, uuid uuid.UUID) (sqlc.Coupon, error) {
-	if m.SoftDeleteFunc != nil {
-		return m.SoftDeleteFunc(ctx, uuid)
-	}
-	return sqlc.Coupon{}, nil
-}
-
-func (m *MockCouponRepository) Restore(ctx context.Context, uuid uuid.UUID) (sqlc.Coupon, error) {
-	if m.RestoreFunc != nil {
-		return m.RestoreFunc(ctx, uuid)
-	}
-	return sqlc.Coupon{}, nil
-}
-
-func (m *MockCouponRepository) Trash(ctx context.Context, uuid uuid.UUID) (sqlc.Coupon, error) {
-	if m.TrashFunc != nil {
-		return m.TrashFunc(ctx, uuid)
-	}
-	return sqlc.Coupon{}, nil
-}
-
-func (m *MockCouponRepository) CountUserUsages(ctx context.Context, userID, couponID int32) (int64, error) {
-	if m.CountUserUsagesFunc != nil {
-		return m.CountUserUsagesFunc(ctx, userID, couponID)
-	}
-	return 0, nil
-}
-
-func (m *MockCouponRepository) RecordUserUsage(ctx context.Context, tx pgx.Tx, params sqlc.RecordCouponUsageParams) (sqlc.CouponUsage, error) {
-	if m.RecordUserUsageFunc != nil {
-		return m.RecordUserUsageFunc(ctx, tx, params)
-	}
-	return sqlc.CouponUsage{}, nil
-}
-
-func (m *MockCouponRepository) IncrementUsedCount(ctx context.Context, tx pgx.Tx, couponID int32) error {
-	if m.IncrementUsedCountFunc != nil {
-		return m.IncrementUsedCountFunc(ctx, tx, couponID)
 	}
 	return nil
 }

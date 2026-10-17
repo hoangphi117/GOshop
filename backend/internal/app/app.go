@@ -194,9 +194,6 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	cartRepo := repository.NewSqlCartRepository(db.DB)
 	cartService := v1service.NewCartService(cartRepo, userReader, productRepo, redisClient)
 
-	couponRepo := repository.NewSqlCouponRepository(db.DB)
-	couponService := v1service.NewCouponService(couponRepo, userReader, redisClient)
-
 	stockMovementRepo := repository.NewSqlStockMovementRepository(db.DB)
 	inventoryService := v1service.NewInventoryService(productRepo, stockMovementRepo, userReader, txManager, rabbitmqService)
 
@@ -220,21 +217,19 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	}
 
 	orderModuleDeps := OrderModuleDeps{
-		CartService:     cartService,
-		CouponService:   couponService,
+		CartService:      cartService,
 		InventoryService: inventoryService,
-		PaymentService:  paymentService,
-		LocationService: locationService,
-		ShippingFactory: shippingFactory,
-		RabbitMQService: rabbitmqService,
-		CacheService:    cacheRedisService,
+		PaymentService:   paymentService,
+		LocationService:  locationService,
+		ShippingFactory:  shippingFactory,
+		RabbitMQService:  rabbitmqService,
+		CacheService:     cacheRedisService,
 	}
 
 	modules := []Module{
 		NewProductModule(ctx),
 		NewOrderModule(ctx, orderModuleDeps),
 		NewCartModule(ctx, cartService),
-		NewCouponModule(ctx, couponService),
 	}
 	modules = append(modules,
 		NewReviewModule(ctx, rabbitmqService),

@@ -7,9 +7,11 @@ import (
 	"goshop/internal/routes"
 	v1routes "goshop/internal/routes/v1"
 	v1service "goshop/internal/service/v1"
+	"goshop/internal/utils"
 	"goshop/pkg/cache"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/shipping"
+	couponcontract "goshop/services/coupon/contract"
 )
 
 type OrderModule struct {
@@ -19,7 +21,6 @@ type OrderModule struct {
 
 type OrderModuleDeps struct {
 	CartService      v1service.CartService
-	CouponService    v1service.CouponService
 	InventoryService v1service.InventoryService
 	PaymentService   v1service.PaymentService
 	LocationService  v1service.LocationService
@@ -44,7 +45,12 @@ func NewOrderModule(
 
 	customerReader := v1service.NewOrderCustomerAdapter(userReader)
 	catalogPort := v1service.NewOrderCatalogAdapter(productRepo)
-	couponPort := v1service.NewOrderCouponAdapter(deps.CouponService)
+	couponTarget := utils.GetEnv("COUPON_GRPC_TARGET", "localhost:50053")
+	grpcClient, err := couponcontract.NewGRPCCouponClient(couponTarget)
+	if err != nil {
+		panic(err)
+	}
+	couponPort := v1service.NewOrderCouponGRPCAdapter(grpcClient)
 	stockPort := v1service.NewOrderStockAdapter(deps.InventoryService)
 	pricingService := v1service.NewOrderPricingService(couponPort)
 

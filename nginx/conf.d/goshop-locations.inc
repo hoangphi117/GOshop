@@ -129,7 +129,44 @@ location /api/v1/addresses {
 }
 
 # -----------------------------------------------------------------------------
-# 4.1. BLOCK EXTERNAL ACCESS TO INTERNAL MICROSERVICE ENDPOINTS (/internal/)
+# 4.2. COUPON SERVICE REVERSE PROXY (/api/v1/coupons, /api/v1/admin/coupons)
+# -----------------------------------------------------------------------------
+location /api/v1/coupons {
+    set $coupon_target http://coupon-service:8084;
+    proxy_pass $coupon_target;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Port $server_port;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 60s;
+    proxy_send_timeout 60s;
+    proxy_request_buffering off;
+}
+
+location /api/v1/admin/coupons {
+    set $coupon_target http://coupon-service:8084;
+    proxy_pass $coupon_target;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Port $server_port;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 60s;
+    proxy_send_timeout 60s;
+    proxy_request_buffering off;
+}
+
+# -----------------------------------------------------------------------------
+# 4.3. BLOCK EXTERNAL ACCESS TO INTERNAL MICROSERVICE ENDPOINTS (/internal/)
 # -----------------------------------------------------------------------------
 # Các endpoint /internal/* chỉ dành riêng cho giao tiếp IPC nội bộ giữa các services
 location /internal/ {

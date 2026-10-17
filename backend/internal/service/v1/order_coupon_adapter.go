@@ -2,30 +2,31 @@ package v1service
 
 import (
 	"context"
-	v1dto "goshop/internal/dto/v1"
+	couponcontract "goshop/services/coupon/contract"
 
 	"github.com/google/uuid"
 )
 
-type orderCouponAdapter struct {
-	couponService CouponService
+type orderCouponGRPCAdapter struct {
+	client couponcontract.CouponClient
 }
 
-// NewOrderCouponAdapter bridges CouponService to OrderCouponPort.
-func NewOrderCouponAdapter(couponService CouponService) OrderCouponPort {
-	return &orderCouponAdapter{couponService: couponService}
+// NewOrderCouponGRPCAdapter bridges gRPC CouponClient to OrderCouponPort.
+func NewOrderCouponGRPCAdapter(client couponcontract.CouponClient) OrderCouponPort {
+	return &orderCouponGRPCAdapter{client: client}
 }
 
-func (a *orderCouponAdapter) PreviewCoupon(
+func (a *orderCouponGRPCAdapter) PreviewCoupon(
 	ctx context.Context,
 	code string,
 	amount float64,
 	userUUID uuid.UUID,
 ) (*CouponDiscountResult, error) {
-	preview, err := a.couponService.PreviewCoupon(ctx, userUUID, v1dto.PreviewCouponInput{
-		Code:           code,
-		SubtotalAmount: amount,
-	})
+	var uStr string
+	if userUUID != uuid.Nil {
+		uStr = userUUID.String()
+	}
+	preview, err := a.client.PreviewCoupon(ctx, code, amount, uStr)
 	if err != nil {
 		return nil, err
 	}
@@ -37,11 +38,16 @@ func (a *orderCouponAdapter) PreviewCoupon(
 	}, nil
 }
 
-func (a *orderCouponAdapter) LockAndApplyCoupon(
+func (a *orderCouponGRPCAdapter) LockAndApplyCoupon(
 	ctx context.Context,
 	couponID int32,
 	userID int32,
 	orderID int32,
 ) error {
-	return a.couponService.LockAndApplyCoupon(ctx, couponID, userID, orderID)
+	_, err := a.client.ReserveCoupon(ctx, couponcontract.ReserveCouponInput{
+		CouponID: couponID,
+		UserID:   userID,
+		OrderID:  orderID,
+	})
+	return err
 }

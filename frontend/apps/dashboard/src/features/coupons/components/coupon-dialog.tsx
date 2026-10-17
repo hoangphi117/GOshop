@@ -45,6 +45,7 @@ const couponSchema = z.object({
   min_order_amount: z.number().min(0).optional(),
   max_discount_amount: z.number().min(0).optional(),
   usage_limit: z.number().int().min(1).optional(),
+  user_usage_limit: z.number().int().min(1, 'Limit per user must be at least 1').optional(),
   start_date: z.string().min(1, 'Please select start date'),
   end_date: z.string().min(1, 'Please select end date'),
   is_active: z.boolean(),
@@ -73,6 +74,7 @@ export function CouponDialog({ open, onOpenChange, coupon }: CouponDialogProps) 
       min_order_amount: 0,
       max_discount_amount: 0,
       usage_limit: 100,
+      user_usage_limit: 1,
       start_date: '',
       end_date: '',
       is_active: true,
@@ -96,6 +98,7 @@ export function CouponDialog({ open, onOpenChange, coupon }: CouponDialogProps) 
         min_order_amount: coupon.min_order_amount ?? 0,
         max_discount_amount: coupon.max_discount_amount ?? 0,
         usage_limit: coupon.usage_limit ?? 100,
+        user_usage_limit: coupon.user_usage_limit ?? 1,
         start_date: coupon.start_date
           ? new Date(coupon.start_date).toISOString().split('T')[0]
           : today,
@@ -114,6 +117,7 @@ export function CouponDialog({ open, onOpenChange, coupon }: CouponDialogProps) 
         min_order_amount: 0,
         max_discount_amount: 0,
         usage_limit: 100,
+        user_usage_limit: 1,
         start_date: today,
         end_date: in30Days,
         is_active: true,
@@ -132,6 +136,7 @@ export function CouponDialog({ open, onOpenChange, coupon }: CouponDialogProps) 
         min_order_amount: values.min_order_amount ? Number(values.min_order_amount) : undefined,
         max_discount_amount: values.max_discount_amount ? Number(values.max_discount_amount) : undefined,
         usage_limit: values.usage_limit ? Number(values.usage_limit) : undefined,
+        user_usage_limit: values.user_usage_limit ? Number(values.user_usage_limit) : 1,
         start_date: new Date(values.start_date).toISOString(),
         end_date: new Date(values.end_date).toISOString(),
         is_active: values.is_active,
@@ -303,13 +308,37 @@ export function CouponDialog({ open, onOpenChange, coupon }: CouponDialogProps) 
                 control={form.control}
                 name='usage_limit'
                 render={({ field }) => (
-                  <FormItem className='sm:col-span-2'>
-                    <FormLabel>Usage Limit</FormLabel>
+                  <FormItem>
+                    <FormLabel>Total Usage Limit</FormLabel>
                     <FormControl>
                       <Input
                         type='number'
                         min={1}
                         placeholder='100'
+                        {...field}
+                        onChange={(e) =>
+                          field.onChange(
+                            e.target.value === '' ? undefined : Number(e.target.value)
+                          )
+                        }
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='user_usage_limit'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Usage Limit Per User</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        min={1}
+                        placeholder='1'
                         {...field}
                         onChange={(e) =>
                           field.onChange(

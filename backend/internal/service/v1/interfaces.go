@@ -132,7 +132,6 @@ type OrderReturnService interface {
 
 type OrderPricingService interface {
 	CalculateItems(items []ItemPriceInput) ([]ItemPriceResult, float64, error)
-	ValidateAndCalculateDiscount(coupon *v1dto.CouponDTO, subtotal float64, now time.Time) (float64, error)
 	CalculateOrderTotals(ctx context.Context, items []ItemPriceInput, couponCode *string, userID int32,
 		shippingFee float64, now time.Time) (*OrderPricingResult, error)
 }
@@ -165,18 +164,6 @@ type CartService interface {
 	RemoveItemFromCart(ctx context.Context, userUUID uuid.UUID, itemUUID uuid.UUID) (v1dto.CartDTO, error)
 	ClearMyCart(ctx context.Context, userUUID uuid.UUID) error
 	RemovePurchasedItems(ctx context.Context, userID int32, productIDs []int32) error
-}
-
-type CouponService interface {
-	CreateCoupon(ctx context.Context, input v1dto.CreateCouponInput) (v1dto.CouponDTO, error)
-	GetAllCoupons(ctx context.Context, search, orderBy, sort string, coupon_type *int32, isActive *bool, page, limit int32, deleted bool) ([]v1dto.CouponDTO, int32, error)
-	GetCouponByUUID(ctx context.Context, couponUUID uuid.UUID) (v1dto.CouponDTO, error)
-	UpdateCoupon(ctx context.Context, couponUUID uuid.UUID, input v1dto.UpdateCouponInput) (v1dto.CouponDTO, error)
-	SoftDeleteCoupon(ctx context.Context, couponUUID uuid.UUID) (v1dto.CouponDTO, error)
-	RestoreCoupon(ctx context.Context, couponUUID uuid.UUID) (v1dto.CouponDTO, error)
-	TrashCoupon(ctx context.Context, couponUUID uuid.UUID) error
-	PreviewCoupon(ctx context.Context, userUUID uuid.UUID, input v1dto.PreviewCouponInput) (v1dto.PreviewCouponDTO, error)
-	LockAndApplyCoupon(ctx context.Context, couponID int32, userID int32, orderID int32) error
 }
 
 const (

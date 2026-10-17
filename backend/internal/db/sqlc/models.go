@@ -36,6 +36,25 @@ type Cart struct {
 	CartUpdatedAt time.Time `json:"cart_updated_at"`
 }
 
+type CartCart struct {
+	CartID        int32     `json:"cart_id"`
+	CartUuid      uuid.UUID `json:"cart_uuid"`
+	CartUserID    int32     `json:"cart_user_id"`
+	CartCreatedAt time.Time `json:"cart_created_at"`
+	CartUpdatedAt time.Time `json:"cart_updated_at"`
+}
+
+type CartCartItem struct {
+	CartItemID          int32       `json:"cart_item_id"`
+	CartItemUuid        uuid.UUID   `json:"cart_item_uuid"`
+	CartItemCartID      int32       `json:"cart_item_cart_id"`
+	CartItemProductID   int32       `json:"cart_item_product_id"`
+	CartItemQuantity    int32       `json:"cart_item_quantity"`
+	CartItemCreatedAt   time.Time   `json:"cart_item_created_at"`
+	CartItemUpdatedAt   time.Time   `json:"cart_item_updated_at"`
+	CartItemProductUuid pgtype.UUID `json:"cart_item_product_uuid"`
+}
+
 type CartItem struct {
 	CartItemID          int32       `json:"cart_item_id"`
 	CartItemUuid        uuid.UUID   `json:"cart_item_uuid"`
@@ -45,6 +64,79 @@ type CartItem struct {
 	CartItemCreatedAt   time.Time   `json:"cart_item_created_at"`
 	CartItemUpdatedAt   time.Time   `json:"cart_item_updated_at"`
 	CartItemProductUuid pgtype.UUID `json:"cart_item_product_uuid"`
+}
+
+type CatalogCategory struct {
+	CategoryID          int32              `json:"category_id"`
+	CategoryUuid        uuid.UUID          `json:"category_uuid"`
+	CategoryName        string             `json:"category_name"`
+	CategorySlug        string             `json:"category_slug"`
+	CategoryDescription *string            `json:"category_description"`
+	CategoryStatus      int32              `json:"category_status"`
+	CategoryDeletedAt   pgtype.Timestamptz `json:"category_deleted_at"`
+	CategoryCreatedAt   time.Time          `json:"category_created_at"`
+	CategoryUpdatedAt   time.Time          `json:"category_updated_at"`
+}
+
+type CatalogProduct struct {
+	ProductID          int32              `json:"product_id"`
+	ProductUuid        uuid.UUID          `json:"product_uuid"`
+	ProductName        string             `json:"product_name"`
+	ProductSlug        string             `json:"product_slug"`
+	ProductDescription *string            `json:"product_description"`
+	ProductPrice       pgtype.Numeric     `json:"product_price"`
+	ProductStock       *int32             `json:"product_stock"`
+	ProductSku         *string            `json:"product_sku"`
+	ProductCategoryID  int32              `json:"product_category_id"`
+	ProductImageUrl    *string            `json:"product_image_url"`
+	ProductStatus      int32              `json:"product_status"`
+	ProductDeletedAt   pgtype.Timestamptz `json:"product_deleted_at"`
+	ProductCreatedAt   time.Time          `json:"product_created_at"`
+	ProductUpdatedAt   time.Time          `json:"product_updated_at"`
+	ProductAvgRating   pgtype.Numeric     `json:"product_avg_rating"`
+	ProductReviewCount int32              `json:"product_review_count"`
+}
+
+type CatalogProductReview struct {
+	ReviewID           int32              `json:"review_id"`
+	ReviewUuid         uuid.UUID          `json:"review_uuid"`
+	ReviewUserID       int32              `json:"review_user_id"`
+	ReviewProductID    int32              `json:"review_product_id"`
+	ReviewOrderID      int32              `json:"review_order_id"`
+	ReviewRating       int16              `json:"review_rating"`
+	ReviewTitle        *string            `json:"review_title"`
+	ReviewComment      *string            `json:"review_comment"`
+	ReviewImages       []string           `json:"review_images"`
+	ReviewVideoUrl     *string            `json:"review_video_url"`
+	ReviewHasMedia     bool               `json:"review_has_media"`
+	ReviewStatus       int16              `json:"review_status"`
+	ReviewEditCount    int32              `json:"review_edit_count"`
+	ReviewHelpfulCount int32              `json:"review_helpful_count"`
+	ReviewUserName     string             `json:"review_user_name"`
+	ReviewUserEmail    string             `json:"review_user_email"`
+	ReviewUserAvatar   string             `json:"review_user_avatar"`
+	ReviewReply        *string            `json:"review_reply"`
+	ReviewReplyAt      pgtype.Timestamptz `json:"review_reply_at"`
+	ReviewCreatedAt    time.Time          `json:"review_created_at"`
+	ReviewUpdatedAt    time.Time          `json:"review_updated_at"`
+}
+
+type CatalogProductReviewHelpfulVote struct {
+	VoteID    int32     `json:"vote_id"`
+	ReviewID  int32     `json:"review_id"`
+	UserID    int32     `json:"user_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type CatalogProductReviewReport struct {
+	ReportID  int32     `json:"report_id"`
+	ReviewID  int32     `json:"review_id"`
+	UserID    int32     `json:"user_id"`
+	UserName  string    `json:"user_name"`
+	UserEmail string    `json:"user_email"`
+	Reason    string    `json:"reason"`
+	Details   *string   `json:"details"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type Category struct {
@@ -111,6 +203,39 @@ type Coupon struct {
 	CouponUpdatedAt         time.Time          `json:"coupon_updated_at"`
 }
 
+type CouponCoupon struct {
+	CouponID                int32              `json:"coupon_id"`
+	CouponUuid              uuid.UUID          `json:"coupon_uuid"`
+	CouponCode              string             `json:"coupon_code"`
+	CouponName              string             `json:"coupon_name"`
+	CouponDescription       *string            `json:"coupon_description"`
+	CouponType              int32              `json:"coupon_type"`
+	CouponDiscountValue     pgtype.Numeric     `json:"coupon_discount_value"`
+	CouponMaxDiscountAmount pgtype.Numeric     `json:"coupon_max_discount_amount"`
+	CouponMinOrderAmount    pgtype.Numeric     `json:"coupon_min_order_amount"`
+	CouponUsageLimit        *int32             `json:"coupon_usage_limit"`
+	CouponUsedCount         int32              `json:"coupon_used_count"`
+	CouponUserUsageLimit    int32              `json:"coupon_user_usage_limit"`
+	CouponStartDate         time.Time          `json:"coupon_start_date"`
+	CouponEndDate           time.Time          `json:"coupon_end_date"`
+	CouponIsActive          bool               `json:"coupon_is_active"`
+	CouponDeletedAt         pgtype.Timestamptz `json:"coupon_deleted_at"`
+	CouponCreatedAt         time.Time          `json:"coupon_created_at"`
+	CouponUpdatedAt         time.Time          `json:"coupon_updated_at"`
+}
+
+type CouponCouponUsage struct {
+	CouponUsageID         int32       `json:"coupon_usage_id"`
+	CouponUsageCouponID   int32       `json:"coupon_usage_coupon_id"`
+	CouponUsageUserID     int32       `json:"coupon_usage_user_id"`
+	CouponUsageOrderID    *int32      `json:"coupon_usage_order_id"`
+	CouponUsageUsedAt     time.Time   `json:"coupon_usage_used_at"`
+	CouponUsageOrderUuid  pgtype.UUID `json:"coupon_usage_order_uuid"`
+	CouponUsageUserUuid   pgtype.UUID `json:"coupon_usage_user_uuid"`
+	CouponUsageCouponUuid pgtype.UUID `json:"coupon_usage_coupon_uuid"`
+	CouponUsageUuid       uuid.UUID   `json:"coupon_usage_uuid"`
+}
+
 type CouponUsage struct {
 	CouponUsageID         int32       `json:"coupon_usage_id"`
 	CouponUsageCouponID   int32       `json:"coupon_usage_coupon_id"`
@@ -120,6 +245,25 @@ type CouponUsage struct {
 	CouponUsageOrderUuid  pgtype.UUID `json:"coupon_usage_order_uuid"`
 	CouponUsageUserUuid   pgtype.UUID `json:"coupon_usage_user_uuid"`
 	CouponUsageCouponUuid pgtype.UUID `json:"coupon_usage_coupon_uuid"`
+	CouponUsageUuid       uuid.UUID   `json:"coupon_usage_uuid"`
+}
+
+type InventoryStockMovement struct {
+	MovementID     int64       `json:"movement_id"`
+	MovementUuid   uuid.UUID   `json:"movement_uuid"`
+	ProductID      int32       `json:"product_id"`
+	ChangeType     string      `json:"change_type"`
+	QuantityChange int32       `json:"quantity_change"`
+	StockBefore    int32       `json:"stock_before"`
+	StockAfter     int32       `json:"stock_after"`
+	ReferenceID    *string     `json:"reference_id"`
+	ReferenceType  *string     `json:"reference_type"`
+	ActorID        *int32      `json:"actor_id"`
+	ActorUuid      pgtype.UUID `json:"actor_uuid"`
+	ActorName      *string     `json:"actor_name"`
+	Note           *string     `json:"note"`
+	CreatedAt      time.Time   `json:"created_at"`
+	ProductUuid    pgtype.UUID `json:"product_uuid"`
 }
 
 type Notification struct {
@@ -208,6 +352,83 @@ type OrderReturn struct {
 }
 
 type OrderTrackingEvent struct {
+	EventID        int32     `json:"event_id"`
+	EventOrderID   int32     `json:"event_order_id"`
+	EventStatus    string    `json:"event_status"`
+	EventNote      *string   `json:"event_note"`
+	EventSource    string    `json:"event_source"`
+	EventCreatedAt time.Time `json:"event_created_at"`
+}
+
+type OrdersOrder struct {
+	OrderID               int32              `json:"order_id"`
+	OrderUuid             uuid.UUID          `json:"order_uuid"`
+	OrderNumber           string             `json:"order_number"`
+	OrderUserID           int32              `json:"order_user_id"`
+	OrderUserUuid         uuid.UUID          `json:"order_user_uuid"`
+	OrderCustomerName     string             `json:"order_customer_name"`
+	OrderCustomerEmail    string             `json:"order_customer_email"`
+	OrderShippingName     string             `json:"order_shipping_name"`
+	OrderShippingPhone    string             `json:"order_shipping_phone"`
+	OrderShippingAddress  string             `json:"order_shipping_address"`
+	OrderTotalAmount      pgtype.Numeric     `json:"order_total_amount"`
+	OrderRefundedAmount   pgtype.Numeric     `json:"order_refunded_amount"`
+	OrderPaymentMethod    int32              `json:"order_payment_method"`
+	OrderPaymentStatus    int32              `json:"order_payment_status"`
+	OrderNote             *string            `json:"order_note"`
+	OrderStatus           int32              `json:"order_status"`
+	OrderCancelledAt      pgtype.Timestamptz `json:"order_cancelled_at"`
+	OrderCreatedAt        time.Time          `json:"order_created_at"`
+	OrderUpdatedAt        time.Time          `json:"order_updated_at"`
+	OrderCouponID         *int32             `json:"order_coupon_id"`
+	OrderCouponCode       *string            `json:"order_coupon_code"`
+	OrderSubtotalAmount   pgtype.Numeric     `json:"order_subtotal_amount"`
+	OrderDiscountAmount   pgtype.Numeric     `json:"order_discount_amount"`
+	OrderShippingProvider *string            `json:"order_shipping_provider"`
+	OrderShippingCode     *string            `json:"order_shipping_code"`
+	OrderShippingFee      pgtype.Numeric     `json:"order_shipping_fee"`
+	OrderExpectedDelivery pgtype.Timestamptz `json:"order_expected_delivery"`
+	OrderDeliveredAt      pgtype.Timestamptz `json:"order_delivered_at"`
+	OrderReturnedAt       pgtype.Timestamptz `json:"order_returned_at"`
+}
+
+type OrdersOrderItem struct {
+	OrderItemID              int32          `json:"order_item_id"`
+	OrderItemUuid            uuid.UUID      `json:"order_item_uuid"`
+	OrderItemOrderID         int32          `json:"order_item_order_id"`
+	OrderItemProductID       int32          `json:"order_item_product_id"`
+	OrderItemProductName     string         `json:"order_item_product_name"`
+	OrderItemPrice           pgtype.Numeric `json:"order_item_price"`
+	OrderItemQuantity        int32          `json:"order_item_quantity"`
+	OrderItemSubtotal        pgtype.Numeric `json:"order_item_subtotal"`
+	OrderItemCreatedAt       time.Time      `json:"order_item_created_at"`
+	OrderItemProductUuid     uuid.UUID      `json:"order_item_product_uuid"`
+	OrderItemProductSlug     string         `json:"order_item_product_slug"`
+	OrderItemProductImageUrl *string        `json:"order_item_product_image_url"`
+	OrderItemOrderUuid       uuid.UUID      `json:"order_item_order_uuid"`
+}
+
+type OrdersOrderReturn struct {
+	ReturnID               int32     `json:"return_id"`
+	ReturnUuid             uuid.UUID `json:"return_uuid"`
+	ReturnOrderID          int32     `json:"return_order_id"`
+	ReturnUserID           int32     `json:"return_user_id"`
+	ReturnReason           string    `json:"return_reason"`
+	ReturnImages           []string  `json:"return_images"`
+	ReturnVideoUrl         *string   `json:"return_video_url"`
+	ReturnStatus           int16     `json:"return_status"`
+	ReturnAdminNote        *string   `json:"return_admin_note"`
+	ReturnShippingProvider *string   `json:"return_shipping_provider"`
+	ReturnShippingCode     *string   `json:"return_shipping_code"`
+	ReturnShippingNote     *string   `json:"return_shipping_note"`
+	ReturnBankName         *string   `json:"return_bank_name"`
+	ReturnBankAccount      *string   `json:"return_bank_account"`
+	ReturnBankAccountName  *string   `json:"return_bank_account_name"`
+	ReturnCreatedAt        time.Time `json:"return_created_at"`
+	ReturnUpdatedAt        time.Time `json:"return_updated_at"`
+}
+
+type OrdersOrderTrackingEvent struct {
 	EventID        int32     `json:"event_id"`
 	EventOrderID   int32     `json:"event_order_id"`
 	EventStatus    string    `json:"event_status"`

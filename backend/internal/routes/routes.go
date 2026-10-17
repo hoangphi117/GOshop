@@ -147,6 +147,36 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 		v1api.Any("/webhooks/payment/*any", paymentProxyHandler)
 	}
 
+	// API Gateway reverse proxy for Coupon microservice endpoints
+	couponURL := utils.GetEnv("COUPON_SERVICE_URL", "")
+	if couponURL != "" {
+		if parsedCouponURL, err := url.Parse(couponURL); err == nil && parsedCouponURL.Scheme != "" {
+			couponProxy := httputil.NewSingleHostReverseProxy(parsedCouponURL)
+			transport := http.DefaultTransport.(*http.Transport).Clone()
+			transport.DisableCompression = true
+			couponProxy.Transport = transport
+
+			couponProxy.ModifyResponse = func(resp *http.Response) error {
+				resp.Header.Del("Access-Control-Allow-Origin")
+				resp.Header.Del("Access-Control-Allow-Credentials")
+				resp.Header.Del("Access-Control-Allow-Methods")
+				resp.Header.Del("Access-Control-Allow-Headers")
+				resp.Header.Del("Access-Control-Max-Age")
+				return nil
+			}
+			couponProxyHandler := func(ctx *gin.Context) {
+				ctx.Request.Host = parsedCouponURL.Host
+				ctx.Request.Header.Del("Accept-Encoding")
+				couponProxy.ServeHTTP(ctx.Writer, ctx.Request)
+			}
+
+			v1api.Any("/coupons", couponProxyHandler)
+			v1api.Any("/coupons/*any", couponProxyHandler)
+			v1api.Any("/admin/coupons", couponProxyHandler)
+			v1api.Any("/admin/coupons/*any", couponProxyHandler)
+		}
+	}
+
 	public := v1api.Group("")
 
 	protected := v1api.Group("")

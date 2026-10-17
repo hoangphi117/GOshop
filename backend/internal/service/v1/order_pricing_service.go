@@ -2,17 +2,12 @@ package v1service
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
-	"goshop/internal/db/sqlc"
-	v1dto "goshop/internal/dto/v1"
 	"goshop/internal/utils"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 )
 
 type ItemPriceInput struct {
@@ -40,27 +35,15 @@ type OrderPricingResult struct {
 	Items             []ItemPriceResult
 }
 
-// CouponLookup is a legacy narrow read port consumed by orderPricingService.
-// Kept for backward compatibility with existing tests.
-type CouponLookup interface {
-	GetByCode(ctx context.Context, code string) (sqlc.Coupon, error)
-	CountUserUsages(ctx context.Context, userID, couponID int32) (int64, error)
-}
-
 type orderPricingService struct {
-	couponPort   OrderCouponPort
-	couponLookup CouponLookup
+	couponPort OrderCouponPort
 }
 
-// NewOrderPricingService creates an OrderPricingService. Accepts either OrderCouponPort or legacy CouponLookup.
-func NewOrderPricingService(couponSource any) OrderPricingService {
-	svc := &orderPricingService{}
-	if cp, ok := couponSource.(OrderCouponPort); ok && cp != nil {
-		svc.couponPort = cp
-	} else if cl, ok := couponSource.(CouponLookup); ok && cl != nil {
-		svc.couponLookup = cl
+// NewOrderPricingService creates an OrderPricingService backed by OrderCouponPort.
+func NewOrderPricingService(couponPort OrderCouponPort) OrderPricingService {
+	return &orderPricingService{
+		couponPort: couponPort,
 	}
-	return svc
 }
 
 // CalculateItems calculates the subtotal for each item and the total amount for the order.
@@ -92,71 +75,6 @@ func (s *orderPricingService) CalculateItems(items []ItemPriceInput) ([]ItemPric
 		})
 	}
 	return results, totalSubtotal, nil
-}
-
-func parseCouponTime(s string) (time.Time, error) {
-	if t, err := time.Parse(time.RFC3339, s); err == nil {
-		return t, nil
-	}
-	if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
-		return t, nil
-	}
-	return time.Parse("2006-01-02 15:04:05", s)
-}
-
-func (s *orderPricingService) ValidateAndCalculateDiscount(coupon *v1dto.CouponDTO, subtotal float64, now time.Time) (float64, error) {
-	if coupon == nil {
-		return 0, nil
-	}
-
-	if !coupon.IsActive {
-		return 0, utils.NewError(utils.ErrCodeBadRequest, "Coupon is not active")
-	}
-
-	if coupon.StartDate != "" {
-		if startDate, err := parseCouponTime(coupon.StartDate); err == nil {
-			if now.Before(startDate) {
-				return 0, utils.NewError(utils.ErrCodeBadRequest, "Coupon is not yet active")
-			}
-		}
-	}
-
-	if coupon.EndDate != "" {
-		if endDate, err := parseCouponTime(coupon.EndDate); err == nil {
-			if now.After(endDate) {
-				return 0, utils.NewError(utils.ErrCodeBadRequest, "Coupon has expired")
-			}
-		}
-	}
-
-	if coupon.UsageLimit != nil && coupon.UsedCount >= *coupon.UsageLimit {
-		return 0, utils.NewError(utils.ErrCodeBadRequest, "Coupon has reached its maximum total usage limit")
-	}
-
-	if subtotal < coupon.MinOrderAmount {
-		return 0, utils.NewError(utils.ErrCodeBadRequest,
-			fmt.Sprintf("Order subtotal must be at least %.2f to use this coupon", coupon.MinOrderAmount))
-	}
-
-	var discount float64
-	switch coupon.Type {
-	case CouponTypePercentage:
-		discount = utils.RoundFloat(subtotal*coupon.DiscountValue/100, 2)
-		if coupon.MaxDiscountAmount != nil && *coupon.MaxDiscountAmount > 0 {
-			if discount > *coupon.MaxDiscountAmount {
-				discount = *coupon.MaxDiscountAmount
-			}
-		}
-	case CouponTypeFixedAmount:
-		discount = coupon.DiscountValue
-		if discount > subtotal {
-			discount = subtotal
-		}
-	default:
-		return 0, utils.NewError(utils.ErrCodeBadRequest, "Invalid coupon type")
-	}
-
-	return discount, nil
 }
 
 func (s *orderPricingService) CalculateOrderTotals(
@@ -193,35 +111,6 @@ func (s *orderPricingService) CalculateOrderTotals(
 				discount = preview.DiscountAmount
 				appliedCouponID = &preview.CouponID
 				appliedCouponCode = &preview.CouponCode
-			}
-		} else if s.couponLookup != nil {
-			coupon, err := s.couponLookup.GetByCode(ctx, cleanCode)
-			if err != nil {
-				if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
-					return nil, utils.NewError(utils.ErrCodeNotFound, "Coupon not found")
-				}
-				return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to retrieve coupon", err)
-			}
-
-			couponDTO := v1dto.MapToCouponDTO(coupon)
-			calculatedDiscount, err := s.ValidateAndCalculateDiscount(&couponDTO, subtotal, now)
-			if err != nil {
-				return nil, err
-			}
-
-			userUsageCount, err := s.couponLookup.CountUserUsages(ctx, userID, coupon.CouponID)
-			if err != nil {
-				return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to check coupon user usage count", err)
-			}
-
-			if userUsageCount >= int64(coupon.CouponUserUsageLimit) {
-				return nil, utils.NewError(utils.ErrCodeBadRequest, "You have reached your usage limit for this coupon")
-			}
-
-			if calculatedDiscount > 0 {
-				discount = calculatedDiscount
-				appliedCouponID = &coupon.CouponID
-				appliedCouponCode = &coupon.CouponCode
 			}
 		} else {
 			return nil, utils.NewError(utils.ErrCodeInternal, "Coupon port is not configured")

@@ -37,7 +37,6 @@ type Querier interface {
 	CountCartItems(ctx context.Context, cartID int32) (int64, error)
 	CountCategories(ctx context.Context, arg CountCategoriesParams) (int64, error)
 	CountConversations(ctx context.Context, arg CountConversationsParams) (int64, error)
-	CountCoupons(ctx context.Context, arg CountCouponsParams) (int64, error)
 	CountMessagesByConversationID(ctx context.Context, conversationID int32) (int64, error)
 	CountNotificationsByUserID(ctx context.Context, notificationUserID int32) (int64, error)
 	CountOrders(ctx context.Context, arg CountOrdersParams) (int64, error)
@@ -49,12 +48,10 @@ type Querier interface {
 	CountUnreadMessages(ctx context.Context, arg CountUnreadMessagesParams) (int64, error)
 	CountUnreadNotificationsByUserID(ctx context.Context, notificationUserID int32) (int64, error)
 	CountUserAddresses(ctx context.Context, uaUserID int32) (int64, error)
-	CountUserCouponUsages(ctx context.Context, arg CountUserCouponUsagesParams) (int64, error)
 	CountUsers(ctx context.Context, arg CountUsersParams) (int64, error)
 	CreateBanner(ctx context.Context, arg CreateBannerParams) (Banner, error)
 	CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error)
 	CreateConversation(ctx context.Context, userID int32) (ChatConversation, error)
-	CreateCoupon(ctx context.Context, arg CreateCouponParams) (Coupon, error)
 	CreateMessage(ctx context.Context, arg CreateMessageParams) (ChatMessage, error)
 	CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error)
 	CreateNotificationForAllUsers(ctx context.Context, arg CreateNotificationForAllUsersParams) error
@@ -102,8 +99,6 @@ type Querier interface {
 	GetConversationByID(ctx context.Context, conversationID int32) (ChatConversation, error)
 	GetConversationByUUID(ctx context.Context, conversationUuid uuid.UUID) (ChatConversation, error)
 	GetConversationByUserID(ctx context.Context, userID int32) (ChatConversation, error)
-	GetCouponByCode(ctx context.Context, couponCode string) (Coupon, error)
-	GetCouponByUUID(ctx context.Context, couponUuid uuid.UUID) (Coupon, error)
 	GetCouponCampaignBreakdown(ctx context.Context, arg GetCouponCampaignBreakdownParams) ([]GetCouponCampaignBreakdownRow, error)
 	GetCouponPerformanceSummary(ctx context.Context, arg GetCouponPerformanceSummaryParams) (GetCouponPerformanceSummaryRow, error)
 	GetLatestOrderNumber(ctx context.Context, orderNumber string) (string, error)
@@ -154,11 +149,6 @@ type Querier interface {
 	GetUserByOAuth(ctx context.Context, arg GetUserByOAuthParams) (User, error)
 	GetUserByUUID(ctx context.Context, userUuid uuid.UUID) (User, error)
 	GetUsersByIDs(ctx context.Context, dollar_1 []int32) ([]GetUsersByIDsRow, error)
-	// Atomic, có điều kiện chặn ngay trong WHERE — KHÔNG tách rời check-rồi-ghi
-	// như bản v1. Nếu không còn row trả về (sql.ErrNoRows), nghĩa là mã đã hết
-	// lượt dùng đúng tại thời điểm ghi, dù đã pass check trước đó (race condition
-	// đã bị chặn đúng lúc cần) — đúng pattern DeductStock ở Order module.
-	IncrementCouponUsedCount(ctx context.Context, couponID int32) (Coupon, error)
 	IncrementHelpfulCount(ctx context.Context, reviewID int32) (int32, error)
 	InsertHelpfulVote(ctx context.Context, arg InsertHelpfulVoteParams) error
 	InsertOutboxEvent(ctx context.Context, arg InsertOutboxEventParams) (OutboxEvent, error)
@@ -184,11 +174,9 @@ type Querier interface {
 	MarkWebhookEventProcessed(ctx context.Context, weID int32) error
 	RecalcProductRating(ctx context.Context, reviewProductID int32) error
 	RecallMessage(ctx context.Context, messageID int32) (ChatMessage, error)
-	RecordCouponUsage(ctx context.Context, arg RecordCouponUsageParams) (CouponUsage, error)
 	ReplyReview(ctx context.Context, arg ReplyReviewParams) (ProductReview, error)
 	RestoreBanner(ctx context.Context, bannerUuid uuid.UUID) (Banner, error)
 	RestoreCategory(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
-	RestoreCoupon(ctx context.Context, couponUuid uuid.UUID) (Coupon, error)
 	RestoreProduct(ctx context.Context, productUuid uuid.UUID) (Product, error)
 	RestoreStock(ctx context.Context, arg RestoreStockParams) error
 	RestoreUser(ctx context.Context, userUuid uuid.UUID) (User, error)
@@ -198,19 +186,16 @@ type Querier interface {
 	SetLatestAddressAsDefault(ctx context.Context, uaUserID int32) error
 	SoftDeleteBanner(ctx context.Context, bannerUuid uuid.UUID) (Banner, error)
 	SoftDeleteCategory(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
-	SoftDeleteCouponByUUID(ctx context.Context, couponUuid uuid.UUID) (Coupon, error)
 	SoftDeleteProduct(ctx context.Context, productUuid uuid.UUID) (Product, error)
 	SoftDeleteUser(ctx context.Context, userUuid uuid.UUID) (User, error)
 	TrashBanner(ctx context.Context, bannerUuid uuid.UUID) (Banner, error)
 	TrashCategory(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
-	TrashCoupon(ctx context.Context, couponUuid uuid.UUID) (Coupon, error)
 	TrashProduct(ctx context.Context, productUuid uuid.UUID) (Product, error)
 	TrashUser(ctx context.Context, userUuid uuid.UUID) (User, error)
 	UpdateBanner(ctx context.Context, arg UpdateBannerParams) (Banner, error)
 	UpdateBannerStatus(ctx context.Context, arg UpdateBannerStatusParams) (Banner, error)
 	UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (Category, error)
 	UpdateConversationStatus(ctx context.Context, arg UpdateConversationStatusParams) (ChatConversation, error)
-	UpdateCoupon(ctx context.Context, arg UpdateCouponParams) (Coupon, error)
 	UpdateLastMessageAt(ctx context.Context, conversationID int32) error
 	UpdateOrderPaymentStatus(ctx context.Context, arg UpdateOrderPaymentStatusParams) (Order, error)
 	UpdateOrderShippingAndStatus(ctx context.Context, arg UpdateOrderShippingAndStatusParams) (Order, error)

@@ -122,22 +122,6 @@ type CartRepository interface {
 	DeleteCartItemsByProductIDs(ctx context.Context, tx pgx.Tx, cartID int32, productIDs []int32) error
 }
 
-type CouponRepository interface {
-	Create(ctx context.Context, params sqlc.CreateCouponParams) (sqlc.Coupon, error)
-	GetAll(ctx context.Context, search, orderBy, sort string, coupon_type *int32, isActive *bool, limit, offset int32, deleted bool) ([]sqlc.Coupon, error)
-	GetByCode(ctx context.Context, code string) (sqlc.Coupon, error)
-	GetByUUID(ctx context.Context, uuid uuid.UUID) (sqlc.Coupon, error)
-	Update(ctx context.Context, params sqlc.UpdateCouponParams) (sqlc.Coupon, error)
-	CountCoupons(ctx context.Context, search string, coupon_type *int32, isActive *bool, deleted bool) (int64, error)
-	SoftDelete(ctx context.Context, uuid uuid.UUID) (sqlc.Coupon, error)
-	Restore(ctx context.Context, uuid uuid.UUID) (sqlc.Coupon, error)
-	Trash(ctx context.Context, uuid uuid.UUID) (sqlc.Coupon, error)
-	CountUserUsages(ctx context.Context, userID, couponID int32) (int64, error)
-
-	RecordUserUsage(ctx context.Context, tx pgx.Tx, params sqlc.RecordCouponUsageParams) (sqlc.CouponUsage, error)
-	IncrementUsedCount(ctx context.Context, tx pgx.Tx, couponID int32) error
-}
-
 type WebhookEventRepository interface {
 	InsertEvent(ctx context.Context, tx pgx.Tx, params sqlc.InsertWebhookEventParams) (sqlc.WebhookEvent, error)
 	MarkProcessed(ctx context.Context, tx pgx.Tx, eventID int32) error

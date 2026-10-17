@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package coupon.v1;
+
+option go_package = "goshop/proto/coupon/v1;couponv1";
+
+message PreviewCouponRequest {
+  string coupon_code = 1;
+  double order_subtotal = 2;
+  string user_uuid = 3;
+}
+
+message PreviewCouponResponse {
+  int32 coupon_id = 1;
+  string coupon_uuid = 2;
+  string coupon_code = 3;
+  string coupon_name = 4;
+  int32 coupon_type = 5;
+  double discount_value = 6;
+  double subtotal_amount = 7;
+  double discount_amount = 8;
+  double final_total_amount = 9;
+  double min_order_amount = 10;
+}
+
+message ReserveCouponRequest {
+  int32 coupon_id = 1;
+  string coupon_uuid = 2;
+  int32 user_id = 3;
+  string user_uuid = 4;
+  int32 order_id = 5;
+  string order_uuid = 6;
+}
+
+message ReserveCouponResponse {
+  bool success = 1;
+  string usage_uuid = 2;
+}
+
+message ReleaseCouponRequest {
+  int32 coupon_id = 1;
+  string coupon_uuid = 2;
+  int32 order_id = 3;
+  string order_uuid = 4;
+}
+
+message ReleaseCouponResponse {
+  bool success = 1;
+}
+
+service CouponService {
+  rpc PreviewCoupon(PreviewCouponRequest) returns (PreviewCouponResponse);
+  rpc ReserveCoupon(ReserveCouponRequest) returns (ReserveCouponResponse);
+  rpc ReleaseCoupon(ReleaseCouponRequest) returns (ReleaseCouponResponse);
+}

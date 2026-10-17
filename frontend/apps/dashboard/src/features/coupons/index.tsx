@@ -186,11 +186,18 @@ export function Coupons() {
                       {formatPrice(c.min_order_amount)}
                     </TableCell>
                     <TableCell className='text-sm'>
-                      <span className='font-semibold'>{c.used_count ?? 0}</span>
-                      <span className='text-muted-foreground'>
-                        {' '}
-                        / {c.usage_limit ?? '∞'}
-                      </span>
+                      <div>
+                        <span className='font-semibold'>{c.used_count ?? 0}</span>
+                        <span className='text-muted-foreground'>
+                          {' '}
+                          / {c.usage_limit ?? '∞'}
+                        </span>
+                      </div>
+                      {Boolean(c.user_usage_limit) && (
+                        <div className='text-xs text-muted-foreground'>
+                          Max {c.user_usage_limit}/user
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className='text-xs text-muted-foreground'>
                       <div className='flex items-center gap-1'>

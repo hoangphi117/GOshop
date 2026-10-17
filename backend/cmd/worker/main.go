@@ -18,6 +18,7 @@ import (
 	"goshop/pkg/search"
 	"goshop/pkg/shipping"
 	"goshop/pkg/ws"
+	couponcontract "goshop/services/coupon/contract"
 	"os/signal"
 	"path/filepath"
 	"strconv"
@@ -140,13 +141,18 @@ func NewWorker(cfg *config.Config) *Worker {
 	outboxRepo := repository.NewSqlOutboxRepository(db.DB)
 
 	// Order Service & Payment Expired Consumer
-	couponRepo := repository.NewSqlCouponRepository(db.DB)
-	couponService := v1service.NewCouponService(couponRepo, userRepo, redisClient)
+	couponTarget := utils.GetEnv("COUPON_GRPC_TARGET", "localhost:50053")
+	grpcCouponClient, err := couponcontract.NewGRPCCouponClient(couponTarget)
+	if err != nil {
+		log.Fatal().Err(err).Str("target", couponTarget).Msg("Failed to initialize Coupon gRPC client")
+	}
+	defer grpcCouponClient.Close()
+	couponPort := v1service.NewOrderCouponGRPCAdapter(grpcCouponClient)
+
 	stockMovementRepo := repository.NewSqlStockMovementRepository(db.DB)
 	inventoryService := v1service.NewInventoryService(productRepo, stockMovementRepo, userRepo, txManager, rabbitMQ)
 
 	catalogPort := v1service.NewOrderCatalogAdapter(productRepo)
-	couponPort := v1service.NewOrderCouponAdapter(couponService)
 	stockPort := v1service.NewOrderStockAdapter(inventoryService)
 	pricingService := v1service.NewOrderPricingService(couponPort)
 
