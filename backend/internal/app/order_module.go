@@ -12,6 +12,7 @@ import (
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/shipping"
 	couponcontract "goshop/services/coupon/contract"
+	inventorycontract "goshop/services/inventory/contract"
 )
 
 type OrderModule struct {
@@ -20,13 +21,12 @@ type OrderModule struct {
 }
 
 type OrderModuleDeps struct {
-	CartService      v1service.CartService
-	InventoryService v1service.InventoryService
-	PaymentService   v1service.PaymentService
-	LocationService  v1service.LocationService
-	ShippingFactory  *shipping.ShippingFactory
-	RabbitMQService  rabbitmq.RabbitMQService
-	CacheService     cache.RedisCacheService
+	CartService     v1service.CartService
+	PaymentService  v1service.PaymentService
+	LocationService v1service.LocationService
+	ShippingFactory *shipping.ShippingFactory
+	RabbitMQService rabbitmq.RabbitMQService
+	CacheService    cache.RedisCacheService
 }
 
 func NewOrderModule(
@@ -51,7 +51,18 @@ func NewOrderModule(
 		panic(err)
 	}
 	couponPort := v1service.NewOrderCouponGRPCAdapter(grpcClient)
-	stockPort := v1service.NewOrderStockAdapter(deps.InventoryService)
+
+	invClient := ctx.InventoryClient
+	if invClient == nil {
+		inventoryTarget := utils.GetEnv("INVENTORY_GRPC_TARGET", "localhost:50054")
+		var err error
+		invClient, err = inventorycontract.NewGRPCInventoryClient(inventoryTarget)
+		if err != nil {
+			panic(err)
+		}
+	}
+	stockPort := v1service.NewOrderStockGRPCAdapter(invClient)
+
 	pricingService := v1service.NewOrderPricingService(couponPort)
 
 	orderService := v1service.NewOrderService(
@@ -111,12 +122,11 @@ func NewOrderModule(
 
 	orderRoutes := v1routes.NewOrderRoutes(orderHandler)
 	adminOrderRoutes := v1routes.NewAdminOrderRoutes(orderHandler)
-	adminInventoryRoutes := v1routes.NewAdminInventoryRoutes(v1handler.NewInventoryHandler(deps.InventoryService))
 	shippingWebhookRoutes := v1routes.NewShippingWebhookRoutes(orderHandler)
 
 	return &OrderModule{
 		routes:      []routes.Route{orderRoutes, shippingWebhookRoutes},
-		adminRoutes: []routes.Route{adminOrderRoutes, adminInventoryRoutes},
+		adminRoutes: []routes.Route{adminOrderRoutes},
 	}
 }
 

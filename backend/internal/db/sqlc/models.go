@@ -233,7 +233,6 @@ type CouponCouponUsage struct {
 	CouponUsageOrderUuid  pgtype.UUID `json:"coupon_usage_order_uuid"`
 	CouponUsageUserUuid   pgtype.UUID `json:"coupon_usage_user_uuid"`
 	CouponUsageCouponUuid pgtype.UUID `json:"coupon_usage_coupon_uuid"`
-	CouponUsageUuid       uuid.UUID   `json:"coupon_usage_uuid"`
 }
 
 type CouponUsage struct {
@@ -245,7 +244,6 @@ type CouponUsage struct {
 	CouponUsageOrderUuid  pgtype.UUID `json:"coupon_usage_order_uuid"`
 	CouponUsageUserUuid   pgtype.UUID `json:"coupon_usage_user_uuid"`
 	CouponUsageCouponUuid pgtype.UUID `json:"coupon_usage_coupon_uuid"`
-	CouponUsageUuid       uuid.UUID   `json:"coupon_usage_uuid"`
 }
 
 type InventoryStockMovement struct {

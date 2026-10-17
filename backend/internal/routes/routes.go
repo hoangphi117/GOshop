@@ -177,6 +177,36 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 		}
 	}
 
+	// API Gateway reverse proxy for Inventory microservice endpoints
+	inventoryURL := utils.GetEnv("INVENTORY_SERVICE_URL", "")
+	if inventoryURL != "" {
+		if parsedInventoryURL, err := url.Parse(inventoryURL); err == nil && parsedInventoryURL.Scheme != "" {
+			inventoryProxy := httputil.NewSingleHostReverseProxy(parsedInventoryURL)
+			transport := http.DefaultTransport.(*http.Transport).Clone()
+			transport.DisableCompression = true
+			inventoryProxy.Transport = transport
+
+			inventoryProxy.ModifyResponse = func(resp *http.Response) error {
+				resp.Header.Del("Access-Control-Allow-Origin")
+				resp.Header.Del("Access-Control-Allow-Credentials")
+				resp.Header.Del("Access-Control-Allow-Methods")
+				resp.Header.Del("Access-Control-Allow-Headers")
+				resp.Header.Del("Access-Control-Max-Age")
+				return nil
+			}
+			inventoryProxyHandler := func(ctx *gin.Context) {
+				ctx.Request.Host = parsedInventoryURL.Host
+				ctx.Request.Header.Del("Accept-Encoding")
+				inventoryProxy.ServeHTTP(ctx.Writer, ctx.Request)
+			}
+
+			v1api.Any("/admin/inventory", inventoryProxyHandler)
+			v1api.Any("/admin/inventory/*any", inventoryProxyHandler)
+			v1api.Any("/inventory", inventoryProxyHandler)
+			v1api.Any("/inventory/*any", inventoryProxyHandler)
+		}
+	}
+
 	public := v1api.Group("")
 
 	protected := v1api.Group("")

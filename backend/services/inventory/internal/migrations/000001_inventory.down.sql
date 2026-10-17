@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS stock_movements CASCADE;
+DROP TABLE IF EXISTS inventory_stocks CASCADE;

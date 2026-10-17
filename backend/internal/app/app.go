@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"goshop/pkg/storage"
 	"goshop/pkg/ws"
+	inventorycontract "goshop/services/inventory/contract"
 	"net/http"
 	"os"
 	"os/signal"
@@ -59,6 +60,7 @@ type ModuleContext struct {
 	Search         *search.Client
 	IdentityClient client.IdentityClient
 	RabbitMQ       rabbitmq.RabbitMQService
+	InventoryClient inventorycontract.InventoryClient
 }
 
 func NewApplication(cfg *config.Config) (*Application, error) {
@@ -194,15 +196,19 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	cartRepo := repository.NewSqlCartRepository(db.DB)
 	cartService := v1service.NewCartService(cartRepo, userReader, productRepo, redisClient)
 
-	stockMovementRepo := repository.NewSqlStockMovementRepository(db.DB)
-	inventoryService := v1service.NewInventoryService(productRepo, stockMovementRepo, userReader, txManager, rabbitmqService)
-
 	grpcPaymentClient, err := client.NewGRPCPaymentClient(cfg.PaymentGRPCAddr)
 	if err != nil {
 		logger.Log.Fatal().Err(err).Str("addr", cfg.PaymentGRPCAddr).Msg("Failed to initialize Payment gRPC client")
 		return nil, err
 	}
 	paymentService := client.NewPaymentServiceAdapter(grpcPaymentClient)
+
+	inventoryTarget := utils.GetEnv("INVENTORY_GRPC_TARGET", "localhost:50054")
+	grpcInventoryClient, err := inventorycontract.NewGRPCInventoryClient(inventoryTarget)
+	if err != nil {
+		logger.Log.Fatal().Err(err).Str("addr", inventoryTarget).Msg("Failed to initialize Inventory gRPC client")
+		return nil, err
+	}
 
 	ctx := &ModuleContext{
 		DB:             db.DB,
@@ -214,16 +220,16 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		Search:         searchClient,
 		IdentityClient: identityClient,
 		RabbitMQ:       rabbitmqService,
+		InventoryClient: grpcInventoryClient,
 	}
 
 	orderModuleDeps := OrderModuleDeps{
-		CartService:      cartService,
-		InventoryService: inventoryService,
-		PaymentService:   paymentService,
-		LocationService:  locationService,
-		ShippingFactory:  shippingFactory,
-		RabbitMQService:  rabbitmqService,
-		CacheService:     cacheRedisService,
+		CartService:     cartService,
+		PaymentService:  paymentService,
+		LocationService: locationService,
+		ShippingFactory: shippingFactory,
+		RabbitMQService: rabbitmqService,
+		CacheService:    cacheRedisService,
 	}
 
 	modules := []Module{

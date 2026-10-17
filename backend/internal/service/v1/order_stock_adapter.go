@@ -2,18 +2,19 @@ package v1service
 
 import (
 	"context"
+	inventorycontract "goshop/services/inventory/contract"
 )
 
-type orderStockAdapter struct {
-	inventoryService InventoryService
+type orderStockGRPCAdapter struct {
+	client inventorycontract.InventoryClient
 }
 
-// NewOrderStockAdapter bridges InventoryService to OrderStockPort.
-func NewOrderStockAdapter(inventoryService InventoryService) OrderStockPort {
-	return &orderStockAdapter{inventoryService: inventoryService}
+// NewOrderStockGRPCAdapter bridges gRPC InventoryClient to OrderStockPort.
+func NewOrderStockGRPCAdapter(client inventorycontract.InventoryClient) OrderStockPort {
+	return &orderStockGRPCAdapter{client: client}
 }
 
-func (a *orderStockAdapter) LockAndDeductStockWithRef(
+func (a *orderStockGRPCAdapter) LockAndDeductStockWithRef(
 	ctx context.Context,
 	items []DeductItem,
 	refID string,
@@ -21,11 +22,24 @@ func (a *orderStockAdapter) LockAndDeductStockWithRef(
 	actorID *int32,
 	note *string,
 ) error {
-	_, err := a.inventoryService.LockAndDeductStockWithRef(ctx, items, refID, refType, actorID, note)
+	stockItems := make([]inventorycontract.StockItem, len(items))
+	for i, it := range items {
+		stockItems[i] = inventorycontract.StockItem{
+			ProductUUID: it.ProductUUID,
+			Quantity:    it.Quantity,
+		}
+	}
+	_, err := a.client.ReserveStock(ctx, inventorycontract.ReserveStockInput{
+		Items:         stockItems,
+		ReferenceID:   refID,
+		ReferenceType: refType,
+		ActorID:       actorID,
+		Note:          note,
+	})
 	return err
 }
 
-func (a *orderStockAdapter) RestoreStockWithRef(
+func (a *orderStockGRPCAdapter) RestoreStockWithRef(
 	ctx context.Context,
 	items []RestoreItem,
 	refID string,
@@ -33,5 +47,19 @@ func (a *orderStockAdapter) RestoreStockWithRef(
 	actorID *int32,
 	note *string,
 ) error {
-	return a.inventoryService.RestoreStockWithRef(ctx, items, refID, refType, actorID, note)
+	stockItems := make([]inventorycontract.StockItem, len(items))
+	for i, it := range items {
+		stockItems[i] = inventorycontract.StockItem{
+			ProductID: it.ProductID,
+			Quantity:  it.Quantity,
+		}
+	}
+	return a.client.ReleaseStock(ctx, inventorycontract.ReleaseStockInput{
+		Items:         stockItems,
+		ReferenceID:   refID,
+		ReferenceType: refType,
+		ActorID:       actorID,
+		Note:          note,
+	})
 }
+
