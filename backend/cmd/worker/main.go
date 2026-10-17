@@ -94,7 +94,6 @@ func NewWorker(cfg *config.Config) *Worker {
 	}
 
 	userRepo := repository.NewSqlUserRepository(db.DB)
-	cartRepo := repository.NewSqlCartRepository(db.DB)
 	productRepo := repository.NewSqlProductRepository(db.DB)
 	orderRepo := repository.NewSqlOrderRepository(db.DB)
 	orderItemRepo := repository.NewSqlOrderItemRepository(db.DB)
@@ -104,7 +103,12 @@ func NewWorker(cfg *config.Config) *Worker {
 
 	redisBridge := ws.NewRedisBridge(redisClient, nil)
 
-	cartService := v1service.NewCartService(cartRepo, userRepo, productRepo, redisClient)
+	cartTarget := utils.GetEnv("CART_GRPC_TARGET", utils.GetEnv("CART_GRPC_ADDR", "localhost:50056"))
+	grpcCartClient, err := client.NewGRPCCartClient(cartTarget)
+	if err != nil {
+		log.Warn().Err(err).Str("addr", cartTarget).Msg("Failed to initialize Cart gRPC client in worker")
+	}
+	cartService := client.NewCartServiceAdapter(grpcCartClient)
 	orderConsumer := worker.NewOrderConsumer(cartService, nil, log)
 
 	// Shipping Factory & Service

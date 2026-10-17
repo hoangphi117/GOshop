@@ -6,7 +6,6 @@ import (
 	"goshop/internal/config"
 	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
-	"goshop/internal/repository"
 	"goshop/internal/routes"
 	"goshop/internal/utils"
 	"goshop/internal/validation"
@@ -177,14 +176,11 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		logger.Log.Warn().Err(err).Msg("Failed to initialize Meilisearch client")
 	}
 
-	userRepo := repository.NewSqlUserRepository(db.DB)
 	identityClient, err := client.NewGRPCIdentityClient(cfg.IdentityGRPCAddr, redisClient)
 	if err != nil {
 		logger.Log.Fatal().Err(err).Str("addr", cfg.IdentityGRPCAddr).Msg("Failed to initialize Identity gRPC client")
 		return nil, err
 	}
-	userReader := client.NewIdentityUserReader(identityClient, userRepo)
-
 	// Location Domain Initialization
 	ghnToken := utils.GetEnv("GHN_TOKEN", "")
 	ghnShopID, _ := strconv.Atoi(utils.GetEnv("GHN_SHOP_ID", "0"))
@@ -193,17 +189,19 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	shippingFactory := shipping.NewShippingFactory(ghnAdapter)
 	locationService := v1service.NewLocationService(shippingFactory, cacheRedisService)
 
-	// Cross-domain Core Repositories & Service Singletons
-	productRepo := repository.NewSqlProductRepository(db.DB)
-	cartRepo := repository.NewSqlCartRepository(db.DB)
-
+	// Cross-domain Core Service Singletons
 	catalogTarget := utils.GetEnv("CATALOG_GRPC_TARGET", "localhost:50055")
 	grpcCatalogClient, err := catalogcontract.NewGRPCCatalogClient(catalogTarget)
 	if err != nil {
 		logger.Log.Warn().Err(err).Str("addr", catalogTarget).Msg("Failed to initialize Catalog gRPC client")
 	}
 
-	cartService := v1service.NewCartService(cartRepo, userReader, productRepo, redisClient, grpcCatalogClient)
+	cartTarget := utils.GetEnv("CART_GRPC_TARGET", utils.GetEnv("CART_GRPC_ADDR", "localhost:50056"))
+	grpcCartClient, err := client.NewGRPCCartClient(cartTarget)
+	if err != nil {
+		logger.Log.Warn().Err(err).Str("addr", cartTarget).Msg("Failed to initialize Cart gRPC client")
+	}
+	cartService := client.NewCartServiceAdapter(grpcCartClient)
 
 	grpcPaymentClient, err := client.NewGRPCPaymentClient(cfg.PaymentGRPCAddr)
 	if err != nil {
@@ -245,7 +243,6 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	modules := []Module{
 		NewProductModule(ctx),
 		NewOrderModule(ctx, orderModuleDeps),
-		NewCartModule(ctx, cartService),
 	}
 	modules = append(modules,
 		NewReviewModule(ctx, rabbitmqService),

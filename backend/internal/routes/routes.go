@@ -244,6 +244,34 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 		}
 	}
 
+	// API Gateway reverse proxy for Cart microservice endpoints
+	cartURL := utils.GetEnv("CART_SERVICE_URL", "")
+	if cartURL != "" {
+		if parsedCartURL, err := url.Parse(cartURL); err == nil && parsedCartURL.Scheme != "" {
+			cartProxy := httputil.NewSingleHostReverseProxy(parsedCartURL)
+			transport := http.DefaultTransport.(*http.Transport).Clone()
+			transport.DisableCompression = true
+			cartProxy.Transport = transport
+
+			cartProxy.ModifyResponse = func(resp *http.Response) error {
+				resp.Header.Del("Access-Control-Allow-Origin")
+				resp.Header.Del("Access-Control-Allow-Credentials")
+				resp.Header.Del("Access-Control-Allow-Methods")
+				resp.Header.Del("Access-Control-Allow-Headers")
+				resp.Header.Del("Access-Control-Max-Age")
+				return nil
+			}
+			cartProxyHandler := func(ctx *gin.Context) {
+				ctx.Request.Host = parsedCartURL.Host
+				ctx.Request.Header.Del("Accept-Encoding")
+				cartProxy.ServeHTTP(ctx.Writer, ctx.Request)
+			}
+
+			v1api.Any("/cart", cartProxyHandler)
+			v1api.Any("/cart/*any", cartProxyHandler)
+		}
+	}
+
 	public := v1api.Group("")
 
 	protected := v1api.Group("")

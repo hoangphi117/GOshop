@@ -15,3 +15,7 @@ WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'shopping_inventory')\
 SELECT 'CREATE DATABASE shopping_catalog'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'shopping_catalog')\gexec
 
+SELECT 'CREATE DATABASE shopping_cart'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'shopping_cart')\gexec
+
+

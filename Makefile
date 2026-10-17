@@ -6,16 +6,19 @@ MIGRATION_IDENTITY_DIR=backend/internal/db/migrations_identity
 MIGRATION_COUPON_DIR=backend/services/coupon/internal/migrations
 MIGRATION_INVENTORY_DIR=backend/services/inventory/internal/migrations
 MIGRATION_CATALOG_DIR=backend/services/catalog/internal/migrations
+MIGRATION_CART_DIR=backend/services/cart/internal/migrations
 IDENTITY_DB_NAME?=shopping_identity
 COUPON_DB_NAME?=shopping_coupon
 INVENTORY_DB_NAME?=shopping_inventory
 CATALOG_DB_NAME?=shopping_catalog
+CART_DB_NAME?=shopping_cart
 
 CONNECTION_STRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=${DB_SSL_MODE}
 IDENTITY_CONNECTION_STRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${IDENTITY_DB_NAME}?sslmode=${DB_SSL_MODE}
 COUPON_CONNECTION_STRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${COUPON_DB_NAME}?sslmode=${DB_SSL_MODE}
 INVENTORY_CONNECTION_STRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${INVENTORY_DB_NAME}?sslmode=${DB_SSL_MODE}
 CATALOG_CONNECTION_STRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${CATALOG_DB_NAME}?sslmode=${DB_SSL_MODE}
+CART_CONNECTION_STRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${CART_DB_NAME}?sslmode=${DB_SSL_MODE}
 
 PROD_COMPOSE=docker-compose.prod.yml
 NOAPP_COMPOSE=docker-compose.noapp.yml
@@ -89,6 +92,12 @@ catalog:
 build-catalog:
 	cd backend && go build -o bin/catalog ./cmd/catalog
 
+cart:
+	cd backend && go run ./cmd/cart
+
+build-cart:
+	cd backend && go build -o bin/cart ./cmd/cart
+
 
 run-binary:
 	./backend/bin/goshop
@@ -106,7 +115,7 @@ migrate-create:
 migrate-identity-create:
 	migrate create -ext sql -dir ${MIGRATION_IDENTITY_DIR} -seq ${NAME}
 
-migrate-up: migrate-core-up migrate-identity-up migrate-coupon-up migrate-inventory-up migrate-catalog-up
+migrate-up: migrate-core-up migrate-identity-up migrate-coupon-up migrate-inventory-up migrate-catalog-up migrate-cart-up
 
 migrate-core-up:
 	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" up
@@ -123,8 +132,11 @@ migrate-inventory-up:
 migrate-catalog-up:
 	migrate -path ${MIGRATION_CATALOG_DIR} -database "${CATALOG_CONNECTION_STRING}" up
 
+migrate-cart-up:
+	migrate -path ${MIGRATION_CART_DIR} -database "${CART_CONNECTION_STRING}" up
+
 # Rollback the last migration
-migrate-down: migrate-core-down migrate-identity-down migrate-coupon-down migrate-inventory-down migrate-catalog-down
+migrate-down: migrate-core-down migrate-identity-down migrate-coupon-down migrate-inventory-down migrate-catalog-down migrate-cart-down
 
 migrate-core-down:
 	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" down 1
@@ -140,6 +152,9 @@ migrate-inventory-down:
 
 migrate-catalog-down:
 	migrate -path ${MIGRATION_CATALOG_DIR} -database "${CATALOG_CONNECTION_STRING}" down 1
+
+migrate-cart-down:
+	migrate -path ${MIGRATION_CART_DIR} -database "${CART_CONNECTION_STRING}" down 1
 
 # Rollback the last N migrations
 migrate-down-n:
