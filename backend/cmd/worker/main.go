@@ -19,6 +19,7 @@ import (
 	"goshop/pkg/shipping"
 	"goshop/pkg/ws"
 	couponcontract "goshop/services/coupon/contract"
+	catalogcontract "goshop/services/catalog/contract"
 	inventorycontract "goshop/services/inventory/contract"
 	"os/signal"
 	"path/filepath"
@@ -150,7 +151,14 @@ func NewWorker(cfg *config.Config) *Worker {
 	defer grpcCouponClient.Close()
 	couponPort := v1service.NewOrderCouponGRPCAdapter(grpcCouponClient)
 
-	catalogPort := v1service.NewOrderCatalogAdapter(productRepo)
+	catalogTarget := utils.GetEnv("CATALOG_GRPC_TARGET", "localhost:50055")
+	grpcCatalogClient, err := catalogcontract.NewGRPCCatalogClient(catalogTarget)
+	if err != nil {
+		log.Warn().Err(err).Str("target", catalogTarget).Msg("Failed to initialize Catalog gRPC client")
+	} else {
+		defer grpcCatalogClient.Close()
+	}
+	catalogPort := v1service.NewOrderCatalogAdapter(productRepo, grpcCatalogClient)
 	inventoryTarget := utils.GetEnv("INVENTORY_GRPC_TARGET", "localhost:50054")
 	grpcInventoryClient, err := inventorycontract.NewGRPCInventoryClient(inventoryTarget)
 	if err != nil {

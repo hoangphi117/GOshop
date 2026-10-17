@@ -1,0 +1,88 @@
+syntax = "proto3";
+
+package catalog.v1;
+
+option go_package = "goshop/proto/catalog/v1;catalogv1";
+
+message ProductInfo {
+  int32 product_id = 1;
+  string product_uuid = 2;
+  string product_name = 3;
+  string product_slug = 4;
+  string product_description = 5;
+  double product_price = 6;
+  int32 product_stock = 7;
+  string product_sku = 8;
+  int32 product_category_id = 9;
+  string product_category_uuid = 10;
+  string product_category_name = 11;
+  string product_image_url = 12;
+  int32 product_status = 13;
+  double product_avg_rating = 14;
+  int32 product_review_count = 15;
+  string product_created_at = 16;
+}
+
+message CategoryInfo {
+  int32 category_id = 1;
+  string category_uuid = 2;
+  string category_name = 3;
+  string category_slug = 4;
+  string category_description = 5;
+  int32 category_status = 6;
+  string category_created_at = 7;
+}
+
+message GetProductRequest {
+  string product_uuid = 1;
+  int32 product_id = 2;
+  string product_slug = 3;
+}
+
+message GetProductResponse {
+  ProductInfo product = 1;
+}
+
+message GetProductsBatchRequest {
+  repeated string product_uuids = 1;
+  repeated int32 product_ids = 2;
+}
+
+message GetProductsBatchResponse {
+  repeated ProductInfo products = 1;
+}
+
+message ValidateProductsRequest {
+  repeated string product_uuids = 1;
+}
+
+message ValidateProductsResponse {
+  bool valid = 1;
+  repeated string missing_uuids = 2;
+}
+
+message GetCategoryRequest {
+  string category_uuid = 1;
+  int32 category_id = 2;
+  string category_slug = 3;
+}
+
+message GetCategoryResponse {
+  CategoryInfo category = 1;
+}
+
+message ListCategoriesRequest {
+  bool active_only = 1;
+}
+
+message ListCategoriesResponse {
+  repeated CategoryInfo categories = 1;
+}
+
+service CatalogService {
+  rpc GetProduct(GetProductRequest) returns (GetProductResponse);
+  rpc GetProductsBatch(GetProductsBatchRequest) returns (GetProductsBatchResponse);
+  rpc ValidateProducts(ValidateProductsRequest) returns (ValidateProductsResponse);
+  rpc GetCategory(GetCategoryRequest) returns (GetCategoryResponse);
+  rpc ListCategories(ListCategoriesRequest) returns (ListCategoriesResponse);
+}

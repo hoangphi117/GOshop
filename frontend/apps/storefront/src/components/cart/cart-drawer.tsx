@@ -58,11 +58,6 @@ export function CartDrawer() {
     (acc, item) => acc + item.price * item.quantity,
     0,
   );
-
-  const freeShippingProgress = Math.min(
-    100,
-    Math.round((subtotal / FREE_SHIPPING_THRESHOLD) * 100),
-  );
   const remainingForFreeShipping = Math.max(
     0,
     FREE_SHIPPING_THRESHOLD - subtotal,
@@ -129,29 +124,6 @@ export function CartDrawer() {
           </div>
         </div>
 
-        {/* Free Shipping Progress Indicator */}
-        {isAuthenticated && items.length > 0 && (
-          <div className="px-5 py-3 bg-[#E6F7FB]/60 border-b border-[#00ADD8]/20">
-            <div className="flex items-center justify-between text-xs font-semibold text-[#007D9C] mb-1.5 font-body">
-              <span className="flex items-center gap-1.5">
-                <Truck className="w-3.5 h-3.5 text-[#00ADD8]" />
-                {freeShippingProgress >= 100
-                  ? "You unlocked FREE Express Shipping!"
-                  : `Add ${formatCurrency(remainingForFreeShipping)} for FREE Express Shipping`}
-              </span>
-              <span className="text-[11px] font-bold">
-                {freeShippingProgress}%
-              </span>
-            </div>
-            <div className="h-1.5 w-full bg-slate-200/80 rounded-md overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-[#00ADD8] to-[#007D9C] rounded-md transition-all duration-500"
-                style={{ width: `${freeShippingProgress}%` }}
-              />
-            </div>
-          </div>
-        )}
-
         {/* Subheader: Select All */}
         {isAuthenticated && availableItems.length > 0 && (
           <div className="px-5 py-2.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-xs">
@@ -163,7 +135,7 @@ export function CartDrawer() {
                 className="w-4 h-4 rounded text-[#007D9C] accent-[#007D9C] cursor-pointer"
               />
               <span>
-                Select All ({selectedCount}/{availableItems.length} ready)
+                Select All ({selectedCount}/{availableItems.length})
               </span>
             </label>
           </div>

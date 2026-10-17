@@ -553,6 +553,9 @@ export function ProductReviewsSection({
                           src={getImageUrl(imgUrl)}
                           alt={`Review photo ${i + 1}`}
                           className="w-full h-full object-cover rounded-sm"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLElement).parentElement?.classList.add("hidden");
+                          }}
                         />
                       </button>
                     ))}

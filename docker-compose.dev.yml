@@ -39,6 +39,7 @@ services:
       - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:-goshop-internal-secret-token}
       - JWT_PRIVATE_KEY=/app/certs/jwt_private.pem
       - JWT_PUBLIC_KEY=/app/certs/jwt_public.pem
+      - S3_ENDPOINT=http://minio:9000
     volumes:
       - ./backend:/app
       - ./backend/uploads:/app/uploads

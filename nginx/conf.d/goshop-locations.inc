@@ -203,7 +203,96 @@ location /api/v1/inventory {
 }
 
 # -----------------------------------------------------------------------------
-# 4.3. BLOCK EXTERNAL ACCESS TO INTERNAL MICROSERVICE ENDPOINTS (/internal/)
+# 4.4. CATALOG SERVICE REVERSE PROXY (/api/v1/products, /api/v1/categories)
+# -----------------------------------------------------------------------------
+# Product Reviews are served by Monolith Core Backend
+location ~ ^/api/v1/products/[^/]+/reviews {
+    set $core_backend_target http://core-backend:8080;
+    proxy_pass $core_backend_target;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Port $server_port;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 60s;
+    proxy_send_timeout 60s;
+    proxy_request_buffering off;
+}
+
+location /api/v1/products {
+    set $catalog_target http://catalog-service:8086;
+    proxy_pass $catalog_target;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Port $server_port;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 60s;
+    proxy_send_timeout 60s;
+    proxy_request_buffering off;
+}
+
+location /api/v1/admin/products {
+    set $catalog_target http://catalog-service:8086;
+    proxy_pass $catalog_target;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Port $server_port;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 60s;
+    proxy_send_timeout 60s;
+    proxy_request_buffering off;
+}
+
+location /api/v1/categories {
+    set $catalog_target http://catalog-service:8086;
+    proxy_pass $catalog_target;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Port $server_port;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 60s;
+    proxy_send_timeout 60s;
+    proxy_request_buffering off;
+}
+
+location /api/v1/admin/categories {
+    set $catalog_target http://catalog-service:8086;
+    proxy_pass $catalog_target;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Port $server_port;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 60s;
+    proxy_send_timeout 60s;
+    proxy_request_buffering off;
+}
+
+# -----------------------------------------------------------------------------
+# 4.5. BLOCK EXTERNAL ACCESS TO INTERNAL MICROSERVICE ENDPOINTS (/internal/)
 # -----------------------------------------------------------------------------
 # Các endpoint /internal/* chỉ dành riêng cho giao tiếp IPC nội bộ giữa các services
 location /internal/ {
