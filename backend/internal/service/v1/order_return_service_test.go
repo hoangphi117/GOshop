@@ -27,7 +27,7 @@ type testReturnServiceDeps struct {
 	orderRepo           *testutils.MockOrderRepository
 	orderItemRepo       *testutils.MockOrderItemRepository
 	orderReturnRepo     *testutils.MockOrderReturnsRepository
-	stockPort           *testutils.MockInventoryService
+	stockPort           v1service.OrderStockPort
 	userRepo            *testutils.MockUserRepository
 	trackingRepo        *testutils.MockTrackingRepository
 	paymentService      v1service.PaymentService
@@ -67,7 +67,7 @@ func newTestReturnService(deps testReturnServiceDeps) v1service.OrderReturnServi
 	if deps.stockPort != nil {
 		stockPort = deps.stockPort
 	} else {
-		stockPort = &testutils.MockInventoryService{}
+		stockPort = &testutils.MockOrderStockPort{}
 	}
 	var trackingRepo repository.TrackingRepository
 	if deps.trackingRepo != nil {
@@ -907,7 +907,7 @@ func TestOrderService_AdminUpdateReturnStatus(t *testing.T) {
 		}
 
 		var stockRestored bool
-		mockStockPort := &testutils.MockInventoryService{
+		mockStockPort := &testutils.MockOrderStockPort{
 			RestoreStockWithRefFunc: func(ctx context.Context, items []v1service.RestoreItem, refID string, refType string, actorID *int32, note *string) error {
 				stockRestored = true
 				require.Len(t, items, 1)
@@ -982,7 +982,7 @@ func TestOrderService_AdminUpdateReturnStatus(t *testing.T) {
 			},
 		}
 
-		mockStockPort := &testutils.MockInventoryService{
+		mockStockPort := &testutils.MockOrderStockPort{
 			RestoreStockWithRefFunc: func(ctx context.Context, items []v1service.RestoreItem, refID string, refType string, actorID *int32, note *string) error {
 				return errors.New("inventory lock acquisition failed")
 			},

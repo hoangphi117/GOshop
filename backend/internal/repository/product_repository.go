@@ -243,7 +243,12 @@ func (r *SqlProductRepository) GetByUUIDs(ctx context.Context, tx pgx.Tx, uuids 
 		return []sqlc.GetByUUIDsForUpdateRow{}, nil
 	}
 
-	q := sqlc.New(tx)
+	var q sqlc.Querier
+	if tx != nil {
+		q = sqlc.New(tx)
+	} else {
+		q = r.querier(ctx)
+	}
 	products, err := q.GetByUUIDsForUpdate(ctx, uuids)
 	if err != nil {
 		return nil, err

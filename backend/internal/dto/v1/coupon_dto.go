@@ -51,6 +51,7 @@ type PreviewCouponInput struct {
 }
 
 type PreviewCouponDTO struct {
+	CouponID         int32   `json:"coupon_id"`
 	CouponCode       string  `json:"coupon_code"`
 	CouponName       string  `json:"coupon_name"`
 	CouponType       int32   `json:"coupon_type"` // 1: Percentage, 2: Fixed Amount

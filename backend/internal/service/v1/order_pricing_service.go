@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -39,21 +40,27 @@ type OrderPricingResult struct {
 	Items             []ItemPriceResult
 }
 
-// CouponLookup is a narrow read port consumed only by orderPricingService.
-// Satisfied by any implementation providing code lookup and usage counts (e.g. CouponRepository).
+// CouponLookup is a legacy narrow read port consumed by orderPricingService.
+// Kept for backward compatibility with existing tests.
 type CouponLookup interface {
 	GetByCode(ctx context.Context, code string) (sqlc.Coupon, error)
 	CountUserUsages(ctx context.Context, userID, couponID int32) (int64, error)
 }
 
 type orderPricingService struct {
+	couponPort   OrderCouponPort
 	couponLookup CouponLookup
 }
 
-func NewOrderPricingService(couponLookup CouponLookup) OrderPricingService {
-	return &orderPricingService{
-		couponLookup: couponLookup,
+// NewOrderPricingService creates an OrderPricingService. Accepts either OrderCouponPort or legacy CouponLookup.
+func NewOrderPricingService(couponSource any) OrderPricingService {
+	svc := &orderPricingService{}
+	if cp, ok := couponSource.(OrderCouponPort); ok && cp != nil {
+		svc.couponPort = cp
+	} else if cl, ok := couponSource.(CouponLookup); ok && cl != nil {
+		svc.couponLookup = cl
 	}
+	return svc
 }
 
 // CalculateItems calculates the subtotal for each item and the total amount for the order.
@@ -171,37 +178,53 @@ func (s *orderPricingService) CalculateOrderTotals(
 	var discount float64
 
 	if couponCode != nil && strings.TrimSpace(*couponCode) != "" {
-		if s.couponLookup == nil {
-			return nil, utils.NewError(utils.ErrCodeInternal, "Coupon repository is not configured")
-		}
 		cleanCode := strings.ToUpper(strings.TrimSpace(*couponCode))
-		coupon, err := s.couponLookup.GetByCode(ctx, cleanCode)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
-				return nil, utils.NewError(utils.ErrCodeNotFound, "Coupon not found")
+
+		if s.couponPort != nil {
+			var uUUID uuid.UUID
+			if cust, ok := GetOrderCustomerFromContext(ctx); ok {
+				uUUID = cust.UserUUID
 			}
-			return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to retrieve coupon", err)
-		}
+			preview, err := s.couponPort.PreviewCoupon(ctx, cleanCode, subtotal, uUUID)
+			if err != nil {
+				return nil, err
+			}
+			if preview.DiscountAmount > 0 {
+				discount = preview.DiscountAmount
+				appliedCouponID = &preview.CouponID
+				appliedCouponCode = &preview.CouponCode
+			}
+		} else if s.couponLookup != nil {
+			coupon, err := s.couponLookup.GetByCode(ctx, cleanCode)
+			if err != nil {
+				if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+					return nil, utils.NewError(utils.ErrCodeNotFound, "Coupon not found")
+				}
+				return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to retrieve coupon", err)
+			}
 
-		couponDTO := v1dto.MapToCouponDTO(coupon)
-		calculatedDiscount, err := s.ValidateAndCalculateDiscount(&couponDTO, subtotal, now)
-		if err != nil {
-			return nil, err
-		}
+			couponDTO := v1dto.MapToCouponDTO(coupon)
+			calculatedDiscount, err := s.ValidateAndCalculateDiscount(&couponDTO, subtotal, now)
+			if err != nil {
+				return nil, err
+			}
 
-		userUsageCount, err := s.couponLookup.CountUserUsages(ctx, userID, coupon.CouponID)
-		if err != nil {
-			return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to check coupon user usage count", err)
-		}
+			userUsageCount, err := s.couponLookup.CountUserUsages(ctx, userID, coupon.CouponID)
+			if err != nil {
+				return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to check coupon user usage count", err)
+			}
 
-		if userUsageCount >= int64(coupon.CouponUserUsageLimit) {
-			return nil, utils.NewError(utils.ErrCodeBadRequest, "You have reached your usage limit for this coupon")
-		}
+			if userUsageCount >= int64(coupon.CouponUserUsageLimit) {
+				return nil, utils.NewError(utils.ErrCodeBadRequest, "You have reached your usage limit for this coupon")
+			}
 
-		if calculatedDiscount > 0 {
-			discount = calculatedDiscount
-			appliedCouponID = &coupon.CouponID
-			appliedCouponCode = &coupon.CouponCode
+			if calculatedDiscount > 0 {
+				discount = calculatedDiscount
+				appliedCouponID = &coupon.CouponID
+				appliedCouponCode = &coupon.CouponCode
+			}
+		} else {
+			return nil, utils.NewError(utils.ErrCodeInternal, "Coupon port is not configured")
 		}
 	}
 

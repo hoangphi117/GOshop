@@ -21,6 +21,9 @@ import (
 // Ensure mocks implement service interfaces at compile time
 var (
 	_ v1service.OrderPricingService  = (*MockOrderPricingService)(nil)
+	_ v1service.CatalogPort          = (*MockCatalogPort)(nil)
+	_ v1service.OrderStockPort       = (*MockOrderStockPort)(nil)
+	_ v1service.OrderCouponPort      = (*MockOrderCouponPort)(nil)
 	_ v1service.InventoryService     = (*MockInventoryService)(nil)
 	_ v1service.NotificationService  = (*MockNotificationService)(nil)
 	_ v1service.CartService          = (*MockCartService)(nil)
@@ -73,6 +76,55 @@ func (m *MockOrderPricingService) CalculateOrderTotals(ctx context.Context, item
 		return m.CalculateOrderTotalsFunc(ctx, items, couponCode, userID, shippingFee, now)
 	}
 	return &v1service.OrderPricingResult{}, nil
+}
+
+type MockCatalogPort struct {
+	GetProductsForCheckoutFunc func(ctx context.Context, productUUIDs []uuid.UUID) (map[string]v1service.CheckoutProductSnapshot, error)
+}
+
+func (m *MockCatalogPort) GetProductsForCheckout(ctx context.Context, productUUIDs []uuid.UUID) (map[string]v1service.CheckoutProductSnapshot, error) {
+	if m.GetProductsForCheckoutFunc != nil {
+		return m.GetProductsForCheckoutFunc(ctx, productUUIDs)
+	}
+	return make(map[string]v1service.CheckoutProductSnapshot), nil
+}
+
+type MockOrderStockPort struct {
+	LockAndDeductStockWithRefFunc func(ctx context.Context, items []v1service.DeductItem, refID string, refType string, actorID *int32, note *string) error
+	RestoreStockWithRefFunc       func(ctx context.Context, items []v1service.RestoreItem, refID string, refType string, actorID *int32, note *string) error
+}
+
+func (m *MockOrderStockPort) LockAndDeductStockWithRef(ctx context.Context, items []v1service.DeductItem, refID string, refType string, actorID *int32, note *string) error {
+	if m.LockAndDeductStockWithRefFunc != nil {
+		return m.LockAndDeductStockWithRefFunc(ctx, items, refID, refType, actorID, note)
+	}
+	return nil
+}
+
+func (m *MockOrderStockPort) RestoreStockWithRef(ctx context.Context, items []v1service.RestoreItem, refID string, refType string, actorID *int32, note *string) error {
+	if m.RestoreStockWithRefFunc != nil {
+		return m.RestoreStockWithRefFunc(ctx, items, refID, refType, actorID, note)
+	}
+	return nil
+}
+
+type MockOrderCouponPort struct {
+	PreviewCouponFunc      func(ctx context.Context, code string, amount float64, userUUID uuid.UUID) (*v1service.CouponDiscountResult, error)
+	LockAndApplyCouponFunc func(ctx context.Context, couponID int32, userID int32, orderID int32) error
+}
+
+func (m *MockOrderCouponPort) PreviewCoupon(ctx context.Context, code string, amount float64, userUUID uuid.UUID) (*v1service.CouponDiscountResult, error) {
+	if m.PreviewCouponFunc != nil {
+		return m.PreviewCouponFunc(ctx, code, amount, userUUID)
+	}
+	return &v1service.CouponDiscountResult{}, nil
+}
+
+func (m *MockOrderCouponPort) LockAndApplyCoupon(ctx context.Context, couponID int32, userID int32, orderID int32) error {
+	if m.LockAndApplyCouponFunc != nil {
+		return m.LockAndApplyCouponFunc(ctx, couponID, userID, orderID)
+	}
+	return nil
 }
 
 type MockInventoryService struct {

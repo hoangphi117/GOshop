@@ -49,7 +49,7 @@ func TestOrderLifecycleService(t *testing.T) {
 			&testutils.MockOrderItemRepository{},
 			&testutils.MockTrackingRepository{},
 			nil,
-			&testutils.MockInventoryService{},
+			&testutils.MockOrderStockPort{},
 			nil,
 		)
 
@@ -94,7 +94,7 @@ func TestOrderLifecycleService(t *testing.T) {
 			&testutils.MockOrderItemRepository{},
 			mockTracking,
 			nil,
-			&testutils.MockInventoryService{},
+			&testutils.MockOrderStockPort{},
 			nil,
 		)
 
@@ -126,7 +126,7 @@ func TestOrderLifecycleService(t *testing.T) {
 			&testutils.MockOrderItemRepository{},
 			&testutils.MockTrackingRepository{},
 			customerAdapter,
-			&testutils.MockInventoryService{},
+			&testutils.MockOrderStockPort{},
 			nil,
 		)
 
@@ -158,7 +158,7 @@ func TestOrderLifecycleService(t *testing.T) {
 			&testutils.MockOrderItemRepository{},
 			&testutils.MockTrackingRepository{},
 			customerAdapter,
-			&testutils.MockInventoryService{},
+			&testutils.MockOrderStockPort{},
 			nil,
 		)
 
@@ -204,7 +204,7 @@ func TestOrderLifecycleService(t *testing.T) {
 		}
 
 		stockRestored := false
-		mockInv := &testutils.MockInventoryService{
+		mockInv := &testutils.MockOrderStockPort{
 			RestoreStockWithRefFunc: func(ctx context.Context, items []v1service.RestoreItem, refID, refType string, actorID *int32, note *string) error {
 				stockRestored = true
 				assert.Equal(t, int32(15), items[0].ProductID)

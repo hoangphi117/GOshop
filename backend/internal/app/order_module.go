@@ -38,22 +38,26 @@ func NewOrderModule(
 	trackingRepo := repository.NewSqlTrackingRepository(ctx.DB)
 	webhookRepo := repository.NewSqlWebhookEventRepository(ctx.DB)
 	outboxRepo := repository.NewSqlOutboxRepository(ctx.DB)
-	couponRepo := repository.NewSqlCouponRepository(ctx.DB)
+	productRepo := repository.NewSqlProductRepository(ctx.DB)
 	userRepo := repository.NewSqlUserRepository(ctx.DB)
 	userReader := client.NewIdentityUserReader(ctx.IdentityClient, userRepo)
 
 	customerReader := v1service.NewOrderCustomerAdapter(userReader)
-	pricingService := v1service.NewOrderPricingService(couponRepo)
+	catalogPort := v1service.NewOrderCatalogAdapter(productRepo)
+	couponPort := v1service.NewOrderCouponAdapter(deps.CouponService)
+	stockPort := v1service.NewOrderStockAdapter(deps.InventoryService)
+	pricingService := v1service.NewOrderPricingService(couponPort)
 
 	orderService := v1service.NewOrderService(
 		ctx.TxManager,
 		pricingService,
-		deps.InventoryService,
+		catalogPort,
+		stockPort,
 		orderRepo,
 		orderItemRepo,
 		customerReader,
 		deps.CartService,
-		deps.CouponService,
+		couponPort,
 		trackingRepo,
 		ctx.Redis,
 		outboxRepo,
@@ -77,7 +81,7 @@ func NewOrderModule(
 		OrderRepo:       orderRepo,
 		OrderItemRepo:   orderItemRepo,
 		OrderReturnRepo: orderReturnRepo,
-		StockPort:       deps.InventoryService,
+		StockPort:       stockPort,
 		UserRepo:        customerReader,
 		TrackingRepo:    trackingRepo,
 		PaymentService:  deps.PaymentService,

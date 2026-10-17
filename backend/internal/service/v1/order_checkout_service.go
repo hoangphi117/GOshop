@@ -48,6 +48,7 @@ func GenerateOrderNumber(userID int32) string {
 type checkoutService struct {
 	txManager           db.TxManager
 	pricingService      OrderPricingService
+	catalogPort         CatalogPort
 	stockPort           OrderStockPort
 	orderStore          OrderStorePort
 	orderItemStore      OrderItemStorePort
@@ -62,6 +63,7 @@ type checkoutService struct {
 func NewOrderCheckoutService(
 	txManager db.TxManager,
 	pricingService OrderPricingService,
+	catalogPort CatalogPort,
 	stockPort OrderStockPort,
 	orderStore OrderStorePort,
 	orderItemStore OrderItemStorePort,
@@ -79,6 +81,7 @@ func NewOrderCheckoutService(
 	return &checkoutService{
 		txManager:      txManager,
 		pricingService: pricingService,
+		catalogPort:    catalogPort,
 		stockPort:      stockPort,
 		orderStore:     orderStore,
 		orderItemStore: orderItemStore,
@@ -106,13 +109,38 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 		}
 	}
 
-	// Validate duplicate products in the order
+	// Validate duplicate products in the order and parse UUIDs
 	productMapInput := make(map[string]int32)
-	for _, item := range input.Items {
+	productUUIDs := make([]uuid.UUID, len(input.Items))
+	for i, item := range input.Items {
 		if _, exists := productMapInput[item.ProductUUID]; exists {
 			return nil, utils.NewError(utils.ErrCodeBadRequest, "Duplicate product in order")
 		}
 		productMapInput[item.ProductUUID] = item.Quantity
+
+		parsed, err := uuid.Parse(item.ProductUUID)
+		if err != nil {
+			return nil, utils.NewError(utils.ErrCodeBadRequest, "Invalid product UUID: "+item.ProductUUID)
+		}
+		productUUIDs[i] = parsed
+	}
+
+	productSnapshots, err := s.catalogPort.GetProductsForCheckout(ctx, productUUIDs)
+	if err != nil {
+		return nil, err
+	}
+	if len(productSnapshots) != len(input.Items) {
+		return nil, utils.NewError(utils.ErrCodeNotFound, "One or more products not found")
+	}
+
+	for _, item := range input.Items {
+		p, ok := productSnapshots[item.ProductUUID]
+		if !ok {
+			return nil, utils.NewError(utils.ErrCodeNotFound, "Product not found: "+item.ProductUUID)
+		}
+		if p.Status != ProductStatusActive {
+			return nil, utils.NewError(utils.ErrCodeBadRequest, "Product is unavailable: "+item.ProductUUID)
+		}
 	}
 
 	deductItems := make([]DeductItem, len(input.Items))
@@ -145,31 +173,31 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 	var purchasedProductIDs []int32
 	var createdOrderItems []sqlc.GetOrderItemsByOrderIDRow
 
-	err := s.txManager.WithTx(ctx, func(txCtx context.Context) error {
+	err = s.txManager.WithTx(ctx, func(txCtx context.Context) error {
 		tx, _ := db.GetTx(txCtx)
 
 		orderNumber := GenerateOrderNumber(user.UserID)
 
-		// 1. Lock products and deduct stock via StockPort
-		productMap, err := s.stockPort.LockAndDeductStockWithRef(txCtx, deductItems, orderNumber, "order", &user.UserID, nil)
-		if err != nil {
+		// 1. Lock products and deduct stock via StockPort (stock-only, no pricing info)
+		if err := s.stockPort.LockAndDeductStockWithRef(txCtx, deductItems, orderNumber, "order", &user.UserID, nil); err != nil {
 			return err
 		}
 
 		priceInputs := make([]ItemPriceInput, len(input.Items))
-		prodIDToStock := make(map[int32]InventoryItemStock, len(input.Items))
+		prodIDToSnapshot := make(map[int32]CheckoutProductSnapshot, len(input.Items))
 		for i, item := range input.Items {
-			p := productMap[item.ProductUUID]
+			p := productSnapshots[item.ProductUUID]
 			priceInputs[i] = ItemPriceInput{
 				ProductID:   p.ProductID,
 				ProductName: p.ProductName,
 				Price:       p.Price,
 				Quantity:    item.Quantity,
 			}
-			prodIDToStock[p.ProductID] = p
+			prodIDToSnapshot[p.ProductID] = p
 		}
 
-		pricingResult, err := s.pricingService.CalculateOrderTotals(txCtx, priceInputs, input.CouponCode, user.UserID, input.ShippingFee, time.Now())
+		txCtxWithCust := WithOrderCustomer(txCtx, user)
+		pricingResult, err := s.pricingService.CalculateOrderTotals(txCtxWithCust, priceInputs, input.CouponCode, user.UserID, input.ShippingFee, time.Now())
 		if err != nil {
 			return err
 		}
@@ -212,7 +240,7 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 		createdOrderItems = make([]sqlc.GetOrderItemsByOrderIDRow, len(pricingResult.Items))
 
 		for i, item := range pricingResult.Items {
-			stockItem := prodIDToStock[item.ProductID]
+			snap := prodIDToSnapshot[item.ProductID]
 			purchasedProductIDs[i] = item.ProductID
 			createdItemParams := sqlc.CreateOrderItemParams{
 				OrderItemOrderID:         order.OrderID,
@@ -221,9 +249,9 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 				OrderItemPrice:           utils.FloatToNumeric(item.Price),
 				OrderItemQuantity:        item.Quantity,
 				OrderItemSubtotal:        utils.FloatToNumeric(item.Subtotal),
-				OrderItemProductUuid:     stockItem.ProductUUID,
-				OrderItemProductSlug:     stockItem.ProductSlug,
-				OrderItemProductImageUrl: stockItem.ProductImageURL,
+				OrderItemProductUuid:     snap.ProductUUID,
+				OrderItemProductSlug:     snap.ProductSlug,
+				OrderItemProductImageUrl: snap.ProductImageURL,
 				OrderItemOrderUuid:       order.OrderUuid,
 			}
 
@@ -267,13 +295,13 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 				OrderItemQuantity:        qty,
 				OrderItemSubtotal:        subtotal,
 				OrderItemCreatedAt:       createdAt,
-				OrderItemProductUuid:     stockItem.ProductUUID,
-				OrderItemProductSlug:     stockItem.ProductSlug,
-				OrderItemProductImageUrl: stockItem.ProductImageURL,
+				OrderItemProductUuid:     snap.ProductUUID,
+				OrderItemProductSlug:     snap.ProductSlug,
+				OrderItemProductImageUrl: snap.ProductImageURL,
 				OrderItemOrderUuid:       order.OrderUuid,
-				ProductUuid:              stockItem.ProductUUID,
-				ProductSlug:              stockItem.ProductSlug,
-				ProductImageUrl:          stockItem.ProductImageURL,
+				ProductUuid:              snap.ProductUUID,
+				ProductSlug:              snap.ProductSlug,
+				ProductImageUrl:          snap.ProductImageURL,
 			}
 		}
 

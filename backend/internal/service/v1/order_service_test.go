@@ -86,16 +86,35 @@ func newTestOrderService(deps testOrderServiceDeps) v1service.OrderService {
 	}
 
 	customerReader := v1service.NewOrderCustomerAdapter(userRepo)
+	mockCatalog := &testutils.MockCatalogPort{
+		GetProductsForCheckoutFunc: func(ctx context.Context, productUUIDs []uuid.UUID) (map[string]v1service.CheckoutProductSnapshot, error) {
+			res := make(map[string]v1service.CheckoutProductSnapshot)
+			for _, id := range productUUIDs {
+				res[id.String()] = v1service.CheckoutProductSnapshot{
+					ProductID:   10,
+					ProductUUID: id,
+					ProductName: "Test Product",
+					ProductSlug: "test-product",
+					Price:       100000,
+					Status:      v1service.ProductStatusActive,
+				}
+			}
+			return res, nil
+		},
+	}
+	stockPort := v1service.NewOrderStockAdapter(invSvc)
+	couponPort := v1service.NewOrderCouponAdapter(couponSvc)
 
 	return v1service.NewOrderService(
 		txMgr,
 		pricingSvc,
-		invSvc,
+		mockCatalog,
+		stockPort,
 		orderRepo,
 		orderItemRepo,
 		customerReader,
 		cartSvc,
-		couponSvc,
+		couponPort,
 		trackingRepo,
 		deps.redisClient,
 		outboxArgs...,

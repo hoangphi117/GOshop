@@ -429,6 +429,7 @@ func (cs *couponService) PreviewCoupon(ctx context.Context, userUUID uuid.UUID, 
 	minOrderAmount := utils.NumericToFloat(coupon.CouponMinOrderAmount)
 
 	return v1dto.PreviewCouponDTO{
+		CouponID:         coupon.CouponID,
 		CouponCode:       coupon.CouponCode,
 		CouponName:       coupon.CouponName,
 		CouponType:       coupon.CouponType,

@@ -141,20 +141,25 @@ func NewWorker(cfg *config.Config) *Worker {
 
 	// Order Service & Payment Expired Consumer
 	couponRepo := repository.NewSqlCouponRepository(db.DB)
-	pricingService := v1service.NewOrderPricingService(couponRepo)
 	couponService := v1service.NewCouponService(couponRepo, userRepo, redisClient)
 	stockMovementRepo := repository.NewSqlStockMovementRepository(db.DB)
 	inventoryService := v1service.NewInventoryService(productRepo, stockMovementRepo, userRepo, txManager, rabbitMQ)
 
+	catalogPort := v1service.NewOrderCatalogAdapter(productRepo)
+	couponPort := v1service.NewOrderCouponAdapter(couponService)
+	stockPort := v1service.NewOrderStockAdapter(inventoryService)
+	pricingService := v1service.NewOrderPricingService(couponPort)
+
 	orderService := v1service.NewOrderService(
 		txManager,
 		pricingService,
-		inventoryService,
+		catalogPort,
+		stockPort,
 		orderRepo,
 		orderItemRepo,
 		customerReader,
 		cartService,
-		couponService,
+		couponPort,
 		trackingRepo,
 		redisClient,
 		outboxRepo,

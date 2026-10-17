@@ -88,16 +88,43 @@ type OrderCustomerReader interface {
 	GetByID(ctx context.Context, userID int32) (*OrderCustomer, error)
 }
 
+// CheckoutProductSnapshot captures product state needed to price and place an order.
+type CheckoutProductSnapshot struct {
+	ProductID       int32     `json:"product_id"`
+	ProductUUID     uuid.UUID `json:"product_uuid"`
+	ProductName     string    `json:"product_name"`
+	ProductSlug     string    `json:"product_slug"`
+	ProductSku      *string   `json:"product_sku,omitempty"`
+	ProductImageURL *string   `json:"product_image_url,omitempty"`
+	Price           float64   `json:"price"`
+	Status          int32     `json:"status"`
+}
+
+// CatalogPort provides product catalog snapshots for checkout.
+// Satisfied by CatalogService (or OrderCatalogAdapter in monolith).
+type CatalogPort interface {
+	GetProductsForCheckout(ctx context.Context, productUUIDs []uuid.UUID) (map[string]CheckoutProductSnapshot, error)
+}
+
 // OrderStockPort manages stock reservation and restoration.
-// Satisfied by InventoryService.
+// Satisfied by InventoryService (or OrderStockAdapter).
 type OrderStockPort interface {
-	LockAndDeductStockWithRef(ctx context.Context, items []DeductItem, refID string, refType string, actorID *int32, note *string) (map[string]InventoryItemStock, error)
+	LockAndDeductStockWithRef(ctx context.Context, items []DeductItem, refID string, refType string, actorID *int32, note *string) error
 	RestoreStockWithRef(ctx context.Context, items []RestoreItem, refID string, refType string, actorID *int32, note *string) error
 }
 
-// OrderCouponPort locks and registers coupon usage upon checkout.
-// Satisfied by CouponService.
+// CouponDiscountResult captures the calculation and metadata for an applied coupon.
+type CouponDiscountResult struct {
+	CouponID         int32   `json:"coupon_id"`
+	CouponCode       string  `json:"coupon_code"`
+	DiscountAmount   float64 `json:"discount_amount"`
+	FinalTotalAmount float64 `json:"final_total_amount"`
+}
+
+// OrderCouponPort validates, previews, and registers coupon usage upon checkout.
+// Satisfied by CouponService (or OrderCouponAdapter).
 type OrderCouponPort interface {
+	PreviewCoupon(ctx context.Context, code string, amount float64, userUUID uuid.UUID) (*CouponDiscountResult, error)
 	LockAndApplyCoupon(ctx context.Context, couponID int32, userID int32, orderID int32) error
 }
 

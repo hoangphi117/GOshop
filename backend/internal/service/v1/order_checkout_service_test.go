@@ -21,7 +21,15 @@ import (
 func TestOrderCheckoutService_CreateOrder(t *testing.T) {
 	ctx := context.Background()
 	userUUID := uuid.New()
-	customer := v1service.NewOrderCustomer(1, userUUID, "John Doe", "john@example.com", 3, 1)
+	customer := &v1service.OrderCustomer{
+		UserID:       1,
+		UserUUID:     userUUID,
+		FullName:     "John Doe",
+		UserFullname: "John Doe",
+		Email:        "john@example.com",
+		UserEmail:    "john@example.com",
+		Status:       1,
+	}
 
 	prodUUID1 := uuid.New().String()
 	prodUUID2 := uuid.New().String()
@@ -36,12 +44,13 @@ func TestOrderCheckoutService_CreateOrder(t *testing.T) {
 		svc := v1service.NewOrderCheckoutService(
 			testutils.NewNoopTxManager(),
 			&testutils.MockOrderPricingService{},
-			&testutils.MockInventoryService{},
+			&testutils.MockCatalogPort{},
+			&testutils.MockOrderStockPort{},
 			&testutils.MockOrderRepository{},
 			&testutils.MockOrderItemRepository{},
 			customerAdapter,
 			&testutils.MockCartService{},
-			&testutils.MockCouponService{},
+			&testutils.MockOrderCouponPort{},
 			&testutils.MockTrackingRepository{},
 			nil,
 		)
@@ -67,12 +76,13 @@ func TestOrderCheckoutService_CreateOrder(t *testing.T) {
 		svc := v1service.NewOrderCheckoutService(
 			testutils.NewNoopTxManager(),
 			&testutils.MockOrderPricingService{},
-			&testutils.MockInventoryService{},
+			&testutils.MockCatalogPort{},
+			&testutils.MockOrderStockPort{},
 			&testutils.MockOrderRepository{},
 			&testutils.MockOrderItemRepository{},
 			customerAdapter,
 			&testutils.MockCartService{},
-			&testutils.MockCouponService{},
+			&testutils.MockOrderCouponPort{},
 			&testutils.MockTrackingRepository{},
 			nil,
 		)
@@ -96,20 +106,34 @@ func TestOrderCheckoutService_CreateOrder(t *testing.T) {
 			},
 		}
 		customerAdapter := v1service.NewOrderCustomerAdapter(mockUserRepo)
-		mockInv := &testutils.MockInventoryService{
-			LockAndDeductStockWithRefFunc: func(ctx context.Context, items []v1service.DeductItem, refID, refType string, actorID *int32, note *string) (map[string]v1service.InventoryItemStock, error) {
-				return nil, errors.New("insufficient inventory stock")
+		mockCatalog := &testutils.MockCatalogPort{
+			GetProductsForCheckoutFunc: func(ctx context.Context, productUUIDs []uuid.UUID) (map[string]v1service.CheckoutProductSnapshot, error) {
+				return map[string]v1service.CheckoutProductSnapshot{
+					prodUUID1: {
+						ProductID:   10,
+						ProductUUID: uuid.MustParse(prodUUID1),
+						ProductName: "P1",
+						Price:       100,
+						Status:      v1service.ProductStatusActive,
+					},
+				}, nil
+			},
+		}
+		mockStock := &testutils.MockOrderStockPort{
+			LockAndDeductStockWithRefFunc: func(ctx context.Context, items []v1service.DeductItem, refID, refType string, actorID *int32, note *string) error {
+				return errors.New("insufficient inventory stock")
 			},
 		}
 		svc := v1service.NewOrderCheckoutService(
 			testutils.NewNoopTxManager(),
 			&testutils.MockOrderPricingService{},
-			mockInv,
+			mockCatalog,
+			mockStock,
 			&testutils.MockOrderRepository{},
 			&testutils.MockOrderItemRepository{},
 			customerAdapter,
 			&testutils.MockCartService{},
-			&testutils.MockCouponService{},
+			&testutils.MockOrderCouponPort{},
 			&testutils.MockTrackingRepository{},
 			nil,
 		)
@@ -133,12 +157,18 @@ func TestOrderCheckoutService_CreateOrder(t *testing.T) {
 		}
 		customerAdapter := v1service.NewOrderCustomerAdapter(mockUserRepo)
 
-		mockInv := &testutils.MockInventoryService{
-			LockAndDeductStockWithRefFunc: func(ctx context.Context, items []v1service.DeductItem, refID, refType string, actorID *int32, note *string) (map[string]v1service.InventoryItemStock, error) {
-				return map[string]v1service.InventoryItemStock{
-					prodUUID1: {ProductID: 10, Price: 100000, Stock: 50, ProductName: "Product 1"},
-					prodUUID2: {ProductID: 20, Price: 200000, Stock: 30, ProductName: "Product 2"},
+		mockCatalog := &testutils.MockCatalogPort{
+			GetProductsForCheckoutFunc: func(ctx context.Context, productUUIDs []uuid.UUID) (map[string]v1service.CheckoutProductSnapshot, error) {
+				return map[string]v1service.CheckoutProductSnapshot{
+					prodUUID1: {ProductID: 10, ProductUUID: uuid.MustParse(prodUUID1), Price: 100000, ProductName: "Product 1", ProductSlug: "product-1", Status: v1service.ProductStatusActive},
+					prodUUID2: {ProductID: 20, ProductUUID: uuid.MustParse(prodUUID2), Price: 200000, ProductName: "Product 2", ProductSlug: "product-2", Status: v1service.ProductStatusActive},
 				}, nil
+			},
+		}
+
+		mockStock := &testutils.MockOrderStockPort{
+			LockAndDeductStockWithRefFunc: func(ctx context.Context, items []v1service.DeductItem, refID, refType string, actorID *int32, note *string) error {
+				return nil
 			},
 			RestoreStockWithRefFunc: func(ctx context.Context, items []v1service.RestoreItem, refID, refType string, actorID *int32, note *string) error {
 				return nil
@@ -164,21 +194,21 @@ func TestOrderCheckoutService_CreateOrder(t *testing.T) {
 		mockOrderRepo := &testutils.MockOrderRepository{
 			CreateFunc: func(ctx context.Context, params sqlc.CreateOrderParams) (sqlc.Order, error) {
 				return sqlc.Order{
-					OrderID:             99,
-					OrderUuid:           createdOrderUUID,
-					OrderNumber:         params.OrderNumber,
-					OrderUserID:         customer.UserID,
-					OrderStatus:         v1service.OrderStatusPending,
-					OrderPaymentStatus:  v1service.OrderPaymentStatusUnpaid,
-					OrderPaymentMethod:  params.OrderPaymentMethod,
-					OrderSubtotalAmount: params.OrderSubtotalAmount,
-					OrderDiscountAmount: params.OrderDiscountAmount,
-					OrderTotalAmount:    params.OrderTotalAmount,
-					OrderShippingFee:    params.OrderShippingFee,
-					OrderShippingName:   params.OrderShippingName,
-					OrderShippingPhone:  params.OrderShippingPhone,
+					OrderID:              99,
+					OrderUuid:            createdOrderUUID,
+					OrderNumber:          params.OrderNumber,
+					OrderUserID:          customer.UserID,
+					OrderStatus:          v1service.OrderStatusPending,
+					OrderPaymentStatus:   v1service.OrderPaymentStatusUnpaid,
+					OrderPaymentMethod:   params.OrderPaymentMethod,
+					OrderSubtotalAmount:  params.OrderSubtotalAmount,
+					OrderDiscountAmount:  params.OrderDiscountAmount,
+					OrderTotalAmount:     params.OrderTotalAmount,
+					OrderShippingFee:     params.OrderShippingFee,
+					OrderShippingName:    params.OrderShippingName,
+					OrderShippingPhone:   params.OrderShippingPhone,
 					OrderShippingAddress: params.OrderShippingAddress,
-					OrderCreatedAt:      time.Now(),
+					OrderCreatedAt:       time.Now(),
 				}, nil
 			},
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
@@ -242,12 +272,13 @@ func TestOrderCheckoutService_CreateOrder(t *testing.T) {
 		svc := v1service.NewOrderCheckoutService(
 			testutils.NewNoopTxManager(),
 			mockPricing,
-			mockInv,
+			mockCatalog,
+			mockStock,
 			mockOrderRepo,
 			mockOrderItemRepo,
 			customerAdapter,
 			&testutils.MockCartService{},
-			&testutils.MockCouponService{},
+			&testutils.MockOrderCouponPort{},
 			mockTracking,
 			nil,
 			mockOutbox,
@@ -282,11 +313,17 @@ func TestOrderCheckoutService_CreateOrder(t *testing.T) {
 		}
 		customerAdapter := v1service.NewOrderCustomerAdapter(mockUserRepo)
 
-		mockInv := &testutils.MockInventoryService{
-			LockAndDeductStockWithRefFunc: func(ctx context.Context, items []v1service.DeductItem, refID, refType string, actorID *int32, note *string) (map[string]v1service.InventoryItemStock, error) {
-				return map[string]v1service.InventoryItemStock{
-					prodUUID1: {ProductID: 10, Price: 100000, Stock: 50, ProductName: "Product 1", ProductUUID: uuid.MustParse(prodUUID1)},
+		mockCatalog := &testutils.MockCatalogPort{
+			GetProductsForCheckoutFunc: func(ctx context.Context, productUUIDs []uuid.UUID) (map[string]v1service.CheckoutProductSnapshot, error) {
+				return map[string]v1service.CheckoutProductSnapshot{
+					prodUUID1: {ProductID: 10, ProductUUID: uuid.MustParse(prodUUID1), Price: 100000, ProductName: "Product 1", ProductSlug: "product-1", Status: v1service.ProductStatusActive},
 				}, nil
+			},
+		}
+
+		mockStock := &testutils.MockOrderStockPort{
+			LockAndDeductStockWithRefFunc: func(ctx context.Context, items []v1service.DeductItem, refID, refType string, actorID *int32, note *string) error {
+				return nil
 			},
 		}
 
@@ -308,15 +345,15 @@ func TestOrderCheckoutService_CreateOrder(t *testing.T) {
 		mockOrderRepo := &testutils.MockOrderRepository{
 			CreateFunc: func(ctx context.Context, params sqlc.CreateOrderParams) (sqlc.Order, error) {
 				return sqlc.Order{
-					OrderID:             100,
-					OrderUuid:           createdOrderUUID,
-					OrderNumber:         params.OrderNumber,
-					OrderUserID:         customer.UserID,
-					OrderStatus:         v1service.OrderStatusPending,
-					OrderPaymentStatus:  v1service.OrderPaymentStatusUnpaid,
-					OrderPaymentMethod:  params.OrderPaymentMethod,
-					OrderTotalAmount:    params.OrderTotalAmount,
-					OrderCreatedAt:      time.Now(),
+					OrderID:            100,
+					OrderUuid:          createdOrderUUID,
+					OrderNumber:        params.OrderNumber,
+					OrderUserID:        customer.UserID,
+					OrderStatus:        v1service.OrderStatusPending,
+					OrderPaymentStatus: v1service.OrderPaymentStatusUnpaid,
+					OrderPaymentMethod: params.OrderPaymentMethod,
+					OrderTotalAmount:   params.OrderTotalAmount,
+					OrderCreatedAt:     time.Now(),
 				}, nil
 			},
 		}
@@ -351,12 +388,13 @@ func TestOrderCheckoutService_CreateOrder(t *testing.T) {
 		svc := v1service.NewOrderCheckoutService(
 			testutils.NewNoopTxManager(),
 			mockPricing,
-			mockInv,
+			mockCatalog,
+			mockStock,
 			mockOrderRepo,
 			mockOrderItemRepo,
 			customerAdapter,
 			mockCart,
-			&testutils.MockCouponService{},
+			&testutils.MockOrderCouponPort{},
 			&testutils.MockTrackingRepository{},
 			nil,
 		)
