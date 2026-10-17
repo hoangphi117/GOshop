@@ -185,14 +185,28 @@ func (s *orderShippingService) CalculateShippingFee(ctx context.Context, input v
 		)
 	}
 
+	length := input.Length
+	if length <= 0 {
+		length = 20
+	}
+	width := input.Width
+	if width <= 0 {
+		width = 15
+	}
+	height := input.Height
+	if height <= 0 {
+		height = 10
+	}
+
 	req := shipping.CreateOrderRequest{
-		ToDistrictID: input.DistrictID,
-		ToWardCode:   input.WardCode,
-		Weight:       input.Weight,
-		Length:       input.Length,
-		Width:        input.Width,
-		Height:       input.Height,
-		CODAmount:    input.InsuranceValue,
+		ToDistrictID:   input.DistrictID,
+		ToWardCode:     input.WardCode,
+		Weight:         input.Weight,
+		Length:         length,
+		Width:          width,
+		Height:         height,
+		CODAmount:      0,
+		InsuranceValue: input.InsuranceValue,
 	}
 
 	fee, err := provider.CalculateFee(ctx, req)

@@ -17,6 +17,7 @@ type CreateOrderRequest struct {
 	RequiredNote          string
 	Note                  string
 	CODAmount             float64
+	InsuranceValue        float64
 	CallbackURL           string // URL ngrok khi dev / domain khi prod
 }
 

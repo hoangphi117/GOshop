@@ -106,6 +106,7 @@ func (s *orderShippingService) SyncOrderTracking(ctx context.Context, userUUID u
 					shippingCode,
 				)
 				_ = s.rabbitmq.Publish(context.Background(), rabbitmq.QueueOrderStatusChanged, evt)
+				_ = s.rabbitmq.PublishTopic(context.Background(), rabbitmq.RoutingKeyOrderStatusChanged, evt)
 			}
 		}
 	} else {
@@ -270,6 +271,7 @@ func (s *orderShippingService) SyncActiveShippingOrders(ctx context.Context) (v1
 					shippingCode,
 				)
 				_ = s.rabbitmq.Publish(context.Background(), rabbitmq.QueueOrderStatusChanged, evt)
+				_ = s.rabbitmq.PublishTopic(context.Background(), rabbitmq.RoutingKeyOrderStatusChanged, evt)
 			}
 
 			logger.Log.Info().

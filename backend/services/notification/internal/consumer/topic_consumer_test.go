@@ -107,3 +107,64 @@ func TestTopicConsumer_OrderCreated(t *testing.T) {
 	assert.NoError(t, err)
 	svc.AssertExpectations(t)
 }
+
+func TestTopicConsumer_OrderStatusChanged_NumericStatus(t *testing.T) {
+	svc := new(mockNotificationService)
+	log := logger.NewLogger(logger.LoggerConfig{Level: "debug", IsDev: "development"})
+
+	c := consumer.NewTopicConsumer(svc, nil, nil, log)
+
+	userID := int32(42)
+	payload := map[string]any{
+		"order_number": "ORD-99999",
+		"user_id":      userID,
+		"new_status":   2, // numeric status (Confirmed)
+	}
+	body, _ := json.Marshal(payload)
+
+	headers := amqp.Table{
+		"x-routing-key": rabbitmq.RoutingKeyOrderStatusChanged,
+		"x-message-id":  "msg-trace-456", // fallback when trace_id header is missing
+	}
+
+	svc.On("Send", mock.Anything, mock.MatchedBy(func(input dto.SendNotificationInput) bool {
+		return input.UserID == 42 &&
+			input.Type == "order_status" &&
+			input.Data["status"] == "Confirmed"
+	})).Return(nil)
+
+	err := c.HandleEvent(headers, body)
+	assert.NoError(t, err)
+	svc.AssertExpectations(t)
+}
+
+func TestTopicConsumer_OrderStatusChanged_Shipped(t *testing.T) {
+	svc := new(mockNotificationService)
+	log := logger.NewLogger(logger.LoggerConfig{Level: "debug", IsDev: "development"})
+
+	c := consumer.NewTopicConsumer(svc, nil, nil, log)
+
+	userID := int32(42)
+	payload := map[string]any{
+		"order_number": "ORD-12345",
+		"user_id":      userID,
+		"new_status":   3, // numeric status (Shipped)
+	}
+	body, _ := json.Marshal(payload)
+
+	headers := amqp.Table{
+		"x-routing-key": rabbitmq.RoutingKeyOrderStatusChanged,
+		"trace_id":      "trace-shipped-789",
+	}
+
+	svc.On("Send", mock.Anything, mock.MatchedBy(func(input dto.SendNotificationInput) bool {
+		return input.UserID == 42 &&
+			input.Type == "order_status" &&
+			input.Title == "Order Shipped" &&
+			input.Data["status"] == "Shipped"
+	})).Return(nil)
+
+	err := c.HandleEvent(headers, body)
+	assert.NoError(t, err)
+	svc.AssertExpectations(t)
+}

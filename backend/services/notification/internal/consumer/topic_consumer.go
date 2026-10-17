@@ -10,6 +10,9 @@ import (
 	"goshop/services/notification/internal/dto"
 	"goshop/services/notification/internal/service"
 
+	"strconv"
+	"strings"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -49,6 +52,9 @@ func NewTopicConsumer(
 func (c *TopicConsumer) HandleEvent(headers amqp.Table, body []byte) error {
 	routingKey, _ := headers["x-routing-key"].(string)
 	traceID, _ := headers["trace_id"].(string)
+	if traceID == "" {
+		traceID, _ = headers["x-message-id"].(string)
+	}
 
 	c.logger.Info().
 		Str("trace_id", traceID).
@@ -141,24 +147,112 @@ func (c *TopicConsumer) handleOrderCreated(body []byte) error {
 func (c *TopicConsumer) handleOrderStatusChanged(routingKey string, body []byte) error {
 	var payload struct {
 		OrderNumber string `json:"order_number"`
+		UserUUID    string `json:"user_uuid"`
 		UserID      *int32 `json:"user_id"`
-		NewStatus   string `json:"new_status"`
+		NewStatus   any    `json:"new_status"`
 	}
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return err
 	}
 
-	if payload.UserID != nil {
+	statusStr := formatOrderStatus(payload.NewStatus)
+	var title, msgBody string
+	switch statusStr {
+	case "Confirmed":
+		title = "Order Confirmed"
+		msgBody = fmt.Sprintf("Your order #%s has been confirmed.", payload.OrderNumber)
+	case "Shipped":
+		title = "Order Shipped"
+		msgBody = fmt.Sprintf("Your order #%s has been shipped out.", payload.OrderNumber)
+	case "Delivered":
+		title = "Order Delivered"
+		msgBody = fmt.Sprintf("Your order #%s has been delivered successfully.", payload.OrderNumber)
+	case "Cancelled":
+		title = "Order Cancelled"
+		msgBody = fmt.Sprintf("Your order #%s has been cancelled.", payload.OrderNumber)
+	default:
+		title = "Order Status Updated"
+		msgBody = fmt.Sprintf("Your order #%s status is now: %s", payload.OrderNumber, statusStr)
+	}
+
+	if payload.UserID != nil && *payload.UserID > 0 {
 		_ = c.notificationService.Send(context.Background(), dto.SendNotificationInput{
 			UserID: *payload.UserID,
 			Type:   "order_status",
-			Title:  "Order Status Updated",
-			Body:   fmt.Sprintf("Your order #%s status is now: %s", payload.OrderNumber, payload.NewStatus),
-			Data:   map[string]any{"order_number": payload.OrderNumber, "status": payload.NewStatus},
+			Title:  title,
+			Body:   msgBody,
+			Data:   map[string]any{"order_number": payload.OrderNumber, "status": statusStr},
 		})
+	} else if payload.UserUUID != "" {
+		if uUUID, err := uuid.Parse(payload.UserUUID); err == nil && uUUID != uuid.Nil {
+			_, _ = c.notificationService.CreateNotification(context.Background(), dto.CreateNotificationInput{
+				UserUUID: uUUID,
+				Type:     "order_status",
+				Title:    title,
+				Body:     msgBody,
+				Data:     map[string]any{"order_number": payload.OrderNumber, "status": statusStr},
+			})
+		}
+	} else if c.db != nil && payload.OrderNumber != "" {
+		var uUUID uuid.UUID
+		_ = c.db.QueryRow(context.Background(),
+			"SELECT order_user_uuid FROM orders WHERE order_number = $1 LIMIT 1",
+			payload.OrderNumber).Scan(&uUUID)
+		if uUUID != uuid.Nil {
+			_, _ = c.notificationService.CreateNotification(context.Background(), dto.CreateNotificationInput{
+				UserUUID: uUUID,
+				Type:     "order_status",
+				Title:    title,
+				Body:     msgBody,
+				Data:     map[string]any{"order_number": payload.OrderNumber, "status": statusStr},
+			})
+		}
 	}
 
 	return nil
+}
+
+func formatOrderStatus(status any) string {
+	if status == nil {
+		return "Updated"
+	}
+	switch v := status.(type) {
+	case float64:
+		return orderStatusIntToString(int32(v))
+	case int32:
+		return orderStatusIntToString(v)
+	case int:
+		return orderStatusIntToString(int32(v))
+	case string:
+		if num, err := strconv.Atoi(strings.TrimSpace(v)); err == nil {
+			return orderStatusIntToString(int32(num))
+		}
+		if v == "" {
+			return "Updated"
+		}
+		return strings.Title(strings.ToLower(v))
+	default:
+		return fmt.Sprintf("%v", v)
+	}
+}
+
+func orderStatusIntToString(status int32) string {
+	switch status {
+	case 1:
+		return "Pending"
+	case 2:
+		return "Confirmed"
+	case 3:
+		return "Shipped"
+	case 4:
+		return "Delivered"
+	case 5:
+		return "Cancelled"
+	case 6:
+		return "Returned"
+	default:
+		return fmt.Sprintf("Status %d", status)
+	}
 }
 
 func (c *TopicConsumer) handlePaymentSucceeded(body []byte) error {

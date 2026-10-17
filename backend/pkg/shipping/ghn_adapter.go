@@ -67,6 +67,7 @@ type ghnCreateOrderPayload struct {
 	ToWardCode    string    `json:"to_ward_code"`
 	ToDistrictID  int       `json:"to_district_id"`
 	CODAmount     int       `json:"cod_amount"`
+	InsuranceValue int      `json:"insurance_value,omitempty"`
 	Weight        int       `json:"weight"`
 	Length        int       `json:"length,omitempty"`
 	Width         int       `json:"width,omitempty"`
@@ -181,23 +182,29 @@ func (a *GHNAdapter) CreateShippingOrder(ctx context.Context, req CreateOrderReq
 		})
 	}
 
+	insuranceVal := int(req.InsuranceValue)
+	if insuranceVal > 5000000 {
+		insuranceVal = 5000000
+	}
+
 	payload := ghnCreateOrderPayload{
-		PaymentTypeID: paymentTypeShop, // Shop trả cước vận chuyển
-		Note:          req.Note,
-		RequiredNote:  requiredNote,
-		ToName:        req.ToName,
-		ToPhone:       req.ToPhone,
-		ToAddress:     req.ToAddress,
-		ToWardCode:    req.ToWardCode,
-		ToDistrictID:  req.ToDistrictID,
-		CODAmount:     int(req.CODAmount),
-		Weight:        weight,
-		Length:        req.Length,
-		Width:         req.Width,
-		Height:        req.Height,
-		ServiceTypeID: defaultServiceTypeID,
-		Items:         items,
-		CallbackURL:   req.CallbackURL,
+		PaymentTypeID:  paymentTypeShop, // Shop trả cước vận chuyển
+		Note:           req.Note,
+		RequiredNote:   requiredNote,
+		ToName:         req.ToName,
+		ToPhone:        req.ToPhone,
+		ToAddress:      req.ToAddress,
+		ToWardCode:     req.ToWardCode,
+		ToDistrictID:   req.ToDistrictID,
+		CODAmount:      int(req.CODAmount),
+		InsuranceValue: insuranceVal,
+		Weight:         weight,
+		Length:         req.Length,
+		Width:          req.Width,
+		Height:         req.Height,
+		ServiceTypeID:  defaultServiceTypeID,
+		Items:          items,
+		CallbackURL:    req.CallbackURL,
 	}
 
 	endpoint := fmt.Sprintf("%s/shiip/public-api/v2/shipping-order/create", a.baseURL)
@@ -229,6 +236,11 @@ func (a *GHNAdapter) CalculateFee(ctx context.Context, req CreateOrderRequest) (
 		weight = 200
 	}
 
+	insuranceVal := int(req.InsuranceValue)
+	if insuranceVal > 5000000 {
+		insuranceVal = 5000000
+	}
+
 	payload := ghnFeePayload{
 		ServiceTypeID:  defaultServiceTypeID,
 		ToDistrictID:   req.ToDistrictID,
@@ -237,7 +249,7 @@ func (a *GHNAdapter) CalculateFee(ctx context.Context, req CreateOrderRequest) (
 		Length:         req.Length,
 		Width:          req.Width,
 		Height:         req.Height,
-		InsuranceValue: int(req.CODAmount),
+		InsuranceValue: insuranceVal,
 	}
 
 	endpoint := fmt.Sprintf("%s/shiip/public-api/v2/shipping-order/fee", a.baseURL)

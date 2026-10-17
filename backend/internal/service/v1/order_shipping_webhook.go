@@ -120,6 +120,7 @@ func (s *orderShippingService) HandleShippingWebhook(ctx context.Context, rawBod
 				payload.OrderCode,
 			)
 			_ = s.rabbitmq.Publish(context.Background(), rabbitmq.QueueOrderStatusChanged, evt)
+			_ = s.rabbitmq.PublishTopic(context.Background(), rabbitmq.RoutingKeyOrderStatusChanged, evt)
 		}
 
 	case "delivering":

@@ -197,10 +197,11 @@ func (s *orderShippingService) ProcessShippingOrder(ctx context.Context, msg v1d
 		Width:        msg.Input.Width,
 		Height:       msg.Input.Height,
 		Items:        shippingItems,
-		Note:         msg.Input.Note,
-		RequiredNote: msg.Input.RequiredNote,
-		CODAmount:    codAmount,
-		CallbackURL:  utils.GetEnv("GHN_CALLBACK_URL", ""),
+		Note:           msg.Input.Note,
+		RequiredNote:   msg.Input.RequiredNote,
+		CODAmount:      codAmount,
+		InsuranceValue: utils.NumericToFloat(order.OrderTotalAmount),
+		CallbackURL:    utils.GetEnv("GHN_CALLBACK_URL", ""),
 	}
 
 	ghnResp, err := provider.CreateShippingOrder(ctx, ghnReq)
@@ -278,6 +279,7 @@ func (s *orderShippingService) ProcessShippingOrder(ctx context.Context, msg v1d
 			ghnResp.ShippingCode,
 		)
 		_ = s.rabbitmq.Publish(ctx, rabbitmq.QueueOrderStatusChanged, evt)
+		_ = s.rabbitmq.PublishTopic(ctx, rabbitmq.RoutingKeyOrderStatusChanged, evt)
 	}
 
 	return nil
@@ -461,6 +463,7 @@ func (s *orderShippingService) ConfirmOrderDelivery(ctx context.Context, userUUI
 			"",
 		)
 		_ = s.rabbitmq.Publish(ctx, rabbitmq.QueueOrderStatusChanged, evt)
+		_ = s.rabbitmq.PublishTopic(ctx, rabbitmq.RoutingKeyOrderStatusChanged, evt)
 	}
 
 	var deliveredAt *time.Time

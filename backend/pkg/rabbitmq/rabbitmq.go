@@ -239,6 +239,9 @@ func (r *rabbitMQService) Publish(ctx context.Context, queue string, message any
 
 	traceID := logger.GetTraceId(ctx)
 	messageID := fmt.Sprintf("%d", time.Now().UnixNano())
+	if traceID == "" {
+		traceID = messageID
+	}
 
 	ttlMs := utils.GetIntEnv("RABBITMQ_MESSAGE_TTL_MS", defaultMessageTTL)
 
@@ -352,6 +355,9 @@ func (r *rabbitMQService) PublishToExchange(ctx context.Context, exchange, routi
 
 	traceID := logger.GetTraceId(ctx)
 	messageID := fmt.Sprintf("%d", time.Now().UnixNano())
+	if traceID == "" {
+		traceID = messageID
+	}
 	ttlMs := utils.GetIntEnv("RABBITMQ_MESSAGE_TTL_MS", defaultMessageTTL)
 
 	ch, err := r.getChannel()
@@ -394,8 +400,18 @@ func (r *rabbitMQService) PublishTopic(ctx context.Context, routingKey string, m
 }
 
 func (r *rabbitMQService) republish(ctx context.Context, queue string, body []byte, headers amqp.Table) error {
-	traceID := logger.GetTraceId(ctx)
+	traceID, _ := headers["trace_id"].(string)
+	if traceID == "" {
+		traceID = logger.GetTraceId(ctx)
+	}
 	messageID := fmt.Sprintf("%d", time.Now().UnixNano())
+	if traceID == "" {
+		traceID = messageID
+	}
+	if headers == nil {
+		headers = amqp.Table{}
+	}
+	headers["trace_id"] = traceID
 
 	ttlMs := utils.GetIntEnv("RABBITMQ_MESSAGE_TTL_MS", defaultMessageTTL)
 
@@ -547,6 +563,10 @@ func (r *rabbitMQService) consumeLoop(ctx context.Context, queue string, msgs <-
 			if traceID == "" {
 				traceID = msg.MessageId
 			}
+			if headers == nil {
+				headers = amqp.Table{}
+			}
+			headers["trace_id"] = traceID
 
 			if err := handler(headers, msg.Body); err != nil {
 				retryCount := getRetryCount(headers)
