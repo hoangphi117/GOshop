@@ -56,3 +56,37 @@ func TestRegisterRoutes_PublicAndJWKS(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 }
+
+func TestAuthRoutes_DirectRegisterEnvGuard(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("POST /register is blocked in production", func(t *testing.T) {
+		t.Setenv("APP_ENV", "production")
+
+		r := gin.New()
+		authRoutes := routes.NewAuthRoutes(handler.NewAuthHandler(nil), nil)
+		authRoutes.Register(r.Group("/api/v1"))
+
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/auth/register", http.NoBody)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusForbidden, w.Code)
+		assert.Contains(t, w.Body.String(), "Direct registration is disabled in production")
+	})
+
+	t.Run("POST /register is allowed in non-production", func(t *testing.T) {
+		t.Setenv("APP_ENV", "development")
+
+		r := gin.New()
+		authRoutes := routes.NewAuthRoutes(handler.NewAuthHandler(nil), nil)
+		authRoutes.Register(r.Group("/api/v1"))
+
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/auth/register", http.NoBody)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		// Handler was reached (returns 400 validation error since body is empty, NOT 403 forbidden)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
