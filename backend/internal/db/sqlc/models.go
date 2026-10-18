@@ -349,6 +349,21 @@ type OrderReturn struct {
 	ReturnUpdatedAt        time.Time `json:"return_updated_at"`
 }
 
+type OrderSaga struct {
+	OrderUuid      uuid.UUID          `json:"order_uuid"`
+	UserUuid       uuid.UUID          `json:"user_uuid"`
+	IdempotencyKey string             `json:"idempotency_key"`
+	State          string             `json:"state"`
+	LastStep       *string            `json:"last_step"`
+	Payload        json.RawMessage    `json:"payload"`
+	Snapshot       []byte             `json:"snapshot"`
+	FailureReason  *string            `json:"failure_reason"`
+	Attempts       int32              `json:"attempts"`
+	NextRetryAt    pgtype.Timestamptz `json:"next_retry_at"`
+	CreatedAt      time.Time          `json:"created_at"`
+	UpdatedAt      time.Time          `json:"updated_at"`
+}
+
 type OrderTrackingEvent struct {
 	EventID        int32     `json:"event_id"`
 	EventOrderID   int32     `json:"event_order_id"`
@@ -424,6 +439,21 @@ type OrdersOrderReturn struct {
 	ReturnBankAccountName  *string   `json:"return_bank_account_name"`
 	ReturnCreatedAt        time.Time `json:"return_created_at"`
 	ReturnUpdatedAt        time.Time `json:"return_updated_at"`
+}
+
+type OrdersOrderSaga struct {
+	OrderUuid      uuid.UUID          `json:"order_uuid"`
+	UserUuid       uuid.UUID          `json:"user_uuid"`
+	IdempotencyKey string             `json:"idempotency_key"`
+	State          string             `json:"state"`
+	LastStep       *string            `json:"last_step"`
+	Payload        json.RawMessage    `json:"payload"`
+	Snapshot       []byte             `json:"snapshot"`
+	FailureReason  *string            `json:"failure_reason"`
+	Attempts       int32              `json:"attempts"`
+	NextRetryAt    pgtype.Timestamptz `json:"next_retry_at"`
+	CreatedAt      time.Time          `json:"created_at"`
+	UpdatedAt      time.Time          `json:"updated_at"`
 }
 
 type OrdersOrderTrackingEvent struct {

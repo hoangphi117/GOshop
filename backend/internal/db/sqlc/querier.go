@@ -31,8 +31,11 @@ type Querier interface {
 	CheckUserReportedReview(ctx context.Context, arg CheckUserReportedReviewParams) (bool, error)
 	// Helpful Votes Queries
 	CheckUserVotedHelpful(ctx context.Context, arg CheckUserVotedHelpfulParams) (bool, error)
+	ClaimForCompensation(ctx context.Context, arg ClaimForCompensationParams) (int64, error)
+	ClaimStaleSagas(ctx context.Context, limit int32) ([]OrderSaga, error)
 	ClearCartByCartID(ctx context.Context, cartID int32) error
 	ClearDefaultAddress(ctx context.Context, uaUserID int32) error
+	ConfirmSaga(ctx context.Context, orderUuid uuid.UUID) (int64, error)
 	CountAdminNotifications(ctx context.Context, arg CountAdminNotificationsParams) (int64, error)
 	CountCartItems(ctx context.Context, cartID int32) (int64, error)
 	CountCategories(ctx context.Context, arg CountCategoriesParams) (int64, error)
@@ -134,6 +137,8 @@ type Querier interface {
 	GetReviewByUUID(ctx context.Context, reviewUuid uuid.UUID) (GetReviewByUUIDRow, error)
 	GetReviewReportsByReviewID(ctx context.Context, reviewID int32) ([]GetReviewReportsByReviewIDRow, error)
 	GetReviewsByUserID(ctx context.Context, arg GetReviewsByUserIDParams) ([]GetReviewsByUserIDRow, error)
+	GetSagaByIdempotencyKey(ctx context.Context, arg GetSagaByIdempotencyKeyParams) (OrderSaga, error)
+	GetSagaByOrderUUID(ctx context.Context, orderUuid uuid.UUID) (OrderSaga, error)
 	GetTopReturnedProducts(ctx context.Context, arg GetTopReturnedProductsParams) ([]GetTopReturnedProductsRow, error)
 	GetTopSellingProducts(ctx context.Context, arg GetTopSellingProductsParams) ([]GetTopSellingProductsRow, error)
 	GetTopSellingProductsCustom(ctx context.Context, arg GetTopSellingProductsCustomParams) ([]GetTopSellingProductsCustomRow, error)
@@ -168,6 +173,7 @@ type Querier interface {
 	MarkOrderDeliveredByUUID(ctx context.Context, orderUuid uuid.UUID) (Order, error)
 	MarkOutboxEventFailed(ctx context.Context, arg MarkOutboxEventFailedParams) error
 	MarkOutboxEventsProcessed(ctx context.Context, dollar_1 []int64) error
+	MarkSagaFailed(ctx context.Context, arg MarkSagaFailedParams) (int64, error)
 	MarkWebhookEventProcessed(ctx context.Context, weID int32) error
 	RecalcProductRating(ctx context.Context, reviewProductID int32) error
 	RecallMessage(ctx context.Context, messageID int32) (ChatMessage, error)
@@ -177,6 +183,7 @@ type Querier interface {
 	RestoreProduct(ctx context.Context, productUuid uuid.UUID) (Product, error)
 	RestoreStock(ctx context.Context, arg RestoreStockParams) error
 	RestoreUser(ctx context.Context, userUuid uuid.UUID) (User, error)
+	ScheduleSagaRetry(ctx context.Context, arg ScheduleSagaRetryParams) (int64, error)
 	// Dùng cho UpdateQuantity (ghi đè tuyệt đối, không cộng dồn) — khác AddOrUpdateCartItem.
 	SetCartItemQuantity(ctx context.Context, arg SetCartItemQuantityParams) (CartItem, error)
 	SetDefaultAddress(ctx context.Context, arg SetDefaultAddressParams) (UserAddress, error)
@@ -185,6 +192,7 @@ type Querier interface {
 	SoftDeleteCategory(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
 	SoftDeleteProduct(ctx context.Context, productUuid uuid.UUID) (Product, error)
 	SoftDeleteUser(ctx context.Context, userUuid uuid.UUID) (User, error)
+	StartSaga(ctx context.Context, arg StartSagaParams) (OrderSaga, error)
 	TrashBanner(ctx context.Context, bannerUuid uuid.UUID) (Banner, error)
 	TrashCategory(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
 	TrashProduct(ctx context.Context, productUuid uuid.UUID) (Product, error)
@@ -205,6 +213,7 @@ type Querier interface {
 	UpdateReturnStatus(ctx context.Context, arg UpdateReturnStatusParams) (OrderReturn, error)
 	UpdateReview(ctx context.Context, arg UpdateReviewParams) (ProductReview, error)
 	UpdateReviewStatus(ctx context.Context, arg UpdateReviewStatusParams) (ProductReview, error)
+	UpdateSagaStep(ctx context.Context, arg UpdateSagaStepParams) (int64, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 	UpdateUserAddress(ctx context.Context, arg UpdateUserAddressParams) (UserAddress, error)
 	UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarParams) (User, error)

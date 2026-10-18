@@ -253,3 +253,16 @@ type OutboxRepository interface {
 	MarkFailed(ctx context.Context, eventID int64, lastErr *string) error
 }
 
+type SagaRepository interface {
+	Start(ctx context.Context, tx pgx.Tx, params sqlc.StartSagaParams) (sqlc.OrderSaga, error)
+	Confirm(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID) (bool, error)
+	ClaimForCompensation(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID, failureReason *string) (bool, error)
+	MarkFailed(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID, failureReason *string) (bool, error)
+	ScheduleRetry(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID, failureReason *string) (bool, error)
+	ClaimStale(ctx context.Context, tx pgx.Tx, limit int32) ([]sqlc.OrderSaga, error)
+	UpdateStep(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID, lastStep *string, snapshot []byte) (bool, error)
+	GetByOrderUUID(ctx context.Context, orderUUID uuid.UUID) (sqlc.OrderSaga, error)
+	GetByIdempotencyKey(ctx context.Context, userUUID uuid.UUID, idempotencyKey string) (sqlc.OrderSaga, error)
+}
+
+

@@ -29,6 +29,7 @@ var (
 	_ repository.NotificationRepository = (*MockNotificationRepository)(nil)
 	_ repository.ChatRepository         = (*MockChatRepository)(nil)
 	_ repository.OutboxRepository       = (*MockOutboxRepository)(nil)
+	_ repository.SagaRepository         = (*MockSagaRepository)(nil)
 )
 
 // =========================================================================
@@ -1586,6 +1587,85 @@ func (m *MockOutboxRepository) MarkFailed(ctx context.Context, eventID int64, la
 	}
 	return nil
 }
+
+// =========================================================================
+// 16. MockSagaRepository
+// =========================================================================
+type MockSagaRepository struct {
+	StartFunc                func(ctx context.Context, tx pgx.Tx, params sqlc.StartSagaParams) (sqlc.OrderSaga, error)
+	ConfirmFunc              func(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID) (bool, error)
+	ClaimForCompensationFunc func(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID, failureReason *string) (bool, error)
+	MarkFailedFunc           func(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID, failureReason *string) (bool, error)
+	ScheduleRetryFunc        func(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID, failureReason *string) (bool, error)
+	ClaimStaleFunc           func(ctx context.Context, tx pgx.Tx, limit int32) ([]sqlc.OrderSaga, error)
+	UpdateStepFunc           func(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID, lastStep *string, snapshot []byte) (bool, error)
+	GetByOrderUUIDFunc       func(ctx context.Context, orderUUID uuid.UUID) (sqlc.OrderSaga, error)
+	GetByIdempotencyKeyFunc  func(ctx context.Context, userUUID uuid.UUID, idempotencyKey string) (sqlc.OrderSaga, error)
+}
+
+func (m *MockSagaRepository) Start(ctx context.Context, tx pgx.Tx, params sqlc.StartSagaParams) (sqlc.OrderSaga, error) {
+	if m.StartFunc != nil {
+		return m.StartFunc(ctx, tx, params)
+	}
+	return sqlc.OrderSaga{}, nil
+}
+
+func (m *MockSagaRepository) Confirm(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID) (bool, error) {
+	if m.ConfirmFunc != nil {
+		return m.ConfirmFunc(ctx, tx, orderUUID)
+	}
+	return true, nil
+}
+
+func (m *MockSagaRepository) ClaimForCompensation(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID, failureReason *string) (bool, error) {
+	if m.ClaimForCompensationFunc != nil {
+		return m.ClaimForCompensationFunc(ctx, tx, orderUUID, failureReason)
+	}
+	return true, nil
+}
+
+func (m *MockSagaRepository) MarkFailed(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID, failureReason *string) (bool, error) {
+	if m.MarkFailedFunc != nil {
+		return m.MarkFailedFunc(ctx, tx, orderUUID, failureReason)
+	}
+	return true, nil
+}
+
+func (m *MockSagaRepository) ScheduleRetry(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID, failureReason *string) (bool, error) {
+	if m.ScheduleRetryFunc != nil {
+		return m.ScheduleRetryFunc(ctx, tx, orderUUID, failureReason)
+	}
+	return true, nil
+}
+
+func (m *MockSagaRepository) ClaimStale(ctx context.Context, tx pgx.Tx, limit int32) ([]sqlc.OrderSaga, error) {
+	if m.ClaimStaleFunc != nil {
+		return m.ClaimStaleFunc(ctx, tx, limit)
+	}
+	return nil, nil
+}
+
+func (m *MockSagaRepository) UpdateStep(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID, lastStep *string, snapshot []byte) (bool, error) {
+	if m.UpdateStepFunc != nil {
+		return m.UpdateStepFunc(ctx, tx, orderUUID, lastStep, snapshot)
+	}
+	return true, nil
+}
+
+func (m *MockSagaRepository) GetByOrderUUID(ctx context.Context, orderUUID uuid.UUID) (sqlc.OrderSaga, error) {
+	if m.GetByOrderUUIDFunc != nil {
+		return m.GetByOrderUUIDFunc(ctx, orderUUID)
+	}
+	return sqlc.OrderSaga{}, nil
+}
+
+func (m *MockSagaRepository) GetByIdempotencyKey(ctx context.Context, userUUID uuid.UUID, idempotencyKey string) (sqlc.OrderSaga, error) {
+	if m.GetByIdempotencyKeyFunc != nil {
+		return m.GetByIdempotencyKeyFunc(ctx, userUUID, idempotencyKey)
+	}
+	return sqlc.OrderSaga{}, nil
+}
+
 
 
 
