@@ -118,27 +118,18 @@ func (s *inventoryService) LockAndDeductStockWithRef(
 
 	resultMap := make(map[string]dto.ItemStockDTO, len(sortedItems))
 
-	tx, err := s.dbPool.Begin(ctx)
-	if err != nil {
-		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to start database transaction", err)
-	}
-	defer func() {
-		_ = tx.Rollback(ctx)
-	}()
-
-	for _, item := range sortedItems {
-		parsedUUID, err := uuid.Parse(item.ProductUUID)
-		if err != nil {
-			return nil, utils.NewError(utils.ErrCodeBadRequest, "Invalid product UUID: "+item.ProductUUID)
-		}
-
-		// Idempotency check: if reference already recorded, skip deduction
-		if refID != "" && refType != "" {
+	// 1. Idempotency check: if reference already recorded, skip deduction without taking transaction
+	if refID != "" && refType != "" {
+		allAlreadyDeducted := true
+		for _, item := range sortedItems {
+			parsedUUID, err := uuid.Parse(item.ProductUUID)
+			if err != nil {
+				return nil, utils.NewError(utils.ErrCodeBadRequest, "Invalid product UUID: "+item.ProductUUID)
+			}
 			existingMovement, err := s.repo.GetMovementByRefAndProductUUID(ctx, refType, refID, parsedUUID)
 			if err == nil && existingMovement.MovementID > 0 {
-				logger.Log.Info().Msgf("Idempotent stock deduction hit for ref %s product %s", refID, item.ProductUUID)
-				stockRow, err := s.repo.GetStockByUUID(ctx, parsedUUID)
-				if err == nil {
+				stockRow, sErr := s.repo.GetStockByUUID(ctx, parsedUUID)
+				if sErr == nil {
 					pID := int32(0)
 					if stockRow.ProductID != nil {
 						pID = *stockRow.ProductID
@@ -154,43 +145,49 @@ func (s *inventoryService) LockAndDeductStockWithRef(
 						AvailableQuantity: stockRow.Quantity - stockRow.ReservedQuantity,
 					}
 				}
-				continue
+			} else {
+				allAlreadyDeducted = false
+				break
 			}
 		}
+		if allAlreadyDeducted && len(resultMap) == len(sortedItems) {
+			logger.Log.Info().Msgf("Idempotent stock deduction hit for ref %s", refID)
+			return resultMap, nil
+		}
+		// Reset resultMap if not completely idempotent
+		resultMap = make(map[string]dto.ItemStockDTO, len(sortedItems))
+	}
 
-		// Check current stock first to capture stockBefore
-		currentStockRow, err := s.repo.GetStockByUUID(ctx, parsedUUID)
+	tx, err := s.dbPool.Begin(ctx)
+	if err != nil {
+		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to start database transaction", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	for _, item := range sortedItems {
+		parsedUUID, err := uuid.Parse(item.ProductUUID)
 		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return nil, utils.NewError(utils.ErrCodeNotFound, "Product stock not found: "+item.ProductUUID)
-			}
-			return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to check product stock", err)
+			return nil, utils.NewError(utils.ErrCodeBadRequest, "Invalid product UUID: "+item.ProductUUID)
 		}
 
-		if currentStockRow.Quantity < item.Quantity {
-			return nil, utils.NewError(
-				utils.ErrCodeBadRequest,
-				fmt.Sprintf("Insufficient stock for product %s (available: %d, requested: %d)",
-					currentStockRow.ProductName, currentStockRow.Quantity, item.Quantity),
-			)
-		}
-
-		// Atomic decrement
+		// Atomic decrement directly on tx
 		updatedStockRow, err := s.repo.DeductStockByUUID(ctx, tx, parsedUUID, item.Quantity)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
-				return nil, utils.NewError(utils.ErrCodeBadRequest, "Stock was modified concurrently, insufficient stock for product: "+item.ProductUUID)
+				return nil, utils.NewError(utils.ErrCodeBadRequest, fmt.Sprintf("insufficient stock for product: %s", item.ProductUUID))
 			}
 			return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to deduct stock for product: "+item.ProductUUID, err)
 		}
 
-		// Record stock movement
+		// Record stock movement on tx
 		_, err = s.repo.CreateStockMovement(ctx, tx, sqlc.CreateStockMovementParams{
-			ProductID:      currentStockRow.ProductID,
+			ProductID:      updatedStockRow.ProductID,
 			ProductUuid:    parsedUUID,
 			ChangeType:     "ORDER_PLACED",
 			QuantityChange: -item.Quantity,
-			StockBefore:    currentStockRow.Quantity,
+			StockBefore:    updatedStockRow.Quantity + item.Quantity,
 			StockAfter:     updatedStockRow.Quantity,
 			ReferenceID:    defaultRefID,
 			ReferenceType:  defaultRefType,
@@ -313,23 +310,17 @@ func (s *inventoryService) RestoreStockWithRef(
 			}
 		}
 
-		currentStock, err := s.repo.GetStockByUUID(ctx, parsedUUID)
-		if err != nil {
-			logger.Log.Warn().Err(err).Msgf("Could not find product %s to restore stock", pUUIDStr)
-			continue
-		}
-
 		updatedStock, err := s.repo.RestoreStockByUUID(ctx, tx, parsedUUID, qty)
 		if err != nil {
 			return utils.WrapError(utils.ErrCodeInternal, "Failed to restore stock for product: "+pUUIDStr, err)
 		}
 
 		_, err = s.repo.CreateStockMovement(ctx, tx, sqlc.CreateStockMovementParams{
-			ProductID:      currentStock.ProductID,
+			ProductID:      updatedStock.ProductID,
 			ProductUuid:    parsedUUID,
 			ChangeType:     changeType,
 			QuantityChange: qty,
-			StockBefore:    currentStock.Quantity,
+			StockBefore:    updatedStock.Quantity - qty,
 			StockAfter:     updatedStock.Quantity,
 			ReferenceID:    defaultRefID,
 			ReferenceType:  defaultRefType,
@@ -358,12 +349,6 @@ func (s *inventoryService) RestoreStockWithRef(
 			}
 		}
 
-		currentStock, err := s.repo.GetStockByProductID(ctx, pID)
-		if err != nil {
-			logger.Log.Warn().Err(err).Msgf("Could not find product ID %d to restore stock", pID)
-			continue
-		}
-
 		updatedStock, err := s.repo.RestoreStockByID(ctx, tx, pID, qty)
 		if err != nil {
 			return utils.WrapError(utils.ErrCodeInternal, fmt.Sprintf("Failed to restore stock for product ID: %d", pID), err)
@@ -371,10 +356,10 @@ func (s *inventoryService) RestoreStockWithRef(
 
 		_, err = s.repo.CreateStockMovement(ctx, tx, sqlc.CreateStockMovementParams{
 			ProductID:      &pID,
-			ProductUuid:    currentStock.ProductUuid,
+			ProductUuid:    updatedStock.ProductUuid,
 			ChangeType:     changeType,
 			QuantityChange: qty,
-			StockBefore:    currentStock.Quantity,
+			StockBefore:    updatedStock.Quantity - qty,
 			StockAfter:     updatedStock.Quantity,
 			ReferenceID:    defaultRefID,
 			ReferenceType:  defaultRefType,

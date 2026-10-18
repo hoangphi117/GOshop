@@ -101,6 +101,7 @@ func (m *MockOrderStockPort) RestoreStockWithRef(ctx context.Context, items []v1
 type MockOrderCouponPort struct {
 	PreviewCouponFunc      func(ctx context.Context, code string, amount float64, userUUID uuid.UUID) (*v1service.CouponDiscountResult, error)
 	LockAndApplyCouponFunc func(ctx context.Context, couponID int32, userID int32, orderID int32) error
+	ReleaseCouponFunc      func(ctx context.Context, couponID int32, orderID int32, orderUUID *uuid.UUID) error
 }
 
 func (m *MockOrderCouponPort) PreviewCoupon(ctx context.Context, code string, amount float64, userUUID uuid.UUID) (*v1service.CouponDiscountResult, error) {
@@ -113,6 +114,13 @@ func (m *MockOrderCouponPort) PreviewCoupon(ctx context.Context, code string, am
 func (m *MockOrderCouponPort) LockAndApplyCoupon(ctx context.Context, couponID int32, userID int32, orderID int32) error {
 	if m.LockAndApplyCouponFunc != nil {
 		return m.LockAndApplyCouponFunc(ctx, couponID, userID, orderID)
+	}
+	return nil
+}
+
+func (m *MockOrderCouponPort) ReleaseCoupon(ctx context.Context, couponID int32, orderID int32, orderUUID *uuid.UUID) error {
+	if m.ReleaseCouponFunc != nil {
+		return m.ReleaseCouponFunc(ctx, couponID, orderID, orderUUID)
 	}
 	return nil
 }

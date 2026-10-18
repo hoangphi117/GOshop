@@ -42,15 +42,22 @@ type Worker struct {
 	cfg                      *config.Config
 	logger                   *zerolog.Logger
 	orderConsumer            *worker.OrderConsumer
-	shippingConsumer         *worker.ShippingConsumer
-	paymentExpiredConsumer   *worker.PaymentExpiredConsumer
-	paymentSucceededConsumer *worker.PaymentSucceededConsumer
+	shippingConsumer                 *worker.ShippingConsumer
+	paymentExpiredConsumer           *worker.PaymentExpiredConsumer
+	paymentSucceededConsumer         *worker.PaymentSucceededConsumer
+	inventoryOrderCancelledConsumer  *worker.InventoryOrderCancelledConsumer
+	inventoryReturnRestockConsumer   *worker.InventoryReturnRestockConsumer
+	couponOrderCancelledConsumer     *worker.CouponOrderCancelledConsumer
 	syncWorker             *worker.MeilisearchSyncWorker
 	outboxPublisherWorker  *worker.OutboxPublisherWorker
+	sagaRecoveryWorker     *worker.SagaRecoveryWorker
 	shippingService        v1service.OrderShippingService
 	paymentService         v1service.PaymentService
 	userSyncConsumer       *worker.UserSyncConsumer
 	redisBridge            ws.RedisBridge
+	grpcCouponClient       *couponcontract.GRPCCouponClient
+	grpcCatalogClient      *catalogcontract.GRPCCatalogClient
+	grpcInventoryClient    *inventorycontract.GRPCInventoryClient
 }
 
 func NewWorker(cfg *config.Config) *Worker {
@@ -152,15 +159,12 @@ func NewWorker(cfg *config.Config) *Worker {
 	if err != nil {
 		log.Fatal().Err(err).Str("target", couponTarget).Msg("Failed to initialize Coupon gRPC client")
 	}
-	defer grpcCouponClient.Close()
 	couponPort := v1service.NewOrderCouponGRPCAdapter(grpcCouponClient)
 
 	catalogTarget := utils.GetEnv("CATALOG_GRPC_TARGET", "localhost:50055")
 	grpcCatalogClient, err := catalogcontract.NewGRPCCatalogClient(catalogTarget)
 	if err != nil {
 		log.Warn().Err(err).Str("target", catalogTarget).Msg("Failed to initialize Catalog gRPC client")
-	} else {
-		defer grpcCatalogClient.Close()
 	}
 	catalogPort := v1service.NewOrderCatalogAdapter(productRepo, grpcCatalogClient)
 	inventoryTarget := utils.GetEnv("INVENTORY_GRPC_TARGET", "localhost:50054")
@@ -168,7 +172,6 @@ func NewWorker(cfg *config.Config) *Worker {
 	if err != nil {
 		log.Fatal().Err(err).Str("target", inventoryTarget).Msg("Failed to initialize Inventory gRPC client")
 	}
-	defer grpcInventoryClient.Close()
 	stockPort := v1service.NewOrderStockGRPCAdapter(grpcInventoryClient)
 	pricingService := v1service.NewOrderPricingService(couponPort)
 
@@ -201,25 +204,54 @@ func NewWorker(cfg *config.Config) *Worker {
 		syncWorker = worker.NewMeilisearchSyncWorker(outboxRepo, searchClient, 2*time.Second, 50, log)
 	}
 
+	// Saga Recovery & Compensation Worker
+	sagaRepo := repository.NewSqlSagaRepository(db.DB)
+	sagaOrchestrator := v1service.NewOrderSagaOrchestrator(
+		sagaRepo,
+		txManager,
+		pricingService,
+		catalogPort,
+		stockPort,
+		orderRepo,
+		orderItemRepo,
+		customerReader,
+		cartService,
+		couponPort,
+		trackingRepo,
+		cacheService,
+		outboxRepo,
+	)
+	sagaRecoveryWorker := worker.NewSagaRecoveryWorker(sagaRepo, sagaOrchestrator, 30*time.Second, 50, log)
+
 	userSyncConsumer := worker.NewUserSyncConsumer(redisClient, db.DBPool)
+	inventoryCancelledConsumer := worker.NewInventoryOrderCancelledConsumer(stockPort, log)
+	inventoryReturnConsumer := worker.NewInventoryReturnRestockConsumer(stockPort, log)
+	couponCancelledConsumer := worker.NewCouponOrderCancelledConsumer(couponPort, log)
 
 	return &Worker{
-		rabbitMQ:                 rabbitMQ,
-		mailService:              mailService,
-		cache:                    cacheService,
-		redisClient:              redisClient,
-		cfg:                      cfg,
-		logger:                   log,
-		orderConsumer:            orderConsumer,
-		shippingConsumer:         shippingConsumer,
-		paymentExpiredConsumer:   paymentExpiredConsumer,
-		paymentSucceededConsumer: paymentSucceededConsumer,
-		syncWorker:             syncWorker,
-		outboxPublisherWorker:  outboxPublisherWorker,
-		shippingService:        shippingService,
-		paymentService:         paymentService,
-		userSyncConsumer:       userSyncConsumer,
-		redisBridge:            redisBridge,
+		rabbitMQ:                        rabbitMQ,
+		mailService:                     mailService,
+		cache:                           cacheService,
+		redisClient:                     redisClient,
+		cfg:                             cfg,
+		logger:                          log,
+		orderConsumer:                   orderConsumer,
+		shippingConsumer:                shippingConsumer,
+		paymentExpiredConsumer:          paymentExpiredConsumer,
+		paymentSucceededConsumer:        paymentSucceededConsumer,
+		inventoryOrderCancelledConsumer: inventoryCancelledConsumer,
+		inventoryReturnRestockConsumer:   inventoryReturnConsumer,
+		couponOrderCancelledConsumer:    couponCancelledConsumer,
+		syncWorker:                    syncWorker,
+		outboxPublisherWorker:         outboxPublisherWorker,
+		sagaRecoveryWorker:            sagaRecoveryWorker,
+		shippingService:               shippingService,
+		paymentService:                paymentService,
+		userSyncConsumer:              userSyncConsumer,
+		redisBridge:                   redisBridge,
+		grpcCouponClient:              grpcCouponClient,
+		grpcCatalogClient:             grpcCatalogClient,
+		grpcInventoryClient:           grpcInventoryClient,
 	}
 }
 
@@ -332,6 +364,36 @@ func (w *Worker) Start(ctx context.Context) error {
 		}
 	}
 
+	// Topic Pub/Sub: Inventory Order Events (Stock restoration on cancellation)
+	if w.inventoryOrderCancelledConsumer != nil {
+		invHandler := w.withIdempotency(rabbitmq.QueueInventoryOrderEvents, w.inventoryOrderCancelledConsumer.Handle)
+		if err := w.rabbitMQ.SubscribeTopic(ctx, rabbitmq.QueueInventoryOrderEvents, []string{rabbitmq.RoutingKeyOrderCancelled}, invHandler); err != nil {
+			w.logger.Error().Err(err).Msg("Failed to subscribe inventory order events topic")
+		} else {
+			w.logger.Info().Msgf("Worker subscribed topic queue: %s (routing: %s)", rabbitmq.QueueInventoryOrderEvents, rabbitmq.RoutingKeyOrderCancelled)
+		}
+	}
+
+	// Topic Pub/Sub: Coupon Order Events (Coupon release on cancellation)
+	if w.couponOrderCancelledConsumer != nil {
+		couponHandler := w.withIdempotency(rabbitmq.QueueCouponOrderEvents, w.couponOrderCancelledConsumer.Handle)
+		if err := w.rabbitMQ.SubscribeTopic(ctx, rabbitmq.QueueCouponOrderEvents, []string{rabbitmq.RoutingKeyOrderCancelled}, couponHandler); err != nil {
+			w.logger.Error().Err(err).Msg("Failed to subscribe coupon order events topic")
+		} else {
+			w.logger.Info().Msgf("Worker subscribed topic queue: %s (routing: %s)", rabbitmq.QueueCouponOrderEvents, rabbitmq.RoutingKeyOrderCancelled)
+		}
+	}
+
+	// Topic Pub/Sub: Inventory Return Restock Events (Restock on return completed)
+	if w.inventoryReturnRestockConsumer != nil {
+		returnRestockHandler := w.withIdempotency(rabbitmq.QueueInventoryReturnEvents, w.inventoryReturnRestockConsumer.Handle)
+		if err := w.rabbitMQ.SubscribeTopic(ctx, rabbitmq.QueueInventoryReturnEvents, []string{rabbitmq.RoutingKeyOrderReturnCompleted}, returnRestockHandler); err != nil {
+			w.logger.Error().Err(err).Msg("Failed to subscribe inventory return events topic")
+		} else {
+			w.logger.Info().Msgf("Worker subscribed topic queue: %s (routing: %s)", rabbitmq.QueueInventoryReturnEvents, rabbitmq.RoutingKeyOrderReturnCompleted)
+		}
+	}
+
 	// Consume User Sync Events (Cache invalidation & cross-service sync)
 	if w.userSyncConsumer != nil {
 		for _, queueName := range []string{rabbitmq.QueueUserCreated, rabbitmq.QueueUserUpdated, rabbitmq.QueueUserDeleted} {
@@ -354,6 +416,12 @@ func (w *Worker) Start(ctx context.Context) error {
 	if w.outboxPublisherWorker != nil {
 		go w.outboxPublisherWorker.Start(ctx)
 		w.logger.Info().Msg("Transactional Outbox Publisher Worker started in worker process")
+	}
+
+	// Background Saga Recovery & Compensation Worker
+	if w.sagaRecoveryWorker != nil {
+		go w.sagaRecoveryWorker.Start(ctx)
+		w.logger.Info().Msg("Background Saga Recovery Worker started in worker process")
 	}
 
 	// Periodic Shipping Tracking Sync (Cronjob with Redis Distributed Lock)
@@ -426,6 +494,16 @@ func (w *Worker) Shutdown(ctx context.Context) error {
 
 	if w.redisBridge != nil {
 		w.redisBridge.Stop()
+	}
+
+	if w.grpcInventoryClient != nil {
+		_ = w.grpcInventoryClient.Close()
+	}
+	if w.grpcCouponClient != nil {
+		_ = w.grpcCouponClient.Close()
+	}
+	if w.grpcCatalogClient != nil {
+		_ = w.grpcCatalogClient.Close()
 	}
 
 	if err := w.rabbitMQ.Close(); err != nil {

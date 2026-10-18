@@ -2,9 +2,12 @@ package v1service
 
 import (
 	"context"
+	"goshop/internal/utils"
 	couponcontract "goshop/services/coupon/contract"
 
 	"github.com/google/uuid"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type orderCouponGRPCAdapter struct {
@@ -28,6 +31,12 @@ func (a *orderCouponGRPCAdapter) PreviewCoupon(
 	}
 	preview, err := a.client.PreviewCoupon(ctx, code, amount, uStr)
 	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			switch st.Code() {
+			case codes.InvalidArgument, codes.NotFound:
+				return nil, utils.NewError(utils.ErrCodeBadRequest, st.Message())
+			}
+		}
 		return nil, err
 	}
 	return &CouponDiscountResult{
@@ -49,5 +58,31 @@ func (a *orderCouponGRPCAdapter) LockAndApplyCoupon(
 		UserID:   userID,
 		OrderID:  orderID,
 	})
-	return err
+	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			switch st.Code() {
+			case codes.InvalidArgument, codes.NotFound, codes.FailedPrecondition:
+				return utils.NewError(utils.ErrCodeBadRequest, st.Message())
+			}
+		}
+		return err
+	}
+	return nil
+}
+
+func (a *orderCouponGRPCAdapter) ReleaseCoupon(
+	ctx context.Context,
+	couponID int32,
+	orderID int32,
+	orderUUID *uuid.UUID,
+) error {
+	var orderUUIDStr string
+	if orderUUID != nil && *orderUUID != uuid.Nil {
+		orderUUIDStr = orderUUID.String()
+	}
+	return a.client.ReleaseCoupon(ctx, couponcontract.ReleaseCouponInput{
+		CouponID:  couponID,
+		OrderID:   orderID,
+		OrderUUID: orderUUIDStr,
+	})
 }

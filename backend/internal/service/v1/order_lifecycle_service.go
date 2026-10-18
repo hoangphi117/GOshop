@@ -230,7 +230,7 @@ func (s *orderLifecycleService) CancelOrder(ctx context.Context, userUUID uuid.U
 			if reason != nil {
 				reasonStr = strings.TrimSpace(*reason)
 			}
-			evt := rabbitmq.NewOrderCancelledEvent(
+			evt := rabbitmq.NewOrderCancelledEventWithDetails(
 				uuid.New().String(),
 				orderRow.OrderUuid.String(),
 				orderRow.OrderNumber,
@@ -238,6 +238,8 @@ func (s *orderLifecycleService) CancelOrder(ctx context.Context, userUUID uuid.U
 				orderRow.OrderID,
 				orderRow.OrderUserID,
 				reasonStr,
+				orderRow.OrderCouponID,
+				toOrderCancelledItems(orderItems),
 			)
 			if _, err := s.outboxStore.Insert(txCtx, tx, "order", orderRow.OrderUuid.String(), rabbitmq.QueueOrderCancelled, evt); err != nil {
 				return utils.WrapError(utils.ErrCodeInternal, "failed to insert order cancelled outbox event", err)
@@ -313,7 +315,7 @@ func (s *orderLifecycleService) CancelExpiredOrder(ctx context.Context, orderUUI
 
 		// 4. Dispatch OrderCancelled event via Outbox
 		if s.outboxStore != nil {
-			evt := rabbitmq.NewOrderCancelledEvent(
+			evt := rabbitmq.NewOrderCancelledEventWithDetails(
 				uuid.New().String(),
 				orderRow.OrderUuid.String(),
 				orderRow.OrderNumber,
@@ -321,6 +323,8 @@ func (s *orderLifecycleService) CancelExpiredOrder(ctx context.Context, orderUUI
 				orderRow.OrderID,
 				orderRow.OrderUserID,
 				cancelReason,
+				orderRow.OrderCouponID,
+				toOrderCancelledItems(orderItems),
 			)
 			if _, err := s.outboxStore.Insert(txCtx, tx, "order", orderRow.OrderUuid.String(), rabbitmq.QueueOrderCancelled, evt); err != nil {
 				return utils.WrapError(utils.ErrCodeInternal, "failed to insert order cancelled outbox event", err)
@@ -359,6 +363,18 @@ func toRestoreItems(orderItems []sqlc.GetOrderItemsByOrderIDRow) []RestoreItem {
 		items[i] = RestoreItem{
 			ProductID: item.OrderItemProductID,
 			Quantity:  item.OrderItemQuantity,
+		}
+	}
+	return items
+}
+
+func toOrderCancelledItems(orderItems []sqlc.GetOrderItemsByOrderIDRow) []rabbitmq.OrderCancelledItem {
+	items := make([]rabbitmq.OrderCancelledItem, len(orderItems))
+	for i, item := range orderItems {
+		items[i] = rabbitmq.OrderCancelledItem{
+			ProductID:   item.OrderItemProductID,
+			ProductUUID: item.OrderItemProductUuid.String(),
+			Quantity:    item.OrderItemQuantity,
 		}
 	}
 	return items

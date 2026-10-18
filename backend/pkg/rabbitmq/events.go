@@ -30,9 +30,15 @@ const (
 	QueueOrderDelivered       = "order.delivered"
 	QueueOrderReturnRequested = "order_return.requested"
 	QueueOrderReturnUpdated   = "order_return.updated"
+	QueueOrderReturnCompleted = "order_return.completed"
 	QueuePaymentExpired       = "payment.expired"
 	QueuePaymentSucceeded     = "payment.succeeded"
 	QueuePaymentFailed        = "payment.failed"
+
+	// Domain Event Queues (Pub/Sub Topic Exchange Subscribers)
+	QueueInventoryOrderEvents  = "inventory.order_events"
+	QueueInventoryReturnEvents = "inventory.return_events"
+	QueueCouponOrderEvents     = "coupon.order_events"
 
 	// User Sync Queues (Inter-Service Eventual Consistency)
 	QueueUserCreated = "user.created"
@@ -40,13 +46,14 @@ const (
 	QueueUserDeleted = "user.deleted"
 
 	// Topic Exchange Routing Keys (Pub/Sub)
-	RoutingKeyOrderCreated         = "order.created"
-	RoutingKeyOrderCancelled       = "order.cancelled"
-	RoutingKeyOrderStatusChanged   = "order.status_changed"
-	RoutingKeyOrderShipped         = "order.shipped"
-	RoutingKeyOrderDelivered       = "order.delivered"
-	RoutingKeyOrderReturnRequested = "order_return.requested"
-	RoutingKeyOrderReturnUpdated   = "order_return.updated"
+	RoutingKeyOrderCreated           = "order.created"
+	RoutingKeyOrderCancelled         = "order.cancelled"
+	RoutingKeyOrderStatusChanged     = "order.status_changed"
+	RoutingKeyOrderShipped           = "order.shipped"
+	RoutingKeyOrderDelivered         = "order.delivered"
+	RoutingKeyOrderReturnRequested   = "order_return.requested"
+	RoutingKeyOrderReturnUpdated     = "order_return.updated"
+	RoutingKeyOrderReturnCompleted   = "order_return.completed"
 	RoutingKeyPaymentExpired       = "payment.expired"
 	RoutingKeyPaymentSucceeded     = "payment.succeeded"
 	RoutingKeyPaymentFailed        = "payment.failed"
@@ -171,19 +178,28 @@ func NewOrderCreatedEvent(eventID, orderUUID, orderNumber, userUUID string, orde
 	}
 }
 
-// OrderCancelledEvent is published when an order is cancelled.
-type OrderCancelledEvent struct {
-	EventID     string    `json:"event_id"`
-	OrderID     int32     `json:"order_id"`
-	OrderUUID   string    `json:"order_uuid"`
-	OrderNumber string    `json:"order_number"`
-	UserID      int32     `json:"user_id"`
-	UserUUID    string    `json:"user_uuid"`
-	Reason      string    `json:"reason,omitempty"`
-	Timestamp   time.Time `json:"timestamp"`
+// OrderCancelledItem details product item cancelled in an order.
+type OrderCancelledItem struct {
+	ProductID   int32  `json:"product_id"`
+	ProductUUID string `json:"product_uuid,omitempty"`
+	Quantity    int32  `json:"quantity"`
 }
 
-// NewOrderCancelledEvent constructs a new OrderCancelledEvent.
+// OrderCancelledEvent is published when an order is cancelled.
+type OrderCancelledEvent struct {
+	EventID     string               `json:"event_id"`
+	OrderID     int32                `json:"order_id"`
+	OrderUUID   string               `json:"order_uuid"`
+	OrderNumber string               `json:"order_number"`
+	UserID      int32                `json:"user_id"`
+	UserUUID    string               `json:"user_uuid"`
+	Reason      string               `json:"reason,omitempty"`
+	CouponID    *int32               `json:"coupon_id,omitempty"`
+	Items       []OrderCancelledItem `json:"items,omitempty"`
+	Timestamp   time.Time            `json:"timestamp"`
+}
+
+// NewOrderCancelledEvent constructs a new OrderCancelledEvent without detailed items (legacy).
 func NewOrderCancelledEvent(eventID, orderUUID, orderNumber, userUUID string, orderID, userID int32, reason string) OrderCancelledEvent {
 	return OrderCancelledEvent{
 		EventID:     eventID,
@@ -193,6 +209,28 @@ func NewOrderCancelledEvent(eventID, orderUUID, orderNumber, userUUID string, or
 		UserID:      userID,
 		UserUUID:    userUUID,
 		Reason:      reason,
+		Timestamp:   time.Now().UTC(),
+	}
+}
+
+// NewOrderCancelledEventWithDetails constructs a complete OrderCancelledEvent with items and coupon.
+func NewOrderCancelledEventWithDetails(
+	eventID, orderUUID, orderNumber, userUUID string,
+	orderID, userID int32,
+	reason string,
+	couponID *int32,
+	items []OrderCancelledItem,
+) OrderCancelledEvent {
+	return OrderCancelledEvent{
+		EventID:     eventID,
+		OrderID:     orderID,
+		OrderUUID:   orderUUID,
+		OrderNumber: orderNumber,
+		UserID:      userID,
+		UserUUID:    userUUID,
+		Reason:      reason,
+		CouponID:    couponID,
+		Items:       items,
 		Timestamp:   time.Now().UTC(),
 	}
 }
@@ -282,6 +320,39 @@ func NewOrderReturnUpdatedEvent(eventID, returnUUID, orderUUID, orderNumber stri
 		ReturnStatus: returnStatus,
 		AdminNote:    adminNote,
 		Timestamp:    time.Now().UTC(),
+	}
+}
+
+// ReturnRestockItem specifies product items and whether they are restocked.
+type ReturnRestockItem struct {
+	ProductID   int32  `json:"product_id"`
+	ProductUUID string `json:"product_uuid,omitempty"`
+	Quantity    int32  `json:"quantity"`
+	Restock     bool   `json:"restock"`
+}
+
+// OrderReturnCompletedEvent is published when a return request is completed and warehouse goods are restocked.
+type OrderReturnCompletedEvent struct {
+	EventID     string              `json:"event_id"`
+	ReturnUUID  string              `json:"return_uuid"`
+	OrderUUID   string              `json:"order_uuid"`
+	OrderNumber string              `json:"order_number"`
+	Items       []ReturnRestockItem `json:"items"`
+	Timestamp   time.Time           `json:"timestamp"`
+}
+
+// NewOrderReturnCompletedEvent constructs a new OrderReturnCompletedEvent.
+func NewOrderReturnCompletedEvent(
+	eventID, returnUUID, orderUUID, orderNumber string,
+	items []ReturnRestockItem,
+) OrderReturnCompletedEvent {
+	return OrderReturnCompletedEvent{
+		EventID:     eventID,
+		ReturnUUID:  returnUUID,
+		OrderUUID:   orderUUID,
+		OrderNumber: orderNumber,
+		Items:       items,
+		Timestamp:   time.Now().UTC(),
 	}
 }
 

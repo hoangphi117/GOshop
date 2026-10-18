@@ -128,6 +128,13 @@ func NewOrderService(
 	return svc
 }
 
+// SetCheckoutService allows swapping the underlying checkout engine (e.g. Saga Orchestrator).
+func (s *orderService) SetCheckoutService(cs OrderCheckoutService) {
+	if cs != nil {
+		s.checkoutService = cs
+	}
+}
+
 // ─── CustomerOrderService implementations ────────────────────────────────────
 
 func (s *orderService) CreateOrder(ctx context.Context, userUUID uuid.UUID, input v1dto.CreateOrderInput) (*v1dto.OrderDTO, error) {

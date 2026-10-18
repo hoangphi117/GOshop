@@ -65,6 +65,23 @@ func NewOrderModule(
 
 	pricingService := v1service.NewOrderPricingService(couponPort)
 
+	sagaRepo := repository.NewSqlSagaRepository(ctx.DB)
+	sagaOrchestrator := v1service.NewOrderSagaOrchestrator(
+		sagaRepo,
+		ctx.TxManager,
+		pricingService,
+		catalogPort,
+		stockPort,
+		orderRepo,
+		orderItemRepo,
+		customerReader,
+		deps.CartService,
+		couponPort,
+		trackingRepo,
+		deps.CacheService,
+		outboxRepo,
+	)
+
 	orderService := v1service.NewOrderService(
 		ctx.TxManager,
 		pricingService,
@@ -79,6 +96,9 @@ func NewOrderModule(
 		ctx.Redis,
 		outboxRepo,
 	)
+	if setter, ok := orderService.(interface{ SetCheckoutService(v1service.OrderCheckoutService) }); ok {
+		setter.SetCheckoutService(sagaOrchestrator)
+	}
 
 	shippingService := v1service.NewOrderShippingService(v1service.OrderShippingServiceDeps{
 		TxManager:       ctx.TxManager,

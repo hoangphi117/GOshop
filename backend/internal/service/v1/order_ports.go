@@ -136,6 +136,7 @@ type CouponDiscountResult struct {
 type OrderCouponPort interface {
 	PreviewCoupon(ctx context.Context, code string, amount float64, userUUID uuid.UUID) (*CouponDiscountResult, error)
 	LockAndApplyCoupon(ctx context.Context, couponID int32, userID int32, orderID int32) error
+	ReleaseCoupon(ctx context.Context, couponID int32, orderID int32, orderUUID *uuid.UUID) error
 }
 
 // OrderCartPort clears purchased items from cart.

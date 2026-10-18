@@ -2,7 +2,11 @@ package v1service
 
 import (
 	"context"
+	"goshop/internal/utils"
 	inventorycontract "goshop/services/inventory/contract"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type orderStockGRPCAdapter struct {
@@ -36,7 +40,18 @@ func (a *orderStockGRPCAdapter) LockAndDeductStockWithRef(
 		ActorID:       actorID,
 		Note:          note,
 	})
-	return err
+	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			switch st.Code() {
+			case codes.FailedPrecondition, codes.ResourceExhausted:
+				return utils.NewError(utils.ErrCodeConflict, st.Message())
+			case codes.NotFound, codes.InvalidArgument:
+				return utils.NewError(utils.ErrCodeBadRequest, st.Message())
+			}
+		}
+		return err
+	}
+	return nil
 }
 
 func (a *orderStockGRPCAdapter) RestoreStockWithRef(

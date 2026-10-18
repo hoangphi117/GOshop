@@ -46,6 +46,7 @@ type OrderItemDTO struct {
 }
 
 type CreateOrderInput struct {
+	IdempotencyKey  string                 `json:"idempotency_key" binding:"omitempty,max=100"`
 	Items           []CreateOrderItemInput `json:"items" binding:"required,min=1,dive"`
 	ShippingName    string                 `json:"shipping_name" binding:"required,min=2,max=100"`
 	ShippingPhone   string                 `json:"shipping_phone" binding:"required,min=9,max=20"`

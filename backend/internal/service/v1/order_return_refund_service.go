@@ -126,6 +126,28 @@ func (s *orderReturnService) AdminUpdateReturnStatus(ctx context.Context, userUU
 				noteStr,
 			)
 			_, _ = s.outboxStore.Insert(ctx, tx, "order", order.OrderUuid.String(), rabbitmq.QueueOrderReturnUpdated, event)
+
+			if input.Status == OrderReturnStatusCompleted {
+				if orderItems, err := s.orderItemRepo.GetByOrderID(txCtx, returnRequest.ReturnOrderID); err == nil && len(orderItems) > 0 {
+					restockItems := make([]rabbitmq.ReturnRestockItem, len(orderItems))
+					for i, it := range orderItems {
+						restockItems[i] = rabbitmq.ReturnRestockItem{
+							ProductID:   it.OrderItemProductID,
+							ProductUUID: it.OrderItemProductUuid.String(),
+							Quantity:    it.OrderItemQuantity,
+							Restock:     true,
+						}
+					}
+					completedEvt := rabbitmq.NewOrderReturnCompletedEvent(
+						uuid.NewString(),
+						updatedReturn.ReturnUuid.String(),
+						order.OrderUuid.String(),
+						order.OrderNumber,
+						restockItems,
+					)
+					_, _ = s.outboxStore.Insert(ctx, tx, "order", order.OrderUuid.String(), rabbitmq.QueueOrderReturnCompleted, completedEvt)
+				}
+			}
 		}
 		return nil
 	})

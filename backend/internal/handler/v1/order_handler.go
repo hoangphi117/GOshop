@@ -10,6 +10,7 @@ import (
 	"goshop/internal/utils"
 	"goshop/internal/validation"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -122,6 +123,12 @@ func (oh *OrderHandler) CreateOrder(ctx *gin.Context) {
 	if err := ctx.ShouldBindJSON(&input); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
+	}
+
+	if headerKey := strings.TrimSpace(ctx.GetHeader("X-Idempotency-Key")); headerKey != "" {
+		input.IdempotencyKey = headerKey
+	} else if headerKey := strings.TrimSpace(ctx.GetHeader("Idempotency-Key")); headerKey != "" {
+		input.IdempotencyKey = headerKey
 	}
 
 	reqCtx := oh.getRequestContext(ctx, userUUID)
