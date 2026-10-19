@@ -52,11 +52,17 @@ func (a *orderCouponGRPCAdapter) LockAndApplyCoupon(
 	couponID int32,
 	userID int32,
 	orderID int32,
+	orderUUID *uuid.UUID,
 ) error {
+	var orderUUIDStr string
+	if orderUUID != nil && *orderUUID != uuid.Nil {
+		orderUUIDStr = orderUUID.String()
+	}
 	_, err := a.client.ReserveCoupon(ctx, couponcontract.ReserveCouponInput{
-		CouponID: couponID,
-		UserID:   userID,
-		OrderID:  orderID,
+		CouponID:  couponID,
+		UserID:    userID,
+		OrderID:   orderID,
+		OrderUUID: orderUUIDStr,
 	})
 	if err != nil {
 		if st, ok := status.FromError(err); ok {

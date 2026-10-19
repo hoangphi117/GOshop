@@ -8,6 +8,7 @@ import (
 	v1service "goshop/internal/service/v1"
 	"goshop/pkg/rabbitmq"
 
+	"github.com/google/uuid"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
 )
@@ -50,15 +51,44 @@ func (oc *OrderConsumer) HandleOrderCreated(headers amqp.Table, body []byte) err
 
 	ctx := context.Background()
 
-	// 1. Asynchronously remove purchased items from customer's cart
-	if oc.cartService != nil && len(event.PurchasedItems) > 0 {
-		if err := oc.cartService.RemovePurchasedItems(ctx, event.UserID, event.PurchasedItems); err != nil {
-			if oc.logger != nil {
-				oc.logger.Warn().
-					Err(err).
-					Int32("user_id", event.UserID).
-					Str("order_uuid", event.OrderUUID).
-					Msg("Failed to clean up cart for order")
+	// 1. Asynchronously remove purchased items from customer's cart (G8 FIX: Single source of truth for cart cleanup)
+	if oc.cartService != nil {
+		cartCleaned := false
+		if len(event.PurchasedItemUUIDs) > 0 && event.UserUUID != "" {
+			if userUUID, uErr := uuid.Parse(event.UserUUID); uErr == nil {
+				itemUUIDs := make([]uuid.UUID, 0, len(event.PurchasedItemUUIDs))
+				for _, idStr := range event.PurchasedItemUUIDs {
+					if itemUUID, pErr := uuid.Parse(idStr); pErr == nil {
+						itemUUIDs = append(itemUUIDs, itemUUID)
+					}
+				}
+				if len(itemUUIDs) > 0 {
+					if uuidPort, ok := oc.cartService.(v1service.OrderCartUUIDPort); ok {
+						if err := uuidPort.RemovePurchasedItemsByUUID(ctx, userUUID, itemUUIDs); err != nil {
+							if oc.logger != nil {
+								oc.logger.Warn().
+									Err(err).
+									Str("user_uuid", event.UserUUID).
+									Str("order_uuid", event.OrderUUID).
+									Msg("Failed to clean up cart by UUID, falling back to ID")
+							}
+						} else {
+							cartCleaned = true
+						}
+					}
+				}
+			}
+		}
+
+		if !cartCleaned && len(event.PurchasedItems) > 0 {
+			if err := oc.cartService.RemovePurchasedItems(ctx, event.UserID, event.PurchasedItems); err != nil {
+				if oc.logger != nil {
+					oc.logger.Warn().
+						Err(err).
+						Int32("user_id", event.UserID).
+						Str("order_uuid", event.OrderUUID).
+						Msg("Failed to clean up cart for order")
+				}
 			}
 		}
 	}

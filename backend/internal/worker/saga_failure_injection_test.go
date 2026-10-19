@@ -332,7 +332,7 @@ func TestFaultInjection_CrashAfterStockReservation_SweeperRestoresStock(t *testi
 	initialStock := *stockPtr
 
 	// Fault injection: Coupon service simulates a crash / timeout right after stock is reserved
-	mockCoupon.LockAndApplyCouponFunc = func(ctx context.Context, couponID int32, userID int32, orderID int32) error {
+	mockCoupon.LockAndApplyCouponFunc = func(ctx context.Context, couponID int32, userID int32, orderID int32, orderUUID *uuid.UUID) error {
 		return errors.New("SIMULATED_CRASH_OR_NETWORK_TIMEOUT")
 	}
 

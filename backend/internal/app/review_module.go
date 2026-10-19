@@ -21,8 +21,7 @@ func NewReviewModule(ctx *ModuleContext, rabbitmqService rabbitmq.RabbitMQServic
 	reviewRepo := repository.NewSqlReviewRepository(ctx.DB)
 	productRepo := repository.NewSqlProductRepository(ctx.DB)
 	orderRepo := repository.NewSqlOrderRepository(ctx.DB)
-	userRepo := repository.NewSqlUserRepository(ctx.DB)
-	userReader := client.NewIdentityUserReader(ctx.IdentityClient, userRepo)
+	userReader := client.NewIdentityUserReader(ctx.IdentityClient)
 
 	// Initialize service
 	reviewService := v1service.NewReviewServiceWithCatalog(reviewRepo, productRepo, orderRepo, rabbitmqService, ctx.Redis, ctx.CatalogClient, userReader)

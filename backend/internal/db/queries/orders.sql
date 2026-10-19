@@ -1,5 +1,6 @@
 -- name: CreateOrder :one
 INSERT INTO orders (
+    order_uuid,
     order_number, order_user_id,
     order_user_uuid, order_customer_name, order_customer_email,
     order_shipping_name, order_shipping_phone, order_shipping_address,
@@ -7,7 +8,16 @@ INSERT INTO orders (
     order_subtotal_amount, order_discount_amount, order_shipping_fee, order_total_amount,
     order_payment_method, order_payment_status,
     order_note, order_status
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+) VALUES (
+    COALESCE(NULLIF(sqlc.arg('order_uuid')::uuid, '00000000-0000-0000-0000-000000000000'::uuid), gen_random_uuid()),
+    sqlc.arg('order_number'), sqlc.arg('order_user_id'),
+    sqlc.arg('order_user_uuid'), sqlc.arg('order_customer_name'), sqlc.arg('order_customer_email'),
+    sqlc.arg('order_shipping_name'), sqlc.arg('order_shipping_phone'), sqlc.arg('order_shipping_address'),
+    sqlc.narg('order_coupon_id'), sqlc.narg('order_coupon_code'),
+    sqlc.arg('order_subtotal_amount'), sqlc.arg('order_discount_amount'), sqlc.arg('order_shipping_fee'), sqlc.arg('order_total_amount'),
+    sqlc.arg('order_payment_method'), sqlc.arg('order_payment_status'),
+    sqlc.narg('order_note'), sqlc.arg('order_status')
+)
 RETURNING *;
 
 -- name: GetOrderByUUID :one

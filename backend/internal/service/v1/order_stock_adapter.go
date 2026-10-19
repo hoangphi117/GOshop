@@ -65,8 +65,9 @@ func (a *orderStockGRPCAdapter) RestoreStockWithRef(
 	stockItems := make([]inventorycontract.StockItem, len(items))
 	for i, it := range items {
 		stockItems[i] = inventorycontract.StockItem{
-			ProductID: it.ProductID,
-			Quantity:  it.Quantity,
+			ProductID:   it.ProductID,
+			ProductUUID: it.ProductUUID,
+			Quantity:    it.Quantity,
 		}
 	}
 	return a.client.ReleaseStock(ctx, inventorycontract.ReleaseStockInput{

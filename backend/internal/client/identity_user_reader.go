@@ -10,77 +10,67 @@ import (
 	"github.com/google/uuid"
 )
 
-// IdentityUserReader implements repository.UserReader by calling IdentityClient first,
-// with graceful fallback to a local projection reader (e.g. SqlUserRepository) if IdentityClient fails.
+// IdentityUserReader implements repository.UserReader by calling IdentityClient directly without local DB fallback.
 type IdentityUserReader struct {
 	identityClient contract.IdentityClient
-	localFallback  repository.UserReader
 }
 
-// NewIdentityUserReader creates a new UserReader backed by IdentityClient.
-func NewIdentityUserReader(client contract.IdentityClient, fallback repository.UserReader) repository.UserReader {
+// NewIdentityUserReader creates a new UserReader backed by IdentityClient without local DB fallback.
+func NewIdentityUserReader(client contract.IdentityClient) repository.UserReader {
 	return &IdentityUserReader{
 		identityClient: client,
-		localFallback:  fallback,
 	}
 }
 
 func (r *IdentityUserReader) GetByID(ctx context.Context, id int32) (sqlc.User, error) {
-	if r.identityClient != nil {
-		if dto, err := r.identityClient.GetUserByID(ctx, id); err == nil && dto != nil {
-			return sqlc.User{
-				UserID:        dto.UserID,
-				UserUuid:      dto.UserUUID,
-				UserFullname:  dto.UserFullname,
-				UserEmail:     dto.UserEmail,
-				UserAvatar:    dto.UserAvatar,
-				UserAvatarUrl: dto.UserAvatarUrl,
-				UserStatus:    dto.UserStatus,
-				UserLevel:     dto.UserLevel,
-			}, nil
-		}
+	if r.identityClient == nil {
+		return sqlc.User{}, fmt.Errorf("identity client is not initialized")
 	}
-
-	if r.localFallback != nil {
-		return r.localFallback.GetByID(ctx, id)
+	dto, err := r.identityClient.GetUserByID(ctx, id)
+	if err != nil {
+		return sqlc.User{}, err
 	}
-
-	return sqlc.User{}, fmt.Errorf("user not found: %d", id)
+	if dto == nil {
+		return sqlc.User{}, fmt.Errorf("user not found: %d", id)
+	}
+	return sqlc.User{
+		UserID:        dto.UserID,
+		UserUuid:      dto.UserUUID,
+		UserFullname:  dto.UserFullname,
+		UserEmail:     dto.UserEmail,
+		UserAvatar:    dto.UserAvatar,
+		UserAvatarUrl: dto.UserAvatarUrl,
+		UserStatus:    dto.UserStatus,
+		UserLevel:     dto.UserLevel,
+	}, nil
 }
 
 func (r *IdentityUserReader) GetByUUID(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-	if r.identityClient != nil {
-		if dto, err := r.identityClient.GetUserByUUID(ctx, u); err == nil && dto != nil {
-			return sqlc.User{
-				UserID:        dto.UserID,
-				UserUuid:      dto.UserUUID,
-				UserFullname:  dto.UserFullname,
-				UserEmail:     dto.UserEmail,
-				UserAvatar:    dto.UserAvatar,
-				UserAvatarUrl: dto.UserAvatarUrl,
-				UserStatus:    dto.UserStatus,
-				UserLevel:     dto.UserLevel,
-			}, nil
-		}
+	if r.identityClient == nil {
+		return sqlc.User{}, fmt.Errorf("identity client is not initialized")
 	}
-
-	if r.localFallback != nil {
-		return r.localFallback.GetByUUID(ctx, u)
+	dto, err := r.identityClient.GetUserByUUID(ctx, u)
+	if err != nil {
+		return sqlc.User{}, err
 	}
-
-	return sqlc.User{}, fmt.Errorf("user not found: %s", u.String())
+	if dto == nil {
+		return sqlc.User{}, fmt.Errorf("user not found: %s", u.String())
+	}
+	return sqlc.User{
+		UserID:        dto.UserID,
+		UserUuid:      dto.UserUUID,
+		UserFullname:  dto.UserFullname,
+		UserEmail:     dto.UserEmail,
+		UserAvatar:    dto.UserAvatar,
+		UserAvatarUrl: dto.UserAvatarUrl,
+		UserStatus:    dto.UserStatus,
+		UserLevel:     dto.UserLevel,
+	}, nil
 }
 
 func (r *IdentityUserReader) GetActiveAdminUserIDs(ctx context.Context) ([]int32, error) {
-	if r.identityClient != nil {
-		if adminIDs, err := r.identityClient.GetActiveAdminUserIDs(ctx); err == nil && len(adminIDs) > 0 {
-			return adminIDs, nil
-		}
+	if r.identityClient == nil {
+		return nil, fmt.Errorf("identity client is not initialized")
 	}
-
-	if r.localFallback != nil {
-		return r.localFallback.GetActiveAdminUserIDs(ctx)
-	}
-
-	return []int32{}, nil
+	return r.identityClient.GetActiveAdminUserIDs(ctx)
 }

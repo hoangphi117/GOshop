@@ -21,6 +21,7 @@ import (
 	"goshop/pkg/storage"
 	"goshop/pkg/ws"
 	catalogcontract "goshop/services/catalog/contract"
+	couponcontract "goshop/services/coupon/contract"
 	inventorycontract "goshop/services/inventory/contract"
 	"net/http"
 	"os"
@@ -62,6 +63,7 @@ type ModuleContext struct {
 	RabbitMQ        rabbitmq.RabbitMQService
 	InventoryClient inventorycontract.InventoryClient
 	CatalogClient   catalogcontract.CatalogClient
+	CouponClient    couponcontract.CouponClient
 }
 
 func NewApplication(cfg *config.Config) (*Application, error) {
@@ -210,6 +212,13 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	}
 	paymentService := client.NewPaymentServiceAdapter(grpcPaymentClient)
 
+	couponTarget := utils.GetEnv("COUPON_GRPC_TARGET", "localhost:50053")
+	grpcCouponClient, err := couponcontract.NewGRPCCouponClient(couponTarget)
+	if err != nil {
+		logger.Log.Fatal().Err(err).Str("addr", couponTarget).Msg("Failed to initialize Coupon gRPC client")
+		return nil, err
+	}
+
 	inventoryTarget := utils.GetEnv("INVENTORY_GRPC_TARGET", "localhost:50054")
 	grpcInventoryClient, err := inventorycontract.NewGRPCInventoryClient(inventoryTarget)
 	if err != nil {
@@ -229,6 +238,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		RabbitMQ:        rabbitmqService,
 		InventoryClient: grpcInventoryClient,
 		CatalogClient:   grpcCatalogClient,
+		CouponClient:    grpcCouponClient,
 	}
 
 	orderModuleDeps := OrderModuleDeps{
@@ -240,9 +250,15 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		CacheService:    cacheRedisService,
 	}
 
+	orderModule, err := NewOrderModule(ctx, orderModuleDeps)
+	if err != nil {
+		logger.Log.Fatal().Err(err).Msg("Failed to initialize Order module")
+		return nil, err
+	}
+
 	modules := []Module{
 		NewProductModule(ctx),
-		NewOrderModule(ctx, orderModuleDeps),
+		orderModule,
 	}
 	modules = append(modules,
 		NewReviewModule(ctx, rabbitmqService),

@@ -51,6 +51,10 @@ func (m *mockSagaOrchestrator) GetSagaStatus(ctx context.Context, orderUUID uuid
 	return nil, nil
 }
 
+func (m *mockSagaOrchestrator) WithShippingValidator(v v1service.OrderShippingValidatorPort) v1service.OrderSagaOrchestrator {
+	return m
+}
+
 var _ v1service.OrderSagaOrchestrator = (*mockSagaOrchestrator)(nil)
 
 func TestSagaRecoveryWorker_NilDependencies(t *testing.T) {

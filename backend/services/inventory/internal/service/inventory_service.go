@@ -126,6 +126,13 @@ func (s *inventoryService) LockAndDeductStockWithRef(
 			if err != nil {
 				return nil, utils.NewError(utils.ErrCodeBadRequest, "Invalid product UUID: "+item.ProductUUID)
 			}
+			// Tombstone check: if cancellation/release arrived before reserve
+			tombstone, tErr := s.repo.GetMovementByRefAndProductUUID(ctx, "order_cancelled", refID, parsedUUID)
+			if tErr == nil && tombstone.MovementID > 0 {
+				logger.Log.Warn().Str("ref_id", refID).Str("product_uuid", item.ProductUUID).Msg("Reservation rejected: cancellation tombstone found")
+				return nil, utils.NewError(utils.ErrCodeConflict, "Reservation rejected: order cancelled prior to stock deduction (tombstone hit)")
+			}
+
 			existingMovement, err := s.repo.GetMovementByRefAndProductUUID(ctx, refType, refID, parsedUUID)
 			if err == nil && existingMovement.MovementID > 0 {
 				stockRow, sErr := s.repo.GetStockByUUID(ctx, parsedUUID)
@@ -310,6 +317,31 @@ func (s *inventoryService) RestoreStockWithRef(
 			}
 		}
 
+		// Verify prior deduction movement exists before restoring to prevent phantom stock inflation
+		if (refType == "order" || refType == "order_cancelled" || refType == "order_cancel") && refID != "" {
+			deducted, dErr := s.repo.GetMovementByRefAndProductUUID(ctx, "order", refID, parsedUUID)
+			if dErr != nil || deducted.MovementID == 0 {
+				logger.Log.Info().Msgf("No prior deduction found for ref %s product %s, recording cancellation tombstone", refID, pUUIDStr)
+				tombType := "order_cancelled"
+				tombNote := "Cancellation tombstone: release before reserve"
+				_, _ = s.repo.CreateStockMovement(ctx, tx, sqlc.CreateStockMovementParams{
+					ProductID:      nil,
+					ProductUuid:    parsedUUID,
+					ChangeType:     "ORDER_CANCELLED",
+					QuantityChange: 0,
+					StockBefore:    0,
+					StockAfter:     0,
+					ReferenceID:    defaultRefID,
+					ReferenceType:  &tombType,
+					ActorID:        actorID,
+					ActorUuid:      toPgUUID(parsedActorUUID),
+					ActorName:      nil,
+					Note:           &tombNote,
+				})
+				continue
+			}
+		}
+
 		updatedStock, err := s.repo.RestoreStockByUUID(ctx, tx, parsedUUID, qty)
 		if err != nil {
 			return utils.WrapError(utils.ErrCodeInternal, "Failed to restore stock for product: "+pUUIDStr, err)
@@ -345,6 +377,31 @@ func (s *inventoryService) RestoreStockWithRef(
 		if refID != "" && refType != "" {
 			existing, err := s.repo.GetMovementByRefAndProductID(ctx, refType, refID, pID)
 			if err == nil && existing.MovementID > 0 {
+				continue
+			}
+		}
+
+		// Verify prior deduction movement exists before restoring to prevent phantom stock inflation
+		if (refType == "order" || refType == "order_cancelled" || refType == "order_cancel") && refID != "" {
+			deducted, dErr := s.repo.GetMovementByRefAndProductID(ctx, "order", refID, pID)
+			if dErr != nil || deducted.MovementID == 0 {
+				logger.Log.Info().Msgf("No prior deduction found for ref %s product ID %d, recording cancellation tombstone", refID, pID)
+				tombType := "order_cancelled"
+				tombNote := "Cancellation tombstone: release before reserve"
+				_, _ = s.repo.CreateStockMovement(ctx, tx, sqlc.CreateStockMovementParams{
+					ProductID:      &pID,
+					ProductUuid:    uuid.Nil,
+					ChangeType:     "ORDER_CANCELLED",
+					QuantityChange: 0,
+					StockBefore:    0,
+					StockAfter:     0,
+					ReferenceID:    defaultRefID,
+					ReferenceType:  &tombType,
+					ActorID:        actorID,
+					ActorUuid:      toPgUUID(parsedActorUUID),
+					ActorName:      nil,
+					Note:           &tombNote,
+				})
 				continue
 			}
 		}

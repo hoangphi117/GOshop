@@ -2,7 +2,6 @@ package v1service
 
 import (
 	"context"
-	"goshop/internal/repository"
 	"goshop/internal/utils"
 	catalogcontract "goshop/services/catalog/contract"
 
@@ -10,19 +9,13 @@ import (
 )
 
 type orderCatalogAdapter struct {
-	productRepo   repository.ProductRepository
 	catalogClient catalogcontract.CatalogClient
 }
 
-// NewOrderCatalogAdapter creates an adapter exposing ProductRepository or CatalogClient as CatalogPort.
-func NewOrderCatalogAdapter(productRepo repository.ProductRepository, catalogClient ...catalogcontract.CatalogClient) CatalogPort {
-	var cClient catalogcontract.CatalogClient
-	if len(catalogClient) > 0 {
-		cClient = catalogClient[0]
-	}
+// NewOrderCatalogAdapter creates an adapter exposing CatalogClient as CatalogPort (UUID-only, no local DB fallback).
+func NewOrderCatalogAdapter(catalogClient catalogcontract.CatalogClient) CatalogPort {
 	return &orderCatalogAdapter{
-		productRepo:   productRepo,
-		catalogClient: cClient,
+		catalogClient: catalogClient,
 	}
 }
 
@@ -31,55 +24,35 @@ func (a *orderCatalogAdapter) GetProductsForCheckout(ctx context.Context, produc
 		return make(map[string]CheckoutProductSnapshot), nil
 	}
 
-	if a.catalogClient != nil {
-		uuidStrs := make([]string, len(productUUIDs))
-		for i, u := range productUUIDs {
-			uuidStrs[i] = u.String()
-		}
-
-		products, err := a.catalogClient.GetProductsBatch(ctx, uuidStrs, nil)
-		if err == nil && len(products) > 0 {
-			snapshotMap := make(map[string]CheckoutProductSnapshot, len(products))
-			for _, p := range products {
-				pu, _ := uuid.Parse(p.ProductUUID)
-				sku := p.ProductSKU
-				img := p.ProductImageURL
-				snapshotMap[p.ProductUUID] = CheckoutProductSnapshot{
-					ProductID:       p.ProductID,
-					ProductUUID:     pu,
-					ProductName:     p.ProductName,
-					ProductSlug:     p.ProductSlug,
-					ProductSku:      &sku,
-					ProductImageURL: &img,
-					Price:           p.ProductPrice,
-					Status:          p.ProductStatus,
-				}
-			}
-			return snapshotMap, nil
-		}
+	if a.catalogClient == nil {
+		return nil, utils.NewError(utils.ErrCodeInternal, "Catalog client is not initialized")
 	}
 
-	if a.productRepo != nil {
-		products, err := a.productRepo.GetByUUIDs(ctx, nil, productUUIDs)
-		if err != nil {
-			return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to fetch products for checkout", err)
-		}
-
-		snapshotMap := make(map[string]CheckoutProductSnapshot, len(products))
-		for _, p := range products {
-			snapshotMap[p.ProductUuid.String()] = CheckoutProductSnapshot{
-				ProductID:       p.ProductID,
-				ProductUUID:     p.ProductUuid,
-				ProductName:     p.ProductName,
-				ProductSlug:     p.ProductSlug,
-				ProductSku:      p.ProductSku,
-				ProductImageURL: p.ProductImageUrl,
-				Price:           utils.NumericToFloat(p.ProductPrice),
-				Status:          p.ProductStatus,
-			}
-		}
-		return snapshotMap, nil
+	uuidStrs := make([]string, len(productUUIDs))
+	for i, u := range productUUIDs {
+		uuidStrs[i] = u.String()
 	}
 
-	return nil, utils.NewError(utils.ErrCodeInternal, "No catalog provider available")
+	products, err := a.catalogClient.GetProductsBatch(ctx, uuidStrs, nil)
+	if err != nil {
+		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to fetch products for checkout from catalog service", err)
+	}
+
+	snapshotMap := make(map[string]CheckoutProductSnapshot, len(products))
+	for _, p := range products {
+		pu, _ := uuid.Parse(p.ProductUUID)
+		sku := p.ProductSKU
+		img := p.ProductImageURL
+		snapshotMap[p.ProductUUID] = CheckoutProductSnapshot{
+			ProductID:       p.ProductID,
+			ProductUUID:     pu,
+			ProductName:     p.ProductName,
+			ProductSlug:     p.ProductSlug,
+			ProductSku:      &sku,
+			ProductImageURL: &img,
+			Price:           p.ProductPrice,
+			Status:          p.ProductStatus,
+		}
+	}
+	return snapshotMap, nil
 }

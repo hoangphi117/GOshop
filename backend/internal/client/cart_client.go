@@ -105,6 +105,20 @@ func (a *CartServiceAdapter) RemovePurchasedItems(ctx context.Context, userID in
 	return err
 }
 
+func (a *CartServiceAdapter) RemovePurchasedItemsByUUID(ctx context.Context, userUUID uuid.UUID, productUUIDs []uuid.UUID) error {
+	if a.client == nil {
+		return fmt.Errorf("cart gRPC client is not initialized")
+	}
+
+	uuids := make([]string, len(productUUIDs))
+	for i, u := range productUUIDs {
+		uuids[i] = u.String()
+	}
+
+	_, err := a.client.RemovePurchasedItems(ctx, userUUID.String(), 0, uuids, nil)
+	return err
+}
+
 func mapCartInfoToDTO(cart *contract.CartInfo) v1dto.CartDTO {
 	if cart == nil {
 		return v1dto.CartDTO{}

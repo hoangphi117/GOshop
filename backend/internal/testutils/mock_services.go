@@ -100,7 +100,7 @@ func (m *MockOrderStockPort) RestoreStockWithRef(ctx context.Context, items []v1
 
 type MockOrderCouponPort struct {
 	PreviewCouponFunc      func(ctx context.Context, code string, amount float64, userUUID uuid.UUID) (*v1service.CouponDiscountResult, error)
-	LockAndApplyCouponFunc func(ctx context.Context, couponID int32, userID int32, orderID int32) error
+	LockAndApplyCouponFunc func(ctx context.Context, couponID int32, userID int32, orderID int32, orderUUID *uuid.UUID) error
 	ReleaseCouponFunc      func(ctx context.Context, couponID int32, orderID int32, orderUUID *uuid.UUID) error
 }
 
@@ -111,9 +111,9 @@ func (m *MockOrderCouponPort) PreviewCoupon(ctx context.Context, code string, am
 	return &v1service.CouponDiscountResult{}, nil
 }
 
-func (m *MockOrderCouponPort) LockAndApplyCoupon(ctx context.Context, couponID int32, userID int32, orderID int32) error {
+func (m *MockOrderCouponPort) LockAndApplyCoupon(ctx context.Context, couponID int32, userID int32, orderID int32, orderUUID *uuid.UUID) error {
 	if m.LockAndApplyCouponFunc != nil {
-		return m.LockAndApplyCouponFunc(ctx, couponID, userID, orderID)
+		return m.LockAndApplyCouponFunc(ctx, couponID, userID, orderID, orderUUID)
 	}
 	return nil
 }
@@ -261,7 +261,8 @@ type MockCartService struct {
 	UpdateCartItemQuantityFunc func(ctx context.Context, userUUID uuid.UUID, itemUUID uuid.UUID, input v1dto.UpdateCartItemQuantityInput) (v1dto.CartDTO, error)
 	RemoveItemFromCartFunc     func(ctx context.Context, userUUID uuid.UUID, itemUUID uuid.UUID) (v1dto.CartDTO, error)
 	ClearMyCartFunc            func(ctx context.Context, userUUID uuid.UUID) error
-	RemovePurchasedItemsFunc   func(ctx context.Context, userID int32, productIDs []int32) error
+	RemovePurchasedItemsFunc       func(ctx context.Context, userID int32, productIDs []int32) error
+	RemovePurchasedItemsByUUIDFunc func(ctx context.Context, userUUID uuid.UUID, productUUIDs []uuid.UUID) error
 }
 
 func (m *MockCartService) GetMyCart(ctx context.Context, userUUID uuid.UUID) (v1dto.CartDTO, error) {
@@ -302,6 +303,13 @@ func (m *MockCartService) ClearMyCart(ctx context.Context, userUUID uuid.UUID) e
 func (m *MockCartService) RemovePurchasedItems(ctx context.Context, userID int32, productIDs []int32) error {
 	if m.RemovePurchasedItemsFunc != nil {
 		return m.RemovePurchasedItemsFunc(ctx, userID, productIDs)
+	}
+	return nil
+}
+
+func (m *MockCartService) RemovePurchasedItemsByUUID(ctx context.Context, userUUID uuid.UUID, productUUIDs []uuid.UUID) error {
+	if m.RemovePurchasedItemsByUUIDFunc != nil {
+		return m.RemovePurchasedItemsByUUIDFunc(ctx, userUUID, productUUIDs)
 	}
 	return nil
 }

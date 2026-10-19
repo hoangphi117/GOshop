@@ -267,7 +267,7 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 		mockCouponPort := &testutils.MockOrderCouponPort{
-			LockAndApplyCouponFunc: func(ctx context.Context, cID, uID, oID int32) error {
+			LockAndApplyCouponFunc: func(ctx context.Context, cID, uID, oID int32, oUUID *uuid.UUID) error {
 				return utils.NewError(utils.ErrCodeBadRequest, "Failed to increment coupon usage count")
 			},
 		}
@@ -343,7 +343,7 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 		mockCouponPort := &testutils.MockOrderCouponPort{
-			LockAndApplyCouponFunc: func(ctx context.Context, cID, uID, oID int32) error {
+			LockAndApplyCouponFunc: func(ctx context.Context, cID, uID, oID int32, oUUID *uuid.UUID) error {
 				return utils.NewError(utils.ErrCodeInternal, "failed to record coupon usage")
 			},
 		}
@@ -861,7 +861,7 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		var appliedOrderIDParam int32
 
 		mockCouponPort := &testutils.MockOrderCouponPort{
-			LockAndApplyCouponFunc: func(ctx context.Context, cID, uID, oID int32) error {
+			LockAndApplyCouponFunc: func(ctx context.Context, cID, uID, oID int32, oUUID *uuid.UUID) error {
 				appliedCouponIDParam = cID
 				appliedUserIDParam = uID
 				appliedOrderIDParam = oID

@@ -231,7 +231,7 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 
 		// Lock and apply coupon via CouponPort
 		if pricingResult.AppliedCouponID != nil && s.couponPort != nil {
-			if err := s.couponPort.LockAndApplyCoupon(txCtx, *pricingResult.AppliedCouponID, user.UserID, order.OrderID); err != nil {
+			if err := s.couponPort.LockAndApplyCoupon(txCtx, *pricingResult.AppliedCouponID, user.UserID, order.OrderID, &order.OrderUuid); err != nil {
 				return err
 			}
 		}

@@ -101,7 +101,6 @@ func NewWorker(cfg *config.Config) *Worker {
 	}
 
 	userRepo := repository.NewSqlUserRepository(db.DB)
-	productRepo := repository.NewSqlProductRepository(db.DB)
 	orderRepo := repository.NewSqlOrderRepository(db.DB)
 	orderItemRepo := repository.NewSqlOrderItemRepository(db.DB)
 	trackingRepo := repository.NewSqlTrackingRepository(db.DB)
@@ -166,7 +165,7 @@ func NewWorker(cfg *config.Config) *Worker {
 	if err != nil {
 		log.Warn().Err(err).Str("target", catalogTarget).Msg("Failed to initialize Catalog gRPC client")
 	}
-	catalogPort := v1service.NewOrderCatalogAdapter(productRepo, grpcCatalogClient)
+	catalogPort := v1service.NewOrderCatalogAdapter(grpcCatalogClient)
 	inventoryTarget := utils.GetEnv("INVENTORY_GRPC_TARGET", "localhost:50054")
 	grpcInventoryClient, err := inventorycontract.NewGRPCInventoryClient(inventoryTarget)
 	if err != nil {

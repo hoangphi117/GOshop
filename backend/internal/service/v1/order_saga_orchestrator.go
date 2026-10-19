@@ -73,6 +73,7 @@ type OrderSagaOrchestrator interface {
 	ExecuteCheckoutSaga(ctx context.Context, userUUID uuid.UUID, idempotencyKey string, input v1dto.CreateOrderInput) (*v1dto.OrderDTO, error)
 	CompensateSaga(ctx context.Context, orderUUID uuid.UUID, failureReason string) error
 	GetSagaStatus(ctx context.Context, orderUUID uuid.UUID) (*sqlc.OrderSaga, error)
+	WithShippingValidator(v OrderShippingValidatorPort) OrderSagaOrchestrator
 }
 
 type orderSagaOrchestrator struct {
@@ -87,8 +88,14 @@ type orderSagaOrchestrator struct {
 	cartPort       OrderCartPort
 	couponPort     OrderCouponPort
 	trackingStore  OrderTrackingPort
-	cache          cache.RedisCacheService
-	outboxStore    OrderOutboxPort
+	cache             cache.RedisCacheService
+	outboxStore       OrderOutboxPort
+	shippingValidator OrderShippingValidatorPort
+}
+
+func (s *orderSagaOrchestrator) WithShippingValidator(v OrderShippingValidatorPort) OrderSagaOrchestrator {
+	s.shippingValidator = v
+	return s
 }
 
 func NewOrderSagaOrchestrator(
@@ -224,9 +231,16 @@ func (s *orderSagaOrchestrator) ExecuteCheckoutSaga(
 		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to initialize order saga", err)
 	}
 
-	checkpoint := func(step string) {
-		sBytes, _ := json.Marshal(snapshot)
-		_, _ = s.sagaRepo.UpdateStep(ctx, nil, orderUUID, &step, sBytes)
+	checkpoint := func(step string) error {
+		sBytes, err := json.Marshal(snapshot)
+		if err != nil {
+			return err
+		}
+		_, err = s.sagaRepo.UpdateStep(ctx, nil, orderUUID, &step, sBytes)
+		if err != nil {
+			logger.Log.Warn().Err(err).Str("step", step).Str("order_uuid", orderUUID.String()).Msg("Failed to update saga step checkpoint")
+		}
+		return err
 	}
 
 	/* ====================== STEP 1: VALIDATE ====================== */
@@ -296,7 +310,27 @@ func (s *orderSagaOrchestrator) ExecuteCheckoutSaga(
 
 	// Pricing calculation
 	ctxWithCust := WithOrderCustomer(ctx, user)
-	pricingResult, err := s.pricingService.CalculateOrderTotals(ctxWithCust, priceInputs, input.CouponCode, user.UserID, input.ShippingFee, time.Now())
+
+	// G7 FIX: Validate or calculate shipping fee server-side via carrier
+	effectiveShippingFee := input.ShippingFee
+	if s.shippingValidator != nil && input.DistrictID != nil && input.WardCode != nil && *input.DistrictID > 0 && strings.TrimSpace(*input.WardCode) != "" {
+		provider := "ghn"
+		if input.ShippingProvider != nil && *input.ShippingProvider != "" {
+			provider = *input.ShippingProvider
+		}
+		validatedFee, vErr := s.shippingValidator.ValidateOrCalculateShippingFee(
+			ctx, provider, *input.DistrictID, *input.WardCode, 500, 0, input.ShippingFee,
+		)
+		if vErr == nil {
+			effectiveShippingFee = validatedFee
+		} else {
+			logger.Log.Warn().Err(vErr).Msg("Failed to validate shipping fee via carrier, using sanitized client fee")
+		}
+	} else if effectiveShippingFee < 0 {
+		effectiveShippingFee = 0
+	}
+
+	pricingResult, err := s.pricingService.CalculateOrderTotals(ctxWithCust, priceInputs, input.CouponCode, user.UserID, effectiveShippingFee, time.Now())
 	if err != nil {
 		s.compensateAndFail(ctx, orderUUID, fmt.Sprintf("Pricing calculation failed: %v", err), SagaStepValidate)
 		return nil, err
@@ -304,25 +338,31 @@ func (s *orderSagaOrchestrator) ExecuteCheckoutSaga(
 	snapshot.AppliedCouponID = pricingResult.AppliedCouponID
 	snapshot.AppliedCouponCode = pricingResult.AppliedCouponCode
 
+	// G4 FIX: Record intent checkpoint with items before initiating stock deduction side-effects
+	if err := checkpoint(SagaStepReserveStock); err != nil {
+		s.compensateAndFail(ctx, orderUUID, fmt.Sprintf("Failed to checkpoint before stock reservation: %v", err), SagaStepValidate)
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to checkpoint saga state", err)
+	}
+
 	/* ====================== STEP 2: RESERVE_STOCK ====================== */
-	if err := s.stockPort.LockAndDeductStockWithRef(ctx, deductItems, orderNumber, "order", &user.UserID, nil); err != nil {
+	if err := s.stockPort.LockAndDeductStockWithRef(ctx, deductItems, orderUUID.String(), "order", &user.UserID, nil); err != nil {
 		s.compensateAndFail(ctx, orderUUID, fmt.Sprintf("Stock deduction failed: %v", err), SagaStepReserveStock)
 		return nil, err
 	}
 	snapshot.StockReserved = true
-	checkpoint(SagaStepReserveStock)
+	_ = checkpoint(SagaStepReserveStock)
 
 	/* ====================== STEP 3: APPLY_COUPON ====================== */
 	if pricingResult.AppliedCouponID != nil && s.couponPort != nil {
-		if err := s.couponPort.LockAndApplyCoupon(ctx, *pricingResult.AppliedCouponID, user.UserID, 0); err != nil {
+		if err := s.couponPort.LockAndApplyCoupon(ctx, *pricingResult.AppliedCouponID, user.UserID, 0, &orderUUID); err != nil {
 			s.compensateAndFail(ctx, orderUUID, fmt.Sprintf("Coupon application failed: %v", err), SagaStepApplyCoupon)
 			return nil, err
 		}
 		snapshot.CouponApplied = true
-		checkpoint(SagaStepApplyCoupon)
+		_ = checkpoint(SagaStepApplyCoupon)
 	}
 
-	/* ====================== STEP 4: PERSIST_ORDER ====================== */
+	/* ====================== STEP 4: PERSIST_ORDER & ATOMIC CONFIRM ====================== */
 	var order sqlc.Order
 	var purchasedProductIDs []int32
 	var createdOrderItems []sqlc.GetOrderItemsByOrderIDRow
@@ -330,7 +370,9 @@ func (s *orderSagaOrchestrator) ExecuteCheckoutSaga(
 	err = s.txManager.WithTx(ctx, func(txCtx context.Context) error {
 		tx, _ := db.GetTx(txCtx)
 
+		// G1 FIX: Explicitly supply orderUUID to eliminate PersistedOrderUUID divergence
 		createOrderParams := sqlc.CreateOrderParams{
+			OrderUuid:            orderUUID,
 			OrderNumber:          orderNumber,
 			OrderUserID:          user.UserID,
 			OrderUserUuid:        user.UserUuid,
@@ -358,11 +400,17 @@ func (s *orderSagaOrchestrator) ExecuteCheckoutSaga(
 		order = createdOrder
 
 		purchasedProductIDs = make([]int32, len(pricingResult.Items))
+		purchasedProductUUIDs := make([]uuid.UUID, 0, len(pricingResult.Items))
+		purchasedProductUUIDStrings := make([]string, 0, len(pricingResult.Items))
 		createdOrderItems = make([]sqlc.GetOrderItemsByOrderIDRow, len(pricingResult.Items))
 
 		for i, item := range pricingResult.Items {
 			snap := prodIDToSnapshot[item.ProductID]
 			purchasedProductIDs[i] = item.ProductID
+			if snap.ProductUUID != uuid.Nil {
+				purchasedProductUUIDs = append(purchasedProductUUIDs, snap.ProductUUID)
+				purchasedProductUUIDStrings = append(purchasedProductUUIDStrings, snap.ProductUUID.String())
+			}
 			createdItemParams := sqlc.CreateOrderItemParams{
 				OrderItemOrderID:         order.OrderID,
 				OrderItemProductID:       item.ProductID,
@@ -373,7 +421,7 @@ func (s *orderSagaOrchestrator) ExecuteCheckoutSaga(
 				OrderItemProductUuid:     snap.ProductUUID,
 				OrderItemProductSlug:     snap.ProductSlug,
 				OrderItemProductImageUrl: snap.ProductImageURL,
-				OrderItemOrderUuid:       order.OrderUuid,
+				OrderItemOrderUuid:       orderUUID,
 			}
 
 			createdItem, err := s.orderItemStore.Create(txCtx, tx, createdItemParams)
@@ -419,7 +467,7 @@ func (s *orderSagaOrchestrator) ExecuteCheckoutSaga(
 				OrderItemProductUuid:     snap.ProductUUID,
 				OrderItemProductSlug:     snap.ProductSlug,
 				OrderItemProductImageUrl: snap.ProductImageURL,
-				OrderItemOrderUuid:       order.OrderUuid,
+				OrderItemOrderUuid:       orderUUID,
 				ProductUuid:              snap.ProductUUID,
 				ProductSlug:              snap.ProductSlug,
 				ProductImageUrl:          snap.ProductImageURL,
@@ -427,7 +475,7 @@ func (s *orderSagaOrchestrator) ExecuteCheckoutSaga(
 		}
 
 		// Initial order tracking event
-		createNote := "Order created and pending confirmation (Saga orchestrated)"
+		createNote := "Order created and confirmed (Saga orchestrated)"
 		_, err = s.trackingStore.InsertEvent(txCtx, tx, sqlc.InsertTrackingEventParams{
 			EventOrderID: order.OrderID,
 			EventStatus:  "pending",
@@ -438,22 +486,31 @@ func (s *orderSagaOrchestrator) ExecuteCheckoutSaga(
 			return utils.WrapError(utils.ErrCodeInternal, "failed to insert tracking event", err)
 		}
 
-		// Enqueue OrderCreated outbox event atomically
+		// Enqueue OrderCreated outbox event atomically (G6 FIX: includes PurchasedItemUUIDs)
 		if s.outboxStore != nil {
 			outboxPayload := rabbitmq.NewOrderCreatedEvent(
 				uuid.New().String(),
-				order.OrderUuid.String(),
+				orderUUID.String(),
 				order.OrderNumber,
 				user.UserUuid.String(),
 				order.OrderID,
 				order.OrderUserID,
 				utils.NumericToFloat(order.OrderTotalAmount),
 				purchasedProductIDs,
-			)
-			_, err = s.outboxStore.Insert(txCtx, tx, "order", order.OrderUuid.String(), rabbitmq.QueueOrderCreated, outboxPayload)
+			).WithItemUUIDs(purchasedProductUUIDStrings)
+			_, err = s.outboxStore.Insert(txCtx, tx, "order", orderUUID.String(), rabbitmq.QueueOrderCreated, outboxPayload)
 			if err != nil {
 				return utils.WrapError(utils.ErrCodeInternal, "failed to record order outbox event", err)
 			}
+		}
+
+		// G5 FIX: Atomic CAS Confirm INSIDE the same database transaction
+		won, err := s.sagaRepo.Confirm(txCtx, tx, orderUUID)
+		if err != nil {
+			return utils.WrapError(utils.ErrCodeInternal, "failed to atomic confirm saga in tx", err)
+		}
+		if !won {
+			return utils.NewError(utils.ErrCodeConflict, "saga already in terminal state or concurrent update conflict")
 		}
 
 		return nil
@@ -466,29 +523,12 @@ func (s *orderSagaOrchestrator) ExecuteCheckoutSaga(
 
 	snapshot.OrderPersisted = true
 	snapshot.OrderID = order.OrderID
-	snapshot.PersistedOrderUUID = &order.OrderUuid
+	snapshot.PersistedOrderUUID = &orderUUID
 	snapshot.PurchasedProductIDs = purchasedProductIDs
-	checkpoint(SagaStepPersistOrder)
-
-	/* ====================== STEP 5: CLEAR_CART (Best-effort) ====================== */
-	if s.cartPort != nil && len(purchasedProductIDs) > 0 {
-		if err := s.cartPort.RemovePurchasedItems(ctx, user.UserID, purchasedProductIDs); err != nil {
-			logger.Log.Warn().Err(err).Int32("user_id", user.UserID).Msg("Cart removal best-effort failed in saga")
-		} else {
-			snapshot.CartCleared = true
-		}
-	}
-	checkpoint(SagaStepClearCart)
-
-	/* ====================== STEP 6: EMIT_OUTBOX ====================== */
 	snapshot.OutboxEmitted = true
-	checkpoint(SagaStepEmitOutbox)
+	_ = checkpoint(SagaStepComplete)
 
-	/* ====================== STEP 7: COMPLETE (CONFIRMED) ====================== */
-	won, err := s.sagaRepo.Confirm(ctx, nil, orderUUID)
-	if err != nil || !won {
-		logger.Log.Error().Err(err).Str("order_uuid", orderUUID.String()).Msg("Failed to CAS confirm order saga")
-	}
+	// Việc dọn giỏ được chuyển giao hoàn toàn cho event OrderCreated -> OrderConsumer(cartService).
 
 	InvalidateOrderCachesWithCache(s.cache, user.UserUuid)
 	dto := v1dto.MapToOrderDTO(order, createdOrderItems)
@@ -503,19 +543,18 @@ func (s *orderSagaOrchestrator) compensateAndFail(ctx context.Context, orderUUID
 }
 
 func (s *orderSagaOrchestrator) CompensateSaga(ctx context.Context, orderUUID uuid.UUID, failureReason string) error {
-	// CAS claim transition: STARTED -> COMPENSATING
-	_, err := s.sagaRepo.ClaimForCompensation(ctx, nil, orderUUID, &failureReason)
-	if err != nil {
-		logger.Log.Warn().Err(err).Str("order_uuid", orderUUID.String()).Msg("ClaimForCompensation CAS check")
-	}
-
 	saga, err := s.sagaRepo.GetByOrderUUID(ctx, orderUUID)
 	if err != nil {
 		return fmt.Errorf("failed to load saga state for compensation: %w", err)
 	}
 
-	// If already in terminal states, exit
-	if saga.State == SagaStateConfirmed || saga.State == SagaStateFailed {
+	//  If already CONFIRMED, do not compensate!
+	if saga.State == SagaStateConfirmed {
+		logger.Log.Info().Str("order_uuid", orderUUID.String()).Msg("Saga is already CONFIRMED, skipping compensation")
+		return nil
+	}
+
+	if saga.State == SagaStateFailed {
 		return nil
 	}
 
@@ -524,28 +563,32 @@ func (s *orderSagaOrchestrator) CompensateSaga(ctx context.Context, orderUUID uu
 		_ = json.Unmarshal(saga.Snapshot, &snapshot)
 	}
 
+	// If order was already persisted in DB, roll forward to CONFIRMED rather than cancelling
+	if snapshot.OrderPersisted {
+		logger.Log.Info().Str("order_uuid", orderUUID.String()).Msg("Order was already persisted, rolling forward saga to CONFIRMED")
+		_, err := s.sagaRepo.Confirm(ctx, nil, orderUUID)
+		return err
+	}
+
+	// CAS claim transition: STARTED -> COMPENSATING
+	_, err = s.sagaRepo.ClaimForCompensation(ctx, nil, orderUUID, &failureReason)
+	if err != nil {
+		logger.Log.Warn().Err(err).Str("order_uuid", orderUUID.String()).Msg("ClaimForCompensation CAS check")
+	}
+
 	var compErrors []string
 
-	// 1. Compensate PERSIST_ORDER -> Cancel order
-	if snapshot.OrderPersisted {
-		targetUUID := orderUUID
-		if snapshot.PersistedOrderUUID != nil && *snapshot.PersistedOrderUUID != uuid.Nil {
-			targetUUID = *snapshot.PersistedOrderUUID
-		}
-		if _, err := s.orderStore.CancelOrder(ctx, nil, targetUUID); err != nil {
-			compErrors = append(compErrors, fmt.Sprintf("cancel_order: %v", err))
+	// 1. Compensate APPLY_COUPON -> Release coupon usage
+	if (snapshot.CouponApplied || snapshot.AppliedCouponID != nil) && s.couponPort != nil {
+		if snapshot.AppliedCouponID != nil {
+			if err := s.couponPort.ReleaseCoupon(ctx, *snapshot.AppliedCouponID, snapshot.OrderID, &orderUUID); err != nil {
+				compErrors = append(compErrors, fmt.Sprintf("release_coupon: %v", err))
+			}
 		}
 	}
 
-	// 2. Compensate APPLY_COUPON -> Release coupon usage
-	if snapshot.CouponApplied && snapshot.AppliedCouponID != nil && s.couponPort != nil {
-		if err := s.couponPort.ReleaseCoupon(ctx, *snapshot.AppliedCouponID, snapshot.OrderID, &orderUUID); err != nil {
-			compErrors = append(compErrors, fmt.Sprintf("release_coupon: %v", err))
-		}
-	}
-
-	// 3. Compensate RESERVE_STOCK -> Restore stock
-	if snapshot.StockReserved && len(snapshot.DeductItems) > 0 && s.stockPort != nil {
+	// 2. Compensate RESERVE_STOCK -> Restore stock (Unconditional if deduct items recorded)
+	if len(snapshot.DeductItems) > 0 && s.stockPort != nil {
 		restoreItems := make([]RestoreItem, len(snapshot.DeductItems))
 		for i, it := range snapshot.DeductItems {
 			restoreItems[i] = RestoreItem{
@@ -554,7 +597,7 @@ func (s *orderSagaOrchestrator) CompensateSaga(ctx context.Context, orderUUID uu
 			}
 		}
 		note := "Saga compensation for order " + orderUUID.String()
-		if err := s.stockPort.RestoreStockWithRef(ctx, restoreItems, snapshot.OrderNumber, "order", &snapshot.UserID, &note); err != nil {
+		if err := s.stockPort.RestoreStockWithRef(ctx, restoreItems, orderUUID.String(), "order", &snapshot.UserID, &note); err != nil {
 			compErrors = append(compErrors, fmt.Sprintf("restore_stock: %v", err))
 		}
 	}

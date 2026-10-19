@@ -152,15 +152,16 @@ func NewPaymentFailedEvent(eventID, ptUUID, orderUUID, orderNumber, userUUID, pr
 
 // OrderCreatedEvent is published when an order has been successfully placed and committed to DB.
 type OrderCreatedEvent struct {
-	EventID        string    `json:"event_id"`
-	OrderID        int32     `json:"order_id"`
-	OrderUUID      string    `json:"order_uuid"`
-	OrderNumber    string    `json:"order_number"`
-	UserID         int32     `json:"user_id"`
-	UserUUID       string    `json:"user_uuid"`
-	TotalAmount    float64   `json:"total_amount"`
-	PurchasedItems []int32   `json:"purchased_items"`
-	Timestamp      time.Time `json:"timestamp"`
+	EventID            string    `json:"event_id"`
+	OrderID            int32     `json:"order_id"`
+	OrderUUID          string    `json:"order_uuid"`
+	OrderNumber        string    `json:"order_number"`
+	UserID             int32     `json:"user_id"`
+	UserUUID           string    `json:"user_uuid"`
+	TotalAmount        float64   `json:"total_amount"`
+	PurchasedItems     []int32   `json:"purchased_items"`
+	PurchasedItemUUIDs []string  `json:"purchased_item_uuids,omitempty"`
+	Timestamp          time.Time `json:"timestamp"`
 }
 
 // NewOrderCreatedEvent constructs a new OrderCreatedEvent.
@@ -176,6 +177,12 @@ func NewOrderCreatedEvent(eventID, orderUUID, orderNumber, userUUID string, orde
 		PurchasedItems: purchasedItems,
 		Timestamp:      time.Now().UTC(),
 	}
+}
+
+// WithItemUUIDs attaches product UUIDs to the event for microservice boundary decoupling.
+func (e OrderCreatedEvent) WithItemUUIDs(uuids []string) OrderCreatedEvent {
+	e.PurchasedItemUUIDs = uuids
+	return e
 }
 
 // OrderCancelledItem details product item cancelled in an order.
@@ -195,6 +202,7 @@ type OrderCancelledEvent struct {
 	UserUUID    string               `json:"user_uuid"`
 	Reason      string               `json:"reason,omitempty"`
 	CouponID    *int32               `json:"coupon_id,omitempty"`
+	CouponUUID  *string              `json:"coupon_uuid,omitempty"`
 	Items       []OrderCancelledItem `json:"items,omitempty"`
 	Timestamp   time.Time            `json:"timestamp"`
 }

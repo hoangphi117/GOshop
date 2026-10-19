@@ -325,7 +325,7 @@ func TestOrderSagaOrchestrator_Compensation_CouponFailure(t *testing.T) {
 	}
 
 	// Coupon lock and apply FAILS
-	mockCouponPort.LockAndApplyCouponFunc = func(ctx context.Context, couponID, userID, orderID int32) error {
+	mockCouponPort.LockAndApplyCouponFunc = func(ctx context.Context, couponID, userID, orderID int32, orderUUID *uuid.UUID) error {
 		return errors.New("coupon usage limit exceeded")
 	}
 
@@ -441,7 +441,7 @@ func TestOrderSagaOrchestrator_Compensation_OrderPersistFailure(t *testing.T) {
 	couponReleased := false
 	couponID := int32(50)
 	couponCode := "VIP100"
-	mockCouponPort.LockAndApplyCouponFunc = func(ctx context.Context, cID, uID, oID int32) error {
+	mockCouponPort.LockAndApplyCouponFunc = func(ctx context.Context, cID, uID, oID int32, oUUID *uuid.UUID) error {
 		return nil
 	}
 	mockCouponPort.ReleaseCouponFunc = func(ctx context.Context, cID, oID int32, oUUID *uuid.UUID) error {
@@ -579,4 +579,127 @@ func TestOrderSagaOrchestrator_Compensation_PartialFailure_ScheduleRetry(t *test
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "scheduled for retry")
 	assert.Contains(t, scheduledRetryReason, "inventory service connection timeout")
+}
+
+func TestOrderSagaOrchestrator_G2_G3_UUIDPropagation(t *testing.T) {
+	ctx := context.Background()
+	mockSagaRepo, mockStockPort, mockCouponPort, mockOrderStore, mockOrderItemStore, mockTrackingStore, mockOutboxStore, mockCartPort, customer, prod1UUID, _ := setupSagaTestDependencies()
+
+	ctx = v1service.WithOrderCustomer(ctx, customer)
+
+	couponCode := "DISCOUNT10"
+	couponID := int32(88)
+
+	var capturedStockRefID string
+	var capturedCouponOrderUUID *uuid.UUID
+
+	mockSagaRepo.GetByIdempotencyKeyFunc = func(ctx context.Context, userUUID uuid.UUID, key string) (sqlc.OrderSaga, error) {
+		return sqlc.OrderSaga{}, pgx.ErrNoRows
+	}
+	mockSagaRepo.StartFunc = func(ctx context.Context, tx pgx.Tx, params sqlc.StartSagaParams) (sqlc.OrderSaga, error) {
+		return sqlc.OrderSaga{
+			OrderUuid:      params.OrderUuid,
+			UserUuid:       params.UserUuid,
+			IdempotencyKey: params.IdempotencyKey,
+			State:          v1service.SagaStateStarted,
+		}, nil
+	}
+	mockSagaRepo.ConfirmFunc = func(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID) (bool, error) {
+		return true, nil
+	}
+
+	mockStockPort.LockAndDeductStockWithRefFunc = func(ctx context.Context, items []v1service.DeductItem, refID, refType string, actorID *int32, note *string) error {
+		capturedStockRefID = refID
+		return nil
+	}
+
+	mockCouponPort.LockAndApplyCouponFunc = func(ctx context.Context, cID, uID, oID int32, oUUID *uuid.UUID) error {
+		capturedCouponOrderUUID = oUUID
+		return nil
+	}
+
+	mockCatalogPort := &testutils.MockCatalogPort{
+		GetProductsForCheckoutFunc: func(ctx context.Context, uuids []uuid.UUID) (map[string]v1service.CheckoutProductSnapshot, error) {
+			return map[string]v1service.CheckoutProductSnapshot{
+				prod1UUID: {
+					ProductID:   1,
+					ProductUUID: uuid.MustParse(prod1UUID),
+					ProductName: "Mechanical Keyboard",
+					Price:       150.0,
+					Status:      v1service.ProductStatusActive,
+				},
+			}, nil
+		},
+	}
+
+	mockPricingService := &testutils.MockOrderPricingService{
+		CalculateOrderTotalsFunc: func(ctx context.Context, items []v1service.ItemPriceInput, code *string, userID int32, fee float64, now time.Time) (*v1service.OrderPricingResult, error) {
+			return &v1service.OrderPricingResult{
+				SubtotalAmount:    150.0,
+				ShippingFee:       15.0,
+				DiscountAmount:    15.0,
+				FinalTotalAmount:  150.0,
+				AppliedCouponID:   &couponID,
+				AppliedCouponCode: &couponCode,
+				Items: []v1service.ItemPriceResult{
+					{ProductID: 1, ProductName: "Mechanical Keyboard", Price: 150.0, Quantity: 1, Subtotal: 150.0},
+				},
+			}, nil
+		},
+	}
+
+	mockOrderStore.CreateFunc = func(ctx context.Context, params sqlc.CreateOrderParams) (sqlc.Order, error) {
+		return sqlc.Order{
+			OrderID:          1001,
+			OrderUuid:        params.OrderUuid,
+			OrderNumber:      params.OrderNumber,
+			OrderUserID:      params.OrderUserID,
+			OrderUserUuid:    params.OrderUserUuid,
+			OrderTotalAmount: params.OrderTotalAmount,
+		}, nil
+	}
+
+	mockOrderItemStore.CreateFunc = func(ctx context.Context, tx pgx.Tx, params sqlc.CreateOrderItemParams) (sqlc.OrderItem, error) {
+		return sqlc.OrderItem{OrderItemID: 2001}, nil
+	}
+
+	customerAdapter := v1service.NewOrderCustomerAdapter(&testutils.MockUserRepository{})
+	orchestrator := v1service.NewOrderSagaOrchestrator(
+		mockSagaRepo,
+		testutils.NewNoopTxManager(),
+		mockPricingService,
+		mockCatalogPort,
+		mockStockPort,
+		mockOrderStore,
+		mockOrderItemStore,
+		customerAdapter,
+		mockCartPort,
+		mockCouponPort,
+		mockTrackingStore,
+		nil,
+		mockOutboxStore,
+	)
+
+	input := v1dto.CreateOrderInput{
+		Items: []v1dto.CreateOrderItemInput{
+			{ProductUUID: prod1UUID, Quantity: 1},
+		},
+		ShippingName:    "Alice",
+		ShippingPhone:   "0123456789",
+		ShippingAddress: "123 Street",
+		PaymentMethod:   1,
+		CouponCode:      &couponCode,
+	}
+
+	idemKey := "idem-test-g2-g3"
+	res, err := orchestrator.ExecuteCheckoutSaga(ctx, customer.UserUUID, idemKey, input)
+	assert.NoError(t, err)
+	assert.NotNil(t, res)
+
+	// G2 Verification: LockAndDeductStockWithRef must receive orderUUID as refID
+	assert.Equal(t, res.UUID, capturedStockRefID, "Stock refID must be orderUUID")
+
+	// G3 Verification: LockAndApplyCoupon must receive orderUUID
+	assert.NotNil(t, capturedCouponOrderUUID)
+	assert.Equal(t, res.UUID, capturedCouponOrderUUID.String(), "Coupon orderUUID must match orderUUID")
 }

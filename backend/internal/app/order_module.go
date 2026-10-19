@@ -1,18 +1,16 @@
 package app
 
 import (
+	"fmt"
 	"goshop/internal/client"
 	v1handler "goshop/internal/handler/v1"
 	"goshop/internal/repository"
 	"goshop/internal/routes"
 	v1routes "goshop/internal/routes/v1"
 	v1service "goshop/internal/service/v1"
-	"goshop/internal/utils"
 	"goshop/pkg/cache"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/shipping"
-	couponcontract "goshop/services/coupon/contract"
-	inventorycontract "goshop/services/inventory/contract"
 )
 
 type OrderModule struct {
@@ -32,36 +30,29 @@ type OrderModuleDeps struct {
 func NewOrderModule(
 	ctx *ModuleContext,
 	deps OrderModuleDeps,
-) *OrderModule {
+) (*OrderModule, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("ModuleContext is required")
+	}
+	if ctx.CouponClient == nil {
+		return nil, fmt.Errorf("coupon client is required in ModuleContext")
+	}
+	if ctx.InventoryClient == nil {
+		return nil, fmt.Errorf("inventory client is required in ModuleContext")
+	}
+
 	orderRepo := repository.NewSqlOrderRepository(ctx.DB)
 	orderItemRepo := repository.NewSqlOrderItemRepository(ctx.DB)
 	orderReturnRepo := repository.NewSqlOrderReturnsRepository(ctx.DB)
 	trackingRepo := repository.NewSqlTrackingRepository(ctx.DB)
 	webhookRepo := repository.NewSqlWebhookEventRepository(ctx.DB)
 	outboxRepo := repository.NewSqlOutboxRepository(ctx.DB)
-	productRepo := repository.NewSqlProductRepository(ctx.DB)
-	userRepo := repository.NewSqlUserRepository(ctx.DB)
-	userReader := client.NewIdentityUserReader(ctx.IdentityClient, userRepo)
+	userReader := client.NewIdentityUserReader(ctx.IdentityClient)
 
 	customerReader := v1service.NewOrderCustomerAdapter(userReader)
-	catalogPort := v1service.NewOrderCatalogAdapter(productRepo, ctx.CatalogClient)
-	couponTarget := utils.GetEnv("COUPON_GRPC_TARGET", "localhost:50053")
-	grpcClient, err := couponcontract.NewGRPCCouponClient(couponTarget)
-	if err != nil {
-		panic(err)
-	}
-	couponPort := v1service.NewOrderCouponGRPCAdapter(grpcClient)
-
-	invClient := ctx.InventoryClient
-	if invClient == nil {
-		inventoryTarget := utils.GetEnv("INVENTORY_GRPC_TARGET", "localhost:50054")
-		var err error
-		invClient, err = inventorycontract.NewGRPCInventoryClient(inventoryTarget)
-		if err != nil {
-			panic(err)
-		}
-	}
-	stockPort := v1service.NewOrderStockGRPCAdapter(invClient)
+	catalogPort := v1service.NewOrderCatalogAdapter(ctx.CatalogClient)
+	couponPort := v1service.NewOrderCouponGRPCAdapter(ctx.CouponClient)
+	stockPort := v1service.NewOrderStockGRPCAdapter(ctx.InventoryClient)
 
 	pricingService := v1service.NewOrderPricingService(couponPort)
 
@@ -81,6 +72,9 @@ func NewOrderModule(
 		deps.CacheService,
 		outboxRepo,
 	)
+	if deps.ShippingFactory != nil {
+		sagaOrchestrator = sagaOrchestrator.WithShippingValidator(v1service.NewOrderShippingValidator(deps.ShippingFactory))
+	}
 
 	orderService := v1service.NewOrderService(
 		ctx.TxManager,
@@ -147,7 +141,7 @@ func NewOrderModule(
 	return &OrderModule{
 		routes:      []routes.Route{orderRoutes, shippingWebhookRoutes},
 		adminRoutes: []routes.Route{adminOrderRoutes},
-	}
+	}, nil
 }
 
 func (m *OrderModule) Routes() []routes.Route {

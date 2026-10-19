@@ -46,15 +46,18 @@ type OrderItemDTO struct {
 }
 
 type CreateOrderInput struct {
-	IdempotencyKey  string                 `json:"idempotency_key" binding:"omitempty,max=100"`
-	Items           []CreateOrderItemInput `json:"items" binding:"required,min=1,dive"`
-	ShippingName    string                 `json:"shipping_name" binding:"required,min=2,max=100"`
-	ShippingPhone   string                 `json:"shipping_phone" binding:"required,min=9,max=20"`
-	ShippingAddress string                 `json:"shipping_address" binding:"required,min=5"`
-	ShippingFee     float64                `json:"shipping_fee" binding:"required,gte=0"`
-	PaymentMethod   int32                  `json:"payment_method" binding:"required,oneof=1 2 3"`
-	Note            string                 `json:"note" binding:"omitempty,max=500"`
-	CouponCode      *string                `json:"coupon_code" binding:"omitempty,min=2,max=50"`
+	IdempotencyKey   string                 `json:"idempotency_key" binding:"omitempty,max=100"`
+	Items            []CreateOrderItemInput `json:"items" binding:"required,min=1,dive"`
+	ShippingName     string                 `json:"shipping_name" binding:"required,min=2,max=100"`
+	ShippingPhone    string                 `json:"shipping_phone" binding:"required,min=9,max=20"`
+	ShippingAddress  string                 `json:"shipping_address" binding:"required,min=5"`
+	ShippingFee      float64                `json:"shipping_fee" binding:"required,gte=0"`
+	PaymentMethod    int32                  `json:"payment_method" binding:"required,oneof=1 2 3"`
+	Note             string                 `json:"note" binding:"omitempty,max=500"`
+	CouponCode       *string                `json:"coupon_code" binding:"omitempty,min=2,max=50"`
+	DistrictID       *int                   `json:"district_id,omitempty"`
+	WardCode         *string                `json:"ward_code,omitempty"`
+	ShippingProvider *string                `json:"shipping_provider,omitempty"`
 }
 
 type OrderSummaryDTO struct {

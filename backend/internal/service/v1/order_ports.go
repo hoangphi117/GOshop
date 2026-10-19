@@ -112,8 +112,9 @@ type DeductItem struct {
 }
 
 type RestoreItem struct {
-	ProductID int32
-	Quantity  int32
+	ProductID   int32
+	ProductUUID string
+	Quantity    int32
 }
 
 // OrderStockPort manages stock reservation and restoration.
@@ -135,7 +136,7 @@ type CouponDiscountResult struct {
 // Satisfied by CouponService (or OrderCouponAdapter).
 type OrderCouponPort interface {
 	PreviewCoupon(ctx context.Context, code string, amount float64, userUUID uuid.UUID) (*CouponDiscountResult, error)
-	LockAndApplyCoupon(ctx context.Context, couponID int32, userID int32, orderID int32) error
+	LockAndApplyCoupon(ctx context.Context, couponID int32, userID int32, orderID int32, orderUUID *uuid.UUID) error
 	ReleaseCoupon(ctx context.Context, couponID int32, orderID int32, orderUUID *uuid.UUID) error
 }
 
@@ -143,6 +144,16 @@ type OrderCouponPort interface {
 // Satisfied by CartService.
 type OrderCartPort interface {
 	RemovePurchasedItems(ctx context.Context, userID int32, productIDs []int32) error
+}
+
+// OrderCartUUIDPort provides UUID-first cart clearance for microservices.
+type OrderCartUUIDPort interface {
+	RemovePurchasedItemsByUUID(ctx context.Context, userUUID uuid.UUID, productUUIDs []uuid.UUID) error
+}
+
+// OrderShippingValidatorPort validates or computes carrier shipping fee server-side.
+type OrderShippingValidatorPort interface {
+	ValidateOrCalculateShippingFee(ctx context.Context, provider string, districtID int, wardCode string, totalWeight int, insuranceValue float64, declaredFee float64) (float64, error)
 }
 
 // OrderOutboxPort writes domain events to outbox within a database transaction.
