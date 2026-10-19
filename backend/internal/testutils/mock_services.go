@@ -315,6 +315,28 @@ func (m *MockCartService) RemovePurchasedItemsByUUID(ctx context.Context, userUU
 }
 
 // =========================================================================
+// MockOrderReader
+// =========================================================================
+type MockOrderReader struct {
+	GetOrderSummaryFunc func(ctx context.Context, orderUUID uuid.UUID) (*v1service.OrderSummary, error)
+	VerifyPurchaseFunc  func(ctx context.Context, orderUUID uuid.UUID, userID int32, productID int32) (*v1service.PurchaseVerification, error)
+}
+
+func (m *MockOrderReader) GetOrderSummary(ctx context.Context, orderUUID uuid.UUID) (*v1service.OrderSummary, error) {
+	if m.GetOrderSummaryFunc != nil {
+		return m.GetOrderSummaryFunc(ctx, orderUUID)
+	}
+	return nil, nil
+}
+
+func (m *MockOrderReader) VerifyPurchase(ctx context.Context, orderUUID uuid.UUID, userID int32, productID int32) (*v1service.PurchaseVerification, error) {
+	if m.VerifyPurchaseFunc != nil {
+		return m.VerifyPurchaseFunc(ctx, orderUUID, userID, productID)
+	}
+	return nil, nil
+}
+
+// =========================================================================
 // MockRabbitMQService
 // =========================================================================
 type MockRabbitMQService struct {

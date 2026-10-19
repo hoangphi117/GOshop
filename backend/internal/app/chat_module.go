@@ -15,12 +15,11 @@ type ChatModule struct {
 	service     v1service.ChatService
 }
 
-func NewChatModule(ctx *ModuleContext, wsHub ws.Hub, redisBridge ws.RedisBridge) *ChatModule {
+func NewChatModule(ctx *ModuleContext, wsHub ws.Hub, redisBridge ws.RedisBridge, orderReader v1service.OrderReader) *ChatModule {
 	chatRepo := repository.NewSqlChatRepository(ctx.DB)
 	userRepo := repository.NewSqlUserRepository(ctx.DB)
-	orderRepo := repository.NewSqlOrderRepository(ctx.DB)
 
-	chatService := v1service.NewChatService(chatRepo, userRepo, orderRepo, ctx.TxManager, ctx.Redis)
+	chatService := v1service.NewChatService(chatRepo, userRepo, orderReader, ctx.TxManager, ctx.Redis)
 	if svc, ok := chatService.(interface{ SetWSHub(ws.Hub) }); ok {
 		svc.SetWSHub(wsHub)
 	}

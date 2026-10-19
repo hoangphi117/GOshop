@@ -261,13 +261,13 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		orderModule,
 	}
 	modules = append(modules,
-		NewReviewModule(ctx, rabbitmqService),
+		NewReviewModule(ctx, rabbitmqService, orderModule.OrderReader()),
 		NewWSModule(ctx, wsHub, tokenService, cacheRedisService),
 		NewLocationModule(locationService),
 		NewUploadModule(ctx),
 		NewBannerModule(ctx, cacheRedisService),
 		NewAnalyticsModule(ctx),
-		NewChatModule(ctx, wsHub, redisBridge),
+		NewChatModule(ctx, wsHub, redisBridge, orderModule.OrderReader()),
 		NewHealthModule(db.DBPool, redisClient, rabbitmqService, storageService, discord.NewDiscordNotifier(utils.GetEnv("DISCORD_WEBHOOK_URL", ""), logger.Log), logger.Log),
 	)
 

@@ -32,7 +32,7 @@ type reviewService struct {
 	repo          repository.ReviewRepository
 	productRepo   repository.ProductRepository
 	catalogClient catalogcontract.CatalogClient
-	orderRepo     repository.OrderRepository
+	orderReader   OrderReader
 	userRepo      repository.UserReader
 	rabbitMQ      rabbitmq.RabbitMQService
 	cache         cache.RedisCacheService
@@ -41,18 +41,18 @@ type reviewService struct {
 func NewReviewService(
 	repo repository.ReviewRepository,
 	productRepo repository.ProductRepository,
-	orderRepo repository.OrderRepository,
+	orderReader OrderReader,
 	rabbitMQ rabbitmq.RabbitMQService,
 	redisClient *redis.Client,
 	userReader ...repository.UserReader,
 ) ReviewService {
-	return NewReviewServiceWithCatalog(repo, productRepo, orderRepo, rabbitMQ, redisClient, nil, userReader...)
+	return NewReviewServiceWithCatalog(repo, productRepo, orderReader, rabbitMQ, redisClient, nil, userReader...)
 }
 
 func NewReviewServiceWithCatalog(
 	repo repository.ReviewRepository,
 	productRepo repository.ProductRepository,
-	orderRepo repository.OrderRepository,
+	orderReader OrderReader,
 	rabbitMQ rabbitmq.RabbitMQService,
 	redisClient *redis.Client,
 	catalogClient catalogcontract.CatalogClient,
@@ -70,7 +70,7 @@ func NewReviewServiceWithCatalog(
 		repo:          repo,
 		productRepo:   productRepo,
 		catalogClient: catalogClient,
-		orderRepo:     orderRepo,
+		orderReader:   orderReader,
 		userRepo:      uRepo,
 		rabbitMQ:      rabbitMQ,
 		cache:         cacheService,
@@ -109,15 +109,22 @@ func (rs *reviewService) getProduct(ctx context.Context, productUUID uuid.UUID) 
 	return sqlc.GetProductByUUIDRow{}, utils.NewError(utils.ErrCodeInternal, "No product repository or catalog client available")
 }
 
-func (rs *reviewService) getOrder(ctx context.Context, orderUUID uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
-	order, err := rs.orderRepo.GetByUUID(ctx, orderUUID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
-			return sqlc.GetOrderByUUIDRow{}, utils.NewError(utils.ErrCodeNotFound, "Order not found")
-		}
-		return sqlc.GetOrderByUUIDRow{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
+func (rs *reviewService) verifyOrderPurchase(ctx context.Context, orderUUID uuid.UUID, userID, productID int32) (*PurchaseVerification, error) {
+	if rs.orderReader == nil {
+		return nil, utils.NewError(utils.ErrCodeInternal, "order reader not configured")
 	}
-	return order, nil
+	verification, err := rs.orderReader.VerifyPurchase(ctx, orderUUID, userID, productID)
+	if err != nil {
+		var appErr *utils.AppError
+		if errors.As(err, &appErr) {
+			return nil, appErr
+		}
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+			return nil, utils.NewError(utils.ErrCodeNotFound, "Order not found")
+		}
+		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
+	}
+	return verification, nil
 }
 
 func (rs *reviewService) getReview(ctx context.Context, reviewUUID uuid.UUID) (sqlc.GetReviewByUUIDRow, error) {
@@ -129,36 +136,6 @@ func (rs *reviewService) getReview(ctx context.Context, reviewUUID uuid.UUID) (s
 		return sqlc.GetReviewByUUIDRow{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get review", err)
 	}
 	return review, nil
-}
-
-const maxReviewWindow = 30 * 24 * time.Hour
-
-func (rs *reviewService) validateReviewEligibility(ctx context.Context, order sqlc.GetOrderByUUIDRow, userID, productID int32) error {
-	if order.OrderDeliveredAt.Valid {
-		if time.Since(order.OrderDeliveredAt.Time) > maxReviewWindow {
-			return utils.NewError(utils.ErrCodeBadRequest, "The review window for this order has expired (allowed within 30 days of delivery)")
-		}
-	} else if order.OrderStatus == 4 && !order.OrderUpdatedAt.IsZero() && time.Since(order.OrderUpdatedAt) > maxReviewWindow {
-		return utils.NewError(utils.ErrCodeBadRequest, "The review window for this order has expired (allowed within 30 days of delivery)")
-	}
-
-	isPurchased, err := rs.repo.CheckPurchased(ctx, order.OrderID, userID, productID)
-	if err != nil {
-		return utils.WrapError(utils.ErrCodeInternal, "Error checking purchase status", err)
-	}
-	if !isPurchased {
-		return utils.NewError(utils.ErrCodeBadRequest, "User has not purchased this product")
-	}
-
-	isExists, err := rs.repo.CheckExists(ctx, userID, productID, order.OrderID)
-	if err != nil {
-		return utils.WrapError(utils.ErrCodeInternal, "Error checking review status", err)
-	}
-	if isExists {
-		return utils.NewError(utils.ErrCodeBadRequest, "Review already exists for this product")
-	}
-
-	return nil
 }
 
 func (rs *reviewService) validateReviewEditEligibility(review sqlc.GetReviewByUUIDRow, userID int32) error {
@@ -258,13 +235,25 @@ func (rs *reviewService) CreateReview(ctx context.Context, userID int32, input v
 		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Invalid order UUID")
 	}
 
-	order, err := rs.getOrder(ctx, orderUUID)
+	verification, err := rs.verifyOrderPurchase(ctx, orderUUID, userID, product.ProductID)
 	if err != nil {
 		return v1dto.ReviewDTO{}, err
 	}
 
-	if err := rs.validateReviewEligibility(ctx, order, userID, product.ProductID); err != nil {
-		return v1dto.ReviewDTO{}, err
+	if !verification.CanReview {
+		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeBadRequest, "The review window for this order has expired (allowed within 30 days of delivery)")
+	}
+
+	if !verification.IsPurchased {
+		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeBadRequest, "User has not purchased this product")
+	}
+
+	isExists, err := rs.repo.CheckExists(ctx, userID, product.ProductID, verification.OrderID)
+	if err != nil {
+		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Error checking review status", err)
+	}
+	if isExists {
+		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Review already exists for this product")
 	}
 
 	if err := utils.ValidateReviewContent(input.Title, input.Comment); err != nil {
@@ -285,8 +274,8 @@ func (rs *reviewService) CreateReview(ctx context.Context, userID int32, input v
 		imageURLs = []string{}
 	}
 
-	userName := order.OrderCustomerName
-	userEmail := order.OrderCustomerEmail
+	userName := verification.CustomerName
+	userEmail := verification.CustomerEmail
 	var userAvatar string
 
 	if rs.userRepo != nil && userID > 0 {
@@ -312,7 +301,7 @@ func (rs *reviewService) CreateReview(ctx context.Context, userID int32, input v
 	createParams := sqlc.CreateReviewParams{
 		ReviewUserID:     userID,
 		ReviewProductID:  product.ProductID,
-		ReviewOrderID:    order.OrderID,
+		ReviewOrderID:    verification.OrderID,
 		ReviewRating:     int16(input.Rating),
 		ReviewTitle:      input.Title,
 		ReviewComment:    input.Comment,
@@ -364,7 +353,7 @@ func (rs *reviewService) CreateReview(ctx context.Context, userID int32, input v
 		_ = rs.rabbitMQ.Publish(ctx, rabbitmq.QueueNotificationEvents, event)
 	}
 
-	return v1dto.MapCreatedReviewToDTO(review, order.OrderShippingName, product.ProductUuid.String(), order.OrderUuid.String()), nil
+	return v1dto.MapCreatedReviewToDTO(review, verification.ShippingName, product.ProductUuid.String(), verification.OrderUUID.String()), nil
 }
 
 func (rs *reviewService) GetProductReviews(ctx context.Context, productUUID uuid.UUID, query v1dto.GetReviewsQuery) ([]v1dto.ReviewDTO, int32, error) {

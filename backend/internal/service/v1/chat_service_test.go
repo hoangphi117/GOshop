@@ -390,7 +390,7 @@ func TestChatService_SendMessage(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, mockOrderRepo, nil, nil)
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, v1service.NewInprocessOrderReader(mockOrderRepo, nil), nil, nil)
 		orderReq := v1dto.SendMessageRequest{
 			ContentType: "order_ref",
 			OrderUUID:   orderUUID.String(),
@@ -424,7 +424,7 @@ func TestChatService_SendMessage(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, mockOrderRepo, nil, nil)
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, v1service.NewInprocessOrderReader(mockOrderRepo, nil), nil, nil)
 		orderReq := v1dto.SendMessageRequest{
 			ContentType: "order_ref",
 			OrderUUID:   orderUUID.String(),
@@ -454,7 +454,7 @@ func TestChatService_SendMessage(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, mockOrderRepo, nil, nil)
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, v1service.NewInprocessOrderReader(mockOrderRepo, nil), nil, nil)
 		orderReq := v1dto.SendMessageRequest{
 			ContentType: "order_ref",
 			OrderUUID:   uuid.New().String(),

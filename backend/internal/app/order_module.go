@@ -16,6 +16,7 @@ import (
 type OrderModule struct {
 	routes      []routes.Route
 	adminRoutes []routes.Route
+	reader      v1service.OrderReader
 }
 
 type OrderModuleDeps struct {
@@ -49,6 +50,7 @@ func NewOrderModule(
 	outboxRepo := repository.NewSqlOutboxRepository(ctx.DB)
 	userReader := client.NewIdentityUserReader(ctx.IdentityClient)
 
+	orderReader := v1service.NewInprocessOrderReader(orderRepo, orderItemRepo)
 	customerReader := v1service.NewOrderCustomerAdapter(userReader)
 	catalogPort := v1service.NewOrderCatalogAdapter(ctx.CatalogClient)
 	couponPort := v1service.NewOrderCouponGRPCAdapter(ctx.CouponClient)
@@ -141,7 +143,12 @@ func NewOrderModule(
 	return &OrderModule{
 		routes:      []routes.Route{orderRoutes, shippingWebhookRoutes},
 		adminRoutes: []routes.Route{adminOrderRoutes},
+		reader:      orderReader,
 	}, nil
+}
+
+func (m *OrderModule) OrderReader() v1service.OrderReader {
+	return m.reader
 }
 
 func (m *OrderModule) Routes() []routes.Route {

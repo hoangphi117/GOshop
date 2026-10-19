@@ -14,7 +14,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -60,18 +59,20 @@ func TestReviewService_CreateReview(t *testing.T) {
 				return sqlc.GetProductByUUIDRow{ProductID: 10, ProductUuid: productUUID}, nil
 			},
 		}
-		mockOrderRepo := &testutils.MockOrderRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
-				return sqlc.GetOrderByUUIDRow{OrderID: 100, OrderUuid: orderUUID}, nil
+		mockOrderReader := &testutils.MockOrderReader{
+			VerifyPurchaseFunc: func(ctx context.Context, oUUID uuid.UUID, uID, pID int32) (*v1service.PurchaseVerification, error) {
+				return &v1service.PurchaseVerification{
+					OrderID:     100,
+					OrderUUID:   oUUID,
+					UserID:      uID,
+					IsPurchased: false,
+					CanReview:   true,
+				}, nil
 			},
 		}
-		mockReviewRepo := &testutils.MockReviewRepository{
-			CheckPurchasedFunc: func(ctx context.Context, orderID, userID, productID int32) (bool, error) {
-				return false, nil // Not purchased
-			},
-		}
+		mockReviewRepo := &testutils.MockReviewRepository{}
 
-		svc := v1service.NewReviewService(mockReviewRepo, mockProductRepo, mockOrderRepo, nil, nil)
+		svc := v1service.NewReviewService(mockReviewRepo, mockProductRepo, mockOrderReader, nil, nil)
 		_, err := svc.CreateReview(ctx, int32(1), v1dto.CreateReviewInput{
 			ProductUUID: productUUID.String(),
 			OrderUUID:   orderUUID.String(),
@@ -89,21 +90,24 @@ func TestReviewService_CreateReview(t *testing.T) {
 				return sqlc.GetProductByUUIDRow{ProductID: 10, ProductUuid: productUUID}, nil
 			},
 		}
-		mockOrderRepo := &testutils.MockOrderRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
-				return sqlc.GetOrderByUUIDRow{OrderID: 100, OrderUuid: orderUUID}, nil
+		mockOrderReader := &testutils.MockOrderReader{
+			VerifyPurchaseFunc: func(ctx context.Context, oUUID uuid.UUID, uID, pID int32) (*v1service.PurchaseVerification, error) {
+				return &v1service.PurchaseVerification{
+					OrderID:     100,
+					OrderUUID:   oUUID,
+					UserID:      uID,
+					IsPurchased: true,
+					CanReview:   true,
+				}, nil
 			},
 		}
 		mockReviewRepo := &testutils.MockReviewRepository{
-			CheckPurchasedFunc: func(ctx context.Context, orderID, userID, productID int32) (bool, error) {
-				return true, nil
-			},
 			CheckExistsFunc: func(ctx context.Context, userID, productID, orderID int32) (bool, error) {
 				return true, nil // Already reviewed
 			},
 		}
 
-		svc := v1service.NewReviewService(mockReviewRepo, mockProductRepo, mockOrderRepo, nil, nil)
+		svc := v1service.NewReviewService(mockReviewRepo, mockProductRepo, mockOrderReader, nil, nil)
 		_, err := svc.CreateReview(ctx, int32(1), v1dto.CreateReviewInput{
 			ProductUUID: productUUID.String(),
 			OrderUUID:   orderUUID.String(),
@@ -121,20 +125,19 @@ func TestReviewService_CreateReview(t *testing.T) {
 				return sqlc.GetProductByUUIDRow{ProductID: 10, ProductUuid: productUUID}, nil
 			},
 		}
-		mockOrderRepo := &testutils.MockOrderRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
-				return sqlc.GetOrderByUUIDRow{
-					OrderID:   100,
-					OrderUuid: orderUUID,
-					OrderDeliveredAt: pgtype.Timestamptz{
-						Time:  time.Now().Add(-35 * 24 * time.Hour),
-						Valid: true,
-					},
+		mockOrderReader := &testutils.MockOrderReader{
+			VerifyPurchaseFunc: func(ctx context.Context, oUUID uuid.UUID, uID, pID int32) (*v1service.PurchaseVerification, error) {
+				return &v1service.PurchaseVerification{
+					OrderID:     100,
+					OrderUUID:   oUUID,
+					UserID:      uID,
+					IsPurchased: true,
+					CanReview:   false,
 				}, nil
 			},
 		}
 
-		svc := v1service.NewReviewService(nil, mockProductRepo, mockOrderRepo, nil, nil)
+		svc := v1service.NewReviewService(nil, mockProductRepo, mockOrderReader, nil, nil)
 		_, err := svc.CreateReview(ctx, int32(1), v1dto.CreateReviewInput{
 			ProductUUID: productUUID.String(),
 			OrderUUID:   orderUUID.String(),
