@@ -143,7 +143,7 @@ type AddressRepository interface {
 type ReviewRepository interface {
 	Create(ctx context.Context, tx pgx.Tx, params sqlc.CreateReviewParams) (sqlc.ProductReview, error)
 	CheckPurchased(ctx context.Context, orderID, userID, productID int32) (bool, error)
-	CheckExists(ctx context.Context, userID, productID, orderID int32) (bool, error)
+	CheckExists(ctx context.Context, userID, productID int32, orderUUID uuid.UUID) (bool, error)
 	RecalcRating(ctx context.Context, tx pgx.Tx, productID int32) error
 	GetByProduct(ctx context.Context, productID int32, rating *int32, hasMedia *bool, orderBy, sort string, limit, offset int32) ([]v1dto.ReviewRow, error)
 	CountByProduct(ctx context.Context, productID int32, rating *int32, hasMedia *bool) (int64, error)

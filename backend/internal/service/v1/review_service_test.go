@@ -102,7 +102,7 @@ func TestReviewService_CreateReview(t *testing.T) {
 			},
 		}
 		mockReviewRepo := &testutils.MockReviewRepository{
-			CheckExistsFunc: func(ctx context.Context, userID, productID, orderID int32) (bool, error) {
+			CheckExistsFunc: func(ctx context.Context, userID, productID int32, oUUID uuid.UUID) (bool, error) {
 				return true, nil // Already reviewed
 			},
 		}

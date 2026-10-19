@@ -278,24 +278,21 @@ type Notification struct {
 }
 
 type Order struct {
-	OrderID              int32          `json:"order_id"`
-	OrderUuid            uuid.UUID      `json:"order_uuid"`
-	OrderNumber          string         `json:"order_number"`
-	OrderUserID          int32          `json:"order_user_id"`
-	OrderUserUuid        uuid.UUID      `json:"order_user_uuid"`
-	OrderCustomerName    string         `json:"order_customer_name"`
-	OrderCustomerEmail   string         `json:"order_customer_email"`
-	OrderShippingName    string         `json:"order_shipping_name"`
-	OrderShippingPhone   string         `json:"order_shipping_phone"`
-	OrderShippingAddress string         `json:"order_shipping_address"`
-	OrderTotalAmount     pgtype.Numeric `json:"order_total_amount"`
-	OrderRefundedAmount  pgtype.Numeric `json:"order_refunded_amount"`
-	// 1: COD, 2: Bank Transfer, 3: E-Wallet
-	OrderPaymentMethod int32 `json:"order_payment_method"`
-	// 1: Unpaid, 2: Paid, 3: Partially Refunded, 4: Refunded
-	OrderPaymentStatus int32   `json:"order_payment_status"`
-	OrderNote          *string `json:"order_note"`
-	// 1: Pending, 2: Confirmed, 3: Shipped, 4: Delivered, 5: Cancelled, 6: Returned
+	OrderID               int32              `json:"order_id"`
+	OrderUuid             uuid.UUID          `json:"order_uuid"`
+	OrderNumber           string             `json:"order_number"`
+	OrderUserID           int32              `json:"order_user_id"`
+	OrderUserUuid         uuid.UUID          `json:"order_user_uuid"`
+	OrderCustomerName     string             `json:"order_customer_name"`
+	OrderCustomerEmail    string             `json:"order_customer_email"`
+	OrderShippingName     string             `json:"order_shipping_name"`
+	OrderShippingPhone    string             `json:"order_shipping_phone"`
+	OrderShippingAddress  string             `json:"order_shipping_address"`
+	OrderTotalAmount      pgtype.Numeric     `json:"order_total_amount"`
+	OrderRefundedAmount   pgtype.Numeric     `json:"order_refunded_amount"`
+	OrderPaymentMethod    int32              `json:"order_payment_method"`
+	OrderPaymentStatus    int32              `json:"order_payment_status"`
+	OrderNote             *string            `json:"order_note"`
 	OrderStatus           int32              `json:"order_status"`
 	OrderCancelledAt      pgtype.Timestamptz `json:"order_cancelled_at"`
 	OrderCreatedAt        time.Time          `json:"order_created_at"`
@@ -329,14 +326,13 @@ type OrderItem struct {
 }
 
 type OrderReturn struct {
-	ReturnID       int32     `json:"return_id"`
-	ReturnUuid     uuid.UUID `json:"return_uuid"`
-	ReturnOrderID  int32     `json:"return_order_id"`
-	ReturnUserID   int32     `json:"return_user_id"`
-	ReturnReason   string    `json:"return_reason"`
-	ReturnImages   []string  `json:"return_images"`
-	ReturnVideoUrl *string   `json:"return_video_url"`
-	// 1: Pending, 2: Approved, 3: Rejected, 4: Completed, 5: Cancelled
+	ReturnID               int32     `json:"return_id"`
+	ReturnUuid             uuid.UUID `json:"return_uuid"`
+	ReturnOrderID          int32     `json:"return_order_id"`
+	ReturnUserID           int32     `json:"return_user_id"`
+	ReturnReason           string    `json:"return_reason"`
+	ReturnImages           []string  `json:"return_images"`
+	ReturnVideoUrl         *string   `json:"return_video_url"`
 	ReturnStatus           int16     `json:"return_status"`
 	ReturnAdminNote        *string   `json:"return_admin_note"`
 	ReturnShippingProvider *string   `json:"return_shipping_provider"`
@@ -374,21 +370,24 @@ type OrderTrackingEvent struct {
 }
 
 type OrdersOrder struct {
-	OrderID               int32              `json:"order_id"`
-	OrderUuid             uuid.UUID          `json:"order_uuid"`
-	OrderNumber           string             `json:"order_number"`
-	OrderUserID           int32              `json:"order_user_id"`
-	OrderUserUuid         uuid.UUID          `json:"order_user_uuid"`
-	OrderCustomerName     string             `json:"order_customer_name"`
-	OrderCustomerEmail    string             `json:"order_customer_email"`
-	OrderShippingName     string             `json:"order_shipping_name"`
-	OrderShippingPhone    string             `json:"order_shipping_phone"`
-	OrderShippingAddress  string             `json:"order_shipping_address"`
-	OrderTotalAmount      pgtype.Numeric     `json:"order_total_amount"`
-	OrderRefundedAmount   pgtype.Numeric     `json:"order_refunded_amount"`
-	OrderPaymentMethod    int32              `json:"order_payment_method"`
-	OrderPaymentStatus    int32              `json:"order_payment_status"`
-	OrderNote             *string            `json:"order_note"`
+	OrderID              int32          `json:"order_id"`
+	OrderUuid            uuid.UUID      `json:"order_uuid"`
+	OrderNumber          string         `json:"order_number"`
+	OrderUserID          int32          `json:"order_user_id"`
+	OrderUserUuid        uuid.UUID      `json:"order_user_uuid"`
+	OrderCustomerName    string         `json:"order_customer_name"`
+	OrderCustomerEmail   string         `json:"order_customer_email"`
+	OrderShippingName    string         `json:"order_shipping_name"`
+	OrderShippingPhone   string         `json:"order_shipping_phone"`
+	OrderShippingAddress string         `json:"order_shipping_address"`
+	OrderTotalAmount     pgtype.Numeric `json:"order_total_amount"`
+	OrderRefundedAmount  pgtype.Numeric `json:"order_refunded_amount"`
+	// 1: COD, 2: Bank Transfer, 3: E-Wallet
+	OrderPaymentMethod int32 `json:"order_payment_method"`
+	// 1: Unpaid, 2: Paid, 3: Partially Refunded, 4: Refunded
+	OrderPaymentStatus int32   `json:"order_payment_status"`
+	OrderNote          *string `json:"order_note"`
+	// 1: Pending, 2: Confirmed, 3: Shipped, 4: Delivered, 5: Cancelled, 6: Returned
 	OrderStatus           int32              `json:"order_status"`
 	OrderCancelledAt      pgtype.Timestamptz `json:"order_cancelled_at"`
 	OrderCreatedAt        time.Time          `json:"order_created_at"`
@@ -422,13 +421,14 @@ type OrdersOrderItem struct {
 }
 
 type OrdersOrderReturn struct {
-	ReturnID               int32     `json:"return_id"`
-	ReturnUuid             uuid.UUID `json:"return_uuid"`
-	ReturnOrderID          int32     `json:"return_order_id"`
-	ReturnUserID           int32     `json:"return_user_id"`
-	ReturnReason           string    `json:"return_reason"`
-	ReturnImages           []string  `json:"return_images"`
-	ReturnVideoUrl         *string   `json:"return_video_url"`
+	ReturnID       int32     `json:"return_id"`
+	ReturnUuid     uuid.UUID `json:"return_uuid"`
+	ReturnOrderID  int32     `json:"return_order_id"`
+	ReturnUserID   int32     `json:"return_user_id"`
+	ReturnReason   string    `json:"return_reason"`
+	ReturnImages   []string  `json:"return_images"`
+	ReturnVideoUrl *string   `json:"return_video_url"`
+	// 1: Pending, 2: Approved, 3: Rejected, 4: Completed, 5: Cancelled
 	ReturnStatus           int16     `json:"return_status"`
 	ReturnAdminNote        *string   `json:"return_admin_note"`
 	ReturnShippingProvider *string   `json:"return_shipping_provider"`
@@ -536,7 +536,7 @@ type ProductReview struct {
 	ReviewUuid      uuid.UUID `json:"review_uuid"`
 	ReviewUserID    int32     `json:"review_user_id"`
 	ReviewProductID int32     `json:"review_product_id"`
-	ReviewOrderID   int32     `json:"review_order_id"`
+	ReviewOrderID   *int32    `json:"review_order_id"`
 	ReviewRating    int16     `json:"review_rating"`
 	ReviewTitle     *string   `json:"review_title"`
 	ReviewComment   *string   `json:"review_comment"`
@@ -554,6 +554,7 @@ type ProductReview struct {
 	ReviewReplyAt      pgtype.Timestamptz `json:"review_reply_at"`
 	ReviewCreatedAt    time.Time          `json:"review_created_at"`
 	ReviewUpdatedAt    time.Time          `json:"review_updated_at"`
+	ReviewOrderUuid    uuid.UUID          `json:"review_order_uuid"`
 }
 
 type ProductReviewHelpfulVote struct {

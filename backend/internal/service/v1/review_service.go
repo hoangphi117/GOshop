@@ -248,7 +248,7 @@ func (rs *reviewService) CreateReview(ctx context.Context, userID int32, input v
 		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeBadRequest, "User has not purchased this product")
 	}
 
-	isExists, err := rs.repo.CheckExists(ctx, userID, product.ProductID, verification.OrderID)
+	isExists, err := rs.repo.CheckExists(ctx, userID, product.ProductID, verification.OrderUUID)
 	if err != nil {
 		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Error checking review status", err)
 	}
@@ -298,10 +298,16 @@ func (rs *reviewService) CreateReview(ctx context.Context, userID int32, input v
 		userName = "Customer"
 	}
 
+	var orderIDPtr *int32
+	if verification.OrderID > 0 {
+		orderIDPtr = &verification.OrderID
+	}
+
 	createParams := sqlc.CreateReviewParams{
 		ReviewUserID:     userID,
 		ReviewProductID:  product.ProductID,
-		ReviewOrderID:    verification.OrderID,
+		ReviewOrderID:    orderIDPtr,
+		ReviewOrderUuid:  verification.OrderUUID,
 		ReviewRating:     int16(input.Rating),
 		ReviewTitle:      input.Title,
 		ReviewComment:    input.Comment,

@@ -756,7 +756,7 @@ func (m *MockCategoryRepository) Trash(ctx context.Context, uuid uuid.UUID) (sql
 type MockReviewRepository struct {
 	CreateFunc           func(ctx context.Context, tx pgx.Tx, params sqlc.CreateReviewParams) (sqlc.ProductReview, error)
 	CheckPurchasedFunc   func(ctx context.Context, orderID, userID, productID int32) (bool, error)
-	CheckExistsFunc      func(ctx context.Context, userID, productID, orderID int32) (bool, error)
+	CheckExistsFunc      func(ctx context.Context, userID, productID int32, orderUUID uuid.UUID) (bool, error)
 	RecalcRatingFunc     func(ctx context.Context, tx pgx.Tx, productID int32) error
 	GetByProductFunc     func(ctx context.Context, productID int32, rating *int32, hasMedia *bool, orderBy, sort string, limit, offset int32) ([]v1dto.ReviewRow, error)
 	CountByProductFunc   func(ctx context.Context, productID int32, rating *int32, hasMedia *bool) (int64, error)
@@ -794,9 +794,9 @@ func (m *MockReviewRepository) CheckPurchased(ctx context.Context, orderID, user
 	return false, nil
 }
 
-func (m *MockReviewRepository) CheckExists(ctx context.Context, userID, productID, orderID int32) (bool, error) {
+func (m *MockReviewRepository) CheckExists(ctx context.Context, userID, productID int32, orderUUID uuid.UUID) (bool, error) {
 	if m.CheckExistsFunc != nil {
-		return m.CheckExistsFunc(ctx, userID, productID, orderID)
+		return m.CheckExistsFunc(ctx, userID, productID, orderUUID)
 	}
 	return false, nil
 }

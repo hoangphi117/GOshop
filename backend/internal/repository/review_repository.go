@@ -35,11 +35,11 @@ func (rr *SqlReviewRepository) CheckPurchased(ctx context.Context, orderID, user
 	})
 }
 
-func (rr *SqlReviewRepository) CheckExists(ctx context.Context, userID, productID, orderID int32) (bool, error) {
+func (rr *SqlReviewRepository) CheckExists(ctx context.Context, userID, productID int32, orderUUID uuid.UUID) (bool, error) {
 	return rr.db.CheckReviewExists(ctx, sqlc.CheckReviewExistsParams{
 		ReviewUserID:    userID,
 		ReviewProductID: productID,
-		ReviewOrderID:   orderID,
+		ReviewOrderUuid: orderUUID,
 	})
 }
 
@@ -191,7 +191,7 @@ func (rr *SqlReviewRepository) AdminGetAll(ctx context.Context, status *int16, r
 	query := `SELECT 
 				r.review_id, r.review_uuid, 
 				p.product_uuid, p.product_name,
-				o.order_uuid,
+				r.review_order_uuid AS order_uuid,
 				r.review_user_name AS reviewer_name, r.review_user_email AS reviewer_email,
 				r.review_rating, r.review_title, r.review_comment,
 				r.review_images, r.review_video_url, r.review_has_media,
@@ -200,7 +200,6 @@ func (rr *SqlReviewRepository) AdminGetAll(ctx context.Context, status *int16, r
 				(SELECT COUNT(*)::bigint FROM product_review_reports prr WHERE prr.review_id = r.review_id) AS report_count
 			FROM product_reviews r
 			JOIN products p ON p.product_id = r.review_product_id
-			JOIN orders o ON o.order_id = r.review_order_id
 			WHERE 1=1`
 	args := []any{}
 	argIdx := 1
