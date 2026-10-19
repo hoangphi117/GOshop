@@ -17,7 +17,7 @@ Write-Host ">>> [2/3] Building Go Binaries (Sequential)..." -ForegroundColor Yel
 $binDir = Join-Path $PSScriptRoot "..\backend\bin"
 if (!(Test-Path $binDir)) { New-Item -ItemType Directory -Path $binDir -Force | Out-Null }
 
-$services = @("api", "identity", "notification", "payment", "worker", "coupon", "inventory", "catalog", "cart")
+$services = @("api", "identity", "notification", "payment", "worker", "coupon", "inventory", "catalog", "cart", "order")
 $backendDir = Join-Path $PSScriptRoot "..\backend"
 Push-Location $backendDir
 try {
@@ -38,8 +38,8 @@ Write-Host ">>> [3/3] Starting Go Services on Host" -ForegroundColor Green
 $exe = if ($IsWindows -or $env:OS -match "Windows") { ".exe" } else { "" }
 $binPrefix = if ($IsWindows -or $env:OS -match "Windows") { "bin\" } else { "./bin/" }
 npx -y concurrently `
-  -n "api,identity,notif,payment,worker,coupon,inventory,catalog,cart" `
-  -c "cyan,green,magenta,blue,yellow,pink,red,gray,white" `
+  -n "api,identity,notif,payment,worker,coupon,inventory,catalog,cart,order" `
+  -c "cyan,green,magenta,blue,yellow,pink,red,gray,white,orange" `
   --kill-others-on-fail `
   "cd backend && ${binPrefix}api$exe" `
   "cd backend && ${binPrefix}identity$exe" `
@@ -49,5 +49,6 @@ npx -y concurrently `
   "cd backend && ${binPrefix}coupon$exe" `
   "cd backend && ${binPrefix}inventory$exe" `
   "cd backend && ${binPrefix}catalog$exe" `
-  "cd backend && ${binPrefix}cart$exe"
+  "cd backend && ${binPrefix}cart$exe" `
+  "cd backend && ${binPrefix}order$exe"
 
