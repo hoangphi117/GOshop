@@ -122,7 +122,7 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	// Run embedded migrations if needed
-	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&x-migrations-table=schema_migrations_order",
 		cfg.DB.User, cfg.DB.Password, cfg.DB.Host, cfg.DB.Port, cfg.DB.DBName, cfg.DB.SSLMode)
 	sourceDriver, err := iofs.New(migrations.FS, ".")
 	if err != nil {

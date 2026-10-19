@@ -39,7 +39,7 @@ func main() {
 	}
 
 	cfg := config.NewConfig()
-	if orderDBName := utils.GetEnv("ORDER_DB_NAME", utils.GetEnv("DB_ORDER_NAME", "shopping")); orderDBName != "" {
+	if orderDBName := utils.GetEnv("ORDER_DB_NAME", utils.GetEnv("DB_ORDER_NAME", "shopping_order")); orderDBName != "" {
 		cfg.DB.DBName = orderDBName
 	}
 	port := utils.GetEnv("ORDER_SERVER_PORT", "8088")
