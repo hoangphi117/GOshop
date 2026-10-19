@@ -82,6 +82,11 @@ func NewOrderClient(target string, opts ...grpc.DialOption) (OrderClient, error)
 	}, nil
 }
 
+// NewGRPCOrderClient provides consistent naming matching other service contracts.
+func NewGRPCOrderClient(target string, opts ...grpc.DialOption) (OrderClient, error) {
+	return NewOrderClient(target, opts...)
+}
+
 func NewOrderClientFromConn(conn *grpc.ClientConn) OrderClient {
 	return &orderClient{
 		client: orderv1.NewOrderServiceClient(conn),

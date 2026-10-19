@@ -23,6 +23,7 @@ import (
 	catalogcontract "goshop/services/catalog/contract"
 	couponcontract "goshop/services/coupon/contract"
 	inventorycontract "goshop/services/inventory/contract"
+	ordercontract "goshop/services/order/contract"
 	"net/http"
 	"os"
 	"os/signal"
@@ -64,6 +65,7 @@ type ModuleContext struct {
 	InventoryClient inventorycontract.InventoryClient
 	CatalogClient   catalogcontract.CatalogClient
 	CouponClient    couponcontract.CouponClient
+	OrderClient     ordercontract.OrderClient
 }
 
 func NewApplication(cfg *config.Config) (*Application, error) {
@@ -226,6 +228,12 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		return nil, err
 	}
 
+	orderTarget := utils.GetEnv("ORDER_GRPC_TARGET", utils.GetEnv("ORDER_GRPC_ADDR", "localhost:50057"))
+	grpcOrderClient, err := ordercontract.NewGRPCOrderClient(orderTarget)
+	if err != nil {
+		logger.Log.Warn().Err(err).Str("addr", orderTarget).Msg("Failed to initialize Order gRPC client")
+	}
+
 	ctx := &ModuleContext{
 		DB:              db.DB,
 		ReadDB:          db.GetReadDB(),
@@ -239,6 +247,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		InventoryClient: grpcInventoryClient,
 		CatalogClient:   grpcCatalogClient,
 		CouponClient:    grpcCouponClient,
+		OrderClient:     grpcOrderClient,
 	}
 
 	orderModuleDeps := OrderModuleDeps{
@@ -256,18 +265,25 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		return nil, err
 	}
 
+	var crossDomainOrderReader v1service.OrderReader
+	if grpcOrderClient != nil {
+		crossDomainOrderReader = client.NewGRPCOrderReader(grpcOrderClient)
+	} else {
+		crossDomainOrderReader = orderModule.OrderReader()
+	}
+
 	modules := []Module{
 		NewProductModule(ctx),
 		orderModule,
 	}
 	modules = append(modules,
-		NewReviewModule(ctx, rabbitmqService, orderModule.OrderReader()),
+		NewReviewModule(ctx, rabbitmqService, crossDomainOrderReader),
 		NewWSModule(ctx, wsHub, tokenService, cacheRedisService),
 		NewLocationModule(locationService),
 		NewUploadModule(ctx),
 		NewBannerModule(ctx, cacheRedisService),
 		NewAnalyticsModule(ctx),
-		NewChatModule(ctx, wsHub, redisBridge, orderModule.OrderReader()),
+		NewChatModule(ctx, wsHub, redisBridge, crossDomainOrderReader),
 		NewHealthModule(db.DBPool, redisClient, rabbitmqService, storageService, discord.NewDiscordNotifier(utils.GetEnv("DISCORD_WEBHOOK_URL", ""), logger.Log), logger.Log),
 	)
 
