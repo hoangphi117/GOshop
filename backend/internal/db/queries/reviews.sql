@@ -8,8 +8,8 @@ RETURNING *;
 
 -- name: CheckUserPurchasedProduct :one
 SELECT EXISTS (
-    SELECT 1 FROM order_items oi
-    JOIN orders o ON o.order_id = oi.order_item_order_id
+    SELECT 1 FROM analytics_order_items_projection oi
+    JOIN analytics_orders_projection o ON o.order_id = oi.order_item_order_id
     WHERE o.order_id = $1
       AND o.order_user_id = $2
       AND oi.order_item_product_id = $3

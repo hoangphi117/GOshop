@@ -6,6 +6,7 @@
 # =============================================================================
 
 Write-Host ">>> [1/2] Starting Infrastructure (Docker)..." -ForegroundColor Cyan
+docker compose -f ./docker-compose.dev.yml stop api identity notification order payment worker ws-gateway 2>$null | Out-Null
 docker compose -f docker-compose.noapp.yml --env-file ./backend/.env up -d
 
 if ($LASTEXITCODE -ne 0) {
@@ -19,6 +20,15 @@ if (!(Test-Path $binDir)) { New-Item -ItemType Directory -Path $binDir -Force | 
 
 $services = @("api", "identity", "notification", "payment", "worker", "coupon", "inventory", "catalog", "cart", "order")
 $backendDir = Join-Path $PSScriptRoot "..\backend"
+$serviceBinaryPaths = $services | ForEach-Object {
+    [System.IO.Path]::GetFullPath((Join-Path $backendDir "bin\$_.exe"))
+}
+$runningServiceProcesses = Get-Process -ErrorAction SilentlyContinue | Where-Object {
+    $_.Path -and $serviceBinaryPaths -contains ([System.IO.Path]::GetFullPath($_.Path))
+}
+foreach ($process in $runningServiceProcesses) {
+    Stop-Process -Id $process.Id -Force
+}
 Push-Location $backendDir
 try {
     foreach ($svc in $services) {
@@ -51,4 +61,3 @@ npx -y concurrently `
   "cd backend && ${binPrefix}catalog$exe" `
   "cd backend && ${binPrefix}cart$exe" `
   "cd backend && ${binPrefix}order$exe"
-

@@ -360,13 +360,13 @@ func TestChatService_SendMessage(t *testing.T) {
 			},
 		}
 		orderUUID := uuid.New()
-		mockOrderRepo := &testutils.MockOrderRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+		mockOrderReader := &testutils.MockOrderReader{
+			GetOrderSummaryFunc: func(ctx context.Context, u uuid.UUID) (*v1service.OrderSummary, error) {
 				assert.Equal(t, orderUUID, u)
-				return sqlc.GetOrderByUUIDRow{
-					OrderID:     123,
-					OrderUuid:   orderUUID,
-					OrderUserID: mockCustomer.UserID,
+				return &v1service.OrderSummary{
+					OrderID:   123,
+					OrderUUID: orderUUID,
+					UserID:    mockCustomer.UserID,
 				}, nil
 			},
 		}
@@ -390,7 +390,7 @@ func TestChatService_SendMessage(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, v1service.NewInprocessOrderReader(mockOrderRepo, nil), nil, nil)
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, mockOrderReader, nil, nil)
 		orderReq := v1dto.SendMessageRequest{
 			ContentType: "order_ref",
 			OrderUUID:   orderUUID.String(),
@@ -409,12 +409,12 @@ func TestChatService_SendMessage(t *testing.T) {
 			},
 		}
 		orderUUID := uuid.New()
-		mockOrderRepo := &testutils.MockOrderRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
-				return sqlc.GetOrderByUUIDRow{
-					OrderID:     123,
-					OrderUuid:   orderUUID,
-					OrderUserID: 9999, // different user
+		mockOrderReader := &testutils.MockOrderReader{
+			GetOrderSummaryFunc: func(ctx context.Context, u uuid.UUID) (*v1service.OrderSummary, error) {
+				return &v1service.OrderSummary{
+					OrderID:   123,
+					OrderUUID: orderUUID,
+					UserID:    9999, // different user
 				}, nil
 			},
 		}
@@ -424,7 +424,7 @@ func TestChatService_SendMessage(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, v1service.NewInprocessOrderReader(mockOrderRepo, nil), nil, nil)
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, mockOrderReader, nil, nil)
 		orderReq := v1dto.SendMessageRequest{
 			ContentType: "order_ref",
 			OrderUUID:   orderUUID.String(),
@@ -443,9 +443,9 @@ func TestChatService_SendMessage(t *testing.T) {
 				return mockCustomer, nil
 			},
 		}
-		mockOrderRepo := &testutils.MockOrderRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
-				return sqlc.GetOrderByUUIDRow{}, pgx.ErrNoRows
+		mockOrderReader := &testutils.MockOrderReader{
+			GetOrderSummaryFunc: func(ctx context.Context, u uuid.UUID) (*v1service.OrderSummary, error) {
+				return nil, pgx.ErrNoRows
 			},
 		}
 		mockChatRepo := &testutils.MockChatRepository{
@@ -454,7 +454,7 @@ func TestChatService_SendMessage(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, v1service.NewInprocessOrderReader(mockOrderRepo, nil), nil, nil)
+		svc := v1service.NewChatService(mockChatRepo, mockUserRepo, mockOrderReader, nil, nil)
 		orderReq := v1dto.SendMessageRequest{
 			ContentType: "order_ref",
 			OrderUUID:   uuid.New().String(),

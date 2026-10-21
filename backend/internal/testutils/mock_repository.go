@@ -14,195 +14,17 @@ import (
 
 // Ensure all mocks implement repository interfaces at compile time
 var (
-	_ repository.OrderRepository        = (*MockOrderRepository)(nil)
-	_ repository.OrderItemRepository    = (*MockOrderItemRepository)(nil)
 	_ repository.ProductRepository      = (*MockProductRepository)(nil)
 	_ repository.CartRepository         = (*MockCartRepository)(nil)
-	_ repository.TrackingRepository     = (*MockTrackingRepository)(nil)
 	_ repository.UserRepository         = (*MockUserRepository)(nil)
 	_ repository.UserReader             = (*MockUserRepository)(nil)
-	_ repository.WebhookEventRepository = (*MockWebhookEventRepository)(nil)
-	_ repository.OrderReturnsRepository = (*MockOrderReturnsRepository)(nil)
 	_ repository.CategoryRepository     = (*MockCategoryRepository)(nil)
 	_ repository.ReviewRepository       = (*MockReviewRepository)(nil)
 	_ repository.AddressRepository      = (*MockAddressRepository)(nil)
 	_ repository.NotificationRepository = (*MockNotificationRepository)(nil)
 	_ repository.ChatRepository         = (*MockChatRepository)(nil)
 	_ repository.OutboxRepository       = (*MockOutboxRepository)(nil)
-	_ repository.SagaRepository         = (*MockSagaRepository)(nil)
 )
-
-// =========================================================================
-// 1. MockOrderRepository
-// =========================================================================
-type MockOrderRepository struct {
-	CreateFunc                      func(ctx context.Context, params sqlc.CreateOrderParams) (sqlc.Order, error)
-	GetLastOrderNumberFunc          func(ctx context.Context, orderNumber string) (string, error)
-	GetByUUIDFunc                   func(ctx context.Context, uuid uuid.UUID) (sqlc.GetOrderByUUIDRow, error)
-	GetByIDFunc                     func(ctx context.Context, orderID int32) (sqlc.GetOrderByIDRow, error)
-	GetByUUIDForUpdateFunc          func(ctx context.Context, tx pgx.Tx, uuid uuid.UUID) (sqlc.Order, error)
-	GetByOrderNumberFunc            func(ctx context.Context, orderNumber string) (sqlc.GetOrderByOrderNumberRow, error)
-	UpdateStatusFunc                func(ctx context.Context, tx pgx.Tx, params sqlc.UpdateOrderStatusParams) (sqlc.Order, error)
-	CancelOrderFunc                 func(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID) (sqlc.Order, error)
-	UpdateOrderShippingInfoFunc     func(ctx context.Context, params sqlc.UpdateOrderShippingInfoParams) (sqlc.Order, error)
-	UpdateOrderPaymentStatusFunc    func(ctx context.Context, tx pgx.Tx, params sqlc.UpdateOrderPaymentStatusParams) (sqlc.Order, error)
-	CountOrdersFunc                 func(ctx context.Context, userID, status *int32, search string) (int64, error)
-	GetAllFunc                      func(ctx context.Context, userID, status *int32, search, orderBy, sort string, limit, offset int32) ([]sqlc.Order, error)
-	UpdateShippingAndStatusFunc     func(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID, params sqlc.UpdateOrderShippingAndStatusParams) (sqlc.Order, error)
-	GetByShippingCodeFunc           func(ctx context.Context, shippingCode string) (sqlc.GetOrderByShippingCodeRow, error)
-	MarkDeliveredByShippingCodeFunc func(ctx context.Context, tx pgx.Tx, shippingCode string) (sqlc.Order, error)
-	MarkDeliveredByUUIDFunc         func(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID) (sqlc.Order, error)
-	CancelShippingFunc              func(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID) (sqlc.Order, error)
-	GetActiveShippedOrdersFunc      func(ctx context.Context, limit int32) ([]sqlc.Order, error)
-}
-
-func (m *MockOrderRepository) Create(ctx context.Context, params sqlc.CreateOrderParams) (sqlc.Order, error) {
-	if m.CreateFunc != nil {
-		return m.CreateFunc(ctx, params)
-	}
-	return sqlc.Order{}, nil
-}
-
-func (m *MockOrderRepository) GetLastOrderNumber(ctx context.Context, orderNumber string) (string, error) {
-	if m.GetLastOrderNumberFunc != nil {
-		return m.GetLastOrderNumberFunc(ctx, orderNumber)
-	}
-	return "", nil
-}
-
-func (m *MockOrderRepository) GetByUUID(ctx context.Context, uuid uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
-	if m.GetByUUIDFunc != nil {
-		return m.GetByUUIDFunc(ctx, uuid)
-	}
-	return sqlc.GetOrderByUUIDRow{}, nil
-}
-
-func (m *MockOrderRepository) GetByID(ctx context.Context, orderID int32) (sqlc.GetOrderByIDRow, error) {
-	if m.GetByIDFunc != nil {
-		return m.GetByIDFunc(ctx, orderID)
-	}
-	return sqlc.GetOrderByIDRow{}, nil
-}
-
-func (m *MockOrderRepository) GetByUUIDForUpdate(ctx context.Context, tx pgx.Tx, uuid uuid.UUID) (sqlc.Order, error) {
-	if m.GetByUUIDForUpdateFunc != nil {
-		return m.GetByUUIDForUpdateFunc(ctx, tx, uuid)
-	}
-	return sqlc.Order{}, nil
-}
-
-func (m *MockOrderRepository) GetByOrderNumber(ctx context.Context, orderNumber string) (sqlc.GetOrderByOrderNumberRow, error) {
-	if m.GetByOrderNumberFunc != nil {
-		return m.GetByOrderNumberFunc(ctx, orderNumber)
-	}
-	return sqlc.GetOrderByOrderNumberRow{}, nil
-}
-
-func (m *MockOrderRepository) UpdateStatus(ctx context.Context, tx pgx.Tx, params sqlc.UpdateOrderStatusParams) (sqlc.Order, error) {
-	if m.UpdateStatusFunc != nil {
-		return m.UpdateStatusFunc(ctx, tx, params)
-	}
-	return sqlc.Order{}, nil
-}
-
-func (m *MockOrderRepository) CancelOrder(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID) (sqlc.Order, error) {
-	if m.CancelOrderFunc != nil {
-		return m.CancelOrderFunc(ctx, tx, orderUUID)
-	}
-	return sqlc.Order{}, nil
-}
-
-func (m *MockOrderRepository) UpdateOrderShippingInfo(ctx context.Context, params sqlc.UpdateOrderShippingInfoParams) (sqlc.Order, error) {
-	if m.UpdateOrderShippingInfoFunc != nil {
-		return m.UpdateOrderShippingInfoFunc(ctx, params)
-	}
-	return sqlc.Order{}, nil
-}
-
-func (m *MockOrderRepository) UpdateOrderPaymentStatus(ctx context.Context, tx pgx.Tx, params sqlc.UpdateOrderPaymentStatusParams) (sqlc.Order, error) {
-	if m.UpdateOrderPaymentStatusFunc != nil {
-		return m.UpdateOrderPaymentStatusFunc(ctx, tx, params)
-	}
-	return sqlc.Order{}, nil
-}
-
-func (m *MockOrderRepository) CountOrders(ctx context.Context, userID, status *int32, search string) (int64, error) {
-	if m.CountOrdersFunc != nil {
-		return m.CountOrdersFunc(ctx, userID, status, search)
-	}
-	return 0, nil
-}
-
-func (m *MockOrderRepository) GetAll(ctx context.Context, userID, status *int32, search, orderBy, sort string, limit, offset int32) ([]sqlc.Order, error) {
-	if m.GetAllFunc != nil {
-		return m.GetAllFunc(ctx, userID, status, search, orderBy, sort, limit, offset)
-	}
-	return nil, nil
-}
-
-func (m *MockOrderRepository) UpdateShippingAndStatus(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID, params sqlc.UpdateOrderShippingAndStatusParams) (sqlc.Order, error) {
-	if m.UpdateShippingAndStatusFunc != nil {
-		return m.UpdateShippingAndStatusFunc(ctx, tx, orderUUID, params)
-	}
-	return sqlc.Order{}, nil
-}
-
-func (m *MockOrderRepository) GetByShippingCode(ctx context.Context, shippingCode string) (sqlc.GetOrderByShippingCodeRow, error) {
-	if m.GetByShippingCodeFunc != nil {
-		return m.GetByShippingCodeFunc(ctx, shippingCode)
-	}
-	return sqlc.GetOrderByShippingCodeRow{}, nil
-}
-
-func (m *MockOrderRepository) MarkDeliveredByShippingCode(ctx context.Context, tx pgx.Tx, shippingCode string) (sqlc.Order, error) {
-	if m.MarkDeliveredByShippingCodeFunc != nil {
-		return m.MarkDeliveredByShippingCodeFunc(ctx, tx, shippingCode)
-	}
-	return sqlc.Order{}, nil
-}
-
-func (m *MockOrderRepository) MarkDeliveredByUUID(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID) (sqlc.Order, error) {
-	if m.MarkDeliveredByUUIDFunc != nil {
-		return m.MarkDeliveredByUUIDFunc(ctx, tx, orderUUID)
-	}
-	return sqlc.Order{}, nil
-}
-
-func (m *MockOrderRepository) CancelShipping(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID) (sqlc.Order, error) {
-	if m.CancelShippingFunc != nil {
-		return m.CancelShippingFunc(ctx, tx, orderUUID)
-	}
-	return sqlc.Order{}, nil
-}
-
-func (m *MockOrderRepository) GetActiveShippedOrders(ctx context.Context, limit int32) ([]sqlc.Order, error) {
-	if m.GetActiveShippedOrdersFunc != nil {
-		return m.GetActiveShippedOrdersFunc(ctx, limit)
-	}
-	return nil, nil
-}
-
-// =========================================================================
-// 2. MockOrderItemRepository
-// =========================================================================
-type MockOrderItemRepository struct {
-	CreateFunc       func(ctx context.Context, tx pgx.Tx, input sqlc.CreateOrderItemParams) (sqlc.OrderItem, error)
-	GetByOrderIDFunc func(ctx context.Context, orderID int32) ([]sqlc.GetOrderItemsByOrderIDRow, error)
-}
-
-func (m *MockOrderItemRepository) Create(ctx context.Context, tx pgx.Tx, input sqlc.CreateOrderItemParams) (sqlc.OrderItem, error) {
-	if m.CreateFunc != nil {
-		return m.CreateFunc(ctx, tx, input)
-	}
-	return sqlc.OrderItem{}, nil
-}
-
-func (m *MockOrderItemRepository) GetByOrderID(ctx context.Context, orderID int32) ([]sqlc.GetOrderItemsByOrderIDRow, error) {
-	if m.GetByOrderIDFunc != nil {
-		return m.GetByOrderIDFunc(ctx, orderID)
-	}
-	return nil, nil
-}
 
 // =========================================================================
 // 3. MockProductRepository
@@ -385,35 +207,13 @@ func (m *MockCartRepository) DeleteCartItemsByProductIDs(ctx context.Context, tx
 }
 
 // =========================================================================
-// 6. MockTrackingRepository
-// =========================================================================
-type MockTrackingRepository struct {
-	InsertEventFunc  func(ctx context.Context, tx pgx.Tx, params sqlc.InsertTrackingEventParams) (sqlc.OrderTrackingEvent, error)
-	GetByOrderIDFunc func(ctx context.Context, orderID int32) ([]sqlc.OrderTrackingEvent, error)
-}
-
-func (m *MockTrackingRepository) InsertEvent(ctx context.Context, tx pgx.Tx, params sqlc.InsertTrackingEventParams) (sqlc.OrderTrackingEvent, error) {
-	if m.InsertEventFunc != nil {
-		return m.InsertEventFunc(ctx, tx, params)
-	}
-	return sqlc.OrderTrackingEvent{}, nil
-}
-
-func (m *MockTrackingRepository) GetByOrderID(ctx context.Context, orderID int32) ([]sqlc.OrderTrackingEvent, error) {
-	if m.GetByOrderIDFunc != nil {
-		return m.GetByOrderIDFunc(ctx, orderID)
-	}
-	return nil, nil
-}
-
-// =========================================================================
 // 7. MockUserRepository
 // =========================================================================
 type MockUserRepository struct {
-	GetAllFunc         func(ctx context.Context, search, orderBy, sort string, limit, offset int32) ([]sqlc.User, error)
-	GetAllV2Func       func(ctx context.Context, search, orderBy, sort string, limit, offset int32, deleted bool) ([]sqlc.User, error)
-	CountUsersFunc     func(ctx context.Context, search string, deleted bool) (int64, error)
-	CreateFunc         func(ctx context.Context, input sqlc.CreateUserParams) (sqlc.User, error)
+	GetAllFunc                func(ctx context.Context, search, orderBy, sort string, limit, offset int32) ([]sqlc.User, error)
+	GetAllV2Func              func(ctx context.Context, search, orderBy, sort string, limit, offset int32, deleted bool) ([]sqlc.User, error)
+	CountUsersFunc            func(ctx context.Context, search string, deleted bool) (int64, error)
+	CreateFunc                func(ctx context.Context, input sqlc.CreateUserParams) (sqlc.User, error)
 	GetByIDFunc               func(ctx context.Context, id int32) (sqlc.User, error)
 	GetByUUIDFunc             func(ctx context.Context, uuid uuid.UUID) (sqlc.User, error)
 	UpdateFunc                func(ctx context.Context, input sqlc.UpdateUserParams) (sqlc.User, error)
@@ -541,138 +341,6 @@ func (m *MockUserRepository) CreateOAuthUser(ctx context.Context, params sqlc.Cr
 }
 
 // =========================================================================
-// 8. MockWebhookEventRepository
-// =========================================================================
-type MockWebhookEventRepository struct {
-	InsertEventFunc   func(ctx context.Context, tx pgx.Tx, input sqlc.InsertWebhookEventParams) (sqlc.WebhookEvent, error)
-	MarkProcessedFunc func(ctx context.Context, tx pgx.Tx, eventID int32) error
-}
-
-func (m *MockWebhookEventRepository) InsertEvent(ctx context.Context, tx pgx.Tx, input sqlc.InsertWebhookEventParams) (sqlc.WebhookEvent, error) {
-	if m.InsertEventFunc != nil {
-		return m.InsertEventFunc(ctx, tx, input)
-	}
-	return sqlc.WebhookEvent{}, nil
-}
-
-func (m *MockWebhookEventRepository) MarkProcessed(ctx context.Context, tx pgx.Tx, eventID int32) error {
-	if m.MarkProcessedFunc != nil {
-		return m.MarkProcessedFunc(ctx, tx, eventID)
-	}
-	return nil
-}
-
-// =========================================================================
-// 9. MockOrderReturnsRepository
-// =========================================================================
-type MockOrderReturnsRepository struct {
-	CreateFunc                        func(ctx context.Context, tx pgx.Tx, params sqlc.CreateOrderReturnParams) (sqlc.OrderReturn, error)
-	GetActiveByOrderIDFunc            func(ctx context.Context, orderID int32) (sqlc.OrderReturn, error)
-	GetLatestByOrderIDFunc            func(ctx context.Context, orderID int32) (sqlc.OrderReturn, error)
-	GetReturnsFunc                    func(ctx context.Context, params sqlc.AdminGetReturnsParams) ([]sqlc.AdminGetReturnsRow, error)
-	GetByUUIDFunc                     func(ctx context.Context, returnUUID uuid.UUID) (sqlc.OrderReturn, error)
-	CountReturnsFunc                  func(ctx context.Context, params sqlc.AdminCountReturnsParams) (int64, error)
-	GetReturnsByUserIDFunc            func(ctx context.Context, params sqlc.GetReturnsByUserIDParams) ([]sqlc.GetReturnsByUserIDRow, error)
-	CountReturnsByUserIDFunc          func(ctx context.Context, params sqlc.CountReturnsByUserIDParams) (int64, error)
-	AdminGetReturnByUUIDFunc          func(ctx context.Context, returnUUID uuid.UUID) (sqlc.AdminGetReturnByUUIDRow, error)
-	AdminGetLatestReturnByOrderIDFunc func(ctx context.Context, orderID int32) (sqlc.AdminGetLatestReturnByOrderIDRow, error)
-	UpdateStatusFunc                  func(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReturnStatusParams) (sqlc.OrderReturn, error)
-	UpdateReturnShippingInfoFunc      func(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReturnShippingInfoParams) (sqlc.OrderReturn, error)
-	UpdateReturnBankAccountFunc       func(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReturnBankAccountParams) (sqlc.OrderReturn, error)
-}
-
-func (m *MockOrderReturnsRepository) Create(ctx context.Context, tx pgx.Tx, params sqlc.CreateOrderReturnParams) (sqlc.OrderReturn, error) {
-	if m.CreateFunc != nil {
-		return m.CreateFunc(ctx, tx, params)
-	}
-	return sqlc.OrderReturn{}, nil
-}
-
-func (m *MockOrderReturnsRepository) GetActiveByOrderID(ctx context.Context, orderID int32) (sqlc.OrderReturn, error) {
-	if m.GetActiveByOrderIDFunc != nil {
-		return m.GetActiveByOrderIDFunc(ctx, orderID)
-	}
-	return sqlc.OrderReturn{}, nil
-}
-
-func (m *MockOrderReturnsRepository) GetLatestByOrderID(ctx context.Context, orderID int32) (sqlc.OrderReturn, error) {
-	if m.GetLatestByOrderIDFunc != nil {
-		return m.GetLatestByOrderIDFunc(ctx, orderID)
-	}
-	return sqlc.OrderReturn{}, nil
-}
-
-func (m *MockOrderReturnsRepository) GetReturns(ctx context.Context, params sqlc.AdminGetReturnsParams) ([]sqlc.AdminGetReturnsRow, error) {
-	if m.GetReturnsFunc != nil {
-		return m.GetReturnsFunc(ctx, params)
-	}
-	return nil, nil
-}
-
-func (m *MockOrderReturnsRepository) GetByUUID(ctx context.Context, returnUUID uuid.UUID) (sqlc.OrderReturn, error) {
-	if m.GetByUUIDFunc != nil {
-		return m.GetByUUIDFunc(ctx, returnUUID)
-	}
-	return sqlc.OrderReturn{}, nil
-}
-
-func (m *MockOrderReturnsRepository) CountReturns(ctx context.Context, params sqlc.AdminCountReturnsParams) (int64, error) {
-	if m.CountReturnsFunc != nil {
-		return m.CountReturnsFunc(ctx, params)
-	}
-	return 0, nil
-}
-
-func (m *MockOrderReturnsRepository) GetReturnsByUserID(ctx context.Context, params sqlc.GetReturnsByUserIDParams) ([]sqlc.GetReturnsByUserIDRow, error) {
-	if m.GetReturnsByUserIDFunc != nil {
-		return m.GetReturnsByUserIDFunc(ctx, params)
-	}
-	return nil, nil
-}
-
-func (m *MockOrderReturnsRepository) CountReturnsByUserID(ctx context.Context, params sqlc.CountReturnsByUserIDParams) (int64, error) {
-	if m.CountReturnsByUserIDFunc != nil {
-		return m.CountReturnsByUserIDFunc(ctx, params)
-	}
-	return 0, nil
-}
-
-func (m *MockOrderReturnsRepository) AdminGetReturnByUUID(ctx context.Context, returnUUID uuid.UUID) (sqlc.AdminGetReturnByUUIDRow, error) {
-	if m.AdminGetReturnByUUIDFunc != nil {
-		return m.AdminGetReturnByUUIDFunc(ctx, returnUUID)
-	}
-	return sqlc.AdminGetReturnByUUIDRow{}, nil
-}
-
-func (m *MockOrderReturnsRepository) AdminGetLatestReturnByOrderID(ctx context.Context, orderID int32) (sqlc.AdminGetLatestReturnByOrderIDRow, error) {
-	if m.AdminGetLatestReturnByOrderIDFunc != nil {
-		return m.AdminGetLatestReturnByOrderIDFunc(ctx, orderID)
-	}
-	return sqlc.AdminGetLatestReturnByOrderIDRow{}, nil
-}
-
-func (m *MockOrderReturnsRepository) UpdateStatus(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReturnStatusParams) (sqlc.OrderReturn, error) {
-	if m.UpdateStatusFunc != nil {
-		return m.UpdateStatusFunc(ctx, tx, params)
-	}
-	return sqlc.OrderReturn{}, nil
-}
-
-func (m *MockOrderReturnsRepository) UpdateReturnShippingInfo(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReturnShippingInfoParams) (sqlc.OrderReturn, error) {
-	if m.UpdateReturnShippingInfoFunc != nil {
-		return m.UpdateReturnShippingInfoFunc(ctx, tx, params)
-	}
-	return sqlc.OrderReturn{}, nil
-}
-
-func (m *MockOrderReturnsRepository) UpdateReturnBankAccount(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReturnBankAccountParams) (sqlc.OrderReturn, error) {
-	if m.UpdateReturnBankAccountFunc != nil {
-		return m.UpdateReturnBankAccountFunc(ctx, tx, params)
-	}
-	return sqlc.OrderReturn{}, nil
-}
-
-// =========================================================================
 // 10. MockCategoryRepository
 // =========================================================================
 type MockCategoryRepository struct {
@@ -754,30 +422,30 @@ func (m *MockCategoryRepository) Trash(ctx context.Context, uuid uuid.UUID) (sql
 // 12. MockReviewRepository
 // =========================================================================
 type MockReviewRepository struct {
-	CreateFunc           func(ctx context.Context, tx pgx.Tx, params sqlc.CreateReviewParams) (sqlc.ProductReview, error)
-	CheckPurchasedFunc   func(ctx context.Context, orderID, userID, productID int32) (bool, error)
-	CheckExistsFunc      func(ctx context.Context, userID, productID int32, orderUUID uuid.UUID) (bool, error)
-	RecalcRatingFunc     func(ctx context.Context, tx pgx.Tx, productID int32) error
-	GetByProductFunc     func(ctx context.Context, productID int32, rating *int32, hasMedia *bool, orderBy, sort string, limit, offset int32) ([]v1dto.ReviewRow, error)
-	CountByProductFunc   func(ctx context.Context, productID int32, rating *int32, hasMedia *bool) (int64, error)
-	GetRatingSummaryFunc func(ctx context.Context, productID int32) (sqlc.GetProductRatingSummaryRow, error)
-	GetByUserIDFunc      func(ctx context.Context, userID int32, limit, offset int32) ([]sqlc.GetReviewsByUserIDRow, error)
-	CountByUserIDFunc    func(ctx context.Context, userID int32) (int64, error)
-	GetByUUIDFunc        func(ctx context.Context, reviewUUID uuid.UUID) (sqlc.GetReviewByUUIDRow, error)
-	UpdateFunc           func(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReviewParams) (sqlc.ProductReview, error)
-	DeleteFunc           func(ctx context.Context, tx pgx.Tx, reviewID int32) error
-	HasReportedFunc      func(ctx context.Context, userID, reviewID int32) (bool, error)
-	CreateReportFunc     func(ctx context.Context, tx pgx.Tx, params sqlc.InsertReviewReportParams) error
-	CountReportsFunc     func(ctx context.Context, tx pgx.Tx, reviewID int32) (int64, error)
-	GetReportsByReviewIDFunc func(ctx context.Context, reviewID int32) ([]sqlc.GetReviewReportsByReviewIDRow, error)
+	CreateFunc                  func(ctx context.Context, tx pgx.Tx, params sqlc.CreateReviewParams) (sqlc.ProductReview, error)
+	CheckPurchasedFunc          func(ctx context.Context, orderID, userID, productID int32) (bool, error)
+	CheckExistsFunc             func(ctx context.Context, userID, productID int32, orderUUID uuid.UUID) (bool, error)
+	RecalcRatingFunc            func(ctx context.Context, tx pgx.Tx, productID int32) error
+	GetByProductFunc            func(ctx context.Context, productID int32, rating *int32, hasMedia *bool, orderBy, sort string, limit, offset int32) ([]v1dto.ReviewRow, error)
+	CountByProductFunc          func(ctx context.Context, productID int32, rating *int32, hasMedia *bool) (int64, error)
+	GetRatingSummaryFunc        func(ctx context.Context, productID int32) (sqlc.GetProductRatingSummaryRow, error)
+	GetByUserIDFunc             func(ctx context.Context, userID int32, limit, offset int32) ([]sqlc.GetReviewsByUserIDRow, error)
+	CountByUserIDFunc           func(ctx context.Context, userID int32) (int64, error)
+	GetByUUIDFunc               func(ctx context.Context, reviewUUID uuid.UUID) (sqlc.GetReviewByUUIDRow, error)
+	UpdateFunc                  func(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReviewParams) (sqlc.ProductReview, error)
+	DeleteFunc                  func(ctx context.Context, tx pgx.Tx, reviewID int32) error
+	HasReportedFunc             func(ctx context.Context, userID, reviewID int32) (bool, error)
+	CreateReportFunc            func(ctx context.Context, tx pgx.Tx, params sqlc.InsertReviewReportParams) error
+	CountReportsFunc            func(ctx context.Context, tx pgx.Tx, reviewID int32) (int64, error)
+	GetReportsByReviewIDFunc    func(ctx context.Context, reviewID int32) ([]sqlc.GetReviewReportsByReviewIDRow, error)
 	DeleteReportsByReviewIDFunc func(ctx context.Context, tx pgx.Tx, reviewID int32) error
-	HasHelpfulVoteFunc   func(ctx context.Context, userID, reviewID int32) (bool, error)
-	AddHelpfulVoteFunc   func(ctx context.Context, tx pgx.Tx, userID, reviewID int32) (int32, error)
-	RemoveHelpfulVoteFunc func(ctx context.Context, tx pgx.Tx, userID, reviewID int32) (int32, error)
-	AdminGetAllFunc      func(ctx context.Context, status *int16, rating *int32, productUUID, search *string, orderBy, sort string, limit, offset int32) ([]v1dto.AdminReviewRow, error)
-	AdminCountFunc       func(ctx context.Context, status *int16, rating *int32, productID *int32, search *string) (int64, error)
-	UpdateStatusFunc     func(ctx context.Context, tx pgx.Tx, reviewID int32, status int16) (sqlc.ProductReview, error)
-	ReplyFunc            func(ctx context.Context, tx pgx.Tx, reviewID int32, reply string) (sqlc.ProductReview, error)
+	HasHelpfulVoteFunc          func(ctx context.Context, userID, reviewID int32) (bool, error)
+	AddHelpfulVoteFunc          func(ctx context.Context, tx pgx.Tx, userID, reviewID int32) (int32, error)
+	RemoveHelpfulVoteFunc       func(ctx context.Context, tx pgx.Tx, userID, reviewID int32) (int32, error)
+	AdminGetAllFunc             func(ctx context.Context, status *int16, rating *int32, productUUID, search *string, orderBy, sort string, limit, offset int32) ([]v1dto.AdminReviewRow, error)
+	AdminCountFunc              func(ctx context.Context, status *int16, rating *int32, productID *int32, search *string) (int64, error)
+	UpdateStatusFunc            func(ctx context.Context, tx pgx.Tx, reviewID int32, status int16) (sqlc.ProductReview, error)
+	ReplyFunc                   func(ctx context.Context, tx pgx.Tx, reviewID int32, reply string) (sqlc.ProductReview, error)
 }
 
 func (m *MockReviewRepository) Create(ctx context.Context, tx pgx.Tx, params sqlc.CreateReviewParams) (sqlc.ProductReview, error) {
@@ -1127,20 +795,20 @@ func (m *MockAddressRepository) GetByUUID(ctx context.Context, userID int32, add
 // =========================================================================
 
 type MockNotificationRepository struct {
-	CreateFunc                     func(ctx context.Context, params sqlc.CreateNotificationParams) (sqlc.Notification, error)
-	CreateForAllUsersFunc          func(ctx context.Context, nType, title, body string, data []byte) error
-	GetByUserIDFunc                func(ctx context.Context, userID int32, limit, offset int32) ([]sqlc.Notification, error)
-	CountByUserIDFunc              func(ctx context.Context, userID int32) (int64, error)
-	CountUnreadByUserIDFunc        func(ctx context.Context, userID int32) (int64, error)
+	CreateFunc                        func(ctx context.Context, params sqlc.CreateNotificationParams) (sqlc.Notification, error)
+	CreateForAllUsersFunc             func(ctx context.Context, nType, title, body string, data []byte) error
+	GetByUserIDFunc                   func(ctx context.Context, userID int32, limit, offset int32) ([]sqlc.Notification, error)
+	CountByUserIDFunc                 func(ctx context.Context, userID int32) (int64, error)
+	CountUnreadByUserIDFunc           func(ctx context.Context, userID int32) (int64, error)
 	CountAdminUnreadNotificationsFunc func(ctx context.Context, userID int32) (int64, error)
-	MarkAsReadFunc                 func(ctx context.Context, notifUUID uuid.UUID, userID int32) (sqlc.Notification, error)
-	MarkAllAsReadFunc              func(ctx context.Context, userID int32) error
-	MarkAllAdminAsReadFunc         func(ctx context.Context, userID int32) error
-	DeleteFunc                     func(ctx context.Context, notifUUID uuid.UUID, userID int32) error
-	CreateForAdminsFunc            func(ctx context.Context, nType, title, body string, data []byte) error
-	GetAdminNotificationsFunc      func(ctx context.Context, userID int32, nType *string, isRead *bool, limit, offset int32) ([]sqlc.Notification, error)
-	CountAdminNotificationsFunc    func(ctx context.Context, userID int32, nType *string, isRead *bool) (int64, error)
-	DeleteOldReadNotificationsFunc func(ctx context.Context, cutoff time.Time) (int64, error)
+	MarkAsReadFunc                    func(ctx context.Context, notifUUID uuid.UUID, userID int32) (sqlc.Notification, error)
+	MarkAllAsReadFunc                 func(ctx context.Context, userID int32) error
+	MarkAllAdminAsReadFunc            func(ctx context.Context, userID int32) error
+	DeleteFunc                        func(ctx context.Context, notifUUID uuid.UUID, userID int32) error
+	CreateForAdminsFunc               func(ctx context.Context, nType, title, body string, data []byte) error
+	GetAdminNotificationsFunc         func(ctx context.Context, userID int32, nType *string, isRead *bool, limit, offset int32) ([]sqlc.Notification, error)
+	CountAdminNotificationsFunc       func(ctx context.Context, userID int32, nType *string, isRead *bool) (int64, error)
+	DeleteOldReadNotificationsFunc    func(ctx context.Context, cutoff time.Time) (int64, error)
 }
 
 func (m *MockNotificationRepository) Create(ctx context.Context, params sqlc.CreateNotificationParams) (sqlc.Notification, error) {
@@ -1242,26 +910,26 @@ func (m *MockNotificationRepository) DeleteOldReadNotifications(ctx context.Cont
 }
 
 type MockAnalyticsRepository struct {
-	GetOverviewFunc                 func(ctx context.Context) (sqlc.GetOverviewStatsRow, error)
-	GetOverviewCustomFunc           func(ctx context.Context, fromDate, toDate, prevFromDate time.Time) (sqlc.GetOverviewStatsCustomRow, error)
-	GetRevenueDailyFunc             func(ctx context.Context, days int32) ([]sqlc.GetRevenueDailyChartRow, error)
-	GetRevenueDailyCustomFunc       func(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetRevenueDailyCustomRow, error)
-	GetRevenueMonthlyFunc           func(ctx context.Context, months int32) ([]sqlc.GetRevenueMonthlyChartRow, error)
-	GetRecentOrdersFunc             func(ctx context.Context, limit int32) ([]sqlc.GetRecentOrdersRow, error)
-	GetTopSellingProductsFunc       func(ctx context.Context, days, limit int32) ([]sqlc.GetTopSellingProductsRow, error)
-	GetTopSellingProductsCustomFunc func(ctx context.Context, fromDate, toDate time.Time, limit int32) ([]sqlc.GetTopSellingProductsCustomRow, error)
-	GetOrderStatusDistributionFunc func(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetOrderStatusDistributionRow, error)
-	GetLowStockProductsFunc         func(ctx context.Context, threshold, limit int32) ([]sqlc.GetLowStockProductsRow, error)
-	GetPaymentMethodBreakdownFunc   func(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetPaymentMethodBreakdownRow, error)
+	GetOverviewFunc                      func(ctx context.Context) (sqlc.GetOverviewStatsRow, error)
+	GetOverviewCustomFunc                func(ctx context.Context, fromDate, toDate, prevFromDate time.Time) (sqlc.GetOverviewStatsCustomRow, error)
+	GetRevenueDailyFunc                  func(ctx context.Context, days int32) ([]sqlc.GetRevenueDailyChartRow, error)
+	GetRevenueDailyCustomFunc            func(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetRevenueDailyCustomRow, error)
+	GetRevenueMonthlyFunc                func(ctx context.Context, months int32) ([]sqlc.GetRevenueMonthlyChartRow, error)
+	GetRecentOrdersFunc                  func(ctx context.Context, limit int32) ([]sqlc.GetRecentOrdersRow, error)
+	GetTopSellingProductsFunc            func(ctx context.Context, days, limit int32) ([]sqlc.GetTopSellingProductsRow, error)
+	GetTopSellingProductsCustomFunc      func(ctx context.Context, fromDate, toDate time.Time, limit int32) ([]sqlc.GetTopSellingProductsCustomRow, error)
+	GetOrderStatusDistributionFunc       func(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetOrderStatusDistributionRow, error)
+	GetLowStockProductsFunc              func(ctx context.Context, threshold, limit int32) ([]sqlc.GetLowStockProductsRow, error)
+	GetLowStockProductsCountFunc         func(ctx context.Context, threshold int32) (int64, error)
+	GetPaymentMethodBreakdownFunc        func(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetPaymentMethodBreakdownRow, error)
 	GetCartAbandonmentAndFunnelStatsFunc func(ctx context.Context, from, to time.Time) (sqlc.GetCartAbandonmentAndFunnelStatsRow, error)
-	GetReturnAnalyticsSummaryFunc func(ctx context.Context, from, to time.Time) (sqlc.GetReturnAnalyticsSummaryRow, error)
-	GetReturnReasonsBreakdownFunc func(ctx context.Context, from, to time.Time, limit int32) ([]sqlc.GetReturnReasonsBreakdownRow, error)
-	GetTopReturnedProductsFunc func(ctx context.Context, from, to time.Time, limit int32) ([]sqlc.GetTopReturnedProductsRow, error)
-	GetCategorySalesBreakdownFunc func(ctx context.Context, from, to time.Time) ([]sqlc.GetCategorySalesBreakdownRow, error)
-	GetCouponPerformanceSummaryFunc func(ctx context.Context, from, to time.Time) (sqlc.GetCouponPerformanceSummaryRow, error)
-	GetCouponCampaignBreakdownFunc func(ctx context.Context, from, to time.Time, limit int32) ([]sqlc.GetCouponCampaignBreakdownRow, error)
+	GetReturnAnalyticsSummaryFunc        func(ctx context.Context, from, to time.Time) (sqlc.GetReturnAnalyticsSummaryRow, error)
+	GetReturnReasonsBreakdownFunc        func(ctx context.Context, from, to time.Time, limit int32) ([]sqlc.GetReturnReasonsBreakdownRow, error)
+	GetTopReturnedProductsFunc           func(ctx context.Context, from, to time.Time, limit int32) ([]sqlc.GetTopReturnedProductsRow, error)
+	GetCategorySalesBreakdownFunc        func(ctx context.Context, from, to time.Time) ([]sqlc.GetCategorySalesBreakdownRow, error)
+	GetCouponPerformanceSummaryFunc      func(ctx context.Context, from, to time.Time) (sqlc.GetCouponPerformanceSummaryRow, error)
+	GetCouponCampaignBreakdownFunc       func(ctx context.Context, from, to time.Time, limit int32) ([]sqlc.GetCouponCampaignBreakdownRow, error)
 }
-
 
 func (m *MockAnalyticsRepository) GetOverview(ctx context.Context) (sqlc.GetOverviewStatsRow, error) {
 	if m.GetOverviewFunc != nil {
@@ -1333,6 +1001,13 @@ func (m *MockAnalyticsRepository) GetLowStockProducts(ctx context.Context, thres
 	return nil, nil
 }
 
+func (m *MockAnalyticsRepository) GetLowStockProductsCount(ctx context.Context, threshold int32) (int64, error) {
+	if m.GetLowStockProductsCountFunc != nil {
+		return m.GetLowStockProductsCountFunc(ctx, threshold)
+	}
+	return 0, nil
+}
+
 func (m *MockAnalyticsRepository) GetPaymentMethodBreakdown(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetPaymentMethodBreakdownRow, error) {
 	if m.GetPaymentMethodBreakdownFunc != nil {
 		return m.GetPaymentMethodBreakdownFunc(ctx, fromDate, toDate)
@@ -1393,20 +1068,20 @@ func (m *MockAnalyticsRepository) GetCouponCampaignBreakdown(ctx context.Context
 // MockChatRepository
 // =========================================================================
 type MockChatRepository struct {
-	CreateConversationFunc            func(ctx context.Context, userID int32) (sqlc.ChatConversation, error)
-	GetConversationByUUIDFunc         func(ctx context.Context, conversationUUID uuid.UUID) (sqlc.ChatConversation, error)
-	GetConversationByIDFunc           func(ctx context.Context, conversationID int32) (sqlc.ChatConversation, error)
-	GetConversationByUserIDFunc       func(ctx context.Context, userID int32) (sqlc.ChatConversation, error)
-	UpdateConversationStatusFunc      func(ctx context.Context, conversationID int32, status string) (sqlc.ChatConversation, error)
-	UpdateLastMessageAtFunc           func(ctx context.Context, conversationID int32) error
-	ListConversationsFunc             func(ctx context.Context, params sqlc.ListConversationsParams) ([]sqlc.ListConversationsRow, error)
-	CountConversationsFunc            func(ctx context.Context, params sqlc.CountConversationsParams) (int64, error)
-	CreateMessageFunc                 func(ctx context.Context, params sqlc.CreateMessageParams) (sqlc.ChatMessage, error)
-	ListMessagesFunc                  func(ctx context.Context, params sqlc.ListMessagesParams) ([]sqlc.ChatMessage, error)
-	ListMessagesCursorFunc            func(ctx context.Context, params sqlc.ListMessagesCursorParams) ([]sqlc.ChatMessage, error)
-	CountMessagesByConversationIDFunc func(ctx context.Context, conversationID int32) (int64, error)
-	MarkMessagesReadFunc              func(ctx context.Context, conversationID int32, readerID int32) error
-	CountUnreadMessagesFunc           func(ctx context.Context, conversationID int32, readerID int32) (int64, error)
+	CreateConversationFunc             func(ctx context.Context, userID int32) (sqlc.ChatConversation, error)
+	GetConversationByUUIDFunc          func(ctx context.Context, conversationUUID uuid.UUID) (sqlc.ChatConversation, error)
+	GetConversationByIDFunc            func(ctx context.Context, conversationID int32) (sqlc.ChatConversation, error)
+	GetConversationByUserIDFunc        func(ctx context.Context, userID int32) (sqlc.ChatConversation, error)
+	UpdateConversationStatusFunc       func(ctx context.Context, conversationID int32, status string) (sqlc.ChatConversation, error)
+	UpdateLastMessageAtFunc            func(ctx context.Context, conversationID int32) error
+	ListConversationsFunc              func(ctx context.Context, params sqlc.ListConversationsParams) ([]sqlc.ListConversationsRow, error)
+	CountConversationsFunc             func(ctx context.Context, params sqlc.CountConversationsParams) (int64, error)
+	CreateMessageFunc                  func(ctx context.Context, params sqlc.CreateMessageParams) (sqlc.ChatMessage, error)
+	ListMessagesFunc                   func(ctx context.Context, params sqlc.ListMessagesParams) ([]sqlc.ChatMessage, error)
+	ListMessagesCursorFunc             func(ctx context.Context, params sqlc.ListMessagesCursorParams) ([]sqlc.ChatMessage, error)
+	CountMessagesByConversationIDFunc  func(ctx context.Context, conversationID int32) (int64, error)
+	MarkMessagesReadFunc               func(ctx context.Context, conversationID int32, readerID int32) error
+	CountUnreadMessagesFunc            func(ctx context.Context, conversationID int32, readerID int32) (int64, error)
 	GetTotalUnreadMessagesForUserFunc  func(ctx context.Context, userID int32) (int64, error)
 	GetTotalUnreadMessagesForAdminFunc func(ctx context.Context) (int64, error)
 	GetMessageByUUIDFunc               func(ctx context.Context, messageUUID uuid.UUID) (sqlc.ChatMessage, error)
@@ -1587,91 +1262,3 @@ func (m *MockOutboxRepository) MarkFailed(ctx context.Context, eventID int64, la
 	}
 	return nil
 }
-
-// =========================================================================
-// 16. MockSagaRepository
-// =========================================================================
-type MockSagaRepository struct {
-	StartFunc                func(ctx context.Context, tx pgx.Tx, params sqlc.StartSagaParams) (sqlc.OrderSaga, error)
-	ConfirmFunc              func(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID) (bool, error)
-	ClaimForCompensationFunc func(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID, failureReason *string) (bool, error)
-	MarkFailedFunc           func(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID, failureReason *string) (bool, error)
-	ScheduleRetryFunc        func(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID, failureReason *string) (bool, error)
-	ClaimStaleFunc           func(ctx context.Context, tx pgx.Tx, limit int32) ([]sqlc.OrderSaga, error)
-	UpdateStepFunc           func(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID, lastStep *string, snapshot []byte) (bool, error)
-	GetByOrderUUIDFunc       func(ctx context.Context, orderUUID uuid.UUID) (sqlc.OrderSaga, error)
-	GetByIdempotencyKeyFunc  func(ctx context.Context, userUUID uuid.UUID, idempotencyKey string) (sqlc.OrderSaga, error)
-}
-
-func (m *MockSagaRepository) Start(ctx context.Context, tx pgx.Tx, params sqlc.StartSagaParams) (sqlc.OrderSaga, error) {
-	if m.StartFunc != nil {
-		return m.StartFunc(ctx, tx, params)
-	}
-	return sqlc.OrderSaga{}, nil
-}
-
-func (m *MockSagaRepository) Confirm(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID) (bool, error) {
-	if m.ConfirmFunc != nil {
-		return m.ConfirmFunc(ctx, tx, orderUUID)
-	}
-	return true, nil
-}
-
-func (m *MockSagaRepository) ClaimForCompensation(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID, failureReason *string) (bool, error) {
-	if m.ClaimForCompensationFunc != nil {
-		return m.ClaimForCompensationFunc(ctx, tx, orderUUID, failureReason)
-	}
-	return true, nil
-}
-
-func (m *MockSagaRepository) MarkFailed(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID, failureReason *string) (bool, error) {
-	if m.MarkFailedFunc != nil {
-		return m.MarkFailedFunc(ctx, tx, orderUUID, failureReason)
-	}
-	return true, nil
-}
-
-func (m *MockSagaRepository) ScheduleRetry(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID, failureReason *string) (bool, error) {
-	if m.ScheduleRetryFunc != nil {
-		return m.ScheduleRetryFunc(ctx, tx, orderUUID, failureReason)
-	}
-	return true, nil
-}
-
-func (m *MockSagaRepository) ClaimStale(ctx context.Context, tx pgx.Tx, limit int32) ([]sqlc.OrderSaga, error) {
-	if m.ClaimStaleFunc != nil {
-		return m.ClaimStaleFunc(ctx, tx, limit)
-	}
-	return nil, nil
-}
-
-func (m *MockSagaRepository) UpdateStep(ctx context.Context, tx pgx.Tx, orderUUID uuid.UUID, lastStep *string, snapshot []byte) (bool, error) {
-	if m.UpdateStepFunc != nil {
-		return m.UpdateStepFunc(ctx, tx, orderUUID, lastStep, snapshot)
-	}
-	return true, nil
-}
-
-func (m *MockSagaRepository) GetByOrderUUID(ctx context.Context, orderUUID uuid.UUID) (sqlc.OrderSaga, error) {
-	if m.GetByOrderUUIDFunc != nil {
-		return m.GetByOrderUUIDFunc(ctx, orderUUID)
-	}
-	return sqlc.OrderSaga{}, nil
-}
-
-func (m *MockSagaRepository) GetByIdempotencyKey(ctx context.Context, userUUID uuid.UUID, idempotencyKey string) (sqlc.OrderSaga, error) {
-	if m.GetByIdempotencyKeyFunc != nil {
-		return m.GetByIdempotencyKeyFunc(ctx, userUUID, idempotencyKey)
-	}
-	return sqlc.OrderSaga{}, nil
-}
-
-
-
-
-
-
-
-
-
-

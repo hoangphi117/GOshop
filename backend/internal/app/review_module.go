@@ -19,11 +19,10 @@ func NewReviewModule(ctx *ModuleContext, rabbitmqService rabbitmq.RabbitMQServic
 
 	// Initialize repository
 	reviewRepo := repository.NewSqlReviewRepository(ctx.DB)
-	productRepo := repository.NewSqlProductRepository(ctx.DB)
 	userReader := client.NewIdentityUserReader(ctx.IdentityClient)
 
-	// Initialize service
-	reviewService := v1service.NewReviewServiceWithCatalog(reviewRepo, productRepo, orderReader, rabbitmqService, ctx.Redis, ctx.CatalogClient, userReader)
+	// Initialize service with CatalogClient (cross-domain gRPC)
+	reviewService := v1service.NewReviewServiceWithCatalog(reviewRepo, nil, orderReader, rabbitmqService, ctx.Redis, ctx.CatalogClient, userReader)
 
 	// Initialize handler
 	reviewHandler := v1handler.NewReviewHandler(reviewService)

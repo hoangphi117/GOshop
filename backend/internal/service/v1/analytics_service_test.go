@@ -516,6 +516,10 @@ func TestAnalyticsService_GetLowStockProducts(t *testing.T) {
 					},
 				}, nil
 			},
+			GetLowStockProductsCountFunc: func(ctx context.Context, threshold int32) (int64, error) {
+				assert.Equal(t, int32(5), threshold)
+				return 7, nil
+			},
 		}
 
 		svc := v1service.NewAnalyticsService(mockRepo)
@@ -523,7 +527,7 @@ func TestAnalyticsService_GetLowStockProducts(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, int32(5), res.Threshold)
-		assert.Equal(t, int64(2), res.TotalLow)
+		assert.Equal(t, int64(7), res.TotalLow)
 		require.Len(t, res.Items, 2)
 
 		// Item 1: Stock 0 -> critical
@@ -1066,7 +1070,6 @@ func TestAnalyticsService_GetCouponPerformance(t *testing.T) {
 		assert.Contains(t, err.Error(), "breakdown db error")
 	})
 }
-
 
 
 

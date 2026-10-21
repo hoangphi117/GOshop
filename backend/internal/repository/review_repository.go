@@ -189,8 +189,8 @@ func (rr *SqlReviewRepository) UpdateStatus(ctx context.Context, tx pgx.Tx, revi
 
 func (rr *SqlReviewRepository) AdminGetAll(ctx context.Context, status *int16, rating *int32, productUUID, search *string, orderBy, sort string, limit, offset int32) ([]v1dto.AdminReviewRow, error) {
 	query := `SELECT 
-				r.review_id, r.review_uuid, 
-				p.product_uuid, p.product_name,
+				r.review_id, r.review_uuid,
+				r.review_product_id,
 				r.review_order_uuid AS order_uuid,
 				r.review_user_name AS reviewer_name, r.review_user_email AS reviewer_email,
 				r.review_rating, r.review_title, r.review_comment,
@@ -199,7 +199,6 @@ func (rr *SqlReviewRepository) AdminGetAll(ctx context.Context, status *int16, r
 				r.review_created_at, r.review_updated_at, r.review_helpful_count,
 				(SELECT COUNT(*)::bigint FROM product_review_reports prr WHERE prr.review_id = r.review_id) AS report_count
 			FROM product_reviews r
-			JOIN products p ON p.product_id = r.review_product_id
 			WHERE 1=1`
 	args := []any{}
 	argIdx := 1
@@ -213,11 +212,7 @@ func (rr *SqlReviewRepository) AdminGetAll(ctx context.Context, status *int16, r
 		args = append(args, *rating)
 		argIdx++
 	}
-	if productUUID != nil {
-		query += fmt.Sprintf(" AND p.product_uuid = $%d", argIdx)
-		args = append(args, *productUUID)
-		argIdx++
-	}
+	// productUUID filter: skip — cannot join shopping_catalog here. Caller handles via catalog gRPC.
 	if search != nil && *search != "" {
 		query += fmt.Sprintf(" AND (unaccent(r.review_title) ILIKE '%%' || unaccent($%d) || '%%' OR unaccent(r.review_comment) ILIKE '%%' || unaccent($%d) || '%%')", argIdx, argIdx)
 		args = append(args, *search)
@@ -247,7 +242,7 @@ func (rr *SqlReviewRepository) AdminGetAll(ctx context.Context, status *int16, r
 		var r v1dto.AdminReviewRow
 		if err := rows.Scan(
 			&r.ReviewID, &r.ReviewUUID,
-			&r.ProductUUID, &r.ProductName,
+			&r.ProductID,
 			&r.OrderUUID,
 			&r.ReviewerName, &r.ReviewerEmail,
 			&r.ReviewRating, &r.ReviewTitle, &r.ReviewComment,
@@ -255,7 +250,7 @@ func (rr *SqlReviewRepository) AdminGetAll(ctx context.Context, status *int16, r
 			&r.ReviewStatus,
 			&r.ReviewReply, &r.ReviewReplyAt,
 			&r.ReviewCreatedAt, &r.ReviewUpdatedAt, &r.ReviewHelpfulCount,
-			&r.ReportCount, // Scan thêm report_count
+			&r.ReportCount,
 		); err != nil {
 			return nil, err
 		}
@@ -263,6 +258,7 @@ func (rr *SqlReviewRepository) AdminGetAll(ctx context.Context, status *int16, r
 	}
 	return reviews, nil
 }
+
 
 func (rr *SqlReviewRepository) AdminCount(ctx context.Context, status *int16, rating *int32, productID *int32, search *string) (int64, error) {
 	query := `SELECT COUNT(*) FROM product_reviews r WHERE 1=1`

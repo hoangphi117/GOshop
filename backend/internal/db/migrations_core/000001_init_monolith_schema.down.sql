@@ -1,0 +1,25 @@
+-- Revert squashed monolith schema
+DROP TABLE IF EXISTS analytics_order_returns_projection CASCADE;
+DROP TABLE IF EXISTS analytics_order_items_projection CASCADE;
+DROP TABLE IF EXISTS analytics_orders_projection CASCADE;
+DROP TABLE IF EXISTS outbox_events CASCADE;
+DROP TABLE IF EXISTS chat_messages CASCADE;
+DROP TABLE IF EXISTS chat_conversations CASCADE;
+DROP TABLE IF EXISTS stock_movements CASCADE;
+DROP TABLE IF EXISTS banners CASCADE;
+DROP TABLE IF EXISTS notifications CASCADE;
+DROP TABLE IF EXISTS product_review_reports CASCADE;
+DROP TABLE IF EXISTS product_review_helpful_votes CASCADE;
+DROP TABLE IF EXISTS product_reviews CASCADE;
+DROP TABLE IF EXISTS user_addresses CASCADE;
+DROP TABLE IF EXISTS webhook_events CASCADE;
+DROP TABLE IF EXISTS payment_transactions CASCADE;
+DROP TABLE IF EXISTS coupon_usages CASCADE;
+DROP TABLE IF EXISTS coupons CASCADE;
+DROP TABLE IF EXISTS cart_items CASCADE;
+DROP TABLE IF EXISTS carts CASCADE;
+DROP TABLE IF EXISTS products CASCADE;
+DROP TABLE IF EXISTS categories CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+DROP EXTENSION IF EXISTS "unaccent";
+DROP EXTENSION IF EXISTS "pgcrypto";

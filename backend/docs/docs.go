@@ -362,7 +362,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/analytics/cart-funnel": {
+        "/api/v1/admin/analytics/cart-funnel": {
             "get": {
                 "security": [
                     {
@@ -413,7 +413,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/analytics/category-sales": {
+        "/api/v1/admin/analytics/category-sales": {
             "get": {
                 "security": [
                     {
@@ -495,7 +495,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/analytics/coupons": {
+        "/api/v1/admin/analytics/coupons": {
             "get": {
                 "security": [
                     {
@@ -584,7 +584,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/analytics/low-stock-alerts": {
+        "/api/v1/admin/analytics/low-stock-alerts": {
             "get": {
                 "security": [
                     {
@@ -664,7 +664,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/analytics/order-status-distribution": {
+        "/api/v1/admin/analytics/order-status-distribution": {
             "get": {
                 "security": [
                     {
@@ -749,7 +749,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/analytics/overview": {
+        "/api/v1/admin/analytics/overview": {
             "get": {
                 "security": [
                     {
@@ -828,7 +828,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/analytics/payment-methods": {
+        "/api/v1/admin/analytics/payment-methods": {
             "get": {
                 "security": [
                     {
@@ -913,7 +913,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/analytics/recent-orders": {
+        "/api/v1/admin/analytics/recent-orders": {
             "get": {
                 "security": [
                     {
@@ -977,7 +977,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/analytics/returns": {
+        "/api/v1/admin/analytics/returns": {
             "get": {
                 "security": [
                     {
@@ -1059,7 +1059,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/analytics/revenue-chart": {
+        "/api/v1/admin/analytics/revenue-chart": {
             "get": {
                 "security": [
                     {
@@ -1153,7 +1153,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/analytics/top-products": {
+        "/api/v1/admin/analytics/top-products": {
             "get": {
                 "security": [
                     {

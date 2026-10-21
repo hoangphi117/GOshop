@@ -46,8 +46,9 @@ type ReviewDTO struct {
 type AdminReviewRow struct {
 	ReviewID           int32
 	ReviewUUID         uuid.UUID
-	ProductUUID        uuid.UUID
-	ProductName        string
+	ProductID          int32     // from review_product_id; used to batch-fetch from catalog
+	ProductUUID        uuid.UUID // enriched by service layer via catalog gRPC
+	ProductName        string    // enriched by service layer via catalog gRPC
 	OrderUUID          uuid.UUID
 	ReviewerName       string
 	ReviewerEmail      string

@@ -34,7 +34,7 @@ abandoned AS (
     FROM active_carts ac
     WHERE ac.cart_updated_at < NOW() - INTERVAL '24 hours'
       AND NOT EXISTS (
-          SELECT 1 FROM orders o
+          SELECT 1 FROM analytics_orders_projection o
           WHERE o.order_user_id = ac.cart_user_id
             AND o.order_created_at >= ac.cart_updated_at
       )
@@ -43,7 +43,7 @@ order_funnel AS (
     SELECT
         COUNT(order_id)::bigint AS orders_created,
         COUNT(order_id) FILTER (WHERE order_payment_status IN (2, 3))::bigint AS orders_paid
-    FROM orders
+    FROM analytics_orders_projection
     WHERE order_created_at >= $1::timestamptz 
       AND order_created_at <= $2::timestamptz
 )
@@ -93,8 +93,8 @@ SELECT
     COUNT(DISTINCT o.order_id)::bigint AS order_count
 FROM categories c
 JOIN products p ON p.product_category_id = c.category_id
-JOIN order_items oi ON oi.order_item_product_id = p.product_id
-JOIN orders o ON o.order_id = oi.order_item_order_id
+JOIN analytics_order_items_projection oi ON oi.order_item_product_id = p.product_id
+JOIN analytics_orders_projection o ON o.order_id = oi.order_item_order_id
 WHERE o.order_payment_status IN (2, 3)
   AND o.order_created_at >= $1::timestamptz
   AND o.order_created_at <= $2::timestamptz
@@ -158,7 +158,7 @@ SELECT
     COALESCE(SUM(o.order_discount_amount), 0)::numeric(14,2) AS total_discount_amount,
     COALESCE(SUM(o.order_total_amount - o.order_refunded_amount), 0)::numeric(14,2) AS total_revenue_generated
 FROM coupons c
-JOIN orders o ON o.order_coupon_id = c.coupon_id
+JOIN analytics_orders_projection o ON o.order_coupon_id = c.coupon_id
 WHERE o.order_payment_status IN (2, 3)
   AND o.order_created_at >= $1::timestamptz
   AND o.order_created_at <= $2::timestamptz
@@ -220,7 +220,7 @@ SELECT
     COUNT(o.order_id)::bigint AS total_orders_with_coupon,
     COALESCE(SUM(o.order_discount_amount), 0)::numeric(14,2) AS total_discount_amount,
     COALESCE(SUM(o.order_total_amount - o.order_refunded_amount), 0)::numeric(14,2) AS total_revenue_generated
-FROM orders o
+FROM analytics_orders_projection o
 WHERE o.order_coupon_id IS NOT NULL
   AND o.order_payment_status IN (2, 3)
   AND o.order_created_at >= $1::timestamptz
@@ -308,12 +308,26 @@ func (q *Queries) GetLowStockProducts(ctx context.Context, arg GetLowStockProduc
 	return items, nil
 }
 
+const getLowStockProductsCount = `-- name: GetLowStockProductsCount :one
+SELECT COUNT(*)::bigint
+FROM products p
+WHERE p.product_stock <= $1::int
+  AND p.product_status = 1
+`
+
+func (q *Queries) GetLowStockProductsCount(ctx context.Context, threshold int32) (int64, error) {
+	row := q.db.QueryRow(ctx, getLowStockProductsCount, threshold)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const getOrderStatusDistribution = `-- name: GetOrderStatusDistribution :many
 SELECT 
     order_status,
     COUNT(*)::bigint AS count,
     COALESCE(SUM(order_total_amount), 0)::numeric(14,2) AS total_amount
-FROM orders
+FROM analytics_orders_projection
 WHERE order_created_at >= $1
   AND order_created_at <= $2
 GROUP BY order_status
@@ -357,7 +371,7 @@ WITH paid_orders AS (
         o.order_id,
         (o.order_total_amount - o.order_refunded_amount)::numeric(14,2) AS net_revenue,
         COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at) AS paid_time
-    FROM orders o
+    FROM analytics_orders_projection o
     WHERE o.order_payment_status IN (2, 3) -- Paid or Partially Refunded
       AND COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at) >= NOW() - INTERVAL '60 days'
 ),
@@ -379,7 +393,7 @@ order_stats AS (
 ),
 pending_orders AS (
     SELECT COUNT(order_id)::bigint AS pending_count
-    FROM orders
+    FROM analytics_orders_projection
     WHERE order_status = 1
 ),
 customer_stats AS (
@@ -440,7 +454,7 @@ WITH paid_orders AS (
         o.order_id,
         (o.order_total_amount - o.order_refunded_amount)::numeric(14,2) AS net_revenue,
         COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at)::timestamptz AS paid_time
-    FROM orders o
+    FROM analytics_orders_projection o
     WHERE o.order_payment_status IN (2, 3)
       AND COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at) >= $1::timestamptz
       AND COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at) <= $2::timestamptz
@@ -463,7 +477,7 @@ order_stats AS (
 ),
 pending_orders AS (
     SELECT COUNT(order_id)::bigint AS pending_count
-    FROM orders
+    FROM analytics_orders_projection
     WHERE order_status = 1
 ),
 customer_stats AS (
@@ -529,7 +543,7 @@ SELECT
     order_payment_method,
     COUNT(*)::bigint AS order_count,
     COALESCE(SUM(order_total_amount - order_refunded_amount), 0)::numeric(14,2) AS net_revenue
-FROM orders
+FROM analytics_orders_projection
 WHERE order_payment_status IN (2, 3)
   AND order_created_at >= $1
   AND order_created_at <= $2
@@ -582,7 +596,7 @@ SELECT
     o.order_user_uuid AS user_uuid,
     o.order_customer_name AS user_fullname,
     o.order_customer_email AS user_email
-FROM orders o
+FROM analytics_orders_projection o
 ORDER BY o.order_created_at DESC
 LIMIT $1::int
 `
@@ -641,7 +655,7 @@ WITH range_returns AS (
     SELECT 
         r.return_id,
         r.return_order_id
-    FROM order_returns r
+    FROM analytics_order_returns_projection r
     WHERE r.return_created_at >= $1::timestamptz
       AND r.return_created_at <= $2::timestamptz
 ),
@@ -649,7 +663,7 @@ range_orders AS (
     SELECT
         COUNT(o.order_id)::bigint AS total_paid_orders,
         COALESCE(SUM(o.order_refunded_amount), 0)::numeric(14,2) AS total_refunded_amount
-    FROM orders o
+    FROM analytics_orders_projection o
     WHERE o.order_payment_status IN (2, 3, 4)
       AND o.order_created_at >= $1::timestamptz
       AND o.order_created_at <= $2::timestamptz
@@ -690,7 +704,7 @@ const getReturnReasonsBreakdown = `-- name: GetReturnReasonsBreakdown :many
 SELECT
     r.return_reason,
     COUNT(r.return_id)::bigint AS reason_count
-FROM order_returns r
+FROM analytics_order_returns_projection r
 WHERE r.return_created_at >= $1::timestamptz
   AND r.return_created_at <= $2::timestamptz
 GROUP BY r.return_reason
@@ -739,7 +753,7 @@ FROM generate_series(
     date_trunc('day', NOW()),
     INTERVAL '1 day'
 ) AS gs(day)
-LEFT JOIN orders o
+LEFT JOIN analytics_orders_projection o
     ON o.order_payment_status IN (2, 3)
    AND date_trunc('day', COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at)) = gs.day
 GROUP BY gs.day
@@ -782,7 +796,7 @@ FROM generate_series(
     date_trunc('day', $2::timestamptz),
     INTERVAL '1 day'
 ) AS gs(day)
-LEFT JOIN orders o
+LEFT JOIN analytics_orders_projection o
     ON o.order_payment_status IN (2, 3)
    AND date_trunc('day', COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at)) = gs.day
 GROUP BY gs.day
@@ -830,7 +844,7 @@ FROM generate_series(
     date_trunc('month', NOW()),
     INTERVAL '1 month'
 ) AS gs(month)
-LEFT JOIN orders o
+LEFT JOIN analytics_orders_projection o
     ON o.order_payment_status IN (2, 3)
    AND date_trunc('month', COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at)) = gs.month
 GROUP BY gs.month
@@ -874,8 +888,8 @@ SELECT
     COUNT(DISTINCT r.return_id)::bigint AS return_case_count,
     COALESCE(SUM(oi.order_item_quantity), 0)::bigint AS returned_units_count,
     COALESCE(SUM(oi.order_item_subtotal), 0)::numeric(14,2) AS returned_value
-FROM order_returns r
-JOIN order_items oi ON oi.order_item_order_id = r.return_order_id
+FROM analytics_order_returns_projection r
+JOIN analytics_order_items_projection oi ON oi.order_item_order_id = r.return_order_id
 JOIN products p ON p.product_id = oi.order_item_product_id
 WHERE r.return_created_at >= $1::timestamptz
   AND r.return_created_at <= $2::timestamptz
@@ -944,8 +958,8 @@ SELECT
     c.category_name,
     COALESCE(SUM(oi.order_item_quantity), 0)::bigint AS total_units_sold,
     COALESCE(SUM(oi.order_item_subtotal), 0)::numeric(14,2) AS total_sales_amount
-FROM order_items oi
-JOIN orders o ON o.order_id = oi.order_item_order_id
+FROM analytics_order_items_projection oi
+JOIN analytics_orders_projection o ON o.order_id = oi.order_item_order_id
 JOIN products p ON p.product_id = oi.order_item_product_id
 JOIN categories c ON c.category_id = p.product_category_id
 WHERE o.order_payment_status IN (2, 3)
@@ -1014,8 +1028,8 @@ SELECT
     c.category_name,
     COALESCE(SUM(oi.order_item_quantity), 0)::bigint AS total_units_sold,
     COALESCE(SUM(oi.order_item_subtotal), 0)::numeric(14,2) AS total_sales_amount
-FROM order_items oi
-JOIN orders o ON o.order_id = oi.order_item_order_id
+FROM analytics_order_items_projection oi
+JOIN analytics_orders_projection o ON o.order_id = oi.order_item_order_id
 JOIN products p ON p.product_id = oi.order_item_product_id
 JOIN categories c ON c.category_id = p.product_category_id
 WHERE o.order_payment_status IN (2, 3)

@@ -2,11 +2,11 @@ package routes
 
 import (
 	_ "goshop/docs"
-	"goshop/pkg/middleware"
 	v1routes "goshop/internal/routes/v1"
 	"goshop/internal/utils"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
+	"goshop/pkg/middleware"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -208,7 +208,7 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 	}
 
 	// API Gateway reverse proxy for Catalog microservice endpoints
-	catalogURL := utils.GetEnv("CATALOG_SERVICE_URL", "")
+	catalogURL := utils.GetEnv("CATALOG_SERVICE_URL", "http://localhost:8086")
 	isCatalogProxied := false
 	var catalogProxyHandler func(ctx *gin.Context)
 	if catalogURL != "" {
@@ -272,6 +272,40 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 		}
 	}
 
+	// API Gateway reverse proxy for Order microservice endpoints
+	orderURL := utils.GetEnv("ORDER_SERVICE_URL", "")
+	if orderURL != "" {
+		if parsedOrderURL, err := url.Parse(orderURL); err == nil && parsedOrderURL.Scheme != "" {
+			orderProxy := httputil.NewSingleHostReverseProxy(parsedOrderURL)
+			transport := http.DefaultTransport.(*http.Transport).Clone()
+			transport.DisableCompression = true
+			orderProxy.Transport = transport
+
+			orderProxy.ModifyResponse = func(resp *http.Response) error {
+				resp.Header.Del("Access-Control-Allow-Origin")
+				resp.Header.Del("Access-Control-Allow-Credentials")
+				resp.Header.Del("Access-Control-Allow-Methods")
+				resp.Header.Del("Access-Control-Allow-Headers")
+				resp.Header.Del("Access-Control-Max-Age")
+				return nil
+			}
+			orderProxyHandler := func(ctx *gin.Context) {
+				ctx.Request.Host = parsedOrderURL.Host
+				ctx.Request.Header.Del("Accept-Encoding")
+				orderProxy.ServeHTTP(ctx.Writer, ctx.Request)
+			}
+
+			v1api.Any("/orders", orderProxyHandler)
+			v1api.Any("/orders/*any", orderProxyHandler)
+			v1api.Any("/admin/orders", orderProxyHandler)
+			v1api.Any("/admin/orders/*any", orderProxyHandler)
+			v1api.Any("/admin/returns", orderProxyHandler)
+			v1api.Any("/admin/returns/*any", orderProxyHandler)
+			v1api.Any("/shipping", orderProxyHandler)
+			v1api.Any("/shipping/*any", orderProxyHandler)
+		}
+	}
+
 	public := v1api.Group("")
 
 	protected := v1api.Group("")
@@ -286,14 +320,12 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 			if _, ok := route.(*v1routes.CategoryRoutes); ok {
 				continue
 			}
-			if _, ok := route.(*v1routes.ProductRoutes); ok {
-				continue
-			}
+
 		}
 		switch r := route.(type) {
-		case *v1routes.CategoryRoutes, *v1routes.ProductRoutes,
+		case *v1routes.CategoryRoutes,
 			*v1routes.ReviewPublicRoutes,
-			*v1routes.ShippingWebhookRoutes, *v1routes.WSRoutes, *v1routes.BannerRoutes, *v1routes.HealthRoutes,
+			*v1routes.WSRoutes, *v1routes.BannerRoutes, *v1routes.HealthRoutes,
 			*v1routes.LocationRoutes:
 			r.Register(public)
 		default:
@@ -304,9 +336,6 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 	for _, route := range adminRoutes {
 		if isCatalogProxied {
 			if _, ok := route.(*v1routes.AdminCategoryRoutes); ok {
-				continue
-			}
-			if _, ok := route.(*v1routes.AdminProductRoutes); ok {
 				continue
 			}
 		}

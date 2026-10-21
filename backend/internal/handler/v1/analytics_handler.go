@@ -35,7 +35,7 @@ func NewAnalyticsHandler(service v1service.AnalyticsService) *AnalyticsHandler {
 // @Failure      401 {object} utils.ErrorResponse
 // @Failure      403 {object} utils.ErrorResponse
 // @Failure      500 {object} utils.ErrorResponse
-// @Router       /admin/analytics/overview [get]
+// @Router       /api/v1/admin/analytics/overview [get]
 func (h *AnalyticsHandler) GetOverview(ctx *gin.Context) {
 	var query v1dto.OverviewStatsQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
@@ -67,7 +67,7 @@ func (h *AnalyticsHandler) GetOverview(ctx *gin.Context) {
 // @Success      200 {object} utils.APIResponse{data=[]v1dto.RevenueChartPointDTO}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      500 {object} utils.ErrorResponse
-// @Router       /admin/analytics/revenue-chart [get]
+// @Router       /api/v1/admin/analytics/revenue-chart [get]
 func (h *AnalyticsHandler) GetRevenueChart(ctx *gin.Context) {
 	var query v1dto.RevenueChartQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
@@ -95,7 +95,7 @@ func (h *AnalyticsHandler) GetRevenueChart(ctx *gin.Context) {
 // @Success      200 {object} utils.APIResponse{data=[]v1dto.RecentOrderDTO}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      500 {object} utils.ErrorResponse
-// @Router       /admin/analytics/recent-orders [get]
+// @Router       /api/v1/admin/analytics/recent-orders [get]
 func (h *AnalyticsHandler) GetRecentOrders(ctx *gin.Context) {
 	var query v1dto.RecentOrdersQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
@@ -126,7 +126,7 @@ func (h *AnalyticsHandler) GetRecentOrders(ctx *gin.Context) {
 // @Success      200 {object} utils.APIResponse{data=[]v1dto.TopProductDTO}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      500 {object} utils.ErrorResponse
-// @Router       /admin/analytics/top-products [get]
+// @Router       /api/v1/admin/analytics/top-products [get]
 func (h *AnalyticsHandler) GetTopProducts(ctx *gin.Context) {
 	var query v1dto.TopProductsQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
@@ -158,7 +158,7 @@ func (h *AnalyticsHandler) GetTopProducts(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Failure      403 {object} utils.ErrorResponse
 // @Failure      500 {object} utils.ErrorResponse
-// @Router       /admin/analytics/order-status-distribution [get]
+// @Router       /api/v1/admin/analytics/order-status-distribution [get]
 func (h *AnalyticsHandler) GetOrderStatusDistribution(ctx *gin.Context) {
 	var query v1dto.OrderStatusDistributionQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
@@ -189,7 +189,7 @@ func (h *AnalyticsHandler) GetOrderStatusDistribution(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Failure      403 {object} utils.ErrorResponse
 // @Failure      500 {object} utils.ErrorResponse
-// @Router       /admin/analytics/low-stock-alerts [get]
+// @Router       /api/v1/admin/analytics/low-stock-alerts [get]
 func (h *AnalyticsHandler) GetLowStockProducts(ctx *gin.Context) {
 	var query v1dto.LowStockProductsQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
@@ -221,7 +221,7 @@ func (h *AnalyticsHandler) GetLowStockProducts(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Failure      403 {object} utils.ErrorResponse
 // @Failure      500 {object} utils.ErrorResponse
-// @Router       /admin/analytics/payment-methods [get]
+// @Router       /api/v1/admin/analytics/payment-methods [get]
 func (h *AnalyticsHandler) GetPaymentMethodBreakdown(ctx *gin.Context) {
 	var query v1dto.PaymentMethodBreakdownQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
@@ -247,7 +247,7 @@ func (h *AnalyticsHandler) GetPaymentMethodBreakdown(ctx *gin.Context) {
 // @Param        from_date query string false "Start date (YYYY-MM-DD)"
 // @Param        to_date   query string false "End date (YYYY-MM-DD)"
 // @Success      200 {object} utils.APIResponse{data=v1dto.CartFunnelDTO}
-// @Router       /admin/analytics/cart-funnel [get]
+// @Router       /api/v1/admin/analytics/cart-funnel [get]
 func (h *AnalyticsHandler) GetCartFunnel(ctx *gin.Context) {
 	var query v1dto.CartFunnelQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
@@ -278,7 +278,7 @@ func (h *AnalyticsHandler) GetCartFunnel(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Failure      403 {object} utils.ErrorResponse
 // @Failure      500 {object} utils.ErrorResponse
-// @Router       /admin/analytics/returns [get]
+// @Router       /api/v1/admin/analytics/returns [get]
 func (h *AnalyticsHandler) GetReturnAnalytics(ctx *gin.Context) {
 	var query v1dto.ReturnAnalyticsQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
@@ -309,7 +309,7 @@ func (h *AnalyticsHandler) GetReturnAnalytics(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Failure      403 {object} utils.ErrorResponse
 // @Failure      500 {object} utils.ErrorResponse
-// @Router       /admin/analytics/category-sales [get]
+// @Router       /api/v1/admin/analytics/category-sales [get]
 func (h *AnalyticsHandler) GetCategorySalesBreakdown(ctx *gin.Context) {
 	var query v1dto.CategorySalesBreakdownQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
@@ -341,7 +341,7 @@ func (h *AnalyticsHandler) GetCategorySalesBreakdown(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Failure      403 {object} utils.ErrorResponse
 // @Failure      500 {object} utils.ErrorResponse
-// @Router       /admin/analytics/coupons [get]
+// @Router       /api/v1/admin/analytics/coupons [get]
 func (h *AnalyticsHandler) GetCouponPerformance(ctx *gin.Context) {
 	var query v1dto.CouponPerformanceQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
@@ -357,6 +357,5 @@ func (h *AnalyticsHandler) GetCouponPerformance(ctx *gin.Context) {
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Coupon performance analytics retrieved successfully", res)
 }
-
 
 

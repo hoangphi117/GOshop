@@ -803,20 +803,7 @@ func (rs *reviewService) AdminGetAllReviews(ctx context.Context, query v1dto.Adm
 
 	offset := (page - 1) * limit
 
-	var productID *int32
-	if query.ProductUUID != nil && *query.ProductUUID != "" {
-		pUUID, err := uuid.Parse(*query.ProductUUID)
-		if err != nil {
-			return nil, 0, utils.NewError(utils.ErrCodeBadRequest, "Invalid product UUID")
-		}
-		product, err := rs.getProduct(ctx, pUUID)
-		if err != nil {
-			return nil, 0, err
-		}
-		productID = &product.ProductID
-	}
-
-	total, err := rs.repo.AdminCount(ctx, query.Status, query.Rating, productID, query.Search)
+	total, err := rs.repo.AdminCount(ctx, query.Status, query.Rating, nil, query.Search)
 	if err != nil {
 		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "Failed to count reviews", err)
 	}
@@ -825,13 +812,52 @@ func (rs *reviewService) AdminGetAllReviews(ctx context.Context, query v1dto.Adm
 		return []v1dto.AdminReviewDTO{}, 0, nil
 	}
 
-	rows, err := rs.repo.AdminGetAll(ctx, query.Status, query.Rating, query.ProductUUID, query.Search, "r.review_created_at", query.Sort, limit, offset)
+	rows, err := rs.repo.AdminGetAll(ctx, query.Status, query.Rating, nil, query.Search, "r.review_created_at", query.Sort, limit, offset)
 	if err != nil {
 		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "Failed to get reviews", err)
 	}
 
+	// Enrich with product info via catalog gRPC (batch to avoid N+1)
+	if rs.catalogClient != nil && len(rows) > 0 {
+		ids := make([]int32, 0, len(rows))
+		seen := map[int32]bool{}
+		for _, r := range rows {
+			if !seen[r.ProductID] {
+				ids = append(ids, r.ProductID)
+				seen[r.ProductID] = true
+			}
+		}
+		products, batchErr := rs.catalogClient.GetProductsBatch(ctx, nil, ids)
+		if batchErr == nil {
+			infoByID := make(map[int32]*catalogcontract.ProductItemInfo, len(products))
+			for i := range products {
+				p := &products[i]
+				infoByID[p.ProductID] = p
+			}
+			// Apply product_uuid filter if requested
+			if query.ProductUUID != nil && *query.ProductUUID != "" {
+				filtered := rows[:0]
+				for _, r := range rows {
+					if p, ok := infoByID[r.ProductID]; ok && p.ProductUUID == *query.ProductUUID {
+						filtered = append(filtered, r)
+					}
+				}
+				rows = filtered
+			}
+			for i := range rows {
+				if p, ok := infoByID[rows[i].ProductID]; ok {
+					if u, parseErr := uuid.Parse(p.ProductUUID); parseErr == nil {
+						rows[i].ProductUUID = u
+					}
+					rows[i].ProductName = p.ProductName
+				}
+			}
+		}
+	}
+
 	return v1dto.MapToAdminReviewDTOs(rows), int32(total), nil
 }
+
 
 func (rs *reviewService) AdminReplyReview(ctx context.Context, reviewUUID uuid.UUID, input v1dto.ReplyReviewInput) (v1dto.ReviewDTO, error) {
 	review, err := rs.getReview(ctx, reviewUUID)

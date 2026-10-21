@@ -270,6 +270,11 @@ func (s *analyticsService) GetLowStockProducts(ctx context.Context, params v1dto
 		return v1dto.LowStockProductResponse{}, err
 	}
 
+	totalLow, err := s.repo.GetLowStockProductsCount(ctx, threshold)
+	if err != nil {
+		return v1dto.LowStockProductResponse{}, err
+	}
+
 	products := make([]v1dto.LowStockProductDTO, len(rows))
 	for i, r := range rows {
 		stock := int32(0)
@@ -300,7 +305,7 @@ func (s *analyticsService) GetLowStockProducts(ctx context.Context, params v1dto
 	}
 	return v1dto.LowStockProductResponse{
 		Threshold: threshold,
-		TotalLow:  int64(len(products)),
+		TotalLow:  totalLow,
 		Items:     products,
 	}, nil
 }
@@ -578,6 +583,3 @@ func (s *analyticsService) GetCouponPerformance(ctx context.Context, params v1dt
 		Campaigns:             campaigns,
 	}, nil
 }
-
-
-

@@ -2366,7 +2366,7 @@ paths:
       summary: Set default address
       tags:
       - Addresses
-  /admin/analytics/cart-funnel:
+  /api/v1/admin/analytics/cart-funnel:
     get:
       description: Get active carts, order drop-offs, abandonment rate, and potential
         lost revenue
@@ -2396,7 +2396,7 @@ paths:
       summary: Get cart abandonment and conversion funnel statistics
       tags:
       - Admin - Analytics
-  /admin/analytics/category-sales:
+  /api/v1/admin/analytics/category-sales:
     get:
       description: Get sales volume, gross revenue, and revenue contribution percentages
         by category
@@ -2447,7 +2447,7 @@ paths:
       summary: Get category sales breakdown
       tags:
       - Admin - Analytics
-  /admin/analytics/coupons:
+  /api/v1/admin/analytics/coupons:
     get:
       description: Get coupon usage statistics, total discounts given, revenue generated,
         and ROI multipliers by campaign
@@ -2503,7 +2503,7 @@ paths:
       summary: Get coupon ROI and campaign performance analytics
       tags:
       - Admin - Analytics
-  /admin/analytics/low-stock-alerts:
+  /api/v1/admin/analytics/low-stock-alerts:
     get:
       description: Get list of products with inventory stock below or equal to the
         specified threshold
@@ -2552,7 +2552,7 @@ paths:
       summary: Get low stock product alerts
       tags:
       - Admin - Analytics
-  /admin/analytics/order-status-distribution:
+  /api/v1/admin/analytics/order-status-distribution:
     get:
       description: Get order counts, revenue, and percentages grouped by order status
         with optional date filtering
@@ -2604,7 +2604,7 @@ paths:
       summary: Get order status distribution
       tags:
       - Admin - Analytics
-  /admin/analytics/overview:
+  /api/v1/admin/analytics/overview:
     get:
       description: Get KPI cards (revenue, orders, new customers, pending orders)
         with growth comparison for 30 days or custom date range
@@ -2652,7 +2652,7 @@ paths:
       summary: Get analytics overview statistics
       tags:
       - Admin - Analytics
-  /admin/analytics/payment-methods:
+  /api/v1/admin/analytics/payment-methods:
     get:
       description: Get net revenue, order volume, and percentages categorized by payment
         method
@@ -2704,7 +2704,7 @@ paths:
       summary: Get payment method breakdown
       tags:
       - Admin - Analytics
-  /admin/analytics/recent-orders:
+  /api/v1/admin/analytics/recent-orders:
     get:
       description: Retrieve the latest N orders with basic customer info
       parameters:
@@ -2741,7 +2741,7 @@ paths:
       summary: Get recent orders for dashboard
       tags:
       - Admin - Analytics
-  /admin/analytics/returns:
+  /api/v1/admin/analytics/returns:
     get:
       description: Get return rates, total refunded amount, reason breakdown, and
         top returned products
@@ -2792,7 +2792,7 @@ paths:
       summary: Get return and refund financial analytics
       tags:
       - Admin - Analytics
-  /admin/analytics/revenue-chart:
+  /api/v1/admin/analytics/revenue-chart:
     get:
       description: Get historical revenue and order count points aggregated by daily
         or monthly
@@ -2851,7 +2851,7 @@ paths:
       summary: Get revenue chart data
       tags:
       - Admin - Analytics
-  /admin/analytics/top-products:
+  /api/v1/admin/analytics/top-products:
     get:
       description: Get the top best-selling products by quantity and revenue over
         the last N days or custom date range

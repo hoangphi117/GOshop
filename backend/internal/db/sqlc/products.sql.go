@@ -75,10 +75,10 @@ WITH inserted AS (
         product_category_id, product_image_url, product_status
     )
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-    RETURNING product_id, product_uuid, product_name, product_slug, product_description, product_price, product_stock, product_sku, product_category_id, product_image_url, product_status, product_deleted_at, product_created_at, product_updated_at, product_avg_rating, product_review_count
+    RETURNING product_id, product_uuid, product_name, product_slug, product_description, product_price, product_stock, product_image_url, product_category_id, product_status, product_sku, product_rating_avg, product_rating_count, product_avg_rating, product_review_count, product_deleted_at, product_created_at, product_updated_at
 )
 SELECT
-    inserted.product_id, inserted.product_uuid, inserted.product_name, inserted.product_slug, inserted.product_description, inserted.product_price, inserted.product_stock, inserted.product_sku, inserted.product_category_id, inserted.product_image_url, inserted.product_status, inserted.product_deleted_at, inserted.product_created_at, inserted.product_updated_at, inserted.product_avg_rating, inserted.product_review_count,
+    inserted.product_id, inserted.product_uuid, inserted.product_name, inserted.product_slug, inserted.product_description, inserted.product_price, inserted.product_stock, inserted.product_image_url, inserted.product_category_id, inserted.product_status, inserted.product_sku, inserted.product_rating_avg, inserted.product_rating_count, inserted.product_avg_rating, inserted.product_review_count, inserted.product_deleted_at, inserted.product_created_at, inserted.product_updated_at,
     categories.category_uuid AS category_uuid,
     categories.category_name AS category_name
 FROM inserted
@@ -105,15 +105,17 @@ type CreateProductRow struct {
 	ProductDescription *string            `json:"product_description"`
 	ProductPrice       pgtype.Numeric     `json:"product_price"`
 	ProductStock       *int32             `json:"product_stock"`
-	ProductSku         *string            `json:"product_sku"`
-	ProductCategoryID  int32              `json:"product_category_id"`
 	ProductImageUrl    *string            `json:"product_image_url"`
+	ProductCategoryID  int32              `json:"product_category_id"`
 	ProductStatus      int32              `json:"product_status"`
+	ProductSku         *string            `json:"product_sku"`
+	ProductRatingAvg   pgtype.Numeric     `json:"product_rating_avg"`
+	ProductRatingCount int32              `json:"product_rating_count"`
+	ProductAvgRating   pgtype.Numeric     `json:"product_avg_rating"`
+	ProductReviewCount int32              `json:"product_review_count"`
 	ProductDeletedAt   pgtype.Timestamptz `json:"product_deleted_at"`
 	ProductCreatedAt   time.Time          `json:"product_created_at"`
 	ProductUpdatedAt   time.Time          `json:"product_updated_at"`
-	ProductAvgRating   pgtype.Numeric     `json:"product_avg_rating"`
-	ProductReviewCount int32              `json:"product_review_count"`
 	CategoryUuid       uuid.UUID          `json:"category_uuid"`
 	CategoryName       string             `json:"category_name"`
 }
@@ -139,15 +141,17 @@ func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) (C
 		&i.ProductDescription,
 		&i.ProductPrice,
 		&i.ProductStock,
-		&i.ProductSku,
-		&i.ProductCategoryID,
 		&i.ProductImageUrl,
+		&i.ProductCategoryID,
 		&i.ProductStatus,
+		&i.ProductSku,
+		&i.ProductRatingAvg,
+		&i.ProductRatingCount,
+		&i.ProductAvgRating,
+		&i.ProductReviewCount,
 		&i.ProductDeletedAt,
 		&i.ProductCreatedAt,
 		&i.ProductUpdatedAt,
-		&i.ProductAvgRating,
-		&i.ProductReviewCount,
 		&i.CategoryUuid,
 		&i.CategoryName,
 	)
@@ -182,7 +186,7 @@ func (q *Queries) DeductStock(ctx context.Context, arg DeductStockParams) (int64
 
 const getByUUIDsForUpdate = `-- name: GetByUUIDsForUpdate :many
 SELECT
-    products.product_id, products.product_uuid, products.product_name, products.product_slug, products.product_description, products.product_price, products.product_stock, products.product_sku, products.product_category_id, products.product_image_url, products.product_status, products.product_deleted_at, products.product_created_at, products.product_updated_at, products.product_avg_rating, products.product_review_count,
+    products.product_id, products.product_uuid, products.product_name, products.product_slug, products.product_description, products.product_price, products.product_stock, products.product_image_url, products.product_category_id, products.product_status, products.product_sku, products.product_rating_avg, products.product_rating_count, products.product_avg_rating, products.product_review_count, products.product_deleted_at, products.product_created_at, products.product_updated_at,
     categories.category_uuid AS category_uuid,
     categories.category_name AS category_name
 FROM products
@@ -201,15 +205,17 @@ type GetByUUIDsForUpdateRow struct {
 	ProductDescription *string            `json:"product_description"`
 	ProductPrice       pgtype.Numeric     `json:"product_price"`
 	ProductStock       *int32             `json:"product_stock"`
-	ProductSku         *string            `json:"product_sku"`
-	ProductCategoryID  int32              `json:"product_category_id"`
 	ProductImageUrl    *string            `json:"product_image_url"`
+	ProductCategoryID  int32              `json:"product_category_id"`
 	ProductStatus      int32              `json:"product_status"`
+	ProductSku         *string            `json:"product_sku"`
+	ProductRatingAvg   pgtype.Numeric     `json:"product_rating_avg"`
+	ProductRatingCount int32              `json:"product_rating_count"`
+	ProductAvgRating   pgtype.Numeric     `json:"product_avg_rating"`
+	ProductReviewCount int32              `json:"product_review_count"`
 	ProductDeletedAt   pgtype.Timestamptz `json:"product_deleted_at"`
 	ProductCreatedAt   time.Time          `json:"product_created_at"`
 	ProductUpdatedAt   time.Time          `json:"product_updated_at"`
-	ProductAvgRating   pgtype.Numeric     `json:"product_avg_rating"`
-	ProductReviewCount int32              `json:"product_review_count"`
 	CategoryUuid       uuid.UUID          `json:"category_uuid"`
 	CategoryName       string             `json:"category_name"`
 }
@@ -231,15 +237,17 @@ func (q *Queries) GetByUUIDsForUpdate(ctx context.Context, uuids []uuid.UUID) ([
 			&i.ProductDescription,
 			&i.ProductPrice,
 			&i.ProductStock,
-			&i.ProductSku,
-			&i.ProductCategoryID,
 			&i.ProductImageUrl,
+			&i.ProductCategoryID,
 			&i.ProductStatus,
+			&i.ProductSku,
+			&i.ProductRatingAvg,
+			&i.ProductRatingCount,
+			&i.ProductAvgRating,
+			&i.ProductReviewCount,
 			&i.ProductDeletedAt,
 			&i.ProductCreatedAt,
 			&i.ProductUpdatedAt,
-			&i.ProductAvgRating,
-			&i.ProductReviewCount,
 			&i.CategoryUuid,
 			&i.CategoryName,
 		); err != nil {
@@ -255,7 +263,7 @@ func (q *Queries) GetByUUIDsForUpdate(ctx context.Context, uuids []uuid.UUID) ([
 
 const getProductBySlug = `-- name: GetProductBySlug :one
 SELECT
-    products.product_id, products.product_uuid, products.product_name, products.product_slug, products.product_description, products.product_price, products.product_stock, products.product_sku, products.product_category_id, products.product_image_url, products.product_status, products.product_deleted_at, products.product_created_at, products.product_updated_at, products.product_avg_rating, products.product_review_count,
+    products.product_id, products.product_uuid, products.product_name, products.product_slug, products.product_description, products.product_price, products.product_stock, products.product_image_url, products.product_category_id, products.product_status, products.product_sku, products.product_rating_avg, products.product_rating_count, products.product_avg_rating, products.product_review_count, products.product_deleted_at, products.product_created_at, products.product_updated_at,
     categories.category_uuid AS category_uuid,
     categories.category_name AS category_name
 FROM products
@@ -272,15 +280,17 @@ type GetProductBySlugRow struct {
 	ProductDescription *string            `json:"product_description"`
 	ProductPrice       pgtype.Numeric     `json:"product_price"`
 	ProductStock       *int32             `json:"product_stock"`
-	ProductSku         *string            `json:"product_sku"`
-	ProductCategoryID  int32              `json:"product_category_id"`
 	ProductImageUrl    *string            `json:"product_image_url"`
+	ProductCategoryID  int32              `json:"product_category_id"`
 	ProductStatus      int32              `json:"product_status"`
+	ProductSku         *string            `json:"product_sku"`
+	ProductRatingAvg   pgtype.Numeric     `json:"product_rating_avg"`
+	ProductRatingCount int32              `json:"product_rating_count"`
+	ProductAvgRating   pgtype.Numeric     `json:"product_avg_rating"`
+	ProductReviewCount int32              `json:"product_review_count"`
 	ProductDeletedAt   pgtype.Timestamptz `json:"product_deleted_at"`
 	ProductCreatedAt   time.Time          `json:"product_created_at"`
 	ProductUpdatedAt   time.Time          `json:"product_updated_at"`
-	ProductAvgRating   pgtype.Numeric     `json:"product_avg_rating"`
-	ProductReviewCount int32              `json:"product_review_count"`
 	CategoryUuid       uuid.UUID          `json:"category_uuid"`
 	CategoryName       string             `json:"category_name"`
 }
@@ -296,15 +306,17 @@ func (q *Queries) GetProductBySlug(ctx context.Context, productSlug string) (Get
 		&i.ProductDescription,
 		&i.ProductPrice,
 		&i.ProductStock,
-		&i.ProductSku,
-		&i.ProductCategoryID,
 		&i.ProductImageUrl,
+		&i.ProductCategoryID,
 		&i.ProductStatus,
+		&i.ProductSku,
+		&i.ProductRatingAvg,
+		&i.ProductRatingCount,
+		&i.ProductAvgRating,
+		&i.ProductReviewCount,
 		&i.ProductDeletedAt,
 		&i.ProductCreatedAt,
 		&i.ProductUpdatedAt,
-		&i.ProductAvgRating,
-		&i.ProductReviewCount,
 		&i.CategoryUuid,
 		&i.CategoryName,
 	)
@@ -313,7 +325,7 @@ func (q *Queries) GetProductBySlug(ctx context.Context, productSlug string) (Get
 
 const getProductByUUID = `-- name: GetProductByUUID :one
 SELECT
-    products.product_id, products.product_uuid, products.product_name, products.product_slug, products.product_description, products.product_price, products.product_stock, products.product_sku, products.product_category_id, products.product_image_url, products.product_status, products.product_deleted_at, products.product_created_at, products.product_updated_at, products.product_avg_rating, products.product_review_count,
+    products.product_id, products.product_uuid, products.product_name, products.product_slug, products.product_description, products.product_price, products.product_stock, products.product_image_url, products.product_category_id, products.product_status, products.product_sku, products.product_rating_avg, products.product_rating_count, products.product_avg_rating, products.product_review_count, products.product_deleted_at, products.product_created_at, products.product_updated_at,
     categories.category_uuid AS category_uuid,
     categories.category_name AS category_name
 FROM products
@@ -330,15 +342,17 @@ type GetProductByUUIDRow struct {
 	ProductDescription *string            `json:"product_description"`
 	ProductPrice       pgtype.Numeric     `json:"product_price"`
 	ProductStock       *int32             `json:"product_stock"`
-	ProductSku         *string            `json:"product_sku"`
-	ProductCategoryID  int32              `json:"product_category_id"`
 	ProductImageUrl    *string            `json:"product_image_url"`
+	ProductCategoryID  int32              `json:"product_category_id"`
 	ProductStatus      int32              `json:"product_status"`
+	ProductSku         *string            `json:"product_sku"`
+	ProductRatingAvg   pgtype.Numeric     `json:"product_rating_avg"`
+	ProductRatingCount int32              `json:"product_rating_count"`
+	ProductAvgRating   pgtype.Numeric     `json:"product_avg_rating"`
+	ProductReviewCount int32              `json:"product_review_count"`
 	ProductDeletedAt   pgtype.Timestamptz `json:"product_deleted_at"`
 	ProductCreatedAt   time.Time          `json:"product_created_at"`
 	ProductUpdatedAt   time.Time          `json:"product_updated_at"`
-	ProductAvgRating   pgtype.Numeric     `json:"product_avg_rating"`
-	ProductReviewCount int32              `json:"product_review_count"`
 	CategoryUuid       uuid.UUID          `json:"category_uuid"`
 	CategoryName       string             `json:"category_name"`
 }
@@ -354,15 +368,17 @@ func (q *Queries) GetProductByUUID(ctx context.Context, productUuid uuid.UUID) (
 		&i.ProductDescription,
 		&i.ProductPrice,
 		&i.ProductStock,
-		&i.ProductSku,
-		&i.ProductCategoryID,
 		&i.ProductImageUrl,
+		&i.ProductCategoryID,
 		&i.ProductStatus,
+		&i.ProductSku,
+		&i.ProductRatingAvg,
+		&i.ProductRatingCount,
+		&i.ProductAvgRating,
+		&i.ProductReviewCount,
 		&i.ProductDeletedAt,
 		&i.ProductCreatedAt,
 		&i.ProductUpdatedAt,
-		&i.ProductAvgRating,
-		&i.ProductReviewCount,
 		&i.CategoryUuid,
 		&i.CategoryName,
 	)
@@ -374,7 +390,7 @@ UPDATE products
 SET product_deleted_at = NULL
 WHERE product_uuid = $1::uuid
 AND product_deleted_at IS NOT NULL
-RETURNING product_id, product_uuid, product_name, product_slug, product_description, product_price, product_stock, product_sku, product_category_id, product_image_url, product_status, product_deleted_at, product_created_at, product_updated_at, product_avg_rating, product_review_count
+RETURNING product_id, product_uuid, product_name, product_slug, product_description, product_price, product_stock, product_image_url, product_category_id, product_status, product_sku, product_rating_avg, product_rating_count, product_avg_rating, product_review_count, product_deleted_at, product_created_at, product_updated_at
 `
 
 func (q *Queries) RestoreProduct(ctx context.Context, productUuid uuid.UUID) (Product, error) {
@@ -388,15 +404,17 @@ func (q *Queries) RestoreProduct(ctx context.Context, productUuid uuid.UUID) (Pr
 		&i.ProductDescription,
 		&i.ProductPrice,
 		&i.ProductStock,
-		&i.ProductSku,
-		&i.ProductCategoryID,
 		&i.ProductImageUrl,
+		&i.ProductCategoryID,
 		&i.ProductStatus,
+		&i.ProductSku,
+		&i.ProductRatingAvg,
+		&i.ProductRatingCount,
+		&i.ProductAvgRating,
+		&i.ProductReviewCount,
 		&i.ProductDeletedAt,
 		&i.ProductCreatedAt,
 		&i.ProductUpdatedAt,
-		&i.ProductAvgRating,
-		&i.ProductReviewCount,
 	)
 	return i, err
 }
@@ -427,7 +445,7 @@ UPDATE products
 SET product_deleted_at = NOW()
 WHERE product_uuid = $1::uuid
 AND product_deleted_at IS NULL
-RETURNING product_id, product_uuid, product_name, product_slug, product_description, product_price, product_stock, product_sku, product_category_id, product_image_url, product_status, product_deleted_at, product_created_at, product_updated_at, product_avg_rating, product_review_count
+RETURNING product_id, product_uuid, product_name, product_slug, product_description, product_price, product_stock, product_image_url, product_category_id, product_status, product_sku, product_rating_avg, product_rating_count, product_avg_rating, product_review_count, product_deleted_at, product_created_at, product_updated_at
 `
 
 func (q *Queries) SoftDeleteProduct(ctx context.Context, productUuid uuid.UUID) (Product, error) {
@@ -441,15 +459,17 @@ func (q *Queries) SoftDeleteProduct(ctx context.Context, productUuid uuid.UUID) 
 		&i.ProductDescription,
 		&i.ProductPrice,
 		&i.ProductStock,
-		&i.ProductSku,
-		&i.ProductCategoryID,
 		&i.ProductImageUrl,
+		&i.ProductCategoryID,
 		&i.ProductStatus,
+		&i.ProductSku,
+		&i.ProductRatingAvg,
+		&i.ProductRatingCount,
+		&i.ProductAvgRating,
+		&i.ProductReviewCount,
 		&i.ProductDeletedAt,
 		&i.ProductCreatedAt,
 		&i.ProductUpdatedAt,
-		&i.ProductAvgRating,
-		&i.ProductReviewCount,
 	)
 	return i, err
 }
@@ -458,7 +478,7 @@ const trashProduct = `-- name: TrashProduct :one
 DELETE FROM products
 WHERE product_uuid = $1::uuid
 AND product_deleted_at IS NOT NULL
-RETURNING product_id, product_uuid, product_name, product_slug, product_description, product_price, product_stock, product_sku, product_category_id, product_image_url, product_status, product_deleted_at, product_created_at, product_updated_at, product_avg_rating, product_review_count
+RETURNING product_id, product_uuid, product_name, product_slug, product_description, product_price, product_stock, product_image_url, product_category_id, product_status, product_sku, product_rating_avg, product_rating_count, product_avg_rating, product_review_count, product_deleted_at, product_created_at, product_updated_at
 `
 
 func (q *Queries) TrashProduct(ctx context.Context, productUuid uuid.UUID) (Product, error) {
@@ -472,15 +492,17 @@ func (q *Queries) TrashProduct(ctx context.Context, productUuid uuid.UUID) (Prod
 		&i.ProductDescription,
 		&i.ProductPrice,
 		&i.ProductStock,
-		&i.ProductSku,
-		&i.ProductCategoryID,
 		&i.ProductImageUrl,
+		&i.ProductCategoryID,
 		&i.ProductStatus,
+		&i.ProductSku,
+		&i.ProductRatingAvg,
+		&i.ProductRatingCount,
+		&i.ProductAvgRating,
+		&i.ProductReviewCount,
 		&i.ProductDeletedAt,
 		&i.ProductCreatedAt,
 		&i.ProductUpdatedAt,
-		&i.ProductAvgRating,
-		&i.ProductReviewCount,
 	)
 	return i, err
 }
@@ -517,10 +539,10 @@ WITH updated AS (
         END
     WHERE product_uuid = $10
     AND product_deleted_at IS NULL
-    RETURNING product_id, product_uuid, product_name, product_slug, product_description, product_price, product_stock, product_sku, product_category_id, product_image_url, product_status, product_deleted_at, product_created_at, product_updated_at, product_avg_rating, product_review_count
+    RETURNING product_id, product_uuid, product_name, product_slug, product_description, product_price, product_stock, product_image_url, product_category_id, product_status, product_sku, product_rating_avg, product_rating_count, product_avg_rating, product_review_count, product_deleted_at, product_created_at, product_updated_at
 )
 SELECT
-    updated.product_id, updated.product_uuid, updated.product_name, updated.product_slug, updated.product_description, updated.product_price, updated.product_stock, updated.product_sku, updated.product_category_id, updated.product_image_url, updated.product_status, updated.product_deleted_at, updated.product_created_at, updated.product_updated_at, updated.product_avg_rating, updated.product_review_count,
+    updated.product_id, updated.product_uuid, updated.product_name, updated.product_slug, updated.product_description, updated.product_price, updated.product_stock, updated.product_image_url, updated.product_category_id, updated.product_status, updated.product_sku, updated.product_rating_avg, updated.product_rating_count, updated.product_avg_rating, updated.product_review_count, updated.product_deleted_at, updated.product_created_at, updated.product_updated_at,
     categories.category_uuid AS category_uuid,
     categories.category_name AS category_name
 FROM updated
@@ -548,15 +570,17 @@ type UpdateProductRow struct {
 	ProductDescription *string            `json:"product_description"`
 	ProductPrice       pgtype.Numeric     `json:"product_price"`
 	ProductStock       *int32             `json:"product_stock"`
-	ProductSku         *string            `json:"product_sku"`
-	ProductCategoryID  int32              `json:"product_category_id"`
 	ProductImageUrl    *string            `json:"product_image_url"`
+	ProductCategoryID  int32              `json:"product_category_id"`
 	ProductStatus      int32              `json:"product_status"`
+	ProductSku         *string            `json:"product_sku"`
+	ProductRatingAvg   pgtype.Numeric     `json:"product_rating_avg"`
+	ProductRatingCount int32              `json:"product_rating_count"`
+	ProductAvgRating   pgtype.Numeric     `json:"product_avg_rating"`
+	ProductReviewCount int32              `json:"product_review_count"`
 	ProductDeletedAt   pgtype.Timestamptz `json:"product_deleted_at"`
 	ProductCreatedAt   time.Time          `json:"product_created_at"`
 	ProductUpdatedAt   time.Time          `json:"product_updated_at"`
-	ProductAvgRating   pgtype.Numeric     `json:"product_avg_rating"`
-	ProductReviewCount int32              `json:"product_review_count"`
 	CategoryUuid       uuid.UUID          `json:"category_uuid"`
 	CategoryName       string             `json:"category_name"`
 }
@@ -583,15 +607,17 @@ func (q *Queries) UpdateProduct(ctx context.Context, arg UpdateProductParams) (U
 		&i.ProductDescription,
 		&i.ProductPrice,
 		&i.ProductStock,
-		&i.ProductSku,
-		&i.ProductCategoryID,
 		&i.ProductImageUrl,
+		&i.ProductCategoryID,
 		&i.ProductStatus,
+		&i.ProductSku,
+		&i.ProductRatingAvg,
+		&i.ProductRatingCount,
+		&i.ProductAvgRating,
+		&i.ProductReviewCount,
 		&i.ProductDeletedAt,
 		&i.ProductCreatedAt,
 		&i.ProductUpdatedAt,
-		&i.ProductAvgRating,
-		&i.ProductReviewCount,
 		&i.CategoryUuid,
 		&i.CategoryName,
 	)
