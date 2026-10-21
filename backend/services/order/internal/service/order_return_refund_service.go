@@ -43,6 +43,10 @@ func (s *orderReturnService) AdminUpdateReturnStatus(ctx context.Context, userUU
 	if input.Status == OrderReturnStatusCompleted && returnRequest.ReturnStatus != OrderReturnStatusApproved {
 		return v1dto.AdminReturnSummaryDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Return request must be in 'Approved' status before marking as 'Completed'")
 	}
+	if (returnRequest.ReturnStatus == OrderReturnStatusPending && input.Status != OrderReturnStatusApproved && input.Status != OrderReturnStatusRejected) ||
+		(returnRequest.ReturnStatus == OrderReturnStatusApproved && input.Status != OrderReturnStatusCompleted && input.Status != OrderReturnStatusRejected) {
+		return v1dto.AdminReturnSummaryDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Invalid return status transition")
+	}
 
 	order, err := s.orderRepo.GetByID(ctx, returnRequest.ReturnOrderID)
 	if err != nil {
@@ -61,11 +65,15 @@ func (s *orderReturnService) AdminUpdateReturnStatus(ctx context.Context, userUU
 		tx, _ := db.GetTx(txCtx)
 		var err error
 		updatedReturn, err = s.orderReturnRepo.UpdateStatus(txCtx, tx, sqlc.UpdateReturnStatusParams{
-			ReturnUuid: returnUUID,
-			Status:     input.Status,
-			AdminNote:  input.AdminNote,
+			ReturnUuid:     returnUUID,
+			Status:         input.Status,
+			AdminNote:      input.AdminNote,
+			ExpectedStatus: returnRequest.ReturnStatus,
 		})
 		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return utils.NewError(utils.ErrCodeConflict, "Return status changed by another request")
+			}
 			return err
 		}
 
@@ -262,6 +270,27 @@ func (s *orderReturnService) AdminProcessReturnRefund(ctx context.Context, userU
 	orderTotalAmount := utils.NumericToFloat(orderRow.OrderTotalAmount)
 	currentRefunded := utils.NumericToFloat(orderRow.OrderRefundedAmount)
 	remainingRefundable := orderTotalAmount - currentRefunded
+	if remainingRefundable <= 0 {
+		return v1dto.AdminReturnRefundResponseDTO{}, utils.NewError(
+			utils.ErrCodeConflict,
+			"Return has already been fully refunded",
+		)
+	}
+
+	if s.trackingRepo != nil {
+		events, trackingErr := s.trackingRepo.GetByOrderID(ctx, resolved.OrderID)
+		if trackingErr != nil && !errors.Is(trackingErr, pgx.ErrNoRows) {
+			return v1dto.AdminReturnRefundResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to check refund history", trackingErr)
+		}
+		for _, event := range events {
+			if event.EventStatus == "refunded" {
+				return v1dto.AdminReturnRefundResponseDTO{}, utils.NewError(
+					utils.ErrCodeConflict,
+					"Return refund has already been processed",
+				)
+			}
+		}
+	}
 
 	refundAmt := remainingRefundable
 	if input.Amount != nil && *input.Amount > 0 {
@@ -337,31 +366,22 @@ func (s *orderReturnService) AdminProcessReturnRefund(ctx context.Context, userU
 		tx, _ := db.GetTx(txCtx)
 		var returnedOrder sqlc.Order
 
-		// 1. Update Return Status to Completed
-		_, err = s.orderReturnRepo.UpdateStatus(txCtx, tx, sqlc.UpdateReturnStatusParams{
-			ReturnUuid: returnRequest.ReturnUuid,
-			Status:     OrderReturnStatusCompleted,
-			AdminNote:  &refundCompletedNote,
+		// Update payment aggregate for both gateway and manual refunds.
+		var newPaymentStatus int32 = OrderPaymentStatusPartiallyRefunded
+		if totalRefunded >= orderTotalAmount {
+			newPaymentStatus = OrderPaymentStatusFullyRefunded
+		}
+		_, err = s.orderRepo.UpdateOrderPaymentStatus(txCtx, tx, sqlc.UpdateOrderPaymentStatusParams{
+			OrderUuid:           resolved.OrderUUID,
+			PaymentStatus:       newPaymentStatus,
+			RefundedAmount:      utils.FloatToNumeric(totalRefunded),
+			AllowedFromStatuses: []int32{OrderPaymentStatusUnpaid, OrderPaymentStatusPaid, OrderPaymentStatusPartiallyRefunded},
 		})
 		if err != nil {
 			return err
 		}
 
-		// 2. Update order payment status and refunded amount for manual bank refund
-		if isManualBankRefund {
-			var newPaymentStatus int32 = OrderPaymentStatusPartiallyRefunded
-			if totalRefunded >= orderTotalAmount {
-				newPaymentStatus = OrderPaymentStatusFullyRefunded
-			}
-			_, _ = s.orderRepo.UpdateOrderPaymentStatus(txCtx, tx, sqlc.UpdateOrderPaymentStatusParams{
-				OrderUuid:           resolved.OrderUUID,
-				PaymentStatus:       newPaymentStatus,
-				RefundedAmount:      utils.FloatToNumeric(totalRefunded),
-				AllowedFromStatuses: []int32{OrderPaymentStatusUnpaid, OrderPaymentStatusPaid, OrderPaymentStatusPartiallyRefunded},
-			})
-		}
-
-		// 3. Update Order Status to Returned if fully refunded
+		// Update order status to Returned if fully refunded.
 		orderWasReturned := resolved.OrderStatus == OrderStatusReturned
 		if totalRefunded >= orderTotalAmount && !orderWasReturned {
 			returnedOrder, err = s.orderRepo.UpdateStatus(txCtx, tx, sqlc.UpdateOrderStatusParams{

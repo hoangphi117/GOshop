@@ -712,17 +712,19 @@ UPDATE order_returns SET
     return_admin_note = $2,
     return_updated_at = now()
 WHERE return_uuid = $3
+  AND return_status = $4
 RETURNING return_id, return_uuid, return_order_id, return_user_id, return_reason, return_status, return_admin_note, return_created_at, return_updated_at, return_images, return_video_url, return_shipping_provider, return_shipping_code, return_shipping_note, return_bank_name, return_bank_account, return_bank_account_name
 `
 
 type UpdateReturnStatusParams struct {
-	Status     int16     `json:"status"`
-	AdminNote  *string   `json:"admin_note"`
-	ReturnUuid uuid.UUID `json:"return_uuid"`
+	Status         int16     `json:"status"`
+	AdminNote      *string   `json:"admin_note"`
+	ReturnUuid     uuid.UUID `json:"return_uuid"`
+	ExpectedStatus int16     `json:"expected_status"`
 }
 
 func (q *Queries) UpdateReturnStatus(ctx context.Context, arg UpdateReturnStatusParams) (OrderReturn, error) {
-	row := q.db.QueryRow(ctx, updateReturnStatus, arg.Status, arg.AdminNote, arg.ReturnUuid)
+	row := q.db.QueryRow(ctx, updateReturnStatus, arg.Status, arg.AdminNote, arg.ReturnUuid, arg.ExpectedStatus)
 	var i OrderReturn
 	err := row.Scan(
 		&i.ReturnID,

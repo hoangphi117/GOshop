@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"goshop/pkg/grpcclient"
 	cartv1 "goshop/proto/cart/v1"
 
 	"google.golang.org/grpc"
@@ -49,7 +50,7 @@ type GRPCCartClient struct {
 }
 
 func NewGRPCCartClient(target string) (*GRPCCartClient, error) {
-	conn, err := grpc.NewClient(
+	conn, err := grpcclient.NewClient(
 		target,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)

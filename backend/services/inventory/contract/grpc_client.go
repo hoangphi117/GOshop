@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"goshop/pkg/grpcclient"
 	inventoryv1 "goshop/proto/inventory/v1"
 
 	"google.golang.org/grpc"
@@ -77,7 +78,7 @@ type GRPCInventoryClient struct {
 }
 
 func NewGRPCInventoryClient(target string) (*GRPCInventoryClient, error) {
-	conn, err := grpc.NewClient(
+	conn, err := grpcclient.NewClient(
 		target,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)

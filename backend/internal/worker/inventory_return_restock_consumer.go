@@ -65,6 +65,9 @@ func (c *InventoryReturnRestockConsumer) Handle(headers amqp.Table, body []byte)
 
 	refID := event.ReturnUUID
 	if refID == "" {
+		refID = event.EventID
+	}
+	if refID == "" {
 		refID = event.OrderNumber
 	}
 

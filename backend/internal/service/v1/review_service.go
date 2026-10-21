@@ -802,8 +802,21 @@ func (rs *reviewService) AdminGetAllReviews(ctx context.Context, query v1dto.Adm
 	}
 
 	offset := (page - 1) * limit
+	var productID *int32
+	if query.ProductUUID != nil && *query.ProductUUID != "" {
+		productUUID, err := uuid.Parse(*query.ProductUUID)
+		if err != nil {
+			return nil, 0, utils.WrapError(utils.ErrCodeBadRequest, "Invalid product UUID", err)
+		}
 
-	total, err := rs.repo.AdminCount(ctx, query.Status, query.Rating, nil, query.Search)
+		product, err := rs.getProduct(ctx, productUUID)
+		if err != nil {
+			return nil, 0, err
+		}
+		productID = &product.ProductID
+	}
+
+	total, err := rs.repo.AdminCount(ctx, query.Status, query.Rating, productID, query.Search)
 	if err != nil {
 		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "Failed to count reviews", err)
 	}
@@ -812,7 +825,7 @@ func (rs *reviewService) AdminGetAllReviews(ctx context.Context, query v1dto.Adm
 		return []v1dto.AdminReviewDTO{}, 0, nil
 	}
 
-	rows, err := rs.repo.AdminGetAll(ctx, query.Status, query.Rating, nil, query.Search, "r.review_created_at", query.Sort, limit, offset)
+	rows, err := rs.repo.AdminGetAll(ctx, query.Status, query.Rating, query.ProductUUID, query.Search, "r.review_created_at", query.Sort, limit, offset)
 	if err != nil {
 		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "Failed to get reviews", err)
 	}
@@ -857,7 +870,6 @@ func (rs *reviewService) AdminGetAllReviews(ctx context.Context, query v1dto.Adm
 
 	return v1dto.MapToAdminReviewDTOs(rows), int32(total), nil
 }
-
 
 func (rs *reviewService) AdminReplyReview(ctx context.Context, reviewUUID uuid.UUID, input v1dto.ReplyReviewInput) (v1dto.ReviewDTO, error) {
 	review, err := rs.getReview(ctx, reviewUUID)

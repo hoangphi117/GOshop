@@ -17,6 +17,7 @@ import (
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
+	"goshop/pkg/middleware"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/shipping"
 	"goshop/pkg/utils"
@@ -201,12 +202,16 @@ func New(cfg *config.Config) (*App, error) {
 	validation.InitValidator()
 
 	r := gin.Default()
+	r.Use(middleware.TraceMiddleware(), middleware.StructuredAccessLog(logger.Log))
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status":  "ok",
 			"service": "order",
 		})
+	})
+	r.GET("/healthz/live", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "alive", "service": "order"})
 	})
 
 	if err := db.InitDBWithConfig(cfg, "order"); err != nil {
@@ -334,6 +339,21 @@ func New(cfg *config.Config) (*App, error) {
 	if err != nil {
 		logger.Log.Warn().Err(err).Msg("RabbitMQ not available on boot for order service, will retry in background")
 	}
+	r.GET("/healthz/ready", func(c *gin.Context) {
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
+		defer cancel()
+		if err := dbPool.Ping(ctx); err != nil {
+			logger.Log.Warn().Err(err).Str("trace_id", c.GetString("trace_id")).Msg("Order readiness database check failed")
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not_ready", "service": "order"})
+			return
+		}
+		if rabbitMQ == nil || !rabbitMQ.IsHealthy() {
+			logger.Log.Warn().Str("trace_id", c.GetString("trace_id")).Msg("Order readiness RabbitMQ check failed")
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not_ready", "service": "order"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "ready", "service": "order"})
+	})
 
 	shippingService := orderservice.NewOrderShippingService(orderservice.OrderShippingServiceDeps{
 		TxManager:       txManager,
@@ -350,7 +370,13 @@ func New(cfg *config.Config) (*App, error) {
 	locationService := orderservice.NewLocationService(shippingFactory, cacheService)
 	var paymentClient *paymentcontract.GRPCPaymentClient
 	var paymentRefundService orderservice.OrderPaymentRefundPort
-	paymentTarget := utils.GetEnv("PAYMENT_GRPC_TARGET", cfg.PaymentGRPCAddr)
+	paymentTarget := utils.GetEnv("PAYMENT_GRPC_ADDR", "")
+	if paymentTarget == "" {
+		paymentTarget = utils.GetEnv("PAYMENT_GRPC_TARGET", "")
+	}
+	if paymentTarget == "" {
+		paymentTarget = cfg.PaymentGRPCAddr
+	}
 	if paymentTarget != "" {
 		paymentClient, err = paymentcontract.NewGRPCPaymentClient(paymentTarget)
 		if err != nil {

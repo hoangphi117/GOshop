@@ -71,6 +71,7 @@ UPDATE order_returns SET
     return_admin_note = sqlc.narg('admin_note'),
     return_updated_at = now()
 WHERE return_uuid = sqlc.arg('return_uuid')
+  AND return_status = sqlc.arg('expected_status')
 RETURNING *;
 
 -- name: UpdateReturnShippingInfo :one
@@ -153,5 +154,4 @@ UPDATE order_returns SET
     return_updated_at        = now()
 WHERE return_uuid = $4
 RETURNING *;
-
 

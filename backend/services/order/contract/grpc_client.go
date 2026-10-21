@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"goshop/pkg/grpcclient"
 	orderv1 "goshop/proto/order/v1"
 
 	"github.com/google/uuid"
@@ -71,7 +72,7 @@ func NewOrderClient(target string, opts ...grpc.DialOption) (OrderClient, error)
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
-	conn, err := grpc.NewClient(target, opts...)
+	conn, err := grpcclient.NewClient(target, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to order service at %s: %w", target, err)
 	}

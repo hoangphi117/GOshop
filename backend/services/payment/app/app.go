@@ -20,6 +20,7 @@ import (
 	"goshop/pkg/utils"
 	"goshop/pkg/validation"
 	paymentv1 "goshop/proto/payment/v1"
+	ordercontract "goshop/services/order/contract"
 	paymentsqlc "goshop/services/payment/internal/db/sqlc"
 	paymentgrpc "goshop/services/payment/internal/grpc"
 	paymenthandler "goshop/services/payment/internal/handler"
@@ -33,7 +34,6 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/grpc"
 )
 
@@ -44,7 +44,7 @@ type App struct {
 	grpcListener   net.Listener
 	rabbitMQ       rabbitmq.RabbitMQService
 	paymentService paymentservice.PaymentService
-	orderDBPool    *pgxpool.Pool
+	orderClient    ordercontract.OrderClient
 }
 
 func New(cfg *config.Config) (*App, error) {
@@ -119,11 +119,12 @@ func New(cfg *config.Config) (*App, error) {
 	paymentRepo := paymentrepo.NewSqlPaymentRepository(paymentQuerier)
 	webhookRepo := paymentrepo.NewSqlWebhookEventRepository(paymentQuerier)
 	outboxRepo := paymentrepo.NewSqlOutboxRepository(paymentQuerier)
-	orderDBPool, err := newOrderDBPool(cfg)
+	orderTarget := utils.GetEnv("ORDER_GRPC_ADDR", utils.GetEnv("ORDER_GRPC_TARGET", "localhost:50057"))
+	orderClient, err := ordercontract.NewOrderClient(orderTarget)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize order database reader: %w", err)
+		return nil, fmt.Errorf("failed to initialize order gRPC client: %w", err)
 	}
-	orderReader := paymentservice.NewOrderReaderDBClient(orderDBPool)
+	orderReader := paymentservice.NewOrderReaderGRPCClient(orderClient)
 
 	// Providers
 	paymentConfig := provider.PaymentConfig{
@@ -211,42 +212,8 @@ func New(cfg *config.Config) (*App, error) {
 		grpcListener:   grpcListener,
 		rabbitMQ:       rabbitmqService,
 		paymentService: paymentService,
-		orderDBPool:    orderDBPool,
+		orderClient:    orderClient,
 	}, nil
-}
-
-func newOrderDBPool(cfg *config.Config) (*pgxpool.Pool, error) {
-	orderDBName := utils.GetEnv("ORDER_DB_NAME", "shopping_order")
-	connStr := fmt.Sprintf(
-		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-		utils.GetEnv("ORDER_DB_HOST", cfg.DB.Host),
-		utils.GetEnv("ORDER_DB_PORT", cfg.DB.Port),
-		utils.GetEnv("ORDER_DB_USER", cfg.DB.User),
-		utils.GetEnv("ORDER_DB_PASSWORD", cfg.DB.Password),
-		orderDBName,
-		utils.GetEnv("ORDER_DB_SSL_MODE", cfg.DB.SSLMode),
-	)
-
-	poolConfig, err := pgxpool.ParseConfig(connStr)
-	if err != nil {
-		return nil, fmt.Errorf("invalid order database configuration: %w", err)
-	}
-	poolConfig.MaxConns = 5
-	poolConfig.MinConns = 1
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create order database pool: %w", err)
-	}
-	if err := pool.Ping(ctx); err != nil {
-		pool.Close()
-		return nil, fmt.Errorf("failed to ping order database: %w", err)
-	}
-
-	return pool, nil
 }
 
 func (a *App) Run(ctx context.Context) error {
@@ -310,8 +277,10 @@ func (a *App) Run(ctx context.Context) error {
 				logger.Log.Warn().Err(err).Msg("Failed to close RabbitMQ connection cleanly")
 			}
 		}
-		if a.orderDBPool != nil {
-			a.orderDBPool.Close()
+		if a.orderClient != nil {
+			if err := a.orderClient.Close(); err != nil {
+				logger.Log.Warn().Err(err).Msg("Failed to close Order gRPC client cleanly")
+			}
 		}
 
 		a.grpcServer.GracefulStop()

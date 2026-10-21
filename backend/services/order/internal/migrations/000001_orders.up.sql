@@ -179,15 +179,6 @@ CREATE TRIGGER set_return_updated_at
     BEFORE UPDATE ON orders.order_returns
     FOR EACH ROW EXECUTE FUNCTION update_return_updated_at();
 
--- Public compatibility views
-CREATE OR REPLACE VIEW public.orders AS SELECT * FROM orders.orders;
-CREATE OR REPLACE VIEW public.order_items AS SELECT * FROM orders.order_items;
-CREATE OR REPLACE VIEW public.order_tracking_events AS SELECT * FROM orders.order_tracking_events;
-CREATE OR REPLACE VIEW public.order_returns AS SELECT * FROM orders.order_returns;
-CREATE OR REPLACE VIEW public.order_sagas AS SELECT * FROM orders.order_sagas;
-CREATE OR REPLACE VIEW public.outbox_events AS SELECT * FROM orders.outbox_events;
-CREATE OR REPLACE VIEW public.webhook_events AS SELECT * FROM orders.webhook_events;
-
 -- Grants
 DO $$
 BEGIN

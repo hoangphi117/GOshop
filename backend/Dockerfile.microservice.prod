@@ -1,0 +1,27 @@
+FROM golang:1.26.6-alpine AS builder
+
+RUN apk add --no-cache ca-certificates
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+ARG SERVICE
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /service ./cmd/${SERVICE}
+
+FROM alpine:3.19
+
+RUN apk add --no-cache ca-certificates tzdata
+
+WORKDIR /app
+COPY --from=builder /service /app/service
+
+ENV APP_ENV=production
+ENV GOMEMLIMIT=128MiB
+ENV GOMAXPROCS=1
+
+EXPOSE 8084 8085 8086 8087 50053 50054 50055 50056
+ENTRYPOINT ["/app/service"]
