@@ -7,6 +7,7 @@ on:
       - master
       - 'refactor/**'
       - 'feature/**'
+      - 'feat/**'
     paths:
       - 'backend/**'
       - '.github/workflows/backend-ci.yml'
@@ -30,7 +31,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version: '1.26.5'
           cache-dependency-path: backend/go.sum
 
       - name: Go Vet
@@ -42,7 +43,7 @@ jobs:
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.60
+          version: v2.5
           working-directory: backend
           args: --timeout=5m
 
@@ -86,7 +87,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version: '1.26.5'
           cache-dependency-path: backend/go.sum
 
       - name: Run integration smoke tests
