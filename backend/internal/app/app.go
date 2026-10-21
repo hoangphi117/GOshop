@@ -2,22 +2,22 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"goshop/internal/client"
 	"goshop/internal/config"
 	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
 	"goshop/internal/routes"
+	v1service "goshop/internal/service/v1"
 	"goshop/internal/utils"
 	"goshop/internal/validation"
-	v1service "goshop/internal/service/v1"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
+	"goshop/pkg/discord"
 	"goshop/pkg/logger"
 	"goshop/pkg/rabbitmq"
-	"goshop/pkg/discord"
 	"goshop/pkg/search"
 	"goshop/pkg/shipping"
-	"fmt"
 	"goshop/pkg/storage"
 	"goshop/pkg/ws"
 	catalogcontract "goshop/services/catalog/contract"
@@ -70,7 +70,9 @@ type ModuleContext struct {
 
 func NewApplication(cfg *config.Config) (*Application, error) {
 
-	validation.InitValidator()
+	if err := validation.InitValidator(); err != nil {
+		return nil, fmt.Errorf("failed to initialize validator: %w", err)
+	}
 
 	r := gin.Default()
 
@@ -200,8 +202,6 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		logger.Log.Warn().Err(err).Str("addr", catalogTarget).Msg("Failed to initialize Catalog gRPC client")
 	}
 
-
-
 	couponTarget := utils.GetEnv("COUPON_GRPC_TARGET", "localhost:50053")
 	grpcCouponClient, err := couponcontract.NewGRPCCouponClient(couponTarget)
 	if err != nil {
@@ -314,5 +314,3 @@ func (a *Application) Run() error {
 	logger.Log.Info().Msg("Server exited successfully")
 	return nil
 }
-
-

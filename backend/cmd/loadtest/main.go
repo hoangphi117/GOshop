@@ -183,7 +183,7 @@ func main() {
 				atomic.AddInt64(&otherErrorCount, 1)
 				return
 			}
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 
 			bodyBytes, _ := io.ReadAll(resp.Body)
 

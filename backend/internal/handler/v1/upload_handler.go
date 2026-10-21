@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 	v1dto "goshop/internal/dto/v1"
-	"goshop/pkg/middleware"
 	"goshop/internal/utils"
+	"goshop/pkg/middleware"
 	"goshop/pkg/storage"
 	"io"
 	"mime/multipart"
@@ -54,7 +54,7 @@ func validateUploadedFile(fileHeader *multipart.FileHeader) (string, utils.Media
 	if err != nil {
 		return "", "", "", errors.New("cannot open file")
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	buffer := make([]byte, 512)
 	n, err := file.Read(buffer)
@@ -63,11 +63,12 @@ func validateUploadedFile(fileHeader *multipart.FileHeader) (string, utils.Media
 	}
 
 	mimeType := http.DetectContentType(buffer[:n])
-	if mediaType == utils.MediaTypeImage {
+	switch mediaType {
+	case utils.MediaTypeImage:
 		if mimeType != "image/jpeg" && mimeType != "image/png" && mimeType != "image/webp" {
 			return "", "", "", fmt.Errorf("invalid image MIME type: %s", mimeType)
 		}
-	} else if mediaType == utils.MediaTypeVideo {
+	case utils.MediaTypeVideo:
 		if mimeType != "video/mp4" && mimeType != "video/webm" && mimeType != "video/quicktime" && mimeType != "application/octet-stream" {
 			return "", "", "", fmt.Errorf("invalid video MIME type: %s", mimeType)
 		}
@@ -142,7 +143,7 @@ func (uh *UploadHandler) UploadSingleFile(ctx *gin.Context) {
 		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Cannot open uploaded file"))
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	publicURL, _, err := uh.storage.Upload(ctx.Request.Context(), folder, fileName, file, fileHeader.Size, mimeType)
 	if err != nil {
@@ -230,4 +231,3 @@ func (uh *UploadHandler) GetPresignedURL(ctx *gin.Context) {
 		"content_type": contentType,
 	})
 }
-

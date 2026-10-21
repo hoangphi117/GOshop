@@ -44,9 +44,9 @@ func NewChatService(
 		chatRepo:    chatRepo,
 		userRepo:    userRepo,
 		orderReader: orderReader,
-		txManager: txManager,
-		rdb:       rdb,
-		logger:    *logger.Log,
+		txManager:   txManager,
+		rdb:         rdb,
+		logger:      *logger.Log,
 	}
 }
 
@@ -187,13 +187,15 @@ func (s *chatService) SendMessage(
 			contentType = "order_ref"
 		} else if req.ProductUUID != "" {
 			contentType = "product_ref"
-		} else {
+		}
+		if contentType == "" {
 			contentType = "text"
 		}
 	}
 
 	content := strings.TrimSpace(req.Content)
-	if contentType == "order_ref" {
+	switch contentType {
+	case "order_ref":
 		if req.OrderUUID == "" {
 			return v1dto.MessageResponse{}, utils.NewError(utils.ErrCodeBadRequest, "order_uuid is required for order_ref messages")
 		}
@@ -221,7 +223,7 @@ func (s *chatService) SendMessage(
 			}
 		}
 		content = req.OrderUUID
-	} else if contentType == "product_ref" {
+	case "product_ref":
 		if req.ProductUUID != "" {
 			content = req.ProductUUID
 		}
@@ -437,9 +439,10 @@ func (s *chatService) ListConversations(
 
 	search := strings.TrimSpace(req.Search)
 	status := strings.TrimSpace(req.Status)
-	if status == "active" {
+	switch status {
+	case "active":
 		status = "open"
-	} else if status == "archived" {
+	case "archived":
 		status = "closed"
 	}
 

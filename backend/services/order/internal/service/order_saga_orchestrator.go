@@ -400,7 +400,6 @@ func (s *orderSagaOrchestrator) ExecuteCheckoutSaga(
 		order = createdOrder
 
 		purchasedProductIDs = make([]int32, len(pricingResult.Items))
-		purchasedProductUUIDs := make([]uuid.UUID, 0, len(pricingResult.Items))
 		purchasedProductUUIDStrings := make([]string, 0, len(pricingResult.Items))
 		createdOrderItems = make([]sqlc.GetOrderItemsByOrderIDRow, len(pricingResult.Items))
 
@@ -408,7 +407,6 @@ func (s *orderSagaOrchestrator) ExecuteCheckoutSaga(
 			snap := prodIDToSnapshot[item.ProductID]
 			purchasedProductIDs[i] = item.ProductID
 			if snap.ProductUUID != uuid.Nil {
-				purchasedProductUUIDs = append(purchasedProductUUIDs, snap.ProductUUID)
 				purchasedProductUUIDStrings = append(purchasedProductUUIDStrings, snap.ProductUUID.String())
 			}
 			createdItemParams := sqlc.CreateOrderItemParams{

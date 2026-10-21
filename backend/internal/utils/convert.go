@@ -17,9 +17,10 @@ var (
 )
 
 func CamelToSnake(str string) string {
-	snake := matchFirstCap.ReplaceAllString(str, "${1}_${2}")
-	snake = matchAllCap.ReplaceAllString(str, "${1}_${2}")
-	return strings.ToLower(snake)
+	return strings.ToLower(matchAllCap.ReplaceAllString(
+		matchFirstCap.ReplaceAllString(str, "${1}_${2}"),
+		"${1}_${2}",
+	))
 }
 
 func NormalizeString(str string) string {

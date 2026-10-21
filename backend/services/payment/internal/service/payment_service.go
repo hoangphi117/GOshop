@@ -2,12 +2,9 @@ package service
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"time"
 
 	"goshop/pkg/cache"
@@ -424,30 +421,4 @@ func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-// computeHash computes SHA256 string hash
-func computeHash(s string) string {
-	hasher := sha256.New()
-	hasher.Write([]byte(s))
-	return hex.EncodeToString(hasher.Sum(nil))
-}
-
-// strPtr converts string to pointer
-func strPtr(s string) *string {
-	return &s
-}
-
-// int32Ptr converts int32 to pointer
-func int32Ptr(i int32) *int32 {
-	return &i
-}
-
-// parseInt32 parses string to int32 safely
-func parseInt32(s string) int32 {
-	val, err := strconv.Atoi(s)
-	if err != nil {
-		return 0
-	}
-	return int32(val)
 }

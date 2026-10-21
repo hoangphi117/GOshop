@@ -111,7 +111,7 @@ func (c *HTTPIdentityClient) GetUserByID(ctx context.Context, userID int32) (*In
 	if err != nil {
 		return nil, fmt.Errorf("failed to call identity service: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, fmt.Errorf("user not found: %d", userID)
@@ -170,7 +170,7 @@ func (c *HTTPIdentityClient) GetUserByUUID(ctx context.Context, userUUID uuid.UU
 	if err != nil {
 		return nil, fmt.Errorf("failed to call identity service: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, fmt.Errorf("user not found: %s", userUUID.String())
@@ -223,7 +223,7 @@ func (c *HTTPIdentityClient) GetActiveAdminUserIDs(ctx context.Context) ([]int32
 	if err != nil {
 		return nil, fmt.Errorf("failed to call identity service: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("identity service returned status: %d", resp.StatusCode)
@@ -307,7 +307,7 @@ func (c *HTTPIdentityClient) GetUsersBatch(ctx context.Context, userIDs []int32)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call identity service batch endpoint: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("identity service returned status %d on batch request", resp.StatusCode)
@@ -366,7 +366,7 @@ func (c *HTTPIdentityClient) GetAddressByUUID(ctx context.Context, userID int32,
 	if err != nil {
 		return nil, fmt.Errorf("failed to call identity service: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, fmt.Errorf("address not found: %s", addressUUID.String())
@@ -422,7 +422,7 @@ func (c *HTTPIdentityClient) GetAddressesByUserID(ctx context.Context, userID in
 	if err != nil {
 		return nil, fmt.Errorf("failed to call identity service: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("identity service returned status: %d", resp.StatusCode)

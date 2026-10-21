@@ -175,7 +175,9 @@ func (cs *categoryService) GetAllCategories(ctx context.Context, search, orderBy
 				Categories: categoriesDTO,
 				Total:      int32(total),
 			}
-			cs.cache.Set(cacheKey, cd, 5*time.Minute)
+			if err := cs.cache.Set(cacheKey, cd, 5*time.Minute); err != nil {
+				logger.Log.Warn().Err(err).Msg("Failed to cache categories")
+			}
 		}
 
 		return fetchResult{categories: categoriesDTO, total: total}, nil

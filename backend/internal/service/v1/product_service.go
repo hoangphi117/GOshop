@@ -345,7 +345,9 @@ func (ps *productService) GetAllProducts(ctx context.Context, search, categoryUU
 				Products: dtos,
 				Total:    int32(total),
 			}
-			ps.cache.Set(cacheKey, cd, 5*time.Minute)
+			if err := ps.cache.Set(cacheKey, cd, 5*time.Minute); err != nil {
+				logger.Log.Warn().Err(err).Msg("Failed to cache products")
+			}
 		}
 
 		return fetchResult{products: dtos, total: total}, nil
@@ -904,7 +906,7 @@ func (ps *productService) executeAtomicBatchInsert(ctx context.Context, rows []P
 	if err != nil {
 		return &DBInsertError{Row: 0, Reason: fmt.Sprintf("Failed to begin transaction: %v", err)}
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	qtx := sqlc.New(tx)
 	for _, row := range rows {
@@ -1119,5 +1121,3 @@ func (ps *productService) SuggestProducts(ctx context.Context, q string, limit i
 
 	return suggestions, nil
 }
-
-

@@ -203,7 +203,7 @@ func (p *vnpayProvider) QueryTransactionStatus(ctx context.Context, providerTxnI
 	if err != nil {
 		return TxnStatusPending, fmt.Errorf("querydr request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -309,7 +309,7 @@ func (p *vnpayProvider) Refund(ctx context.Context, req RefundRequest) (RefundRe
 	if err != nil {
 		return RefundResponse{Status: TxnStatusFailed}, fmt.Errorf("vnpay refund http request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {

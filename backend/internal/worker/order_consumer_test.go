@@ -174,9 +174,10 @@ func TestOrderConsumer_Handle(t *testing.T) {
 
 		mockNotifService := &testutils.MockNotificationService{
 			SendFunc: func(ctx context.Context, input v1dto.SendNotificationInput) error {
-				if input.Type == "return_requested" {
+				switch input.Type {
+				case "return_requested":
 					reqCustomerNotified = true
-				} else if input.Type == "return_approved" {
+				case "return_approved":
 					updatedCustomerNotified = true
 				}
 				return nil

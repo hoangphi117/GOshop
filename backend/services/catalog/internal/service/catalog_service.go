@@ -18,10 +18,10 @@ import (
 	"goshop/pkg/logger"
 	"goshop/pkg/search"
 	"goshop/pkg/utils"
-	inventorycontract "goshop/services/inventory/contract"
 	catalogsqlc "goshop/services/catalog/internal/db/sqlc"
 	"goshop/services/catalog/internal/dto"
 	"goshop/services/catalog/internal/repository"
+	inventorycontract "goshop/services/inventory/contract"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -703,7 +703,9 @@ func (s *catalogService) GetAllProducts(
 				Products: dtos,
 				Total:    int32(total),
 			}
-			s.cache.Set(cacheKey, cd, 5*time.Minute)
+			if err := s.cache.Set(cacheKey, cd, 5*time.Minute); err != nil {
+				logger.Log.Warn().Err(err).Msg("Failed to cache catalog products")
+			}
 		}
 
 		return fetchResult{products: dtos, total: total}, nil
@@ -1355,4 +1357,3 @@ func (s *catalogService) StartOutboxWorker(ctx context.Context) {
 		}
 	}()
 }
-

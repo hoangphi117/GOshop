@@ -38,9 +38,10 @@ func mapProductDTOToProto(d *dto.ProductDTO) *catalogv1.ProductInfo {
 		img = *d.ImageURL
 	}
 	statusInt := int32(1)
-	if d.Status == "Inactive" {
+	switch d.Status {
+	case "Inactive":
 		statusInt = 2
-	} else if d.Status == "Out of Stock" {
+	case "Out of Stock":
 		statusInt = 3
 	}
 

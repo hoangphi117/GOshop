@@ -11,19 +11,19 @@ import (
 
 // ProductDocument represents the schema of a product in Meilisearch
 type ProductDocument struct {
-	ID           string   `json:"id"` // ProductUUID
-	ProductID    int32    `json:"product_id"`
-	Name         string   `json:"product_name"`
-	Slug         string   `json:"product_slug"`
-	Description  string   `json:"product_description"`
-	Price        float64  `json:"product_price"`
-	Stock        int32    `json:"product_stock"`
-	SKU          string   `json:"product_sku"`
-	CategoryUUID string   `json:"category_uuid"`
-	CategoryName string   `json:"category_name"`
-	ImageURL     string   `json:"product_image_url"`
-	Status       int32    `json:"product_status"`
-	CreatedAt    int64    `json:"product_created_at"`
+	ID           string  `json:"id"` // ProductUUID
+	ProductID    int32   `json:"product_id"`
+	Name         string  `json:"product_name"`
+	Slug         string  `json:"product_slug"`
+	Description  string  `json:"product_description"`
+	Price        float64 `json:"product_price"`
+	Stock        int32   `json:"product_stock"`
+	SKU          string  `json:"product_sku"`
+	CategoryUUID string  `json:"category_uuid"`
+	CategoryName string  `json:"category_name"`
+	ImageURL     string  `json:"product_image_url"`
+	Status       int32   `json:"product_status"`
+	CreatedAt    int64   `json:"product_created_at"`
 }
 
 // Client wraps the Meilisearch client
@@ -137,7 +137,7 @@ func (c *Client) SearchDocuments(ctx context.Context, query string, filter strin
 	}
 
 	var docs []ProductDocument
-	if err := resp.Hits.Decode(&docs); err != nil {
+	if err := resp.Hits.Decode(&docs); err != nil { //nolint:staticcheck // SDK compatibility API
 		return nil, 0, fmt.Errorf("failed to decode search hits: %w", err)
 	}
 

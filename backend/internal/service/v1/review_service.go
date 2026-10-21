@@ -267,7 +267,7 @@ func (rs *reviewService) CreateReview(ctx context.Context, userID int32, input v
 	if err != nil {
 		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to start transaction", err)
 	}
-	defer tx.Rollback(txCtx)
+	defer func() { _ = tx.Rollback(txCtx) }()
 
 	hasMedia := len(imageURLs) > 0 || videoURL != nil
 	if imageURLs == nil {
@@ -535,7 +535,7 @@ func (rs *reviewService) UpdateReview(ctx context.Context, userID int32, reviewU
 	if err != nil {
 		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to start transaction", err)
 	}
-	defer tx.Rollback(txCtx)
+	defer func() { _ = tx.Rollback(txCtx) }()
 
 	updateParams := sqlc.UpdateReviewParams{
 		ReviewID:      review.ReviewID,
@@ -592,7 +592,7 @@ func (rs *reviewService) UpdateReviewStatus(ctx context.Context, reviewUUID uuid
 	if err != nil {
 		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to start transaction", err)
 	}
-	defer tx.Rollback(txCtx)
+	defer func() { _ = tx.Rollback(txCtx) }()
 
 	updatedReview, err := rs.repo.UpdateStatus(txCtx, tx, review.ReviewID, input.Status)
 	if err != nil {
@@ -653,7 +653,7 @@ func (rs *reviewService) DeleteReview(ctx context.Context, userID int32, reviewU
 	if err != nil {
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to start transaction", err)
 	}
-	defer tx.Rollback(txCtx)
+	defer func() { _ = tx.Rollback(txCtx) }()
 
 	if err := rs.repo.Delete(txCtx, tx, review.ReviewID); err != nil {
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to delete review", err)
@@ -698,7 +698,7 @@ func (rs *reviewService) ToggleHelpfulVote(ctx context.Context, userID int32, re
 	if err != nil {
 		return v1dto.ToggleHelpfulResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to start transaction", err)
 	}
-	defer tx.Rollback(txCtx)
+	defer func() { _ = tx.Rollback(txCtx) }()
 
 	hasVoted, err := rs.repo.HasHelpfulVote(txCtx, userID, review.ReviewID)
 	if err != nil {
@@ -761,7 +761,7 @@ func (rs *reviewService) ReportReview(ctx context.Context, userID int32, reviewU
 	if err != nil {
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to start transaction", err)
 	}
-	defer tx.Rollback(txCtx)
+	defer func() { _ = tx.Rollback(txCtx) }()
 
 	if err := rs.repo.CreateReport(txCtx, tx, sqlc.InsertReviewReportParams{
 		UserID:   userID,
@@ -884,7 +884,7 @@ func (rs *reviewService) AdminReplyReview(ctx context.Context, reviewUUID uuid.U
 	if err != nil {
 		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to start transaction", err)
 	}
-	defer tx.Rollback(txCtx)
+	defer func() { _ = tx.Rollback(txCtx) }()
 
 	updatedReview, err := rs.repo.Reply(txCtx, tx, review.ReviewID, input.Reply)
 	if err != nil {
@@ -941,7 +941,7 @@ func (rs *reviewService) AdminForceDeleteReview(ctx context.Context, reviewUUID 
 	if err != nil {
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to begin transaction", err)
 	}
-	defer tx.Rollback(txCtx)
+	defer func() { _ = tx.Rollback(txCtx) }()
 
 	if err := rs.repo.Delete(txCtx, tx, review.ReviewID); err != nil {
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to force delete review", err)
@@ -996,7 +996,7 @@ func (rs *reviewService) AdminDismissReports(ctx context.Context, reviewUUID uui
 	if err != nil {
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to start transaction", err)
 	}
-	defer tx.Rollback(txCtx)
+	defer func() { _ = tx.Rollback(txCtx) }()
 
 	if err := rs.repo.DeleteReportsByReviewID(txCtx, tx, review.ReviewID); err != nil {
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to delete reports", err)

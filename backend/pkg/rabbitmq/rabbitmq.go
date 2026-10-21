@@ -15,10 +15,10 @@ import (
 )
 
 const (
-	defaultPrefetchCount  = 10
-	defaultMessageTTL     = 3600000
-	defaultMaxRetries     = 3
-	defaultConsumerCount  = 3
+	defaultPrefetchCount = 10
+	defaultMessageTTL    = 3600000
+	defaultMaxRetries    = 3
+	defaultConsumerCount = 3
 )
 
 type rabbitMQService struct {
@@ -59,20 +59,20 @@ func (r *rabbitMQService) connect() error {
 
 	ch, err := conn.Channel()
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return fmt.Errorf("failed to open channel: %w", err)
 	}
 
 	prefetch := utils.GetIntEnv("RABBITMQ_PREFETCH_COUNT", defaultPrefetchCount)
 	if err := ch.Qos(prefetch, 0, false); err != nil {
-		ch.Close()
-		conn.Close()
+		_ = ch.Close()
+		_ = conn.Close()
 		return fmt.Errorf("failed to set QoS: %w", err)
 	}
 
 	r.mu.Lock()
 	if r.conn != nil {
-		r.conn.Close()
+		_ = r.conn.Close()
 	}
 	r.conn = conn
 	r.channel = ch
@@ -504,7 +504,6 @@ func (r *rabbitMQService) SubscribeTopic(ctx context.Context, queue string, rout
 	return r.SubscribeToExchange(ctx, exchange, queue, routingKeys, handler)
 }
 
-
 func (r *rabbitMQService) startConsumer(ctx context.Context, queue, consumerTag string, msgs <-chan amqp.Delivery, handler func(amqp.Table, []byte) error) {
 	currentMsgs := msgs
 
@@ -592,19 +591,19 @@ func (r *rabbitMQService) consumeLoop(ctx context.Context, queue string, msgs <-
 						// chưa từng tồn tại). Nack + requeue để giữ lại message,
 						// broker sẽ đẩy lại cho consumer xử lý tiếp.
 						r.logger.Error().Err(repErr).Str("trace_id", traceID).Msg("Failed to republish message, requeueing original")
-						msg.Nack(false, true)
+						_ = msg.Nack(false, true)
 						continue
 					}
 
 					// Chỉ Ack bản gốc sau khi chắc chắn bản retry đã được
 					// broker chấp nhận (publish thành công).
-					msg.Ack(false)
+					_ = msg.Ack(false)
 					continue
 				}
 
 				// Đã vượt quá số lần retry cho phép -> xóa khỏi queue chính,
 				// broker sẽ tự động chuyển vào DLQ nhờ x-dead-letter-exchange.
-				msg.Nack(false, false)
+				_ = msg.Nack(false, false)
 				continue
 			}
 
@@ -613,7 +612,7 @@ func (r *rabbitMQService) consumeLoop(ctx context.Context, queue string, msgs <-
 				Str("queue", queue).
 				Msg("Message processed successfully")
 
-			msg.Ack(false)
+			_ = msg.Ack(false)
 
 		case <-ctx.Done():
 			return true

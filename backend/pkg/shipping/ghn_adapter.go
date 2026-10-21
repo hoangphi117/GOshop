@@ -58,23 +58,23 @@ type ghnBaseResponse struct {
 }
 
 type ghnCreateOrderPayload struct {
-	PaymentTypeID int       `json:"payment_type_id"` // 1: Shop/Người gửi trả cước, 2: Người nhận trả cước
-	Note          string    `json:"note,omitempty"`
-	RequiredNote  string    `json:"required_note"` // CHOXEMHANGKHONGTHU, CHOTHUHANG, KHONGCHOXEMHANG
-	ToName        string    `json:"to_name"`
-	ToPhone       string    `json:"to_phone"`
-	ToAddress     string    `json:"to_address"`
-	ToWardCode    string    `json:"to_ward_code"`
-	ToDistrictID  int       `json:"to_district_id"`
-	CODAmount     int       `json:"cod_amount"`
-	InsuranceValue int      `json:"insurance_value,omitempty"`
-	Weight        int       `json:"weight"`
-	Length        int       `json:"length,omitempty"`
-	Width         int       `json:"width,omitempty"`
-	Height        int       `json:"height,omitempty"`
-	ServiceTypeID int       `json:"service_type_id"`
-	Items         []ghnItem `json:"items"`
-	CallbackURL   string    `json:"callback_url,omitempty"`
+	PaymentTypeID  int       `json:"payment_type_id"` // 1: Shop/Người gửi trả cước, 2: Người nhận trả cước
+	Note           string    `json:"note,omitempty"`
+	RequiredNote   string    `json:"required_note"` // CHOXEMHANGKHONGTHU, CHOTHUHANG, KHONGCHOXEMHANG
+	ToName         string    `json:"to_name"`
+	ToPhone        string    `json:"to_phone"`
+	ToAddress      string    `json:"to_address"`
+	ToWardCode     string    `json:"to_ward_code"`
+	ToDistrictID   int       `json:"to_district_id"`
+	CODAmount      int       `json:"cod_amount"`
+	InsuranceValue int       `json:"insurance_value,omitempty"`
+	Weight         int       `json:"weight"`
+	Length         int       `json:"length,omitempty"`
+	Width          int       `json:"width,omitempty"`
+	Height         int       `json:"height,omitempty"`
+	ServiceTypeID  int       `json:"service_type_id"`
+	Items          []ghnItem `json:"items"`
+	CallbackURL    string    `json:"callback_url,omitempty"`
 }
 
 type ghnItem struct {
@@ -441,7 +441,7 @@ func (a *GHNAdapter) doRequest(ctx context.Context, method, endpoint string, pay
 	if err != nil {
 		return nil, fmt.Errorf("http request error: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {

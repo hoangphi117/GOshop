@@ -210,34 +210,6 @@ func (s *orderReturnService) AdminUpdateReturnStatus(ctx context.Context, userUU
 	}, nil
 }
 
-// restockReturnedOrderItems restores warehouse inventory for all items in the returned order via OrderStockPort.
-func (s *orderReturnService) restockReturnedOrderItems(ctx context.Context, order sqlc.GetOrderByIDRow, returnRequest sqlc.OrderReturn) error {
-	orderItems, err := s.orderItemRepo.GetByOrderID(ctx, returnRequest.ReturnOrderID)
-	if err != nil {
-		return utils.WrapError(utils.ErrCodeInternal, "failed to get order items for return restock", err)
-	}
-	if len(orderItems) == 0 {
-		return nil
-	}
-
-	restoreItems := make([]RestoreItem, len(orderItems))
-	for i, item := range orderItems {
-		restoreItems[i] = RestoreItem{
-			ProductID: item.OrderItemProductID,
-			Quantity:  item.OrderItemQuantity,
-		}
-	}
-
-	refID := order.OrderNumber
-	note := fmt.Sprintf("Restock from completed return (Order #%s, Return ID #%d)", order.OrderNumber, returnRequest.ReturnID)
-	if s.stockPort != nil {
-		if err := s.stockPort.RestoreStockWithRef(ctx, restoreItems, refID, "order_return", nil, &note); err != nil {
-			return utils.WrapError(utils.ErrCodeInternal, "failed to restore stock for returned order", err)
-		}
-	}
-	return nil
-}
-
 // AdminProcessReturnRefund executes refund payout (either online payment gateway refund or manual bank transfer).
 func (s *orderReturnService) AdminProcessReturnRefund(ctx context.Context, userUUID uuid.UUID, returnUUID uuid.UUID, input v1dto.AdminReturnRefundInput) (v1dto.AdminReturnRefundResponseDTO, error) {
 	user, err := s.getCustomer(ctx, userUUID)
@@ -357,17 +329,12 @@ func (s *orderReturnService) AdminProcessReturnRefund(ctx context.Context, userU
 		totalRefunded = currentRefunded + refundAmt
 	}
 
-	refundCompletedNote := fmt.Sprintf("Return completed and refunded %.0f VND via %s (Txn ID: %s)", refundAmt, strings.ToUpper(refundProvider), refundTxnID)
-	if strings.TrimSpace(input.AccountingNote) != "" {
-		refundCompletedNote += fmt.Sprintf(". Note: %s", strings.TrimSpace(input.AccountingNote))
-	}
-
 	err = s.txManager.WithTx(ctx, func(txCtx context.Context) error {
 		tx, _ := db.GetTx(txCtx)
 		var returnedOrder sqlc.Order
 
 		// Update payment aggregate for both gateway and manual refunds.
-		var newPaymentStatus int32 = OrderPaymentStatusPartiallyRefunded
+		newPaymentStatus := int32(OrderPaymentStatusPartiallyRefunded)
 		if totalRefunded >= orderTotalAmount {
 			newPaymentStatus = OrderPaymentStatusFullyRefunded
 		}

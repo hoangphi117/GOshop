@@ -42,7 +42,9 @@ type App struct {
 
 // New constructs and wires the Notification application
 func New(cfg *config.Config) (*App, error) {
-	validation.InitValidator()
+	if err := validation.InitValidator(); err != nil {
+		return nil, fmt.Errorf("failed to initialize validator: %w", err)
+	}
 
 	r := gin.Default()
 

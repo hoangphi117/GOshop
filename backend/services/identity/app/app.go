@@ -16,14 +16,14 @@ import (
 	"goshop/internal/config"
 	"goshop/internal/db"
 	"goshop/internal/repository"
-	"goshop/pkg/utils"
-	"goshop/pkg/validation"
 	"goshop/internal/worker"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 	"goshop/pkg/mail"
 	"goshop/pkg/rabbitmq"
+	"goshop/pkg/utils"
+	"goshop/pkg/validation"
 	"goshop/pkg/ws"
 	identityv1 "goshop/proto/identity/v1"
 	identitysqlc "goshop/services/identity/internal/db/sqlc"
@@ -47,7 +47,9 @@ type App struct {
 
 // New constructs and wires the Identity application
 func New(cfg *config.Config) (*App, error) {
-	validation.InitValidator()
+	if err := validation.InitValidator(); err != nil {
+		return nil, fmt.Errorf("failed to initialize validator: %w", err)
+	}
 
 	r := gin.Default()
 

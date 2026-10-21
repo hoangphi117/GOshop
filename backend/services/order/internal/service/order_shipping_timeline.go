@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"goshop/services/order/internal/db/sqlc"
-	v1dto "goshop/services/order/internal/dto"
 	"goshop/internal/utils"
 	"goshop/pkg/logger"
 	"goshop/pkg/shipping"
+	"goshop/services/order/internal/db/sqlc"
+	v1dto "goshop/services/order/internal/dto"
 
 	"github.com/google/uuid"
 )
@@ -72,11 +72,12 @@ func (s *orderShippingService) synthesizeBaselineTimeline(order sqlc.GetOrderByU
 			confTime = order.OrderUpdatedAt
 		}
 		confNote := "Order payment confirmed"
-		if order.OrderPaymentMethod == 1 {
+		switch order.OrderPaymentMethod {
+		case 1:
 			confNote = "Order verified for Cash on Delivery (COD)"
-		} else if order.OrderPaymentMethod == 2 {
+		case 2:
 			confNote = "Bank transfer payment verified"
-		} else if order.OrderPaymentMethod == 3 {
+		case 3:
 			confNote = "E-wallet payment processed successfully"
 		}
 		eventDTOs = append(eventDTOs, v1dto.TrackingEventDTO{
@@ -169,7 +170,6 @@ func (s *orderShippingService) synthesizeBaselineTimeline(order sqlc.GetOrderByU
 			Source:     "system",
 			CreatedAt:  retTime,
 		})
-		nextID++
 	}
 
 	return eventDTOs

@@ -5,12 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	dto "goshop/services/identity/internal/dto"
-	"goshop/pkg/utils"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 	"goshop/pkg/rabbitmq"
+	"goshop/pkg/utils"
 	"goshop/services/identity/internal/db/sqlc"
+	dto "goshop/services/identity/internal/dto"
 	"goshop/services/identity/internal/repository"
 	"strings"
 	"time"
@@ -141,7 +141,7 @@ func (us *userService) GetAllUsers(ctx context.Context, search, orderBy, sort st
 	cacheKey := us.generateCacheKey(search, orderBy, sort, page, limit, deleted)
 	var cacheData struct {
 		Users []dto.UserDTO `json:"users"`
-		Total int32           `json:"total"`
+		Total int32         `json:"total"`
 	}
 
 	if us.cache != nil {
@@ -168,12 +168,14 @@ func (us *userService) GetAllUsers(ctx context.Context, search, orderBy, sort st
 	if us.cache != nil {
 		cacheData = struct {
 			Users []dto.UserDTO `json:"users"`
-			Total int32           `json:"total"`
+			Total int32         `json:"total"`
 		}{
 			Users: usersDTO,
 			Total: int32(total),
 		}
-		us.cache.Set(cacheKey, cacheData, 5*time.Minute)
+		if err := us.cache.Set(cacheKey, cacheData, 5*time.Minute); err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to cache users")
+		}
 	}
 
 	return usersDTO, int32(total), nil

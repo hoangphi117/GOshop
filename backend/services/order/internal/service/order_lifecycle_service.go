@@ -469,7 +469,7 @@ func (s *orderLifecycleService) UpdateOrderPaymentStatus(ctx context.Context, us
 	}
 
 	var allowedFromStatuses []int32
-	var targetPaymentStatus int32 = input.PaymentStatus
+	targetPaymentStatus := input.PaymentStatus
 	newTotalRefunded := utils.NumericToFloat(existingOrder.OrderRefundedAmount)
 
 	switch input.PaymentStatus {

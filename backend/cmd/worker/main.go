@@ -176,7 +176,7 @@ func (w *Worker) Start(ctx context.Context) error {
 
 		ctx := context.Background()
 		if traceID, ok := headers["trace_id"].(string); ok {
-			ctx = context.WithValue(ctx, "trace_id", traceID)
+			ctx = logger.WithTraceID(ctx, traceID)
 		}
 
 		var email mail.Email
@@ -445,19 +445,4 @@ func main() {
 
 	wg.Wait()
 	logger.Log.Info().Msg("Main process terminated")
-}
-
-func runWithDistributedLock(ctx context.Context, redisClient *redis.Client, lockKey string, ttl time.Duration, task func()) {
-	if redisClient == nil {
-		task()
-		return
-	}
-	if ttl <= 0 {
-		ttl = time.Minute
-	}
-	ok, err := redisClient.SetNX(ctx, lockKey, "1", ttl).Result()
-	if err != nil || !ok {
-		return // Lock held by another worker instance
-	}
-	task()
 }

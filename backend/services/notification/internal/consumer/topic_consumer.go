@@ -17,6 +17,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 type TopicConsumer struct {
@@ -236,7 +238,7 @@ func formatOrderStatus(status any) string {
 		if v == "" {
 			return "Updated"
 		}
-		return strings.Title(strings.ToLower(v))
+		return cases.Title(language.Und).String(strings.ToLower(v))
 	default:
 		return fmt.Sprintf("%v", v)
 	}

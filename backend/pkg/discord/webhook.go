@@ -247,7 +247,7 @@ func (d *discordNotifier) send(ctx context.Context, payload WebhookPayload) erro
 		}
 		return fmt.Errorf("failed to send discord webhook: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		if d.logger != nil {

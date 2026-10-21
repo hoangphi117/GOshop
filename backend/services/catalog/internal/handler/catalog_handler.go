@@ -412,7 +412,7 @@ func (h *CatalogHandler) ImportProductsCSV(c *gin.Context) {
 		utils.ResponseError(c, utils.NewError(utils.ErrCodeBadRequest, "Failed to read uploaded file"))
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	res, err := h.svc.ImportProductsCSV(c.Request.Context(), file)
 	if err != nil {

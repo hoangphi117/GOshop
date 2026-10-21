@@ -119,7 +119,7 @@ func (p *momoProvider) CreatePaymentURL(ctx context.Context, req CreatePaymentRe
 	if err != nil {
 		return CreatePaymentResponse{}, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -263,7 +263,7 @@ func (p *momoProvider) QueryTransactionStatus(ctx context.Context, orderNumber s
 	if err != nil {
 		return TxnStatusFailed, fmt.Errorf("failed to execute query request to MoMo: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -351,7 +351,7 @@ func (p *momoProvider) Refund(ctx context.Context, req RefundRequest) (RefundRes
 	if err != nil {
 		return RefundResponse{}, fmt.Errorf("failed to call MoMo refund API: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {

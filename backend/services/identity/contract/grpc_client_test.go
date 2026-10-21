@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 
 	identityv1 "goshop/proto/identity/v1"
@@ -90,44 +89,6 @@ func (m *mockGRPCServer) GetAddressesByUserID(ctx context.Context, req *identity
 	}, nil
 }
 
-func setupBufconnClient(t *testing.T) contract.IdentityClient {
-	buffer := 1024 * 1024
-	lis := bufconn.Listen(buffer)
-
-	baseServer := grpc.NewServer()
-	identityv1.RegisterIdentityServiceServer(baseServer, &mockGRPCServer{})
-
-	go func() {
-		_ = baseServer.Serve(lis)
-	}()
-
-	t.Cleanup(func() {
-		baseServer.Stop()
-		_ = lis.Close()
-	})
-
-	dialer := func(context.Context, string) (net.Conn, error) {
-		return lis.Dial()
-	}
-
-	conn, err := grpc.NewClient(
-		"passthrough://bufnet",
-		grpc.WithContextDialer(dialer),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		_ = conn.Close()
-	})
-
-	// Use contract.IdentityClient interface with gRPC client
-	client, err := contract.NewGRPCIdentityClient("passthrough://bufnet", nil)
-	require.NoError(t, err)
-
-	return client
-}
-
 func TestGRPCIdentityClient_EndToEnd(t *testing.T) {
 	buffer := 1024 * 1024
 	lis := bufconn.Listen(buffer)
@@ -147,7 +108,7 @@ func TestGRPCIdentityClient_EndToEnd(t *testing.T) {
 	// Start local TCP listener on random port to test NewGRPCIdentityClient directly
 	tcpLis, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	defer tcpLis.Close()
+	defer func() { _ = tcpLis.Close() }()
 
 	tcpServer := grpc.NewServer()
 	identityv1.RegisterIdentityServiceServer(tcpServer, &mockGRPCServer{})

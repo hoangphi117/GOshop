@@ -1,4 +1,4 @@
-﻿package app
+package app
 
 import (
 	v1handler "goshop/internal/handler/v1"
@@ -7,8 +7,7 @@ import (
 )
 
 type UploadModule struct {
-	routes      []routes.Route
-	adminRoutes []routes.Route
+	routes []routes.Route
 }
 
 func NewUploadModule(ctx *ModuleContext) *UploadModule {

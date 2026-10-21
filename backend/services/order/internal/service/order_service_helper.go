@@ -51,11 +51,3 @@ func handleOrderNotFoundError(err error) error {
 	}
 	return utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
 }
-
-func (s *orderService) handleUserNotFoundError(err error) error {
-	return handleUserNotFoundError(err)
-}
-
-func (s *orderService) handleOrderNotFoundError(err error) error {
-	return handleOrderNotFoundError(err)
-}

@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	dto "goshop/services/identity/internal/dto"
 	"goshop/pkg/validation"
+	dto "goshop/services/identity/internal/dto"
 	"goshop/services/identity/internal/handler"
 
 	"github.com/gin-gonic/gin"
@@ -17,16 +18,16 @@ import (
 )
 
 type mockAuthService struct {
-	registerFunc             func(ctx context.Context, input dto.RegisterInput) error
-	sendRegisterOTPFunc      func(ctx context.Context, input dto.SendRegisterOTPInput) error
-	verifyRegisterOTPFunc    func(ctx context.Context, input dto.VerifyRegisterOTPInput) (string, string, int, error)
-	resendRegisterOTPFunc    func(ctx context.Context, input dto.ResendRegisterOTPInput) error
-	loginFunc                func(ctx context.Context, ip, userAgent string, email, password string) (string, string, int, error)
-	googleLoginFunc          func(ctx context.Context, ip, userAgent, idToken string) (string, string, int, error)
-	logoutFunc               func(ctx context.Context, accessToken string, refreshToken string) error
-	refreshTokenFunc         func(ctx context.Context, refreshToken string) (string, string, int, error)
+	registerFunc              func(ctx context.Context, input dto.RegisterInput) error
+	sendRegisterOTPFunc       func(ctx context.Context, input dto.SendRegisterOTPInput) error
+	verifyRegisterOTPFunc     func(ctx context.Context, input dto.VerifyRegisterOTPInput) (string, string, int, error)
+	resendRegisterOTPFunc     func(ctx context.Context, input dto.ResendRegisterOTPInput) error
+	loginFunc                 func(ctx context.Context, ip, userAgent string, email, password string) (string, string, int, error)
+	googleLoginFunc           func(ctx context.Context, ip, userAgent, idToken string) (string, string, int, error)
+	logoutFunc                func(ctx context.Context, accessToken string, refreshToken string) error
+	refreshTokenFunc          func(ctx context.Context, refreshToken string) (string, string, int, error)
 	requestForgotPasswordFunc func(ctx context.Context, email string) error
-	resetPasswordFunc        func(ctx context.Context, token, newPassword string) error
+	resetPasswordFunc         func(ctx context.Context, token, newPassword string) error
 }
 
 func (m *mockAuthService) Register(ctx context.Context, input dto.RegisterInput) error {
@@ -101,7 +102,9 @@ func (m *mockAuthService) ResetPassword(ctx context.Context, token, newPassword 
 
 func init() {
 	gin.SetMode(gin.TestMode)
-	validation.InitValidator()
+	if err := validation.InitValidator(); err != nil {
+		panic(fmt.Sprintf("failed to initialize validator: %v", err))
+	}
 }
 
 func TestAuthHandler_SendRegisterOTP(t *testing.T) {

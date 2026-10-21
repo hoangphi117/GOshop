@@ -77,7 +77,7 @@ func ValidateAndSaveFile(fileHeader *multipart.FileHeader, uploadDir string) (st
 	if err != nil {
 		return "", "", errors.New("cannot open file")
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	buffer := make([]byte, 512)
 	n, err := file.Read(buffer)
@@ -86,11 +86,12 @@ func ValidateAndSaveFile(fileHeader *multipart.FileHeader, uploadDir string) (st
 	}
 
 	mimeType := http.DetectContentType(buffer[:n])
-	if mediaType == MediaTypeImage {
+	switch mediaType {
+	case MediaTypeImage:
 		if !allowImageMimeTypes[mimeType] {
 			return "", "", fmt.Errorf("invalid image MIME type: %s", mimeType)
 		}
-	} else if mediaType == MediaTypeVideo {
+	case MediaTypeVideo:
 		if !allowVideoMimeTypes[mimeType] && mimeType != "application/octet-stream" {
 			return "", "", fmt.Errorf("invalid video MIME type: %s", mimeType)
 		}
@@ -113,7 +114,7 @@ func ValidateAndSaveFile(fileHeader *multipart.FileHeader, uploadDir string) (st
 	if err != nil {
 		return "", "", err
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 
 	if _, err = io.Copy(out, file); err != nil {
 		return "", "", err
@@ -127,13 +128,13 @@ func SaveFile(fileHeader *multipart.FileHeader, destination string) error {
 	if err != nil {
 		return err
 	}
-	defer src.Close()
+	defer func() { _ = src.Close() }()
 
 	out, err := os.Create(destination)
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 
 	_, err = io.Copy(out, src)
 

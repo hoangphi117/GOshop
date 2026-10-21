@@ -239,7 +239,9 @@ func (cs *redisCacheService) Clear(pattern string) error {
 
 		if len(keys) > 0 {
 			delCtx, delCancel := context.WithTimeout(cs.ctx, 2*time.Second)
-			cs.rdb.Del(delCtx, keys...).Err()
+			if err := cs.rdb.Del(delCtx, keys...).Err(); err != nil {
+				cs.recordRedisError(err)
+			}
 			delCancel()
 		}
 
@@ -343,4 +345,3 @@ func (cs *redisCacheService) TTL(key string) (time.Duration, error) {
 	cs.recordRedisSuccess()
 	return dur, nil
 }
-

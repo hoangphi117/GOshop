@@ -69,7 +69,6 @@ func (rr *SqlReviewRepository) GetByProduct(ctx context.Context, productID int32
 	if hasMedia != nil {
 		query += fmt.Sprintf(" AND r.review_has_media = $%d", argIdx)
 		args = append(args, *hasMedia)
-		argIdx++
 	}
 
 	order := "DESC"
@@ -139,7 +138,6 @@ func (rr *SqlReviewRepository) CountByProduct(ctx context.Context, productID int
 	if hasMedia != nil {
 		query += fmt.Sprintf(" AND r.review_has_media = $%d", argIdx)
 		args = append(args, *hasMedia)
-		argIdx++
 	}
 
 	var count int64
@@ -216,7 +214,6 @@ func (rr *SqlReviewRepository) AdminGetAll(ctx context.Context, status *int16, r
 	if search != nil && *search != "" {
 		query += fmt.Sprintf(" AND (unaccent(r.review_title) ILIKE '%%' || unaccent($%d) || '%%' OR unaccent(r.review_comment) ILIKE '%%' || unaccent($%d) || '%%')", argIdx, argIdx)
 		args = append(args, *search)
-		argIdx++
 	}
 	order := "DESC"
 	if strings.ToLower(sort) == "asc" {
@@ -259,7 +256,6 @@ func (rr *SqlReviewRepository) AdminGetAll(ctx context.Context, status *int16, r
 	return reviews, nil
 }
 
-
 func (rr *SqlReviewRepository) AdminCount(ctx context.Context, status *int16, rating *int32, productID *int32, search *string) (int64, error) {
 	query := `SELECT COUNT(*) FROM product_reviews r WHERE 1=1`
 	args := []any{}
@@ -282,7 +278,6 @@ func (rr *SqlReviewRepository) AdminCount(ctx context.Context, status *int16, ra
 	if search != nil && *search != "" {
 		query += fmt.Sprintf(" AND (unaccent(r.review_title) ILIKE '%%' || unaccent($%d) || '%%' OR unaccent(r.review_comment) ILIKE '%%' || unaccent($%d) || '%%')", argIdx, argIdx)
 		args = append(args, *search)
-		argIdx++
 	}
 	var count int64
 	if err := db.DBPool.QueryRow(ctx, query, args...).Scan(&count); err != nil {
