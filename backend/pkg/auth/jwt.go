@@ -65,18 +65,21 @@ func loadKeyData(val string) []byte {
 
 func loadOrGenerateRSAKeys() (*rsa.PrivateKey, *rsa.PublicKey, string) {
 	keyID := utils.GetEnv("JWT_KEY_ID", "goshop-key-1")
+	signingEnabled := strings.EqualFold(utils.GetEnv("JWT_SIGNING_ENABLED", "true"), "true")
 
 	var privKey *rsa.PrivateKey
 	var pubKey *rsa.PublicKey
 
-	privEnv := utils.GetEnv("JWT_PRIVATE_KEY", "")
-	if privEnv != "" {
-		if data := loadKeyData(privEnv); len(data) > 0 {
-			if k, err := jwt.ParseRSAPrivateKeyFromPEM(data); err == nil {
-				privKey = k
-				pubKey = &k.PublicKey
-			} else {
-				logger.Log.Error().Err(err).Msg("Failed to parse JWT_PRIVATE_KEY")
+	if signingEnabled {
+		privEnv := utils.GetEnv("JWT_PRIVATE_KEY", "")
+		if privEnv != "" {
+			if data := loadKeyData(privEnv); len(data) > 0 {
+				if k, err := jwt.ParseRSAPrivateKeyFromPEM(data); err == nil {
+					privKey = k
+					pubKey = &k.PublicKey
+				} else {
+					logger.Log.Error().Err(err).Msg("Failed to parse JWT_PRIVATE_KEY")
+				}
 			}
 		}
 	}
@@ -93,7 +96,7 @@ func loadOrGenerateRSAKeys() (*rsa.PrivateKey, *rsa.PublicKey, string) {
 	}
 
 	// Try default key file locations if not explicitly configured via env
-	if privKey == nil {
+	if signingEnabled && privKey == nil {
 		for _, path := range []string{"certs/jwt_private.pem", "/app/certs/jwt_private.pem", "../certs/jwt_private.pem"} {
 			if data, err := os.ReadFile(path); err == nil && len(data) > 0 {
 				if k, err := jwt.ParseRSAPrivateKeyFromPEM(data); err == nil {
@@ -117,8 +120,8 @@ func loadOrGenerateRSAKeys() (*rsa.PrivateKey, *rsa.PublicKey, string) {
 		}
 	}
 
-	// Ephemeral generation if neither private key nor public key is configured
-	if privKey == nil && pubKey == nil {
+	// Ephemeral generation is only allowed for signing services in development.
+	if signingEnabled && privKey == nil && pubKey == nil {
 		if utils.GetEnv("APP_ENV", "development") == "production" {
 			logger.Log.Fatal().Msg("FATAL: JWT_PRIVATE_KEY or JWT_PUBLIC_KEY must be configured in production environment")
 		}
@@ -130,6 +133,13 @@ func loadOrGenerateRSAKeys() (*rsa.PrivateKey, *rsa.PublicKey, string) {
 		} else {
 			logger.Log.Error().Err(err).Msg("Failed to generate ephemeral RSA keypair")
 		}
+	}
+
+	if signingEnabled && privKey == nil && utils.GetEnv("APP_ENV", "development") == "production" {
+		logger.Log.Fatal().Msg("FATAL: JWT_SIGNING_ENABLED=true requires JWT_PRIVATE_KEY")
+	}
+	if !signingEnabled && pubKey == nil && utils.GetEnv("APP_ENV", "development") == "production" {
+		logger.Log.Fatal().Msg("FATAL: JWT_SIGNING_ENABLED=false requires JWT_PUBLIC_KEY")
 	}
 
 	return privKey, pubKey, keyID
