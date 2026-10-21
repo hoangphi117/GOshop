@@ -200,19 +200,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		logger.Log.Warn().Err(err).Str("addr", catalogTarget).Msg("Failed to initialize Catalog gRPC client")
 	}
 
-	cartTarget := utils.GetEnv("CART_GRPC_TARGET", utils.GetEnv("CART_GRPC_ADDR", "localhost:50056"))
-	grpcCartClient, err := client.NewGRPCCartClient(cartTarget)
-	if err != nil {
-		logger.Log.Warn().Err(err).Str("addr", cartTarget).Msg("Failed to initialize Cart gRPC client")
-	}
-	cartService := client.NewCartServiceAdapter(grpcCartClient)
 
-	grpcPaymentClient, err := client.NewGRPCPaymentClient(cfg.PaymentGRPCAddr)
-	if err != nil {
-		logger.Log.Fatal().Err(err).Str("addr", cfg.PaymentGRPCAddr).Msg("Failed to initialize Payment gRPC client")
-		return nil, err
-	}
-	paymentService := client.NewPaymentServiceAdapter(grpcPaymentClient)
 
 	couponTarget := utils.GetEnv("COUPON_GRPC_TARGET", "localhost:50053")
 	grpcCouponClient, err := couponcontract.NewGRPCCouponClient(couponTarget)
@@ -250,33 +238,12 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		OrderClient:     grpcOrderClient,
 	}
 
-	orderModuleDeps := OrderModuleDeps{
-		CartService:     cartService,
-		PaymentService:  paymentService,
-		LocationService: locationService,
-		ShippingFactory: shippingFactory,
-		RabbitMQService: rabbitmqService,
-		CacheService:    cacheRedisService,
-	}
-
-	orderModule, err := NewOrderModule(ctx, orderModuleDeps)
-	if err != nil {
-		logger.Log.Fatal().Err(err).Msg("Failed to initialize Order module")
-		return nil, err
-	}
-
 	var crossDomainOrderReader v1service.OrderReader
 	if grpcOrderClient != nil {
 		crossDomainOrderReader = client.NewGRPCOrderReader(grpcOrderClient)
-	} else {
-		crossDomainOrderReader = orderModule.OrderReader()
 	}
 
 	modules := []Module{
-		NewProductModule(ctx),
-		orderModule,
-	}
-	modules = append(modules,
 		NewReviewModule(ctx, rabbitmqService, crossDomainOrderReader),
 		NewWSModule(ctx, wsHub, tokenService, cacheRedisService),
 		NewLocationModule(locationService),
@@ -285,7 +252,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		NewAnalyticsModule(ctx),
 		NewChatModule(ctx, wsHub, redisBridge, crossDomainOrderReader),
 		NewHealthModule(db.DBPool, redisClient, rabbitmqService, storageService, discord.NewDiscordNotifier(utils.GetEnv("DISCORD_WEBHOOK_URL", ""), logger.Log), logger.Log),
-	)
+	}
 
 	routes.RegisterRoutes(r, tokenService, cacheRedisService, getModuleRoutes(modules), getAdminModuleRoutes(modules))
 

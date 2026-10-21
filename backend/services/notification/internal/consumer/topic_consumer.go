@@ -156,6 +156,12 @@ func (c *TopicConsumer) handleOrderStatusChanged(routingKey string, body []byte)
 	}
 
 	statusStr := formatOrderStatus(payload.NewStatus)
+	if statusStr == "Returned" {
+		c.logger.Info().
+			Str("order_number", payload.OrderNumber).
+			Msg("Skipping generic returned notification; return event owns this notification")
+		return nil
+	}
 	var title, msgBody string
 	switch statusStr {
 	case "Confirmed":

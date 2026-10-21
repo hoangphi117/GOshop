@@ -21,8 +21,7 @@ var (
 )
 
 var (
-	_ v1service.CartService     = (*CartServiceAdapter)(nil)
-	_ v1service.OrderCartPort   = (*CartServiceAdapter)(nil)
+	_ v1service.CartService = (*CartServiceAdapter)(nil)
 )
 
 // CartServiceAdapter bridges the standalone Cart gRPC microservice into Monolith services & workers

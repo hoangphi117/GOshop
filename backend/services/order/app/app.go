@@ -8,99 +8,192 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
 	"goshop/internal/config"
 	"goshop/internal/db"
-	"goshop/internal/db/sqlc"
-	"goshop/internal/repository"
-	v1service "goshop/internal/service/v1"
+	"goshop/pkg/auth"
+	"goshop/pkg/cache"
 	"goshop/pkg/logger"
+	"goshop/pkg/rabbitmq"
+	"goshop/pkg/shipping"
 	"goshop/pkg/utils"
 	"goshop/pkg/validation"
 	orderv1 "goshop/proto/order/v1"
+	cartcontract "goshop/services/cart/contract"
+	catalogcontract "goshop/services/catalog/contract"
+	couponcontract "goshop/services/coupon/contract"
+	identitycontract "goshop/services/identity/contract"
+	inventorycontract "goshop/services/inventory/contract"
 	"goshop/services/order/contract"
+	"goshop/services/order/internal/db/sqlc"
+	v1dto "goshop/services/order/internal/dto"
 	ordergrpc "goshop/services/order/internal/grpc"
+	orderhandler "goshop/services/order/internal/handler"
 	"goshop/services/order/internal/migrations"
+	orderrepo "goshop/services/order/internal/repository"
+	orderroutes "goshop/services/order/internal/routes"
+	orderservice "goshop/services/order/internal/service"
+	orderworker "goshop/services/order/internal/worker"
+	paymentcontract "goshop/services/payment/contract"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"google.golang.org/grpc"
 )
 
 type App struct {
-	cfg          *config.Config
-	server       *http.Server
-	grpcServer   *grpc.Server
-	grpcListener net.Listener
+	cfg              *config.Config
+	server           *http.Server
+	grpcServer       *grpc.Server
+	grpcListener     net.Listener
+	orderHandler     *orderhandler.OrderHandler
+	orderService     orderservice.OrderService
+	sagaOrchestrator orderservice.OrderSagaOrchestrator
+	shippingService  orderservice.OrderShippingService
+	locationService  orderservice.LocationService
+	returnService    orderservice.OrderReturnService
+	adminService     orderservice.OrderAdminService
+	rabbitMQ         rabbitmq.RabbitMQService
+	outboxWorker     *orderworker.OutboxPublisherWorker
+	sagaWorker       *orderworker.SagaRecoveryWorker
+	paymentClient    *paymentcontract.GRPCPaymentClient
+}
+
+type paymentRefundAdapter struct {
+	client *paymentcontract.GRPCPaymentClient
+}
+
+func (a paymentRefundAdapter) RefundPayment(ctx context.Context, idempotencyKey string, input v1dto.RefundPaymentInput) (v1dto.PaymentTransactionDTO, error) {
+	txn, err := a.client.RefundPayment(ctx, paymentcontract.RefundPaymentInput{
+		IdempotencyKey: idempotencyKey,
+		OrderUUID:      input.OrderUUID,
+		Amount:         input.Amount,
+		Reason:         input.Reason,
+	})
+	if err != nil {
+		return v1dto.PaymentTransactionDTO{}, err
+	}
+	return v1dto.PaymentTransactionDTO{
+		UUID:          txn.UUID,
+		OrderUUID:     txn.OrderUUID,
+		Provider:      txn.Provider,
+		ProviderTxnID: txn.ProviderTxnID,
+		Amount:        txn.Amount,
+		Currency:      txn.Currency,
+		Status:        txn.Status,
+		RefundOf:      txn.RefundOf,
+		RefundAmount:  txn.RefundAmount,
+		PaidAt:        txn.PaidAt,
+	}, nil
 }
 
 type orderProviderAdapter struct {
-	reader v1service.OrderReader
+	querier *sqlc.Queries
 }
 
 func (a *orderProviderAdapter) GetOrderSummary(ctx context.Context, orderUUID uuid.UUID) (*contract.OrderSummary, error) {
-	s, err := a.reader.GetOrderSummary(ctx, orderUUID)
+	order, err := a.querier.GetOrderByUUID(ctx, orderUUID)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
 		return nil, err
 	}
-	if s == nil {
-		return nil, nil
+
+	var deliveredAt *time.Time
+	if order.OrderDeliveredAt.Valid {
+		t := order.OrderDeliveredAt.Time
+		deliveredAt = &t
 	}
+
 	return &contract.OrderSummary{
-		OrderID:       s.OrderID,
-		OrderUUID:     s.OrderUUID,
-		OrderNumber:   s.OrderNumber,
-		UserID:        s.UserID,
-		UserUUID:      s.UserUUID,
-		CustomerName:  s.CustomerName,
-		CustomerEmail: s.CustomerEmail,
-		Status:        s.Status,
-		TotalAmount:   s.TotalAmount,
-		DeliveredAt:   s.DeliveredAt,
-		UpdatedAt:     s.UpdatedAt,
+		OrderID:       order.OrderID,
+		OrderUUID:     order.OrderUuid,
+		OrderNumber:   order.OrderNumber,
+		UserID:        order.OrderUserID,
+		UserUUID:      order.UserUuid,
+		CustomerName:  order.OrderCustomerName,
+		CustomerEmail: order.OrderCustomerEmail,
+		Status:        order.OrderStatus,
+		TotalAmount:   utils.NumericToFloat(order.OrderTotalAmount),
+		DeliveredAt:   deliveredAt,
+		UpdatedAt:     order.OrderUpdatedAt,
 	}, nil
 }
 
 func (a *orderProviderAdapter) VerifyPurchase(ctx context.Context, orderUUID uuid.UUID, userID, productID int32, userUUID, productUUID *uuid.UUID) (*contract.PurchaseVerification, error) {
-	v, err := a.reader.VerifyPurchase(ctx, orderUUID, userID, productID)
+	order, err := a.querier.GetOrderByUUID(ctx, orderUUID)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
 		return nil, err
 	}
-	if v == nil {
-		return nil, nil
+
+	if order.OrderUserID != userID {
+		return nil, fmt.Errorf("user is not authorized for this order")
 	}
+
+	const maxReviewWindow = 30 * 24 * time.Hour
+	canReview := false
+	var deliveredAt *time.Time
+
+	if order.OrderDeliveredAt.Valid {
+		t := order.OrderDeliveredAt.Time
+		deliveredAt = &t
+		if time.Since(t) <= maxReviewWindow {
+			canReview = true
+		}
+	} else if order.OrderStatus == 4 && !order.OrderUpdatedAt.IsZero() && time.Since(order.OrderUpdatedAt) <= maxReviewWindow {
+		canReview = true
+	}
+
+	isPurchased := false
+	items, err := a.querier.GetOrderItemsByOrderID(ctx, order.OrderID)
+	if err == nil {
+		for _, it := range items {
+			if it.OrderItemProductID == productID {
+				isPurchased = true
+				break
+			}
+		}
+	}
+
 	return &contract.PurchaseVerification{
-		OrderID:       v.OrderID,
-		OrderUUID:     v.OrderUUID,
-		UserID:        v.UserID,
-		IsPurchased:   v.IsPurchased,
-		CanReview:     v.CanReview,
-		DeliveredAt:   v.DeliveredAt,
-		CustomerName:  v.CustomerName,
-		CustomerEmail: v.CustomerEmail,
-		ShippingName:  v.ShippingName,
+		OrderID:       order.OrderID,
+		OrderUUID:     order.OrderUuid,
+		UserID:        order.OrderUserID,
+		IsPurchased:   isPurchased,
+		CanReview:     canReview,
+		DeliveredAt:   deliveredAt,
+		CustomerName:  order.OrderCustomerName,
+		CustomerEmail: order.OrderCustomerEmail,
+		ShippingName:  order.OrderShippingName,
 	}, nil
 }
 
 func (a *orderProviderAdapter) GetOrderForPayment(ctx context.Context, orderUUID uuid.UUID) (*contract.OrderPaymentInfo, error) {
-	s, err := a.reader.GetOrderSummary(ctx, orderUUID)
+	order, err := a.querier.GetOrderByUUID(ctx, orderUUID)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
 		return nil, err
 	}
-	if s == nil {
-		return nil, nil
-	}
+
 	return &contract.OrderPaymentInfo{
-		OrderUUID:   s.OrderUUID,
-		UserID:      s.UserID,
-		UserUUID:    s.UserUUID,
-		TotalAmount: s.TotalAmount,
-		Status:      s.Status,
+		OrderUUID:   order.OrderUuid,
+		UserID:      order.OrderUserID,
+		UserUUID:    order.UserUuid,
+		TotalAmount: utils.NumericToFloat(order.OrderTotalAmount),
+		Status:      order.OrderStatus,
 	}, nil
 }
 
@@ -143,12 +236,196 @@ func New(cfg *config.Config) (*App, error) {
 
 	dbPool := db.DBPool
 	orderQuerier := sqlc.New(dbPool)
-	orderRepo := repository.NewSqlOrderRepository(orderQuerier)
-	orderItemRepo := repository.NewSqlOrderItemRepository(orderQuerier)
-	inprocessReader := v1service.NewInprocessOrderReader(orderRepo, orderItemRepo)
+	txManager := db.NewTxManager(dbPool)
+
+	// Repositories
+	orderRepo := orderrepo.NewSqlOrderRepository(orderQuerier, dbPool)
+	orderItemRepo := orderrepo.NewSqlOrderItemRepository(orderQuerier)
+	trackingRepo := orderrepo.NewSqlTrackingRepository(orderQuerier)
+	returnRepo := orderrepo.NewSqlOrderReturnsRepository(orderQuerier)
+	webhookRepo := orderrepo.NewSqlWebhookEventRepository(orderQuerier)
+	sagaRepo := orderrepo.NewSqlSagaRepository(orderQuerier)
+	outboxRepo := orderrepo.NewSqlOutboxRepository(orderQuerier)
+
+	redisClient := config.NewRedisClient()
+	cacheService := cache.NewRedisCacheService(redisClient)
+
+	// Cross-domain gRPC clients
+	catalogTarget := utils.GetEnv("CATALOG_GRPC_ADDR", "localhost:50055")
+	catalogClient, err := catalogcontract.NewGRPCCatalogClient(catalogTarget)
+	if err != nil {
+		logger.Log.Warn().Err(err).Str("addr", catalogTarget).Msg("Failed to connect to Catalog gRPC service")
+	}
+
+	inventoryTarget := utils.GetEnv("INVENTORY_GRPC_ADDR", "localhost:50054")
+	inventoryClient, err := inventorycontract.NewGRPCInventoryClient(inventoryTarget)
+	if err != nil {
+		logger.Log.Warn().Err(err).Str("addr", inventoryTarget).Msg("Failed to connect to Inventory gRPC service")
+	}
+
+	couponTarget := utils.GetEnv("COUPON_GRPC_ADDR", "localhost:50053")
+	couponClient, err := couponcontract.NewGRPCCouponClient(couponTarget)
+	if err != nil {
+		logger.Log.Warn().Err(err).Str("addr", couponTarget).Msg("Failed to connect to Coupon gRPC service")
+	}
+
+	cartTarget := utils.GetEnv("CART_GRPC_ADDR", "localhost:50056")
+	cartClient, err := cartcontract.NewGRPCCartClient(cartTarget)
+	if err != nil {
+		logger.Log.Warn().Err(err).Str("addr", cartTarget).Msg("Failed to connect to Cart gRPC service")
+	}
+
+	identityTarget := utils.GetEnv("IDENTITY_GRPC_ADDR", "localhost:50051")
+	identityClient, err := identitycontract.NewGRPCIdentityClient(identityTarget, redisClient)
+	if err != nil {
+		logger.Log.Warn().Err(err).Str("addr", identityTarget).Msg("Failed to connect to Identity gRPC service")
+	}
+
+	// Adapters
+	catalogPort := orderservice.NewOrderCatalogAdapter(catalogClient)
+	stockPort := orderservice.NewOrderStockGRPCAdapter(inventoryClient)
+	couponPort := orderservice.NewOrderCouponGRPCAdapter(couponClient)
+	cartPort := orderservice.NewOrderCartAdapter(cartClient)
+	customerReader := orderservice.NewOrderCustomerAdapter(identityClient)
+
+	// Shipping Provider
+	ghnToken := utils.GetEnv("GHN_TOKEN", "")
+	ghnShopID, _ := strconv.Atoi(utils.GetEnv("GHN_SHOP_ID", "0"))
+	ghnBaseURL := utils.GetEnv("GHN_BASE_URL", "")
+	ghnAdapter := shipping.NewGHNAdapter(ghnToken, ghnShopID, ghnBaseURL)
+	shippingFactory := shipping.NewShippingFactory(ghnAdapter)
+
+	// Services
+	pricingService := orderservice.NewOrderPricingService(couponPort)
+	sagaOrchestrator := orderservice.NewOrderSagaOrchestrator(
+		sagaRepo,
+		txManager,
+		pricingService,
+		catalogPort,
+		stockPort,
+		orderRepo,
+		orderItemRepo,
+		customerReader,
+		cartPort,
+		couponPort,
+		trackingRepo,
+		cacheService,
+		outboxRepo,
+	)
+	orderService := orderservice.NewOrderService(
+		txManager,
+		pricingService,
+		catalogPort,
+		stockPort,
+		orderRepo,
+		orderItemRepo,
+		customerReader,
+		cartPort,
+		couponPort,
+		trackingRepo,
+		redisClient,
+		outboxRepo,
+	)
+
+	// RabbitMQ & Workers
+	rabbitmqURL := utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
+	rabbitmqLogger := utils.NewLoggerWithPath("order_rabbitmq.log", "info")
+	rabbitMQ, err := rabbitmq.NewRabbitMQService(rabbitmqURL, rabbitmqLogger)
+	if err != nil {
+		logger.Log.Warn().Err(err).Msg("RabbitMQ not available on boot for order service, will retry in background")
+	}
+
+	shippingService := orderservice.NewOrderShippingService(orderservice.OrderShippingServiceDeps{
+		TxManager:       txManager,
+		OrderRepo:       orderRepo,
+		OrderItemRepo:   orderItemRepo,
+		TrackingRepo:    trackingRepo,
+		ShippingFactory: shippingFactory,
+		WebhookRepo:     webhookRepo,
+		UserRepo:        customerReader,
+		RedisClient:     redisClient,
+		CacheService:    cacheService,
+		RabbitMQ:        rabbitMQ,
+	})
+	locationService := orderservice.NewLocationService(shippingFactory, cacheService)
+	var paymentClient *paymentcontract.GRPCPaymentClient
+	var paymentRefundService orderservice.OrderPaymentRefundPort
+	paymentTarget := utils.GetEnv("PAYMENT_GRPC_TARGET", cfg.PaymentGRPCAddr)
+	if paymentTarget != "" {
+		paymentClient, err = paymentcontract.NewGRPCPaymentClient(paymentTarget)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize payment gRPC client: %w", err)
+		}
+		paymentRefundService = paymentRefundAdapter{client: paymentClient}
+	}
+	returnService := orderservice.NewOrderReturnService(orderservice.OrderReturnServiceDeps{
+		TxManager:       txManager,
+		OrderRepo:       orderRepo,
+		OrderItemRepo:   orderItemRepo,
+		OrderReturnRepo: returnRepo,
+		StockPort:       stockPort,
+		UserRepo:        customerReader,
+		TrackingRepo:    trackingRepo,
+		OutboxStore:     outboxRepo,
+		PaymentService:  paymentRefundService,
+		RedisClient:     redisClient,
+		CacheService:    cacheService,
+	})
+	adminService := orderservice.NewOrderAdminService(orderService)
+
+	orderHandler := orderhandler.NewOrderHandler(
+		orderService,
+		shippingService,
+		returnService,
+	).WithAdminService(adminService).
+		WithLocationService(locationService).
+		WithInvoiceService(orderService)
+
+	tokenService := auth.NewJWTService(cacheService)
+	orderroutes.RegisterRoutes(r, orderHandler, tokenService, cacheService)
+
+	var outboxWorker *orderworker.OutboxPublisherWorker
+	if rabbitMQ != nil {
+		outboxWorker = orderworker.NewOutboxPublisherWorkerWithAggregates(
+			outboxRepo,
+			rabbitMQ,
+			1*time.Second,
+			50,
+			logger.Log,
+			[]string{"order"},
+		)
+
+		paymentSucceededConsumer := orderworker.NewPaymentSucceededConsumer(orderService, logger.Log)
+		paymentExpiredConsumer := orderworker.NewPaymentExpiredConsumer(orderService, logger.Log)
+		shippingConsumer := orderworker.NewShippingConsumer(shippingService, logger.Log)
+
+		go func() {
+			if err := rabbitMQ.Consume(context.Background(), rabbitmq.QueuePaymentSucceeded, paymentSucceededConsumer.Handle); err != nil {
+				logger.Log.Error().Err(err).Msg("Failed to start PaymentSucceeded consumer")
+			}
+		}()
+		go func() {
+			if err := rabbitMQ.Consume(context.Background(), rabbitmq.QueuePaymentExpired, paymentExpiredConsumer.Handle); err != nil {
+				logger.Log.Error().Err(err).Msg("Failed to start PaymentExpired consumer")
+			}
+		}()
+		go func() {
+			if err := rabbitMQ.Consume(context.Background(), orderservice.QueueShippingCreate, shippingConsumer.Handle); err != nil {
+				logger.Log.Error().Err(err).Msg("Failed to start Shipping consumer")
+			}
+		}()
+	}
+
+	sagaWorker := orderworker.NewSagaRecoveryWorker(
+		sagaRepo,
+		sagaOrchestrator,
+		30*time.Second,
+		50,
+		logger.Log,
+	)
 
 	provider := &orderProviderAdapter{
-		reader: inprocessReader,
+		querier: orderQuerier,
 	}
 
 	port := utils.GetEnv("ORDER_SERVER_PORT", "8088")
@@ -168,16 +445,28 @@ func New(cfg *config.Config) (*App, error) {
 	orderv1.RegisterOrderServiceServer(grpcServer, ordergrpc.NewOrderGRPCServer(provider))
 
 	return &App{
-		cfg:          cfg,
-		server:       server,
-		grpcServer:   grpcServer,
-		grpcListener: grpcLis,
+		cfg:              cfg,
+		server:           server,
+		grpcServer:       grpcServer,
+		grpcListener:     grpcLis,
+		orderHandler:     orderHandler,
+		orderService:     orderService,
+		sagaOrchestrator: sagaOrchestrator,
+		shippingService:  shippingService,
+		locationService:  locationService,
+		returnService:    returnService,
+		adminService:     adminService,
+		rabbitMQ:         rabbitMQ,
+		outboxWorker:     outboxWorker,
+		sagaWorker:       sagaWorker,
+		paymentClient:    paymentClient,
 	}, nil
 }
 
 func (a *App) Run(ctx context.Context) error {
 	errChan := make(chan error, 2)
 
+	// 1. Start HTTP Server
 	go func() {
 		logger.Log.Info().Msgf("Order HTTP Server running on %s", a.server.Addr)
 		if err := a.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -185,12 +474,21 @@ func (a *App) Run(ctx context.Context) error {
 		}
 	}()
 
+	// 2. Start gRPC Server
 	go func() {
 		logger.Log.Info().Msgf("Order gRPC Server running on %s", a.grpcListener.Addr().String())
 		if err := a.grpcServer.Serve(a.grpcListener); err != nil {
 			errChan <- fmt.Errorf("order grpc server error: %w", err)
 		}
 	}()
+
+	// 3. Start Background Workers
+	if a.sagaWorker != nil {
+		go a.sagaWorker.Start(ctx)
+	}
+	if a.outboxWorker != nil {
+		go a.outboxWorker.Start(ctx)
+	}
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -212,6 +510,11 @@ func (a *App) Run(ctx context.Context) error {
 	}
 
 	a.grpcServer.GracefulStop()
+
+	if a.rabbitMQ != nil {
+		_ = a.rabbitMQ.Close()
+	}
+
 	logger.Log.Info().Msg("Order service stopped cleanly")
 	return nil
 }

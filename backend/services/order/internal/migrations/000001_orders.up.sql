@@ -1,5 +1,7 @@
 -- Order Service Database Migration
 
+CREATE EXTENSION IF NOT EXISTS "unaccent";
+
 CREATE SCHEMA IF NOT EXISTS orders;
 
 SET search_path TO orders, public;

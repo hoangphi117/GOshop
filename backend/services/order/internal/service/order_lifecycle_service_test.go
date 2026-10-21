@@ -1,0 +1,242 @@
+package service_test
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"goshop/services/order/internal/db/sqlc"
+	v1dto "goshop/services/order/internal/dto"
+	orderservice "goshop/services/order/internal/service"
+	"goshop/internal/testutils"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestOrderLifecycleService(t *testing.T) {
+	ctx := context.Background()
+	ownerUUID := uuid.New()
+	otherUserUUID := uuid.New()
+	orderUUID := uuid.New()
+
+	baseCustomer := orderservice.NewOrderCustomer(10, ownerUUID, "Alice", "alice@example.com", 3, 1)
+	otherCustomer := orderservice.NewOrderCustomer(20, otherUserUUID, "Bob", "bob@example.com", 3, 1)
+
+	baseOrderRow := sqlc.GetOrderByUUIDRow{
+		OrderID:            100,
+		OrderUuid:          orderUUID,
+		OrderNumber:        "ORD-TEST-100",
+		OrderUserID:        baseCustomer.UserID,
+		OrderStatus:        orderservice.OrderStatusPending,
+		OrderPaymentStatus: orderservice.OrderPaymentStatusUnpaid,
+		UserUuid:           ownerUUID,
+		OrderCreatedAt:     time.Now(),
+	}
+
+	t.Run("UpdateOrderStatus: Invalid status transition -> BadRequest", func(t *testing.T) {
+		mockOrderRepo := &MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return baseOrderRow, nil
+			},
+		}
+
+		svc := orderservice.NewOrderLifecycleService(
+			testutils.NewNoopTxManager(),
+			mockOrderRepo,
+			&MockOrderItemRepository{},
+			&MockTrackingRepository{},
+			nil,
+			&MockOrderStockPort{},
+			nil,
+		)
+
+		// Transition directly from Pending (1) to Delivered (4) is invalid
+		res, err := svc.UpdateOrderStatus(ctx, orderUUID, v1dto.UpdateOrderStatusInput{
+			Status: orderservice.OrderStatusDelivered,
+		})
+		require.Error(t, err)
+		assert.Nil(t, res)
+		assert.Contains(t, err.Error(), "Cannot change order status")
+	})
+
+	t.Run("UpdateOrderStatus: Valid transition Pending -> Confirmed", func(t *testing.T) {
+		mockOrderRepo := &MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return baseOrderRow, nil
+			},
+			UpdateStatusFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.UpdateOrderStatusParams) (sqlc.Order, error) {
+				return sqlc.Order{
+					OrderID:            baseOrderRow.OrderID,
+					OrderUuid:          orderUUID,
+					OrderNumber:        baseOrderRow.OrderNumber,
+					OrderUserID:        baseOrderRow.OrderUserID,
+					OrderStatus:        orderservice.OrderStatusConfirmed,
+					OrderPaymentStatus: baseOrderRow.OrderPaymentStatus,
+					OrderCreatedAt:     time.Now(),
+				}, nil
+			},
+		}
+
+		trackingInserted := false
+		mockTracking := &MockTrackingRepository{
+			InsertEventFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.InsertTrackingEventParams) (sqlc.OrderTrackingEvent, error) {
+				trackingInserted = true
+				return sqlc.OrderTrackingEvent{}, nil
+			},
+		}
+
+		svc := orderservice.NewOrderLifecycleService(
+			testutils.NewNoopTxManager(),
+			mockOrderRepo,
+			&MockOrderItemRepository{},
+			mockTracking,
+			nil,
+			&MockOrderStockPort{},
+			nil,
+		)
+
+		res, err := svc.UpdateOrderStatus(ctx, orderUUID, v1dto.UpdateOrderStatusInput{
+			Status: orderservice.OrderStatusConfirmed,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		assert.Equal(t, "Confirmed", res.Status)
+		assert.True(t, trackingInserted)
+	})
+
+	t.Run("CancelOrder: Unauthorized user -> Forbidden", func(t *testing.T) {
+		mockOrderRepo := &MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return baseOrderRow, nil // owned by userID 10
+			},
+		}
+
+		customerAdapter := &MockCustomerReader{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (*orderservice.OrderCustomer, error) {
+				return orderservice.NewOrderCustomer(otherCustomer.UserID, otherCustomer.UserUUID, "Other", "other@example.com", orderservice.RoleMember, 1), nil
+			},
+		}
+		svc := orderservice.NewOrderLifecycleService(
+			testutils.NewNoopTxManager(),
+			mockOrderRepo,
+			&MockOrderItemRepository{},
+			&MockTrackingRepository{},
+			customerAdapter,
+			&MockOrderStockPort{},
+			nil,
+		)
+
+		res, err := svc.CancelOrder(ctx, otherUserUUID, orderUUID, nil)
+		require.Error(t, err)
+		assert.Nil(t, res)
+		assert.Contains(t, err.Error(), "You are not authorized to cancel this order")
+	})
+
+	t.Run("CancelOrder: Already delivered order -> BadRequest", func(t *testing.T) {
+		deliveredOrderRow := baseOrderRow
+		deliveredOrderRow.OrderStatus = orderservice.OrderStatusDelivered
+
+		mockOrderRepo := &MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return deliveredOrderRow, nil
+			},
+		}
+
+		customerAdapter := &MockCustomerReader{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (*orderservice.OrderCustomer, error) {
+				return orderservice.NewOrderCustomer(baseCustomer.UserID, baseCustomer.UserUUID, "Owner", "owner@example.com", orderservice.RoleMember, 1), nil
+			},
+		}
+		svc := orderservice.NewOrderLifecycleService(
+			testutils.NewNoopTxManager(),
+			mockOrderRepo,
+			&MockOrderItemRepository{},
+			&MockTrackingRepository{},
+			customerAdapter,
+			&MockOrderStockPort{},
+			nil,
+		)
+
+		res, err := svc.CancelOrder(ctx, ownerUUID, orderUUID, nil)
+		require.Error(t, err)
+		assert.Nil(t, res)
+		assert.Contains(t, err.Error(), "Only pending or confirmed orders can be cancelled")
+	})
+
+	t.Run("CancelOrder: Success with stock restoration and outbox event", func(t *testing.T) {
+		mockOrderRepo := &MockOrderRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
+				return baseOrderRow, nil
+			},
+			CancelOrderFunc: func(ctx context.Context, tx pgx.Tx, u uuid.UUID) (sqlc.Order, error) {
+				return sqlc.Order{
+					OrderID:            baseOrderRow.OrderID,
+					OrderUuid:          orderUUID,
+					OrderNumber:        baseOrderRow.OrderNumber,
+					OrderUserID:        baseCustomer.UserID,
+					OrderStatus:        orderservice.OrderStatusCancelled,
+					OrderPaymentStatus: baseOrderRow.OrderPaymentStatus,
+					OrderCreatedAt:     time.Now(),
+				}, nil
+			},
+		}
+
+		mockItemRepo := &MockOrderItemRepository{
+			GetByOrderIDFunc: func(ctx context.Context, orderID int32) ([]sqlc.GetOrderItemsByOrderIDRow, error) {
+				return []sqlc.GetOrderItemsByOrderIDRow{
+					{
+						OrderItemProductID: 15,
+						OrderItemQuantity:  3,
+					},
+				}, nil
+			},
+		}
+
+		stockRestored := false
+		mockInv := &MockOrderStockPort{
+			RestoreStockWithRefFunc: func(ctx context.Context, items []orderservice.RestoreItem, refID, refType string, actorID *int32, note *string) error {
+				stockRestored = true
+				assert.Equal(t, int32(15), items[0].ProductID)
+				assert.Equal(t, int32(3), items[0].Quantity)
+				return nil
+			},
+		}
+
+		outboxEventPublished := false
+		mockOutbox := &MockOutboxRepository{
+			InsertFunc: func(ctx context.Context, tx pgx.Tx, aggType, aggID, evtType string, payload any) (sqlc.OutboxEvent, error) {
+				outboxEventPublished = true
+				assert.Equal(t, "order", aggType)
+				assert.Equal(t, "order.cancelled", evtType)
+				return sqlc.OutboxEvent{}, nil
+			},
+		}
+
+		customerAdapter := &MockCustomerReader{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (*orderservice.OrderCustomer, error) {
+				return orderservice.NewOrderCustomer(baseCustomer.UserID, baseCustomer.UserUUID, "Owner", "owner@example.com", orderservice.RoleMember, 1), nil
+			},
+		}
+		svc := orderservice.NewOrderLifecycleService(
+			testutils.NewNoopTxManager(),
+			mockOrderRepo,
+			mockItemRepo,
+			&MockTrackingRepository{},
+			customerAdapter,
+			mockInv,
+			nil,
+			mockOutbox,
+		)
+
+		reason := "Changed my mind"
+		res, err := svc.CancelOrder(ctx, ownerUUID, orderUUID, &reason)
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		assert.Equal(t, "Cancelled", res.Status)
+		assert.True(t, stockRestored, "Stock must be restored on cancellation")
+		assert.True(t, outboxEventPublished, "Outbox event order.cancelled must be recorded")
+	})
+}

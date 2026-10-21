@@ -567,6 +567,9 @@ func (r *rabbitMQService) consumeLoop(ctx context.Context, queue string, msgs <-
 				headers = amqp.Table{}
 			}
 			headers["trace_id"] = traceID
+			if _, ok := headers["x-routing-key"]; !ok || headers["x-routing-key"] == "" {
+				headers["x-routing-key"] = msg.RoutingKey
+			}
 
 			if err := handler(headers, msg.Body); err != nil {
 				retryCount := getRetryCount(headers)

@@ -204,4 +204,27 @@ func TestOrderConsumer_Handle(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, updatedCustomerNotified)
 	})
+
+	t.Run("OrderReturnRefundNotificationRequiresRefundChangeType", func(t *testing.T) {
+		var notificationTypes []string
+		mockNotifService := &testutils.MockNotificationService{
+			SendFunc: func(ctx context.Context, input v1dto.SendNotificationInput) error {
+				notificationTypes = append(notificationTypes, input.Type)
+				return nil
+			},
+		}
+		consumer := worker.NewOrderConsumer(nil, mockNotifService, &logger)
+
+		goodsEvent := rabbitmq.NewOrderReturnUpdatedEvent("evt-goods", "ret-uuid", "order-uuid", "ORD-001", 10, 1, 42, 4, "")
+		goodsEvent.ChangeType = rabbitmq.ReturnChangeTypeGoodsReceived
+		goodsBody, _ := json.Marshal(goodsEvent)
+		require.NoError(t, consumer.HandleOrderReturnUpdated(amqp.Table{}, goodsBody))
+
+		refundEvent := rabbitmq.NewOrderReturnUpdatedEvent("evt-refund", "ret-uuid", "order-uuid", "ORD-001", 10, 1, 42, 4, "")
+		refundEvent.ChangeType = rabbitmq.ReturnChangeTypeRefunded
+		refundBody, _ := json.Marshal(refundEvent)
+		require.NoError(t, consumer.HandleOrderReturnUpdated(amqp.Table{}, refundBody))
+
+		assert.Equal(t, []string{"return_goods_received", "return_refunded"}, notificationTypes)
+	})
 }

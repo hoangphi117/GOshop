@@ -15,16 +15,29 @@ import (
 
 type OrderConsumer struct {
 	cartService         v1service.CartService
-	notificationService v1service.NotificationService
+	notificationService OrderNotificationPort
+	notifyOrderEvents   bool
 	logger              *zerolog.Logger
 }
 
-func NewOrderConsumer(cartService v1service.CartService, notificationService v1service.NotificationService, logger *zerolog.Logger) *OrderConsumer {
+type OrderNotificationPort interface {
+	Send(ctx context.Context, input v1dto.SendNotificationInput) error
+	NotifyAdmins(ctx context.Context, input v1dto.AdminNotifyInput) error
+}
+
+func NewOrderConsumer(cartService v1service.CartService, notificationService OrderNotificationPort, logger *zerolog.Logger) *OrderConsumer {
 	return &OrderConsumer{
 		cartService:         cartService,
 		notificationService: notificationService,
+		notifyOrderEvents:   notificationService != nil,
 		logger:              logger,
 	}
+}
+
+func NewOrderConsumerForBackground(cartService v1service.CartService, notificationService OrderNotificationPort, logger *zerolog.Logger) *OrderConsumer {
+	consumer := NewOrderConsumer(cartService, notificationService, logger)
+	consumer.notifyOrderEvents = false
+	return consumer
 }
 
 func (oc *OrderConsumer) Handle(headers amqp.Table, body []byte) error {
@@ -94,7 +107,7 @@ func (oc *OrderConsumer) HandleOrderCreated(headers amqp.Table, body []byte) err
 	}
 
 	// 2. Dispatch Customer In-App / Real-time Notification
-	if oc.notificationService != nil {
+	if oc.notificationService != nil && oc.notifyOrderEvents {
 		customerNotifyErr := oc.notificationService.Send(ctx, v1dto.SendNotificationInput{
 			UserID: event.UserID,
 			Type:   "order_created",
@@ -151,7 +164,7 @@ func (oc *OrderConsumer) HandleOrderCancelled(headers amqp.Table, body []byte) e
 	}
 
 	ctx := context.Background()
-	if oc.notificationService != nil {
+	if oc.notificationService != nil && oc.notifyOrderEvents {
 		bodyText := fmt.Sprintf("Your order #%s has been cancelled.", event.OrderNumber)
 		if event.Reason != "" {
 			bodyText = fmt.Sprintf("Your order #%s has been cancelled. Reason: %s", event.OrderNumber, event.Reason)
@@ -197,7 +210,7 @@ func (oc *OrderConsumer) HandleOrderStatusChanged(headers amqp.Table, body []byt
 	}
 
 	ctx := context.Background()
-	if oc.notificationService != nil {
+	if oc.notificationService != nil && oc.notifyOrderEvents {
 		var title, bodyText string
 		switch event.NewStatus {
 		case v1service.OrderStatusConfirmed:
@@ -224,9 +237,9 @@ func (oc *OrderConsumer) HandleOrderStatusChanged(headers amqp.Table, body []byt
 			Title:  title,
 			Body:   bodyText,
 			Data: map[string]any{
-				"order_uuid":     event.OrderUUID,
-				"new_status":     event.NewStatus,
-				"shipping_code":  event.ShippingCode,
+				"order_uuid":    event.OrderUUID,
+				"new_status":    event.NewStatus,
+				"shipping_code": event.ShippingCode,
 			},
 		})
 	}
@@ -252,7 +265,7 @@ func (oc *OrderConsumer) HandleOrderReturnRequested(headers amqp.Table, body []b
 
 	ctx := context.Background()
 	if oc.notificationService != nil {
-		_ = oc.notificationService.Send(ctx, v1dto.SendNotificationInput{
+		if err := oc.notificationService.Send(ctx, v1dto.SendNotificationInput{
 			UserID: event.UserID,
 			Type:   "return_requested",
 			Title:  "Return Request Received",
@@ -261,9 +274,11 @@ func (oc *OrderConsumer) HandleOrderReturnRequested(headers amqp.Table, body []b
 				"order_uuid":  event.OrderUUID,
 				"return_uuid": event.ReturnUUID,
 			},
-		})
+		}); err != nil {
+			return fmt.Errorf("send return-request notification to user: %w", err)
+		}
 
-		_ = oc.notificationService.NotifyAdmins(ctx, v1dto.AdminNotifyInput{
+		if err := oc.notificationService.NotifyAdmins(ctx, v1dto.AdminNotifyInput{
 			Type:  "return",
 			Title: "New Return Requested",
 			Body:  fmt.Sprintf("Return requested for order #%s: %s", event.OrderNumber, event.ReturnReason),
@@ -272,7 +287,9 @@ func (oc *OrderConsumer) HandleOrderReturnRequested(headers amqp.Table, body []b
 				"return_uuid": event.ReturnUUID,
 				"link":        "/returns",
 			},
-		})
+		}); err != nil {
+			return fmt.Errorf("send return-request notification to admins: %w", err)
+		}
 	}
 	return nil
 }
@@ -296,51 +313,112 @@ func (oc *OrderConsumer) HandleOrderReturnUpdated(headers amqp.Table, body []byt
 
 	ctx := context.Background()
 	if oc.notificationService != nil {
-		switch event.ReturnStatus {
-		case v1service.OrderReturnStatusApproved:
-			_ = oc.notificationService.Send(ctx, v1dto.SendNotificationInput{
+		switch event.ChangeType {
+		case rabbitmq.ReturnChangeTypeShippingSent:
+			if err := oc.notificationService.Send(ctx, v1dto.SendNotificationInput{
 				UserID: event.UserID,
-				Type:   "return_approved",
-				Title:  "Return Request Approved",
-				Body:   fmt.Sprintf("Your return request for order #%s has been approved. Please submit the return tracking code.", event.OrderNumber),
+				Type:   "return_shipping_submitted",
+				Title:  "Return Shipment Information Submitted",
+				Body:   fmt.Sprintf("Your return shipment information for order #%s has been submitted and is awaiting review.", event.OrderNumber),
 				Data: map[string]any{
 					"order_uuid":  event.OrderUUID,
 					"return_uuid": event.ReturnUUID,
 				},
-			})
-		case v1service.OrderReturnStatusRejected:
-			_ = oc.notificationService.Send(ctx, v1dto.SendNotificationInput{
-				UserID: event.UserID,
-				Type:   "return_rejected",
-				Title:  "Return Request Rejected",
-				Body:   fmt.Sprintf("Your return request for order #%s was rejected. Reason: %s", event.OrderNumber, event.AdminNote),
-				Data: map[string]any{
-					"order_uuid":  event.OrderUUID,
-					"return_uuid": event.ReturnUUID,
-				},
-			})
-		case v1service.OrderReturnStatusCompleted:
-			_ = oc.notificationService.Send(ctx, v1dto.SendNotificationInput{
-				UserID: event.UserID,
-				Type:   "return_refunded",
-				Title:  "Refund Completed",
-				Body:   fmt.Sprintf("Return request for order #%s has been completed and refunded.", event.OrderNumber),
-				Data: map[string]any{
-					"order_uuid":  event.OrderUUID,
-					"return_uuid": event.ReturnUUID,
-				},
-			})
-		case v1service.OrderReturnStatusCancelled:
-			_ = oc.notificationService.NotifyAdmins(ctx, v1dto.AdminNotifyInput{
+			}); err != nil {
+				return fmt.Errorf("send return-shipment-submitted notification to user: %w", err)
+			}
+			if err := oc.notificationService.NotifyAdmins(ctx, v1dto.AdminNotifyInput{
 				Type:  "return",
-				Title: "Return Request Cancelled",
-				Body:  fmt.Sprintf("Customer cancelled return request for order #%s.", event.OrderNumber),
+				Title: "Return Shipment Submitted",
+				Body:  fmt.Sprintf("Customer submitted return shipment information for order #%s.", event.OrderNumber),
 				Data: map[string]any{
 					"order_uuid":  event.OrderUUID,
 					"return_uuid": event.ReturnUUID,
 					"link":        "/returns",
 				},
-			})
+			}); err != nil {
+				return fmt.Errorf("send return-shipment-submitted notification to admins: %w", err)
+			}
+		case rabbitmq.ReturnChangeTypeGoodsReceived:
+			if err := oc.notificationService.Send(ctx, v1dto.SendNotificationInput{
+				UserID: event.UserID,
+				Type:   "return_goods_received",
+				Title:  "Returned Goods Received",
+				Body:   fmt.Sprintf("Returned goods for order #%s were received and inspected. Refund processing is pending.", event.OrderNumber),
+				Data: map[string]any{
+					"order_uuid":  event.OrderUUID,
+					"return_uuid": event.ReturnUUID,
+				},
+			}); err != nil {
+				return fmt.Errorf("send goods-received notification to user: %w", err)
+			}
+			if err := oc.notificationService.NotifyAdmins(ctx, v1dto.AdminNotifyInput{
+				Type:  "return",
+				Title: "Returned Goods Received",
+				Body:  fmt.Sprintf("Returned goods for order #%s were received and inspected. Refund is pending.", event.OrderNumber),
+				Data: map[string]any{
+					"order_uuid":  event.OrderUUID,
+					"return_uuid": event.ReturnUUID,
+					"link":        "/returns",
+				},
+			}); err != nil {
+				return fmt.Errorf("send goods-received notification to admins: %w", err)
+			}
+		case rabbitmq.ReturnChangeTypeRefunded:
+			if err := oc.notificationService.Send(ctx, v1dto.SendNotificationInput{
+				UserID: event.UserID,
+				Type:   "return_refunded",
+				Title:  "Refund Completed",
+				Body:   fmt.Sprintf("Refund for return request on order #%s has been completed.", event.OrderNumber),
+				Data: map[string]any{
+					"order_uuid":  event.OrderUUID,
+					"return_uuid": event.ReturnUUID,
+				},
+			}); err != nil {
+				return fmt.Errorf("send return-completed notification: %w", err)
+			}
+		default:
+			switch event.ReturnStatus {
+			case v1service.OrderReturnStatusApproved:
+				if err := oc.notificationService.Send(ctx, v1dto.SendNotificationInput{
+					UserID: event.UserID,
+					Type:   "return_approved",
+					Title:  "Return Request Approved",
+					Body:   fmt.Sprintf("Your return request for order #%s has been approved. Please submit the return tracking code.", event.OrderNumber),
+					Data: map[string]any{
+						"order_uuid":  event.OrderUUID,
+						"return_uuid": event.ReturnUUID,
+					},
+				}); err != nil {
+					return fmt.Errorf("send return-approved notification: %w", err)
+				}
+			case v1service.OrderReturnStatusRejected:
+				if err := oc.notificationService.Send(ctx, v1dto.SendNotificationInput{
+					UserID: event.UserID,
+					Type:   "return_rejected",
+					Title:  "Return Request Rejected",
+					Body:   fmt.Sprintf("Your return request for order #%s was rejected. Reason: %s", event.OrderNumber, event.AdminNote),
+					Data: map[string]any{
+						"order_uuid":  event.OrderUUID,
+						"return_uuid": event.ReturnUUID,
+					},
+				}); err != nil {
+					return fmt.Errorf("send return-rejected notification: %w", err)
+				}
+			case v1service.OrderReturnStatusCancelled:
+				if err := oc.notificationService.NotifyAdmins(ctx, v1dto.AdminNotifyInput{
+					Type:  "return",
+					Title: "Return Request Cancelled",
+					Body:  fmt.Sprintf("Customer cancelled return request for order #%s.", event.OrderNumber),
+					Data: map[string]any{
+						"order_uuid":  event.OrderUUID,
+						"return_uuid": event.ReturnUUID,
+						"link":        "/returns",
+					},
+				}); err != nil {
+					return fmt.Errorf("send return-cancelled notification to admins: %w", err)
+				}
+			}
 		}
 	}
 	return nil
