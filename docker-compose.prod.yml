@@ -41,6 +41,8 @@ services:
       - ORDER_SERVICE_URL=http://order-service:8088
       - ORDER_GRPC_TARGET=order-service:50057
       - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:?INTERNAL_API_SECRET must be set in production}
+      - JWT_SIGNING_ENABLED=false
+      - JWT_PRIVATE_KEY=
       - S3_ENDPOINT=${S3_ENDPOINT:-http://minio:9000}
     depends_on:
       postgres:
@@ -77,6 +79,8 @@ services:
       - ORDER_SERVICE_URL=http://order-service:8088
       - ORDER_GRPC_TARGET=order-service:50057
       - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:?INTERNAL_API_SECRET must be set in production}
+      - JWT_SIGNING_ENABLED=false
+      - JWT_PRIVATE_KEY=
       - S3_ENDPOINT=${S3_ENDPOINT:-http://minio:9000}
     depends_on:
       postgres:
@@ -109,6 +113,8 @@ services:
       - IDENTITY_SERVER_PORT=8081
       - IDENTITY_GRPC_PORT=:50051
       - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:?INTERNAL_API_SECRET must be set in production}
+      - JWT_SIGNING_ENABLED=true
+      - JWT_PRIVATE_KEY=${JWT_PRIVATE_KEY:?JWT_PRIVATE_KEY must be set in production}
     depends_on:
       postgres:
         condition: service_healthy
@@ -139,6 +145,8 @@ services:
       - NOTIFICATION_SERVER_PORT=8082
       - IDENTITY_GRPC_ADDR=identity-service:50051
       - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:?INTERNAL_API_SECRET must be set in production}
+      - JWT_SIGNING_ENABLED=false
+      - JWT_PRIVATE_KEY=
     depends_on:
       postgres:
         condition: service_healthy
@@ -172,6 +180,8 @@ services:
       - PAYMENT_GRPC_PORT=50052
       - ORDER_GRPC_ADDR=order-service:50057
       - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:?INTERNAL_API_SECRET must be set in production}
+      - JWT_SIGNING_ENABLED=false
+      - JWT_PRIVATE_KEY=
     depends_on:
       postgres:
         condition: service_healthy
@@ -203,6 +213,7 @@ services:
       - CATALOG_DB_NAME=shopping_catalog
       - CATALOG_SERVER_PORT=8086
       - CATALOG_GRPC_PORT=50055
+      - JWT_PRIVATE_KEY=
       - INVENTORY_GRPC_ADDR=inventory-service:50054
       - REDIS_ADDR=redis:6379
       - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
@@ -246,8 +257,11 @@ services:
       - INVENTORY_DB_NAME=shopping_inventory
       - INVENTORY_SERVER_PORT=8085
       - INVENTORY_GRPC_PORT=50054
+      - JWT_PRIVATE_KEY=
       - REDIS_ADDR=redis:6379
       - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
+      - JWT_SIGNING_ENABLED=false
+      - JWT_PRIVATE_KEY=
       - GOMEMLIMIT=128MiB
       - GOMAXPROCS=1
     mem_limit: 160m
@@ -283,6 +297,7 @@ services:
       - COUPON_DB_NAME=shopping_coupon
       - COUPON_SERVER_PORT=8084
       - COUPON_GRPC_PORT=50053
+      - JWT_PRIVATE_KEY=
       - REDIS_ADDR=redis:6379
       - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
       - GOMEMLIMIT=96MiB
@@ -366,6 +381,7 @@ services:
       - IDENTITY_GRPC_ADDR=identity-service:50051
       - PAYMENT_GRPC_ADDR=payment-service:50052
       - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:?INTERNAL_API_SECRET must be set in production}
+      - JWT_SIGNING_ENABLED=false
     depends_on:
       postgres:
         condition: service_healthy
@@ -428,6 +444,7 @@ services:
       - REDIS_ADDR=redis:6379
       - WS_GATEWAY_PORT=8085
       - APP_ENV=production
+      - JWT_SIGNING_ENABLED=false
     depends_on:
       postgres:
         condition: service_healthy
