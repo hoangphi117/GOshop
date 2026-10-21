@@ -11,6 +11,7 @@ import (
 	"goshop/internal/worker"
 	"goshop/pkg/rabbitmq"
 
+	"github.com/google/uuid"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
@@ -80,6 +81,47 @@ func TestOrderConsumer_Handle(t *testing.T) {
 		assert.True(t, adminNotified)
 	})
 
+	t.Run("OrderCreated_CleansCartByUUIDWhenAvailable", func(t *testing.T) {
+		logger := zerolog.Nop()
+		expectedUserUUID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+		itemUUID1 := uuid.MustParse("33333333-3333-3333-3333-333333333333")
+		itemUUID2 := uuid.MustParse("44444444-4444-4444-4444-444444444444")
+
+		var cleanedUUIDUser uuid.UUID
+		var cleanedUUIDItems []uuid.UUID
+
+		mockCartService := &testutils.MockCartService{
+			RemovePurchasedItemsByUUIDFunc: func(ctx context.Context, userUUID uuid.UUID, productUUIDs []uuid.UUID) error {
+				cleanedUUIDUser = userUUID
+				cleanedUUIDItems = productUUIDs
+				return nil
+			},
+		}
+
+		consumer := worker.NewOrderConsumer(mockCartService, nil, &logger)
+
+		event := rabbitmq.OrderCreatedEvent{
+			EventID:            "evt-uuid-1",
+			OrderID:            101,
+			OrderUUID:          "11111111-1111-1111-1111-111111111111",
+			OrderNumber:        "ORD-2026-002",
+			UserID:             42,
+			UserUUID:           expectedUserUUID.String(),
+			PurchasedItemUUIDs: []string{itemUUID1.String(), itemUUID2.String()},
+			PurchasedItems:     []int32{1, 2},
+			Timestamp:          time.Now().UTC(),
+		}
+
+		body, err := json.Marshal(event)
+		require.NoError(t, err)
+
+		err = consumer.Handle(amqp.Table{}, body)
+		require.NoError(t, err)
+
+		assert.Equal(t, expectedUserUUID, cleanedUUIDUser)
+		assert.Equal(t, []uuid.UUID{itemUUID1, itemUUID2}, cleanedUUIDItems)
+	})
+
 	t.Run("OrderCancelled_NotifiesCustomerAndAdmin", func(t *testing.T) {
 		var customerNotified, adminNotified bool
 		mockNotifService := &testutils.MockNotificationService{
@@ -132,9 +174,10 @@ func TestOrderConsumer_Handle(t *testing.T) {
 
 		mockNotifService := &testutils.MockNotificationService{
 			SendFunc: func(ctx context.Context, input v1dto.SendNotificationInput) error {
-				if input.Type == "return_requested" {
+				switch input.Type {
+				case "return_requested":
 					reqCustomerNotified = true
-				} else if input.Type == "return_approved" {
+				case "return_approved":
 					updatedCustomerNotified = true
 				}
 				return nil
@@ -161,5 +204,28 @@ func TestOrderConsumer_Handle(t *testing.T) {
 		err = consumer.HandleOrderReturnUpdated(amqp.Table{}, updBody)
 		require.NoError(t, err)
 		assert.True(t, updatedCustomerNotified)
+	})
+
+	t.Run("OrderReturnRefundNotificationRequiresRefundChangeType", func(t *testing.T) {
+		var notificationTypes []string
+		mockNotifService := &testutils.MockNotificationService{
+			SendFunc: func(ctx context.Context, input v1dto.SendNotificationInput) error {
+				notificationTypes = append(notificationTypes, input.Type)
+				return nil
+			},
+		}
+		consumer := worker.NewOrderConsumer(nil, mockNotifService, &logger)
+
+		goodsEvent := rabbitmq.NewOrderReturnUpdatedEvent("evt-goods", "ret-uuid", "order-uuid", "ORD-001", 10, 1, 42, 4, "")
+		goodsEvent.ChangeType = rabbitmq.ReturnChangeTypeGoodsReceived
+		goodsBody, _ := json.Marshal(goodsEvent)
+		require.NoError(t, consumer.HandleOrderReturnUpdated(amqp.Table{}, goodsBody))
+
+		refundEvent := rabbitmq.NewOrderReturnUpdatedEvent("evt-refund", "ret-uuid", "order-uuid", "ORD-001", 10, 1, 42, 4, "")
+		refundEvent.ChangeType = rabbitmq.ReturnChangeTypeRefunded
+		refundBody, _ := json.Marshal(refundEvent)
+		require.NoError(t, consumer.HandleOrderReturnUpdated(amqp.Table{}, refundBody))
+
+		assert.Equal(t, []string{"return_goods_received", "return_refunded"}, notificationTypes)
 	})
 }

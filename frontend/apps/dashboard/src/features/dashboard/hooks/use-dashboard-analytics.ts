@@ -25,22 +25,27 @@ import type {
   CouponPerformanceResponse,
 } from '../types'
 
-
 export function useAnalyticsOverview(params: OverviewStatsQueryParams = {}) {
   return useQuery({
     queryKey: ['analyticsOverview', params],
     queryFn: async () => {
-      const { data, error } = await api.GET('/admin/analytics/overview', {
-        params: {
-          query: {
-            days: params.days,
-            from_date: params.from_date,
-            to_date: params.to_date,
+      const { data, error } = await api.GET(
+        '/api/v1/admin/analytics/overview',
+        {
+          params: {
+            query: {
+              days: params.days,
+              from_date: params.from_date,
+              to_date: params.to_date,
+            },
           },
-        },
-      })
+        }
+      )
       if (error) {
-        throw new Error((error as { error?: string })?.error || 'Failed to fetch analytics overview')
+        throw new Error(
+          (error as { error?: string })?.error ||
+            'Failed to fetch analytics overview'
+        )
       }
       return data?.data as OverviewStats
     },
@@ -52,19 +57,25 @@ export function useRevenueChart(params: RevenueChartQueryParams = {}) {
   return useQuery({
     queryKey: ['analyticsRevenueChart', params],
     queryFn: async () => {
-      const { data, error } = await api.GET('/admin/analytics/revenue-chart', {
-        params: {
-          query: {
-            period: params.period,
-            days: params.days,
-            months: params.months,
-            from_date: params.from_date,
-            to_date: params.to_date,
+      const { data, error } = await api.GET(
+        '/api/v1/admin/analytics/revenue-chart',
+        {
+          params: {
+            query: {
+              period: params.period,
+              days: params.days,
+              months: params.months,
+              from_date: params.from_date,
+              to_date: params.to_date,
+            },
           },
-        },
-      })
+        }
+      )
       if (error) {
-        throw new Error((error as { error?: string })?.error || 'Failed to fetch revenue chart')
+        throw new Error(
+          (error as { error?: string })?.error ||
+            'Failed to fetch revenue chart'
+        )
       }
       return (data?.data || []) as RevenueChartPoint[]
     },
@@ -76,15 +87,21 @@ export function useRecentOrders(params: RecentOrdersQueryParams = {}) {
   return useQuery({
     queryKey: ['analyticsRecentOrders', params],
     queryFn: async () => {
-      const { data, error } = await api.GET('/admin/analytics/recent-orders', {
-        params: {
-          query: {
-            limit: params.limit,
+      const { data, error } = await api.GET(
+        '/api/v1/admin/analytics/recent-orders',
+        {
+          params: {
+            query: {
+              limit: params.limit,
+            },
           },
-        },
-      })
+        }
+      )
       if (error) {
-        throw new Error((error as { error?: string })?.error || 'Failed to fetch recent orders')
+        throw new Error(
+          (error as { error?: string })?.error ||
+            'Failed to fetch recent orders'
+        )
       }
       return (data?.data || []) as RecentOrder[]
     },
@@ -96,18 +113,23 @@ export function useTopProducts(params: TopProductsQueryParams = {}) {
   return useQuery({
     queryKey: ['analyticsTopProducts', params],
     queryFn: async () => {
-      const { data, error } = await api.GET('/admin/analytics/top-products', {
-        params: {
-          query: {
-            days: params.days,
-            limit: params.limit,
-            from_date: params.from_date,
-            to_date: params.to_date,
+      const { data, error } = await api.GET(
+        '/api/v1/admin/analytics/top-products',
+        {
+          params: {
+            query: {
+              days: params.days,
+              limit: params.limit,
+              from_date: params.from_date,
+              to_date: params.to_date,
+            },
           },
-        },
-      })
+        }
+      )
       if (error) {
-        throw new Error((error as { error?: string })?.error || 'Failed to fetch top products')
+        throw new Error(
+          (error as { error?: string })?.error || 'Failed to fetch top products'
+        )
       }
       return (data?.data || []) as TopProduct[]
     },
@@ -115,21 +137,29 @@ export function useTopProducts(params: TopProductsQueryParams = {}) {
   })
 }
 
-export function useOrderStatusDistribution(params: OrderStatusDistributionQueryParams = {}) {
+export function useOrderStatusDistribution(
+  params: OrderStatusDistributionQueryParams = {}
+) {
   return useQuery({
     queryKey: ['analyticsOrderStatusDistribution', params],
     queryFn: async () => {
-      const { data, error } = await api.GET('/admin/analytics/order-status-distribution', {
-        params: {
-          query: {
-            days: params.days,
-            from_date: params.from_date,
-            to_date: params.to_date,
+      const { data, error } = await api.GET(
+        '/api/v1/admin/analytics/order-status-distribution',
+        {
+          params: {
+            query: {
+              days: params.days,
+              from_date: params.from_date,
+              to_date: params.to_date,
+            },
           },
-        },
-      })
+        }
+      )
       if (error) {
-        throw new Error((error as { error?: string })?.error || 'Failed to fetch order status distribution')
+        throw new Error(
+          (error as { error?: string })?.error ||
+            'Failed to fetch order status distribution'
+        )
       }
       return data?.data as OrderStatusDistributionResponse
     },
@@ -141,16 +171,22 @@ export function useLowStockAlerts(params: LowStockProductsQueryParams = {}) {
   return useQuery({
     queryKey: ['analyticsLowStockAlerts', params],
     queryFn: async () => {
-      const { data, error } = await api.GET('/admin/analytics/low-stock-alerts', {
-        params: {
-          query: {
-            threshold: params.threshold,
-            limit: params.limit,
+      const { data, error } = await api.GET(
+        '/api/v1/admin/analytics/low-stock-alerts',
+        {
+          params: {
+            query: {
+              threshold: params.threshold,
+              limit: params.limit,
+            },
           },
-        },
-      })
+        }
+      )
       if (error) {
-        throw new Error((error as { error?: string })?.error || 'Failed to fetch low stock alerts')
+        throw new Error(
+          (error as { error?: string })?.error ||
+            'Failed to fetch low stock alerts'
+        )
       }
       return data?.data as LowStockProductResponse
     },
@@ -158,21 +194,29 @@ export function useLowStockAlerts(params: LowStockProductsQueryParams = {}) {
   })
 }
 
-export function usePaymentMethodBreakdown(params: PaymentMethodBreakdownQueryParams = {}) {
+export function usePaymentMethodBreakdown(
+  params: PaymentMethodBreakdownQueryParams = {}
+) {
   return useQuery({
     queryKey: ['analyticsPaymentMethods', params],
     queryFn: async () => {
-      const { data, error } = await api.GET('/admin/analytics/payment-methods', {
-        params: {
-          query: {
-            days: params.days,
-            from_date: params.from_date,
-            to_date: params.to_date,
+      const { data, error } = await api.GET(
+        '/api/v1/admin/analytics/payment-methods',
+        {
+          params: {
+            query: {
+              days: params.days,
+              from_date: params.from_date,
+              to_date: params.to_date,
+            },
           },
-        },
-      })
+        }
+      )
       if (error) {
-        throw new Error((error as { error?: string })?.error || 'Failed to fetch payment method breakdown')
+        throw new Error(
+          (error as { error?: string })?.error ||
+            'Failed to fetch payment method breakdown'
+        )
       }
       return data?.data as PaymentMethodBreakdownResponse
     },
@@ -184,16 +228,21 @@ export function useCartFunnel(params: CartFunnelQueryParams = {}) {
   return useQuery({
     queryKey: ['analyticsCartFunnel', params],
     queryFn: async () => {
-      const { data, error } = await api.GET('/admin/analytics/cart-funnel', {
-        params: {
-          query: {
-            from_date: params.from_date,
-            to_date: params.to_date,
+      const { data, error } = await api.GET(
+        '/api/v1/admin/analytics/cart-funnel',
+        {
+          params: {
+            query: {
+              from_date: params.from_date,
+              to_date: params.to_date,
+            },
           },
-        },
-      })
+        }
+      )
       if (error) {
-        throw new Error((error as { error?: string })?.error || 'Failed to fetch cart funnel')
+        throw new Error(
+          (error as { error?: string })?.error || 'Failed to fetch cart funnel'
+        )
       }
       return data?.data as CartFunnelStats
     },
@@ -205,7 +254,7 @@ export function useReturnAnalytics(params: ReturnAnalyticsQueryParams = {}) {
   return useQuery({
     queryKey: ['analyticsReturns', params],
     queryFn: async () => {
-      const { data, error } = await api.GET('/admin/analytics/returns', {
+      const { data, error } = await api.GET('/api/v1/admin/analytics/returns', {
         params: {
           query: {
             days: params.days,
@@ -215,7 +264,10 @@ export function useReturnAnalytics(params: ReturnAnalyticsQueryParams = {}) {
         },
       })
       if (error) {
-        throw new Error((error as { error?: string })?.error || 'Failed to fetch return analytics')
+        throw new Error(
+          (error as { error?: string })?.error ||
+            'Failed to fetch return analytics'
+        )
       }
       return data?.data as ReturnAnalyticsResponse
     },
@@ -227,17 +279,23 @@ export function useCategorySales(params: CategorySalesQueryParams = {}) {
   return useQuery({
     queryKey: ['analyticsCategorySales', params],
     queryFn: async () => {
-      const { data, error } = await api.GET('/admin/analytics/category-sales', {
-        params: {
-          query: {
-            days: params.days,
-            from_date: params.from_date,
-            to_date: params.to_date,
+      const { data, error } = await api.GET(
+        '/api/v1/admin/analytics/category-sales',
+        {
+          params: {
+            query: {
+              days: params.days,
+              from_date: params.from_date,
+              to_date: params.to_date,
+            },
           },
-        },
-      })
+        }
+      )
       if (error) {
-        throw new Error((error as { error?: string })?.error || 'Failed to fetch category sales breakdown')
+        throw new Error(
+          (error as { error?: string })?.error ||
+            'Failed to fetch category sales breakdown'
+        )
       }
       return data?.data as CategorySalesBreakdownResponse
     },
@@ -245,11 +303,13 @@ export function useCategorySales(params: CategorySalesQueryParams = {}) {
   })
 }
 
-export function useCouponPerformance(params: CouponPerformanceQueryParams = {}) {
+export function useCouponPerformance(
+  params: CouponPerformanceQueryParams = {}
+) {
   return useQuery({
     queryKey: ['analyticsCouponPerformance', params],
     queryFn: async () => {
-      const { data, error } = await api.GET('/admin/analytics/coupons', {
+      const { data, error } = await api.GET('/api/v1/admin/analytics/coupons', {
         params: {
           query: {
             days: params.days,
@@ -260,12 +320,13 @@ export function useCouponPerformance(params: CouponPerformanceQueryParams = {}) 
         },
       })
       if (error) {
-        throw new Error((error as { error?: string })?.error || 'Failed to fetch coupon performance')
+        throw new Error(
+          (error as { error?: string })?.error ||
+            'Failed to fetch coupon performance'
+        )
       }
       return data?.data as CouponPerformanceResponse
     },
     staleTime: 1000 * 60 * 5,
   })
 }
-
-

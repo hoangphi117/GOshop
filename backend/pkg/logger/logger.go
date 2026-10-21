@@ -12,6 +12,8 @@ import (
 	"github.com/rs/zerolog"
 )
 
+type traceIDContextKey struct{}
+
 var Log *zerolog.Logger
 
 func init() {
@@ -77,8 +79,18 @@ func (w PrettyJSONWriter) Write(p []byte) (n int, err error) {
 }
 
 func GetTraceId(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if traceID, ok := ctx.Value(traceIDContextKey{}).(string); ok {
+		return traceID
+	}
 	if traceID, ok := ctx.Value("trace_id").(string); ok {
 		return traceID
 	}
 	return ""
+}
+
+func WithTraceID(ctx context.Context, traceID string) context.Context {
+	return context.WithValue(ctx, traceIDContextKey{}, traceID)
 }

@@ -20,6 +20,7 @@ import (
 	"goshop/pkg/utils"
 	"goshop/pkg/validation"
 	paymentv1 "goshop/proto/payment/v1"
+	ordercontract "goshop/services/order/contract"
 	paymentsqlc "goshop/services/payment/internal/db/sqlc"
 	paymentgrpc "goshop/services/payment/internal/grpc"
 	paymenthandler "goshop/services/payment/internal/handler"
@@ -43,10 +44,13 @@ type App struct {
 	grpcListener   net.Listener
 	rabbitMQ       rabbitmq.RabbitMQService
 	paymentService paymentservice.PaymentService
+	orderClient    ordercontract.OrderClient
 }
 
 func New(cfg *config.Config) (*App, error) {
-	validation.InitValidator()
+	if err := validation.InitValidator(); err != nil {
+		return nil, fmt.Errorf("failed to initialize validator: %w", err)
+	}
 
 	r := gin.Default()
 
@@ -117,7 +121,12 @@ func New(cfg *config.Config) (*App, error) {
 	paymentRepo := paymentrepo.NewSqlPaymentRepository(paymentQuerier)
 	webhookRepo := paymentrepo.NewSqlWebhookEventRepository(paymentQuerier)
 	outboxRepo := paymentrepo.NewSqlOutboxRepository(paymentQuerier)
-	orderReader := paymentservice.NewOrderReaderDBClient(dbPool)
+	orderTarget := utils.GetEnv("ORDER_GRPC_ADDR", utils.GetEnv("ORDER_GRPC_TARGET", "localhost:50057"))
+	orderClient, err := ordercontract.NewOrderClient(orderTarget)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize order gRPC client: %w", err)
+	}
+	orderReader := paymentservice.NewOrderReaderGRPCClient(orderClient)
 
 	// Providers
 	paymentConfig := provider.PaymentConfig{
@@ -205,6 +214,7 @@ func New(cfg *config.Config) (*App, error) {
 		grpcListener:   grpcListener,
 		rabbitMQ:       rabbitmqService,
 		paymentService: paymentService,
+		orderClient:    orderClient,
 	}, nil
 }
 
@@ -267,6 +277,11 @@ func (a *App) Run(ctx context.Context) error {
 		if a.rabbitMQ != nil {
 			if err := a.rabbitMQ.Close(); err != nil {
 				logger.Log.Warn().Err(err).Msg("Failed to close RabbitMQ connection cleanly")
+			}
+		}
+		if a.orderClient != nil {
+			if err := a.orderClient.Close(); err != nil {
+				logger.Log.Warn().Err(err).Msg("Failed to close Order gRPC client cleanly")
 			}
 		}
 

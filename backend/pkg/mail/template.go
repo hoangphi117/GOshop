@@ -12,18 +12,6 @@ import (
    HELPER FUNCTIONS
    ============================================================ */
 
-var (
-	// Múi giờ Việt Nam (UTC+7 / ICT) cho hiển thị email người dùng
-	vnLocation = time.FixedZone("ICT", 7*3600)
-)
-
-func formatVNTime(t time.Time) string {
-	if t.IsZero() {
-		t = time.Now()
-	}
-	return t.In(vnLocation).Format("15:04:05 02/01/2006")
-}
-
 func formatDuration(d time.Duration) string {
 	d = d.Round(time.Second)
 
@@ -295,4 +283,3 @@ func RegisterOTPTemplate(userName, otp string, expiresIn time.Duration, year int
 
 	return htmlBuf.String(), textBuf.String(), nil
 }
-

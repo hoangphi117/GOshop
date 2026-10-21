@@ -1,15 +1,15 @@
 -- name: CreateReview :one
 INSERT INTO product_reviews (
-    review_user_id, review_product_id, review_order_id,
+    review_user_id, review_product_id, review_order_id, review_order_uuid,
     review_rating, review_title, review_comment, review_images, review_video_url, review_has_media,
     review_user_name, review_user_email, review_user_avatar
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 RETURNING *;
 
 -- name: CheckUserPurchasedProduct :one
 SELECT EXISTS (
-    SELECT 1 FROM order_items oi
-    JOIN orders o ON o.order_id = oi.order_item_order_id
+    SELECT 1 FROM analytics_order_items_projection oi
+    JOIN analytics_orders_projection o ON o.order_id = oi.order_item_order_id
     WHERE o.order_id = $1
       AND o.order_user_id = $2
       AND oi.order_item_product_id = $3
@@ -21,7 +21,7 @@ SELECT EXISTS (
     SELECT 1 FROM product_reviews
     WHERE review_user_id = $1
       AND review_product_id = $2
-      AND review_order_id = $3
+      AND review_order_uuid = $3
 ) AS exists;
 
 -- name: RecalcProductRating :exec

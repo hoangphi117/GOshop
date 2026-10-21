@@ -26,14 +26,14 @@ func (s *mockCartServer) GetCart(ctx context.Context, req *cartv1.GetCartRequest
 			TotalAmount: 100.0,
 			Items: []*cartv1.CartItemInfo{
 				{
-					ItemUuid:        "item-uuid-1",
-					ProductUuid:     "prod-uuid-1",
-					ProductName:     "Item 1",
-					Price:           100.0,
-					Quantity:        1,
-					Subtotal:        100.0,
-					StockAvailable:  10,
-					IsAvailable:     true,
+					ItemUuid:       "item-uuid-1",
+					ProductUuid:    "prod-uuid-1",
+					ProductName:    "Item 1",
+					Price:          100.0,
+					Quantity:       1,
+					Subtotal:       100.0,
+					StockAvailable: 10,
+					IsAvailable:    true,
 				},
 			},
 		},
@@ -71,7 +71,7 @@ func TestGRPCCartClient(t *testing.T) {
 	assert.NoError(t, err)
 
 	client := NewGRPCCartClientWithConn(conn)
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
 

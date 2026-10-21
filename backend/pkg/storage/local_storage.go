@@ -46,7 +46,7 @@ func (l *localStorageService) Upload(ctx context.Context, folder, filename strin
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create local file: %w", err)
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 
 	if _, err := io.Copy(out, reader); err != nil {
 		return "", "", fmt.Errorf("failed to save local file: %w", err)

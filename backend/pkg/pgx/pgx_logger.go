@@ -55,11 +55,11 @@ func formatArgs(arg any) string {
 
 	val := reflect.ValueOf(arg)
 
-	if arg == nil || (val.Kind() == reflect.Ptr && val.IsNil()) {
+	if arg == nil || (val.Kind() == reflect.Pointer && val.IsNil()) {
 		return "NULL"
 	}
 
-	if val.Kind() == reflect.Ptr {
+	if val.Kind() == reflect.Pointer {
 		arg = val.Elem().Interface()
 	}
 

@@ -22,12 +22,4 @@ func (lr *LocationRoutes) Register(r *gin.RouterGroup) {
 		location.GET("/districts", lr.handler.GetDistricts)
 		location.GET("/wards", lr.handler.GetWards)
 	}
-
-	// Backward-compatible shipping location endpoints (aliased to same LocationHandler)
-	shipping := r.Group("/shipping")
-	{
-		shipping.GET("/provinces", lr.handler.GetProvinces)
-		shipping.GET("/districts", lr.handler.GetDistricts)
-		shipping.GET("/wards", lr.handler.GetWards)
-	}
 }

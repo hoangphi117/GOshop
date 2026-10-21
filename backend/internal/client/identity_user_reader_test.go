@@ -5,8 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	"goshop/internal/db/sqlc"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
@@ -62,33 +60,6 @@ func (m *mockIdentityClient) GetAddressesByUserID(ctx context.Context, userID in
 	return nil, errors.New("not implemented")
 }
 
-type mockFallbackReader struct {
-	getByIDFunc               func(ctx context.Context, id int32) (sqlc.User, error)
-	getByUUIDFunc             func(ctx context.Context, u uuid.UUID) (sqlc.User, error)
-	getActiveAdminUserIDsFunc func(ctx context.Context) ([]int32, error)
-}
-
-func (m *mockFallbackReader) GetByID(ctx context.Context, id int32) (sqlc.User, error) {
-	if m.getByIDFunc != nil {
-		return m.getByIDFunc(ctx, id)
-	}
-	return sqlc.User{}, errors.New("fallback not implemented")
-}
-
-func (m *mockFallbackReader) GetByUUID(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-	if m.getByUUIDFunc != nil {
-		return m.getByUUIDFunc(ctx, u)
-	}
-	return sqlc.User{}, errors.New("fallback not implemented")
-}
-
-func (m *mockFallbackReader) GetActiveAdminUserIDs(ctx context.Context) ([]int32, error) {
-	if m.getActiveAdminUserIDsFunc != nil {
-		return m.getActiveAdminUserIDsFunc(ctx)
-	}
-	return nil, errors.New("fallback not implemented")
-}
-
 func TestIdentityUserReader_GetByID(t *testing.T) {
 	testUUID := uuid.New()
 
@@ -106,34 +77,31 @@ func TestIdentityUserReader_GetByID(t *testing.T) {
 			},
 		}
 
-		reader := NewIdentityUserReader(mockClient, nil)
+		reader := NewIdentityUserReader(mockClient)
 		user, err := reader.GetByID(context.Background(), 1)
 		assert.NoError(t, err)
 		assert.Equal(t, int32(1), user.UserID)
 		assert.Equal(t, "Primary User", user.UserFullname)
 	})
 
-	t.Run("fallback when client fails", func(t *testing.T) {
+	t.Run("returns error when client fails (no DB fallback)", func(t *testing.T) {
 		mockClient := &mockIdentityClient{
 			getUserByIDFunc: func(ctx context.Context, userID int32) (*InternalUserDTO, error) {
 				return nil, errors.New("network down")
 			},
 		}
-		mockFallback := &mockFallbackReader{
-			getByIDFunc: func(ctx context.Context, id int32) (sqlc.User, error) {
-				return sqlc.User{
-					UserID:       1,
-					UserUuid:     testUUID,
-					UserFullname: "Fallback User",
-					UserEmail:    "fallback@example.com",
-				}, nil
-			},
-		}
 
-		reader := NewIdentityUserReader(mockClient, mockFallback)
-		user, err := reader.GetByID(context.Background(), 1)
-		assert.NoError(t, err)
-		assert.Equal(t, "Fallback User", user.UserFullname)
+		reader := NewIdentityUserReader(mockClient)
+		_, err := reader.GetByID(context.Background(), 1)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "network down")
+	})
+
+	t.Run("returns error when client is nil", func(t *testing.T) {
+		reader := NewIdentityUserReader(nil)
+		_, err := reader.GetByID(context.Background(), 1)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "identity client is not initialized")
 	})
 }
 
@@ -151,32 +119,23 @@ func TestIdentityUserReader_GetByUUID(t *testing.T) {
 			},
 		}
 
-		reader := NewIdentityUserReader(mockClient, nil)
+		reader := NewIdentityUserReader(mockClient)
 		user, err := reader.GetByUUID(context.Background(), testUUID)
 		assert.NoError(t, err)
 		assert.Equal(t, int32(5), user.UserID)
 	})
 
-	t.Run("fallback when client fails", func(t *testing.T) {
+	t.Run("returns error when client fails (no DB fallback)", func(t *testing.T) {
 		mockClient := &mockIdentityClient{
 			getUserByUUIDFunc: func(ctx context.Context, userUUID uuid.UUID) (*InternalUserDTO, error) {
 				return nil, errors.New("service timeout")
 			},
 		}
-		mockFallback := &mockFallbackReader{
-			getByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
-				return sqlc.User{
-					UserID:       5,
-					UserUuid:     u,
-					UserFullname: "UUID Fallback",
-				}, nil
-			},
-		}
 
-		reader := NewIdentityUserReader(mockClient, mockFallback)
-		user, err := reader.GetByUUID(context.Background(), testUUID)
-		assert.NoError(t, err)
-		assert.Equal(t, "UUID Fallback", user.UserFullname)
+		reader := NewIdentityUserReader(mockClient)
+		_, err := reader.GetByUUID(context.Background(), testUUID)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "service timeout")
 	})
 }
 
@@ -188,27 +147,22 @@ func TestIdentityUserReader_GetActiveAdminUserIDs(t *testing.T) {
 			},
 		}
 
-		reader := NewIdentityUserReader(mockClient, nil)
+		reader := NewIdentityUserReader(mockClient)
 		admins, err := reader.GetActiveAdminUserIDs(context.Background())
 		assert.NoError(t, err)
 		assert.Equal(t, []int32{1, 2}, admins)
 	})
 
-	t.Run("fallback succeeds", func(t *testing.T) {
+	t.Run("returns error when client fails", func(t *testing.T) {
 		mockClient := &mockIdentityClient{
 			getActiveAdminUserIDsFunc: func(ctx context.Context) ([]int32, error) {
 				return nil, errors.New("client error")
 			},
 		}
-		mockFallback := &mockFallbackReader{
-			getActiveAdminUserIDsFunc: func(ctx context.Context) ([]int32, error) {
-				return []int32{1, 3}, nil
-			},
-		}
 
-		reader := NewIdentityUserReader(mockClient, mockFallback)
-		admins, err := reader.GetActiveAdminUserIDs(context.Background())
-		assert.NoError(t, err)
-		assert.Equal(t, []int32{1, 3}, admins)
+		reader := NewIdentityUserReader(mockClient)
+		_, err := reader.GetActiveAdminUserIDs(context.Background())
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "client error")
 	})
 }

@@ -21,13 +21,13 @@ type CBConfig struct {
 // DefaultCBConfig returns recommended defaults for payment gateway circuit breaker.
 func DefaultCBConfig() CBConfig {
 	maxFailures := uint32(utils.GetIntEnv("PAYMENT_CB_MAX_FAILURES", 5))
-	timeoutSec := time.Duration(utils.GetIntEnv("PAYMENT_CB_TIMEOUT_SECONDS", 30)) * time.Second
+	timeout := time.Duration(utils.GetIntEnv("PAYMENT_CB_TIMEOUT_SECONDS", 30)) * time.Second
 	maxRequests := uint32(utils.GetIntEnv("PAYMENT_CB_MAX_REQUESTS", 1))
 
 	return CBConfig{
 		MaxRequests: maxRequests,
 		Interval:    0,
-		Timeout:     timeoutSec,
+		Timeout:     timeout,
 		MaxFailures: maxFailures,
 	}
 }

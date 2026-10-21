@@ -32,7 +32,7 @@ type reviewService struct {
 	repo          repository.ReviewRepository
 	productRepo   repository.ProductRepository
 	catalogClient catalogcontract.CatalogClient
-	orderRepo     repository.OrderRepository
+	orderReader   OrderReader
 	userRepo      repository.UserReader
 	rabbitMQ      rabbitmq.RabbitMQService
 	cache         cache.RedisCacheService
@@ -41,18 +41,18 @@ type reviewService struct {
 func NewReviewService(
 	repo repository.ReviewRepository,
 	productRepo repository.ProductRepository,
-	orderRepo repository.OrderRepository,
+	orderReader OrderReader,
 	rabbitMQ rabbitmq.RabbitMQService,
 	redisClient *redis.Client,
 	userReader ...repository.UserReader,
 ) ReviewService {
-	return NewReviewServiceWithCatalog(repo, productRepo, orderRepo, rabbitMQ, redisClient, nil, userReader...)
+	return NewReviewServiceWithCatalog(repo, productRepo, orderReader, rabbitMQ, redisClient, nil, userReader...)
 }
 
 func NewReviewServiceWithCatalog(
 	repo repository.ReviewRepository,
 	productRepo repository.ProductRepository,
-	orderRepo repository.OrderRepository,
+	orderReader OrderReader,
 	rabbitMQ rabbitmq.RabbitMQService,
 	redisClient *redis.Client,
 	catalogClient catalogcontract.CatalogClient,
@@ -70,7 +70,7 @@ func NewReviewServiceWithCatalog(
 		repo:          repo,
 		productRepo:   productRepo,
 		catalogClient: catalogClient,
-		orderRepo:     orderRepo,
+		orderReader:   orderReader,
 		userRepo:      uRepo,
 		rabbitMQ:      rabbitMQ,
 		cache:         cacheService,
@@ -109,15 +109,22 @@ func (rs *reviewService) getProduct(ctx context.Context, productUUID uuid.UUID) 
 	return sqlc.GetProductByUUIDRow{}, utils.NewError(utils.ErrCodeInternal, "No product repository or catalog client available")
 }
 
-func (rs *reviewService) getOrder(ctx context.Context, orderUUID uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
-	order, err := rs.orderRepo.GetByUUID(ctx, orderUUID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
-			return sqlc.GetOrderByUUIDRow{}, utils.NewError(utils.ErrCodeNotFound, "Order not found")
-		}
-		return sqlc.GetOrderByUUIDRow{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
+func (rs *reviewService) verifyOrderPurchase(ctx context.Context, orderUUID uuid.UUID, userID, productID int32) (*PurchaseVerification, error) {
+	if rs.orderReader == nil {
+		return nil, utils.NewError(utils.ErrCodeInternal, "order reader not configured")
 	}
-	return order, nil
+	verification, err := rs.orderReader.VerifyPurchase(ctx, orderUUID, userID, productID)
+	if err != nil {
+		var appErr *utils.AppError
+		if errors.As(err, &appErr) {
+			return nil, appErr
+		}
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+			return nil, utils.NewError(utils.ErrCodeNotFound, "Order not found")
+		}
+		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to get order", err)
+	}
+	return verification, nil
 }
 
 func (rs *reviewService) getReview(ctx context.Context, reviewUUID uuid.UUID) (sqlc.GetReviewByUUIDRow, error) {
@@ -129,36 +136,6 @@ func (rs *reviewService) getReview(ctx context.Context, reviewUUID uuid.UUID) (s
 		return sqlc.GetReviewByUUIDRow{}, utils.WrapError(utils.ErrCodeInternal, "Failed to get review", err)
 	}
 	return review, nil
-}
-
-const maxReviewWindow = 30 * 24 * time.Hour
-
-func (rs *reviewService) validateReviewEligibility(ctx context.Context, order sqlc.GetOrderByUUIDRow, userID, productID int32) error {
-	if order.OrderDeliveredAt.Valid {
-		if time.Since(order.OrderDeliveredAt.Time) > maxReviewWindow {
-			return utils.NewError(utils.ErrCodeBadRequest, "The review window for this order has expired (allowed within 30 days of delivery)")
-		}
-	} else if order.OrderStatus == 4 && !order.OrderUpdatedAt.IsZero() && time.Since(order.OrderUpdatedAt) > maxReviewWindow {
-		return utils.NewError(utils.ErrCodeBadRequest, "The review window for this order has expired (allowed within 30 days of delivery)")
-	}
-
-	isPurchased, err := rs.repo.CheckPurchased(ctx, order.OrderID, userID, productID)
-	if err != nil {
-		return utils.WrapError(utils.ErrCodeInternal, "Error checking purchase status", err)
-	}
-	if !isPurchased {
-		return utils.NewError(utils.ErrCodeBadRequest, "User has not purchased this product")
-	}
-
-	isExists, err := rs.repo.CheckExists(ctx, userID, productID, order.OrderID)
-	if err != nil {
-		return utils.WrapError(utils.ErrCodeInternal, "Error checking review status", err)
-	}
-	if isExists {
-		return utils.NewError(utils.ErrCodeBadRequest, "Review already exists for this product")
-	}
-
-	return nil
 }
 
 func (rs *reviewService) validateReviewEditEligibility(review sqlc.GetReviewByUUIDRow, userID int32) error {
@@ -258,13 +235,25 @@ func (rs *reviewService) CreateReview(ctx context.Context, userID int32, input v
 		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Invalid order UUID")
 	}
 
-	order, err := rs.getOrder(ctx, orderUUID)
+	verification, err := rs.verifyOrderPurchase(ctx, orderUUID, userID, product.ProductID)
 	if err != nil {
 		return v1dto.ReviewDTO{}, err
 	}
 
-	if err := rs.validateReviewEligibility(ctx, order, userID, product.ProductID); err != nil {
-		return v1dto.ReviewDTO{}, err
+	if !verification.CanReview {
+		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeBadRequest, "The review window for this order has expired (allowed within 30 days of delivery)")
+	}
+
+	if !verification.IsPurchased {
+		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeBadRequest, "User has not purchased this product")
+	}
+
+	isExists, err := rs.repo.CheckExists(ctx, userID, product.ProductID, verification.OrderUUID)
+	if err != nil {
+		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Error checking review status", err)
+	}
+	if isExists {
+		return v1dto.ReviewDTO{}, utils.NewError(utils.ErrCodeBadRequest, "Review already exists for this product")
 	}
 
 	if err := utils.ValidateReviewContent(input.Title, input.Comment); err != nil {
@@ -278,15 +267,15 @@ func (rs *reviewService) CreateReview(ctx context.Context, userID int32, input v
 	if err != nil {
 		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to start transaction", err)
 	}
-	defer tx.Rollback(txCtx)
+	defer func() { _ = tx.Rollback(txCtx) }()
 
 	hasMedia := len(imageURLs) > 0 || videoURL != nil
 	if imageURLs == nil {
 		imageURLs = []string{}
 	}
 
-	userName := order.OrderCustomerName
-	userEmail := order.OrderCustomerEmail
+	userName := verification.CustomerName
+	userEmail := verification.CustomerEmail
 	var userAvatar string
 
 	if rs.userRepo != nil && userID > 0 {
@@ -309,10 +298,16 @@ func (rs *reviewService) CreateReview(ctx context.Context, userID int32, input v
 		userName = "Customer"
 	}
 
+	var orderIDPtr *int32
+	if verification.OrderID > 0 {
+		orderIDPtr = &verification.OrderID
+	}
+
 	createParams := sqlc.CreateReviewParams{
 		ReviewUserID:     userID,
 		ReviewProductID:  product.ProductID,
-		ReviewOrderID:    order.OrderID,
+		ReviewOrderID:    orderIDPtr,
+		ReviewOrderUuid:  verification.OrderUUID,
 		ReviewRating:     int16(input.Rating),
 		ReviewTitle:      input.Title,
 		ReviewComment:    input.Comment,
@@ -364,7 +359,7 @@ func (rs *reviewService) CreateReview(ctx context.Context, userID int32, input v
 		_ = rs.rabbitMQ.Publish(ctx, rabbitmq.QueueNotificationEvents, event)
 	}
 
-	return v1dto.MapCreatedReviewToDTO(review, order.OrderShippingName, product.ProductUuid.String(), order.OrderUuid.String()), nil
+	return v1dto.MapCreatedReviewToDTO(review, verification.ShippingName, product.ProductUuid.String(), verification.OrderUUID.String()), nil
 }
 
 func (rs *reviewService) GetProductReviews(ctx context.Context, productUUID uuid.UUID, query v1dto.GetReviewsQuery) ([]v1dto.ReviewDTO, int32, error) {
@@ -540,7 +535,7 @@ func (rs *reviewService) UpdateReview(ctx context.Context, userID int32, reviewU
 	if err != nil {
 		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to start transaction", err)
 	}
-	defer tx.Rollback(txCtx)
+	defer func() { _ = tx.Rollback(txCtx) }()
 
 	updateParams := sqlc.UpdateReviewParams{
 		ReviewID:      review.ReviewID,
@@ -597,7 +592,7 @@ func (rs *reviewService) UpdateReviewStatus(ctx context.Context, reviewUUID uuid
 	if err != nil {
 		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to start transaction", err)
 	}
-	defer tx.Rollback(txCtx)
+	defer func() { _ = tx.Rollback(txCtx) }()
 
 	updatedReview, err := rs.repo.UpdateStatus(txCtx, tx, review.ReviewID, input.Status)
 	if err != nil {
@@ -658,7 +653,7 @@ func (rs *reviewService) DeleteReview(ctx context.Context, userID int32, reviewU
 	if err != nil {
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to start transaction", err)
 	}
-	defer tx.Rollback(txCtx)
+	defer func() { _ = tx.Rollback(txCtx) }()
 
 	if err := rs.repo.Delete(txCtx, tx, review.ReviewID); err != nil {
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to delete review", err)
@@ -703,7 +698,7 @@ func (rs *reviewService) ToggleHelpfulVote(ctx context.Context, userID int32, re
 	if err != nil {
 		return v1dto.ToggleHelpfulResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to start transaction", err)
 	}
-	defer tx.Rollback(txCtx)
+	defer func() { _ = tx.Rollback(txCtx) }()
 
 	hasVoted, err := rs.repo.HasHelpfulVote(txCtx, userID, review.ReviewID)
 	if err != nil {
@@ -766,7 +761,7 @@ func (rs *reviewService) ReportReview(ctx context.Context, userID int32, reviewU
 	if err != nil {
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to start transaction", err)
 	}
-	defer tx.Rollback(txCtx)
+	defer func() { _ = tx.Rollback(txCtx) }()
 
 	if err := rs.repo.CreateReport(txCtx, tx, sqlc.InsertReviewReportParams{
 		UserID:   userID,
@@ -807,14 +802,14 @@ func (rs *reviewService) AdminGetAllReviews(ctx context.Context, query v1dto.Adm
 	}
 
 	offset := (page - 1) * limit
-
 	var productID *int32
 	if query.ProductUUID != nil && *query.ProductUUID != "" {
-		pUUID, err := uuid.Parse(*query.ProductUUID)
+		productUUID, err := uuid.Parse(*query.ProductUUID)
 		if err != nil {
-			return nil, 0, utils.NewError(utils.ErrCodeBadRequest, "Invalid product UUID")
+			return nil, 0, utils.WrapError(utils.ErrCodeBadRequest, "Invalid product UUID", err)
 		}
-		product, err := rs.getProduct(ctx, pUUID)
+
+		product, err := rs.getProduct(ctx, productUUID)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -835,6 +830,44 @@ func (rs *reviewService) AdminGetAllReviews(ctx context.Context, query v1dto.Adm
 		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "Failed to get reviews", err)
 	}
 
+	// Enrich with product info via catalog gRPC (batch to avoid N+1)
+	if rs.catalogClient != nil && len(rows) > 0 {
+		ids := make([]int32, 0, len(rows))
+		seen := map[int32]bool{}
+		for _, r := range rows {
+			if !seen[r.ProductID] {
+				ids = append(ids, r.ProductID)
+				seen[r.ProductID] = true
+			}
+		}
+		products, batchErr := rs.catalogClient.GetProductsBatch(ctx, nil, ids)
+		if batchErr == nil {
+			infoByID := make(map[int32]*catalogcontract.ProductItemInfo, len(products))
+			for i := range products {
+				p := &products[i]
+				infoByID[p.ProductID] = p
+			}
+			// Apply product_uuid filter if requested
+			if query.ProductUUID != nil && *query.ProductUUID != "" {
+				filtered := rows[:0]
+				for _, r := range rows {
+					if p, ok := infoByID[r.ProductID]; ok && p.ProductUUID == *query.ProductUUID {
+						filtered = append(filtered, r)
+					}
+				}
+				rows = filtered
+			}
+			for i := range rows {
+				if p, ok := infoByID[rows[i].ProductID]; ok {
+					if u, parseErr := uuid.Parse(p.ProductUUID); parseErr == nil {
+						rows[i].ProductUUID = u
+					}
+					rows[i].ProductName = p.ProductName
+				}
+			}
+		}
+	}
+
 	return v1dto.MapToAdminReviewDTOs(rows), int32(total), nil
 }
 
@@ -851,7 +884,7 @@ func (rs *reviewService) AdminReplyReview(ctx context.Context, reviewUUID uuid.U
 	if err != nil {
 		return v1dto.ReviewDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to start transaction", err)
 	}
-	defer tx.Rollback(txCtx)
+	defer func() { _ = tx.Rollback(txCtx) }()
 
 	updatedReview, err := rs.repo.Reply(txCtx, tx, review.ReviewID, input.Reply)
 	if err != nil {
@@ -908,7 +941,7 @@ func (rs *reviewService) AdminForceDeleteReview(ctx context.Context, reviewUUID 
 	if err != nil {
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to begin transaction", err)
 	}
-	defer tx.Rollback(txCtx)
+	defer func() { _ = tx.Rollback(txCtx) }()
 
 	if err := rs.repo.Delete(txCtx, tx, review.ReviewID); err != nil {
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to force delete review", err)
@@ -963,7 +996,7 @@ func (rs *reviewService) AdminDismissReports(ctx context.Context, reviewUUID uui
 	if err != nil {
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to start transaction", err)
 	}
-	defer tx.Rollback(txCtx)
+	defer func() { _ = tx.Rollback(txCtx) }()
 
 	if err := rs.repo.DeleteReportsByReviewID(txCtx, tx, review.ReviewID); err != nil {
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to delete reports", err)

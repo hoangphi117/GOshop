@@ -121,6 +121,7 @@ func TestInventoryReturnRestockConsumer_Handle(t *testing.T) {
 		assert.Contains(t, *capturedNote, "Restock from completed return")
 		require.Len(t, capturedItems, 2)
 		assert.Equal(t, int32(10), capturedItems[0].ProductID)
+		assert.Equal(t, evt.Items[0].ProductUUID, capturedItems[0].ProductUUID)
 		assert.Equal(t, int32(2), capturedItems[0].Quantity)
 		assert.Equal(t, int32(30), capturedItems[1].ProductID)
 		assert.Equal(t, int32(5), capturedItems[1].Quantity)

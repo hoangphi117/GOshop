@@ -639,7 +639,7 @@ func verifyGoogleIDToken(ctx context.Context, idToken string) (*dto.GoogleTokenI
 	if err != nil {
 		return nil, utils.WrapError(utils.ErrCodeExternalService, "failed to verify token with Google", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, utils.NewError(utils.ErrCodeUnauthorized, "invalid Google ID token")

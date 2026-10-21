@@ -7,6 +7,7 @@ on:
       - master
       - 'refactor/**'
       - 'feature/**'
+      - 'feat/**'
     paths:
       - 'backend/**'
       - '.github/workflows/backend-ci.yml'
@@ -30,7 +31,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version: '1.26.5'
           cache-dependency-path: backend/go.sum
 
       - name: Go Vet
@@ -40,8 +41,54 @@ jobs:
         run: go test -race -v ./...
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v7
         with:
-          version: v1.60
+          version: v2.15.0
           working-directory: backend
           args: --timeout=5m
+
+  integration:
+    name: Integration smoke tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: super@password
+          POSTGRES_DB: shopping
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d shopping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+      rabbitmq:
+        image: rabbitmq:3-management-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: goshop
+          RABBITMQ_DEFAULT_PASS: goshop
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.5'
+          cache-dependency-path: backend/go.sum
+
+      - name: Run integration smoke tests
+        run: go test -tags=integration -v ./integration

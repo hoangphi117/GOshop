@@ -21,8 +21,7 @@ var (
 )
 
 var (
-	_ v1service.CartService     = (*CartServiceAdapter)(nil)
-	_ v1service.OrderCartPort   = (*CartServiceAdapter)(nil)
+	_ v1service.CartService = (*CartServiceAdapter)(nil)
 )
 
 // CartServiceAdapter bridges the standalone Cart gRPC microservice into Monolith services & workers
@@ -102,6 +101,20 @@ func (a *CartServiceAdapter) RemovePurchasedItems(ctx context.Context, userID in
 	}
 
 	_, err := a.client.RemovePurchasedItems(ctx, "", userID, nil, productIDs)
+	return err
+}
+
+func (a *CartServiceAdapter) RemovePurchasedItemsByUUID(ctx context.Context, userUUID uuid.UUID, productUUIDs []uuid.UUID) error {
+	if a.client == nil {
+		return fmt.Errorf("cart gRPC client is not initialized")
+	}
+
+	uuids := make([]string, len(productUUIDs))
+	for i, u := range productUUIDs {
+		uuids[i] = u.String()
+	}
+
+	_, err := a.client.RemovePurchasedItems(ctx, userUUID.String(), 0, uuids, nil)
 	return err
 }
 

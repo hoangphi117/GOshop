@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"goshop/pkg/grpcclient"
 	identityv1 "goshop/proto/identity/v1"
 )
 
@@ -36,7 +37,7 @@ func WithGRPCCacheTTL(ttl time.Duration) GRPCOption {
 
 // NewGRPCIdentityClient creates a new gRPC-backed IdentityClient
 func NewGRPCIdentityClient(target string, redisClient *redis.Client, opts ...GRPCOption) (IdentityClient, error) {
-	conn, err := grpc.NewClient(
+	conn, err := grpcclient.NewClient(
 		target,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)

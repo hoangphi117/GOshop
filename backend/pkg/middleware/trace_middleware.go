@@ -1,10 +1,9 @@
 package middleware
 
 import (
-	"context"
-
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"goshop/pkg/logger"
 )
 
 func TraceMiddleware() gin.HandlerFunc {
@@ -14,7 +13,8 @@ func TraceMiddleware() gin.HandlerFunc {
 			traceID = uuid.NewString()
 		}
 
-		contextValue := context.WithValue(ctx.Request.Context(), "trace_id", traceID)
+		contextValue := logger.WithTraceID(ctx.Request.Context(), traceID)
+		contextValue = logger.WithTraceID(contextValue, traceID)
 		ctx.Request = ctx.Request.WithContext(contextValue)
 
 		ctx.Writer.Header().Set("X-Trace-Id", traceID)

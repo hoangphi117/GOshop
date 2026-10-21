@@ -44,22 +44,22 @@ func NewS3StorageService(ctx context.Context, cfg S3Config, logger *zerolog.Logg
 
 	isR2 := strings.Contains(strings.ToLower(cfg.Endpoint), "r2.cloudflarestorage.com")
 
-	customResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
+	customResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) { //nolint:staticcheck // Required by current AWS SDK compatibility layer
 		if cfg.Endpoint != "" {
-			return aws.Endpoint{
+			return aws.Endpoint{ //nolint:staticcheck // Required by current AWS SDK compatibility layer
 				PartitionID:       "aws",
 				URL:               cfg.Endpoint,
 				SigningRegion:     cfg.Region,
 				HostnameImmutable: cfg.UsePathStyle,
 			}, nil
 		}
-		return aws.Endpoint{}, &aws.EndpointNotFoundError{}
+		return aws.Endpoint{}, &aws.EndpointNotFoundError{} //nolint:staticcheck // Required by current AWS SDK compatibility layer
 	})
 
 	awsCfg, err := awsconfig.LoadDefaultConfig(ctx,
 		awsconfig.WithRegion(cfg.Region),
 		awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(cfg.AccessKey, cfg.SecretKey, "")),
-		awsconfig.WithEndpointResolverWithOptions(customResolver),
+		awsconfig.WithEndpointResolverWithOptions(customResolver), //nolint:staticcheck // Required by current AWS SDK compatibility layer
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load S3 SDK configuration: %w", err)

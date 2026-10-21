@@ -46,14 +46,14 @@ const (
 	QueueUserDeleted = "user.deleted"
 
 	// Topic Exchange Routing Keys (Pub/Sub)
-	RoutingKeyOrderCreated           = "order.created"
-	RoutingKeyOrderCancelled         = "order.cancelled"
-	RoutingKeyOrderStatusChanged     = "order.status_changed"
-	RoutingKeyOrderShipped           = "order.shipped"
-	RoutingKeyOrderDelivered         = "order.delivered"
-	RoutingKeyOrderReturnRequested   = "order_return.requested"
-	RoutingKeyOrderReturnUpdated     = "order_return.updated"
-	RoutingKeyOrderReturnCompleted   = "order_return.completed"
+	RoutingKeyOrderCreated         = "order.created"
+	RoutingKeyOrderCancelled       = "order.cancelled"
+	RoutingKeyOrderStatusChanged   = "order.status_changed"
+	RoutingKeyOrderShipped         = "order.shipped"
+	RoutingKeyOrderDelivered       = "order.delivered"
+	RoutingKeyOrderReturnRequested = "order_return.requested"
+	RoutingKeyOrderReturnUpdated   = "order_return.updated"
+	RoutingKeyOrderReturnCompleted = "order_return.completed"
 	RoutingKeyPaymentExpired       = "payment.expired"
 	RoutingKeyPaymentSucceeded     = "payment.succeeded"
 	RoutingKeyPaymentFailed        = "payment.failed"
@@ -98,29 +98,29 @@ func NewPaymentExpiredEvent(eventID, ptUUID, orderUUID, orderNumber, userUUID, p
 
 // PaymentSucceededEvent is emitted when a payment transaction succeeds.
 type PaymentSucceededEvent struct {
-	EventID         string    `json:"event_id"`
-	PtUUID          string    `json:"pt_uuid"`
-	OrderUUID       string    `json:"order_uuid"`
-	OrderNumber     string    `json:"order_number"`
-	UserUUID        string    `json:"user_uuid"`
-	Provider        string    `json:"provider"`
-	ProviderTxnID   string    `json:"provider_txn_id"`
-	Amount          float64   `json:"amount"`
-	Timestamp       time.Time `json:"timestamp"`
+	EventID       string    `json:"event_id"`
+	PtUUID        string    `json:"pt_uuid"`
+	OrderUUID     string    `json:"order_uuid"`
+	OrderNumber   string    `json:"order_number"`
+	UserUUID      string    `json:"user_uuid"`
+	Provider      string    `json:"provider"`
+	ProviderTxnID string    `json:"provider_txn_id"`
+	Amount        float64   `json:"amount"`
+	Timestamp     time.Time `json:"timestamp"`
 }
 
 // NewPaymentSucceededEvent constructs a new PaymentSucceededEvent.
 func NewPaymentSucceededEvent(eventID, ptUUID, orderUUID, orderNumber, userUUID, provider, providerTxnID string, amount float64) PaymentSucceededEvent {
 	return PaymentSucceededEvent{
-		EventID:         eventID,
-		PtUUID:          ptUUID,
-		OrderUUID:       orderUUID,
-		OrderNumber:     orderNumber,
-		UserUUID:        userUUID,
-		Provider:        provider,
-		ProviderTxnID:   providerTxnID,
-		Amount:          amount,
-		Timestamp:       time.Now().UTC(),
+		EventID:       eventID,
+		PtUUID:        ptUUID,
+		OrderUUID:     orderUUID,
+		OrderNumber:   orderNumber,
+		UserUUID:      userUUID,
+		Provider:      provider,
+		ProviderTxnID: providerTxnID,
+		Amount:        amount,
+		Timestamp:     time.Now().UTC(),
 	}
 }
 
@@ -152,15 +152,31 @@ func NewPaymentFailedEvent(eventID, ptUUID, orderUUID, orderNumber, userUUID, pr
 
 // OrderCreatedEvent is published when an order has been successfully placed and committed to DB.
 type OrderCreatedEvent struct {
-	EventID        string    `json:"event_id"`
-	OrderID        int32     `json:"order_id"`
-	OrderUUID      string    `json:"order_uuid"`
-	OrderNumber    string    `json:"order_number"`
-	UserID         int32     `json:"user_id"`
-	UserUUID       string    `json:"user_uuid"`
-	TotalAmount    float64   `json:"total_amount"`
-	PurchasedItems []int32   `json:"purchased_items"`
-	Timestamp      time.Time `json:"timestamp"`
+	EventID            string             `json:"event_id"`
+	OrderID            int32              `json:"order_id"`
+	OrderUUID          string             `json:"order_uuid"`
+	OrderNumber        string             `json:"order_number"`
+	UserID             int32              `json:"user_id"`
+	UserUUID           string             `json:"user_uuid"`
+	TotalAmount        float64            `json:"total_amount"`
+	DiscountAmount     float64            `json:"discount_amount,omitempty"`
+	CouponID           *int32             `json:"coupon_id,omitempty"`
+	PaymentMethod      int32              `json:"payment_method"`
+	ShippingFee        float64            `json:"shipping_fee,omitempty"`
+	PurchasedItems     []int32            `json:"purchased_items"`
+	PurchasedItemUUIDs []string           `json:"purchased_item_uuids,omitempty"`
+	Items              []OrderCreatedItem `json:"items,omitempty"`
+	Timestamp          time.Time          `json:"timestamp"`
+}
+
+type OrderCreatedItem struct {
+	ItemUUID    string  `json:"item_uuid,omitempty"`
+	ProductID   int32   `json:"product_id"`
+	ProductUUID string  `json:"product_uuid,omitempty"`
+	ProductName string  `json:"product_name"`
+	Price       float64 `json:"price"`
+	Quantity    int32   `json:"quantity"`
+	Subtotal    float64 `json:"subtotal"`
 }
 
 // NewOrderCreatedEvent constructs a new OrderCreatedEvent.
@@ -176,6 +192,25 @@ func NewOrderCreatedEvent(eventID, orderUUID, orderNumber, userUUID string, orde
 		PurchasedItems: purchasedItems,
 		Timestamp:      time.Now().UTC(),
 	}
+}
+
+// WithItemUUIDs attaches product UUIDs to the event for microservice boundary decoupling.
+func (e OrderCreatedEvent) WithItemUUIDs(uuids []string) OrderCreatedEvent {
+	e.PurchasedItemUUIDs = uuids
+	return e
+}
+
+func (e OrderCreatedEvent) WithItems(items []OrderCreatedItem) OrderCreatedEvent {
+	e.Items = items
+	return e
+}
+
+func (e OrderCreatedEvent) WithOrderAmounts(discountAmount, shippingFee float64, couponID *int32, paymentMethod int32) OrderCreatedEvent {
+	e.DiscountAmount = discountAmount
+	e.ShippingFee = shippingFee
+	e.CouponID = couponID
+	e.PaymentMethod = paymentMethod
+	return e
 }
 
 // OrderCancelledItem details product item cancelled in an order.
@@ -195,6 +230,7 @@ type OrderCancelledEvent struct {
 	UserUUID    string               `json:"user_uuid"`
 	Reason      string               `json:"reason,omitempty"`
 	CouponID    *int32               `json:"coupon_id,omitempty"`
+	CouponUUID  *string              `json:"coupon_uuid,omitempty"`
 	Items       []OrderCancelledItem `json:"items,omitempty"`
 	Timestamp   time.Time            `json:"timestamp"`
 }
@@ -237,21 +273,22 @@ func NewOrderCancelledEventWithDetails(
 
 // OrderStatusChangedEvent is published when an order status changes (e.g. Confivered, Shipped, Delivered).
 type OrderStatusChangedEvent struct {
-	EventID      string    `json:"event_id"`
-	OrderID      int32     `json:"order_id"`
-	OrderUUID    string    `json:"order_uuid"`
-	OrderNumber  string    `json:"order_number"`
-	UserID       int32     `json:"user_id"`
-	UserUUID     string    `json:"user_uuid"`
-	OldStatus    int32     `json:"old_status"`
-	NewStatus    int32     `json:"new_status"`
-	ShippingCode string    `json:"shipping_code,omitempty"`
-	Timestamp    time.Time `json:"timestamp"`
+	EventID       string    `json:"event_id"`
+	OrderID       int32     `json:"order_id"`
+	OrderUUID     string    `json:"order_uuid"`
+	OrderNumber   string    `json:"order_number"`
+	UserID        int32     `json:"user_id"`
+	UserUUID      string    `json:"user_uuid"`
+	OldStatus     int32     `json:"old_status"`
+	NewStatus     int32     `json:"new_status"`
+	PaymentStatus int32     `json:"payment_status,omitempty"`
+	ShippingCode  string    `json:"shipping_code,omitempty"`
+	Timestamp     time.Time `json:"timestamp"`
 }
 
 // NewOrderStatusChangedEvent constructs a new OrderStatusChangedEvent.
-func NewOrderStatusChangedEvent(eventID, orderUUID, orderNumber, userUUID string, orderID, userID, oldStatus, newStatus int32, shippingCode string) OrderStatusChangedEvent {
-	return OrderStatusChangedEvent{
+func NewOrderStatusChangedEvent(eventID, orderUUID, orderNumber, userUUID string, orderID, userID, oldStatus, newStatus int32, shippingCode string, paymentStatus ...int32) OrderStatusChangedEvent {
+	event := OrderStatusChangedEvent{
 		EventID:      eventID,
 		OrderID:      orderID,
 		OrderUUID:    orderUUID,
@@ -263,6 +300,10 @@ func NewOrderStatusChangedEvent(eventID, orderUUID, orderNumber, userUUID string
 		ShippingCode: shippingCode,
 		Timestamp:    time.Now().UTC(),
 	}
+	if len(paymentStatus) > 0 {
+		event.PaymentStatus = paymentStatus[0]
+	}
+	return event
 }
 
 // OrderReturnRequestedEvent is published when a customer creates a return request.
@@ -303,9 +344,16 @@ type OrderReturnUpdatedEvent struct {
 	OrderNumber  string    `json:"order_number"`
 	UserID       int32     `json:"user_id"`
 	ReturnStatus int16     `json:"return_status"`
+	ChangeType   string    `json:"change_type,omitempty"`
 	AdminNote    string    `json:"admin_note,omitempty"`
 	Timestamp    time.Time `json:"timestamp"`
 }
+
+const (
+	ReturnChangeTypeGoodsReceived = "goods_received"
+	ReturnChangeTypeRefunded      = "refund_completed"
+	ReturnChangeTypeShippingSent  = "shipping_submitted"
+)
 
 // NewOrderReturnUpdatedEvent constructs a new OrderReturnUpdatedEvent.
 func NewOrderReturnUpdatedEvent(eventID, returnUUID, orderUUID, orderNumber string, returnID, orderID, userID int32, returnStatus int16, adminNote string) OrderReturnUpdatedEvent {

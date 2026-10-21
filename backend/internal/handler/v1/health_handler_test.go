@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"goshop/pkg/discord"
 	"github.com/gin-gonic/gin"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"goshop/pkg/discord"
 )
 
 type MockRabbitMQ struct {
@@ -47,7 +47,6 @@ func (m *MockRabbitMQ) SubscribeToExchange(ctx context.Context, exchange, queueN
 func (m *MockRabbitMQ) Close() error {
 	return nil
 }
-
 
 func (m *MockRabbitMQ) IsHealthy() bool {
 	args := m.Called()
@@ -146,4 +145,25 @@ func TestHealthHandler_HealthCheck_Degraded(t *testing.T) {
 
 	services := resp["services"].(map[string]any)
 	assert.Equal(t, "down", services["rabbitmq"])
+}
+
+func TestHealthHandler_ReadinessCheck_DoesNotSendAlert(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	mockRabbit := new(MockRabbitMQ)
+	mockRabbit.On("IsHealthy").Return(false)
+	mockStore := new(MockStorage)
+	mockStore.On("IsHealthy", mock.Anything).Return(true)
+
+	handler := NewHealthHandler(nil, nil, mockRabbit, mockStore, nil, nil)
+	r.GET("/healthz/ready", handler.ReadinessCheck)
+
+	req, _ := http.NewRequest(http.MethodGet, "/healthz/ready", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	mockRabbit.AssertExpectations(t)
+	mockStore.AssertExpectations(t)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"goshop/pkg/grpcclient"
 	paymentv1 "goshop/proto/payment/v1"
 
 	"github.com/google/uuid"
@@ -25,7 +26,7 @@ type GRPCPaymentClient struct {
 }
 
 func NewGRPCPaymentClient(target string) (*GRPCPaymentClient, error) {
-	conn, err := grpc.NewClient(
+	conn, err := grpcclient.NewClient(
 		target,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)

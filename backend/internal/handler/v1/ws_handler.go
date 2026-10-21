@@ -28,7 +28,7 @@ type WSHandler struct {
 	hub          ws.Hub
 	jwtService   auth.TokenService
 	cacheService cache.RedisCacheService
-	userRepo     repository.UserRepository
+	userRepo     repository.UserReader
 	chatRepo     repository.ChatRepository
 }
 
@@ -36,7 +36,7 @@ func NewWSHandler(
 	hub ws.Hub,
 	jwtService auth.TokenService,
 	cacheService cache.RedisCacheService,
-	userRepo repository.UserRepository,
+	userRepo repository.UserReader,
 ) *WSHandler {
 	return &WSHandler{
 		hub:          hub,

@@ -2,26 +2,28 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"goshop/internal/client"
 	"goshop/internal/config"
 	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
 	"goshop/internal/routes"
+	v1service "goshop/internal/service/v1"
 	"goshop/internal/utils"
 	"goshop/internal/validation"
-	v1service "goshop/internal/service/v1"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
+	"goshop/pkg/discord"
 	"goshop/pkg/logger"
 	"goshop/pkg/rabbitmq"
-	"goshop/pkg/discord"
 	"goshop/pkg/search"
 	"goshop/pkg/shipping"
-	"fmt"
 	"goshop/pkg/storage"
 	"goshop/pkg/ws"
 	catalogcontract "goshop/services/catalog/contract"
+	couponcontract "goshop/services/coupon/contract"
 	inventorycontract "goshop/services/inventory/contract"
+	ordercontract "goshop/services/order/contract"
 	"net/http"
 	"os"
 	"os/signal"
@@ -62,11 +64,15 @@ type ModuleContext struct {
 	RabbitMQ        rabbitmq.RabbitMQService
 	InventoryClient inventorycontract.InventoryClient
 	CatalogClient   catalogcontract.CatalogClient
+	CouponClient    couponcontract.CouponClient
+	OrderClient     ordercontract.OrderClient
 }
 
 func NewApplication(cfg *config.Config) (*Application, error) {
 
-	validation.InitValidator()
+	if err := validation.InitValidator(); err != nil {
+		return nil, fmt.Errorf("failed to initialize validator: %w", err)
+	}
 
 	r := gin.Default()
 
@@ -196,25 +202,24 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		logger.Log.Warn().Err(err).Str("addr", catalogTarget).Msg("Failed to initialize Catalog gRPC client")
 	}
 
-	cartTarget := utils.GetEnv("CART_GRPC_TARGET", utils.GetEnv("CART_GRPC_ADDR", "localhost:50056"))
-	grpcCartClient, err := client.NewGRPCCartClient(cartTarget)
+	couponTarget := utils.GetEnv("COUPON_GRPC_TARGET", "localhost:50053")
+	grpcCouponClient, err := couponcontract.NewGRPCCouponClient(couponTarget)
 	if err != nil {
-		logger.Log.Warn().Err(err).Str("addr", cartTarget).Msg("Failed to initialize Cart gRPC client")
-	}
-	cartService := client.NewCartServiceAdapter(grpcCartClient)
-
-	grpcPaymentClient, err := client.NewGRPCPaymentClient(cfg.PaymentGRPCAddr)
-	if err != nil {
-		logger.Log.Fatal().Err(err).Str("addr", cfg.PaymentGRPCAddr).Msg("Failed to initialize Payment gRPC client")
+		logger.Log.Fatal().Err(err).Str("addr", couponTarget).Msg("Failed to initialize Coupon gRPC client")
 		return nil, err
 	}
-	paymentService := client.NewPaymentServiceAdapter(grpcPaymentClient)
 
 	inventoryTarget := utils.GetEnv("INVENTORY_GRPC_TARGET", "localhost:50054")
 	grpcInventoryClient, err := inventorycontract.NewGRPCInventoryClient(inventoryTarget)
 	if err != nil {
 		logger.Log.Fatal().Err(err).Str("addr", inventoryTarget).Msg("Failed to initialize Inventory gRPC client")
 		return nil, err
+	}
+
+	orderTarget := utils.GetEnv("ORDER_GRPC_TARGET", utils.GetEnv("ORDER_GRPC_ADDR", "localhost:50057"))
+	grpcOrderClient, err := ordercontract.NewGRPCOrderClient(orderTarget)
+	if err != nil {
+		logger.Log.Warn().Err(err).Str("addr", orderTarget).Msg("Failed to initialize Order gRPC client")
 	}
 
 	ctx := &ModuleContext{
@@ -229,31 +234,25 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		RabbitMQ:        rabbitmqService,
 		InventoryClient: grpcInventoryClient,
 		CatalogClient:   grpcCatalogClient,
+		CouponClient:    grpcCouponClient,
+		OrderClient:     grpcOrderClient,
 	}
 
-	orderModuleDeps := OrderModuleDeps{
-		CartService:     cartService,
-		PaymentService:  paymentService,
-		LocationService: locationService,
-		ShippingFactory: shippingFactory,
-		RabbitMQService: rabbitmqService,
-		CacheService:    cacheRedisService,
+	var crossDomainOrderReader v1service.OrderReader
+	if grpcOrderClient != nil {
+		crossDomainOrderReader = client.NewGRPCOrderReader(grpcOrderClient)
 	}
 
 	modules := []Module{
-		NewProductModule(ctx),
-		NewOrderModule(ctx, orderModuleDeps),
-	}
-	modules = append(modules,
-		NewReviewModule(ctx, rabbitmqService),
+		NewReviewModule(ctx, rabbitmqService, crossDomainOrderReader),
 		NewWSModule(ctx, wsHub, tokenService, cacheRedisService),
 		NewLocationModule(locationService),
 		NewUploadModule(ctx),
 		NewBannerModule(ctx, cacheRedisService),
 		NewAnalyticsModule(ctx),
-		NewChatModule(ctx, wsHub, redisBridge),
+		NewChatModule(ctx, wsHub, redisBridge, crossDomainOrderReader),
 		NewHealthModule(db.DBPool, redisClient, rabbitmqService, storageService, discord.NewDiscordNotifier(utils.GetEnv("DISCORD_WEBHOOK_URL", ""), logger.Log), logger.Log),
-	)
+	}
 
 	routes.RegisterRoutes(r, tokenService, cacheRedisService, getModuleRoutes(modules), getAdminModuleRoutes(modules))
 
@@ -315,5 +314,3 @@ func (a *Application) Run() error {
 	logger.Log.Info().Msg("Server exited successfully")
 	return nil
 }
-
-

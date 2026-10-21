@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	dto "goshop/services/identity/internal/dto"
 	"goshop/pkg/utils"
 	"goshop/services/identity/internal/db/sqlc"
+	dto "goshop/services/identity/internal/dto"
 	"goshop/services/identity/internal/repository"
 
 	"github.com/google/uuid"
@@ -55,7 +55,7 @@ func (as *addressService) CreateUserAddress(ctx context.Context, userUUID uuid.U
 		return dto.AddressDTO{}, utils.NewError(utils.ErrCodeInternal, "Failed to begin transaction")
 	}
 	if tx != nil {
-		defer tx.Rollback(txCtx)
+		defer func() { _ = tx.Rollback(txCtx) }()
 	}
 
 	count, err := as.repo.Count(txCtx, user.UserID)
@@ -164,7 +164,7 @@ func (as *addressService) SetDefaultUserAddress(ctx context.Context, userUUID uu
 		return utils.NewError(utils.ErrCodeInternal, "Failed to begin transaction")
 	}
 	if tx != nil {
-		defer tx.Rollback(txCtx)
+		defer func() { _ = tx.Rollback(txCtx) }()
 	}
 
 	if err := as.repo.ClearDefault(txCtx, tx, user.UserID); err != nil {
@@ -209,7 +209,7 @@ func (as *addressService) DeleteUserAddress(ctx context.Context, userUUID uuid.U
 		return utils.NewError(utils.ErrCodeInternal, "Failed to begin transaction")
 	}
 	if tx != nil {
-		defer tx.Rollback(txCtx)
+		defer func() { _ = tx.Rollback(txCtx) }()
 	}
 
 	deleted, err := as.repo.Delete(txCtx, tx, user.UserID, addressUUID)

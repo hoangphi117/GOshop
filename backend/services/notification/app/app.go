@@ -42,7 +42,9 @@ type App struct {
 
 // New constructs and wires the Notification application
 func New(cfg *config.Config) (*App, error) {
-	validation.InitValidator()
+	if err := validation.InitValidator(); err != nil {
+		return nil, fmt.Errorf("failed to initialize validator: %w", err)
+	}
 
 	r := gin.Default()
 
@@ -91,7 +93,7 @@ func New(cfg *config.Config) (*App, error) {
 	} else {
 		logger.Log.Warn().Err(err).Msg("Failed to initialize mail factory, email delivery disabled")
 	}
-	
+
 	discordLogger := utils.NewLoggerWithPath("notification_discord.log", "info")
 	discordWebhookURL := utils.GetEnv("DISCORD_WEBHOOK_URL", "")
 	discordNotifier := discord.NewDiscordNotifier(discordWebhookURL, discordLogger)
@@ -126,12 +128,13 @@ func New(cfg *config.Config) (*App, error) {
 		)
 		topicPatterns := []string{
 			rabbitmq.PatternOrderAll,
+			rabbitmq.PatternOrderReturns,
 			rabbitmq.PatternPaymentAll,
 			rabbitmq.PatternUserAll,
 			rabbitmq.PatternInventoryAll,
 			rabbitmq.QueueNotificationEvents,
 		}
-		queueName := "notification_service_events"
+		queueName := "notification_service_events_v3"
 		go func() {
 			if err := rabbitmqService.SubscribeTopic(context.Background(), queueName, topicPatterns, topicConsumer.HandleEvent); err != nil {
 				logger.Log.Error().Err(err).Msg("Failed to subscribe to RabbitMQ topic events")

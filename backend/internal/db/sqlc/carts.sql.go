@@ -18,7 +18,7 @@ INSERT INTO cart_items (cart_item_cart_id, cart_item_product_id, cart_item_quant
 VALUES ($1, $2, $3)
 ON CONFLICT (cart_item_cart_id, cart_item_product_id)
 DO UPDATE SET cart_item_quantity = LEAST(cart_items.cart_item_quantity + excluded.cart_item_quantity, 99)
-RETURNING cart_item_id, cart_item_uuid, cart_item_cart_id, cart_item_product_id, cart_item_quantity, cart_item_created_at, cart_item_updated_at, cart_item_product_uuid
+RETURNING cart_item_id, cart_item_uuid, cart_item_cart_id, cart_item_product_id, product_uuid, cart_item_quantity, cart_item_price_snapshot, cart_item_created_at, cart_item_updated_at
 `
 
 type AddOrUpdateCartItemParams struct {
@@ -39,10 +39,11 @@ func (q *Queries) AddOrUpdateCartItem(ctx context.Context, arg AddOrUpdateCartIt
 		&i.CartItemUuid,
 		&i.CartItemCartID,
 		&i.CartItemProductID,
+		&i.ProductUuid,
 		&i.CartItemQuantity,
+		&i.CartItemPriceSnapshot,
 		&i.CartItemCreatedAt,
 		&i.CartItemUpdatedAt,
-		&i.CartItemProductUuid,
 	)
 	return i, err
 }
@@ -73,7 +74,7 @@ const deleteCartItemByUUID = `-- name: DeleteCartItemByUUID :one
 DELETE FROM cart_items
 WHERE cart_item_uuid = $1
 AND cart_item_cart_id = $2
-RETURNING cart_item_id, cart_item_uuid, cart_item_cart_id, cart_item_product_id, cart_item_quantity, cart_item_created_at, cart_item_updated_at, cart_item_product_uuid
+RETURNING cart_item_id, cart_item_uuid, cart_item_cart_id, cart_item_product_id, product_uuid, cart_item_quantity, cart_item_price_snapshot, cart_item_created_at, cart_item_updated_at
 `
 
 type DeleteCartItemByUUIDParams struct {
@@ -89,10 +90,11 @@ func (q *Queries) DeleteCartItemByUUID(ctx context.Context, arg DeleteCartItemBy
 		&i.CartItemUuid,
 		&i.CartItemCartID,
 		&i.CartItemProductID,
+		&i.ProductUuid,
 		&i.CartItemQuantity,
+		&i.CartItemPriceSnapshot,
 		&i.CartItemCreatedAt,
 		&i.CartItemUpdatedAt,
-		&i.CartItemProductUuid,
 	)
 	return i, err
 }
@@ -116,7 +118,7 @@ func (q *Queries) DeleteCartItemsByProductIDs(ctx context.Context, arg DeleteCar
 }
 
 const getCartByUserID = `-- name: GetCartByUserID :one
-SELECT cart_id, cart_uuid, cart_user_id, cart_created_at, cart_updated_at FROM carts
+SELECT cart_id, cart_uuid, cart_user_id, cart_user_uuid, cart_created_at, cart_updated_at FROM carts
 WHERE cart_user_id = $1
 `
 
@@ -130,6 +132,7 @@ func (q *Queries) GetCartByUserID(ctx context.Context, userID int32) (Cart, erro
 		&i.CartID,
 		&i.CartUuid,
 		&i.CartUserID,
+		&i.CartUserUuid,
 		&i.CartCreatedAt,
 		&i.CartUpdatedAt,
 	)
@@ -227,7 +230,7 @@ INSERT INTO carts (cart_user_id)
 VALUES ($1)
 ON CONFLICT (cart_user_id) DO UPDATE
 SET cart_user_id = carts.cart_user_id -- no-op, chỉ để RETURNING hoạt động khi đã tồn tại
-RETURNING cart_id, cart_uuid, cart_user_id, cart_created_at, cart_updated_at
+RETURNING cart_id, cart_uuid, cart_user_id, cart_user_uuid, cart_created_at, cart_updated_at
 `
 
 // Upsert "no-op": if cart already exists for user, return it; otherwise create a new cart and return it.
@@ -239,6 +242,7 @@ func (q *Queries) GetOrCreateCartByUserID(ctx context.Context, userID int32) (Ca
 		&i.CartID,
 		&i.CartUuid,
 		&i.CartUserID,
+		&i.CartUserUuid,
 		&i.CartCreatedAt,
 		&i.CartUpdatedAt,
 	)
@@ -250,7 +254,7 @@ UPDATE cart_items
 SET cart_item_quantity = $1
 WHERE cart_item_uuid = $2
 AND cart_item_cart_id = $3
-RETURNING cart_item_id, cart_item_uuid, cart_item_cart_id, cart_item_product_id, cart_item_quantity, cart_item_created_at, cart_item_updated_at, cart_item_product_uuid
+RETURNING cart_item_id, cart_item_uuid, cart_item_cart_id, cart_item_product_id, product_uuid, cart_item_quantity, cart_item_price_snapshot, cart_item_created_at, cart_item_updated_at
 `
 
 type SetCartItemQuantityParams struct {
@@ -268,10 +272,11 @@ func (q *Queries) SetCartItemQuantity(ctx context.Context, arg SetCartItemQuanti
 		&i.CartItemUuid,
 		&i.CartItemCartID,
 		&i.CartItemProductID,
+		&i.ProductUuid,
 		&i.CartItemQuantity,
+		&i.CartItemPriceSnapshot,
 		&i.CartItemCreatedAt,
 		&i.CartItemUpdatedAt,
-		&i.CartItemProductUuid,
 	)
 	return i, err
 }

@@ -317,7 +317,7 @@ export interface paths {
         };
         trace?: never;
     };
-    "/admin/analytics/cart-funnel": {
+    "/api/v1/admin/analytics/cart-funnel": {
         parameters: {
             query?: never;
             header?: never;
@@ -363,7 +363,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/analytics/category-sales": {
+    "/api/v1/admin/analytics/category-sales": {
         parameters: {
             query?: never;
             header?: never;
@@ -447,7 +447,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/analytics/coupons": {
+    "/api/v1/admin/analytics/coupons": {
         parameters: {
             query?: never;
             header?: never;
@@ -533,7 +533,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/analytics/low-stock-alerts": {
+    "/api/v1/admin/analytics/low-stock-alerts": {
         parameters: {
             query?: never;
             header?: never;
@@ -615,7 +615,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/analytics/order-status-distribution": {
+    "/api/v1/admin/analytics/order-status-distribution": {
         parameters: {
             query?: never;
             header?: never;
@@ -699,7 +699,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/analytics/overview": {
+    "/api/v1/admin/analytics/overview": {
         parameters: {
             query?: never;
             header?: never;
@@ -774,7 +774,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/analytics/payment-methods": {
+    "/api/v1/admin/analytics/payment-methods": {
         parameters: {
             query?: never;
             header?: never;
@@ -858,7 +858,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/analytics/recent-orders": {
+    "/api/v1/admin/analytics/recent-orders": {
         parameters: {
             query?: never;
             header?: never;
@@ -920,7 +920,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/analytics/returns": {
+    "/api/v1/admin/analytics/returns": {
         parameters: {
             query?: never;
             header?: never;
@@ -1004,7 +1004,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/analytics/revenue-chart": {
+    "/api/v1/admin/analytics/revenue-chart": {
         parameters: {
             query?: never;
             header?: never;
@@ -1074,7 +1074,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/analytics/top-products": {
+    "/api/v1/admin/analytics/top-products": {
         parameters: {
             query?: never;
             header?: never;

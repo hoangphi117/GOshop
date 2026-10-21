@@ -11,8 +11,11 @@ import (
 	paymentservice "goshop/services/payment/internal/service"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 // MockPaymentRepo
@@ -82,14 +85,6 @@ type MockOrderReader struct {
 
 func (m *MockOrderReader) GetByUUID(ctx context.Context, orderUUID uuid.UUID) (*dto.PaymentOrderSummary, error) {
 	args := m.Called(ctx, orderUUID)
-	if res := args.Get(0); res != nil {
-		return res.(*dto.PaymentOrderSummary), args.Error(1)
-	}
-	return nil, args.Error(1)
-}
-
-func (m *MockOrderReader) GetByOrderNumber(ctx context.Context, orderNumber string) (*dto.PaymentOrderSummary, error) {
-	args := m.Called(ctx, orderNumber)
 	if res := args.Get(0); res != nil {
 		return res.(*dto.PaymentOrderSummary), args.Error(1)
 	}
@@ -204,4 +199,108 @@ func TestPaymentService_RefundPayment_ExceedsPaidAmount(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "exceeds original transaction amount")
+}
+
+func TestPaymentService_RefundPayment_RejectsCumulativeAmount(t *testing.T) {
+	mockRepo := new(MockPaymentRepo)
+	orderUUID := uuid.New()
+	paidUUID := uuid.New()
+	existingRefundID := 2
+	refundOf := int32(1)
+
+	mockRepo.On("GetByOrderUUID", mock.Anything, orderUUID).Return([]paymentsqlc.PaymentTransaction{
+		{
+			PtID:       1,
+			PtUuid:     paidUUID,
+			PtOrderID:  10,
+			PtStatus:   2,
+			PtAmount:   utils.FloatToNumeric(100000),
+			PtCurrency: "VND",
+			PtProvider: "cod",
+		},
+		{
+			PtID:           int32(existingRefundID),
+			PtRefundOf:     &refundOf,
+			PtRefundAmount: utils.FloatToNumeric(75000),
+			PtAmount:       utils.FloatToNumeric(-75000),
+			PtStatus:       5,
+		},
+	}, nil)
+	mockRepo.On("GetByIdempotencyKey", mock.Anything, "refund:"+orderUUID.String()+":30000.00").
+		Return(paymentsqlc.PaymentTransaction{}, pgx.ErrNoRows)
+
+	svc := paymentservice.NewPaymentService(
+		mockRepo,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		"http://localhost:3001/payment/result",
+		"http://localhost:8083",
+	)
+
+	_, err := svc.RefundPayment(context.Background(), dto.RefundPaymentInput{
+		OrderUUID: orderUUID.String(),
+		Amount:    30000,
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "total refund amount")
+	mockRepo.AssertNotCalled(t, "CreateRefund", mock.Anything)
+}
+
+func TestPaymentService_RefundPayment_ReusesDeterministicIdempotencyKey(t *testing.T) {
+	mockRepo := new(MockPaymentRepo)
+	orderUUID := uuid.New()
+	paidUUID := uuid.New()
+	refundUUID := uuid.New()
+
+	mockRepo.On("GetByOrderUUID", mock.Anything, orderUUID).Return([]paymentsqlc.PaymentTransaction{
+		{
+			PtID:       1,
+			PtUuid:     paidUUID,
+			PtOrderID:  10,
+			PtStatus:   2,
+			PtAmount:   utils.FloatToNumeric(100000),
+			PtCurrency: "VND",
+			PtProvider: "cod",
+		},
+	}, nil)
+	mockRepo.On("GetByIdempotencyKey", mock.Anything, "refund:"+orderUUID.String()+":25000.00").
+		Return(paymentsqlc.PaymentTransaction{}, pgx.ErrNoRows)
+	mockRepo.On("CreateRefund", mock.Anything, mock.MatchedBy(func(params paymentsqlc.CreateRefundTransactionParams) bool {
+		return params.IdempotencyKey == "refund:"+orderUUID.String()+":25000.00"
+	})).Return(paymentsqlc.PaymentTransaction{
+		PtID:        2,
+		PtUuid:      refundUUID,
+		PtOrderUuid: pgtype.UUID{Bytes: orderUUID, Valid: true},
+		PtProvider:  "cod",
+		PtAmount:    utils.FloatToNumeric(-25000),
+		PtCurrency:  "VND",
+		PtStatus:    4,
+	}, nil)
+
+	svc := paymentservice.NewPaymentService(
+		mockRepo,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		"http://localhost:3001/payment/result",
+		"http://localhost:8083",
+	)
+
+	result, err := svc.RefundPayment(context.Background(), dto.RefundPaymentInput{
+		OrderUUID: orderUUID.String(),
+		Amount:    25000,
+		Reason:    "Customer complaint",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, refundUUID.String(), result.UUID)
+	mockRepo.AssertExpectations(t)
 }

@@ -2,12 +2,9 @@ package service
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"time"
 
 	"goshop/pkg/cache"
@@ -79,6 +76,9 @@ func (s *paymentService) CreatePaymentIntent(ctx context.Context, input dto.Crea
 	}
 	if order == nil {
 		return dto.PaymentIntentDTO{}, fmt.Errorf("order not found for uuid: %s", input.OrderUUID)
+	}
+	if order.OrderNumber == "" {
+		return dto.PaymentIntentDTO{}, errors.New("order number is missing")
 	}
 
 	if input.UserID != 0 && order.UserID != input.UserID {
@@ -257,15 +257,15 @@ func (s *paymentService) ConfirmCODPayment(ctx context.Context, orderUUID uuid.U
 	}
 
 	s.publishPaymentEvent(ctx, rabbitmq.RoutingKeyPaymentSucceeded, dto.PaymentEventPayload{
-		PaymentUUID:   updated.PtUuid.String(),
-		OrderUUID:     orderUUID.String(),
-		OrderNumber:   orderNumberStr,
-		UserUUID:      userUUIDStr,
-		Provider:      "cod",
-		Amount:        utils.NumericToFloat(updated.PtAmount),
-		Currency:      updated.PtCurrency,
-		Status:        "Paid",
-		Timestamp:     time.Now().UTC(),
+		PaymentUUID: updated.PtUuid.String(),
+		OrderUUID:   orderUUID.String(),
+		OrderNumber: orderNumberStr,
+		UserUUID:    userUUIDStr,
+		Provider:    "cod",
+		Amount:      utils.NumericToFloat(updated.PtAmount),
+		Currency:    updated.PtCurrency,
+		Status:      "Paid",
+		Timestamp:   time.Now().UTC(),
 	})
 
 	return nil
@@ -275,6 +275,9 @@ func (s *paymentService) RefundPayment(ctx context.Context, input dto.RefundPaym
 	orderUUID, err := uuid.Parse(input.OrderUUID)
 	if err != nil {
 		return dto.PaymentTransactionDTO{}, fmt.Errorf("invalid order uuid: %w", err)
+	}
+	if input.Amount <= 0 {
+		return dto.PaymentTransactionDTO{}, errors.New("refund amount must be greater than zero")
 	}
 
 	txns, err := s.paymentRepo.GetByOrderUUID(ctx, orderUUID)
@@ -302,7 +305,27 @@ func (s *paymentService) RefundPayment(ctx context.Context, input dto.RefundPaym
 
 	idempotencyKey := input.IdempotencyKey
 	if idempotencyKey == "" {
-		idempotencyKey = fmt.Sprintf("refund:%s:%d", input.OrderUUID, time.Now().UnixNano())
+		idempotencyKey = fmt.Sprintf("refund:%s:%.2f", input.OrderUUID, input.Amount)
+	}
+
+	if existing, lookupErr := s.paymentRepo.GetByIdempotencyKey(ctx, idempotencyKey); lookupErr == nil {
+		return dto.MapToPaymentTransactionDTO(existing, orderUUID), nil
+	} else if !errors.Is(lookupErr, pgx.ErrNoRows) {
+		return dto.PaymentTransactionDTO{}, fmt.Errorf("failed to check refund idempotency key: %w", lookupErr)
+	}
+
+	var refundedAmount float64
+	for _, txn := range txns {
+		if txn.PtRefundOf != nil && *txn.PtRefundOf == paidTxn.PtID && txn.PtStatus == PaymentStatusRefunded {
+			refundedAmount += utils.NumericToFloat(txn.PtRefundAmount)
+		}
+	}
+	if refundedAmount+input.Amount > paidAmount {
+		return dto.PaymentTransactionDTO{}, fmt.Errorf(
+			"total refund amount (%.2f) exceeds original transaction amount (%.2f)",
+			refundedAmount+input.Amount,
+			paidAmount,
+		)
 	}
 
 	refundTxn, err := s.paymentRepo.CreateRefund(ctx, paymentsqlc.CreateRefundTransactionParams{
@@ -398,30 +421,4 @@ func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-// computeHash computes SHA256 string hash
-func computeHash(s string) string {
-	hasher := sha256.New()
-	hasher.Write([]byte(s))
-	return hex.EncodeToString(hasher.Sum(nil))
-}
-
-// strPtr converts string to pointer
-func strPtr(s string) *string {
-	return &s
-}
-
-// int32Ptr converts int32 to pointer
-func int32Ptr(i int32) *int32 {
-	return &i
-}
-
-// parseInt32 parses string to int32 safely
-func parseInt32(s string) int32 {
-	val, err := strconv.Atoi(s)
-	if err != nil {
-		return 0
-	}
-	return int32(val)
 }

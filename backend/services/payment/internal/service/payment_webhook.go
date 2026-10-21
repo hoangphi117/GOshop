@@ -97,16 +97,6 @@ func (s *paymentService) ProcessWebhook(ctx context.Context, msg dto.PaymentWebh
 		}
 	}
 
-	if (err != nil || txn.PtID == 0) && msg.OrderNumber != "" && s.orderReader != nil {
-		if orderSummary, orderErr := s.orderReader.GetByOrderNumber(ctx, msg.OrderNumber); orderErr == nil && orderSummary != nil {
-			txns, listErr := s.paymentRepo.GetByOrderUUID(ctx, orderSummary.OrderUUID)
-			if listErr == nil && len(txns) > 0 {
-				txn = txns[0]
-				err = nil
-			}
-		}
-	}
-
 	if err != nil || txn.PtID == 0 {
 		return fmt.Errorf("could not find matching payment transaction for webhook: %w", err)
 	}
@@ -159,9 +149,6 @@ func (s *paymentService) ProcessWebhook(ctx context.Context, msg dto.PaymentWebh
 			if parsedUUID, err := uuid.Parse(orderUUIDStr); err == nil {
 				ord, _ = s.orderReader.GetByUUID(ctx, parsedUUID)
 			}
-		}
-		if ord == nil && msg.OrderNumber != "" {
-			ord, _ = s.orderReader.GetByOrderNumber(ctx, msg.OrderNumber)
 		}
 		if ord != nil {
 			if orderUUIDStr == "" {

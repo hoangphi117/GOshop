@@ -46,8 +46,9 @@ func (c *InventoryReturnRestockConsumer) Handle(headers amqp.Table, body []byte)
 	for _, it := range event.Items {
 		if it.Restock && it.Quantity > 0 {
 			restoreItems = append(restoreItems, v1service.RestoreItem{
-				ProductID: it.ProductID,
-				Quantity:  it.Quantity,
+				ProductID:   it.ProductID,
+				ProductUUID: it.ProductUUID,
+				Quantity:    it.Quantity,
 			})
 		}
 	}
@@ -63,6 +64,9 @@ func (c *InventoryReturnRestockConsumer) Handle(headers amqp.Table, body []byte)
 	}
 
 	refID := event.ReturnUUID
+	if refID == "" {
+		refID = event.EventID
+	}
 	if refID == "" {
 		refID = event.OrderNumber
 	}

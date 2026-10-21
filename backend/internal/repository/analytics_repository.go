@@ -75,6 +75,10 @@ func (r *SqlAnalyticsRepository) GetLowStockProducts(ctx context.Context, thresh
 		Limit:     limit,
 	})
 }
+
+func (r *SqlAnalyticsRepository) GetLowStockProductsCount(ctx context.Context, threshold int32) (int64, error) {
+	return r.db.GetLowStockProductsCount(ctx, threshold)
+}
 func (r *SqlAnalyticsRepository) GetPaymentMethodBreakdown(ctx context.Context, fromDate, toDate time.Time) ([]sqlc.GetPaymentMethodBreakdownRow, error) {
 	return r.db.GetPaymentMethodBreakdown(ctx, sqlc.GetPaymentMethodBreakdownParams{
 		FromDate: fromDate,
@@ -133,6 +137,3 @@ func (r *SqlAnalyticsRepository) GetCouponCampaignBreakdown(ctx context.Context,
 		LimitCount: limit,
 	})
 }
-
-
-

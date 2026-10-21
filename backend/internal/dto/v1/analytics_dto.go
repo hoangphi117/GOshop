@@ -248,5 +248,37 @@ type LowStockProductsParamsDTO = LowStockProductsQuery
 type PaymentMethodBreakdownDTO = PaymentMethodBreakdownItemDTO
 type PaymentMethodBreakdownParamsDTO = PaymentMethodBreakdownQuery
 
+func MapOrderStatusToString(status int32) string {
+	switch status {
+	case 1:
+		return "Pending"
+	case 2:
+		return "Confirmed"
+	case 3:
+		return "Shipped"
+	case 4:
+		return "Delivered"
+	case 5:
+		return "Cancelled"
+	case 6:
+		return "Returned"
+	default:
+		return "Unknown"
+	}
+}
+
+func MapPaymentMethodToString(method int32) string {
+	switch method {
+	case 1:
+		return "COD"
+	case 2:
+		return "Bank Transfer"
+	case 3:
+		return "E-Wallet"
+	default:
+		return "Unknown"
+	}
+}
+
 
 

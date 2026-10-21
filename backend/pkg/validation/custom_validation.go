@@ -20,7 +20,7 @@ func RegisterCustomValidation(v *validator.Validate) {
 		"abc.com":       true,
 	}
 
-	v.RegisterValidation("email_advanced", func(fl validator.FieldLevel) bool {
+	_ = v.RegisterValidation("email_advanced", func(fl validator.FieldLevel) bool {
 		email := fl.Field().String()
 
 		parts := strings.Split(email, "@")
@@ -33,7 +33,7 @@ func RegisterCustomValidation(v *validator.Validate) {
 		return !blockedDomains[domain]
 	})
 
-	v.RegisterValidation("password_strong", func(fl validator.FieldLevel) bool {
+	_ = v.RegisterValidation("password_strong", func(fl validator.FieldLevel) bool {
 		password := fl.Field().String()
 
 		if len(password) < 8 {
@@ -49,16 +49,16 @@ func RegisterCustomValidation(v *validator.Validate) {
 	})
 
 	var slugRegex = regexp.MustCompile(`^[a-z0-9]+(?:[-.][a-z0-9]+)*$`)
-	v.RegisterValidation("slug", func(fl validator.FieldLevel) bool {
+	_ = v.RegisterValidation("slug", func(fl validator.FieldLevel) bool {
 		return slugRegex.MatchString(fl.Field().String())
 	})
 
 	var searchRegex = regexp.MustCompile(`^[\p{L}\p{N}\s]+$`)
-	v.RegisterValidation("search", func(fl validator.FieldLevel) bool {
+	_ = v.RegisterValidation("search", func(fl validator.FieldLevel) bool {
 		return searchRegex.MatchString(fl.Field().String())
 	})
 
-	v.RegisterValidation("min_float", func(fl validator.FieldLevel) bool {
+	_ = v.RegisterValidation("min_float", func(fl validator.FieldLevel) bool {
 		minStr := fl.Param()
 		minVal, err := strconv.ParseFloat(minStr, 64)
 		if err != nil {
@@ -67,7 +67,7 @@ func RegisterCustomValidation(v *validator.Validate) {
 		return fl.Field().Float() >= minVal
 	})
 
-	v.RegisterValidation("max_float", func(fl validator.FieldLevel) bool {
+	_ = v.RegisterValidation("max_float", func(fl validator.FieldLevel) bool {
 		minStr := fl.Param()
 		maxVal, err := strconv.ParseFloat(minStr, 64)
 		if err != nil {
@@ -76,7 +76,7 @@ func RegisterCustomValidation(v *validator.Validate) {
 		return fl.Field().Float() <= maxVal
 	})
 
-	v.RegisterValidation("file_ext", func(fl validator.FieldLevel) bool {
+	_ = v.RegisterValidation("file_ext", func(fl validator.FieldLevel) bool {
 		fileName := fl.Field().String()
 
 		allowedStr := fl.Param()

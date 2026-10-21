@@ -2,11 +2,12 @@
 # GOshop Single-Command Dev Orchestrator (Lightweight Hybrid Mode)
 # =============================================================================
 # 1. Starts Docker Infrastructure (Postgres, Redis, RabbitMQ, Meilisearch)
-# 2. Runs all 4 Go services concurrently on Host with colored prefix logs
+# 2. Runs core Go services on Host; domain services run in Docker Compose
 # =============================================================================
 
-Write-Host ">>> [1/2] Starting Infrastructure (Docker)..." -ForegroundColor Cyan
-docker compose -f docker-compose.noapp.yml --env-file ./backend/.env up -d
+Write-Host ">>> [1/2] Starting Infrastructure and Domain Services (Docker)..." -ForegroundColor Cyan
+docker compose -f ./docker-compose.dev.yml stop api identity notification order payment worker ws-gateway 2>$null | Out-Null
+docker compose -f docker-compose.dev.yml --env-file ./backend/.env up -d inventory catalog coupon cart
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Failed to start infrastructure containers!" -ForegroundColor Red
@@ -17,11 +18,21 @@ Write-Host ">>> [2/3] Building Go Binaries (Sequential)..." -ForegroundColor Yel
 $binDir = Join-Path $PSScriptRoot "..\backend\bin"
 if (!(Test-Path $binDir)) { New-Item -ItemType Directory -Path $binDir -Force | Out-Null }
 
-$services = @("api", "identity", "notification", "payment", "worker", "coupon", "inventory", "catalog", "cart")
+$services = @("api", "identity", "notification", "payment", "worker", "coupon", "inventory", "catalog", "cart", "order")
+$hostServices = @("api", "identity", "notification", "payment", "worker", "order")
 $backendDir = Join-Path $PSScriptRoot "..\backend"
+$serviceBinaryPaths = $services | ForEach-Object {
+    [System.IO.Path]::GetFullPath((Join-Path $backendDir "bin\$_.exe"))
+}
+$runningServiceProcesses = Get-Process -ErrorAction SilentlyContinue | Where-Object {
+    $_.Path -and $serviceBinaryPaths -contains ([System.IO.Path]::GetFullPath($_.Path))
+}
+foreach ($process in $runningServiceProcesses) {
+    Stop-Process -Id $process.Id -Force
+}
 Push-Location $backendDir
 try {
-    foreach ($svc in $services) {
+    foreach ($svc in $hostServices) {
         Write-Host "Compiling $svc..." -ForegroundColor DarkGray
         $out = if ($IsWindows -or $env:OS -match "Windows") { "bin/$svc.exe" } else { "bin/$svc" }
         & go build -o $out "./cmd/$svc"
@@ -38,16 +49,12 @@ Write-Host ">>> [3/3] Starting Go Services on Host" -ForegroundColor Green
 $exe = if ($IsWindows -or $env:OS -match "Windows") { ".exe" } else { "" }
 $binPrefix = if ($IsWindows -or $env:OS -match "Windows") { "bin\" } else { "./bin/" }
 npx -y concurrently `
-  -n "api,identity,notif,payment,worker,coupon,inventory,catalog,cart" `
-  -c "cyan,green,magenta,blue,yellow,pink,red,gray,white" `
+  -n "api,identity,notif,payment,worker,order" `
+  -c "cyan,green,magenta,blue,yellow,orange" `
   --kill-others-on-fail `
   "cd backend && ${binPrefix}api$exe" `
   "cd backend && ${binPrefix}identity$exe" `
   "cd backend && ${binPrefix}notification$exe" `
   "cd backend && ${binPrefix}payment$exe" `
   "cd backend && ${binPrefix}worker$exe" `
-  "cd backend && ${binPrefix}coupon$exe" `
-  "cd backend && ${binPrefix}inventory$exe" `
-  "cd backend && ${binPrefix}catalog$exe" `
-  "cd backend && ${binPrefix}cart$exe"
-
+  "cd backend && ${binPrefix}order$exe"

@@ -1,4 +1,4 @@
-﻿package v1handler
+package v1handler
 
 import (
 	"context"
@@ -54,6 +54,10 @@ func NewHealthHandler(
 // @Failure      503 {object} map[string]any
 // @Router       /healthz [get]
 func (h *HealthHandler) HealthCheck(c *gin.Context) {
+	h.checkDependencies(c, true)
+}
+
+func (h *HealthHandler) checkDependencies(c *gin.Context, alertOnFailure bool) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 4*time.Second)
 	defer cancel()
 
@@ -125,10 +129,9 @@ func (h *HealthHandler) HealthCheck(c *gin.Context) {
 
 	if !isHealthy {
 		response["status"] = "degraded"
-		response["errors"] = errorDetails
 
 		// Send alert to Discord asynchronously
-		if h.discordNotifier != nil {
+		if alertOnFailure && h.discordNotifier != nil {
 			go func() {
 				detailMsg := ""
 				if len(errorDetails) > 0 {
@@ -138,10 +141,23 @@ func (h *HealthHandler) HealthCheck(c *gin.Context) {
 			}()
 		}
 
+		if h.logger != nil {
+			h.logger.Warn().
+				Str("trace_id", c.GetString("trace_id")).
+				Interface("services", services).
+				Strs("errors", errorDetails).
+				Msg("Health check degraded")
+		}
 		c.JSON(http.StatusServiceUnavailable, response)
 		return
 	}
 
+	if h.logger != nil {
+		h.logger.Info().
+			Str("trace_id", c.GetString("trace_id")).
+			Interface("services", services).
+			Msg("Health check passed")
+	}
 	c.JSON(http.StatusOK, response)
 }
 
@@ -155,7 +171,7 @@ func (h *HealthHandler) LivenessCheck(c *gin.Context) {
 
 // ReadinessCheck godoc (Kubernetes / Load Balancer Readiness Probe)
 func (h *HealthHandler) ReadinessCheck(c *gin.Context) {
-	h.HealthCheck(c)
+	h.checkDependencies(c, false)
 }
 
 // TestDiscordAlert godoc

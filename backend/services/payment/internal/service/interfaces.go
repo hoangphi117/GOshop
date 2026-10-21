@@ -21,5 +21,4 @@ type PaymentService interface {
 
 type OrderReaderClient interface {
 	GetByUUID(ctx context.Context, orderUUID uuid.UUID) (*dto.PaymentOrderSummary, error)
-	GetByOrderNumber(ctx context.Context, orderNumber string) (*dto.PaymentOrderSummary, error)
 }

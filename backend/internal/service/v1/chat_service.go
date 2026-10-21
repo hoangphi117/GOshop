@@ -25,7 +25,7 @@ import (
 type chatService struct {
 	chatRepo    repository.ChatRepository
 	userRepo    repository.UserReader
-	orderRepo   repository.OrderRepository
+	orderReader OrderReader
 	rdb         *redis.Client
 	redisBridge ws.RedisBridge
 	wsHub       ws.Hub // Fallback local mode if Redis is not available
@@ -36,17 +36,17 @@ type chatService struct {
 func NewChatService(
 	chatRepo repository.ChatRepository,
 	userRepo repository.UserReader,
-	orderRepo repository.OrderRepository,
+	orderReader OrderReader,
 	txManager db.TxManager,
 	rdb *redis.Client,
 ) ChatService {
 	return &chatService{
-		chatRepo:  chatRepo,
-		userRepo:  userRepo,
-		orderRepo: orderRepo,
-		txManager: txManager,
-		rdb:       rdb,
-		logger:    *logger.Log,
+		chatRepo:    chatRepo,
+		userRepo:    userRepo,
+		orderReader: orderReader,
+		txManager:   txManager,
+		rdb:         rdb,
+		logger:      *logger.Log,
 	}
 }
 
@@ -187,13 +187,15 @@ func (s *chatService) SendMessage(
 			contentType = "order_ref"
 		} else if req.ProductUUID != "" {
 			contentType = "product_ref"
-		} else {
+		}
+		if contentType == "" {
 			contentType = "text"
 		}
 	}
 
 	content := strings.TrimSpace(req.Content)
-	if contentType == "order_ref" {
+	switch contentType {
+	case "order_ref":
 		if req.OrderUUID == "" {
 			return v1dto.MessageResponse{}, utils.NewError(utils.ErrCodeBadRequest, "order_uuid is required for order_ref messages")
 		}
@@ -202,22 +204,26 @@ func (s *chatService) SendMessage(
 			if err != nil {
 				return v1dto.MessageResponse{}, utils.WrapError(utils.ErrCodeBadRequest, "invalid order UUID", err)
 			}
-			if s.orderRepo == nil {
-				return v1dto.MessageResponse{}, utils.NewError(utils.ErrCodeInternal, "order repository not configured")
+			if s.orderReader == nil {
+				return v1dto.MessageResponse{}, utils.NewError(utils.ErrCodeInternal, "order reader not configured")
 			}
-			order, err := s.orderRepo.GetByUUID(ctx, orderUUID)
+			order, err := s.orderReader.GetOrderSummary(ctx, orderUUID)
 			if err != nil {
+				var appErr *utils.AppError
+				if errors.As(err, &appErr) {
+					return v1dto.MessageResponse{}, appErr
+				}
 				if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
 					return v1dto.MessageResponse{}, utils.NewError(utils.ErrCodeNotFound, "order not found")
 				}
 				return v1dto.MessageResponse{}, utils.WrapError(utils.ErrCodeInternal, "failed to get order", err)
 			}
-			if order.OrderUserID != sender.UserID {
+			if order.UserID != sender.UserID {
 				return v1dto.MessageResponse{}, utils.NewError(utils.ErrCodeForbidden, "user is not authorized to reference this order")
 			}
 		}
 		content = req.OrderUUID
-	} else if contentType == "product_ref" {
+	case "product_ref":
 		if req.ProductUUID != "" {
 			content = req.ProductUUID
 		}
@@ -433,9 +439,10 @@ func (s *chatService) ListConversations(
 
 	search := strings.TrimSpace(req.Search)
 	status := strings.TrimSpace(req.Status)
-	if status == "active" {
+	switch status {
+	case "active":
 		status = "open"
-	} else if status == "archived" {
+	case "archived":
 		status = "closed"
 	}
 

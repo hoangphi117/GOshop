@@ -21,9 +21,8 @@ var (
 )
 
 var (
-	_ v1service.PaymentService         = (*PaymentServiceAdapter)(nil)
-	_ v1service.PaymentRefundService   = (*PaymentServiceAdapter)(nil)
-	_ v1service.OrderPaymentRefundPort = (*PaymentServiceAdapter)(nil)
+	_ v1service.PaymentService       = (*PaymentServiceAdapter)(nil)
+	_ v1service.PaymentRefundService = (*PaymentServiceAdapter)(nil)
 )
 
 // PaymentServiceAdapter bridges the standalone Payment gRPC microservice into Monolith services

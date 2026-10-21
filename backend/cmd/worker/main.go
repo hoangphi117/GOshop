@@ -7,7 +7,6 @@ import (
 	"goshop/internal/client"
 	"goshop/internal/config"
 	"goshop/internal/db"
-	"goshop/internal/repository"
 	v1service "goshop/internal/service/v1"
 	"goshop/internal/utils"
 	"goshop/internal/worker"
@@ -15,15 +14,13 @@ import (
 	"goshop/pkg/logger"
 	"goshop/pkg/mail"
 	"goshop/pkg/rabbitmq"
-	"goshop/pkg/search"
-	"goshop/pkg/shipping"
 	"goshop/pkg/ws"
-	couponcontract "goshop/services/coupon/contract"
 	catalogcontract "goshop/services/catalog/contract"
+	couponcontract "goshop/services/coupon/contract"
 	inventorycontract "goshop/services/inventory/contract"
+	ordercontract "goshop/services/order/contract"
 	"os/signal"
 	"path/filepath"
-	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -35,29 +32,23 @@ import (
 )
 
 type Worker struct {
-	rabbitMQ             rabbitmq.RabbitMQService
-	mailService          mail.EmailProviderService
-	cache                cache.RedisCacheService
-	redisClient          *redis.Client
-	cfg                      *config.Config
-	logger                   *zerolog.Logger
-	orderConsumer            *worker.OrderConsumer
-	shippingConsumer                 *worker.ShippingConsumer
-	paymentExpiredConsumer           *worker.PaymentExpiredConsumer
-	paymentSucceededConsumer         *worker.PaymentSucceededConsumer
-	inventoryOrderCancelledConsumer  *worker.InventoryOrderCancelledConsumer
-	inventoryReturnRestockConsumer   *worker.InventoryReturnRestockConsumer
-	couponOrderCancelledConsumer     *worker.CouponOrderCancelledConsumer
-	syncWorker             *worker.MeilisearchSyncWorker
-	outboxPublisherWorker  *worker.OutboxPublisherWorker
-	sagaRecoveryWorker     *worker.SagaRecoveryWorker
-	shippingService        v1service.OrderShippingService
-	paymentService         v1service.PaymentService
-	userSyncConsumer       *worker.UserSyncConsumer
-	redisBridge            ws.RedisBridge
-	grpcCouponClient       *couponcontract.GRPCCouponClient
-	grpcCatalogClient      *catalogcontract.GRPCCatalogClient
-	grpcInventoryClient    *inventorycontract.GRPCInventoryClient
+	rabbitMQ                        rabbitmq.RabbitMQService
+	mailService                     mail.EmailProviderService
+	cache                           cache.RedisCacheService
+	redisClient                     *redis.Client
+	cfg                             *config.Config
+	logger                          *zerolog.Logger
+	orderConsumer                   *worker.OrderConsumer
+	inventoryOrderCancelledConsumer *worker.InventoryOrderCancelledConsumer
+	inventoryReturnRestockConsumer  *worker.InventoryReturnRestockConsumer
+	couponOrderCancelledConsumer    *worker.CouponOrderCancelledConsumer
+	paymentService                  v1service.PaymentService
+	userSyncConsumer                *worker.UserSyncConsumer
+	orderProjectionConsumer         *worker.OrderProjectionConsumer
+	redisBridge                     ws.RedisBridge
+	grpcCouponClient                *couponcontract.GRPCCouponClient
+	grpcCatalogClient               *catalogcontract.GRPCCatalogClient
+	grpcInventoryClient             *inventorycontract.GRPCInventoryClient
 }
 
 func NewWorker(cfg *config.Config) *Worker {
@@ -100,14 +91,6 @@ func NewWorker(cfg *config.Config) *Worker {
 		log.Fatal().Err(err).Msg("Failed to initialize database for worker")
 	}
 
-	userRepo := repository.NewSqlUserRepository(db.DB)
-	productRepo := repository.NewSqlProductRepository(db.DB)
-	orderRepo := repository.NewSqlOrderRepository(db.DB)
-	orderItemRepo := repository.NewSqlOrderItemRepository(db.DB)
-	trackingRepo := repository.NewSqlTrackingRepository(db.DB)
-	webhookRepo := repository.NewSqlWebhookEventRepository(db.DB)
-	txManager := db.NewTxManager(db.DBPool)
-
 	redisBridge := ws.NewRedisBridge(redisClient, nil)
 
 	cartTarget := utils.GetEnv("CART_GRPC_TARGET", utils.GetEnv("CART_GRPC_ADDR", "localhost:50056"))
@@ -116,29 +99,8 @@ func NewWorker(cfg *config.Config) *Worker {
 		log.Warn().Err(err).Str("addr", cartTarget).Msg("Failed to initialize Cart gRPC client in worker")
 	}
 	cartService := client.NewCartServiceAdapter(grpcCartClient)
-	orderConsumer := worker.NewOrderConsumer(cartService, nil, log)
-
-	// Shipping Factory & Service
-	ghnToken := utils.GetEnv("GHN_TOKEN", "")
-	ghnShopID, _ := strconv.Atoi(utils.GetEnv("GHN_SHOP_ID", "0"))
-	ghnBaseURL := utils.GetEnv("GHN_BASE_URL", "")
-	ghnAdapter := shipping.NewGHNAdapter(ghnToken, ghnShopID, ghnBaseURL)
-	shippingFactory := shipping.NewShippingFactory(ghnAdapter)
-
-	customerReader := v1service.NewOrderCustomerAdapter(userRepo)
-
-	shippingService := v1service.NewOrderShippingService(v1service.OrderShippingServiceDeps{
-		TxManager:       txManager,
-		OrderRepo:       orderRepo,
-		OrderItemRepo:   orderItemRepo,
-		TrackingRepo:    trackingRepo,
-		ShippingFactory: shippingFactory,
-		WebhookRepo:     webhookRepo,
-		UserRepo:        customerReader,
-		RedisClient:     redisClient,
-		RabbitMQ:        rabbitMQ,
-	})
-	shippingConsumer := worker.NewShippingConsumer(shippingService, log)
+	notificationPublisher := worker.NewRabbitMQNotificationPublisher(rabbitMQ)
+	orderConsumer := worker.NewOrderConsumerForBackground(cartService, notificationPublisher, log)
 
 	// Payment Service via gRPC
 	var paymentService v1service.PaymentService
@@ -151,9 +113,6 @@ func NewWorker(cfg *config.Config) *Worker {
 		}
 	}
 
-	outboxRepo := repository.NewSqlOutboxRepository(db.DB)
-
-	// Order Service & Payment Expired Consumer
 	couponTarget := utils.GetEnv("COUPON_GRPC_TARGET", "localhost:50053")
 	grpcCouponClient, err := couponcontract.NewGRPCCouponClient(couponTarget)
 	if err != nil {
@@ -166,67 +125,27 @@ func NewWorker(cfg *config.Config) *Worker {
 	if err != nil {
 		log.Warn().Err(err).Str("target", catalogTarget).Msg("Failed to initialize Catalog gRPC client")
 	}
-	catalogPort := v1service.NewOrderCatalogAdapter(productRepo, grpcCatalogClient)
 	inventoryTarget := utils.GetEnv("INVENTORY_GRPC_TARGET", "localhost:50054")
 	grpcInventoryClient, err := inventorycontract.NewGRPCInventoryClient(inventoryTarget)
 	if err != nil {
 		log.Fatal().Err(err).Str("target", inventoryTarget).Msg("Failed to initialize Inventory gRPC client")
 	}
 	stockPort := v1service.NewOrderStockGRPCAdapter(grpcInventoryClient)
-	pricingService := v1service.NewOrderPricingService(couponPort)
-
-	orderService := v1service.NewOrderService(
-		txManager,
-		pricingService,
-		catalogPort,
-		stockPort,
-		orderRepo,
-		orderItemRepo,
-		customerReader,
-		cartService,
-		couponPort,
-		trackingRepo,
-		redisClient,
-		outboxRepo,
-	)
-	paymentExpiredConsumer := worker.NewPaymentExpiredConsumer(orderService, log)
-	paymentSucceededConsumer := worker.NewPaymentSucceededConsumer(orderService, log)
-
-	// Transactional Outbox Publisher Worker (Relay for order & payment events)
-	outboxPublisherWorker := worker.NewOutboxPublisherWorker(outboxRepo, rabbitMQ, 1*time.Second, 50, log)
-
-	// Meilisearch Sync Worker
-	var syncWorker *worker.MeilisearchSyncWorker
-	searchClient, err := search.NewClient(cfg.Meilisearch.Host, cfg.Meilisearch.MasterKey, cfg.Meilisearch.IndexProducts)
-	if err != nil {
-		log.Warn().Err(err).Msg("Failed to initialize Meilisearch client in worker")
-	} else if searchClient != nil {
-		syncWorker = worker.NewMeilisearchSyncWorker(outboxRepo, searchClient, 2*time.Second, 50, log)
-	}
-
-	// Saga Recovery & Compensation Worker
-	sagaRepo := repository.NewSqlSagaRepository(db.DB)
-	sagaOrchestrator := v1service.NewOrderSagaOrchestrator(
-		sagaRepo,
-		txManager,
-		pricingService,
-		catalogPort,
-		stockPort,
-		orderRepo,
-		orderItemRepo,
-		customerReader,
-		cartService,
-		couponPort,
-		trackingRepo,
-		cacheService,
-		outboxRepo,
-	)
-	sagaRecoveryWorker := worker.NewSagaRecoveryWorker(sagaRepo, sagaOrchestrator, 30*time.Second, 50, log)
 
 	userSyncConsumer := worker.NewUserSyncConsumer(redisClient, db.DBPool)
 	inventoryCancelledConsumer := worker.NewInventoryOrderCancelledConsumer(stockPort, log)
 	inventoryReturnConsumer := worker.NewInventoryReturnRestockConsumer(stockPort, log)
 	couponCancelledConsumer := worker.NewCouponOrderCancelledConsumer(couponPort, log)
+
+	orderTarget := utils.GetEnv("ORDER_GRPC_TARGET", utils.GetEnv("ORDER_GRPC_ADDR", "localhost:50057"))
+	var orderReader v1service.OrderReader
+	grpcOrderClient, err := ordercontract.NewGRPCOrderClient(orderTarget)
+	if err != nil {
+		log.Warn().Err(err).Str("target", orderTarget).Msg("Failed to connect to Order gRPC service in worker")
+	} else {
+		orderReader = client.NewGRPCOrderReader(grpcOrderClient)
+	}
+	orderProjectionConsumer := worker.NewOrderProjectionConsumer(db.DBPool, orderReader, log)
 
 	return &Worker{
 		rabbitMQ:                        rabbitMQ,
@@ -236,22 +155,16 @@ func NewWorker(cfg *config.Config) *Worker {
 		cfg:                             cfg,
 		logger:                          log,
 		orderConsumer:                   orderConsumer,
-		shippingConsumer:                shippingConsumer,
-		paymentExpiredConsumer:          paymentExpiredConsumer,
-		paymentSucceededConsumer:        paymentSucceededConsumer,
 		inventoryOrderCancelledConsumer: inventoryCancelledConsumer,
-		inventoryReturnRestockConsumer:   inventoryReturnConsumer,
+		inventoryReturnRestockConsumer:  inventoryReturnConsumer,
 		couponOrderCancelledConsumer:    couponCancelledConsumer,
-		syncWorker:                    syncWorker,
-		outboxPublisherWorker:         outboxPublisherWorker,
-		sagaRecoveryWorker:            sagaRecoveryWorker,
-		shippingService:               shippingService,
-		paymentService:                paymentService,
-		userSyncConsumer:              userSyncConsumer,
-		redisBridge:                   redisBridge,
-		grpcCouponClient:              grpcCouponClient,
-		grpcCatalogClient:             grpcCatalogClient,
-		grpcInventoryClient:           grpcInventoryClient,
+		paymentService:                  paymentService,
+		userSyncConsumer:                userSyncConsumer,
+		orderProjectionConsumer:         orderProjectionConsumer,
+		redisBridge:                     redisBridge,
+		grpcCouponClient:                grpcCouponClient,
+		grpcCatalogClient:               grpcCatalogClient,
+		grpcInventoryClient:             grpcInventoryClient,
 	}
 }
 
@@ -263,7 +176,7 @@ func (w *Worker) Start(ctx context.Context) error {
 
 		ctx := context.Background()
 		if traceID, ok := headers["trace_id"].(string); ok {
-			ctx = context.WithValue(ctx, "trace_id", traceID)
+			ctx = logger.WithTraceID(ctx, traceID)
 		}
 
 		var email mail.Email
@@ -289,8 +202,6 @@ func (w *Worker) Start(ctx context.Context) error {
 	}
 
 	w.logger.Info().Msgf("Worker started and consuming email queue: %s", emailQueueName)
-
-
 
 	// Consume Order Created Events (Cart cleanup & Order notifications)
 	if w.orderConsumer != nil {
@@ -334,36 +245,6 @@ func (w *Worker) Start(ctx context.Context) error {
 		}
 	}
 
-	// Consume Shipping Order Create Events
-	if w.shippingConsumer != nil {
-		shippingHandler := w.withIdempotency(v1service.QueueShippingCreate, w.shippingConsumer.Handle)
-		if err := w.rabbitMQ.Consume(ctx, v1service.QueueShippingCreate, shippingHandler); err != nil {
-			w.logger.Error().Err(err).Msg("Failed to consume shipping order create events")
-		} else {
-			w.logger.Info().Msgf("Worker consuming queue: %s", v1service.QueueShippingCreate)
-		}
-	}
-
-	// Consume Payment Expired Events (Order cancellation & Inventory restoration)
-	if w.paymentExpiredConsumer != nil {
-		expiredHandler := w.withIdempotency(rabbitmq.QueuePaymentExpired, w.paymentExpiredConsumer.Handle)
-		if err := w.rabbitMQ.Consume(ctx, rabbitmq.QueuePaymentExpired, expiredHandler); err != nil {
-			w.logger.Error().Err(err).Msg("Failed to consume payment expired events")
-		} else {
-			w.logger.Info().Msgf("Worker consuming queue: %s", rabbitmq.QueuePaymentExpired)
-		}
-	}
-
-	// Consume Payment Succeeded Events (Order payment status update)
-	if w.paymentSucceededConsumer != nil {
-		succeededHandler := w.withIdempotency(rabbitmq.QueuePaymentSucceeded, w.paymentSucceededConsumer.Handle)
-		if err := w.rabbitMQ.Consume(ctx, rabbitmq.QueuePaymentSucceeded, succeededHandler); err != nil {
-			w.logger.Error().Err(err).Msg("Failed to consume payment succeeded events")
-		} else {
-			w.logger.Info().Msgf("Worker consuming queue: %s", rabbitmq.QueuePaymentSucceeded)
-		}
-	}
-
 	// Topic Pub/Sub: Inventory Order Events (Stock restoration on cancellation)
 	if w.inventoryOrderCancelledConsumer != nil {
 		invHandler := w.withIdempotency(rabbitmq.QueueInventoryOrderEvents, w.inventoryOrderCancelledConsumer.Handle)
@@ -394,6 +275,43 @@ func (w *Worker) Start(ctx context.Context) error {
 		}
 	}
 
+	// Topic Pub/Sub: Analytics Order Events (Reporting Read Model Projection)
+	if w.orderProjectionConsumer != nil {
+		const queueAnalyticsOrders = "analytics.order_events"
+		routingKeys := []string{
+			rabbitmq.RoutingKeyOrderCreated,
+			rabbitmq.RoutingKeyOrderCancelled,
+			rabbitmq.RoutingKeyOrderStatusChanged,
+			rabbitmq.RoutingKeyOrderShipped,
+			rabbitmq.RoutingKeyOrderDelivered,
+			rabbitmq.RoutingKeyPaymentSucceeded,
+			rabbitmq.RoutingKeyOrderReturnRequested,
+			rabbitmq.RoutingKeyOrderReturnUpdated,
+		}
+		analyticsHandler := w.withIdempotency(queueAnalyticsOrders, func(headers amqp.Table, body []byte) error {
+			rk, _ := headers["x-routing-key"].(string)
+			switch rk {
+			case rabbitmq.RoutingKeyOrderCancelled:
+				return w.orderProjectionConsumer.HandleOrderCancelled(headers, body)
+			case rabbitmq.RoutingKeyOrderStatusChanged, rabbitmq.RoutingKeyOrderShipped, rabbitmq.RoutingKeyOrderDelivered:
+				return w.orderProjectionConsumer.HandleOrderStatusChanged(headers, body)
+			case rabbitmq.RoutingKeyPaymentSucceeded:
+				return w.orderProjectionConsumer.HandlePaymentSucceeded(headers, body)
+			case rabbitmq.RoutingKeyOrderReturnRequested:
+				return w.orderProjectionConsumer.HandleOrderReturnRequested(headers, body)
+			case rabbitmq.RoutingKeyOrderReturnUpdated:
+				return w.orderProjectionConsumer.HandleOrderReturnUpdated(headers, body)
+			default:
+				return w.orderProjectionConsumer.HandleOrderCreated(headers, body)
+			}
+		})
+		if err := w.rabbitMQ.SubscribeTopic(ctx, queueAnalyticsOrders, routingKeys, analyticsHandler); err != nil {
+			w.logger.Error().Err(err).Msg("Failed to subscribe analytics order events topic")
+		} else {
+			w.logger.Info().Msgf("Worker subscribed topic queue: %s for analytics projection", queueAnalyticsOrders)
+		}
+	}
+
 	// Consume User Sync Events (Cache invalidation & cross-service sync)
 	if w.userSyncConsumer != nil {
 		for _, queueName := range []string{rabbitmq.QueueUserCreated, rabbitmq.QueueUserUpdated, rabbitmq.QueueUserDeleted} {
@@ -405,54 +323,6 @@ func (w *Worker) Start(ctx context.Context) error {
 			w.logger.Info().Msgf("Worker consuming queue: %s", queueName)
 		}
 	}
-
-	// Meilisearch Transactional Outbox Sync Worker
-	if w.syncWorker != nil {
-		go w.syncWorker.Start(ctx)
-		w.logger.Info().Msg("Meilisearch Outbox Sync Worker started in worker process")
-	}
-
-	// Transactional Outbox Publisher Worker (Order & Payment Relay)
-	if w.outboxPublisherWorker != nil {
-		go w.outboxPublisherWorker.Start(ctx)
-		w.logger.Info().Msg("Transactional Outbox Publisher Worker started in worker process")
-	}
-
-	// Background Saga Recovery & Compensation Worker
-	if w.sagaRecoveryWorker != nil {
-		go w.sagaRecoveryWorker.Start(ctx)
-		w.logger.Info().Msg("Background Saga Recovery Worker started in worker process")
-	}
-
-	// Periodic Shipping Tracking Sync (Cronjob with Redis Distributed Lock)
-	if w.shippingService != nil {
-		go func() {
-			intervalMinutes, _ := strconv.Atoi(utils.GetEnv("SHIPPING_SYNC_INTERVAL_MINUTES", "30"))
-			if intervalMinutes <= 0 {
-				intervalMinutes = 30
-			}
-			ticker := time.NewTicker(time.Duration(intervalMinutes) * time.Minute)
-			defer ticker.Stop()
-			w.logger.Info().Int("interval_minutes", intervalMinutes).Msg("Shipping tracking sync cron job started (with Redis lock)")
-
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-					runWithDistributedLock(ctx, w.redisClient, "lock:cron:shipping_sync", time.Duration(intervalMinutes-1)*time.Minute, func() {
-						if _, err := w.shippingService.SyncActiveShippingOrders(ctx); err != nil {
-							w.logger.Error().Err(err).Msg("Error during periodic shipping sync cron job")
-						}
-					})
-				}
-			}
-		}()
-	}
-
-
-
-
 
 	<-ctx.Done()
 
@@ -575,19 +445,4 @@ func main() {
 
 	wg.Wait()
 	logger.Log.Info().Msg("Main process terminated")
-}
-
-func runWithDistributedLock(ctx context.Context, redisClient *redis.Client, lockKey string, ttl time.Duration, task func()) {
-	if redisClient == nil {
-		task()
-		return
-	}
-	if ttl <= 0 {
-		ttl = time.Minute
-	}
-	ok, err := redisClient.SetNX(ctx, lockKey, "1", ttl).Result()
-	if err != nil || !ok {
-		return // Lock held by another worker instance
-	}
-	task()
 }

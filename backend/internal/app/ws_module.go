@@ -1,6 +1,7 @@
 package app
 
 import (
+	"goshop/internal/client"
 	v1handler "goshop/internal/handler/v1"
 	"goshop/internal/repository"
 	"goshop/internal/routes"
@@ -20,7 +21,10 @@ func NewWSModule(
 	tokenService auth.TokenService,
 	cacheService cache.RedisCacheService,
 ) *WSModule {
-	userRepo := repository.NewSqlUserRepository(ctx.DB)
+	var userRepo repository.UserReader = repository.NewSqlUserRepository(ctx.DB)
+	if ctx.IdentityClient != nil {
+		userRepo = client.NewIdentityUserReader(ctx.IdentityClient)
+	}
 	chatRepo := repository.NewSqlChatRepository(ctx.DB)
 	wsHandler := v1handler.NewWSHandler(wsHub, tokenService, cacheService, userRepo)
 	wsHandler.SetChatRepo(chatRepo)

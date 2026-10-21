@@ -13,7 +13,7 @@ const insertWebhookEvent = `-- name: InsertWebhookEvent :one
 INSERT INTO webhook_events (we_provider, we_external_event_id, we_event_type, we_raw_body)
 VALUES ($1, $2, $3, $4)
 ON CONFLICT (we_provider, we_external_event_id) DO NOTHING
-RETURNING we_id, we_provider, we_external_event_id, we_event_type, we_raw_body, we_processed, we_received_at, we_created_at
+RETURNING we_id, we_provider, we_external_event_id, we_event_type, we_raw_body, we_processed, we_received_at, we_processed_at, we_retry_count, we_last_error
 `
 
 type InsertWebhookEventParams struct {
@@ -39,7 +39,9 @@ func (q *Queries) InsertWebhookEvent(ctx context.Context, arg InsertWebhookEvent
 		&i.WeRawBody,
 		&i.WeProcessed,
 		&i.WeReceivedAt,
-		&i.WeCreatedAt,
+		&i.WeProcessedAt,
+		&i.WeRetryCount,
+		&i.WeLastError,
 	)
 	return i, err
 }

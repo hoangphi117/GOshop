@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"goshop/pkg/grpcclient"
 	couponv1 "goshop/proto/coupon/v1"
 
 	"google.golang.org/grpc"
@@ -52,7 +53,7 @@ type GRPCCouponClient struct {
 }
 
 func NewGRPCCouponClient(target string) (*GRPCCouponClient, error) {
-	conn, err := grpc.NewClient(
+	conn, err := grpcclient.NewClient(
 		target,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
