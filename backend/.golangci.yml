@@ -1,3 +1,5 @@
+version: "2"
+
 run:
   timeout: 5m
   tests: true
@@ -9,77 +11,75 @@ linters:
     - ineffassign
     - staticcheck
     - unused
-
-linters-settings:
-  depguard:
-    rules:
-      order_domain_isolation:
-        list-mode: lax
-        files:
-          - "$/internal/service/v1/order*.go"
-          - "!$/internal/service/v1/order_*_adapter.go"
-          - "!$/**/*_test.go"
-        deny:
-          - pkg: "goshop/pkg/payment"
-            desc: "Order domain must not import concrete Payment package directly; use OrderPaymentRefundPort"
-          - pkg: "goshop/internal/repository/product_repository"
-            desc: "Order domain must not import concrete product repository directly; use CatalogPort"
-          - pkg: "goshop/internal/repository/coupons_repository"
-            desc: "Order domain must not import concrete coupons repository directly; use OrderCouponPort"
-          - pkg: "goshop/internal/repository/cart_repository"
-            desc: "Order domain must not import concrete cart repository directly; use CartService"
-          - pkg: "goshop/internal/repository/stock_movement_repository"
-            desc: "Order domain must not import stock movement repository directly; use OrderStockPort"
-          - pkg: "goshop/internal/repository/review_repository"
-            desc: "Order domain must not import Review repository directly"
-          - pkg: "goshop/internal/repository/user_repository"
-            desc: "Order domain must not import User repository directly; use IdentityUserReader"
-      chat_domain_isolation:
-        list-mode: lax
-        files:
-          - "$/internal/service/v1/chat*.go"
-          - "!$/**/*_test.go"
-        deny:
-          - pkg: "goshop/internal/repository/order_repository"
-            desc: "Chat domain must not import Order repository directly; use OrderReader"
-          - pkg: "goshop/internal/repository/order_item_repository"
-            desc: "Chat domain must not import Order item repository directly; use OrderReader"
-      review_domain_isolation:
-        list-mode: lax
-        files:
-          - "$/internal/service/v1/review*.go"
-          - "!$/**/*_test.go"
-        deny:
-          - pkg: "goshop/internal/repository/order_repository"
-            desc: "Review domain must not import Order repository directly; use OrderReader"
-          - pkg: "goshop/internal/repository/order_item_repository"
-            desc: "Review domain must not import Order item repository directly; use OrderReader"
-      payment_domain_isolation:
-        list-mode: lax
-        files:
-          - "$/internal/service/v1/payment*.go"
-          - "!$/**/*_test.go"
-        deny:
-          - pkg: "goshop/internal/repository/order_repository"
-            desc: "Payment domain must not import Order repository directly; use PaymentOrderReaderPort"
-      inventory_domain_isolation:
-        list-mode: lax
-        files:
-          - "$/internal/service/v1/inventory*.go"
-          - "!$/**/*_test.go"
-        deny:
-          - pkg: "goshop/internal/repository/order_repository"
-            desc: "Inventory domain must not import Order repository directly"
-          - pkg: "goshop/internal/repository/coupons_repository"
-            desc: "Inventory domain must not import Coupon repository directly"
-      coupon_domain_isolation:
-        list-mode: lax
-        files:
-          - "$/internal/service/v1/coupon*.go"
-          - "!$/**/*_test.go"
-        deny:
-          - pkg: "goshop/internal/repository/order_repository"
-            desc: "Coupon domain must not import Order repository directly"
-          - pkg: "goshop/internal/repository/product_repository"
-            desc: "Coupon domain must not import Product repository directly"
-
+  settings:
+    depguard:
+      rules:
+        order_domain_isolation:
+          list-mode: lax
+          files:
+            - "$/internal/service/v1/order*.go"
+            - "!$/internal/service/v1/order_*_adapter.go"
+            - "!$/**/*_test.go"
+          deny:
+            - pkg: "goshop/pkg/payment"
+              desc: "Order domain must not import concrete Payment package directly; use OrderPaymentRefundPort"
+            - pkg: "goshop/internal/repository/product_repository"
+              desc: "Order domain must not import concrete product repository directly; use CatalogPort"
+            - pkg: "goshop/internal/repository/coupons_repository"
+              desc: "Order domain must not import concrete coupons repository directly; use OrderCouponPort"
+            - pkg: "goshop/internal/repository/cart_repository"
+              desc: "Order domain must not import concrete cart repository directly; use CartService"
+            - pkg: "goshop/internal/repository/stock_movement_repository"
+              desc: "Order domain must not import stock movement repository directly; use OrderStockPort"
+            - pkg: "goshop/internal/repository/review_repository"
+              desc: "Order domain must not import Review repository directly"
+            - pkg: "goshop/internal/repository/user_repository"
+              desc: "Order domain must not import User repository directly; use IdentityUserReader"
+        chat_domain_isolation:
+          list-mode: lax
+          files:
+            - "$/internal/service/v1/chat*.go"
+            - "!$/**/*_test.go"
+          deny:
+            - pkg: "goshop/internal/repository/order_repository"
+              desc: "Chat domain must not import Order repository directly; use OrderReader"
+            - pkg: "goshop/internal/repository/order_item_repository"
+              desc: "Chat domain must not import Order item repository directly; use OrderReader"
+        review_domain_isolation:
+          list-mode: lax
+          files:
+            - "$/internal/service/v1/review*.go"
+            - "!$/**/*_test.go"
+          deny:
+            - pkg: "goshop/internal/repository/order_repository"
+              desc: "Review domain must not import Order repository directly; use OrderReader"
+            - pkg: "goshop/internal/repository/order_item_repository"
+              desc: "Review domain must not import Order item repository directly; use OrderReader"
+        payment_domain_isolation:
+          list-mode: lax
+          files:
+            - "$/internal/service/v1/payment*.go"
+            - "!$/**/*_test.go"
+          deny:
+            - pkg: "goshop/internal/repository/order_repository"
+              desc: "Payment domain must not import Order repository directly; use PaymentOrderReaderPort"
+        inventory_domain_isolation:
+          list-mode: lax
+          files:
+            - "$/internal/service/v1/inventory*.go"
+            - "!$/**/*_test.go"
+          deny:
+            - pkg: "goshop/internal/repository/order_repository"
+              desc: "Inventory domain must not import Order repository directly"
+            - pkg: "goshop/internal/repository/coupons_repository"
+              desc: "Inventory domain must not import Coupon repository directly"
+        coupon_domain_isolation:
+          list-mode: lax
+          files:
+            - "$/internal/service/v1/coupon*.go"
+            - "!$/**/*_test.go"
+          deny:
+            - pkg: "goshop/internal/repository/order_repository"
+              desc: "Coupon domain must not import Order repository directly"
+            - pkg: "goshop/internal/repository/product_repository"
+              desc: "Coupon domain must not import Product repository directly"
