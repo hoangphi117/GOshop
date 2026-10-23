@@ -16,15 +16,24 @@ type Querier interface {
 	CreateCoupon(ctx context.Context, arg CreateCouponParams) (Coupon, error)
 	DecrementCouponUsedCount(ctx context.Context, couponID int32) (Coupon, error)
 	DeleteCoupon(ctx context.Context, couponUuid uuid.UUID) error
-	DeleteCouponUsageByOrder(ctx context.Context, arg DeleteCouponUsageByOrderParams) error
 	GetCouponByCode(ctx context.Context, couponCode string) (Coupon, error)
 	GetCouponByCodeForUpdate(ctx context.Context, couponCode string) (Coupon, error)
-	GetCouponByID(ctx context.Context, couponID int32) (Coupon, error)
+	GetCouponByIDForUpdate(ctx context.Context, couponID int32) (Coupon, error)
 	GetCouponByUUID(ctx context.Context, couponUuid uuid.UUID) (Coupon, error)
 	IncrementCouponUsedCount(ctx context.Context, couponID int32) (Coupon, error)
 	ListCoupons(ctx context.Context, arg ListCouponsParams) ([]Coupon, error)
-	RecordCouponUsage(ctx context.Context, arg RecordCouponUsageParams) (CouponUsage, error)
+	// Tombstone transition: only a currently-reserved usage flips to released.
+	// A redelivered Release (or a Release with no reservation yet) matches zero
+	// rows so quota is never refunded twice or refunded for nothing.
+	ReleaseCouponUsage(ctx context.Context, arg ReleaseCouponUsageParams) (CouponUsage, error)
 	UpdateCoupon(ctx context.Context, arg UpdateCouponParams) (Coupon, error)
+	// Reservation identity: (coupon, order). A retry of an already-reserved pair
+	// returns the existing row with inserted=false so quota is not consumed again.
+	// A released (tombstoned) row comes back with status=2 so the service can
+	// reject a reservation for a cancelled order.
+	// The two CTE branches are complementary: a successful insert is invisible to
+	// the `existing` snapshot, and on conflict the insert branch is empty.
+	UpsertCouponUsage(ctx context.Context, arg UpsertCouponUsageParams) (UpsertCouponUsageRow, error)
 }
 
 var _ Querier = (*Queries)(nil)

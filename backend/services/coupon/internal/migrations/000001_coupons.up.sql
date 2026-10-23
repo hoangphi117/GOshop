@@ -31,7 +31,12 @@ CREATE TABLE IF NOT EXISTS coupon_usages (
     coupon_usage_user_uuid   UUID,
     coupon_usage_order_id    INT DEFAULT NULL,
     coupon_usage_order_uuid  UUID DEFAULT NULL,
-    coupon_usage_used_at     TIMESTAMPTZ DEFAULT now() NOT NULL
+    coupon_usage_used_at     TIMESTAMPTZ DEFAULT now() NOT NULL,
+    -- 1 = reserved (quota consumed), 2 = released (quota returned, row kept as
+    -- tombstone so a redelivered Reserve cannot consume quota again).
+    coupon_usage_status      INT DEFAULT 1 NOT NULL,
+    coupon_usage_released_at TIMESTAMPTZ DEFAULT NULL,
+    coupon_usage_updated_at  TIMESTAMPTZ DEFAULT now() NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_coupon_usages_user ON coupon_usages(coupon_usage_coupon_id, coupon_usage_user_id);
@@ -52,6 +57,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_coupon_usages_order_id
 CREATE UNIQUE INDEX IF NOT EXISTS uq_coupon_usages_order_uuid 
     ON coupon_usages (coupon_usage_order_uuid) 
     WHERE coupon_usage_order_uuid IS NOT NULL;
+
+-- Reservation identity per coupon: one usage row per (coupon, order), so a
+-- retried Reserve returns the existing row instead of consuming quota again.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_coupon_usages_coupon_order_uuid
+    ON coupon_usages (coupon_usage_coupon_id, coupon_usage_order_uuid)
+    WHERE coupon_usage_order_uuid IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_coupon_usages_status ON coupon_usages(coupon_usage_status);
 
 CREATE INDEX IF NOT EXISTS idx_coupons_active_dates ON coupons(coupon_is_active, coupon_start_date, coupon_end_date)
     WHERE coupon_deleted_at IS NULL;

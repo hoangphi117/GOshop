@@ -33,13 +33,16 @@ type Coupon struct {
 }
 
 type CouponUsage struct {
-	CouponUsageID         int32       `json:"coupon_usage_id"`
-	CouponUsageUuid       uuid.UUID   `json:"coupon_usage_uuid"`
-	CouponUsageCouponID   int32       `json:"coupon_usage_coupon_id"`
-	CouponUsageCouponUuid pgtype.UUID `json:"coupon_usage_coupon_uuid"`
-	CouponUsageUserID     int32       `json:"coupon_usage_user_id"`
-	CouponUsageUserUuid   pgtype.UUID `json:"coupon_usage_user_uuid"`
-	CouponUsageOrderID    *int32      `json:"coupon_usage_order_id"`
-	CouponUsageOrderUuid  pgtype.UUID `json:"coupon_usage_order_uuid"`
-	CouponUsageUsedAt     time.Time   `json:"coupon_usage_used_at"`
+	CouponUsageID         int32              `json:"coupon_usage_id"`
+	CouponUsageUuid       uuid.UUID          `json:"coupon_usage_uuid"`
+	CouponUsageCouponID   int32              `json:"coupon_usage_coupon_id"`
+	CouponUsageCouponUuid pgtype.UUID        `json:"coupon_usage_coupon_uuid"`
+	CouponUsageUserID     int32              `json:"coupon_usage_user_id"`
+	CouponUsageUserUuid   pgtype.UUID        `json:"coupon_usage_user_uuid"`
+	CouponUsageOrderID    *int32             `json:"coupon_usage_order_id"`
+	CouponUsageOrderUuid  pgtype.UUID        `json:"coupon_usage_order_uuid"`
+	CouponUsageUsedAt     time.Time          `json:"coupon_usage_used_at"`
+	CouponUsageStatus     int32              `json:"coupon_usage_status"`
+	CouponUsageReleasedAt pgtype.Timestamptz `json:"coupon_usage_released_at"`
+	CouponUsageUpdatedAt  time.Time          `json:"coupon_usage_updated_at"`
 }

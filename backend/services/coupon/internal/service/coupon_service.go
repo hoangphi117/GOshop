@@ -148,133 +148,185 @@ func (s *couponService) PreviewCoupon(ctx context.Context, input dto.PreviewCoup
 	}, nil
 }
 
-func (s *couponService) ReserveCoupon(ctx context.Context, input dto.ReserveCouponInput) (string, error) {
-	if input.CouponID == 0 && input.CouponUUID != "" {
-		parsed, err := uuid.Parse(input.CouponUUID)
-		if err == nil {
-			c, err := s.repo.GetByUUID(ctx, parsed)
-			if err == nil {
-				input.CouponID = c.CouponID
-			}
-		}
+// withTx runs fn inside a transaction. When the service has no pool (unit
+// tests with a fake repository) fn runs without a transaction.
+func (s *couponService) withTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
+	if s.dbPool == nil {
+		return fn(nil)
 	}
 
-	var tx pgx.Tx
-	var err error
-	if s.dbPool != nil {
-		tx, err = s.dbPool.Begin(ctx)
-		if err != nil {
-			return "", utils.WrapError(utils.ErrCodeInternal, "Failed to begin transaction", err)
-		}
-		defer func() {
-			if tx != nil {
-				_ = tx.Rollback(ctx)
-			}
-		}()
-	}
-
-	// 1. Atomic increment with limit check
-	if err := s.repo.IncrementUsedCount(ctx, tx, input.CouponID); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) || errors.Is(err, sql.ErrNoRows) {
-			return "", utils.NewError(utils.ErrCodeBadRequest, "Coupon has reached its maximum total usage limit")
-		}
-		return "", utils.WrapError(utils.ErrCodeInternal, "Failed to increment coupon usage count", err)
-	}
-
-	// 2. Record usage with unique constraints
-	var couponUUID *uuid.UUID
-	if input.CouponUUID != "" {
-		if parsed, err := uuid.Parse(input.CouponUUID); err == nil {
-			couponUUID = &parsed
-		}
-	}
-	var userUUID *uuid.UUID
-	if input.UserUUID != "" {
-		if parsed, err := uuid.Parse(input.UserUUID); err == nil {
-			userUUID = &parsed
-		}
-	}
-	var orderUUID *uuid.UUID
-	if input.OrderUUID != "" {
-		if parsed, err := uuid.Parse(input.OrderUUID); err == nil {
-			orderUUID = &parsed
-		}
-	}
-	var orderID *int32
-	if input.OrderID != 0 {
-		orderID = &input.OrderID
-	}
-
-	usage, err := s.repo.RecordUsage(ctx, tx, sqlc.RecordCouponUsageParams{
-		CouponUsageCouponID:   input.CouponID,
-		CouponUsageCouponUuid: toPgUUID(couponUUID),
-		CouponUsageUserID:     input.UserID,
-		CouponUsageUserUuid:   toPgUUID(userUUID),
-		CouponUsageOrderID:    orderID,
-		CouponUsageOrderUuid:  toPgUUID(orderUUID),
-	})
+	tx, err := s.dbPool.Begin(ctx)
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return "", utils.NewError(utils.ErrCodeConflict, "Coupon has already been used for this order")
-		}
-		return "", utils.WrapError(utils.ErrCodeInternal, "Failed to record coupon usage", err)
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to begin transaction", err)
 	}
+	defer func() {
+		// Rollback after a successful commit returns ErrTxClosed; nothing to do.
+		_ = tx.Rollback(ctx)
+	}()
 
-	if tx != nil {
-		if err := tx.Commit(ctx); err != nil {
-			return "", utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
-		}
-		tx = nil
+	if err := fn(tx); err != nil {
+		return err
 	}
-
-	return usage.CouponUsageUuid.String(), nil
-}
-
-func (s *couponService) ReleaseCoupon(ctx context.Context, input dto.ReleaseCouponInput) error {
-	var tx pgx.Tx
-	var err error
-	if s.dbPool != nil {
-		tx, err = s.dbPool.Begin(ctx)
-		if err != nil {
-			return utils.WrapError(utils.ErrCodeInternal, "Failed to begin transaction", err)
-		}
-		defer func() {
-			if tx != nil {
-				_ = tx.Rollback(ctx)
-			}
-		}()
-	}
-
-	if input.CouponID != 0 {
-		_ = s.repo.DecrementUsedCount(ctx, tx, input.CouponID)
-	}
-
-	var orderUUID *uuid.UUID
-	if input.OrderUUID != "" {
-		if parsed, err := uuid.Parse(input.OrderUUID); err == nil {
-			orderUUID = &parsed
-		}
-	}
-	var orderID *int32
-	if input.OrderID != 0 {
-		orderID = &input.OrderID
-	}
-
-	if err := s.repo.DeleteUsageByOrder(ctx, tx, sqlc.DeleteCouponUsageByOrderParams{
-		OrderID:   orderID,
-		OrderUuid: toPgUUID(orderUUID),
-	}); err != nil {
-		return utils.WrapError(utils.ErrCodeInternal, "Failed to delete coupon usage", err)
-	}
-
-	if tx != nil {
-		if err := tx.Commit(ctx); err != nil {
-			return utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
-		}
-		tx = nil
+	if err := tx.Commit(ctx); err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to commit transaction", err)
 	}
 	return nil
+}
+
+// reservationIDs normalises the identifiers the callers may or may not send.
+// CouponID/OrderID are the legacy integer forms; UUIDs are canonical.
+func reservationIDs(orderID int32, orderUUID string) (*int32, *uuid.UUID, error) {
+	var idPtr *int32
+	if orderID != 0 {
+		id := orderID
+		idPtr = &id
+	}
+
+	if strings.TrimSpace(orderUUID) == "" {
+		if idPtr == nil {
+			return nil, nil, utils.NewError(utils.ErrCodeBadRequest, "Order id or order uuid is required")
+		}
+		return idPtr, nil, nil
+	}
+
+	parsed, err := uuid.Parse(strings.TrimSpace(orderUUID))
+	if err != nil {
+		return nil, nil, utils.WrapError(utils.ErrCodeBadRequest, "Invalid order uuid", err)
+	}
+	return idPtr, &parsed, nil
+}
+
+func parseOptionalUUID(raw string) (*uuid.UUID, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
+	parsed, err := uuid.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return nil, err
+	}
+	return &parsed, nil
+}
+
+// ReserveCoupon consumes quota for exactly one (coupon, order) reservation.
+// Safe under retries and concurrent duplicates: the usage row is the
+// reservation identity, so a second Reserve for the same order returns the
+// existing usage instead of taking quota again.
+func (s *couponService) ReserveCoupon(ctx context.Context, input dto.ReserveCouponInput) (string, error) {
+	orderID, orderUUID, err := reservationIDs(input.OrderID, input.OrderUUID)
+	if err != nil {
+		return "", err
+	}
+	if orderUUID == nil {
+		// Reservations are keyed by order uuid; an integer-only order id cannot
+		// be made idempotent and would allow unlimited retries to burn quota.
+		return "", utils.NewError(utils.ErrCodeBadRequest, "Order uuid is required to reserve a coupon")
+	}
+
+	userUUID, err := parseOptionalUUID(input.UserUUID)
+	if err != nil {
+		return "", utils.WrapError(utils.ErrCodeBadRequest, "Invalid user uuid", err)
+	}
+	couponUUID, err := parseOptionalUUID(input.CouponUUID)
+	if err != nil {
+		return "", utils.WrapError(utils.ErrCodeBadRequest, "Invalid coupon uuid", err)
+	}
+	if input.CouponID == 0 && couponUUID == nil {
+		return "", utils.NewError(utils.ErrCodeBadRequest, "Coupon id or coupon uuid is required")
+	}
+
+	var usageUUID string
+	err = s.withTx(ctx, func(tx pgx.Tx) error {
+		couponID := input.CouponID
+		if couponID == 0 {
+			c, lookupErr := s.repo.GetByUUID(ctx, *couponUUID)
+			if lookupErr != nil {
+				return mapCouponLookupError(lookupErr)
+			}
+			couponID = c.CouponID
+		}
+
+		// Lock the coupon row so quota checks and the increment are serialised.
+		if _, lockErr := s.repo.GetByIDForUpdate(ctx, tx, couponID); lockErr != nil {
+			return mapCouponLookupError(lockErr)
+		}
+
+		usage, upsertErr := s.repo.UpsertUsage(ctx, tx, sqlc.UpsertCouponUsageParams{
+			CouponID:   couponID,
+			OrderUuid:  toPgUUID(orderUUID),
+			CouponUuid: toPgUUID(couponUUID),
+			UserID:     input.UserID,
+			UserUuid:   toPgUUID(userUUID),
+			OrderID:    orderID,
+		})
+		if upsertErr != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(upsertErr, &pgErr) && pgErr.Code == "23505" {
+				// Same order claimed by another coupon: still a conflict, but a
+				// different identity than the coupon+order reservation.
+				return utils.NewError(utils.ErrCodeConflict, "Coupon has already been used for this order")
+			}
+			return utils.WrapError(utils.ErrCodeInternal, "Failed to record coupon usage", upsertErr)
+		}
+
+		if !usage.Inserted {
+			if usage.CouponUsageStatus == dto.CouponUsageStatusReleased {
+				return utils.NewError(utils.ErrCodeConflict, "Coupon reservation for this order was released and cannot be reused")
+			}
+			usageUUID = usage.CouponUsageUuid.String()
+			return nil
+		}
+
+		if incErr := s.repo.IncrementUsedCount(ctx, tx, couponID); incErr != nil {
+			if errors.Is(incErr, pgx.ErrNoRows) || errors.Is(incErr, sql.ErrNoRows) {
+				return utils.NewError(utils.ErrCodeBadRequest, "Coupon has reached its maximum total usage limit")
+			}
+			return utils.WrapError(utils.ErrCodeInternal, "Failed to increment coupon usage count", incErr)
+		}
+
+		usageUUID = usage.CouponUsageUuid.String()
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	return usageUUID, nil
+}
+
+// ReleaseCoupon tombstones the reservation and refunds quota at most once.
+// A duplicate Release, or a Release that arrives before its Reserve, flips no
+// row and therefore refunds nothing.
+func (s *couponService) ReleaseCoupon(ctx context.Context, input dto.ReleaseCouponInput) error {
+	orderID, orderUUID, err := reservationIDs(input.OrderID, input.OrderUUID)
+	if err != nil {
+		return err
+	}
+
+	return s.withTx(ctx, func(tx pgx.Tx) error {
+		usage, releaseErr := s.repo.ReleaseUsage(ctx, tx, sqlc.ReleaseCouponUsageParams{
+			OrderID:   orderID,
+			OrderUuid: toPgUUID(orderUUID),
+		})
+		if releaseErr != nil {
+			if errors.Is(releaseErr, pgx.ErrNoRows) || errors.Is(releaseErr, sql.ErrNoRows) {
+				// Already released, or never reserved. Nothing to refund.
+				return nil
+			}
+			return utils.WrapError(utils.ErrCodeInternal, "Failed to release coupon usage", releaseErr)
+		}
+
+		// Only the reservation that still consumed quota refunds it.
+		if decErr := s.repo.DecrementUsedCount(ctx, tx, usage.CouponUsageCouponID); decErr != nil {
+			return utils.WrapError(utils.ErrCodeInternal, "Failed to decrement coupon usage count", decErr)
+		}
+		return nil
+	})
+}
+
+func mapCouponLookupError(err error) error {
+	if errors.Is(err, pgx.ErrNoRows) || errors.Is(err, sql.ErrNoRows) {
+		return utils.NewError(utils.ErrCodeNotFound, "Coupon not found")
+	}
+	return utils.WrapError(utils.ErrCodeInternal, "Failed to fetch coupon", err)
 }
 
 func (s *couponService) GetByCode(ctx context.Context, code string) (*dto.CouponDTO, error) {
