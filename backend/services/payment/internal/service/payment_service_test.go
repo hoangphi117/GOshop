@@ -8,6 +8,7 @@ import (
 	"goshop/pkg/utils"
 	paymentsqlc "goshop/services/payment/internal/db/sqlc"
 	"goshop/services/payment/internal/dto"
+	"goshop/services/payment/internal/provider"
 	paymentservice "goshop/services/payment/internal/service"
 
 	"github.com/google/uuid"
@@ -258,15 +259,21 @@ func TestPaymentService_RefundPayment_ReusesDeterministicIdempotencyKey(t *testi
 	refundUUID := uuid.New()
 
 	mockRepo.On("GetByOrderUUID", mock.Anything, orderUUID).Return([]paymentsqlc.PaymentTransaction{
-		{
-			PtID:       1,
-			PtUuid:     paidUUID,
-			PtOrderID:  10,
-			PtStatus:   2,
-			PtAmount:   utils.FloatToNumeric(100000),
-			PtCurrency: "VND",
-			PtProvider: "cod",
-		},
+		func() paymentsqlc.PaymentTransaction {
+			txnRef := "261023-34-REFUND"
+			txnID := "14567890"
+			return paymentsqlc.PaymentTransaction{
+				PtID:            1,
+				PtUuid:          paidUUID,
+				PtOrderID:       10,
+				PtStatus:        2,
+				PtAmount:        utils.FloatToNumeric(100000),
+				PtCurrency:      "VND",
+				PtProvider:      "vnpay",
+				PtTxnRef:        &txnRef,
+				PtProviderTxnID: &txnID,
+			}
+		}(),
 	}, nil)
 	mockRepo.On("GetByIdempotencyKey", mock.Anything, "refund:"+orderUUID.String()+":25000.00").
 		Return(paymentsqlc.PaymentTransaction{}, pgx.ErrNoRows)
@@ -276,22 +283,24 @@ func TestPaymentService_RefundPayment_ReusesDeterministicIdempotencyKey(t *testi
 		PtID:        2,
 		PtUuid:      refundUUID,
 		PtOrderUuid: pgtype.UUID{Bytes: orderUUID, Valid: true},
-		PtProvider:  "cod",
+		PtProvider:  "vnpay",
 		PtAmount:    utils.FloatToNumeric(-25000),
 		PtCurrency:  "VND",
 		PtStatus:    4,
 	}, nil)
 
+	vnpayTxnID := "14567890"
+	gatewayProvider := &fakeProvider{refundResp: provider.RefundResponse{Status: provider.TxnStatusSuccess, RefundTxnID: vnpayTxnID}}
 	svc := paymentservice.NewPaymentService(
 		mockRepo,
 		nil,
 		nil,
 		nil,
-		nil,
+		map[string]provider.PaymentProvider{"vnpay": gatewayProvider},
 		nil,
 		nil,
 		"http://localhost:3001/payment/result",
-		"http://localhost:8083",
+		"",
 	)
 
 	result, err := svc.RefundPayment(context.Background(), dto.RefundPaymentInput{

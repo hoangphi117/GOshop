@@ -30,6 +30,27 @@ $runningServiceProcesses = Get-Process -ErrorAction SilentlyContinue | Where-Obj
 foreach ($process in $runningServiceProcesses) {
     Stop-Process -Id $process.Id -Force
 }
+
+$requiredPorts = @(8080, 8081, 8082, 8083, 8088, 50057)
+$deadline = (Get-Date).AddSeconds(10)
+do {
+    $occupiedPorts = @(
+        Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
+            Where-Object { $requiredPorts -contains $_.LocalPort }
+    )
+    if ($occupiedPorts.Count -eq 0) {
+        break
+    }
+    Start-Sleep -Milliseconds 250
+} while ((Get-Date) -lt $deadline)
+
+if ($occupiedPorts.Count -gt 0) {
+    $portList = ($occupiedPorts | Select-Object -ExpandProperty LocalPort -Unique) -join ", "
+    Write-Host "Required host ports are still in use: $portList" -ForegroundColor Red
+    Write-Host "Stop the owning process, then run make dev-host again." -ForegroundColor Red
+    exit 1
+}
+
 Push-Location $backendDir
 try {
     foreach ($svc in $hostServices) {

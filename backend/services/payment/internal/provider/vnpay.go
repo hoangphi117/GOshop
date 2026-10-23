@@ -152,8 +152,17 @@ func (p *vnpayProvider) ParseWebhookPayload(payload []byte) (WebhookResult, erro
 	}, nil
 }
 
-// QueryTransactionStatus queries the current payment status from VNPay querydr API.
-func (p *vnpayProvider) QueryTransactionStatus(ctx context.Context, providerTxnID string) (TransactionStatus, error) {
+// QueryTransactionStatus asks VNPay's querydr API for the authoritative status of
+// a transaction.
+//
+// txnRef is the merchant-side reference (vnp_TxnRef, i.e. our order number) and
+// transactionDate is the transaction's create date in VNPay's yyMMddHHmmss
+// format. VNPay matches on those two fields: it has no way to look a
+// transaction up by providerTxnID alone, so callers must pass the stored
+// merchant reference and its date. Statuses other than a definitive success or
+// failure are reported as TxnStatusPending so callers never act on an
+// inconclusive answer.
+func (p *vnpayProvider) QueryTransactionStatus(ctx context.Context, txnRef, transactionDate string) (TransactionStatus, error) {
 	if p.config.QueryURL == "" {
 		return TxnStatusPending, nil
 	}
@@ -161,17 +170,20 @@ func (p *vnpayProvider) QueryTransactionStatus(ctx context.Context, providerTxnI
 	tz := time.FixedZone("Asia/Ho_Chi_Minh", 7*3600)
 	now := time.Now().In(tz)
 	requestID := fmt.Sprintf("%d", now.UnixNano())
-	transDate := now.Format("20060102150405")
+	createDate := now.Format("20060102150405")
+	if transactionDate == "" {
+		transactionDate = createDate
+	}
 
 	reqData := map[string]string{
 		"vnp_RequestId":       requestID,
 		"vnp_Version":         "2.1.0",
 		"vnp_Command":         "querydr",
 		"vnp_TmnCode":         p.config.TmnCode,
-		"vnp_TxnRef":          providerTxnID,
-		"vnp_OrderInfo":       fmt.Sprintf("Query status for order %s", providerTxnID),
-		"vnp_TransactionDate": transDate,
-		"vnp_CreateDate":      transDate,
+		"vnp_TxnRef":          txnRef,
+		"vnp_OrderInfo":       fmt.Sprintf("Query status for order %s", txnRef),
+		"vnp_TransactionDate": transactionDate,
+		"vnp_CreateDate":      createDate,
 		"vnp_IpAddr":          "127.0.0.1",
 	}
 

@@ -83,9 +83,9 @@ func (c *circuitBreakerPaymentProvider) CreatePaymentURL(ctx context.Context, re
 }
 
 // QueryTransactionStatus queries the gateway API protected by Circuit Breaker.
-func (c *circuitBreakerPaymentProvider) QueryTransactionStatus(ctx context.Context, providerTxnID string) (TransactionStatus, error) {
+func (c *circuitBreakerPaymentProvider) QueryTransactionStatus(ctx context.Context, txnRef, transactionDate string) (TransactionStatus, error) {
 	res, err := c.cb.Execute(func() (any, error) {
-		return c.inner.QueryTransactionStatus(ctx, providerTxnID)
+		return c.inner.QueryTransactionStatus(ctx, txnRef, transactionDate)
 	})
 	if err != nil {
 		return "", err

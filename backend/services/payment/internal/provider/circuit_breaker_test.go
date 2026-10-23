@@ -41,9 +41,9 @@ func (m *mockPaymentProvider) ParseWebhookPayload(payload []byte) (WebhookResult
 	return WebhookResult{Status: TxnStatusSuccess}, nil
 }
 
-func (m *mockPaymentProvider) QueryTransactionStatus(ctx context.Context, providerTxnID string) (TransactionStatus, error) {
+func (m *mockPaymentProvider) QueryTransactionStatus(ctx context.Context, txnRef, transactionDate string) (TransactionStatus, error) {
 	if m.queryTransactionStatusFunc != nil {
-		return m.queryTransactionStatusFunc(ctx, providerTxnID)
+		return m.queryTransactionStatusFunc(ctx, txnRef)
 	}
 	return TxnStatusSuccess, nil
 }
@@ -207,7 +207,7 @@ func TestCircuitBreakerPaymentProvider_OtherMethodsProtected(t *testing.T) {
 	assert.Equal(t, "open", reporter.CBState())
 
 	// QueryTransactionStatus should fast fail because breaker is OPEN
-	_, err = cbProvider.QueryTransactionStatus(context.Background(), "txn_123")
+	_, err = cbProvider.QueryTransactionStatus(context.Background(), "txn_123", "20260101120000")
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, gobreaker.ErrOpenState))
 	assert.Equal(t, int32(0), atomic.LoadInt32(&queryCalls))

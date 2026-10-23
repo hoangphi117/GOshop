@@ -128,7 +128,6 @@ type Querier interface {
 	InsertHelpfulVote(ctx context.Context, arg InsertHelpfulVoteParams) error
 	InsertOutboxEvent(ctx context.Context, arg InsertOutboxEventParams) (OutboxEvent, error)
 	InsertReviewReport(ctx context.Context, arg InsertReviewReportParams) error
-	InsertWebhookEvent(ctx context.Context, arg InsertWebhookEventParams) (WebhookEvent, error)
 	ListConversations(ctx context.Context, arg ListConversationsParams) ([]ListConversationsRow, error)
 	ListMessages(ctx context.Context, arg ListMessagesParams) ([]ChatMessage, error)
 	ListMessagesCursor(ctx context.Context, arg ListMessagesCursorParams) ([]ChatMessage, error)
@@ -142,7 +141,6 @@ type Querier interface {
 	MarkNotificationRead(ctx context.Context, arg MarkNotificationReadParams) (Notification, error)
 	MarkOutboxEventFailed(ctx context.Context, arg MarkOutboxEventFailedParams) error
 	MarkOutboxEventsProcessed(ctx context.Context, dollar_1 []int64) error
-	MarkWebhookEventProcessed(ctx context.Context, weID int32) error
 	RecalcProductRating(ctx context.Context, reviewProductID int32) error
 	RecallMessage(ctx context.Context, messageID int32) (ChatMessage, error)
 	ReplyReview(ctx context.Context, arg ReplyReviewParams) (ProductReview, error)

@@ -238,11 +238,13 @@ func (a *App) Run(ctx context.Context) error {
 		}
 	}()
 
-	// 3. Periodic Payment Reconciliation Job (interval: 10m)
+	// 3. Periodic Payment Reconciliation Job (interval: 2m). Each run asks the
+	// gateway for the status of stale pending transactions before expiring
+	// them, so payments whose IPN never arrived are still confirmed.
 	go func() {
-		ticker := time.NewTicker(10 * time.Minute)
+		ticker := time.NewTicker(2 * time.Minute)
 		defer ticker.Stop()
-		logger.Log.Info().Msg("Payment reconciliation background job started (interval: 10m)")
+		logger.Log.Info().Msg("Payment reconciliation background job started (interval: 2m)")
 
 		for {
 			select {
