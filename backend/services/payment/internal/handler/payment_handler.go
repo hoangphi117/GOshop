@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -89,13 +90,56 @@ func (h *PaymentHandler) HandleWebhook(ctx *gin.Context) {
 		}
 	}
 
-	if err := h.service.HandleWebhook(ctx.Request.Context(), provider, body, headers); err != nil {
+	outcome, err := h.service.HandleWebhook(ctx.Request.Context(), provider, body, headers)
+	if provider == "vnpay" {
+		// VNPay IPN contract: always HTTP 200 with an RspCode/Message body.
+		// A non-200 or a foreign body shape makes VNPay treat the IPN as
+		// undelivered and retry, eventually disabling IPN for the merchant.
+		rsp := vnpayRspCodeFor(err)
+		if err == nil && outcome == service.WebhookAlreadyProcessed {
+			rsp = vnpayResponse{Code: "02", Message: "Order already confirmed"}
+		}
+		if err != nil {
+			logger.Log.Error().Err(err).Str("provider", provider).Msg("Webhook processing failed")
+		}
+		vnpayRespond(ctx, rsp)
+		return
+	}
+
+	if err != nil {
 		logger.Log.Error().Err(err).Str("provider", provider).Msg("Webhook processing failed")
 		utils.ResponseError(ctx, utils.WrapError(utils.ErrCodeBadRequest, "webhook processing failed", err))
 		return
 	}
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Webhook processed successfully", gin.H{"status": "success"})
+}
+
+// vnpayResponse is the body VNPay expects from an IPN endpoint.
+type vnpayResponse struct {
+	Code    string `json:"RspCode"`
+	Message string `json:"Message"`
+}
+
+func vnpayRespond(ctx *gin.Context, body vnpayResponse) {
+	// VNPay requires HTTP 200 for every business outcome; the RspCode carries
+	// the result (00 = confirmed, 01 = order not found, 02 = already confirmed,
+	// 04 = amount mismatch, 97 = bad signature, 99 = unknown error).
+	ctx.JSON(http.StatusOK, body)
+}
+
+// vnpayRspCodeFor maps a webhook error to VNPay's documented RspCode values.
+func vnpayRspCodeFor(err error) vnpayResponse {
+	switch {
+	case errors.Is(err, service.ErrPaymentTxnNotFound):
+		return vnpayResponse{Code: "01", Message: "Order not found"}
+	case errors.Is(err, service.ErrWebhookSignature):
+		return vnpayResponse{Code: "97", Message: "Invalid signature"}
+	case errors.Is(err, service.ErrWebhookAmountMismatch):
+		return vnpayResponse{Code: "04", Message: "Invalid amount"}
+	default:
+		return vnpayResponse{Code: "99", Message: "Unknown error"}
+	}
 }
 
 func (h *PaymentHandler) RefundPayment(ctx *gin.Context) {
@@ -116,4 +160,3 @@ func (h *PaymentHandler) RefundPayment(ctx *gin.Context) {
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Payment refunded successfully", txn)
 }
-

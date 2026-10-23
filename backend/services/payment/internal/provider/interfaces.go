@@ -57,6 +57,11 @@ type PaymentProvider interface {
 	CreatePaymentURL(ctx context.Context, req CreatePaymentRequest) (CreatePaymentResponse, error)
 	VerifyWebhook(payload []byte, headers map[string]string) error
 	ParseWebhookPayload(payload []byte) (WebhookResult, error)
-	QueryTransactionStatus(ctx context.Context, providerTxnID string) (TransactionStatus, error)
+	// QueryTransactionStatus asks the provider for the authoritative status of a
+	// transaction. txnRef is the merchant reference (our order number) and
+	// transactionDate is the provider-formatted transaction date; both are
+	// required because providers cannot resolve a transaction from our txn ref
+	// without the date it was created.
+	QueryTransactionStatus(ctx context.Context, txnRef, transactionDate string) (TransactionStatus, error)
 	Refund(ctx context.Context, req RefundRequest) (RefundResponse, error)
 }

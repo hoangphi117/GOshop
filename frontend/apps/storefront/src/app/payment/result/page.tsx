@@ -83,25 +83,53 @@ function PaymentResultContent() {
   const [resolvedOrderUuid, setResolvedOrderUuid] = useState<string | null>(null);
   const [isOrderExpired, setIsOrderExpired] = useState(false);
   const [isOrderCancelled, setIsOrderCancelled] = useState(false);
+  // Set when the gateway says the payment succeeded but our server could not
+  // record it. Surfaced to the user instead of silently showing "success".
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isSuccess) {
       removeSelectedItems();
-      // Synchronize with payment service to verify return signature and finalize order status to Paid
+      // Replay the gateway return parameters so the payment service can verify
+      // the signature and finalize the transaction. Failures must be visible:
+      // the user only sees "Payment Successful" because the gateway said so.
       const confirmPayment = async () => {
+        const baseUrl =
+          process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+        const query = window.location.search.startsWith("?")
+          ? window.location.search.slice(1)
+          : window.location.search;
+        if (!query) return;
+
         try {
-          const baseUrl =
-            process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-          const query = window.location.search.startsWith("?")
-            ? window.location.search.slice(1)
-            : window.location.search;
-          if (query) {
-            await authFetch(`${baseUrl}/api/v1/payments/webhook/${provider}?${query}`, {
-              method: "GET",
-            });
+          const res = await authFetch(
+            `${baseUrl}/api/v1/payments/webhook/${provider}?${query}`,
+            { method: "GET" }
+          );
+
+          if (!res.ok) {
+            setSyncError(
+              `Payment was accepted by ${providerName} but our server rejected the confirmation (HTTP ${res.status}). Our team can still reconcile it automatically.`
+            );
+            return;
           }
-        } catch {
-          // Ignore background sync errors
+
+          // VNPay answers {"RspCode","Message"}; MoMo answers a generic payload.
+          const body = await res.json().catch(() => null);
+          const rspCode: string | undefined = body?.RspCode;
+          if (rspCode && rspCode !== "00" && rspCode !== "02") {
+            setSyncError(
+              `Payment was accepted by ${providerName} but our server could not record it (${rspCode}: ${
+                body?.Message ?? "unknown error"
+              }). It will be reconciled automatically.`
+            );
+          }
+        } catch (error) {
+          setSyncError(
+            `Could not reach our server to confirm the payment: ${
+              error instanceof Error ? error.message : String(error)
+            }. It will be reconciled automatically.`
+          );
         }
       };
       confirmPayment();
@@ -139,8 +167,10 @@ function PaymentResultContent() {
               }
             }
           }
-        } catch {
-          // Ignore background fetch error
+        } catch (error) {
+          // Non-blocking but not silent: log and flag so the retry button can
+          // still work via its own lookup below.
+          console.error("Failed to resolve order for payment result:", error);
         }
       };
       fetchOrderUuid();
@@ -272,6 +302,17 @@ function PaymentResultContent() {
             </p>
           </div>
         </div>
+
+        {/* Payment Confirmation Sync Warning */}
+        {syncError && (
+          <div
+            className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-900"
+            role="alert"
+          >
+            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
+            <span>{syncError}</span>
+          </div>
+        )}
 
         {/* Transaction Summary Card */}
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">

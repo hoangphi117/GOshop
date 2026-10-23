@@ -18,19 +18,40 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func (s *paymentService) HandleWebhook(ctx context.Context, providerName string, rawPayload []byte, headers map[string]string) error {
-	provider, exists := s.providers[providerName]
+// WebhookOutcome reports what a webhook achieved so the HTTP handler can answer
+// the provider in its own protocol (VNPay expects RspCode/Message codes). Kept
+// provider-agnostic on purpose.
+type WebhookOutcome int
+
+const (
+	WebhookProcessed WebhookOutcome = iota
+	WebhookAlreadyProcessed
+	WebhookOrderNotFound
+	WebhookAmountMismatch
+	WebhookUnknown
+)
+
+// Sentinel webhook errors the HTTP handler maps to provider-specific response
+// codes (e.g. VNPay RspCode 01/04/97).
+var (
+	ErrPaymentTxnNotFound    = errors.New("payment transaction not found for provider callback")
+	ErrWebhookSignature      = errors.New("webhook signature verification failed")
+	ErrWebhookAmountMismatch = errors.New("payment amount does not cover the order total")
+)
+
+func (s *paymentService) HandleWebhook(ctx context.Context, providerName string, rawPayload []byte, headers map[string]string) (WebhookOutcome, error) {
+	pvd, exists := s.providers[providerName]
 	if !exists {
-		return fmt.Errorf("unsupported webhook provider: %s", providerName)
+		return WebhookUnknown, fmt.Errorf("unsupported webhook provider: %s", providerName)
 	}
 
-	if err := provider.VerifyWebhook(rawPayload, headers); err != nil {
-		return fmt.Errorf("webhook signature verification failed: %w", err)
+	if err := pvd.VerifyWebhook(rawPayload, headers); err != nil {
+		return WebhookUnknown, fmt.Errorf("%w: %v", ErrWebhookSignature, err)
 	}
 
-	whResp, err := provider.ParseWebhookPayload(rawPayload)
+	whResp, err := pvd.ParseWebhookPayload(rawPayload)
 	if err != nil {
-		return fmt.Errorf("failed to parse webhook payload: %w", err)
+		return WebhookUnknown, fmt.Errorf("failed to parse webhook payload: %w", err)
 	}
 
 	eventID := whResp.EventID
@@ -50,60 +71,102 @@ func (s *paymentService) HandleWebhook(ctx context.Context, providerName string,
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			logger.Log.Info().Str("event_id", eventID).Msg("Duplicate webhook event received, skipping")
-			return nil
+			return WebhookAlreadyProcessed, nil
 		}
-		return fmt.Errorf("failed to persist webhook event: %w", err)
+		return WebhookUnknown, fmt.Errorf("failed to persist webhook event: %w", err)
 	}
 
-	msg := dto.PaymentWebhookMessage{
-		WebhookEventID: webhookEvent.WeID,
-		Provider:       providerName,
-		EventType:      string(whResp.Status),
-		ProviderTxnID:  whResp.ProviderTxnID,
-		OrderNumber:    whResp.OrderNumber,
-		Amount:         whResp.Amount,
-		Status:         string(whResp.Status),
-		Metadata:       whResp.Metadata,
+	txn, err := s.resolveTransaction(ctx, providerName, whResp.ProviderTxnID, whResp.OrderNumber, "")
+	if err != nil {
+		return WebhookOrderNotFound, err
 	}
 
-	if err := s.ProcessWebhook(ctx, msg); err != nil {
-		return fmt.Errorf("failed to process webhook message: %w", err)
+	outcome, err := s.finalizeTransaction(ctx, txn,
+		provider.TransactionStatus(whResp.Status) == provider.TxnStatusSuccess,
+		whResp.Amount, whResp.ProviderTxnID, whResp.Metadata, webhookEvent.WeID)
+	if err == nil {
+		if markErr := s.webhookRepo.MarkProcessed(ctx, webhookEvent.WeID); markErr != nil {
+			logger.Log.Error().Err(markErr).Int32("webhook_event_id", webhookEvent.WeID).Msg("Failed to mark webhook event as processed")
+			return WebhookUnknown, fmt.Errorf("failed to mark webhook event processed: %w", markErr)
+		}
 	}
-
-	return nil
+	return outcome, err
 }
 
+// ProcessWebhook applies an already-persisted webhook message. The HTTP route
+// uses HandleWebhook; this stays for programmatic callers.
 func (s *paymentService) ProcessWebhook(ctx context.Context, msg dto.PaymentWebhookMessage) error {
+	txn, err := s.resolveTransaction(ctx, msg.Provider, msg.ProviderTxnID, msg.OrderNumber, msg.OrderUUID)
+	if err != nil {
+		return err
+	}
+	_, err = s.finalizeTransaction(ctx, txn,
+		msg.Status == string(provider.TxnStatusSuccess),
+		msg.Amount, msg.ProviderTxnID, msg.Metadata, msg.WebhookEventID)
+	return err
+}
+
+// errPaymentTxnNotFound marks a callback that no stored transaction matches.
+var errPaymentTxnNotFound = ErrPaymentTxnNotFound
+
+func (s *paymentService) resolveTransaction(ctx context.Context, providerName, providerTxnID, orderNumber, orderUUID string) (paymentsqlc.PaymentTransaction, error) {
 	var txn paymentsqlc.PaymentTransaction
 	var err error
 
-	// Try lookup by ProviderTxnID first, fallback to TxnRef or OrderUUID
-	if msg.ProviderTxnID != "" {
-		txn, err = s.paymentRepo.GetByProviderTxnID(ctx, msg.Provider, msg.ProviderTxnID)
+	if providerTxnID != "" {
+		txn, err = s.paymentRepo.GetByProviderTxnID(ctx, providerName, providerTxnID)
 	}
 	if err != nil || txn.PtID == 0 {
-		txn, err = s.paymentRepo.GetByTxnRef(ctx, msg.Provider, msg.OrderNumber)
+		txn, err = s.paymentRepo.GetByTxnRef(ctx, providerName, orderNumber)
 	}
-
-	if err != nil || txn.PtID == 0 {
-		if msg.OrderUUID != "" {
-			if orderUUID, parseErr := uuid.Parse(msg.OrderUUID); parseErr == nil {
-				txns, listErr := s.paymentRepo.GetByOrderUUID(ctx, orderUUID)
-				if listErr == nil && len(txns) > 0 {
-					txn = txns[0]
-					err = nil
-				}
+	if (err != nil || txn.PtID == 0) && orderUUID != "" {
+		if parsed, parseErr := uuid.Parse(orderUUID); parseErr == nil {
+			txns, listErr := s.paymentRepo.GetByOrderUUID(ctx, parsed)
+			if listErr == nil && len(txns) > 0 {
+				return txns[0], nil
 			}
 		}
 	}
-
 	if err != nil || txn.PtID == 0 {
-		return fmt.Errorf("could not find matching payment transaction for webhook: %w", err)
+		return paymentsqlc.PaymentTransaction{}, fmt.Errorf("%w (provider=%s txn_ref=%s): %w", errPaymentTxnNotFound, providerName, orderNumber, err)
 	}
+	return txn, nil
+}
 
+// finalizeTransaction flips a pending transaction to a terminal status and
+// publishes the payment event. Webhook handling and reconciliation both funnel
+// through here, so a payment confirmed by either route produces identical side
+// effects and identical idempotency. providerTxnID and metadata are optional.
+func (s *paymentService) finalizeTransaction(
+	ctx context.Context,
+	txn paymentsqlc.PaymentTransaction,
+	success bool,
+	amount float64,
+	providerTxnID string,
+	metadata map[string]string,
+	webhookEventID int32,
+) (WebhookOutcome, error) {
 	var targetStatus int32
 	var routingKey string
-	if msg.Status == string(provider.TxnStatusSuccess) {
+
+	if success {
+		// Never confirm a payment that does not cover the order: a tampered or
+		// partial callback must not settle the transaction. amount <= 0 means
+		// "not reported by the source", which only reconciliation uses.
+		expected := utils.NumericToFloat(txn.PtAmount)
+		if amount > 0 && amount+0.01 < expected {
+			logger.Log.Warn().
+				Str("pt_uuid", txn.PtUuid.String()).
+				Float64("expected", expected).
+				Float64("received", amount).
+				Msg("Rejecting payment confirmation with an uncovered amount")
+			if webhookEventID != 0 {
+				if markErr := s.webhookRepo.MarkProcessed(ctx, webhookEventID); markErr != nil {
+					logger.Log.Warn().Err(markErr).Msg("Failed to mark webhook event as processed")
+				}
+			}
+			return WebhookAmountMismatch, fmt.Errorf("%w: %.2f does not cover %.2f", ErrWebhookAmountMismatch, amount, expected)
+		}
 		targetStatus = PaymentStatusPaid
 		routingKey = rabbitmq.RoutingKeyPaymentSucceeded
 	} else {
@@ -111,28 +174,35 @@ func (s *paymentService) ProcessWebhook(ctx context.Context, msg dto.PaymentWebh
 		routingKey = rabbitmq.RoutingKeyPaymentFailed
 	}
 
-	metadataBytes, marshalErr := json.Marshal(msg.Metadata)
-	if marshalErr != nil {
-		logger.Log.Warn().Err(marshalErr).Msg("Failed to serialize webhook metadata")
-		metadataBytes = []byte("{}")
+	metadataBytes := []byte("{}")
+	if metadata != nil {
+		b, marshalErr := json.Marshal(metadata)
+		if marshalErr != nil {
+			logger.Log.Warn().Err(marshalErr).Msg("Failed to serialize webhook metadata")
+		} else {
+			metadataBytes = b
+		}
 	}
 
 	updatedTxn, err := s.paymentRepo.UpdateStatusAtomically(ctx, paymentsqlc.UpdatePaymentStatusAtomicallyParams{
 		PtUuid:              txn.PtUuid,
 		NewStatus:           targetStatus,
-		ProviderTxnID:       &msg.ProviderTxnID,
+		ProviderTxnID:       &providerTxnID,
 		Metadata:            metadataBytes,
 		AllowedFromStatuses: []int32{PaymentStatusPending},
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
+			// Another writer settled it between our read and write.
 			logger.Log.Info().Str("pt_uuid", txn.PtUuid.String()).Msg("Payment already finalized, idempotent ignore")
-			if markErr := s.webhookRepo.MarkProcessed(ctx, msg.WebhookEventID); markErr != nil {
-				logger.Log.Warn().Err(markErr).Msg("Failed to mark webhook event as processed")
+			if webhookEventID != 0 {
+				if markErr := s.webhookRepo.MarkProcessed(ctx, webhookEventID); markErr != nil {
+					logger.Log.Warn().Err(markErr).Msg("Failed to mark webhook event as processed")
+				}
 			}
-			return nil
+			return WebhookAlreadyProcessed, nil
 		}
-		return fmt.Errorf("failed to atomically transition payment status: %w", err)
+		return WebhookUnknown, fmt.Errorf("failed to atomically transition payment status: %w", err)
 	}
 
 	var orderUUIDStr string
@@ -158,13 +228,18 @@ func (s *paymentService) ProcessWebhook(ctx context.Context, msg dto.PaymentWebh
 		}
 	}
 
+	var orderNumberStr string
+	if txn.PtTxnRef != nil {
+		orderNumberStr = *txn.PtTxnRef
+	}
+
 	s.publishPaymentEvent(ctx, routingKey, dto.PaymentEventPayload{
 		PaymentUUID:   updatedTxn.PtUuid.String(),
 		OrderUUID:     orderUUIDStr,
-		OrderNumber:   msg.OrderNumber,
+		OrderNumber:   orderNumberStr,
 		UserUUID:      userUUIDStr,
-		Provider:      msg.Provider,
-		ProviderTxnID: msg.ProviderTxnID,
+		Provider:      txn.PtProvider,
+		ProviderTxnID: providerTxnID,
 		Amount:        utils.NumericToFloat(updatedTxn.PtAmount),
 		Currency:      updatedTxn.PtCurrency,
 		Status:        dto.MapPaymentTxnStatusToString(targetStatus),
@@ -172,10 +247,5 @@ func (s *paymentService) ProcessWebhook(ctx context.Context, msg dto.PaymentWebh
 		Metadata:      metadataBytes,
 	})
 
-	if markErr := s.webhookRepo.MarkProcessed(ctx, msg.WebhookEventID); markErr != nil {
-		logger.Log.Error().Err(markErr).Int32("webhook_event_id", msg.WebhookEventID).Msg("Failed to mark webhook event as processed")
-		return fmt.Errorf("failed to mark webhook event processed: %w", markErr)
-	}
-
-	return nil
+	return WebhookProcessed, nil
 }

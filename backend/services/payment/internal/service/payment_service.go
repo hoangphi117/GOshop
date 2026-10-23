@@ -392,6 +392,13 @@ func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 	}
 
 	for _, txn := range pendingTxns {
+		// Ask the provider first. An IPN that never reached us (tunnel down,
+		// portal not configured, network hiccup) still leaves the money taken,
+		// so expiring without a status query silently loses paid orders.
+		if s.providerConfirmsPayment(ctx, txn) {
+			continue
+		}
+
 		failStatus := PaymentStatusExpired
 		_, err := s.paymentRepo.UpdateStatusAtomically(ctx, paymentsqlc.UpdatePaymentStatusAtomicallyParams{
 			PtUuid:              txn.PtUuid,
@@ -421,4 +428,53 @@ func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// providerConfirmsPayment queries the payment gateway for the authoritative
+// status of a pending transaction and finalizes it when the gateway reports a
+// successful payment. Returns true when the transaction was settled (so the
+// caller must not expire it). Query failures count as "not settled": the
+// gateway is the source of truth but an inconclusive answer must not block
+// expiry of genuinely abandoned checkouts.
+func (s *paymentService) providerConfirmsPayment(ctx context.Context, txn paymentsqlc.PaymentTransaction) bool {
+	pvd, exists := s.providers[txn.PtProvider]
+	if !exists || txn.PtTxnRef == nil || *txn.PtTxnRef == "" {
+		return false
+	}
+
+	transactionDate := ""
+	if !txn.PtCreatedAt.IsZero() {
+		transactionDate = txn.PtCreatedAt.In(time.FixedZone("Asia/Ho_Chi_Minh", 7*3600)).Format("20060102150405")
+	}
+	status, err := pvd.QueryTransactionStatus(ctx, *txn.PtTxnRef, transactionDate)
+	if err != nil {
+		logger.Log.Warn().Err(err).
+			Str("pt_uuid", txn.PtUuid.String()).
+			Str("provider", txn.PtProvider).
+			Msg("Payment status query failed during reconciliation; leaving transaction pending for the next run")
+		// Inconclusive gateway answer: keep the transaction pending and retry
+		// on the next tick rather than expiring a payment we cannot verify.
+		// Only transactions whose lookup is impossible (below) are expired.
+		return true
+	}
+	if status != provider.TxnStatusSuccess {
+		return false
+	}
+
+	outcome, finalizeErr := s.finalizeTransaction(ctx, txn, true, 0, "", map[string]string{
+		"source": "reconciliation",
+		"status": string(status),
+	}, 0)
+	if finalizeErr != nil {
+		logger.Log.Error().Err(finalizeErr).
+			Str("pt_uuid", txn.PtUuid.String()).
+			Int("outcome", int(outcome)).
+			Msg("Failed to finalize gateway-confirmed payment during reconciliation")
+		return false
+	}
+	logger.Log.Info().
+		Str("pt_uuid", txn.PtUuid.String()).
+		Str("provider", txn.PtProvider).
+		Msg("Reconciliation confirmed a paid transaction the webhook never delivered")
+	return true
 }

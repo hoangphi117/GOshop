@@ -227,7 +227,10 @@ type momoQueryResponse struct {
 	ResponseTime int64  `json:"responseTime"`
 }
 
-func (p *momoProvider) QueryTransactionStatus(ctx context.Context, orderNumber string) (TransactionStatus, error) {
+// QueryTransactionStatus asks MoMo for the authoritative status of an order.
+// MoMo keys lookups on orderId only, so transactionDate is unused here.
+func (p *momoProvider) QueryTransactionStatus(ctx context.Context, orderNumber, transactionDate string) (TransactionStatus, error) {
+	_ = transactionDate
 	requestID := fmt.Sprintf("req-query-%s-%d", orderNumber, time.Now().UnixNano())
 	rawSignature := fmt.Sprintf(
 		"accessKey=%s&orderId=%s&partnerCode=%s&requestId=%s",

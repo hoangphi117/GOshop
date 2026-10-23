@@ -14,7 +14,7 @@ type PaymentService interface {
 	GetPaymentTransactionsByOrderUUID(ctx context.Context, orderUUID uuid.UUID) ([]dto.PaymentTransactionDTO, error)
 	ConfirmCODPayment(ctx context.Context, orderUUID uuid.UUID) error
 	RefundPayment(ctx context.Context, input dto.RefundPaymentInput) (dto.PaymentTransactionDTO, error)
-	HandleWebhook(ctx context.Context, providerName string, rawPayload []byte, headers map[string]string) error
+	HandleWebhook(ctx context.Context, providerName string, rawPayload []byte, headers map[string]string) (WebhookOutcome, error)
 	ProcessWebhook(ctx context.Context, msg dto.PaymentWebhookMessage) error
 	ReconcilePendingPayments(ctx context.Context) error
 }
