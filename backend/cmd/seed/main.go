@@ -10,9 +10,11 @@ import (
 
 	"goshop/internal/utils"
 	"goshop/pkg/logger"
+	"goshop/pkg/search"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/joho/godotenv"
+	"github.com/redis/go-redis/v9"
 )
 
 // seedSection is one `-- DB: <name>` block of scripts/seed.sql. Each block runs
@@ -84,7 +86,122 @@ func main() {
 	fmt.Printf("✅ Seeding completed successfully in %v!\n", time.Since(startTime))
 	fmt.Println("📦 Databases: shopping, shopping_identity, shopping_catalog, shopping_coupon, shopping_cart, shopping_inventory")
 	fmt.Println("🔐 Seeded logins: admin@goshop.com / manager@goshop.com / mod@goshop.com / admin@gmail.com — password: Password123!")
-	fmt.Println("🔍 Product search is synced by the catalog service outbox worker (no manual Meilisearch step).")
+
+	purgeSearchAndCache(ctx, dsn)
+	fmt.Println("🔍 Product search reindex queued (catalog outbox worker consumes the events) and stale search docs purged.")
+}
+
+// purgeSearchAndCache makes re-seeded data visible: re-seeding regenerates
+// product UUIDs, but the Meilisearch index and the catalog Redis cache keep
+// documents/entries from the previous run, and the in-DB outbox events queued
+// by seed.sql only cover upserts. Remove search documents that no longer match
+// a live product, and drop catalog caches so reads cannot serve stale rows.
+func purgeSearchAndCache(ctx context.Context, dsn string) {
+	// 1. Expire catalog caches.
+	redisAddr := utils.GetEnv("REDIS_ADDR", "localhost:6379")
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     redisAddr,
+		Username: utils.GetEnv("REDIS_USER", ""),
+		Password: utils.GetEnv("REDIS_PASSWORD", ""),
+		DB:       0,
+	})
+	defer func() { _ = rdb.Close() }()
+
+	scanCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	var cursor uint64
+	deleted := 0
+	for {
+		keys, next, err := rdb.Scan(scanCtx, cursor, "catalog:*", 200).Result()
+		if err != nil {
+			fmt.Printf("⚠️  Skipping redis cache purge: %v\n", err)
+			break
+		}
+		if len(keys) > 0 {
+			if err := rdb.Del(scanCtx, keys...).Err(); err != nil {
+				fmt.Printf("⚠️  Skipping redis cache purge: %v\n", err)
+				break
+			}
+			deleted += len(keys)
+		}
+		cursor = next
+		if cursor == 0 {
+			break
+		}
+	}
+	fmt.Printf("🧹 Redis: dropped %d catalog cache keys\n", deleted)
+
+	// 2. Drop search documents that no longer match a seeded product.
+	live := map[string]bool{}
+	if err := forEachProductUUID(ctx, dsn, func(u string) { live[u] = true }); err != nil {
+		fmt.Printf("⚠️  Skipping search purge (cannot read product UUIDs): %v\n", err)
+		return
+	}
+
+	searchClient, err := search.NewClient(
+		utils.GetEnv("MEILISEARCH_HOST", "http://localhost:7700"),
+		utils.GetEnv("MEILISEARCH_MASTER_KEY", ""),
+		utils.GetEnv("MEILISEARCH_INDEX_PRODUCTS", "products"),
+	)
+	if err != nil {
+		fmt.Printf("⚠️  Skipping search purge: %v\n", err)
+		return
+	}
+
+	if err := purgeRemovedDocuments(ctx, searchClient, live); err != nil {
+		fmt.Printf("⚠️  Skipping search purge: %v\n", err)
+	}
+}
+
+// purgeRemovedDocuments deletes search documents whose ids are absent from
+// live list.
+func purgeRemovedDocuments(ctx context.Context, client *search.Client, live map[string]bool) error {
+	ids, err := client.ListDocumentIDs(ctx)
+	if err != nil {
+		return err
+	}
+
+	purged := 0
+	for _, id := range ids {
+		if live[id] {
+			continue
+		}
+		if _, err := client.DeleteProduct(ctx, id); err != nil {
+			return err
+		}
+		purged++
+	}
+	fmt.Printf("🧹 Meilisearch: removed %d out-of-seed documents\n", purged)
+	return nil
+}
+
+// forEachProductUUID collects live product UUIDs from the seeded catalog DB.
+func forEachProductUUID(ctx context.Context, dsn string, fn func(string)) error {
+	cfg, err := pgx.ParseConfig(dsn)
+	if err != nil {
+		return fmt.Errorf("invalid database config: %w", err)
+	}
+	cfg.Database = "shopping_catalog"
+
+	conn, err := pgx.ConnectConfig(ctx, cfg)
+	if err != nil {
+		return fmt.Errorf("connect to shopping_catalog: %w", err)
+	}
+	defer func() { _ = conn.Close(ctx) }()
+
+	rows, err := conn.Query(ctx, "SELECT product_uuid::text FROM products WHERE product_deleted_at IS NULL")
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var u string
+		if err := rows.Scan(&u); err != nil {
+			return err
+		}
+		fn(u)
+	}
+	return rows.Err()
 }
 
 // runSection connects to the section's database and executes its SQL.
