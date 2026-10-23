@@ -328,12 +328,54 @@ func (s *paymentService) RefundPayment(ctx context.Context, input dto.RefundPaym
 		)
 	}
 
+	// Ask the gateway BEFORE recording anything. Writing a refund row for money
+	// that never moved silently corrupts the ledger, so a gateway failure (or a
+	// provider without refund support) aborts here and the caller must fall back
+	// to an explicit manual bank transfer. COD never goes through a gateway.
+	pvd, hasGateway := s.providers[paidTxn.PtProvider]
+	if paidTxn.PtProvider == "cod" || !hasGateway {
+		return dto.PaymentTransactionDTO{}, fmt.Errorf("refund not supported for provider %q: use a manual bank transfer", paidTxn.PtProvider)
+	}
+
+	orderNumber := ""
+	if paidTxn.PtTxnRef != nil {
+		orderNumber = *paidTxn.PtTxnRef
+	}
+	providerTxnID := ""
+	if paidTxn.PtProviderTxnID != nil {
+		providerTxnID = *paidTxn.PtProviderTxnID
+	}
+	if providerTxnID == "" {
+		return dto.PaymentTransactionDTO{}, fmt.Errorf("cannot refund: payment has no provider transaction id: use a manual bank transfer")
+	}
+
+	reason := input.Reason
+	if reason == "" {
+		reason = "Refund requested by admin"
+	}
+	transactionDate := paidTxn.PtCreatedAt.In(time.FixedZone("Asia/Ho_Chi_Minh", 7*3600)).Format("20060102150405")
+	refundResp, refundErr := pvd.Refund(ctx, provider.RefundRequest{
+		OrderNumber:     orderNumber,
+		ProviderTxnID:   providerTxnID,
+		Amount:          input.Amount,
+		TotalAmount:     paidAmount,
+		Reason:          reason,
+		TransactionDate: transactionDate,
+		CreatedBy:       "goshop-admin",
+	})
+	if refundErr != nil {
+		return dto.PaymentTransactionDTO{}, fmt.Errorf("gateway refund failed: %w", refundErr)
+	}
+	if refundResp.Status != provider.TxnStatusSuccess {
+		return dto.PaymentTransactionDTO{}, fmt.Errorf("gateway refund rejected: %s", refundResp.Message)
+	}
+
 	refundTxn, err := s.paymentRepo.CreateRefund(ctx, paymentsqlc.CreateRefundTransactionParams{
 		OrderID:        paidTxn.PtOrderID,
 		OrderUuid:      pgtype.UUID{Bytes: orderUUID, Valid: true},
 		IdempotencyKey: idempotencyKey,
 		Provider:       paidTxn.PtProvider,
-		ProviderTxnID:  paidTxn.PtProviderTxnID,
+		ProviderTxnID:  &refundResp.RefundTxnID,
 		Amount:         utils.FloatToNumeric(-input.Amount),
 		Currency:       paidTxn.PtCurrency,
 		Status:         PaymentStatusRefunded,

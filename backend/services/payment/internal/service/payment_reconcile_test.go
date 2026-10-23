@@ -20,8 +20,10 @@ import (
 
 // fakeProvider implements provider.PaymentProvider with canned query answers.
 type fakeProvider struct {
-	status provider.TransactionStatus
-	err    error
+	status     provider.TransactionStatus
+	err        error
+	refundResp provider.RefundResponse
+	refundErr  error
 }
 
 func (p *fakeProvider) CreatePaymentURL(context.Context, provider.CreatePaymentRequest) (provider.CreatePaymentResponse, error) {
@@ -35,7 +37,7 @@ func (p *fakeProvider) QueryTransactionStatus(context.Context, string, string) (
 	return p.status, p.err
 }
 func (p *fakeProvider) Refund(context.Context, provider.RefundRequest) (provider.RefundResponse, error) {
-	return provider.RefundResponse{}, nil
+	return p.refundResp, p.refundErr
 }
 
 func newTestService(repo *MockPaymentRepo, providers map[string]provider.PaymentProvider) paymentservice.PaymentService {
@@ -158,4 +160,56 @@ func TestProcessWebhook_UnknownTransactionReturnsNotFound(t *testing.T) {
 	})
 
 	assert.True(t, errors.Is(err, paymentservice.ErrPaymentTxnNotFound))
+}
+
+// A refund the gateway rejected must not write a refund row: money did not move.
+func TestRefundPayment_GatewayRejectedWritesNothing(t *testing.T) {
+	repo := new(MockPaymentRepo)
+	txn := pendingTxn(time.Now().UTC().Add(-1 * time.Hour))
+	txn.PtStatus = paymentservice.PaymentStatusPaid
+	providerTxnID := "14567890"
+	txn.PtProviderTxnID = &providerTxnID
+
+	repo.On("GetByOrderUUID", mock.Anything, mock.Anything).Return([]paymentsqlc.PaymentTransaction{txn}, nil)
+	repo.On("GetByIdempotencyKey", mock.Anything, mock.Anything).Return(paymentsqlc.PaymentTransaction{}, pgx.ErrNoRows)
+
+	svc := newTestService(repo, map[string]provider.PaymentProvider{
+		"vnpay": &fakeProvider{refundResp: provider.RefundResponse{Status: provider.TxnStatusFailed, Message: "insufficient balance"}},
+	})
+
+	_, err := svc.RefundPayment(context.Background(), dto.RefundPaymentInput{
+		OrderUUID: uuid.New().String(),
+		Amount:    100000,
+	})
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "insufficient balance")
+	repo.AssertNotCalled(t, "CreateRefund", mock.Anything, mock.Anything)
+}
+
+// Gateway confirms the refund: the refund row carries the gateway refund txn id.
+func TestRefundPayment_GatewayConfirmedPersistsRefund(t *testing.T) {
+	repo := new(MockPaymentRepo)
+	txn := pendingTxn(time.Now().UTC().Add(-1 * time.Hour))
+	txn.PtStatus = paymentservice.PaymentStatusPaid
+	providerTxnID := "14567890"
+	txn.PtProviderTxnID = &providerTxnID
+
+	repo.On("GetByOrderUUID", mock.Anything, mock.Anything).Return([]paymentsqlc.PaymentTransaction{txn}, nil)
+	repo.On("GetByIdempotencyKey", mock.Anything, mock.Anything).Return(paymentsqlc.PaymentTransaction{}, pgx.ErrNoRows)
+	repo.On("CreateRefund", mock.Anything, mock.MatchedBy(func(p paymentsqlc.CreateRefundTransactionParams) bool {
+		return p.ProviderTxnID != nil && *p.ProviderTxnID == "REFUND-TXN-1"
+	})).Return(txn, nil)
+
+	svc := newTestService(repo, map[string]provider.PaymentProvider{
+		"vnpay": &fakeProvider{refundResp: provider.RefundResponse{Status: provider.TxnStatusSuccess, RefundTxnID: "REFUND-TXN-1"}},
+	})
+
+	_, err := svc.RefundPayment(context.Background(), dto.RefundPaymentInput{
+		OrderUUID: uuid.New().String(),
+		Amount:    100000,
+	})
+
+	assert.NoError(t, err)
+	repo.AssertExpectations(t)
 }
