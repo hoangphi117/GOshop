@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   Search as SearchIcon,
   Filter,
@@ -29,6 +29,8 @@ import {
 } from '@/components/ui/select'
 import { DataTablePagination } from '@/components/data-table'
 import { useStockMovements } from './hooks/use-stock-movements'
+import { useProducts } from '../products/hooks/use-products'
+import type { Product } from '../products/types'
 import { MovementTypeBadge } from './components/movement-type-badge'
 import { AdjustStockDialog } from './components/adjust-stock-dialog'
 import type { StockMovement } from './types'
@@ -47,6 +49,16 @@ export function Inventory() {
     search: activeSearch || undefined,
     change_type: typeFilter !== 'all' ? typeFilter : undefined,
   })
+
+  // Product names/SKUs/images live in the catalog; resolve them client-side.
+  const { data: productsData } = useProducts({ page: 1, limit: 200 })
+  const productMap = useMemo(() => {
+    const map = new Map<string, Product>()
+    for (const p of productsData?.data ?? []) {
+      if (p.uuid) map.set(p.uuid, p)
+    }
+    return map
+  }, [productsData])
 
   const movements = (movementsData?.data as unknown as StockMovement[]) || []
   const pagination = movementsData?.pagination
@@ -101,7 +113,7 @@ export function Inventory() {
             <div className='relative flex-1'>
               <SearchIcon className='absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground' />
               <Input
-                placeholder='Search product, SKU, or order #...'
+                placeholder='Search reference or product UUID...'
                 className='pl-9 text-xs h-9'
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -180,6 +192,7 @@ export function Inventory() {
               ) : (
                 movements.map((m) => {
                   const isPositive = m.quantity_change > 0
+                  const product = productMap.get(m.product_uuid)
                   return (
                     <TableRow key={m.movement_uuid} className='hover:bg-muted/50'>
                       <TableCell className='text-xs text-muted-foreground whitespace-nowrap'>
@@ -187,10 +200,10 @@ export function Inventory() {
                       </TableCell>
                       <TableCell>
                         <div className='flex items-center gap-2.5 max-w-[240px]'>
-                          {m.product_image_url ? (
+                          {product?.image_url ? (
                             <img
-                              src={m.product_image_url}
-                              alt={m.product_name}
+                              src={product.image_url}
+                              alt={product.name}
                               className='size-9 rounded object-cover border shrink-0'
                             />
                           ) : (
@@ -199,12 +212,15 @@ export function Inventory() {
                             </div>
                           )}
                           <div className='min-w-0'>
-                            <div className='font-medium text-xs truncate' title={m.product_name}>
-                              {m.product_name}
+                            <div
+                              className='font-medium text-xs truncate'
+                              title={product?.name || m.product_uuid}
+                            >
+                              {product?.name || `${m.product_uuid.slice(0, 8)}…`}
                             </div>
-                            {m.product_sku && (
+                            {product?.sku && (
                               <div className='text-[10px] font-mono text-muted-foreground'>
-                                SKU: {m.product_sku}
+                                SKU: {product.sku}
                               </div>
                             )}
                           </div>

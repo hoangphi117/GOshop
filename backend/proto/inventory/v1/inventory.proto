@@ -11,11 +11,9 @@ message StockItem {
 }
 
 message ItemStockInfo {
+  reserved 3, 4, 5;
   int32 product_id = 1;
   string product_uuid = 2;
-  string product_name = 3;
-  string product_sku = 4;
-  string product_image_url = 5;
   int32 quantity = 6;
   int32 reserved_quantity = 7;
   int32 available_quantity = 8;
@@ -66,6 +64,11 @@ message AdjustStockRequest {
   int32 actor_id = 6;
   string actor_uuid = 7;
   string actor_name = 8;
+  // Caller-supplied idempotency reference, honoured for INITIAL_STOCK.
+  string reference_id = 9;
+  // Absolute stock target; when set, quantity_change is ignored. Optional,
+  // because 0 is a meaningful target.
+  optional int32 target_quantity = 10;
 }
 
 message AdjustStockResponse {

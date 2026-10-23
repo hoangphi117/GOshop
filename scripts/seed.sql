@@ -1,15 +1,29 @@
 -- ==============================================================================
--- GOSHOP CORE DEVELOPMENT SEED DATA
--- Purpose: Seed core users, catalog data, addresses, and coupons for local development.
--- Password for all generated users: Password123!
--- Stock is seeded separately into shopping_inventory because Inventory owns stock.
--- Orders belong to shopping_order and are not seeded by this script.
+-- GOSHOP DEVELOPMENT SEED DATA (multi-database)
+--
+-- Master data is seeded into the monolith database first, then copied 1:1
+-- (same IDs AND UUIDs) into the extracted-service databases via dblink, so
+-- cross-service references stay valid:
+--   shopping           -> users, categories, products, addresses, coupons
+--   shopping_identity  -> users, user_addresses   (copy of shopping)
+--   shopping_catalog   -> categories, products    (copy of shopping)
+--   shopping_coupon    -> coupons                 (remapped to service schema)
+--   shopping_cart      -> cleaned
+--   shopping_inventory -> stock rows + movement history from catalog products
+--
+-- Password for all seeded users: Password123!
+-- Run with psql (it understands \connect):
+--   docker exec -i goshop-postgres psql -U postgres -d shopping < scripts/seed.sql
+-- Or via the Go seeder (parses the "-- DB:" markers, ignores \connect):
+--   cd backend && go run ./cmd/seed
 -- ==============================================================================
 
-BEGIN;
+-- ##############################################################################
+-- DB: shopping
+-- ##############################################################################
 
 -- Clean existing data safely (preserving schema)
-TRUNCATE TABLE 
+TRUNCATE TABLE
     outbox_events,
     chat_messages,
     chat_conversations,
@@ -31,16 +45,9 @@ TRUNCATE TABLE
 RESTART IDENTITY CASCADE;
 
 -- Default password hash for 'Password123!' (bcrypt cost 10)
--- $2a$10$fjiFPJondn6AcV/GOEFjk.oIkOhMlqMHn.qeOlxoVQ6NTXMhV4BMC
 DO $$
 DECLARE
     v_pwd VARCHAR(90) := '$2a$10$fjiFPJondn6AcV/GOEFjk.oIkOhMlqMHn.qeOlxoVQ6NTXMhV4BMC';
-    -- Quy mô dữ liệu sinh thêm (section 13)
-    v_extra_users    INT := 2000;
-    v_extra_products INT := 5000;
-    v_extra_orders   INT := 8000;
-    v_extra_chats    INT := 150;
-    v_user_base INT; v_prod_base INT; v_order_base INT; v_conv_base INT; v_total_products INT;
 BEGIN
 
 -- ==============================================================================
@@ -57,12 +64,13 @@ OVERRIDING SYSTEM VALUE VALUES
 (7, gen_random_uuid(), 'Pham Minh Duc', 'user4@goshop.com', v_pwd, 29, 1, 3, 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150', now() - interval '55 days', now()),
 (8, gen_random_uuid(), 'Hoang Thu Giang', 'user5@goshop.com', v_pwd, 22, 1, 3, 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150', now() - interval '50 days', now()),
 (9, gen_random_uuid(), 'Vu Dinh Hai', 'user6@goshop.com', v_pwd, 35, 1, 3, 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150', now() - interval '45 days', now()),
-(10, gen_random_uuid(), 'Do Thi Huong', 'user7@goshop.com', v_pwd, 27, 1, 3, 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150', now() - interval '40 days', now());
+(10, gen_random_uuid(), 'Do Thi Huong', 'user7@goshop.com', v_pwd, 27, 1, 3, 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150', now() - interval '40 days', now()),
+(11, gen_random_uuid(), 'Local Admin', 'admin@gmail.com', v_pwd, 30, 1, 1, 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150', now() - interval '90 days', now());
 
--- Generate 40 additional realistic customers (IDs 11..50)
+-- Generate 40 additional realistic customers (IDs 12..51)
 INSERT INTO users (user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_avatar, user_created_at, user_updated_at)
 OVERRIDING SYSTEM VALUE
-SELECT 
+SELECT
     i,
     gen_random_uuid(),
     (ARRAY['Nguyen', 'Tran', 'Le', 'Pham', 'Hoang', 'Phan', 'Vu', 'Dang', 'Bui', 'Do'])[1 + (i % 10)] || ' ' ||
@@ -76,7 +84,7 @@ SELECT
     'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
     now() - (i || ' days')::interval,
     now()
-FROM generate_series(11, 50) AS i;
+FROM generate_series(12, 51) AS i;
 
 PERFORM setval('users_user_id_seq', (SELECT MAX(user_id) FROM users), true);
 
@@ -151,6 +159,10 @@ OVERRIDING SYSTEM VALUE VALUES
 
 PERFORM setval('products_product_id_seq', (SELECT MAX(product_id) FROM products), true);
 
+-- Legacy monolith stock column mirrors the inventory quantities seeded below
+-- (inventory is the source of truth; this only keeps old search docs accurate).
+UPDATE products SET product_stock = 20 + (product_id * 13) % 100;
+
 -- ==============================================================================
 -- 4. USER ADDRESSES (Realistic Vietnamese addresses for customers)
 -- ==============================================================================
@@ -163,10 +175,10 @@ OVERRIDING SYSTEM VALUE VALUES
 (5, gen_random_uuid(), 7, 'Home', 'Pham Minh Duc', '0934556677', '56 Đường 30 Tháng 4, Phường An Phú, Quận Ninh Kiều, Cần Thơ', TRUE, 204, 'Cần Thơ', 1550, 'Quận Ninh Kiều', '4D0101', 'Phường An Phú', now() - interval '50 days', now()),
 (6, gen_random_uuid(), 8, 'Home', 'Hoang Thu Giang', '0978990011', '88 Lạch Tray, Quận Ngô Quyền, Hải Phòng', TRUE, 205, 'Hải Phòng', 1580, 'Quận Ngô Quyền', '5E0101', 'Phường Lạch Tray', now() - interval '45 days', now());
 
--- Generate addresses for users 9 to 50 (IDs 7..48)
+-- Generate addresses for users 9 to 51
 INSERT INTO user_addresses (ua_id, ua_uuid, ua_user_id, ua_label, ua_name, ua_phone, ua_address, ua_is_default, ua_province_id, ua_province_name, ua_district_id, ua_district_name, ua_ward_code, ua_ward_name, ua_created_at, ua_updated_at)
 OVERRIDING SYSTEM VALUE
-SELECT 
+SELECT
     (u.user_id - 2),
     gen_random_uuid(),
     u.user_id,
@@ -184,12 +196,12 @@ SELECT
     now() - (u.user_id || ' days')::interval,
     now()
 FROM users u
-WHERE u.user_id BETWEEN 9 AND 50;
+WHERE u.user_id BETWEEN 9 AND 51;
 
 PERFORM setval('user_addresses_ua_id_seq', (SELECT MAX(ua_id) FROM user_addresses), true);
 
 -- ==============================================================================
--- 5. COUPONS
+-- 5. COUPONS (monolith schema)
 -- ==============================================================================
 INSERT INTO coupons (coupon_id, coupon_uuid, coupon_code, coupon_name, coupon_description, coupon_type, coupon_discount_value, coupon_min_order_value, coupon_max_discount, coupon_usage_limit, coupon_used_count, coupon_start_date, coupon_end_date, coupon_status, coupon_created_at, coupon_updated_at)
 OVERRIDING SYSTEM VALUE VALUES
@@ -201,26 +213,133 @@ OVERRIDING SYSTEM VALUE VALUES
 
 PERFORM setval('coupons_coupon_id_seq', (SELECT MAX(coupon_id) FROM coupons), true);
 
--- Orders, payments, reviews, carts and chats belong to extracted services.
-RETURN;
-
 END $$;
-
-COMMIT;
 
 ANALYZE users;
 ANALYZE categories;
 ANALYZE products;
 ANALYZE user_addresses;
 ANALYZE coupons;
-ANALYZE coupon_usages;
-ANALYZE payment_transactions;
-ANALYZE product_reviews;
-ANALYZE product_review_helpful_votes;
-ANALYZE carts;
-ANALYZE cart_items;
 ANALYZE stock_movements;
-ANALYZE banners;
-ANALYZE notifications;
-ANALYZE chat_conversations;
-ANALYZE chat_messages;
+
+-- ##############################################################################
+-- DB: shopping_identity
+-- 1:1 copy of users and addresses (same IDs and UUIDs as the master data).
+--###############################################################################
+
+\connect shopping_identity
+
+TRUNCATE TABLE outbox_events, user_addresses, users RESTART IDENTITY CASCADE;
+CREATE EXTENSION IF NOT EXISTS dblink;
+
+INSERT INTO users (user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_avatar, user_created_at, user_updated_at)
+OVERRIDING SYSTEM VALUE
+SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_avatar, user_created_at, user_updated_at
+FROM dblink('dbname=shopping', 'SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_avatar, user_created_at, user_updated_at FROM users WHERE user_deleted_at IS NULL')
+AS t(user_id int, user_uuid uuid, user_fullname varchar, user_email varchar, user_password varchar, user_age int, user_status int, user_level int, user_avatar text, user_created_at timestamptz, user_updated_at timestamptz);
+
+SELECT setval('users_user_id_seq', (SELECT MAX(user_id) FROM users), true);
+
+INSERT INTO user_addresses (ua_id, ua_uuid, ua_user_id, ua_label, ua_name, ua_phone, ua_address, ua_is_default, ua_province_id, ua_province_name, ua_district_id, ua_district_name, ua_ward_code, ua_ward_name, ua_created_at, ua_updated_at)
+OVERRIDING SYSTEM VALUE
+SELECT ua_id, ua_uuid, ua_user_id, ua_label, ua_name, ua_phone, ua_address, ua_is_default, ua_province_id, ua_province_name, ua_district_id, ua_district_name, ua_ward_code, ua_ward_name, ua_created_at, ua_updated_at
+FROM dblink('dbname=shopping', 'SELECT ua_id, ua_uuid, ua_user_id, ua_label, ua_name, ua_phone, ua_address, ua_is_default, ua_province_id, ua_province_name, ua_district_id, ua_district_name, ua_ward_code, ua_ward_name, ua_created_at, ua_updated_at FROM user_addresses')
+AS t(ua_id int, ua_uuid uuid, ua_user_id int, ua_label varchar, ua_name varchar, ua_phone varchar, ua_address text, ua_is_default boolean, ua_province_id int, ua_province_name varchar, ua_district_id int, ua_district_name varchar, ua_ward_code varchar, ua_ward_name varchar, ua_created_at timestamptz, ua_updated_at timestamptz);
+
+SELECT setval('user_addresses_ua_id_seq', (SELECT MAX(ua_id) FROM user_addresses), true);
+
+ANALYZE users;
+ANALYZE user_addresses;
+
+-- ##############################################################################
+-- DB: shopping_catalog
+-- 1:1 copy of categories and products (same IDs and UUIDs).
+-- ##############################################################################
+
+\connect shopping_catalog
+
+TRUNCATE TABLE outbox_events, products, categories RESTART IDENTITY CASCADE;
+CREATE EXTENSION IF NOT EXISTS dblink;
+
+INSERT INTO categories (category_id, category_uuid, category_name, category_slug, category_description, category_status, category_created_at, category_updated_at)
+OVERRIDING SYSTEM VALUE
+SELECT category_id, category_uuid, category_name, category_slug, category_description, category_status, category_created_at, category_updated_at
+FROM dblink('dbname=shopping', 'SELECT category_id, category_uuid, category_name, category_slug, category_description, category_status, category_created_at, category_updated_at FROM categories WHERE category_deleted_at IS NULL')
+AS t(category_id int, category_uuid uuid, category_name varchar, category_slug varchar, category_description text, category_status int, category_created_at timestamptz, category_updated_at timestamptz);
+
+SELECT setval('categories_category_id_seq', (SELECT MAX(category_id) FROM categories), true);
+
+INSERT INTO products (product_id, product_uuid, product_name, product_slug, product_description, product_price, product_sku, product_category_id, product_image_url, product_status, product_avg_rating, product_review_count, product_created_at, product_updated_at)
+OVERRIDING SYSTEM VALUE
+SELECT product_id, product_uuid, product_name, product_slug, product_description, product_price, product_sku, product_category_id, product_image_url, product_status, product_avg_rating, product_review_count, product_created_at, product_updated_at
+FROM dblink('dbname=shopping', 'SELECT product_id, product_uuid, product_name, product_slug, product_description, product_price, product_sku, product_category_id, product_image_url, product_status, product_avg_rating, product_review_count, product_created_at, product_updated_at FROM products WHERE product_deleted_at IS NULL')
+AS t(product_id int, product_uuid uuid, product_name varchar, product_slug varchar, product_description text, product_price numeric, product_sku varchar, product_category_id int, product_image_url text, product_status int, product_avg_rating numeric, product_review_count int, product_created_at timestamptz, product_updated_at timestamptz);
+
+SELECT setval('products_product_id_seq', (SELECT MAX(product_id) FROM products), true);
+
+ANALYZE categories;
+ANALYZE products;
+
+-- ##############################################################################
+-- DB: shopping_coupon
+-- Coupons remapped to the coupon-service schema.
+-- ##############################################################################
+
+\connect shopping_coupon
+
+TRUNCATE TABLE coupon_usages, coupons RESTART IDENTITY CASCADE;
+CREATE EXTENSION IF NOT EXISTS dblink;
+
+INSERT INTO coupons (coupon_id, coupon_uuid, coupon_code, coupon_name, coupon_description, coupon_type, coupon_discount_value, coupon_max_discount_amount, coupon_min_order_amount, coupon_usage_limit, coupon_used_count, coupon_start_date, coupon_end_date, coupon_is_active, coupon_created_at, coupon_updated_at)
+OVERRIDING SYSTEM VALUE
+SELECT coupon_id, coupon_uuid, coupon_code, coupon_name, coupon_description, coupon_type, coupon_discount_value, coupon_max_discount, coupon_min_order_value, coupon_usage_limit, coupon_used_count, coupon_start_date, coupon_end_date, coupon_status = 1, coupon_created_at, coupon_updated_at
+FROM dblink('dbname=shopping', 'SELECT coupon_id, coupon_uuid, coupon_code, coupon_name, coupon_description, coupon_type, coupon_discount_value, coupon_max_discount, coupon_min_order_value, coupon_usage_limit, coupon_used_count, coupon_start_date, coupon_end_date, coupon_status, coupon_created_at, coupon_updated_at FROM coupons')
+AS t(coupon_id int, coupon_uuid uuid, coupon_code varchar, coupon_name varchar, coupon_description text, coupon_type int, coupon_discount_value numeric, coupon_max_discount numeric, coupon_min_order_value numeric, coupon_usage_limit int, coupon_used_count int, coupon_start_date timestamptz, coupon_end_date timestamptz, coupon_status int, coupon_created_at timestamptz, coupon_updated_at timestamptz);
+
+SELECT setval('coupons_coupon_id_seq', (SELECT MAX(coupon_id) FROM coupons), true);
+
+ANALYZE coupons;
+
+-- ##############################################################################
+-- DB: shopping_cart
+-- Clean slate; carts are created by user activity.
+-- ##############################################################################
+
+\connect shopping_cart
+
+TRUNCATE TABLE cart_items, carts RESTART IDENTITY CASCADE;
+
+-- ##############################################################################
+-- DB: shopping_inventory
+-- One stock row + INITIAL_STOCK movement per catalog product, so the audit log
+-- and dashboards have realistic history. Quantities match the legacy
+-- product_stock mirror in the monolith.
+-- ##############################################################################
+
+\connect shopping_inventory
+
+TRUNCATE TABLE stock_movements, inventory_stocks RESTART IDENTITY CASCADE;
+CREATE EXTENSION IF NOT EXISTS dblink;
+
+INSERT INTO inventory_stocks (product_id, product_uuid, quantity)
+SELECT product_id, product_uuid, 20 + (product_id * 13) % 100
+FROM dblink('dbname=shopping_catalog', 'SELECT product_id, product_uuid FROM products WHERE product_deleted_at IS NULL')
+AS t(product_id int, product_uuid uuid);
+
+INSERT INTO stock_movements (product_id, product_uuid, change_type, quantity_change, stock_before, stock_after, reference_type, reference_id, note, created_at)
+SELECT product_id, product_uuid, 'INITIAL_STOCK', quantity, 0, quantity, 'INITIAL_STOCK', 'seed-' || product_uuid::text, 'Seeded initial stock', now() - (product_id || ' hours')::interval
+FROM inventory_stocks;
+
+-- A few extra movement types so the dashboard log and filters have variety.
+INSERT INTO stock_movements (product_id, product_uuid, change_type, quantity_change, stock_before, stock_after, reference_type, note, created_at)
+SELECT product_id, product_uuid, 'RESTOCK', 10, quantity, quantity + 10, 'manual', 'Seeded restock example', now() - interval '30 minutes'
+FROM inventory_stocks WHERE product_id IN (1, 2, 12);
+UPDATE inventory_stocks SET quantity = quantity + 10, updated_at = now() WHERE product_id IN (1, 2, 12);
+
+INSERT INTO stock_movements (product_id, product_uuid, change_type, quantity_change, stock_before, stock_after, reference_type, note, created_at)
+SELECT product_id, product_uuid, 'DAMAGED_DISCARD', -3, quantity, quantity - 3, 'manual', 'Seeded damaged goods example', now() - interval '15 minutes'
+FROM inventory_stocks WHERE product_id IN (5, 20);
+UPDATE inventory_stocks SET quantity = quantity - 3, updated_at = now() WHERE product_id IN (5, 20);
+
+ANALYZE inventory_stocks;
+ANALYZE stock_movements;

@@ -20,9 +20,6 @@ type StockItem struct {
 type StockItemInfo struct {
 	ProductID         int32
 	ProductUUID       string
-	ProductName       string
-	ProductSKU        string
-	ProductImageURL   string
 	Quantity          int32
 	ReservedQuantity  int32
 	AvailableQuantity int32
@@ -55,6 +52,12 @@ type AdjustStockInput struct {
 	ActorID        *int32
 	ActorUUID      *string
 	ActorName      *string
+	// ReferenceID makes INITIAL_STOCK adjustments idempotent under retry.
+	ReferenceID *string
+	// TargetQuantity sets stock to an absolute value inside the inventory
+	// transaction; race-free and retry-safe. When set, QuantityChange is
+	// ignored.
+	TargetQuantity *int32
 }
 
 type AdjustStockResult struct {
@@ -143,9 +146,6 @@ func (c *GRPCInventoryClient) ReserveStock(ctx context.Context, input ReserveSto
 		results[i] = StockItemInfo{
 			ProductID:         it.ProductId,
 			ProductUUID:       it.ProductUuid,
-			ProductName:       it.ProductName,
-			ProductSKU:        it.ProductSku,
-			ProductImageURL:   it.ProductImageUrl,
 			Quantity:          it.Quantity,
 			ReservedQuantity:  it.ReservedQuantity,
 			AvailableQuantity: it.AvailableQuantity,
@@ -206,9 +206,6 @@ func (c *GRPCInventoryClient) GetStock(ctx context.Context, productUUIDs []strin
 		results[i] = StockItemInfo{
 			ProductID:         it.ProductId,
 			ProductUUID:       it.ProductUuid,
-			ProductName:       it.ProductName,
-			ProductSKU:        it.ProductSku,
-			ProductImageURL:   it.ProductImageUrl,
 			Quantity:          it.Quantity,
 			ReservedQuantity:  it.ReservedQuantity,
 			AvailableQuantity: it.AvailableQuantity,
@@ -234,6 +231,10 @@ func (c *GRPCInventoryClient) AdjustStock(ctx context.Context, input AdjustStock
 	if input.Note != nil {
 		note = *input.Note
 	}
+	var referenceID string
+	if input.ReferenceID != nil {
+		referenceID = *input.ReferenceID
+	}
 
 	resp, err := c.client.AdjustStock(ctx, &inventoryv1.AdjustStockRequest{
 		ProductUuid:    input.ProductUUID,
@@ -244,6 +245,8 @@ func (c *GRPCInventoryClient) AdjustStock(ctx context.Context, input AdjustStock
 		ActorId:        actorID,
 		ActorUuid:      actorUUID,
 		ActorName:      actorName,
+		ReferenceId:    referenceID,
+		TargetQuantity: input.TargetQuantity,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("grpc AdjustStock failed: %w", err)
@@ -254,9 +257,6 @@ func (c *GRPCInventoryClient) AdjustStock(ctx context.Context, input AdjustStock
 		stockInfo = &StockItemInfo{
 			ProductID:         resp.StockInfo.ProductId,
 			ProductUUID:       resp.StockInfo.ProductUuid,
-			ProductName:       resp.StockInfo.ProductName,
-			ProductSKU:        resp.StockInfo.ProductSku,
-			ProductImageURL:   resp.StockInfo.ProductImageUrl,
 			Quantity:          resp.StockInfo.Quantity,
 			ReservedQuantity:  resp.StockInfo.ReservedQuantity,
 			AvailableQuantity: resp.StockInfo.AvailableQuantity,

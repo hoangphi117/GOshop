@@ -7,9 +7,6 @@ type StockMovementDTO struct {
 	MovementUUID    string    `json:"movement_uuid"`
 	ProductID       *int32    `json:"product_id,omitempty"`
 	ProductUUID     string    `json:"product_uuid"`
-	ProductName     string    `json:"product_name"`
-	ProductSKU      *string   `json:"product_sku,omitempty"`
-	ProductImageURL *string   `json:"product_image_url,omitempty"`
 	ChangeType      string    `json:"change_type"`
 	QuantityChange  int32     `json:"quantity_change"`
 	StockBefore     int32     `json:"stock_before"`
@@ -34,18 +31,26 @@ type GetStockMovementsParam struct {
 }
 
 type AdjustStockInput struct {
-	ProductUUID    string  `json:"product_uuid" binding:"required,uuid"`
-	QuantityChange int32   `json:"quantity_change" binding:"required"`
+	ProductUUID string `json:"product_uuid" binding:"required,uuid"`
+	// ProductID links the stock row back to the catalog's internal ID; it is
+	// only written when the stock row is first created.
+	ProductID      *int32 `json:"product_id" binding:"omitempty,min=1"`
+	QuantityChange int32  `json:"quantity_change" binding:"required"`
 	ChangeType     string  `json:"change_type" binding:"required,oneof=RESTOCK MANUAL_ADJUSTMENT DAMAGED_DISCARD INITIAL_STOCK"`
 	Note           *string `json:"note" binding:"omitempty,max=500"`
+	// ReferenceID makes the adjustment idempotent: retrying with the same
+	// reference returns the original movement instead of applying it twice.
+	// Only honoured for INITIAL_STOCK.
+	ReferenceID *string `json:"reference_id" binding:"omitempty,max=100"`
+	// TargetQuantity sets the stock to an absolute value in one transaction;
+	// inherently idempotent. Exclusive with QuantityChange for callers that
+	// mean "make stock equal X".
+	TargetQuantity *int32 `json:"target_quantity" binding:"omitempty,min=0"`
 }
 
 type ItemStockDTO struct {
 	ProductID         int32  `json:"product_id"`
 	ProductUUID       string `json:"product_uuid"`
-	ProductName       string `json:"product_name"`
-	ProductSKU        string `json:"product_sku"`
-	ProductImageURL   string `json:"product_image_url"`
 	Quantity          int32  `json:"quantity"`
 	ReservedQuantity  int32  `json:"reserved_quantity"`
 	AvailableQuantity int32  `json:"available_quantity"`

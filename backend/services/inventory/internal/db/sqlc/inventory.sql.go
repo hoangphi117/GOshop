@@ -7,7 +7,6 @@ package sqlc
 
 import (
 	"context"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -18,7 +17,7 @@ UPDATE inventory_stocks
 SET quantity = quantity + $2,
     updated_at = now()
 WHERE product_uuid = $1 AND (quantity + $2) >= 0
-RETURNING inventory_id, product_id, product_uuid, product_name, product_sku, product_image_url, quantity, reserved_quantity, created_at, updated_at
+RETURNING inventory_id, product_id, product_uuid, quantity, reserved_quantity, created_at, updated_at
 `
 
 type AdjustStockByUUIDParams struct {
@@ -33,9 +32,6 @@ func (q *Queries) AdjustStockByUUID(ctx context.Context, arg AdjustStockByUUIDPa
 		&i.InventoryID,
 		&i.ProductID,
 		&i.ProductUuid,
-		&i.ProductName,
-		&i.ProductSku,
-		&i.ProductImageUrl,
 		&i.Quantity,
 		&i.ReservedQuantity,
 		&i.CreatedAt,
@@ -47,7 +43,6 @@ func (q *Queries) AdjustStockByUUID(ctx context.Context, arg AdjustStockByUUIDPa
 const countStockMovements = `-- name: CountStockMovements :one
 SELECT count(*)
 FROM stock_movements sm
-LEFT JOIN inventory_stocks s ON s.product_uuid = sm.product_uuid
 WHERE (
     $1::uuid IS NULL
     OR sm.product_uuid = $1::uuid
@@ -62,8 +57,7 @@ WHERE (
     OR sm.created_at <= $4::TIMESTAMPTZ
 ) AND (
     $5::TEXT IS NULL
-    OR s.product_name ILIKE '%' || $5::TEXT || '%'
-    OR s.product_sku ILIKE '%' || $5::TEXT || '%'
+    OR sm.product_uuid::TEXT ILIKE '%' || $5::TEXT || '%'
     OR sm.reference_id ILIKE '%' || $5::TEXT || '%'
 )
 `
@@ -163,7 +157,7 @@ UPDATE inventory_stocks
 SET quantity = quantity - $2,
     updated_at = now()
 WHERE product_id = $1 AND quantity >= $2
-RETURNING inventory_id, product_id, product_uuid, product_name, product_sku, product_image_url, quantity, reserved_quantity, created_at, updated_at
+RETURNING inventory_id, product_id, product_uuid, quantity, reserved_quantity, created_at, updated_at
 `
 
 type DeductStockByIDParams struct {
@@ -178,9 +172,6 @@ func (q *Queries) DeductStockByID(ctx context.Context, arg DeductStockByIDParams
 		&i.InventoryID,
 		&i.ProductID,
 		&i.ProductUuid,
-		&i.ProductName,
-		&i.ProductSku,
-		&i.ProductImageUrl,
 		&i.Quantity,
 		&i.ReservedQuantity,
 		&i.CreatedAt,
@@ -194,7 +185,7 @@ UPDATE inventory_stocks
 SET quantity = quantity - $2,
     updated_at = now()
 WHERE product_uuid = $1 AND quantity >= $2
-RETURNING inventory_id, product_id, product_uuid, product_name, product_sku, product_image_url, quantity, reserved_quantity, created_at, updated_at
+RETURNING inventory_id, product_id, product_uuid, quantity, reserved_quantity, created_at, updated_at
 `
 
 type DeductStockByUUIDParams struct {
@@ -209,9 +200,6 @@ func (q *Queries) DeductStockByUUID(ctx context.Context, arg DeductStockByUUIDPa
 		&i.InventoryID,
 		&i.ProductID,
 		&i.ProductUuid,
-		&i.ProductName,
-		&i.ProductSku,
-		&i.ProductImageUrl,
 		&i.Quantity,
 		&i.ReservedQuantity,
 		&i.CreatedAt,
@@ -291,7 +279,7 @@ func (q *Queries) GetMovementByRefAndProductUUID(ctx context.Context, arg GetMov
 }
 
 const getStockByProductID = `-- name: GetStockByProductID :one
-SELECT inventory_id, product_id, product_uuid, product_name, product_sku, product_image_url, quantity, reserved_quantity, created_at, updated_at FROM inventory_stocks
+SELECT inventory_id, product_id, product_uuid, quantity, reserved_quantity, created_at, updated_at FROM inventory_stocks
 WHERE product_id = $1 LIMIT 1
 `
 
@@ -302,9 +290,6 @@ func (q *Queries) GetStockByProductID(ctx context.Context, productID *int32) (In
 		&i.InventoryID,
 		&i.ProductID,
 		&i.ProductUuid,
-		&i.ProductName,
-		&i.ProductSku,
-		&i.ProductImageUrl,
 		&i.Quantity,
 		&i.ReservedQuantity,
 		&i.CreatedAt,
@@ -314,7 +299,7 @@ func (q *Queries) GetStockByProductID(ctx context.Context, productID *int32) (In
 }
 
 const getStockByProductIDs = `-- name: GetStockByProductIDs :many
-SELECT inventory_id, product_id, product_uuid, product_name, product_sku, product_image_url, quantity, reserved_quantity, created_at, updated_at FROM inventory_stocks
+SELECT inventory_id, product_id, product_uuid, quantity, reserved_quantity, created_at, updated_at FROM inventory_stocks
 WHERE product_id = ANY($1::int[])
 ORDER BY product_id ASC
 `
@@ -332,9 +317,6 @@ func (q *Queries) GetStockByProductIDs(ctx context.Context, dollar_1 []int32) ([
 			&i.InventoryID,
 			&i.ProductID,
 			&i.ProductUuid,
-			&i.ProductName,
-			&i.ProductSku,
-			&i.ProductImageUrl,
 			&i.Quantity,
 			&i.ReservedQuantity,
 			&i.CreatedAt,
@@ -351,7 +333,7 @@ func (q *Queries) GetStockByProductIDs(ctx context.Context, dollar_1 []int32) ([
 }
 
 const getStockByUUID = `-- name: GetStockByUUID :one
-SELECT inventory_id, product_id, product_uuid, product_name, product_sku, product_image_url, quantity, reserved_quantity, created_at, updated_at FROM inventory_stocks
+SELECT inventory_id, product_id, product_uuid, quantity, reserved_quantity, created_at, updated_at FROM inventory_stocks
 WHERE product_uuid = $1 LIMIT 1
 `
 
@@ -362,9 +344,6 @@ func (q *Queries) GetStockByUUID(ctx context.Context, productUuid uuid.UUID) (In
 		&i.InventoryID,
 		&i.ProductID,
 		&i.ProductUuid,
-		&i.ProductName,
-		&i.ProductSku,
-		&i.ProductImageUrl,
 		&i.Quantity,
 		&i.ReservedQuantity,
 		&i.CreatedAt,
@@ -374,7 +353,7 @@ func (q *Queries) GetStockByUUID(ctx context.Context, productUuid uuid.UUID) (In
 }
 
 const getStockByUUIDs = `-- name: GetStockByUUIDs :many
-SELECT inventory_id, product_id, product_uuid, product_name, product_sku, product_image_url, quantity, reserved_quantity, created_at, updated_at FROM inventory_stocks
+SELECT inventory_id, product_id, product_uuid, quantity, reserved_quantity, created_at, updated_at FROM inventory_stocks
 WHERE product_uuid = ANY($1::uuid[])
 ORDER BY product_uuid ASC
 `
@@ -392,9 +371,6 @@ func (q *Queries) GetStockByUUIDs(ctx context.Context, dollar_1 []uuid.UUID) ([]
 			&i.InventoryID,
 			&i.ProductID,
 			&i.ProductUuid,
-			&i.ProductName,
-			&i.ProductSku,
-			&i.ProductImageUrl,
 			&i.Quantity,
 			&i.ReservedQuantity,
 			&i.CreatedAt,
@@ -426,12 +402,8 @@ SELECT
     sm.actor_uuid,
     sm.actor_name,
     sm.note,
-    sm.created_at,
-    COALESCE(s.product_name, '') as product_name,
-    COALESCE(s.product_sku, '') as product_sku,
-    COALESCE(s.product_image_url, '') as product_image_url
+    sm.created_at
 FROM stock_movements sm
-LEFT JOIN inventory_stocks s ON s.product_uuid = sm.product_uuid
 WHERE (
     $1::uuid IS NULL
     OR sm.product_uuid = $1::uuid
@@ -445,9 +417,10 @@ WHERE (
     $4::TIMESTAMPTZ IS NULL
     OR sm.created_at <= $4::TIMESTAMPTZ
 ) AND (
+    -- Catalog owns product names/SKUs; search matches the UUID or the
+    -- movement reference instead (name search was dropped with the copy).
     $5::TEXT IS NULL
-    OR s.product_name ILIKE '%' || $5::TEXT || '%'
-    OR s.product_sku ILIKE '%' || $5::TEXT || '%'
+    OR sm.product_uuid::TEXT ILIKE '%' || $5::TEXT || '%'
     OR sm.reference_id ILIKE '%' || $5::TEXT || '%'
 )
 ORDER BY sm.created_at DESC
@@ -464,28 +437,7 @@ type ListStockMovementsParams struct {
 	Limit       int32              `json:"limit"`
 }
 
-type ListStockMovementsRow struct {
-	MovementID      int64       `json:"movement_id"`
-	MovementUuid    uuid.UUID   `json:"movement_uuid"`
-	ProductID       *int32      `json:"product_id"`
-	ProductUuid     uuid.UUID   `json:"product_uuid"`
-	ChangeType      string      `json:"change_type"`
-	QuantityChange  int32       `json:"quantity_change"`
-	StockBefore     int32       `json:"stock_before"`
-	StockAfter      int32       `json:"stock_after"`
-	ReferenceID     *string     `json:"reference_id"`
-	ReferenceType   *string     `json:"reference_type"`
-	ActorID         *int32      `json:"actor_id"`
-	ActorUuid       pgtype.UUID `json:"actor_uuid"`
-	ActorName       *string     `json:"actor_name"`
-	Note            *string     `json:"note"`
-	CreatedAt       time.Time   `json:"created_at"`
-	ProductName     string      `json:"product_name"`
-	ProductSku      string      `json:"product_sku"`
-	ProductImageUrl string      `json:"product_image_url"`
-}
-
-func (q *Queries) ListStockMovements(ctx context.Context, arg ListStockMovementsParams) ([]ListStockMovementsRow, error) {
+func (q *Queries) ListStockMovements(ctx context.Context, arg ListStockMovementsParams) ([]StockMovement, error) {
 	rows, err := q.db.Query(ctx, listStockMovements,
 		arg.ProductUuid,
 		arg.ChangeType,
@@ -499,9 +451,9 @@ func (q *Queries) ListStockMovements(ctx context.Context, arg ListStockMovements
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListStockMovementsRow{}
+	items := []StockMovement{}
 	for rows.Next() {
-		var i ListStockMovementsRow
+		var i StockMovement
 		if err := rows.Scan(
 			&i.MovementID,
 			&i.MovementUuid,
@@ -518,9 +470,6 @@ func (q *Queries) ListStockMovements(ctx context.Context, arg ListStockMovements
 			&i.ActorName,
 			&i.Note,
 			&i.CreatedAt,
-			&i.ProductName,
-			&i.ProductSku,
-			&i.ProductImageUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -537,7 +486,7 @@ UPDATE inventory_stocks
 SET quantity = quantity + $2,
     updated_at = now()
 WHERE product_id = $1
-RETURNING inventory_id, product_id, product_uuid, product_name, product_sku, product_image_url, quantity, reserved_quantity, created_at, updated_at
+RETURNING inventory_id, product_id, product_uuid, quantity, reserved_quantity, created_at, updated_at
 `
 
 type RestoreStockByIDParams struct {
@@ -552,9 +501,6 @@ func (q *Queries) RestoreStockByID(ctx context.Context, arg RestoreStockByIDPara
 		&i.InventoryID,
 		&i.ProductID,
 		&i.ProductUuid,
-		&i.ProductName,
-		&i.ProductSku,
-		&i.ProductImageUrl,
 		&i.Quantity,
 		&i.ReservedQuantity,
 		&i.CreatedAt,
@@ -568,7 +514,7 @@ UPDATE inventory_stocks
 SET quantity = quantity + $2,
     updated_at = now()
 WHERE product_uuid = $1
-RETURNING inventory_id, product_id, product_uuid, product_name, product_sku, product_image_url, quantity, reserved_quantity, created_at, updated_at
+RETURNING inventory_id, product_id, product_uuid, quantity, reserved_quantity, created_at, updated_at
 `
 
 type RestoreStockByUUIDParams struct {
@@ -583,9 +529,34 @@ func (q *Queries) RestoreStockByUUID(ctx context.Context, arg RestoreStockByUUID
 		&i.InventoryID,
 		&i.ProductID,
 		&i.ProductUuid,
-		&i.ProductName,
-		&i.ProductSku,
-		&i.ProductImageUrl,
+		&i.Quantity,
+		&i.ReservedQuantity,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const setStockQuantity = `-- name: SetStockQuantity :one
+UPDATE inventory_stocks
+SET quantity = $2,
+    updated_at = now()
+WHERE product_uuid = $1
+RETURNING inventory_id, product_id, product_uuid, quantity, reserved_quantity, created_at, updated_at
+`
+
+type SetStockQuantityParams struct {
+	ProductUuid uuid.UUID `json:"product_uuid"`
+	Quantity    int32     `json:"quantity"`
+}
+
+func (q *Queries) SetStockQuantity(ctx context.Context, arg SetStockQuantityParams) (InventoryStock, error) {
+	row := q.db.QueryRow(ctx, setStockQuantity, arg.ProductUuid, arg.Quantity)
+	var i InventoryStock
+	err := row.Scan(
+		&i.InventoryID,
+		&i.ProductID,
+		&i.ProductUuid,
 		&i.Quantity,
 		&i.ReservedQuantity,
 		&i.CreatedAt,
@@ -598,46 +569,27 @@ const upsertStockMetadata = `-- name: UpsertStockMetadata :one
 INSERT INTO inventory_stocks (
     product_id,
     product_uuid,
-    product_name,
-    product_sku,
-    product_image_url,
     quantity
-) VALUES ($1, $2, $3, $4, $5, $6)
+) VALUES ($1, $2, $3)
 ON CONFLICT (product_uuid) DO UPDATE
 SET product_id = COALESCE(EXCLUDED.product_id, inventory_stocks.product_id),
-    product_name = CASE WHEN EXCLUDED.product_name <> '' THEN EXCLUDED.product_name ELSE inventory_stocks.product_name END,
-    product_sku = CASE WHEN EXCLUDED.product_sku <> '' THEN EXCLUDED.product_sku ELSE inventory_stocks.product_sku END,
-    product_image_url = CASE WHEN EXCLUDED.product_image_url <> '' THEN EXCLUDED.product_image_url ELSE inventory_stocks.product_image_url END,
     updated_at = now()
-RETURNING inventory_id, product_id, product_uuid, product_name, product_sku, product_image_url, quantity, reserved_quantity, created_at, updated_at
+RETURNING inventory_id, product_id, product_uuid, quantity, reserved_quantity, created_at, updated_at
 `
 
 type UpsertStockMetadataParams struct {
-	ProductID       *int32    `json:"product_id"`
-	ProductUuid     uuid.UUID `json:"product_uuid"`
-	ProductName     string    `json:"product_name"`
-	ProductSku      string    `json:"product_sku"`
-	ProductImageUrl string    `json:"product_image_url"`
-	Quantity        int32     `json:"quantity"`
+	ProductID   *int32    `json:"product_id"`
+	ProductUuid uuid.UUID `json:"product_uuid"`
+	Quantity    int32     `json:"quantity"`
 }
 
 func (q *Queries) UpsertStockMetadata(ctx context.Context, arg UpsertStockMetadataParams) (InventoryStock, error) {
-	row := q.db.QueryRow(ctx, upsertStockMetadata,
-		arg.ProductID,
-		arg.ProductUuid,
-		arg.ProductName,
-		arg.ProductSku,
-		arg.ProductImageUrl,
-		arg.Quantity,
-	)
+	row := q.db.QueryRow(ctx, upsertStockMetadata, arg.ProductID, arg.ProductUuid, arg.Quantity)
 	var i InventoryStock
 	err := row.Scan(
 		&i.InventoryID,
 		&i.ProductID,
 		&i.ProductUuid,
-		&i.ProductName,
-		&i.ProductSku,
-		&i.ProductImageUrl,
 		&i.Quantity,
 		&i.ReservedQuantity,
 		&i.CreatedAt,

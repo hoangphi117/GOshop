@@ -15,9 +15,6 @@ type InventoryStock struct {
 	InventoryID      int64     `json:"inventory_id"`
 	ProductID        *int32    `json:"product_id"`
 	ProductUuid      uuid.UUID `json:"product_uuid"`
-	ProductName      string    `json:"product_name"`
-	ProductSku       string    `json:"product_sku"`
-	ProductImageUrl  string    `json:"product_image_url"`
 	Quantity         int32     `json:"quantity"`
 	ReservedQuantity int32     `json:"reserved_quantity"`
 	CreatedAt        time.Time `json:"created_at"`

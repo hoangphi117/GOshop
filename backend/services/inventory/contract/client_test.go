@@ -160,3 +160,50 @@ func TestInventoryContract_GetStock(t *testing.T) {
 	assert.Equal(t, targetUUID, resp[0].ProductUUID)
 	assert.Equal(t, int32(100), resp[0].Quantity)
 }
+
+// TestInventoryContract_AdjustStockIdempotencyFields verifies the hand-mapped
+// reference_id and target_quantity fields survive the gRPC round-trip, so the
+// catalog create-product retry and absolute-set paths work as designed.
+func TestInventoryContract_AdjustStockIdempotencyFields(t *testing.T) {
+	var seen dto.AdjustStockInput
+	mockSvc := &mockInventoryService{
+		adjustFn: func(_ context.Context, _ *uuid.UUID, _ *string, input dto.AdjustStockInput) (*dto.StockMovementDTO, error) {
+			seen = input
+			return &dto.StockMovementDTO{MovementUUID: uuid.NewString(), ProductUUID: input.ProductUUID}, nil
+		},
+	}
+	client, cleanup := setupTestServer(t, mockSvc)
+	defer cleanup()
+
+	ref := "initial-stock-ref-1"
+	_, err := client.AdjustStock(context.Background(), contract.AdjustStockInput{
+		ProductUUID:    uuid.NewString(),
+		QuantityChange: 7,
+		ChangeType:     "INITIAL_STOCK",
+		ReferenceID:    &ref,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, seen.ReferenceID)
+	assert.Equal(t, ref, *seen.ReferenceID)
+
+	target := int32(42)
+	_, err = client.AdjustStock(context.Background(), contract.AdjustStockInput{
+		ProductUUID:    uuid.NewString(),
+		ChangeType:     "MANUAL_ADJUSTMENT",
+		TargetQuantity: &target,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, seen.TargetQuantity)
+	assert.Equal(t, target, *seen.TargetQuantity)
+	assert.Nil(t, seen.ReferenceID)
+
+	// Absent optional fields must stay nil, not zero.
+	_, err = client.AdjustStock(context.Background(), contract.AdjustStockInput{
+		ProductUUID:    uuid.NewString(),
+		QuantityChange: 1,
+		ChangeType:     "RESTOCK",
+	})
+	require.NoError(t, err)
+	assert.Nil(t, seen.ReferenceID)
+	assert.Nil(t, seen.TargetQuantity)
+}

@@ -144,9 +144,6 @@ func (s *inventoryService) LockAndDeductStockWithRef(
 					resultMap[item.ProductUUID] = dto.ItemStockDTO{
 						ProductID:         pID,
 						ProductUUID:       stockRow.ProductUuid.String(),
-						ProductName:       stockRow.ProductName,
-						ProductSKU:        stockRow.ProductSku,
-						ProductImageURL:   stockRow.ProductImageUrl,
 						Quantity:          stockRow.Quantity,
 						ReservedQuantity:  stockRow.ReservedQuantity,
 						AvailableQuantity: stockRow.Quantity - stockRow.ReservedQuantity,
@@ -218,20 +215,17 @@ func (s *inventoryService) LockAndDeductStockWithRef(
 		resultMap[item.ProductUUID] = dto.ItemStockDTO{
 			ProductID:         pID,
 			ProductUUID:       updatedStockRow.ProductUuid.String(),
-			ProductName:       updatedStockRow.ProductName,
-			ProductSKU:        updatedStockRow.ProductSku,
-			ProductImageURL:   updatedStockRow.ProductImageUrl,
 			Quantity:          updatedStockRow.Quantity,
 			ReservedQuantity:  updatedStockRow.ReservedQuantity,
 			AvailableQuantity: updatedStockRow.Quantity - updatedStockRow.ReservedQuantity,
 		}
 
-		// Low stock alert via RabbitMQ
+		// Low stock alert via RabbitMQ. The catalog owns the product name, so
+		// the alert carries identifiers and the notification resolves them.
 		if s.rabbitMQ != nil && updatedStockRow.Quantity <= 5 {
 			_ = s.rabbitMQ.PublishTopic(ctx, rabbitmq.RoutingKeyInventoryStockLow, map[string]any{
 				"product_id":   pID,
 				"product_uuid": updatedStockRow.ProductUuid.String(),
-				"name":         updatedStockRow.ProductName,
 				"stock":        updatedStockRow.Quantity,
 			})
 		}
@@ -466,9 +460,6 @@ func (s *inventoryService) GetStock(ctx context.Context, productUUIDs []string, 
 				result = append(result, dto.ItemStockDTO{
 					ProductID:         pID,
 					ProductUUID:       r.ProductUuid.String(),
-					ProductName:       r.ProductName,
-					ProductSKU:        r.ProductSku,
-					ProductImageURL:   r.ProductImageUrl,
 					Quantity:          r.Quantity,
 					ReservedQuantity:  r.ReservedQuantity,
 					AvailableQuantity: r.Quantity - r.ReservedQuantity,
@@ -493,9 +484,6 @@ func (s *inventoryService) GetStock(ctx context.Context, productUUIDs []string, 
 			result = append(result, dto.ItemStockDTO{
 				ProductID:         pID,
 				ProductUUID:       r.ProductUuid.String(),
-				ProductName:       r.ProductName,
-				ProductSKU:        r.ProductSku,
-				ProductImageURL:   r.ProductImageUrl,
 				Quantity:          r.Quantity,
 				ReservedQuantity:  r.ReservedQuantity,
 				AvailableQuantity: r.Quantity - r.ReservedQuantity,
@@ -517,6 +505,18 @@ func (s *inventoryService) AdjustStock(
 		return nil, utils.NewError(utils.ErrCodeBadRequest, "Invalid product UUID format")
 	}
 
+	// Idempotency: a caller-supplied reference means a retry must not apply the
+	// delta twice. Return the movement already recorded for that reference.
+	// Only INITIAL_STOCK honours it; other change types keep the manual path.
+	refID := ""
+	if input.ChangeType == "INITIAL_STOCK" && input.ReferenceID != nil && *input.ReferenceID != "" {
+		refID = *input.ReferenceID
+		if existing, gErr := s.repo.GetMovementByRefAndProductUUID(ctx, "INITIAL_STOCK", refID, productUUID); gErr == nil && existing.MovementID > 0 {
+			logger.Log.Info().Str("reference_id", refID).Str("product_uuid", productUUID.String()).Msg("Idempotent stock adjustment hit")
+			return s.movementToDTO(ctx, &existing), nil
+		}
+	}
+
 	tx, err := s.dbPool.Begin(ctx)
 	if err != nil {
 		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to start transaction", err)
@@ -530,6 +530,7 @@ func (s *inventoryService) AdjustStock(
 		if errors.Is(err, pgx.ErrNoRows) {
 			createdRow, createErr := s.repo.UpsertStockMetadata(ctx, tx, sqlc.UpsertStockMetadataParams{
 				ProductUuid: productUUID,
+				ProductID:   input.ProductID,
 				Quantity:    0,
 			})
 			if createErr != nil {
@@ -542,6 +543,31 @@ func (s *inventoryService) AdjustStock(
 	}
 
 	currentStock := stockRow.Quantity
+	// Absolute-set path: one UPDATE decides the final value inside this
+	// transaction, so two concurrent admins cannot lose each other's change.
+	if input.TargetQuantity != nil {
+		updatedRow, aErr := s.repo.SetStockQuantity(ctx, tx, productUUID, *input.TargetQuantity)
+		if aErr != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(aErr, &pgErr) && pgErr.Code == "23514" {
+				return nil, utils.NewError(utils.ErrCodeBadRequest, "target quantity cannot be negative")
+			}
+			return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to set stock", aErr)
+		}
+		change := updatedRow.Quantity - currentStock
+		if change == 0 {
+			return s.movementToDTO(ctx, &sqlc.StockMovement{
+				ProductID:     stockRow.ProductID,
+				ProductUuid:   productUUID,
+				ChangeType:    input.ChangeType,
+				ReferenceType: ptr("manual"),
+				StockBefore:   currentStock,
+				StockAfter:    currentStock,
+			}), nil
+		}
+		return s.recordAdjustment(ctx, tx, stockRow, productUUID, currentStock, updatedRow.Quantity, actorUUID, actorName, input, refID)
+	}
+
 	newStock := currentStock + input.QuantityChange
 	if newStock < 0 {
 		return nil, utils.NewError(
@@ -554,16 +580,41 @@ func (s *inventoryService) AdjustStock(
 	if err != nil {
 		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to adjust stock", err)
 	}
+	return s.recordAdjustment(ctx, tx, stockRow, productUUID, currentStock, updatedRow.Quantity, actorUUID, actorName, input, refID)
+}
 
+// ptr is a local helper so literal pointers stay readable inline.
+func ptr[T any](v T) *T { return &v }
+
+// recordAdjustment writes the movement row, commits, and emits the low-stock
+// alert. Shared by the delta and absolute-set paths so both produce identical
+// side effects.
+func (s *inventoryService) recordAdjustment(
+	ctx context.Context,
+	tx pgx.Tx,
+	stockRow sqlc.InventoryStock,
+	productUUID uuid.UUID,
+	currentStock int32,
+	newStock int32,
+	actorUUID *uuid.UUID,
+	actorName *string,
+	input dto.AdjustStockInput,
+	refID string,
+) (*dto.StockMovementDTO, error) {
 	refType := "manual"
+	var referenceID *string
+	if refID != "" {
+		refType = "INITIAL_STOCK"
+		referenceID = &refID
+	}
 	movement, err := s.repo.CreateStockMovement(ctx, tx, sqlc.CreateStockMovementParams{
 		ProductID:      stockRow.ProductID,
 		ProductUuid:    productUUID,
 		ChangeType:     input.ChangeType,
-		QuantityChange: input.QuantityChange,
+		QuantityChange: newStock - currentStock,
 		StockBefore:    currentStock,
-		StockAfter:     updatedRow.Quantity,
-		ReferenceID:    nil,
+		StockAfter:     newStock,
+		ReferenceID:    referenceID,
 		ReferenceType:  &refType,
 		ActorID:        nil,
 		ActorUuid:      toPgUUID(actorUUID),
@@ -571,6 +622,14 @@ func (s *inventoryService) AdjustStock(
 		Note:           input.Note,
 	})
 	if err != nil {
+		// Concurrent retry already recorded this reference: treat as success.
+		var pgErr *pgconn.PgError
+		if refID != "" && errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			logger.Log.Info().Str("reference_id", refID).Msg("Stock adjustment race lost; returning existing movement")
+			if existing, gErr := s.repo.GetMovementByRefAndProductUUID(ctx, refType, refID, productUUID); gErr == nil && existing.MovementID > 0 {
+				return s.movementToDTO(ctx, &existing), nil
+			}
+		}
 		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to record adjustment movement", err)
 	}
 
@@ -578,42 +637,44 @@ func (s *inventoryService) AdjustStock(
 		return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to commit adjustment", err)
 	}
 
-	// Trigger low stock alert if inventory drops to or below threshold
-	if s.rabbitMQ != nil && updatedRow.Quantity <= 5 {
+	// Trigger low stock alert if inventory drops to or below threshold.
+	// The catalog owns the product name; the alert carries identifiers.
+	if s.rabbitMQ != nil && newStock <= 5 {
 		pID := int32(0)
-		if updatedRow.ProductID != nil {
-			pID = *updatedRow.ProductID
+		if stockRow.ProductID != nil {
+			pID = *stockRow.ProductID
 		}
 		_ = s.rabbitMQ.PublishTopic(ctx, rabbitmq.RoutingKeyInventoryStockLow, map[string]any{
 			"product_id":   pID,
-			"product_uuid": updatedRow.ProductUuid.String(),
-			"name":         updatedRow.ProductName,
-			"stock":        updatedRow.Quantity,
+			"product_uuid": productUUID.String(),
+			"stock":        newStock,
 		})
 	}
 
-	actorUUIDStr := fromPgUUID(movement.ActorUuid)
+	return s.movementToDTO(ctx, &movement), nil
+}
 
+
+// movementToDTO builds the response from a recorded movement. The movement row
+// is the whole contract: product name/SKU/image belong to the catalog.
+func (s *inventoryService) movementToDTO(_ context.Context, m *sqlc.StockMovement) *dto.StockMovementDTO {
 	return &dto.StockMovementDTO{
-		MovementID:      movement.MovementID,
-		MovementUUID:    movement.MovementUuid.String(),
-		ProductID:       movement.ProductID,
-		ProductUUID:     movement.ProductUuid.String(),
-		ProductName:     stockRow.ProductName,
-		ProductSKU:      &stockRow.ProductSku,
-		ProductImageURL: &stockRow.ProductImageUrl,
-		ChangeType:      movement.ChangeType,
-		QuantityChange:  movement.QuantityChange,
-		StockBefore:     movement.StockBefore,
-		StockAfter:      movement.StockAfter,
-		ReferenceID:     movement.ReferenceID,
-		ReferenceType:   movement.ReferenceType,
-		ActorID:         movement.ActorID,
-		ActorUUID:       actorUUIDStr,
-		ActorName:       movement.ActorName,
-		Note:            movement.Note,
-		CreatedAt:       movement.CreatedAt,
-	}, nil
+		MovementID:     m.MovementID,
+		MovementUUID:   m.MovementUuid.String(),
+		ProductID:      m.ProductID,
+		ProductUUID:    m.ProductUuid.String(),
+		ChangeType:     m.ChangeType,
+		QuantityChange: m.QuantityChange,
+		StockBefore:    m.StockBefore,
+		StockAfter:     m.StockAfter,
+		ReferenceID:    m.ReferenceID,
+		ReferenceType:  m.ReferenceType,
+		ActorID:        m.ActorID,
+		ActorUUID:      fromPgUUID(m.ActorUuid),
+		ActorName:      m.ActorName,
+		Note:           m.Note,
+		CreatedAt:      m.CreatedAt,
+	}
 }
 
 func (s *inventoryService) ListStockMovements(ctx context.Context, params dto.GetStockMovementsParam) ([]dto.StockMovementDTO, int64, error) {
@@ -678,24 +739,11 @@ func (s *inventoryService) ListStockMovements(ctx context.Context, params dto.Ge
 
 	dtos := make([]dto.StockMovementDTO, len(rows))
 	for i, r := range rows {
-		actorUUIDStr := fromPgUUID(r.ActorUuid)
-		var sku *string
-		if r.ProductSku != "" {
-			sku = &r.ProductSku
-		}
-		var img *string
-		if r.ProductImageUrl != "" {
-			img = &r.ProductImageUrl
-		}
-
 		dtos[i] = dto.StockMovementDTO{
 			MovementID:      r.MovementID,
 			MovementUUID:    r.MovementUuid.String(),
 			ProductID:       r.ProductID,
 			ProductUUID:     r.ProductUuid.String(),
-			ProductName:     r.ProductName,
-			ProductSKU:      sku,
-			ProductImageURL: img,
 			ChangeType:      r.ChangeType,
 			QuantityChange:  r.QuantityChange,
 			StockBefore:     r.StockBefore,
@@ -703,7 +751,7 @@ func (s *inventoryService) ListStockMovements(ctx context.Context, params dto.Ge
 			ReferenceID:     r.ReferenceID,
 			ReferenceType:   r.ReferenceType,
 			ActorID:         r.ActorID,
-			ActorUUID:       actorUUIDStr,
+			ActorUUID:       fromPgUUID(r.ActorUuid),
 			ActorName:       r.ActorName,
 			Note:            r.Note,
 			CreatedAt:       r.CreatedAt,
