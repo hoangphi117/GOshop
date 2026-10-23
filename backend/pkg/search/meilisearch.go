@@ -2,6 +2,7 @@ package search
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -109,6 +110,41 @@ func (c *Client) IndexProducts(ctx context.Context, docs []ProductDocument) (*me
 // DeleteProduct removes a product from Meilisearch by product_uuid
 func (c *Client) DeleteProduct(ctx context.Context, productUUID string) (*meilisearch.TaskInfo, error) {
 	return c.client.Index(c.index).DeleteDocument(productUUID, nil)
+}
+
+// ListDocumentIDs returns every document id currently stored in the index.
+// Used by maintenance jobs (e.g. the seeder) to find stale documents.
+func (c *Client) ListDocumentIDs(ctx context.Context) ([]string, error) {
+	var ids []string
+	var offset int64 = 0
+	const page int64 = 1000
+	for {
+		result := &meilisearch.DocumentsResult{}
+		if err := c.client.Index(c.index).GetDocuments(&meilisearch.DocumentsQuery{
+			Limit:  page,
+			Offset: offset,
+			Fields: []string{"id"},
+		}, result); err != nil {
+			return nil, err
+		}
+		for _, doc := range result.Results {
+			var m map[string]any
+			b, err := json.Marshal(doc)
+			if err != nil {
+				return nil, err
+			}
+			if err := json.Unmarshal(b, &m); err == nil {
+				if id, ok := m["id"].(string); ok {
+					ids = append(ids, id)
+				}
+			}
+		}
+		if int64(len(result.Results)) < page {
+			break
+		}
+		offset += page
+	}
+	return ids, nil
 }
 
 // Search executes a typo-tolerant instant search query

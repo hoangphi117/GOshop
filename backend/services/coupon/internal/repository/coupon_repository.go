@@ -12,6 +12,7 @@ type CouponRepository interface {
 	GetByCode(ctx context.Context, code string) (sqlc.Coupon, error)
 	GetByCodeForUpdate(ctx context.Context, tx pgx.Tx, code string) (sqlc.Coupon, error)
 	GetByID(ctx context.Context, id int32) (sqlc.Coupon, error)
+	GetByIDForUpdate(ctx context.Context, tx pgx.Tx, id int32) (sqlc.Coupon, error)
 	GetByUUID(ctx context.Context, uuid uuid.UUID) (sqlc.Coupon, error)
 	List(ctx context.Context, params sqlc.ListCouponsParams) ([]sqlc.Coupon, error)
 	Count(ctx context.Context, params sqlc.CountCouponsParams) (int64, error)
@@ -21,8 +22,8 @@ type CouponRepository interface {
 	IncrementUsedCount(ctx context.Context, tx pgx.Tx, couponID int32) error
 	DecrementUsedCount(ctx context.Context, tx pgx.Tx, couponID int32) error
 	CountUserUsages(ctx context.Context, params sqlc.CountUserCouponUsagesParams) (int64, error)
-	RecordUsage(ctx context.Context, tx pgx.Tx, params sqlc.RecordCouponUsageParams) (sqlc.CouponUsage, error)
-	DeleteUsageByOrder(ctx context.Context, tx pgx.Tx, params sqlc.DeleteCouponUsageByOrderParams) error
+	UpsertUsage(ctx context.Context, tx pgx.Tx, params sqlc.UpsertCouponUsageParams) (sqlc.UpsertCouponUsageRow, error)
+	ReleaseUsage(ctx context.Context, tx pgx.Tx, params sqlc.ReleaseCouponUsageParams) (sqlc.CouponUsage, error)
 }
 
 type SqlCouponRepository struct {
@@ -49,7 +50,11 @@ func (r *SqlCouponRepository) GetByCodeForUpdate(ctx context.Context, tx pgx.Tx,
 }
 
 func (r *SqlCouponRepository) GetByID(ctx context.Context, id int32) (sqlc.Coupon, error) {
-	return r.q.GetCouponByID(ctx, id)
+	return r.q.GetCouponByIDForUpdate(ctx, id)
+}
+
+func (r *SqlCouponRepository) GetByIDForUpdate(ctx context.Context, tx pgx.Tx, id int32) (sqlc.Coupon, error) {
+	return r.querier(tx).GetCouponByIDForUpdate(ctx, id)
 }
 
 func (r *SqlCouponRepository) GetByUUID(ctx context.Context, uuid uuid.UUID) (sqlc.Coupon, error) {
@@ -90,10 +95,10 @@ func (r *SqlCouponRepository) CountUserUsages(ctx context.Context, params sqlc.C
 	return r.q.CountUserCouponUsages(ctx, params)
 }
 
-func (r *SqlCouponRepository) RecordUsage(ctx context.Context, tx pgx.Tx, params sqlc.RecordCouponUsageParams) (sqlc.CouponUsage, error) {
-	return r.querier(tx).RecordCouponUsage(ctx, params)
+func (r *SqlCouponRepository) UpsertUsage(ctx context.Context, tx pgx.Tx, params sqlc.UpsertCouponUsageParams) (sqlc.UpsertCouponUsageRow, error) {
+	return r.querier(tx).UpsertCouponUsage(ctx, params)
 }
 
-func (r *SqlCouponRepository) DeleteUsageByOrder(ctx context.Context, tx pgx.Tx, params sqlc.DeleteCouponUsageByOrderParams) error {
-	return r.querier(tx).DeleteCouponUsageByOrder(ctx, params)
+func (r *SqlCouponRepository) ReleaseUsage(ctx context.Context, tx pgx.Tx, params sqlc.ReleaseCouponUsageParams) (sqlc.CouponUsage, error) {
+	return r.querier(tx).ReleaseCouponUsage(ctx, params)
 }

@@ -277,6 +277,16 @@ AS t(product_id int, product_uuid uuid, product_name varchar, product_slug varch
 
 SELECT setval('products_product_id_seq', (SELECT MAX(product_id) FROM products), true);
 
+-- Queue a search reindex for every seeded product. The catalog outbox worker
+-- (running in the catalog container) consumes these, rebuilds the Meilisearch
+-- documents from the product rows and marks them PROCESSED. Without this the
+-- index keeps UUIDs from a previous seed and product search returns rows the
+-- inventory service can no longer resolve.
+INSERT INTO outbox_events (event_type, aggregate_type, aggregate_id, payload, status)
+SELECT 'PRODUCT_UPSERT', 'product', p.product_uuid::text, '{}'::jsonb, 'PENDING'
+FROM products p
+WHERE p.product_deleted_at IS NULL;
+
 ANALYZE categories;
 ANALYZE products;
 

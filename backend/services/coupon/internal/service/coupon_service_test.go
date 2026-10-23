@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -12,24 +13,24 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type mockCouponRepo struct {
-	getByCodeFunc           func(ctx context.Context, code string) (sqlc.Coupon, error)
-	getByUUIDFunc           func(ctx context.Context, u uuid.UUID) (sqlc.Coupon, error)
-	incrementUsedCountFunc  func(ctx context.Context, tx pgx.Tx, couponID int32) error
-	decrementUsedCountFunc  func(ctx context.Context, tx pgx.Tx, couponID int32) error
-	countUserUsagesFunc     func(ctx context.Context, params sqlc.CountUserCouponUsagesParams) (int64, error)
-	recordUsageFunc         func(ctx context.Context, tx pgx.Tx, params sqlc.RecordCouponUsageParams) (sqlc.CouponUsage, error)
-	deleteUsageByOrderFunc  func(ctx context.Context, tx pgx.Tx, params sqlc.DeleteCouponUsageByOrderParams) error
-	listFunc                func(ctx context.Context, params sqlc.ListCouponsParams) ([]sqlc.Coupon, error)
-	countFunc               func(ctx context.Context, params sqlc.CountCouponsParams) (int64, error)
-	createFunc              func(ctx context.Context, params sqlc.CreateCouponParams) (sqlc.Coupon, error)
-	updateFunc              func(ctx context.Context, params sqlc.UpdateCouponParams) (sqlc.Coupon, error)
-	deleteFunc              func(ctx context.Context, u uuid.UUID) error
+	getByCodeFunc          func(ctx context.Context, code string) (sqlc.Coupon, error)
+	getByUUIDFunc          func(ctx context.Context, u uuid.UUID) (sqlc.Coupon, error)
+	getByIDForUpdateFunc   func(ctx context.Context, tx pgx.Tx, id int32) (sqlc.Coupon, error)
+	incrementUsedCountFunc func(ctx context.Context, tx pgx.Tx, couponID int32) error
+	decrementUsedCountFunc func(ctx context.Context, tx pgx.Tx, couponID int32) error
+	countUserUsagesFunc    func(ctx context.Context, params sqlc.CountUserCouponUsagesParams) (int64, error)
+	upsertUsageFunc        func(ctx context.Context, tx pgx.Tx, params sqlc.UpsertCouponUsageParams) (sqlc.UpsertCouponUsageRow, error)
+	releaseUsageFunc       func(ctx context.Context, tx pgx.Tx, params sqlc.ReleaseCouponUsageParams) (sqlc.CouponUsage, error)
+	listFunc               func(ctx context.Context, params sqlc.ListCouponsParams) ([]sqlc.Coupon, error)
+	countFunc              func(ctx context.Context, params sqlc.CountCouponsParams) (int64, error)
+	createFunc             func(ctx context.Context, params sqlc.CreateCouponParams) (sqlc.Coupon, error)
+	updateFunc             func(ctx context.Context, params sqlc.UpdateCouponParams) (sqlc.Coupon, error)
+	deleteFunc             func(ctx context.Context, u uuid.UUID) error
 }
 
 func (m *mockCouponRepo) GetByCode(ctx context.Context, code string) (sqlc.Coupon, error) {
@@ -44,6 +45,13 @@ func (m *mockCouponRepo) GetByCodeForUpdate(ctx context.Context, tx pgx.Tx, code
 }
 
 func (m *mockCouponRepo) GetByID(ctx context.Context, id int32) (sqlc.Coupon, error) {
+	return sqlc.Coupon{CouponID: id}, nil
+}
+
+func (m *mockCouponRepo) GetByIDForUpdate(ctx context.Context, tx pgx.Tx, id int32) (sqlc.Coupon, error) {
+	if m.getByIDForUpdateFunc != nil {
+		return m.getByIDForUpdateFunc(ctx, tx, id)
+	}
 	return sqlc.Coupon{CouponID: id}, nil
 }
 
@@ -110,18 +118,23 @@ func (m *mockCouponRepo) CountUserUsages(ctx context.Context, params sqlc.CountU
 	return 0, nil
 }
 
-func (m *mockCouponRepo) RecordUsage(ctx context.Context, tx pgx.Tx, params sqlc.RecordCouponUsageParams) (sqlc.CouponUsage, error) {
-	if m.recordUsageFunc != nil {
-		return m.recordUsageFunc(ctx, tx, params)
+func (m *mockCouponRepo) UpsertUsage(ctx context.Context, tx pgx.Tx, params sqlc.UpsertCouponUsageParams) (sqlc.UpsertCouponUsageRow, error) {
+	if m.upsertUsageFunc != nil {
+		return m.upsertUsageFunc(ctx, tx, params)
 	}
-	return sqlc.CouponUsage{CouponUsageUuid: uuid.New()}, nil
+	return sqlc.UpsertCouponUsageRow{
+		CouponUsageUuid:     uuid.New(),
+		CouponUsageCouponID: params.CouponID,
+		CouponUsageStatus:   dto.CouponUsageStatusReserved,
+		Inserted:            true,
+	}, nil
 }
 
-func (m *mockCouponRepo) DeleteUsageByOrder(ctx context.Context, tx pgx.Tx, params sqlc.DeleteCouponUsageByOrderParams) error {
-	if m.deleteUsageByOrderFunc != nil {
-		return m.deleteUsageByOrderFunc(ctx, tx, params)
+func (m *mockCouponRepo) ReleaseUsage(ctx context.Context, tx pgx.Tx, params sqlc.ReleaseCouponUsageParams) (sqlc.CouponUsage, error) {
+	if m.releaseUsageFunc != nil {
+		return m.releaseUsageFunc(ctx, tx, params)
 	}
-	return nil
+	return sqlc.CouponUsage{}, pgx.ErrNoRows
 }
 
 func TestCouponService_PreviewCoupon(t *testing.T) {
@@ -186,49 +199,310 @@ func TestCouponService_PreviewCoupon(t *testing.T) {
 
 func TestCouponService_ReserveCoupon(t *testing.T) {
 	ctx := context.Background()
+	orderUUID := uuid.New().String()
 
 	t.Run("Success Reserve", func(t *testing.T) {
-		mock := &mockCouponRepo{
-			incrementUsedCountFunc: func(ctx context.Context, tx pgx.Tx, couponID int32) error {
-				return nil
-			},
-			recordUsageFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.RecordCouponUsageParams) (sqlc.CouponUsage, error) {
-				return sqlc.CouponUsage{CouponUsageUuid: uuid.New()}, nil
-			},
-		}
-
+		mock := &mockCouponRepo{}
 		svc := service.NewCouponService(mock, nil)
+
 		usageUUID, err := svc.ReserveCoupon(ctx, dto.ReserveCouponInput{
-			CouponID: 1,
-			UserID:   10,
-			OrderID:  100,
+			CouponID:  1,
+			UserID:    10,
+			OrderID:   100,
+			OrderUUID: orderUUID,
 		})
 
 		require.NoError(t, err)
 		assert.NotEmpty(t, usageUUID)
 	})
 
-	t.Run("Idempotency Conflict (23505)", func(t *testing.T) {
+	t.Run("Duplicate Reserve does not consume quota twice", func(t *testing.T) {
+		increments := 0
+		reserved := false
+		existing := uuid.New()
+
 		mock := &mockCouponRepo{
 			incrementUsedCountFunc: func(ctx context.Context, tx pgx.Tx, couponID int32) error {
+				increments++
 				return nil
 			},
-			recordUsageFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.RecordCouponUsageParams) (sqlc.CouponUsage, error) {
-				return sqlc.CouponUsage{}, &pgconn.PgError{Code: "23505"}
+			upsertUsageFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.UpsertCouponUsageParams) (sqlc.UpsertCouponUsageRow, error) {
+				// Repository semantics: second call returns the existing row.
+				if reserved {
+					return sqlc.UpsertCouponUsageRow{
+						CouponUsageUuid:   existing,
+						CouponUsageStatus: dto.CouponUsageStatusReserved,
+						Inserted:          false,
+					}, nil
+				}
+				reserved = true
+				return sqlc.UpsertCouponUsageRow{
+					CouponUsageUuid:   existing,
+					CouponUsageStatus: dto.CouponUsageStatusReserved,
+					Inserted:          true,
+				}, nil
 			},
 		}
-
 		svc := service.NewCouponService(mock, nil)
-		_, err := svc.ReserveCoupon(ctx, dto.ReserveCouponInput{
-			CouponID: 1,
-			UserID:   10,
-			OrderID:  100,
-		})
 
+		input := dto.ReserveCouponInput{CouponID: 1, UserID: 10, OrderID: 100, OrderUUID: orderUUID}
+		first, err := svc.ReserveCoupon(ctx, input)
+		require.NoError(t, err)
+		second, err := svc.ReserveCoupon(ctx, input)
+		require.NoError(t, err)
+
+		assert.Equal(t, first, second, "retry returns the same reservation identity")
+		assert.Equal(t, 1, increments, "quota consumed exactly once")
+	})
+
+	t.Run("Reserve on released reservation is rejected", func(t *testing.T) {
+		increments := 0
+		mock := &mockCouponRepo{
+			incrementUsedCountFunc: func(ctx context.Context, tx pgx.Tx, couponID int32) error {
+				increments++
+				return nil
+			},
+			upsertUsageFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.UpsertCouponUsageParams) (sqlc.UpsertCouponUsageRow, error) {
+				return sqlc.UpsertCouponUsageRow{
+					CouponUsageUuid:   uuid.New(),
+					CouponUsageStatus: dto.CouponUsageStatusReleased,
+					Inserted:          false,
+				}, nil
+			},
+		}
+		svc := service.NewCouponService(mock, nil)
+
+		_, err := svc.ReserveCoupon(ctx, dto.ReserveCouponInput{CouponID: 1, UserID: 10, OrderUUID: orderUUID})
 		require.Error(t, err)
 		appErr, ok := err.(*utils.AppError)
 		require.True(t, ok)
 		assert.Equal(t, utils.ErrCodeConflict, appErr.Code)
-		assert.Contains(t, err.Error(), "already been used")
+		assert.Zero(t, increments)
 	})
+
+	t.Run("Usage limit reached rolls back reservation", func(t *testing.T) {
+		mock := &mockCouponRepo{
+			incrementUsedCountFunc: func(ctx context.Context, tx pgx.Tx, couponID int32) error {
+				return pgx.ErrNoRows
+			},
+		}
+		svc := service.NewCouponService(mock, nil)
+
+		_, err := svc.ReserveCoupon(ctx, dto.ReserveCouponInput{CouponID: 1, UserID: 10, OrderUUID: orderUUID})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "maximum total usage limit")
+	})
+
+	t.Run("Missing order uuid is rejected", func(t *testing.T) {
+		svc := service.NewCouponService(&mockCouponRepo{}, nil)
+
+		_, err := svc.ReserveCoupon(ctx, dto.ReserveCouponInput{CouponID: 1, UserID: 10, OrderID: 100})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Order uuid is required")
+	})
+
+	t.Run("Invalid order uuid is rejected", func(t *testing.T) {
+		svc := service.NewCouponService(&mockCouponRepo{}, nil)
+
+		_, err := svc.ReserveCoupon(ctx, dto.ReserveCouponInput{CouponID: 1, UserID: 10, OrderUUID: "not-a-uuid"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Invalid order uuid")
+	})
+}
+
+func TestCouponService_ReleaseCoupon(t *testing.T) {
+	ctx := context.Background()
+	orderUUID := uuid.New().String()
+
+	t.Run("Release refunds quota once", func(t *testing.T) {
+		decrements := 0
+		released := false
+		mock := &mockCouponRepo{
+			releaseUsageFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.ReleaseCouponUsageParams) (sqlc.CouponUsage, error) {
+				if released {
+					return sqlc.CouponUsage{}, pgx.ErrNoRows
+				}
+				released = true
+				return sqlc.CouponUsage{CouponUsageCouponID: 1}, nil
+			},
+			decrementUsedCountFunc: func(ctx context.Context, tx pgx.Tx, couponID int32) error {
+				decrements++
+				return nil
+			},
+		}
+		svc := service.NewCouponService(mock, nil)
+
+		require.NoError(t, svc.ReleaseCoupon(ctx, dto.ReleaseCouponInput{CouponID: 1, OrderUUID: orderUUID}))
+		require.NoError(t, svc.ReleaseCoupon(ctx, dto.ReleaseCouponInput{CouponID: 1, OrderUUID: orderUUID}))
+		assert.Equal(t, 1, decrements, "duplicate release refunds nothing")
+	})
+
+	t.Run("Release before reserve refunds nothing", func(t *testing.T) {
+		decrements := 0
+		mock := &mockCouponRepo{
+			releaseUsageFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.ReleaseCouponUsageParams) (sqlc.CouponUsage, error) {
+				return sqlc.CouponUsage{}, pgx.ErrNoRows
+			},
+			decrementUsedCountFunc: func(ctx context.Context, tx pgx.Tx, couponID int32) error {
+				decrements++
+				return nil
+			},
+		}
+		svc := service.NewCouponService(mock, nil)
+
+		require.NoError(t, svc.ReleaseCoupon(ctx, dto.ReleaseCouponInput{CouponID: 1, OrderUUID: orderUUID}))
+		assert.Zero(t, decrements)
+	})
+
+	t.Run("Decrement failure surfaces instead of being swallowed", func(t *testing.T) {
+		mock := &mockCouponRepo{
+			releaseUsageFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.ReleaseCouponUsageParams) (sqlc.CouponUsage, error) {
+				return sqlc.CouponUsage{CouponUsageCouponID: 1}, nil
+			},
+			decrementUsedCountFunc: func(ctx context.Context, tx pgx.Tx, couponID int32) error {
+				return assert.AnError
+			},
+		}
+		svc := service.NewCouponService(mock, nil)
+
+		err := svc.ReleaseCoupon(ctx, dto.ReleaseCouponInput{CouponID: 1, OrderUUID: orderUUID})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Failed to decrement coupon usage count")
+	})
+
+	t.Run("Missing order uuid is rejected", func(t *testing.T) {
+		svc := service.NewCouponService(&mockCouponRepo{}, nil)
+
+		err := svc.ReleaseCoupon(ctx, dto.ReleaseCouponInput{CouponID: 1})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Order id or order uuid is required")
+	})
+}
+
+// TestCouponService_ReserveReleaseInterleaving covers reversed delivery order:
+// a release that lands before its reserve must not corrupt later quota.
+func TestCouponService_ReserveReleaseInterleaving(t *testing.T) {
+	ctx := context.Background()
+	orderUUID := uuid.New().String()
+
+	var (
+		used      int32
+		released  bool
+		inserted  bool
+		reserveIn int
+	)
+
+	mock := &mockCouponRepo{
+		incrementUsedCountFunc: func(ctx context.Context, tx pgx.Tx, couponID int32) error {
+			used++
+			return nil
+		},
+		decrementUsedCountFunc: func(ctx context.Context, tx pgx.Tx, couponID int32) error {
+			used--
+			return nil
+		},
+		upsertUsageFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.UpsertCouponUsageParams) (sqlc.UpsertCouponUsageRow, error) {
+			reserveIn++
+			if !inserted {
+				inserted = true
+				return sqlc.UpsertCouponUsageRow{CouponUsageUuid: uuid.New(), CouponUsageStatus: dto.CouponUsageStatusReserved, Inserted: true}, nil
+			}
+			status := dto.CouponUsageStatusReserved
+			if released {
+				status = dto.CouponUsageStatusReleased
+			}
+			return sqlc.UpsertCouponUsageRow{CouponUsageUuid: uuid.New(), CouponUsageStatus: status, Inserted: false}, nil
+		},
+		releaseUsageFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.ReleaseCouponUsageParams) (sqlc.CouponUsage, error) {
+			if !inserted || released {
+				return sqlc.CouponUsage{}, pgx.ErrNoRows
+			}
+			released = true
+			return sqlc.CouponUsage{CouponUsageCouponID: 1}, nil
+		},
+	}
+	svc := service.NewCouponService(mock, nil)
+
+	// Release arrives first: no reservation exists, nothing to refund.
+	require.NoError(t, svc.ReleaseCoupon(ctx, dto.ReleaseCouponInput{CouponID: 1, OrderUUID: orderUUID}))
+	assert.Equal(t, int32(0), used, "release before reserve must not decrement")
+
+	// Reserve now consumes quota exactly once.
+	_, err := svc.ReserveCoupon(ctx, dto.ReserveCouponInput{CouponID: 1, UserID: 10, OrderUUID: orderUUID})
+	require.NoError(t, err)
+	assert.Equal(t, int32(1), used)
+
+	// Redelivered release refunds once, then stops.
+	require.NoError(t, svc.ReleaseCoupon(ctx, dto.ReleaseCouponInput{CouponID: 1, OrderUUID: orderUUID}))
+	require.NoError(t, svc.ReleaseCoupon(ctx, dto.ReleaseCouponInput{CouponID: 1, OrderUUID: orderUUID}))
+	assert.Equal(t, int32(0), used)
+
+	// Reserve after a completed release is a conflict, not a second quota hit.
+	_, err = svc.ReserveCoupon(ctx, dto.ReserveCouponInput{CouponID: 1, UserID: 10, OrderUUID: orderUUID})
+	require.Error(t, err)
+	appErr, ok := err.(*utils.AppError)
+	require.True(t, ok)
+	assert.Equal(t, utils.ErrCodeConflict, appErr.Code)
+	assert.Equal(t, int32(0), used)
+}
+
+// TestCouponService_ConcurrentReserve runs duplicate reserves in parallel.
+// The repository is serialised the way the DB row lock serialises writers.
+func TestCouponService_ConcurrentReserve(t *testing.T) {
+	ctx := context.Background()
+	orderUUID := uuid.New().String()
+
+	var (
+		mu         sync.Mutex
+		increments int
+		existing   uuid.UUID
+		reserved   bool
+	)
+
+	mock := &mockCouponRepo{
+		getByIDForUpdateFunc: func(ctx context.Context, tx pgx.Tx, id int32) (sqlc.Coupon, error) {
+			return sqlc.Coupon{CouponID: id}, nil
+		},
+		incrementUsedCountFunc: func(ctx context.Context, tx pgx.Tx, couponID int32) error {
+			mu.Lock()
+			defer mu.Unlock()
+			increments++
+			return nil
+		},
+		upsertUsageFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.UpsertCouponUsageParams) (sqlc.UpsertCouponUsageRow, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			if reserved {
+				return sqlc.UpsertCouponUsageRow{CouponUsageUuid: existing, CouponUsageStatus: dto.CouponUsageStatusReserved}, nil
+			}
+			reserved = true
+			existing = uuid.New()
+			return sqlc.UpsertCouponUsageRow{CouponUsageUuid: existing, CouponUsageStatus: dto.CouponUsageStatusReserved, Inserted: true}, nil
+		},
+	}
+	svc := service.NewCouponService(mock, nil)
+
+	const workers = 16
+	results := make([]string, workers)
+	errs := make([]error, workers)
+
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			results[idx], errs[idx] = svc.ReserveCoupon(ctx, dto.ReserveCouponInput{
+				CouponID:  1,
+				UserID:    10,
+				OrderUUID: orderUUID,
+			})
+		}(i)
+	}
+	wg.Wait()
+
+	for i := 0; i < workers; i++ {
+		require.NoError(t, errs[i])
+		assert.Equal(t, results[0], results[i])
+	}
+	assert.Equal(t, 1, increments, "concurrent duplicates consume quota once")
 }

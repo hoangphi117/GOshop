@@ -7,6 +7,12 @@ const (
 	CouponTypeFixedAmount int32 = 2
 )
 
+// Coupon usage reservation states (coupon_usages.coupon_usage_status).
+const (
+	CouponUsageStatusReserved int32 = 1
+	CouponUsageStatusReleased int32 = 2
+)
+
 type CouponDTO struct {
 	ID                int32    `json:"id"`
 	UUID              string   `json:"uuid"`

@@ -170,22 +170,6 @@ func (q *Queries) DeleteCoupon(ctx context.Context, couponUuid uuid.UUID) error 
 	return err
 }
 
-const deleteCouponUsageByOrder = `-- name: DeleteCouponUsageByOrder :exec
-DELETE FROM coupon_usages
-WHERE ($1::int IS NOT NULL AND coupon_usage_order_id = $1::int)
-   OR ($2::uuid IS NOT NULL AND coupon_usage_order_uuid = $2::uuid)
-`
-
-type DeleteCouponUsageByOrderParams struct {
-	OrderID   *int32      `json:"order_id"`
-	OrderUuid pgtype.UUID `json:"order_uuid"`
-}
-
-func (q *Queries) DeleteCouponUsageByOrder(ctx context.Context, arg DeleteCouponUsageByOrderParams) error {
-	_, err := q.db.Exec(ctx, deleteCouponUsageByOrder, arg.OrderID, arg.OrderUuid)
-	return err
-}
-
 const getCouponByCode = `-- name: GetCouponByCode :one
 SELECT coupon_id, coupon_uuid, coupon_code, coupon_name, coupon_description, coupon_type, coupon_discount_value, coupon_max_discount_amount, coupon_min_order_amount, coupon_usage_limit, coupon_used_count, coupon_user_usage_limit, coupon_start_date, coupon_end_date, coupon_is_active, coupon_deleted_at, coupon_created_at, coupon_updated_at FROM coupons
 WHERE coupon_code = $1 AND coupon_deleted_at IS NULL
@@ -249,13 +233,14 @@ func (q *Queries) GetCouponByCodeForUpdate(ctx context.Context, couponCode strin
 	return i, err
 }
 
-const getCouponByID = `-- name: GetCouponByID :one
+const getCouponByIDForUpdate = `-- name: GetCouponByIDForUpdate :one
 SELECT coupon_id, coupon_uuid, coupon_code, coupon_name, coupon_description, coupon_type, coupon_discount_value, coupon_max_discount_amount, coupon_min_order_amount, coupon_usage_limit, coupon_used_count, coupon_user_usage_limit, coupon_start_date, coupon_end_date, coupon_is_active, coupon_deleted_at, coupon_created_at, coupon_updated_at FROM coupons
 WHERE coupon_id = $1 AND coupon_deleted_at IS NULL
+FOR UPDATE
 `
 
-func (q *Queries) GetCouponByID(ctx context.Context, couponID int32) (Coupon, error) {
-	row := q.db.QueryRow(ctx, getCouponByID, couponID)
+func (q *Queries) GetCouponByIDForUpdate(ctx context.Context, couponID int32) (Coupon, error) {
+	row := q.db.QueryRow(ctx, getCouponByIDForUpdate, couponID)
 	var i Coupon
 	err := row.Scan(
 		&i.CouponID,
@@ -408,38 +393,29 @@ func (q *Queries) ListCoupons(ctx context.Context, arg ListCouponsParams) ([]Cou
 	return items, nil
 }
 
-const recordCouponUsage = `-- name: RecordCouponUsage :one
-INSERT INTO coupon_usages (
-    coupon_usage_coupon_id,
-    coupon_usage_coupon_uuid,
-    coupon_usage_user_id,
-    coupon_usage_user_uuid,
-    coupon_usage_order_id,
-    coupon_usage_order_uuid
-) VALUES (
-    $1, $2, $3, $4, $5, $6
-)
-RETURNING coupon_usage_id, coupon_usage_uuid, coupon_usage_coupon_id, coupon_usage_coupon_uuid, coupon_usage_user_id, coupon_usage_user_uuid, coupon_usage_order_id, coupon_usage_order_uuid, coupon_usage_used_at
+const releaseCouponUsage = `-- name: ReleaseCouponUsage :one
+UPDATE coupon_usages
+SET coupon_usage_status     = 2,
+    coupon_usage_released_at = now(),
+    coupon_usage_updated_at  = now()
+WHERE coupon_usage_status = 1
+  AND (
+        ($1::int IS NOT NULL AND coupon_usage_order_id = $1::int)
+     OR ($2::uuid IS NOT NULL AND coupon_usage_order_uuid = $2::uuid)
+  )
+RETURNING coupon_usage_id, coupon_usage_uuid, coupon_usage_coupon_id, coupon_usage_coupon_uuid, coupon_usage_user_id, coupon_usage_user_uuid, coupon_usage_order_id, coupon_usage_order_uuid, coupon_usage_used_at, coupon_usage_status, coupon_usage_released_at, coupon_usage_updated_at
 `
 
-type RecordCouponUsageParams struct {
-	CouponUsageCouponID   int32       `json:"coupon_usage_coupon_id"`
-	CouponUsageCouponUuid pgtype.UUID `json:"coupon_usage_coupon_uuid"`
-	CouponUsageUserID     int32       `json:"coupon_usage_user_id"`
-	CouponUsageUserUuid   pgtype.UUID `json:"coupon_usage_user_uuid"`
-	CouponUsageOrderID    *int32      `json:"coupon_usage_order_id"`
-	CouponUsageOrderUuid  pgtype.UUID `json:"coupon_usage_order_uuid"`
+type ReleaseCouponUsageParams struct {
+	OrderID   *int32      `json:"order_id"`
+	OrderUuid pgtype.UUID `json:"order_uuid"`
 }
 
-func (q *Queries) RecordCouponUsage(ctx context.Context, arg RecordCouponUsageParams) (CouponUsage, error) {
-	row := q.db.QueryRow(ctx, recordCouponUsage,
-		arg.CouponUsageCouponID,
-		arg.CouponUsageCouponUuid,
-		arg.CouponUsageUserID,
-		arg.CouponUsageUserUuid,
-		arg.CouponUsageOrderID,
-		arg.CouponUsageOrderUuid,
-	)
+// Tombstone transition: only a currently-reserved usage flips to released.
+// A redelivered Release (or a Release with no reservation yet) matches zero
+// rows so quota is never refunded twice or refunded for nothing.
+func (q *Queries) ReleaseCouponUsage(ctx context.Context, arg ReleaseCouponUsageParams) (CouponUsage, error) {
+	row := q.db.QueryRow(ctx, releaseCouponUsage, arg.OrderID, arg.OrderUuid)
 	var i CouponUsage
 	err := row.Scan(
 		&i.CouponUsageID,
@@ -451,6 +427,9 @@ func (q *Queries) RecordCouponUsage(ctx context.Context, arg RecordCouponUsagePa
 		&i.CouponUsageOrderID,
 		&i.CouponUsageOrderUuid,
 		&i.CouponUsageUsedAt,
+		&i.CouponUsageStatus,
+		&i.CouponUsageReleasedAt,
+		&i.CouponUsageUpdatedAt,
 	)
 	return i, err
 }
@@ -524,6 +503,98 @@ func (q *Queries) UpdateCoupon(ctx context.Context, arg UpdateCouponParams) (Cou
 		&i.CouponDeletedAt,
 		&i.CouponCreatedAt,
 		&i.CouponUpdatedAt,
+	)
+	return i, err
+}
+
+const upsertCouponUsage = `-- name: UpsertCouponUsage :one
+WITH ins AS (
+    INSERT INTO coupon_usages (
+        coupon_usage_coupon_id,
+        coupon_usage_coupon_uuid,
+        coupon_usage_user_id,
+        coupon_usage_user_uuid,
+        coupon_usage_order_id,
+        coupon_usage_order_uuid
+    ) VALUES (
+        $1, $2, $3, $4, $5, $6
+    )
+    ON CONFLICT (coupon_usage_coupon_id, coupon_usage_order_uuid) WHERE coupon_usage_order_uuid IS NOT NULL
+    DO NOTHING
+    RETURNING coupon_usage_id, coupon_usage_uuid, coupon_usage_coupon_id, coupon_usage_coupon_uuid,
+              coupon_usage_user_id, coupon_usage_user_uuid, coupon_usage_order_id, coupon_usage_order_uuid,
+              coupon_usage_used_at, coupon_usage_status, coupon_usage_released_at, coupon_usage_updated_at,
+              TRUE AS inserted
+), existing AS (
+    SELECT coupon_usage_id, coupon_usage_uuid, coupon_usage_coupon_id, coupon_usage_coupon_uuid,
+           coupon_usage_user_id, coupon_usage_user_uuid, coupon_usage_order_id, coupon_usage_order_uuid,
+           coupon_usage_used_at, coupon_usage_status, coupon_usage_released_at, coupon_usage_updated_at,
+           FALSE AS inserted
+    FROM coupon_usages
+    WHERE coupon_usage_coupon_id = $1
+      AND coupon_usage_order_uuid = $6
+)
+SELECT coupon_usage_id, coupon_usage_uuid, coupon_usage_coupon_id, coupon_usage_coupon_uuid, coupon_usage_user_id, coupon_usage_user_uuid, coupon_usage_order_id, coupon_usage_order_uuid, coupon_usage_used_at, coupon_usage_status, coupon_usage_released_at, coupon_usage_updated_at, inserted FROM ins
+UNION ALL
+SELECT coupon_usage_id, coupon_usage_uuid, coupon_usage_coupon_id, coupon_usage_coupon_uuid, coupon_usage_user_id, coupon_usage_user_uuid, coupon_usage_order_id, coupon_usage_order_uuid, coupon_usage_used_at, coupon_usage_status, coupon_usage_released_at, coupon_usage_updated_at, inserted FROM existing
+LIMIT 1
+`
+
+type UpsertCouponUsageParams struct {
+	CouponID   int32       `json:"coupon_id"`
+	CouponUuid pgtype.UUID `json:"coupon_uuid"`
+	UserID     int32       `json:"user_id"`
+	UserUuid   pgtype.UUID `json:"user_uuid"`
+	OrderID    *int32      `json:"order_id"`
+	OrderUuid  pgtype.UUID `json:"order_uuid"`
+}
+
+type UpsertCouponUsageRow struct {
+	CouponUsageID         int32              `json:"coupon_usage_id"`
+	CouponUsageUuid       uuid.UUID          `json:"coupon_usage_uuid"`
+	CouponUsageCouponID   int32              `json:"coupon_usage_coupon_id"`
+	CouponUsageCouponUuid pgtype.UUID        `json:"coupon_usage_coupon_uuid"`
+	CouponUsageUserID     int32              `json:"coupon_usage_user_id"`
+	CouponUsageUserUuid   pgtype.UUID        `json:"coupon_usage_user_uuid"`
+	CouponUsageOrderID    *int32             `json:"coupon_usage_order_id"`
+	CouponUsageOrderUuid  pgtype.UUID        `json:"coupon_usage_order_uuid"`
+	CouponUsageUsedAt     time.Time          `json:"coupon_usage_used_at"`
+	CouponUsageStatus     int32              `json:"coupon_usage_status"`
+	CouponUsageReleasedAt pgtype.Timestamptz `json:"coupon_usage_released_at"`
+	CouponUsageUpdatedAt  time.Time          `json:"coupon_usage_updated_at"`
+	Inserted              bool               `json:"inserted"`
+}
+
+// Reservation identity: (coupon, order). A retry of an already-reserved pair
+// returns the existing row with inserted=false so quota is not consumed again.
+// A released (tombstoned) row comes back with status=2 so the service can
+// reject a reservation for a cancelled order.
+// The two CTE branches are complementary: a successful insert is invisible to
+// the `existing` snapshot, and on conflict the insert branch is empty.
+func (q *Queries) UpsertCouponUsage(ctx context.Context, arg UpsertCouponUsageParams) (UpsertCouponUsageRow, error) {
+	row := q.db.QueryRow(ctx, upsertCouponUsage,
+		arg.CouponID,
+		arg.CouponUuid,
+		arg.UserID,
+		arg.UserUuid,
+		arg.OrderID,
+		arg.OrderUuid,
+	)
+	var i UpsertCouponUsageRow
+	err := row.Scan(
+		&i.CouponUsageID,
+		&i.CouponUsageUuid,
+		&i.CouponUsageCouponID,
+		&i.CouponUsageCouponUuid,
+		&i.CouponUsageUserID,
+		&i.CouponUsageUserUuid,
+		&i.CouponUsageOrderID,
+		&i.CouponUsageOrderUuid,
+		&i.CouponUsageUsedAt,
+		&i.CouponUsageStatus,
+		&i.CouponUsageReleasedAt,
+		&i.CouponUsageUpdatedAt,
+		&i.Inserted,
 	)
 	return i, err
 }
