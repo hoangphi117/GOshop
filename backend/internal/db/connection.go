@@ -52,6 +52,9 @@ func InitDBWithConfig(cfg *config.Config, serviceName ...string) error {
 	if err != nil {
 		return fmt.Errorf("error parsing DB config: %w", err)
 	}
+	if len(serviceName) > 0 && serviceName[0] == "order" {
+		conf.ConnConfig.RuntimeParams["search_path"] = "orders,public"
+	}
 
 	sqlLogFile := "sql.log"
 	if len(serviceName) > 0 && serviceName[0] != "" {

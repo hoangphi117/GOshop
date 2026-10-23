@@ -148,8 +148,8 @@ WHERE user_oauth_provider = @provider AND user_oauth_id = @oauth_id
 LIMIT 1;
 
 -- name: CreateOAuthUser :one
-INSERT INTO users (user_fullname, user_email, user_oauth_provider, user_oauth_id, user_avatar_url, user_password)
-VALUES (@fullname, @email, @provider, @oauth_id, @avatar_url, NULL)
+INSERT INTO users (user_fullname, user_email, user_oauth_provider, user_oauth_id, user_avatar_url, user_password, user_level)
+VALUES (@fullname, @email, @provider, @oauth_id, @avatar_url, NULL, @user_level)
 RETURNING *;
 
 -- name: UpdateUserAvatar :one

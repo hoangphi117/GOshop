@@ -86,10 +86,10 @@ RETURNING *;
 WITH inserted AS (
     INSERT INTO products (
         product_name, product_slug, product_description,
-        product_price, product_stock, product_sku,
+        product_price, product_sku,
         product_category_id, product_image_url, product_status
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     RETURNING *
 )
 SELECT
@@ -197,21 +197,10 @@ WITH updated AS (
         product_description  = COALESCE(sqlc.narg('product_description')::text,    products.product_description),
         product_slug         = COALESCE(sqlc.narg('product_slug')::varchar,        products.product_slug),
         product_price         = COALESCE(sqlc.narg('product_price')::numeric,       products.product_price),
-        product_stock         = COALESCE(sqlc.narg('product_stock')::int,           products.product_stock),
         product_sku           = COALESCE(sqlc.narg('product_sku')::varchar,         products.product_sku),
         product_category_id   = COALESCE(sqlc.narg('product_category_id')::int,     products.product_category_id),
         product_image_url     = COALESCE(sqlc.narg('product_image_url')::text,      products.product_image_url),
-        product_status = CASE
-            WHEN sqlc.narg('product_status')::int IS NOT NULL
-                THEN sqlc.narg('product_status')::int
-            WHEN products.product_status = 3
-                 AND COALESCE(sqlc.narg('product_stock')::int, products.product_stock) > 0
-                THEN 1
-            WHEN products.product_status = 1
-                 AND COALESCE(sqlc.narg('product_stock')::int, products.product_stock) <= 0
-                THEN 3
-            ELSE products.product_status
-        END
+        product_status = COALESCE(sqlc.narg('product_status')::int, products.product_status)
     WHERE product_uuid = sqlc.arg(product_uuid)
     AND product_deleted_at IS NULL
     RETURNING *

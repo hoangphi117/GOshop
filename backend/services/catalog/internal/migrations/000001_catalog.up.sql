@@ -19,7 +19,6 @@ CREATE TABLE IF NOT EXISTS products (
     product_slug         VARCHAR(200) NOT NULL UNIQUE,
     product_description  TEXT,
     product_price        NUMERIC(12,2) NOT NULL CHECK (product_price > 0),
-    product_stock        INT DEFAULT 0 CHECK (product_stock >= 0),
     product_sku          VARCHAR(50) UNIQUE,
     product_category_id  INT NOT NULL REFERENCES categories(category_id),
     product_image_url    TEXT,

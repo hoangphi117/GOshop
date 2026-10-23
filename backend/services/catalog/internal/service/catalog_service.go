@@ -271,23 +271,30 @@ func (s *catalogService) TrashCategory(ctx context.Context, u uuid.UUID) error {
 // PRODUCTS
 // =============================================================================
 
-func (s *catalogService) enrichStockForDTO(ctx context.Context, d *dto.ProductDTO) {
-	if s.inventoryClient == nil || d == nil || d.UUID == "" {
-		return
+func (s *catalogService) enrichStockForDTO(ctx context.Context, d *dto.ProductDTO) error {
+	if d == nil || d.UUID == "" {
+		return nil
+	}
+	if s.inventoryClient == nil {
+		return utils.NewError(utils.ErrCodeServiceUnavailable, "inventory service is unavailable")
 	}
 	stocks, err := s.inventoryClient.GetStock(ctx, []string{d.UUID}, nil)
 	if err != nil {
-		logger.Log.Warn().Err(err).Str("uuid", d.UUID).Msg("Failed to fetch stock from inventory service")
-		return
+		return utils.WrapError(utils.ErrCodeServiceUnavailable, "failed to fetch stock from inventory service", err)
 	}
-	if len(stocks) > 0 {
-		d.Stock = stocks[0].Quantity
+	if len(stocks) == 0 {
+		return utils.NewError(utils.ErrCodeServiceUnavailable, "inventory stock record is unavailable")
 	}
+	d.Stock = stocks[0].Quantity
+	return nil
 }
 
-func (s *catalogService) enrichStockForDTOs(ctx context.Context, dtos []dto.ProductDTO) []dto.ProductDTO {
-	if s.inventoryClient == nil || len(dtos) == 0 {
-		return dtos
+func (s *catalogService) enrichStockForDTOs(ctx context.Context, dtos []dto.ProductDTO) ([]dto.ProductDTO, error) {
+	if len(dtos) == 0 {
+		return dtos, nil
+	}
+	if s.inventoryClient == nil {
+		return nil, utils.NewError(utils.ErrCodeServiceUnavailable, "inventory service is unavailable")
 	}
 	uuids := make([]string, 0, len(dtos))
 	for _, d := range dtos {
@@ -296,23 +303,24 @@ func (s *catalogService) enrichStockForDTOs(ctx context.Context, dtos []dto.Prod
 		}
 	}
 	if len(uuids) == 0 {
-		return dtos
+		return dtos, nil
 	}
 	stocks, err := s.inventoryClient.GetStock(ctx, uuids, nil)
 	if err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to batch fetch stocks from inventory service")
-		return dtos
+		return nil, utils.WrapError(utils.ErrCodeServiceUnavailable, "failed to fetch stocks from inventory service", err)
 	}
 	stockMap := make(map[string]int32, len(stocks))
 	for _, st := range stocks {
 		stockMap[st.ProductUUID] = st.Quantity
 	}
 	for i := range dtos {
-		if qty, ok := stockMap[dtos[i].UUID]; ok {
-			dtos[i].Stock = qty
+		qty, ok := stockMap[dtos[i].UUID]
+		if !ok {
+			return nil, utils.NewError(utils.ErrCodeServiceUnavailable, "inventory stock record is unavailable")
 		}
+		dtos[i].Stock = qty
 	}
-	return dtos
+	return dtos, nil
 }
 
 func (s *catalogService) CreateProduct(ctx context.Context, input dto.CreateProductInput) (*dto.ProductDTO, error) {
@@ -355,7 +363,6 @@ func (s *catalogService) CreateProduct(ctx context.Context, input dto.CreateProd
 		ProductSlug:        slug,
 		ProductDescription: input.Description,
 		ProductPrice:       utils.FloatToNumeric(input.Price),
-		ProductStock:       &input.Stock,
 		ProductSku:         sku,
 		ProductCategoryID:  category.CategoryID,
 		ProductImageUrl:    input.ImageURL,
@@ -372,14 +379,21 @@ func (s *catalogService) CreateProduct(ctx context.Context, input dto.CreateProd
 	// Enqueue Outbox event for Meilisearch sync & trigger direct search sync
 	if prodRow, err := s.repo.GetProductByUUID(ctx, created.ProductUuid); err == nil {
 		doc := mapProductRowToSearchDoc(prodRow)
-		_, _ = s.repo.InsertOutboxEvent(ctx, "product", created.ProductUuid.String(), "PRODUCT_UPSERT", doc)
+		if _, err := s.repo.InsertOutboxEvent(ctx, "product", created.ProductUuid.String(), "PRODUCT_UPSERT", doc); err != nil {
+			return nil, s.compensateProductCreation(ctx, created.ProductUuid, utils.WrapError(utils.ErrCodeInternal, "failed to enqueue product event", err))
+		}
 	} else {
-		_, _ = s.repo.InsertOutboxEvent(ctx, "product", created.ProductUuid.String(), "PRODUCT_UPSERT", created)
+		if _, err := s.repo.InsertOutboxEvent(ctx, "product", created.ProductUuid.String(), "PRODUCT_UPSERT", created); err != nil {
+			return nil, s.compensateProductCreation(ctx, created.ProductUuid, utils.WrapError(utils.ErrCodeInternal, "failed to enqueue product event", err))
+		}
 	}
 	go s.syncProductToSearch(context.Background(), created.ProductUuid)
 
 	// Adjust initial stock in inventory service
-	if s.inventoryClient != nil && input.Stock > 0 {
+	if input.Stock > 0 {
+		if s.inventoryClient == nil {
+			return nil, s.compensateProductCreation(ctx, created.ProductUuid, utils.NewError(utils.ErrCodeServiceUnavailable, "inventory service is unavailable"))
+		}
 		_, err := s.inventoryClient.AdjustStock(ctx, inventorycontract.AdjustStockInput{
 			ProductUUID:    created.ProductUuid.String(),
 			ProductID:      created.ProductID,
@@ -387,7 +401,7 @@ func (s *catalogService) CreateProduct(ctx context.Context, input dto.CreateProd
 			ChangeType:     "INITIAL_STOCK",
 		})
 		if err != nil {
-			logger.Log.Warn().Err(err).Str("uuid", created.ProductUuid.String()).Msg("Failed to initialize stock in inventory service")
+			return nil, s.compensateProductCreation(ctx, created.ProductUuid, utils.WrapError(utils.ErrCodeInternal, "failed to initialize stock in inventory service", err))
 		}
 	}
 
@@ -396,8 +410,20 @@ func (s *catalogService) CreateProduct(ctx context.Context, input dto.CreateProd
 	}
 
 	res := dto.MapCreateProductRowToDTO(created)
-	s.enrichStockForDTO(ctx, &res)
+	if err := s.enrichStockForDTO(ctx, &res); err != nil {
+		return nil, err
+	}
 	return &res, nil
+}
+
+func (s *catalogService) compensateProductCreation(ctx context.Context, productUUID uuid.UUID, cause error) error {
+	if _, err := s.repo.SoftDeleteProduct(ctx, productUUID); err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "product creation failed and compensation delete failed", errors.Join(cause, err))
+	}
+	if _, err := s.repo.InsertOutboxEvent(ctx, "product", productUUID.String(), "PRODUCT_DELETE", map[string]string{"id": productUUID.String()}); err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "product creation failed and delete event enqueue failed", errors.Join(cause, err))
+	}
+	return cause
 }
 
 func (s *catalogService) GetProductByUUID(ctx context.Context, u uuid.UUID) (*dto.ProductDTO, error) {
@@ -410,7 +436,9 @@ func (s *catalogService) GetProductByUUID(ctx context.Context, u uuid.UUID) (*dt
 	}
 
 	res := dto.MapProductRowToDTO(prod)
-	s.enrichStockForDTO(ctx, &res)
+	if err := s.enrichStockForDTO(ctx, &res); err != nil {
+		return nil, err
+	}
 	return &res, nil
 }
 
@@ -442,10 +470,9 @@ func (s *catalogService) GetProductBySlug(ctx context.Context, slug string) (*dt
 		CreatedAt:    prod.ProductCreatedAt.Format(time.RFC3339),
 		UpdatedAt:    prod.ProductUpdatedAt.Format(time.RFC3339),
 	}
-	if prod.ProductStock != nil {
-		res.Stock = *prod.ProductStock
+	if err := s.enrichStockForDTO(ctx, &res); err != nil {
+		return nil, err
 	}
-	s.enrichStockForDTO(ctx, &res)
 	return &res, nil
 }
 
@@ -458,11 +485,6 @@ func (s *catalogService) GetProductByID(ctx context.Context, id int32) (*dto.Pro
 		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to get product", err)
 	}
 
-	stock := int32(0)
-	if prod.ProductStock != nil {
-		stock = *prod.ProductStock
-	}
-
 	res := dto.ProductDTO{
 		ID:           prod.ProductID,
 		UUID:         prod.ProductUuid.String(),
@@ -470,7 +492,7 @@ func (s *catalogService) GetProductByID(ctx context.Context, id int32) (*dto.Pro
 		Slug:         prod.ProductSlug,
 		Description:  prod.ProductDescription,
 		Price:        utils.NumericToFloat(prod.ProductPrice),
-		Stock:        stock,
+		Stock:        0,
 		SKU:          prod.ProductSku,
 		CategoryID:   prod.ProductCategoryID,
 		CategoryUUID: prod.CategoryUuid.String(),
@@ -482,7 +504,9 @@ func (s *catalogService) GetProductByID(ctx context.Context, id int32) (*dto.Pro
 		CreatedAt:    prod.ProductCreatedAt.Format(time.RFC3339),
 		UpdatedAt:    prod.ProductUpdatedAt.Format(time.RFC3339),
 	}
-	s.enrichStockForDTO(ctx, &res)
+	if err := s.enrichStockForDTO(ctx, &res); err != nil {
+		return nil, err
+	}
 	return &res, nil
 }
 
@@ -502,10 +526,6 @@ func (s *catalogService) GetProductsBatch(ctx context.Context, uuids []string, i
 				return nil, utils.WrapError(utils.ErrCodeInternal, "failed to batch fetch by UUIDs", err)
 			}
 			for _, r := range rows {
-				stock := int32(0)
-				if r.ProductStock != nil {
-					stock = *r.ProductStock
-				}
 				results = append(results, dto.ProductDTO{
 					ID:           r.ProductID,
 					UUID:         r.ProductUuid.String(),
@@ -513,7 +533,7 @@ func (s *catalogService) GetProductsBatch(ctx context.Context, uuids []string, i
 					Slug:         r.ProductSlug,
 					Description:  r.ProductDescription,
 					Price:        utils.NumericToFloat(r.ProductPrice),
-					Stock:        stock,
+					Stock:        0,
 					SKU:          r.ProductSku,
 					CategoryID:   r.ProductCategoryID,
 					CategoryUUID: r.CategoryUuid.String(),
@@ -535,10 +555,6 @@ func (s *catalogService) GetProductsBatch(ctx context.Context, uuids []string, i
 			return nil, utils.WrapError(utils.ErrCodeInternal, "failed to batch fetch by IDs", err)
 		}
 		for _, r := range rows {
-			stock := int32(0)
-			if r.ProductStock != nil {
-				stock = *r.ProductStock
-			}
 			results = append(results, dto.ProductDTO{
 				ID:           r.ProductID,
 				UUID:         r.ProductUuid.String(),
@@ -546,7 +562,7 @@ func (s *catalogService) GetProductsBatch(ctx context.Context, uuids []string, i
 				Slug:         r.ProductSlug,
 				Description:  r.ProductDescription,
 				Price:        utils.NumericToFloat(r.ProductPrice),
-				Stock:        stock,
+				Stock:        0,
 				SKU:          r.ProductSku,
 				CategoryID:   r.ProductCategoryID,
 				CategoryUUID: r.CategoryUuid.String(),
@@ -561,7 +577,11 @@ func (s *catalogService) GetProductsBatch(ctx context.Context, uuids []string, i
 		}
 	}
 
-	results = s.enrichStockForDTOs(ctx, results)
+	var enrichErr error
+	results, enrichErr = s.enrichStockForDTOs(ctx, results)
+	if enrichErr != nil {
+		return nil, enrichErr
+	}
 	return results, nil
 }
 
@@ -633,7 +653,11 @@ func (s *catalogService) GetAllProducts(
 
 	if s.cache != nil {
 		if err := s.cache.Get(cacheKey, &cacheData); err == nil && cacheData.Products != nil {
-			cacheData.Products = s.enrichStockForDTOs(ctx, cacheData.Products)
+			var enrichErr error
+			cacheData.Products, enrichErr = s.enrichStockForDTOs(ctx, cacheData.Products)
+			if enrichErr != nil {
+				return nil, 0, enrichErr
+			}
 			return cacheData.Products, cacheData.Total, nil
 		}
 	}
@@ -693,7 +717,10 @@ func (s *catalogService) GetAllProducts(
 		for i, r := range rows {
 			dtos[i] = dto.MapProductRowToDTO(r)
 		}
-		dtos = s.enrichStockForDTOs(ctx, dtos)
+		dtos, err = s.enrichStockForDTOs(ctx, dtos)
+		if err != nil {
+			return nil, err
+		}
 
 		if s.cache != nil {
 			cd := struct {
@@ -716,7 +743,10 @@ func (s *catalogService) GetAllProducts(
 	}
 
 	fr := res.(fetchResult)
-	fr.products = s.enrichStockForDTOs(ctx, fr.products)
+	fr.products, err = s.enrichStockForDTOs(ctx, fr.products)
+	if err != nil {
+		return nil, 0, err
+	}
 	return fr.products, int32(fr.total), nil
 }
 
@@ -808,7 +838,10 @@ func (s *catalogService) SearchProducts(
 		})
 	}
 
-	products = s.enrichStockForDTOs(ctx, products)
+	products, err = s.enrichStockForDTOs(ctx, products)
+	if err != nil {
+		return nil, 0, err
+	}
 	return products, totalHits, nil
 }
 
@@ -909,7 +942,6 @@ func (s *catalogService) UpdateProduct(ctx context.Context, input dto.UpdateProd
 		ProductDescription: input.Description,
 		ProductSlug:        slug,
 		ProductPrice:       pgPrice,
-		ProductStock:       input.Stock,
 		ProductSku:         sku,
 		ProductCategoryID:  catID,
 		ProductImageUrl:    input.ImageURL,
@@ -936,21 +968,24 @@ func (s *catalogService) UpdateProduct(ctx context.Context, input dto.UpdateProd
 		newStock := *input.Stock
 		currentStock := int32(0)
 		stocks, err := s.inventoryClient.GetStock(ctx, []string{updated.ProductUuid.String()}, nil)
-		if err == nil && len(stocks) > 0 {
+		if err != nil {
+			return nil, utils.WrapError(utils.ErrCodeServiceUnavailable, "failed to read current stock from inventory service", err)
+		}
+		if len(stocks) > 0 {
 			currentStock = stocks[0].Quantity
-		} else if updated.ProductStock != nil {
-			currentStock = *updated.ProductStock
 		}
 		delta := newStock - currentStock
 		if delta != 0 {
 			note := fmt.Sprintf("Admin adjusted stock from %d to %d", currentStock, newStock)
-			_, _ = s.inventoryClient.AdjustStock(ctx, inventorycontract.AdjustStockInput{
+			if _, err := s.inventoryClient.AdjustStock(ctx, inventorycontract.AdjustStockInput{
 				ProductUUID:    updated.ProductUuid.String(),
 				ProductID:      updated.ProductID,
 				QuantityChange: delta,
 				ChangeType:     "ADMIN_ADJUSTMENT",
 				Note:           &note,
-			})
+			}); err != nil {
+				return nil, utils.WrapError(utils.ErrCodeInternal, "failed to adjust stock in inventory service", err)
+			}
 		}
 	}
 
@@ -959,7 +994,9 @@ func (s *catalogService) UpdateProduct(ctx context.Context, input dto.UpdateProd
 	}
 
 	res := dto.MapUpdateProductRowToDTO(updated)
-	s.enrichStockForDTO(ctx, &res)
+	if err := s.enrichStockForDTO(ctx, &res); err != nil {
+		return nil, err
+	}
 	return &res, nil
 }
 
@@ -979,18 +1016,13 @@ func (s *catalogService) SoftDeleteProduct(ctx context.Context, u uuid.UUID) (*d
 		_ = s.cache.Clear("products:*")
 	}
 
-	stock := int32(0)
-	if prod.ProductStock != nil {
-		stock = *prod.ProductStock
-	}
-
 	res := dto.ProductDTO{
 		ID:        prod.ProductID,
 		UUID:      prod.ProductUuid.String(),
 		Name:      prod.ProductName,
 		Slug:      prod.ProductSlug,
 		Price:     utils.NumericToFloat(prod.ProductPrice),
-		Stock:     stock,
+		Stock:     0,
 		Status:    "Inactive",
 		CreatedAt: prod.ProductCreatedAt.Format(time.RFC3339),
 		UpdatedAt: prod.ProductUpdatedAt.Format(time.RFC3339),
@@ -1019,18 +1051,13 @@ func (s *catalogService) RestoreProduct(ctx context.Context, u uuid.UUID) (*dto.
 		_ = s.cache.Clear("products:*")
 	}
 
-	stock := int32(0)
-	if prod.ProductStock != nil {
-		stock = *prod.ProductStock
-	}
-
 	res := dto.ProductDTO{
 		ID:        prod.ProductID,
 		UUID:      prod.ProductUuid.String(),
 		Name:      prod.ProductName,
 		Slug:      prod.ProductSlug,
 		Price:     utils.NumericToFloat(prod.ProductPrice),
-		Stock:     stock,
+		Stock:     0,
 		Status:    "Active",
 		CreatedAt: prod.ProductCreatedAt.Format(time.RFC3339),
 		UpdatedAt: prod.ProductUpdatedAt.Format(time.RFC3339),
@@ -1158,7 +1185,6 @@ func (s *catalogService) ImportProductsCSV(ctx context.Context, file io.Reader) 
 			slug = strings.ToLower(strings.ReplaceAll(name, " ", "-")) + "-" + uuid.New().String()[:8]
 		}
 
-		stock32 := int32(stock)
 		var descPtr, imgPtr, skuPtr *string
 		if desc != "" {
 			descPtr = &desc
@@ -1176,7 +1202,6 @@ func (s *catalogService) ImportProductsCSV(ctx context.Context, file io.Reader) 
 			ProductSlug:        slug,
 			ProductDescription: descPtr,
 			ProductPrice:       utils.FloatToNumeric(price),
-			ProductStock:       &stock32,
 			ProductSku:         skuPtr,
 			ProductCategoryID:  int32(catID),
 			ProductImageUrl:    imgPtr,
@@ -1189,11 +1214,43 @@ func (s *catalogService) ImportProductsCSV(ctx context.Context, file io.Reader) 
 
 		if prodRow, err := s.repo.GetProductByUUID(ctx, created.ProductUuid); err == nil {
 			doc := mapProductRowToSearchDoc(prodRow)
-			_, _ = s.repo.InsertOutboxEvent(ctx, "product", created.ProductUuid.String(), "PRODUCT_UPSERT", doc)
+			if _, err := s.repo.InsertOutboxEvent(ctx, "product", created.ProductUuid.String(), "PRODUCT_UPSERT", doc); err != nil {
+				compensationErr := s.compensateProductCreation(ctx, created.ProductUuid, err)
+				csvErrors = append(csvErrors, dto.CSVRowError{Row: lineNum, Field: "outbox", Reason: compensationErr.Error()})
+				continue
+			}
 		} else {
-			_, _ = s.repo.InsertOutboxEvent(ctx, "product", created.ProductUuid.String(), "PRODUCT_UPSERT", created)
+			if _, err := s.repo.InsertOutboxEvent(ctx, "product", created.ProductUuid.String(), "PRODUCT_UPSERT", created); err != nil {
+				compensationErr := s.compensateProductCreation(ctx, created.ProductUuid, err)
+				csvErrors = append(csvErrors, dto.CSVRowError{Row: lineNum, Field: "outbox", Reason: compensationErr.Error()})
+				continue
+			}
 		}
 		go s.syncProductToSearch(context.Background(), created.ProductUuid)
+		if stock > 0 {
+			if s.inventoryClient == nil {
+				if err := s.compensateProductCreation(ctx, created.ProductUuid, utils.NewError(utils.ErrCodeServiceUnavailable, "inventory service is unavailable")); err != nil {
+					csvErrors = append(csvErrors, dto.CSVRowError{Row: lineNum, Field: "stock", Reason: err.Error()})
+					continue
+				}
+				csvErrors = append(csvErrors, dto.CSVRowError{Row: lineNum, Field: "stock", Reason: "Inventory service is unavailable"})
+				continue
+			}
+			if _, err := s.inventoryClient.AdjustStock(ctx, inventorycontract.AdjustStockInput{
+				ProductUUID:    created.ProductUuid.String(),
+				ProductID:      created.ProductID,
+				QuantityChange: int32(stock),
+				ChangeType:     "INITIAL_STOCK",
+			}); err != nil {
+				compensationErr := s.compensateProductCreation(ctx, created.ProductUuid, err)
+				if compensationErr != nil {
+					csvErrors = append(csvErrors, dto.CSVRowError{Row: lineNum, Field: "stock", Reason: compensationErr.Error()})
+					continue
+				}
+				csvErrors = append(csvErrors, dto.CSVRowError{Row: lineNum, Field: "stock", Reason: err.Error()})
+				continue
+			}
+		}
 		successCount++
 	}
 
@@ -1238,10 +1295,6 @@ func mapProductRowToSearchDoc(product catalogsqlc.GetProductByUUIDRow) search.Pr
 	if product.ProductSku != nil {
 		sku = *product.ProductSku
 	}
-	stock := int32(0)
-	if product.ProductStock != nil {
-		stock = *product.ProductStock
-	}
 	return search.ProductDocument{
 		ID:           product.ProductUuid.String(),
 		ProductID:    product.ProductID,
@@ -1249,7 +1302,7 @@ func mapProductRowToSearchDoc(product catalogsqlc.GetProductByUUIDRow) search.Pr
 		Slug:         product.ProductSlug,
 		Description:  desc,
 		Price:        utils.NumericToFloat(product.ProductPrice),
-		Stock:        stock,
+		Stock:        0,
 		SKU:          sku,
 		CategoryUUID: product.CategoryUuid.String(),
 		CategoryName: product.CategoryName,

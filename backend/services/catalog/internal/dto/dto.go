@@ -197,11 +197,6 @@ func MapProductRowToDTO(row catalogsqlc.GetProductByUUIDRow) ProductDTO {
 		status = "Out of Stock"
 	}
 
-	stock := int32(0)
-	if row.ProductStock != nil {
-		stock = *row.ProductStock
-	}
-
 	return ProductDTO{
 		ID:           row.ProductID,
 		UUID:         row.ProductUuid.String(),
@@ -209,7 +204,7 @@ func MapProductRowToDTO(row catalogsqlc.GetProductByUUIDRow) ProductDTO {
 		Slug:         row.ProductSlug,
 		Description:  row.ProductDescription,
 		Price:        utils.NumericToFloat(row.ProductPrice),
-		Stock:        stock,
+		Stock:        0,
 		SKU:          row.ProductSku,
 		CategoryID:   row.ProductCategoryID,
 		CategoryUUID: row.CategoryUuid.String(),
@@ -232,11 +227,6 @@ func MapCreateProductRowToDTO(row catalogsqlc.CreateProductRow) ProductDTO {
 		status = "Out of Stock"
 	}
 
-	stock := int32(0)
-	if row.ProductStock != nil {
-		stock = *row.ProductStock
-	}
-
 	return ProductDTO{
 		ID:           row.ProductID,
 		UUID:         row.ProductUuid.String(),
@@ -244,7 +234,7 @@ func MapCreateProductRowToDTO(row catalogsqlc.CreateProductRow) ProductDTO {
 		Slug:         row.ProductSlug,
 		Description:  row.ProductDescription,
 		Price:        utils.NumericToFloat(row.ProductPrice),
-		Stock:        stock,
+		Stock:        0,
 		SKU:          row.ProductSku,
 		CategoryID:   row.ProductCategoryID,
 		CategoryUUID: row.CategoryUuid.String(),
@@ -267,11 +257,6 @@ func MapUpdateProductRowToDTO(row catalogsqlc.UpdateProductRow) ProductDTO {
 		status = "Out of Stock"
 	}
 
-	stock := int32(0)
-	if row.ProductStock != nil {
-		stock = *row.ProductStock
-	}
-
 	return ProductDTO{
 		ID:           row.ProductID,
 		UUID:         row.ProductUuid.String(),
@@ -279,7 +264,7 @@ func MapUpdateProductRowToDTO(row catalogsqlc.UpdateProductRow) ProductDTO {
 		Slug:         row.ProductSlug,
 		Description:  row.ProductDescription,
 		Price:        utils.NumericToFloat(row.ProductPrice),
-		Stock:        stock,
+		Stock:        0,
 		SKU:          row.ProductSku,
 		CategoryID:   row.ProductCategoryID,
 		CategoryUUID: row.CategoryUuid.String(),
