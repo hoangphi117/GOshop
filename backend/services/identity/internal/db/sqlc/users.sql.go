@@ -38,8 +38,8 @@ func (q *Queries) CountUsers(ctx context.Context, arg CountUsersParams) (int64, 
 }
 
 const createOAuthUser = `-- name: CreateOAuthUser :one
-INSERT INTO users (user_fullname, user_email, user_oauth_provider, user_oauth_id, user_avatar_url, user_password)
-VALUES ($1, $2, $3, $4, $5, NULL)
+INSERT INTO users (user_fullname, user_email, user_oauth_provider, user_oauth_id, user_avatar_url, user_password, user_level)
+VALUES ($1, $2, $3, $4, $5, NULL, $6)
 RETURNING user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_oauth_provider, user_oauth_id, user_avatar_url, user_avatar, user_deleted_at, user_created_at, user_updated_at
 `
 
@@ -49,6 +49,7 @@ type CreateOAuthUserParams struct {
 	Provider  *string `json:"provider"`
 	OauthID   *string `json:"oauth_id"`
 	AvatarUrl *string `json:"avatar_url"`
+	UserLevel int32   `json:"user_level"`
 }
 
 func (q *Queries) CreateOAuthUser(ctx context.Context, arg CreateOAuthUserParams) (User, error) {
@@ -58,6 +59,7 @@ func (q *Queries) CreateOAuthUser(ctx context.Context, arg CreateOAuthUserParams
 		arg.Provider,
 		arg.OauthID,
 		arg.AvatarUrl,
+		arg.UserLevel,
 	)
 	var i User
 	err := row.Scan(

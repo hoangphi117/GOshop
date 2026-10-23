@@ -42,7 +42,6 @@ type Product struct {
 	ProductSlug        string         `json:"product_slug"`
 	ProductDescription *string        `json:"product_description"`
 	ProductPrice       pgtype.Numeric `json:"product_price"`
-	ProductStock       *int32         `json:"product_stock"`
 	ProductSku         *string        `json:"product_sku"`
 	ProductCategoryID  int32          `json:"product_category_id"`
 	ProductImageUrl    *string        `json:"product_image_url"`

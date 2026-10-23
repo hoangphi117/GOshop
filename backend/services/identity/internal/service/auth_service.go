@@ -698,6 +698,7 @@ func (as *authService) findOrCreateGoogleUser(ctx context.Context, payload *dto.
 		Provider:  &provider,
 		OauthID:   &oauthID,
 		AvatarUrl: avatarURL,
+		UserLevel: UserLevelUser,
 	})
 	if err != nil {
 		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to create new OAuth user", err)

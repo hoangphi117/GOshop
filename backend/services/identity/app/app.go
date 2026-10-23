@@ -15,7 +15,6 @@ import (
 
 	"goshop/internal/config"
 	"goshop/internal/db"
-	"goshop/internal/repository"
 	"goshop/internal/worker"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
@@ -101,10 +100,6 @@ func New(cfg *config.Config) (*App, error) {
 	go redisBridge.StartSubscriber(context.Background())
 
 	// Storage Layer (Dedicated Identity DB)
-	identityQuerier := db.GetIdentityDB()
-	if identityQuerier == nil {
-		identityQuerier = db.DB
-	}
 	identityPool := db.GetIdentityDBPool()
 	if identityPool == nil {
 		identityPool = db.DBPool
@@ -135,7 +130,7 @@ func New(cfg *config.Config) (*App, error) {
 	})
 
 	// Transactional Outbox Publisher for Identity Service (Guaranteed At-Least-Once Delivery)
-	coreOutboxRepo := repository.NewSqlOutboxRepository(identityQuerier)
+	coreOutboxRepo := identityrepo.NewWorkerOutboxRepository(outboxRepo)
 	if rabbitmqService != nil {
 		identityOutboxWorker := worker.NewOutboxPublisherWorkerWithAggregates(
 			coreOutboxRepo,
