@@ -22,9 +22,10 @@ type Querier interface {
 	GetStockByProductIDs(ctx context.Context, dollar_1 []int32) ([]InventoryStock, error)
 	GetStockByUUID(ctx context.Context, productUuid uuid.UUID) (InventoryStock, error)
 	GetStockByUUIDs(ctx context.Context, dollar_1 []uuid.UUID) ([]InventoryStock, error)
-	ListStockMovements(ctx context.Context, arg ListStockMovementsParams) ([]ListStockMovementsRow, error)
+	ListStockMovements(ctx context.Context, arg ListStockMovementsParams) ([]StockMovement, error)
 	RestoreStockByID(ctx context.Context, arg RestoreStockByIDParams) (InventoryStock, error)
 	RestoreStockByUUID(ctx context.Context, arg RestoreStockByUUIDParams) (InventoryStock, error)
+	SetStockQuantity(ctx context.Context, arg SetStockQuantityParams) (InventoryStock, error)
 	UpsertStockMetadata(ctx context.Context, arg UpsertStockMetadataParams) (InventoryStock, error)
 }
 

@@ -141,7 +141,11 @@ func (c *Client) SearchDocuments(ctx context.Context, query string, filter strin
 		return nil, 0, fmt.Errorf("failed to decode search hits: %w", err)
 	}
 
-	return docs, resp.TotalHits, nil
+	totalHits := resp.EstimatedTotalHits
+	if totalHits == 0 {
+		totalHits = resp.TotalHits
+	}
+	return docs, totalHits, nil
 }
 
 // GetRawClient returns the underlying meilisearch.ServiceManager

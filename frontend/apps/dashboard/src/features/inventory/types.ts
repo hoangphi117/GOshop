@@ -1,9 +1,6 @@
 export interface StockMovement {
   movement_uuid: string
   product_uuid: string
-  product_name: string
-  product_sku?: string
-  product_image_url?: string
   change_type: string
   quantity_change: number
   stock_before: number
@@ -31,4 +28,8 @@ export interface AdjustStockPayload {
   quantity_change: number
   change_type: 'RESTOCK' | 'MANUAL_ADJUSTMENT' | 'DAMAGED_DISCARD' | 'INITIAL_STOCK'
   note?: string
+  /** Idempotency reference (INITIAL_STOCK only): same reference never applies twice. */
+  reference_id?: string
+  /** Absolute stock target; overrides quantity_change. Retry-safe for admin edits. */
+  target_quantity?: number
 }

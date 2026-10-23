@@ -299,9 +299,9 @@ func (c *TopicConsumer) handlePaymentFailed(body []byte) error {
 
 func (c *TopicConsumer) handleInventoryStockLow(body []byte) error {
 	var payload struct {
-		ProductID int32  `json:"product_id"`
-		Name      string `json:"name"`
-		Stock     int32  `json:"stock"`
+		ProductID   int32  `json:"product_id"`
+		ProductUUID string `json:"product_uuid"`
+		Stock       int32  `json:"stock"`
 	}
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return err
@@ -310,8 +310,8 @@ func (c *TopicConsumer) handleInventoryStockLow(body []byte) error {
 	return c.notificationService.NotifyAdmins(context.Background(), dto.AdminNotifyInput{
 		Type:  "inventory",
 		Title: "Low Stock Warning",
-		Body:  fmt.Sprintf("Product %s (ID %d) stock is low: %d remaining", payload.Name, payload.ProductID, payload.Stock),
-		Data:  map[string]any{"product_id": payload.ProductID, "stock": payload.Stock},
+		Body:  fmt.Sprintf("Product %s (ID %d) stock is low: %d remaining", payload.ProductUUID, payload.ProductID, payload.Stock),
+		Data:  map[string]any{"product_id": payload.ProductID, "product_uuid": payload.ProductUUID, "stock": payload.Stock},
 	})
 }
 

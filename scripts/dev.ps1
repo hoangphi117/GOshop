@@ -1,13 +1,13 @@
 # =============================================================================
 # GOshop Single-Command Dev Orchestrator (Lightweight Hybrid Mode)
 # =============================================================================
-# 1. Starts Docker Infrastructure (Postgres, Redis, RabbitMQ, Meilisearch)
+# 1. Starts Docker Infrastructure (Postgres, Redis, RabbitMQ, MinIO, Meilisearch)
 # 2. Runs core Go services on Host; domain services run in Docker Compose
 # =============================================================================
 
 Write-Host ">>> [1/2] Starting Infrastructure and Domain Services (Docker)..." -ForegroundColor Cyan
 docker compose -f ./docker-compose.dev.yml stop api identity notification order payment worker ws-gateway 2>$null | Out-Null
-docker compose -f docker-compose.dev.yml --env-file ./backend/.env up -d inventory catalog coupon cart
+docker compose -f docker-compose.dev.yml --env-file ./backend/.env up -d minio inventory catalog coupon cart
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Failed to start infrastructure containers!" -ForegroundColor Red

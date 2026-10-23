@@ -85,9 +85,6 @@ type ItemStockInfo struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	ProductId         int32                  `protobuf:"varint,1,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`
 	ProductUuid       string                 `protobuf:"bytes,2,opt,name=product_uuid,json=productUuid,proto3" json:"product_uuid,omitempty"`
-	ProductName       string                 `protobuf:"bytes,3,opt,name=product_name,json=productName,proto3" json:"product_name,omitempty"`
-	ProductSku        string                 `protobuf:"bytes,4,opt,name=product_sku,json=productSku,proto3" json:"product_sku,omitempty"`
-	ProductImageUrl   string                 `protobuf:"bytes,5,opt,name=product_image_url,json=productImageUrl,proto3" json:"product_image_url,omitempty"`
 	Quantity          int32                  `protobuf:"varint,6,opt,name=quantity,proto3" json:"quantity,omitempty"`
 	ReservedQuantity  int32                  `protobuf:"varint,7,opt,name=reserved_quantity,json=reservedQuantity,proto3" json:"reserved_quantity,omitempty"`
 	AvailableQuantity int32                  `protobuf:"varint,8,opt,name=available_quantity,json=availableQuantity,proto3" json:"available_quantity,omitempty"`
@@ -135,27 +132,6 @@ func (x *ItemStockInfo) GetProductId() int32 {
 func (x *ItemStockInfo) GetProductUuid() string {
 	if x != nil {
 		return x.ProductUuid
-	}
-	return ""
-}
-
-func (x *ItemStockInfo) GetProductName() string {
-	if x != nil {
-		return x.ProductName
-	}
-	return ""
-}
-
-func (x *ItemStockInfo) GetProductSku() string {
-	if x != nil {
-		return x.ProductSku
-	}
-	return ""
-}
-
-func (x *ItemStockInfo) GetProductImageUrl() string {
-	if x != nil {
-		return x.ProductImageUrl
 	}
 	return ""
 }
@@ -551,6 +527,11 @@ type AdjustStockRequest struct {
 	ActorId        int32                  `protobuf:"varint,6,opt,name=actor_id,json=actorId,proto3" json:"actor_id,omitempty"`
 	ActorUuid      string                 `protobuf:"bytes,7,opt,name=actor_uuid,json=actorUuid,proto3" json:"actor_uuid,omitempty"`
 	ActorName      string                 `protobuf:"bytes,8,opt,name=actor_name,json=actorName,proto3" json:"actor_name,omitempty"`
+	// Caller-supplied idempotency reference, honoured for INITIAL_STOCK.
+	ReferenceId string `protobuf:"bytes,9,opt,name=reference_id,json=referenceId,proto3" json:"reference_id,omitempty"`
+	// Absolute stock target; when set, quantity_change is ignored. Optional,
+	// because 0 is a meaningful target.
+	TargetQuantity *int32 `protobuf:"varint,10,opt,name=target_quantity,json=targetQuantity,proto3,oneof" json:"target_quantity,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -641,6 +622,20 @@ func (x *AdjustStockRequest) GetActorName() string {
 	return ""
 }
 
+func (x *AdjustStockRequest) GetReferenceId() string {
+	if x != nil {
+		return x.ReferenceId
+	}
+	return ""
+}
+
+func (x *AdjustStockRequest) GetTargetQuantity() int32 {
+	if x != nil && x.TargetQuantity != nil {
+		return *x.TargetQuantity
+	}
+	return 0
+}
+
 type AdjustStockResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
@@ -718,18 +713,14 @@ const file_proto_inventory_v1_inventory_proto_rawDesc = "" +
 	"\n" +
 	"product_id\x18\x01 \x01(\x05R\tproductId\x12!\n" +
 	"\fproduct_uuid\x18\x02 \x01(\tR\vproductUuid\x12\x1a\n" +
-	"\bquantity\x18\x03 \x01(\x05R\bquantity\"\xb9\x02\n" +
+	"\bquantity\x18\x03 \x01(\x05R\bquantity\"\xdb\x01\n" +
 	"\rItemStockInfo\x12\x1d\n" +
 	"\n" +
 	"product_id\x18\x01 \x01(\x05R\tproductId\x12!\n" +
-	"\fproduct_uuid\x18\x02 \x01(\tR\vproductUuid\x12!\n" +
-	"\fproduct_name\x18\x03 \x01(\tR\vproductName\x12\x1f\n" +
-	"\vproduct_sku\x18\x04 \x01(\tR\n" +
-	"productSku\x12*\n" +
-	"\x11product_image_url\x18\x05 \x01(\tR\x0fproductImageUrl\x12\x1a\n" +
+	"\fproduct_uuid\x18\x02 \x01(\tR\vproductUuid\x12\x1a\n" +
 	"\bquantity\x18\x06 \x01(\x05R\bquantity\x12+\n" +
 	"\x11reserved_quantity\x18\a \x01(\x05R\x10reservedQuantity\x12-\n" +
-	"\x12available_quantity\x18\b \x01(\x05R\x11availableQuantity\"\xdc\x01\n" +
+	"\x12available_quantity\x18\b \x01(\x05R\x11availableQuantityJ\x04\b\x03\x10\x04J\x04\b\x04\x10\x05J\x04\b\x05\x10\x06\"\xdc\x01\n" +
 	"\x13ReserveStockRequest\x12-\n" +
 	"\x05items\x18\x01 \x03(\v2\x17.inventory.v1.StockItemR\x05items\x12!\n" +
 	"\freference_id\x18\x02 \x01(\tR\vreferenceId\x12%\n" +
@@ -756,7 +747,7 @@ const file_proto_inventory_v1_inventory_proto_rawDesc = "" +
 	"\vproduct_ids\x18\x02 \x03(\x05R\n" +
 	"productIds\"E\n" +
 	"\x10GetStockResponse\x121\n" +
-	"\x05items\x18\x01 \x03(\v2\x1b.inventory.v1.ItemStockInfoR\x05items\"\x8d\x02\n" +
+	"\x05items\x18\x01 \x03(\v2\x1b.inventory.v1.ItemStockInfoR\x05items\"\xf2\x02\n" +
 	"\x12AdjustStockRequest\x12!\n" +
 	"\fproduct_uuid\x18\x01 \x01(\tR\vproductUuid\x12\x1d\n" +
 	"\n" +
@@ -769,7 +760,11 @@ const file_proto_inventory_v1_inventory_proto_rawDesc = "" +
 	"\n" +
 	"actor_uuid\x18\a \x01(\tR\tactorUuid\x12\x1d\n" +
 	"\n" +
-	"actor_name\x18\b \x01(\tR\tactorName\"\xb5\x01\n" +
+	"actor_name\x18\b \x01(\tR\tactorName\x12!\n" +
+	"\freference_id\x18\t \x01(\tR\vreferenceId\x12,\n" +
+	"\x0ftarget_quantity\x18\n" +
+	" \x01(\x05H\x00R\x0etargetQuantity\x88\x01\x01B\x12\n" +
+	"\x10_target_quantity\"\xb5\x01\n" +
 	"\x13AdjustStockResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12#\n" +
 	"\rcurrent_stock\x18\x02 \x01(\x05R\fcurrentStock\x12#\n" +
@@ -833,6 +828,7 @@ func file_proto_inventory_v1_inventory_proto_init() {
 	if File_proto_inventory_v1_inventory_proto != nil {
 		return
 	}
+	file_proto_inventory_v1_inventory_proto_msgTypes[8].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

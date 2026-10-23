@@ -2,8 +2,10 @@ package grpc
 
 import (
 	"context"
+	"errors"
 
 	inventoryv1 "goshop/proto/inventory/v1"
+	"goshop/pkg/utils"
 	"goshop/services/inventory/internal/dto"
 	"goshop/services/inventory/internal/service"
 
@@ -11,6 +13,33 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+// referenceIDOrNil maps an empty proto string to a nil reference pointer.
+func referenceIDOrNil(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+// grpcCodeFromError preserves the caller's error class across the gRPC boundary
+// instead of collapsing every failure to InvalidArgument.
+func grpcCodeFromError(err error) codes.Code {
+	var appErr *utils.AppError
+	if errors.As(err, &appErr) {
+		switch appErr.Code {
+		case utils.ErrCodeServiceUnavailable:
+			return codes.Unavailable
+		case utils.ErrCodeConflict:
+			return codes.AlreadyExists
+		case utils.ErrCodeNotFound:
+			return codes.NotFound
+		case utils.ErrCodeBadRequest:
+			return codes.InvalidArgument
+		}
+	}
+	return codes.InvalidArgument
+}
 
 type InventoryGRPCServer struct {
 	inventoryv1.UnimplementedInventoryServiceServer
@@ -67,9 +96,6 @@ func (s *InventoryGRPCServer) ReserveStock(ctx context.Context, req *inventoryv1
 		resItems = append(resItems, &inventoryv1.ItemStockInfo{
 			ProductId:         it.ProductID,
 			ProductUuid:       it.ProductUUID,
-			ProductName:       it.ProductName,
-			ProductSku:        it.ProductSKU,
-			ProductImageUrl:   it.ProductImageURL,
 			Quantity:          it.Quantity,
 			ReservedQuantity:  it.ReservedQuantity,
 			AvailableQuantity: it.AvailableQuantity,
@@ -142,9 +168,6 @@ func (s *InventoryGRPCServer) GetStock(ctx context.Context, req *inventoryv1.Get
 		items[i] = &inventoryv1.ItemStockInfo{
 			ProductId:         st.ProductID,
 			ProductUuid:       st.ProductUUID,
-			ProductName:       st.ProductName,
-			ProductSku:        st.ProductSKU,
-			ProductImageUrl:   st.ProductImageURL,
 			Quantity:          st.Quantity,
 			ReservedQuantity:  st.ReservedQuantity,
 			AvailableQuantity: st.AvailableQuantity,
@@ -175,28 +198,32 @@ func (s *InventoryGRPCServer) AdjustStock(ctx context.Context, req *inventoryv1.
 	if req.Note != "" {
 		note = &req.Note
 	}
+	var targetQty *int32
+	if req.TargetQuantity != nil {
+		t := req.GetTargetQuantity()
+		targetQty = &t
+	}
+	var productID *int32
+	if req.ProductId > 0 {
+		productID = &req.ProductId
+	}
 
 	movement, err := s.inventoryService.AdjustStock(ctx, actorUUID, actorName, dto.AdjustStockInput{
 		ProductUUID:    req.ProductUuid,
+		ProductID:      productID,
 		QuantityChange: req.QuantityChange,
 		ChangeType:     req.ChangeType,
 		Note:           note,
+		ReferenceID:    referenceIDOrNil(req.ReferenceId),
+		TargetQuantity: targetQty,
 	})
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "failed to adjust stock: %v", err)
+		return nil, status.Errorf(grpcCodeFromError(err), "failed to adjust stock: %v", err)
 	}
 
 	pID := int32(0)
 	if movement.ProductID != nil {
 		pID = *movement.ProductID
-	}
-	sku := ""
-	if movement.ProductSKU != nil {
-		sku = *movement.ProductSKU
-	}
-	img := ""
-	if movement.ProductImageURL != nil {
-		img = *movement.ProductImageURL
 	}
 
 	return &inventoryv1.AdjustStockResponse{
@@ -206,9 +233,6 @@ func (s *InventoryGRPCServer) AdjustStock(ctx context.Context, req *inventoryv1.
 		StockInfo: &inventoryv1.ItemStockInfo{
 			ProductId:         pID,
 			ProductUuid:       movement.ProductUUID,
-			ProductName:       movement.ProductName,
-			ProductSku:        sku,
-			ProductImageUrl:   img,
 			Quantity:          movement.StockAfter,
 			ReservedQuantity:  0,
 			AvailableQuantity: movement.StockAfter,

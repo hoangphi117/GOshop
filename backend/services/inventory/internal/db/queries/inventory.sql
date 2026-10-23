@@ -20,16 +20,10 @@ ORDER BY product_id ASC;
 INSERT INTO inventory_stocks (
     product_id,
     product_uuid,
-    product_name,
-    product_sku,
-    product_image_url,
     quantity
-) VALUES ($1, $2, $3, $4, $5, $6)
+) VALUES ($1, $2, $3)
 ON CONFLICT (product_uuid) DO UPDATE
 SET product_id = COALESCE(EXCLUDED.product_id, inventory_stocks.product_id),
-    product_name = CASE WHEN EXCLUDED.product_name <> '' THEN EXCLUDED.product_name ELSE inventory_stocks.product_name END,
-    product_sku = CASE WHEN EXCLUDED.product_sku <> '' THEN EXCLUDED.product_sku ELSE inventory_stocks.product_sku END,
-    product_image_url = CASE WHEN EXCLUDED.product_image_url <> '' THEN EXCLUDED.product_image_url ELSE inventory_stocks.product_image_url END,
     updated_at = now()
 RETURNING *;
 
@@ -66,6 +60,13 @@ UPDATE inventory_stocks
 SET quantity = quantity + $2,
     updated_at = now()
 WHERE product_uuid = $1 AND (quantity + $2) >= 0
+RETURNING *;
+
+-- name: SetStockQuantity :one
+UPDATE inventory_stocks
+SET quantity = $2,
+    updated_at = now()
+WHERE product_uuid = $1
 RETURNING *;
 
 -- name: CreateStockMovement :one
@@ -111,12 +112,8 @@ SELECT
     sm.actor_uuid,
     sm.actor_name,
     sm.note,
-    sm.created_at,
-    COALESCE(s.product_name, '') as product_name,
-    COALESCE(s.product_sku, '') as product_sku,
-    COALESCE(s.product_image_url, '') as product_image_url
+    sm.created_at
 FROM stock_movements sm
-LEFT JOIN inventory_stocks s ON s.product_uuid = sm.product_uuid
 WHERE (
     sqlc.narg(product_uuid)::uuid IS NULL
     OR sm.product_uuid = sqlc.narg(product_uuid)::uuid
@@ -130,9 +127,10 @@ WHERE (
     sqlc.narg(to_date)::TIMESTAMPTZ IS NULL
     OR sm.created_at <= sqlc.narg(to_date)::TIMESTAMPTZ
 ) AND (
+    -- Catalog owns product names/SKUs; search matches the UUID or the
+    -- movement reference instead (name search was dropped with the copy).
     sqlc.narg(search)::TEXT IS NULL
-    OR s.product_name ILIKE '%' || sqlc.narg(search)::TEXT || '%'
-    OR s.product_sku ILIKE '%' || sqlc.narg(search)::TEXT || '%'
+    OR sm.product_uuid::TEXT ILIKE '%' || sqlc.narg(search)::TEXT || '%'
     OR sm.reference_id ILIKE '%' || sqlc.narg(search)::TEXT || '%'
 )
 ORDER BY sm.created_at DESC
@@ -141,7 +139,6 @@ LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');
 -- name: CountStockMovements :one
 SELECT count(*)
 FROM stock_movements sm
-LEFT JOIN inventory_stocks s ON s.product_uuid = sm.product_uuid
 WHERE (
     sqlc.narg(product_uuid)::uuid IS NULL
     OR sm.product_uuid = sqlc.narg(product_uuid)::uuid
@@ -156,7 +153,6 @@ WHERE (
     OR sm.created_at <= sqlc.narg(to_date)::TIMESTAMPTZ
 ) AND (
     sqlc.narg(search)::TEXT IS NULL
-    OR s.product_name ILIKE '%' || sqlc.narg(search)::TEXT || '%'
-    OR s.product_sku ILIKE '%' || sqlc.narg(search)::TEXT || '%'
+    OR sm.product_uuid::TEXT ILIKE '%' || sqlc.narg(search)::TEXT || '%'
     OR sm.reference_id ILIKE '%' || sqlc.narg(search)::TEXT || '%'
 );

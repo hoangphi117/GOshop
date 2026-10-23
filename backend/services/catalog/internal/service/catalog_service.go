@@ -389,20 +389,22 @@ func (s *catalogService) CreateProduct(ctx context.Context, input dto.CreateProd
 	}
 	go s.syncProductToSearch(context.Background(), created.ProductUuid)
 
-	// Adjust initial stock in inventory service
-	if input.Stock > 0 {
-		if s.inventoryClient == nil {
-			return nil, s.compensateProductCreation(ctx, created.ProductUuid, utils.NewError(utils.ErrCodeServiceUnavailable, "inventory service is unavailable"))
+	// Adjust initial stock in inventory service. The product UUID is the
+	// idempotency reference, so a retried call cannot double the initial stock.
+	// On failure the product is kept and the stock init is queued in the
+	// outbox, where the worker retries until inventory is reachable again.
+	if err := s.initStock(ctx, created.ProductUuid.String(), created.ProductID, input.Stock); err != nil {
+		if queueErr := s.queueInitialStock(ctx, created.ProductUuid.String(), created.ProductID, input.Stock); queueErr != nil {
+			// Cannot guarantee recovery: fall back to compensating delete.
+			cause := utils.WrapError(utils.ErrCodeServiceUnavailable, "failed to initialize stock and to queue the retry", errors.Join(err, queueErr))
+			return nil, s.compensateProductCreation(ctx, created.ProductUuid, cause)
 		}
-		_, err := s.inventoryClient.AdjustStock(ctx, inventorycontract.AdjustStockInput{
-			ProductUUID:    created.ProductUuid.String(),
-			ProductID:      created.ProductID,
-			QuantityChange: input.Stock,
-			ChangeType:     "INITIAL_STOCK",
-		})
-		if err != nil {
-			return nil, s.compensateProductCreation(ctx, created.ProductUuid, utils.WrapError(utils.ErrCodeInternal, "failed to initialize stock in inventory service", err))
+		if s.cache != nil {
+			_ = s.cache.Clear("products:*")
 		}
+		res := dto.MapCreateProductRowToDTO(created)
+		res.Stock = max(input.Stock, 0)
+		return &res, utils.NewError(utils.ErrCodeServiceUnavailable, "product created; stock initialization pending and will be retried automatically")
 	}
 
 	if s.cache != nil {
@@ -410,10 +412,44 @@ func (s *catalogService) CreateProduct(ctx context.Context, input dto.CreateProd
 	}
 
 	res := dto.MapCreateProductRowToDTO(created)
-	if err := s.enrichStockForDTO(ctx, &res); err != nil {
-		return nil, err
-	}
+	// Stock was written above; skip the extra inventory round-trip.
+	res.Stock = max(input.Stock, 0)
 	return &res, nil
+}
+
+// queueInitialStock persists an INITIAL_STOCK_SET outbox event so the outbox
+// worker can retry the stock initialization after a transient inventory
+// outage. Idempotency comes from the Movement.ReferenceID check in inventory.
+func (s *catalogService) queueInitialStock(ctx context.Context, productUUID string, productID int32, quantity int32) error {
+	if _, err := s.repo.InsertOutboxEvent(ctx, "product", productUUID, "INITIAL_STOCK_SET", map[string]any{
+		"product_uuid": productUUID,
+		"product_id":   productID,
+		"quantity":     max(quantity, 0),
+	}); err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "failed to enqueue initial stock retry event", err)
+	}
+	return nil
+}
+
+// initStock sets the opening quantity for a freshly created product. Called
+// even for zero stock so every product gets an inventory row; the product UUID
+// doubles as the idempotency reference so retries are safe.
+func (s *catalogService) initStock(ctx context.Context, productUUID string, productID int32, quantity int32) error {
+	if s.inventoryClient == nil {
+		return utils.NewError(utils.ErrCodeServiceUnavailable, "inventory service is not configured")
+	}
+	if quantity < 0 {
+		quantity = 0
+	}
+	ref := productUUID
+	_, err := s.inventoryClient.AdjustStock(ctx, inventorycontract.AdjustStockInput{
+		ProductUUID:    productUUID,
+		ProductID:      productID,
+		QuantityChange: quantity,
+		ChangeType:     "INITIAL_STOCK",
+		ReferenceID:    &ref,
+	})
+	return err
 }
 
 func (s *catalogService) compensateProductCreation(ctx context.Context, productUUID uuid.UUID, cause error) error {
@@ -963,29 +999,20 @@ func (s *catalogService) UpdateProduct(ctx context.Context, input dto.UpdateProd
 	}
 	go s.syncProductToSearch(context.Background(), updated.ProductUuid)
 
-	// Adjust Stock delta in Inventory Service
+	// Stock is set absolutely (target_quantity) inside the inventory
+	// transaction, so there is no read-then-write window and retrying the same
+	// update is naturally idempotent.
 	if s.inventoryClient != nil && input.Stock != nil {
-		newStock := *input.Stock
-		currentStock := int32(0)
-		stocks, err := s.inventoryClient.GetStock(ctx, []string{updated.ProductUuid.String()}, nil)
-		if err != nil {
-			return nil, utils.WrapError(utils.ErrCodeServiceUnavailable, "failed to read current stock from inventory service", err)
-		}
-		if len(stocks) > 0 {
-			currentStock = stocks[0].Quantity
-		}
-		delta := newStock - currentStock
-		if delta != 0 {
-			note := fmt.Sprintf("Admin adjusted stock from %d to %d", currentStock, newStock)
-			if _, err := s.inventoryClient.AdjustStock(ctx, inventorycontract.AdjustStockInput{
-				ProductUUID:    updated.ProductUuid.String(),
-				ProductID:      updated.ProductID,
-				QuantityChange: delta,
-				ChangeType:     "ADMIN_ADJUSTMENT",
-				Note:           &note,
-			}); err != nil {
-				return nil, utils.WrapError(utils.ErrCodeInternal, "failed to adjust stock in inventory service", err)
-			}
+		target := *input.Stock
+		note := fmt.Sprintf("Admin set stock to %d", target)
+		if _, err := s.inventoryClient.AdjustStock(ctx, inventorycontract.AdjustStockInput{
+			ProductUUID:    updated.ProductUuid.String(),
+			ProductID:      updated.ProductID,
+			TargetQuantity: &target,
+			ChangeType:     "MANUAL_ADJUSTMENT",
+			Note:           &note,
+		}); err != nil {
+			return nil, utils.WrapError(utils.ErrCodeServiceUnavailable, "failed to set stock in inventory service", err)
 		}
 	}
 
@@ -994,7 +1021,9 @@ func (s *catalogService) UpdateProduct(ctx context.Context, input dto.UpdateProd
 	}
 
 	res := dto.MapUpdateProductRowToDTO(updated)
-	if err := s.enrichStockForDTO(ctx, &res); err != nil {
+	if input.Stock != nil {
+		res.Stock = max(*input.Stock, 0)
+	} else if err := s.enrichStockForDTO(ctx, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
@@ -1227,29 +1256,15 @@ func (s *catalogService) ImportProductsCSV(ctx context.Context, file io.Reader) 
 			}
 		}
 		go s.syncProductToSearch(context.Background(), created.ProductUuid)
-		if stock > 0 {
-			if s.inventoryClient == nil {
-				if err := s.compensateProductCreation(ctx, created.ProductUuid, utils.NewError(utils.ErrCodeServiceUnavailable, "inventory service is unavailable")); err != nil {
-					csvErrors = append(csvErrors, dto.CSVRowError{Row: lineNum, Field: "stock", Reason: err.Error()})
-					continue
-				}
-				csvErrors = append(csvErrors, dto.CSVRowError{Row: lineNum, Field: "stock", Reason: "Inventory service is unavailable"})
+		if err := s.initStock(ctx, created.ProductUuid.String(), created.ProductID, int32(stock)); err != nil {
+			// Keep the product and retry via the outbox unless even queuing fails.
+			if queueErr := s.queueInitialStock(ctx, created.ProductUuid.String(), created.ProductID, int32(stock)); queueErr != nil {
+				compensationErr := s.compensateProductCreation(ctx, created.ProductUuid, errors.Join(err, queueErr))
+				csvErrors = append(csvErrors, dto.CSVRowError{Row: lineNum, Field: "stock", Reason: compensationErr.Error()})
 				continue
 			}
-			if _, err := s.inventoryClient.AdjustStock(ctx, inventorycontract.AdjustStockInput{
-				ProductUUID:    created.ProductUuid.String(),
-				ProductID:      created.ProductID,
-				QuantityChange: int32(stock),
-				ChangeType:     "INITIAL_STOCK",
-			}); err != nil {
-				compensationErr := s.compensateProductCreation(ctx, created.ProductUuid, err)
-				if compensationErr != nil {
-					csvErrors = append(csvErrors, dto.CSVRowError{Row: lineNum, Field: "stock", Reason: compensationErr.Error()})
-					continue
-				}
-				csvErrors = append(csvErrors, dto.CSVRowError{Row: lineNum, Field: "stock", Reason: err.Error()})
-				continue
-			}
+			csvErrors = append(csvErrors, dto.CSVRowError{Row: lineNum, Field: "stock", Reason: "stock initialization queued for retry: " + err.Error()})
+			continue
 		}
 		successCount++
 	}
@@ -1331,11 +1346,14 @@ func (s *catalogService) deleteProductFromSearch(ctx context.Context, u uuid.UUI
 	_, _ = s.search.DeleteProduct(ctx, u.String())
 }
 
-func (s *catalogService) ProcessOutboxBatch(ctx context.Context) (int, error) {
-	if s.search == nil {
-		return 0, nil
-	}
+type initialStockEvent struct {
+	EventID     int64  `json:"-"`
+	ProductUUID string `json:"product_uuid"`
+	ProductID   int32  `json:"product_id"`
+	Quantity    int32  `json:"quantity"`
+}
 
+func (s *catalogService) ProcessOutboxBatch(ctx context.Context) (int, error) {
 	events, err := s.repo.GetPendingOutboxEvents(ctx, 50)
 	if err != nil {
 		return 0, err
@@ -1346,11 +1364,17 @@ func (s *catalogService) ProcessOutboxBatch(ctx context.Context) (int, error) {
 
 	upsertDocs := make([]search.ProductDocument, 0, len(events))
 	deleteIDs := make([]string, 0)
+	stockInits := make([]initialStockEvent, 0)
 	processedIDs := make([]int64, 0, len(events))
 
 	for _, ev := range events {
 		switch ev.EventType {
 		case "PRODUCT_UPSERT":
+			if s.search == nil {
+				// No search deployment: leave the event PENDING instead of
+				// dropping it.
+				continue
+			}
 			var doc search.ProductDocument
 			if err := json.Unmarshal(ev.Payload, &doc); err == nil && doc.ID != "" && doc.Name != "" {
 				upsertDocs = append(upsertDocs, doc)
@@ -1364,15 +1388,40 @@ func (s *catalogService) ProcessOutboxBatch(ctx context.Context) (int, error) {
 			processedIDs = append(processedIDs, ev.EventID)
 
 		case "PRODUCT_DELETE":
+			if s.search == nil {
+				continue
+			}
 			deleteIDs = append(deleteIDs, ev.AggregateID)
 			processedIDs = append(processedIDs, ev.EventID)
+
+		case "INITIAL_STOCK_SET":
+			var evPayload initialStockEvent
+			if err := json.Unmarshal(ev.Payload, &evPayload); err == nil && evPayload.ProductUUID != "" {
+				evPayload.EventID = ev.EventID
+				stockInits = append(stockInits, evPayload)
+			} else {
+				// Poison payload: mark processed so it cannot loop forever.
+				logger.Log.Error().Str("aggregate_id", ev.AggregateID).Msg("Catalog outbox: unparsable INITIAL_STOCK_SET payload, dropping")
+				processedIDs = append(processedIDs, ev.EventID)
+			}
 
 		default:
 			processedIDs = append(processedIDs, ev.EventID)
 		}
 	}
 
-	if len(upsertDocs) > 0 {
+	// Stock initialization runs independently of the search client so a
+	// Meilisearch outage cannot block inventory recovery.
+	for _, p := range stockInits {
+		if err := s.initStock(ctx, p.ProductUUID, p.ProductID, p.Quantity); err != nil {
+			// Leave the event PENDING; the next tick retries it.
+			logger.Log.Warn().Err(err).Str("product_uuid", p.ProductUUID).Msg("Catalog outbox: initial stock retry failed")
+			continue
+		}
+		processedIDs = append(processedIDs, p.EventID)
+	}
+
+	if len(upsertDocs) > 0 && s.search != nil {
 		if _, err := s.search.IndexProducts(ctx, upsertDocs); err != nil {
 			logger.Log.Error().Err(err).Int("count", len(upsertDocs)).Msg("Catalog outbox: failed to index products")
 			return 0, err
@@ -1393,10 +1442,9 @@ func (s *catalogService) ProcessOutboxBatch(ctx context.Context) (int, error) {
 }
 
 func (s *catalogService) StartOutboxWorker(ctx context.Context) {
-	if s.search == nil {
-		return
-	}
-	logger.Log.Info().Msg("Starting Catalog Meilisearch outbox worker...")
+	// The worker no longer depends on Meilisearch: it also retries initial
+	// stock initialization, which must run even in a search-less deployment.
+	logger.Log.Info().Msg("Starting Catalog outbox worker...")
 	ticker := time.NewTicker(2 * time.Second)
 	go func() {
 		defer ticker.Stop()

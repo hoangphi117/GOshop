@@ -19,10 +19,11 @@ type InventoryRepository interface {
 	RestoreStockByUUID(ctx context.Context, tx pgx.Tx, productUUID uuid.UUID, quantity int32) (sqlc.InventoryStock, error)
 	RestoreStockByID(ctx context.Context, tx pgx.Tx, productID int32, quantity int32) (sqlc.InventoryStock, error)
 	AdjustStockByUUID(ctx context.Context, tx pgx.Tx, productUUID uuid.UUID, quantityChange int32) (sqlc.InventoryStock, error)
+	SetStockQuantity(ctx context.Context, tx pgx.Tx, productUUID uuid.UUID, quantity int32) (sqlc.InventoryStock, error)
 	CreateStockMovement(ctx context.Context, tx pgx.Tx, params sqlc.CreateStockMovementParams) (sqlc.StockMovement, error)
 	GetMovementByRefAndProductUUID(ctx context.Context, refType, refID string, productUUID uuid.UUID) (sqlc.StockMovement, error)
 	GetMovementByRefAndProductID(ctx context.Context, refType, refID string, productID int32) (sqlc.StockMovement, error)
-	ListStockMovements(ctx context.Context, params sqlc.ListStockMovementsParams) ([]sqlc.ListStockMovementsRow, error)
+	ListStockMovements(ctx context.Context, params sqlc.ListStockMovementsParams) ([]sqlc.StockMovement, error)
 	CountStockMovements(ctx context.Context, params sqlc.CountStockMovementsParams) (int64, error)
 }
 
@@ -96,6 +97,13 @@ func (r *SqlInventoryRepository) AdjustStockByUUID(ctx context.Context, tx pgx.T
 	})
 }
 
+func (r *SqlInventoryRepository) SetStockQuantity(ctx context.Context, tx pgx.Tx, productUUID uuid.UUID, quantity int32) (sqlc.InventoryStock, error) {
+	return r.querier(tx).SetStockQuantity(ctx, sqlc.SetStockQuantityParams{
+		ProductUuid: productUUID,
+		Quantity:    quantity,
+	})
+}
+
 func (r *SqlInventoryRepository) CreateStockMovement(ctx context.Context, tx pgx.Tx, params sqlc.CreateStockMovementParams) (sqlc.StockMovement, error) {
 	return r.querier(tx).CreateStockMovement(ctx, params)
 }
@@ -116,7 +124,7 @@ func (r *SqlInventoryRepository) GetMovementByRefAndProductID(ctx context.Contex
 	})
 }
 
-func (r *SqlInventoryRepository) ListStockMovements(ctx context.Context, params sqlc.ListStockMovementsParams) ([]sqlc.ListStockMovementsRow, error) {
+func (r *SqlInventoryRepository) ListStockMovements(ctx context.Context, params sqlc.ListStockMovementsParams) ([]sqlc.StockMovement, error) {
 	return r.q.ListStockMovements(ctx, params)
 }
 
