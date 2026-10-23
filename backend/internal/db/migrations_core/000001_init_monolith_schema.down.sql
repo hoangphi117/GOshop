@@ -12,8 +12,6 @@ DROP TABLE IF EXISTS product_review_reports CASCADE;
 DROP TABLE IF EXISTS product_review_helpful_votes CASCADE;
 DROP TABLE IF EXISTS product_reviews CASCADE;
 DROP TABLE IF EXISTS user_addresses CASCADE;
-DROP TABLE IF EXISTS webhook_events CASCADE;
-DROP TABLE IF EXISTS payment_transactions CASCADE;
 DROP TABLE IF EXISTS coupon_usages CASCADE;
 DROP TABLE IF EXISTS coupons CASCADE;
 DROP TABLE IF EXISTS cart_items CASCADE;

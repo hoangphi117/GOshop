@@ -32,7 +32,6 @@ TRUNCATE TABLE
     product_review_reports,
     product_review_helpful_votes,
     product_reviews,
-    payment_transactions,
     coupon_usages,
     coupons,
     cart_items,
