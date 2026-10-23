@@ -100,10 +100,6 @@ func New(cfg *config.Config) (*App, error) {
 	go redisBridge.StartSubscriber(context.Background())
 
 	// Storage Layer (Dedicated Identity DB)
-	identityQuerier := db.GetIdentityDB()
-	if identityQuerier == nil {
-		identityQuerier = db.DB
-	}
 	identityPool := db.GetIdentityDBPool()
 	if identityPool == nil {
 		identityPool = db.DBPool
