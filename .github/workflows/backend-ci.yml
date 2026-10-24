@@ -8,6 +8,8 @@ on:
       - 'refactor/**'
       - 'feature/**'
       - 'feat/**'
+      - 'fix/**'
+      - 'chore/**'
     paths:
       - 'backend/**'
       - '.github/workflows/backend-ci.yml'
@@ -27,12 +29,30 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          # buf breaking compares against origin/develop, so full history.
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.26.5'
           cache-dependency-path: backend/go.sum
+
+      - name: Install buf
+        uses: bufbuild/buf-setup-action@v1
+
+      - name: Buf lint
+        run: buf lint
+        working-directory: backend
+
+      - name: Buf breaking check
+        # Both sides as git refs: identical file keying regardless of whether
+        # develop has backend/buf.yaml yet. buf defaults to FILE breaking
+        # rules here, matching backend/buf.yaml. Runs from the repo root
+        # (overrides the job's backend default) so buf finds .git directly.
+        working-directory: .
+        run: buf breaking ".git#ref=HEAD" --against ".git#ref=origin/develop"
 
       - name: Go Vet
         run: go vet ./...
