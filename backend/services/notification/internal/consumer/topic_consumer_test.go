@@ -3,6 +3,7 @@ package consumer_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"goshop/pkg/logger"
@@ -80,7 +81,7 @@ func TestTopicConsumer_OrderCreated(t *testing.T) {
 	svc := new(mockNotificationService)
 	log := logger.NewLogger(logger.LoggerConfig{Level: "debug", IsDev: "development"})
 
-	c := consumer.NewTopicConsumer(svc, nil, nil, log)
+	c := consumer.NewTopicConsumerWithLedger(svc, nil, nil, log, newFakeLedger())
 
 	userID := int32(42)
 	payload := map[string]any{
@@ -112,7 +113,7 @@ func TestTopicConsumer_OrderStatusChanged_NumericStatus(t *testing.T) {
 	svc := new(mockNotificationService)
 	log := logger.NewLogger(logger.LoggerConfig{Level: "debug", IsDev: "development"})
 
-	c := consumer.NewTopicConsumer(svc, nil, nil, log)
+	c := consumer.NewTopicConsumerWithLedger(svc, nil, nil, log, newFakeLedger())
 
 	userID := int32(42)
 	payload := map[string]any{
@@ -142,7 +143,7 @@ func TestTopicConsumer_OrderStatusChanged_Shipped(t *testing.T) {
 	svc := new(mockNotificationService)
 	log := logger.NewLogger(logger.LoggerConfig{Level: "debug", IsDev: "development"})
 
-	c := consumer.NewTopicConsumer(svc, nil, nil, log)
+	c := consumer.NewTopicConsumerWithLedger(svc, nil, nil, log, newFakeLedger())
 
 	userID := int32(42)
 	payload := map[string]any{
@@ -167,4 +168,152 @@ func TestTopicConsumer_OrderStatusChanged_Shipped(t *testing.T) {
 	err := c.HandleEvent(headers, body)
 	assert.NoError(t, err)
 	svc.AssertExpectations(t)
+}
+
+// fakeLedger is an in-memory EventLedgerRepository for redelivery tests.
+type fakeLedger struct {
+	marked    map[string]bool
+	failCheck error
+	failMark  error
+}
+
+func newFakeLedger() *fakeLedger {
+	return &fakeLedger{marked: map[string]bool{}}
+}
+
+func (f *fakeLedger) IsEventProcessed(_ context.Context, eventID, _ string) (bool, error) {
+	if f.failCheck != nil {
+		return false, f.failCheck
+	}
+	return f.marked[eventID], nil
+}
+
+func (f *fakeLedger) MarkEventProcessed(_ context.Context, eventID, _ string) error {
+	if f.failMark != nil {
+		return f.failMark
+	}
+	f.marked[eventID] = true
+	return nil
+}
+
+func orderCreatedBody(t *testing.T, eventID string) []byte {
+	t.Helper()
+	body, err := json.Marshal(map[string]any{
+		"event_id":     eventID,
+		"order_number": "ORD-777",
+		"user_id":      42,
+		"total_amount": 10.0,
+	})
+	assert.NoError(t, err)
+	return body
+}
+
+func orderCreatedHeaders() amqp.Table {
+	return amqp.Table{"x-routing-key": rabbitmq.RoutingKeyOrderCreated, "trace_id": "trace-redelivery"}
+}
+
+// A redelivered event must produce exactly one logical notification.
+func TestTopicConsumer_Redelivery_SideEffectRunsOnce(t *testing.T) {
+	svc := new(mockNotificationService)
+	log := logger.NewLogger(logger.LoggerConfig{Level: "debug", IsDev: "development"})
+	ledger := newFakeLedger()
+
+	c := consumer.NewTopicConsumerWithLedger(svc, nil, nil, log, ledger)
+
+	svc.On("Send", mock.Anything, mock.MatchedBy(func(input dto.SendNotificationInput) bool {
+		return input.UserID == 42 && input.Type == "order"
+	})).Return(nil).Once()
+	svc.On("NotifyAdmins", mock.Anything, mock.Anything).Return(nil).Once()
+
+	body := orderCreatedBody(t, "evt-redelivery-1")
+	assert.NoError(t, c.HandleEvent(orderCreatedHeaders(), body))
+	assert.NoError(t, c.HandleEvent(orderCreatedHeaders(), body))
+
+	svc.AssertExpectations(t)
+	assert.True(t, ledger.marked["evt-redelivery-1"], "event must be recorded in the ledger")
+}
+
+// A failing side effect must neither mark the event nor lose it: the error
+// returned makes the broker redeliver, and the retry applies the side effect.
+func TestTopicConsumer_SideEffectFailure_RemainsRetryable(t *testing.T) {
+	svc := new(mockNotificationService)
+	log := logger.NewLogger(logger.LoggerConfig{Level: "debug", IsDev: "development"})
+	ledger := newFakeLedger()
+
+	c := consumer.NewTopicConsumerWithLedger(svc, nil, nil, log, ledger)
+
+	svc.On("Send", mock.Anything, mock.Anything).Return(errors.New("db down")).Once()
+	svc.On("Send", mock.Anything, mock.MatchedBy(func(input dto.SendNotificationInput) bool {
+		return input.UserID == 42
+	})).Return(nil).Once()
+	svc.On("NotifyAdmins", mock.Anything, mock.Anything).Return(nil).Once()
+
+	body := orderCreatedBody(t, "evt-retry-1")
+
+	err := c.HandleEvent(orderCreatedHeaders(), body)
+	assert.ErrorContains(t, err, "db down")
+	assert.False(t, ledger.marked["evt-retry-1"], "failed event must stay unmarked for redelivery")
+
+	assert.NoError(t, c.HandleEvent(orderCreatedHeaders(), body))
+	svc.AssertExpectations(t)
+	assert.True(t, ledger.marked["evt-retry-1"], "retried event must be marked after success")
+}
+
+// Duplicate deliveries of an already-processed event are dropped silently.
+func TestTopicConsumer_DuplicateDelivery_SkipsSideEffects(t *testing.T) {
+	svc := new(mockNotificationService)
+	log := logger.NewLogger(logger.LoggerConfig{Level: "debug", IsDev: "development"})
+	ledger := newFakeLedger()
+	ledger.marked["evt-dup-1"] = true
+
+	c := consumer.NewTopicConsumerWithLedger(svc, nil, nil, log, ledger)
+
+	assert.NoError(t, c.HandleEvent(orderCreatedHeaders(), orderCreatedBody(t, "evt-dup-1")))
+	svc.AssertNotCalled(t, "Send", mock.Anything, mock.Anything)
+	svc.AssertNotCalled(t, "NotifyAdmins", mock.Anything, mock.Anything)
+}
+
+// A ledger write failure must surface: the event stays retryable instead of
+// being acknowledged unrecorded.
+func TestTopicConsumer_MarkFailure_ReturnsError(t *testing.T) {
+	svc := new(mockNotificationService)
+	log := logger.NewLogger(logger.LoggerConfig{Level: "debug", IsDev: "development"})
+	ledger := newFakeLedger()
+	ledger.failMark = errors.New("ledger write failed")
+
+	c := consumer.NewTopicConsumerWithLedger(svc, nil, nil, log, ledger)
+
+	svc.On("Send", mock.Anything, mock.Anything).Return(nil).Once()
+	svc.On("NotifyAdmins", mock.Anything, mock.Anything).Return(nil).Once()
+
+	err := c.HandleEvent(orderCreatedHeaders(), orderCreatedBody(t, "evt-markfail-1"))
+	assert.ErrorContains(t, err, "ledger write failed")
+	assert.Empty(t, ledger.marked, "event must not be recorded")
+	svc.AssertExpectations(t)
+}
+
+// Envelope-less payloads (legacy publishers) deduplicate by content hash.
+func TestTopicConsumer_LegacyPayloadWithoutEventID_StillDeduplicates(t *testing.T) {
+	svc := new(mockNotificationService)
+	log := logger.NewLogger(logger.LoggerConfig{Level: "debug", IsDev: "development"})
+	ledger := newFakeLedger()
+
+	c := consumer.NewTopicConsumerWithLedger(svc, nil, nil, log, ledger)
+
+	body, err := json.Marshal(map[string]any{
+		"order_number": "ORD-LEGACY",
+		"user_id":      42,
+		"total_amount": 5.0,
+	})
+	assert.NoError(t, err)
+
+	svc.On("Send", mock.Anything, mock.MatchedBy(func(input dto.SendNotificationInput) bool {
+		return input.UserID == 42 && input.Type == "order"
+	})).Return(nil).Once()
+	svc.On("NotifyAdmins", mock.Anything, mock.Anything).Return(nil).Once()
+
+	assert.NoError(t, c.HandleEvent(orderCreatedHeaders(), body))
+	assert.NoError(t, c.HandleEvent(orderCreatedHeaders(), body))
+	svc.AssertExpectations(t)
+	assert.Len(t, ledger.marked, 1, "legacy payload must be recorded once under its content hash")
 }

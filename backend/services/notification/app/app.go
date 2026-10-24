@@ -25,11 +25,15 @@ import (
 	"goshop/services/notification/internal/consumer"
 	notificationsqlc "goshop/services/notification/internal/db/sqlc"
 	"goshop/services/notification/internal/handler"
+	"goshop/services/notification/internal/migrations"
 	"goshop/services/notification/internal/repository"
 	notifroutes "goshop/services/notification/internal/routes"
 	"goshop/services/notification/internal/service"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 )
 
 // App encapsulates the Notification microservice runtime
@@ -63,6 +67,28 @@ func New(cfg *config.Config) (*App, error) {
 	if err := db.InitDBWithConfig(cfg, "notification"); err != nil {
 		logger.Log.Fatal().Err(err).Msg("Failed to initialize database for notification service")
 		return nil, err
+	}
+
+	// Run embedded migrations (processed_events idempotency ledger)
+	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&x-migrations-table=schema_migrations_notification",
+		cfg.DB.User, cfg.DB.Password, cfg.DB.Host, cfg.DB.Port, cfg.DB.DBName, cfg.DB.SSLMode)
+	sourceDriver, err := iofs.New(migrations.FS, ".")
+	if err != nil {
+		logger.Log.Error().Err(err).Msg("Could not load embedded migrations source for notification service")
+		return nil, fmt.Errorf("migration source load failed: %w", err)
+	}
+	m, err := migrate.NewWithSourceInstance("iofs", sourceDriver, connStr)
+	if err != nil {
+		logger.Log.Error().Err(err).Msg("Could not initialize migrate instance for notification service")
+		return nil, fmt.Errorf("migrate instance init failed: %w", err)
+	}
+	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		logger.Log.Error().Err(err).Msg("Failed to execute database migrations for notification service")
+		return nil, fmt.Errorf("notification migrations failed: %w", err)
+	}
+	logger.Log.Info().Msg("Notification service database migrations applied successfully")
+	if sourceErr, dbErr := m.Close(); sourceErr != nil || dbErr != nil {
+		logger.Log.Warn().Interface("close_errors", map[string]any{"source": sourceErr, "db": dbErr}).Msg("Error closing migration instance")
 	}
 
 	redisClient := config.NewRedisClient()
@@ -109,6 +135,7 @@ func New(cfg *config.Config) (*App, error) {
 	dbPool := db.DBPool
 	notificationQuerier := notificationsqlc.New(dbPool)
 	notificationRepo := repository.NewSqlNotificationRepository(notificationQuerier)
+	eventLedger := repository.NewSqlEventLedgerRepository(dbPool)
 	notificationService := service.NewNotificationService(
 		notificationRepo,
 		identityClient,
@@ -119,11 +146,12 @@ func New(cfg *config.Config) (*App, error) {
 
 	// Subscribe to RabbitMQ Topic Exchange (Event-Driven)
 	if rabbitmqService != nil {
-		topicConsumer := consumer.NewTopicConsumer(
+		topicConsumer := consumer.NewTopicConsumerWithLedger(
 			notificationService,
 			mailService,
 			discordNotifier,
 			rabbitmqLogger,
+			eventLedger,
 			dbPool,
 		)
 		topicPatterns := []string{
