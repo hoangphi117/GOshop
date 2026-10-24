@@ -1,0 +1,11 @@
+version: v2
+modules:
+  - path: proto
+lint:
+  # STANDARD is buf's default rule set: package/field naming, versioned
+  # packages, no unused imports, RPC request/response naming.
+  use:
+    - STANDARD
+breaking:
+  use:
+    - FILE
