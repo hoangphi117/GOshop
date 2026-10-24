@@ -1,8 +1,7 @@
-package testutils
+﻿package testutils
 
 import (
 	"context"
-	"io"
 	"time"
 
 	v1dto "goshop/internal/dto/v1"
@@ -23,16 +22,12 @@ var (
 	_ v1service.OrderStockPort       = (*MockOrderStockPort)(nil)
 	_ v1service.OrderCouponPort      = (*MockOrderCouponPort)(nil)
 	_ v1service.NotificationService  = (*MockNotificationService)(nil)
-	_ v1service.CartService          = (*MockCartService)(nil)
 	_ v1service.ReviewService        = (*MockReviewService)(nil)
 	_ v1service.AddressService       = (*MockAddressService)(nil)
 	_ v1service.PaymentService       = (*MockPaymentService)(nil)
 	_ v1service.PaymentRefundService = (*MockPaymentService)(nil)
 	_ v1service.PaymentRefundService = (*MockPaymentRefundService)(nil)
 	_ v1service.LocationService      = (*MockLocationService)(nil)
-	_ v1service.ProductService       = (*MockProductService)(nil)
-	_ v1service.ProductQueryService  = (*MockProductService)(nil)
-	_ v1service.AdminProductService  = (*MockProductService)(nil)
 	_ v1service.AuthService          = (*MockAuthService)(nil)
 	_ rabbitmq.RabbitMQService       = (*MockRabbitMQService)(nil)
 	_ shipping.ShippingProvider      = (*MockShippingProvider)(nil)
@@ -215,65 +210,6 @@ func (m *MockNotificationService) PurgeStaleNotifications(ctx context.Context, r
 		return m.PurgeStaleNotificationsFunc(ctx, retentionDays)
 	}
 	return 0, nil
-}
-
-type MockCartService struct {
-	GetMyCartFunc              func(ctx context.Context, userUUID uuid.UUID) (v1dto.CartDTO, error)
-	AddItemToCartFunc          func(ctx context.Context, userUUID uuid.UUID, input v1dto.AddCartItemInput) (v1dto.CartDTO, error)
-	UpdateCartItemQuantityFunc func(ctx context.Context, userUUID uuid.UUID, itemUUID uuid.UUID, input v1dto.UpdateCartItemQuantityInput) (v1dto.CartDTO, error)
-	RemoveItemFromCartFunc     func(ctx context.Context, userUUID uuid.UUID, itemUUID uuid.UUID) (v1dto.CartDTO, error)
-	ClearMyCartFunc            func(ctx context.Context, userUUID uuid.UUID) error
-	RemovePurchasedItemsFunc       func(ctx context.Context, userID int32, productIDs []int32) error
-	RemovePurchasedItemsByUUIDFunc func(ctx context.Context, userUUID uuid.UUID, productUUIDs []uuid.UUID) error
-}
-
-func (m *MockCartService) GetMyCart(ctx context.Context, userUUID uuid.UUID) (v1dto.CartDTO, error) {
-	if m.GetMyCartFunc != nil {
-		return m.GetMyCartFunc(ctx, userUUID)
-	}
-	return v1dto.CartDTO{}, nil
-}
-
-func (m *MockCartService) AddItemToCart(ctx context.Context, userUUID uuid.UUID, input v1dto.AddCartItemInput) (v1dto.CartDTO, error) {
-	if m.AddItemToCartFunc != nil {
-		return m.AddItemToCartFunc(ctx, userUUID, input)
-	}
-	return v1dto.CartDTO{}, nil
-}
-
-func (m *MockCartService) UpdateCartItemQuantity(ctx context.Context, userUUID uuid.UUID, itemUUID uuid.UUID, input v1dto.UpdateCartItemQuantityInput) (v1dto.CartDTO, error) {
-	if m.UpdateCartItemQuantityFunc != nil {
-		return m.UpdateCartItemQuantityFunc(ctx, userUUID, itemUUID, input)
-	}
-	return v1dto.CartDTO{}, nil
-}
-
-func (m *MockCartService) RemoveItemFromCart(ctx context.Context, userUUID uuid.UUID, itemUUID uuid.UUID) (v1dto.CartDTO, error) {
-	if m.RemoveItemFromCartFunc != nil {
-		return m.RemoveItemFromCartFunc(ctx, userUUID, itemUUID)
-	}
-	return v1dto.CartDTO{}, nil
-}
-
-func (m *MockCartService) ClearMyCart(ctx context.Context, userUUID uuid.UUID) error {
-	if m.ClearMyCartFunc != nil {
-		return m.ClearMyCartFunc(ctx, userUUID)
-	}
-	return nil
-}
-
-func (m *MockCartService) RemovePurchasedItems(ctx context.Context, userID int32, productIDs []int32) error {
-	if m.RemovePurchasedItemsFunc != nil {
-		return m.RemovePurchasedItemsFunc(ctx, userID, productIDs)
-	}
-	return nil
-}
-
-func (m *MockCartService) RemovePurchasedItemsByUUID(ctx context.Context, userUUID uuid.UUID, productUUIDs []uuid.UUID) error {
-	if m.RemovePurchasedItemsByUUIDFunc != nil {
-		return m.RemovePurchasedItemsByUUIDFunc(ctx, userUUID, productUUIDs)
-	}
-	return nil
 }
 
 // =========================================================================
@@ -932,96 +868,6 @@ func (m *MockLocationService) GetWards(ctx context.Context, districtID int) ([]v
 	return nil, nil
 }
 
-type MockProductService struct {
-	CreateProductFunc     func(ctx context.Context, input v1dto.CreateProductInput) (*v1dto.ProductDTO, error)
-	GetAllProductsFunc    func(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, orderBy, sort string, page, limit int32, deleted bool) ([]v1dto.ProductDTO, int32, error)
-	GetProductByUUIDFunc  func(ctx context.Context, productUUID uuid.UUID) (*v1dto.ProductDTO, error)
-	GetProductBySlugFunc  func(ctx context.Context, slug string) (*v1dto.ProductDTO, error)
-	SearchProductsFunc    func(ctx context.Context, q, categoryUUID string, minPrice, maxPrice, minRating float64, sort string, page, limit int32) ([]v1dto.ProductDTO, int64, error)
-	SuggestProductsFunc   func(ctx context.Context, q string, limit int32) ([]v1dto.ProductSuggestionDTO, error)
-	UpdateProductFunc     func(ctx context.Context, input v1dto.UpdateProductInput) (*v1dto.ProductDTO, error)
-	SoftDeleteProductFunc func(ctx context.Context, productUUID uuid.UUID) (*v1dto.ProductDTO, error)
-	RestoreProductFunc    func(ctx context.Context, productUUID uuid.UUID) (*v1dto.ProductDTO, error)
-	TrashProductFunc      func(ctx context.Context, productUUID uuid.UUID) error
-	ImportProductsCSVFunc func(ctx context.Context, file io.Reader) (*v1dto.ProductCSVImportResponse, error)
-}
-
-func (m *MockProductService) CreateProduct(ctx context.Context, input v1dto.CreateProductInput) (*v1dto.ProductDTO, error) {
-	if m.CreateProductFunc != nil {
-		return m.CreateProductFunc(ctx, input)
-	}
-	return nil, nil
-}
-
-func (m *MockProductService) GetAllProducts(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, orderBy, sort string, page, limit int32, deleted bool) ([]v1dto.ProductDTO, int32, error) {
-	if m.GetAllProductsFunc != nil {
-		return m.GetAllProductsFunc(ctx, search, categoryUUID, minPrice, maxPrice, minRating, status, orderBy, sort, page, limit, deleted)
-	}
-	return nil, 0, nil
-}
-
-func (m *MockProductService) SearchProducts(ctx context.Context, q, categoryUUID string, minPrice, maxPrice, minRating float64, sort string, page, limit int32) ([]v1dto.ProductDTO, int64, error) {
-	if m.SearchProductsFunc != nil {
-		return m.SearchProductsFunc(ctx, q, categoryUUID, minPrice, maxPrice, minRating, sort, page, limit)
-	}
-	return []v1dto.ProductDTO{}, 0, nil
-}
-
-func (m *MockProductService) SuggestProducts(ctx context.Context, q string, limit int32) ([]v1dto.ProductSuggestionDTO, error) {
-	if m.SuggestProductsFunc != nil {
-		return m.SuggestProductsFunc(ctx, q, limit)
-	}
-	return []v1dto.ProductSuggestionDTO{}, nil
-}
-
-func (m *MockProductService) GetProductByUUID(ctx context.Context, productUUID uuid.UUID) (*v1dto.ProductDTO, error) {
-	if m.GetProductByUUIDFunc != nil {
-		return m.GetProductByUUIDFunc(ctx, productUUID)
-	}
-	return nil, nil
-}
-
-func (m *MockProductService) GetProductBySlug(ctx context.Context, slug string) (*v1dto.ProductDTO, error) {
-	if m.GetProductBySlugFunc != nil {
-		return m.GetProductBySlugFunc(ctx, slug)
-	}
-	return nil, nil
-}
-
-func (m *MockProductService) UpdateProduct(ctx context.Context, input v1dto.UpdateProductInput) (*v1dto.ProductDTO, error) {
-	if m.UpdateProductFunc != nil {
-		return m.UpdateProductFunc(ctx, input)
-	}
-	return nil, nil
-}
-
-func (m *MockProductService) SoftDeleteProduct(ctx context.Context, productUUID uuid.UUID) (*v1dto.ProductDTO, error) {
-	if m.SoftDeleteProductFunc != nil {
-		return m.SoftDeleteProductFunc(ctx, productUUID)
-	}
-	return nil, nil
-}
-
-func (m *MockProductService) RestoreProduct(ctx context.Context, productUUID uuid.UUID) (*v1dto.ProductDTO, error) {
-	if m.RestoreProductFunc != nil {
-		return m.RestoreProductFunc(ctx, productUUID)
-	}
-	return nil, nil
-}
-
-func (m *MockProductService) TrashProduct(ctx context.Context, productUUID uuid.UUID) error {
-	if m.TrashProductFunc != nil {
-		return m.TrashProductFunc(ctx, productUUID)
-	}
-	return nil
-}
-
-func (m *MockProductService) ImportProductsCSV(ctx context.Context, file io.Reader) (*v1dto.ProductCSVImportResponse, error) {
-	if m.ImportProductsCSVFunc != nil {
-		return m.ImportProductsCSVFunc(ctx, file)
-	}
-	return &v1dto.ProductCSVImportResponse{}, nil
-}
 
 type MockAuthService struct {
 	RegisterFunc              func(ctx context.Context, input v1dto.RegisterInput) error

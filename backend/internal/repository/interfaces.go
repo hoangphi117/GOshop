@@ -34,18 +34,6 @@ type UserRepository interface {
 	CreateOAuthUser(ctx context.Context, params sqlc.CreateOAuthUserParams) (sqlc.User, error)
 }
 
-type CategoryRepository interface {
-	Create(ctx context.Context, input sqlc.CreateCategoryParams) (sqlc.Category, error)
-	CountCategories(ctx context.Context, search string, deleted bool) (int64, error)
-	GetAll(ctx context.Context, search, orderBy, sort string, limit, offset int32, deleted bool) ([]sqlc.Category, error)
-	GetBySlug(ctx context.Context, slug string) (sqlc.Category, error)
-	GetByUUID(ctx context.Context, uuid uuid.UUID) (sqlc.Category, error)
-	Update(ctx context.Context, input sqlc.UpdateCategoryParams) (sqlc.Category, error)
-	SoftDelete(ctx context.Context, uuid uuid.UUID) (sqlc.Category, error)
-	Restore(ctx context.Context, uuid uuid.UUID) (sqlc.Category, error)
-	Trash(ctx context.Context, uuid uuid.UUID) (sqlc.Category, error)
-}
-
 type ProductRepository interface {
 	Create(ctx context.Context, productParams sqlc.CreateProductParams) (sqlc.CreateProductRow, error)
 	CountProducts(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, deleted bool) (int64, error)
@@ -59,18 +47,6 @@ type ProductRepository interface {
 	Trash(ctx context.Context, uuid uuid.UUID) (sqlc.Product, error)
 	DeductStock(ctx context.Context, tx pgx.Tx, productID int32, quantity int32) error
 	RestoreStock(ctx context.Context, tx pgx.Tx, productID int32, quantity int32) error
-}
-
-type CartRepository interface {
-	GetOrCreateCart(ctx context.Context, userID int32) (sqlc.Cart, error)
-	GetCartByUserID(ctx context.Context, userID int32) (sqlc.Cart, error)
-	GetCartItems(ctx context.Context, cartID int32) ([]sqlc.GetCartItemsWithProductDetailsRow, error)
-	AddOrUpdateItem(ctx context.Context, params sqlc.AddOrUpdateCartItemParams) (sqlc.CartItem, error)
-	GetCartItemQuantity(ctx context.Context, cartID, productID int32) (int32, error)
-	SetCartItemQuantity(ctx context.Context, params sqlc.SetCartItemQuantityParams) (sqlc.CartItem, error)
-	DeleteItem(ctx context.Context, cartID int32, itemUUID uuid.UUID) error
-	ClearCart(ctx context.Context, cartID int32) error
-	DeleteCartItemsByProductIDs(ctx context.Context, tx pgx.Tx, cartID int32, productIDs []int32) error
 }
 
 type AddressRepository interface {

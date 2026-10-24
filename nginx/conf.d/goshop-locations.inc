@@ -2,28 +2,78 @@
 # GOSHOP LOCATION ROUTING & REVERSE PROXY RULES
 # =============================================================================
 
-# 1. SECURITY HEADERS TOÀN CỤC
+# 1. SECURITY HEADERS TOÀN CẦU
 add_header X-Frame-Options "SAMEORIGIN" always;
 add_header X-Content-Type-Options "nosniff" always;
 add_header X-XSS-Protection "1; mode=block" always;
 add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+# Echo nginx's per-request trace id back to the caller for support/debugging.
+add_header X-Request-ID $request_id always;
+
+# Inheritable default: blocked requests get 429 (Too Many Requests), not 503.
+limit_req_status 429;
 
 # Giới hạn kích thước payload gửi lên (File upload, avatar, product images)
 client_max_body_size 50M;
 
 # -----------------------------------------------------------------------------
+# 1.1. HEALTH PROBES
+# -----------------------------------------------------------------------------
+# /healthz      edge-only, instant. Use for LB / uptime checks.
+# /health/deep  probes the storefront-critical upstream (catalog) via
+#               auth_request: 2xx => ok JSON; anything else => 503 naming the
+#               dependency. ponytail: nginx OSS cannot AND multiple probes in
+#               one request (auth_request is once per location). When more
+#               dependencies must gate this, upgrade to an njs js_content
+#               handler (nginx-module-njs, ~15 lines) instead of growing this.
+# The probe target is a variable upstream so nginx startup does not hard-fail
+# when the container is down; DNS re-resolves per request (resolver in goshop.conf).
+location = /healthz {
+    access_log off;
+    default_type application/json;
+    return 200 '{"edge":"nginx","status":"ok"}';
+}
+
+location = /health/deep {
+    access_log off;
+    default_type application/json;
+    # auth_request runs in the access phase; a `return` here would short-circuit
+    # in the rewrite phase and the probe would never fire. The 200 body is
+    # therefore served by proxying to the edge /healthz location (port 80).
+    auth_request /_hp_catalog;
+    error_page 500 502 503 = @health_degraded;
+    proxy_pass http://127.0.0.1:80/healthz;
+    add_header X-Deep-Probe "catalog" always;
+}
+
+location @health_degraded {
+    default_type application/json;
+    return 503 '{"status":"degraded","down":["catalog"]}';
+}
+
+location = /_hp_catalog {
+    internal;
+    access_log off;
+    proxy_connect_timeout 1s;
+    proxy_read_timeout 1s;
+    set $hp_catalog_target http://catalog-service:8086;
+    proxy_pass $hp_catalog_target/health;
+}
+
 # -----------------------------------------------------------------------------
 # 2. MEDIA & UPLOADS ROUTING (/uploads/)
 # -----------------------------------------------------------------------------
 # Lợi ích: Stateless storage routing. Chuyển tiếp tới backend để redirect 301 sang
 # Cloudflare R2 / S3 / MinIO CDN URL, loại bỏ hoàn toàn phụ thuộc vào local disk volume.
 location /uploads/ {
+    limit_req zone=api burst=100 nodelay;
     proxy_pass http://goshop_backend;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-ID $request_id;
     proxy_read_timeout 60s;
 }
 
@@ -48,6 +98,7 @@ location /api/v1/ws {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-ID $request_id;
 
     # Tối ưu timeout cho kết nối thời gian thực lâu dài
     proxy_read_timeout 3600s;
@@ -61,6 +112,7 @@ location /api/v1/ws {
 # -----------------------------------------------------------------------------
 # Điều hướng các API định danh sang identity-service:8081
 location /api/v1/auth {
+    limit_req zone=auth burst=10 nodelay;
     set $identity_target http://identity-service:8081;
     proxy_pass $identity_target;
     proxy_http_version 1.1;
@@ -69,6 +121,7 @@ location /api/v1/auth {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-ID $request_id;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
@@ -86,12 +139,14 @@ location /api/v1/users {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-ID $request_id;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
+    limit_req zone=api burst=100 nodelay;
 }
 
 location /api/v1/admin/users {
@@ -103,12 +158,14 @@ location /api/v1/admin/users {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-ID $request_id;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
+    limit_req zone=api burst=100 nodelay;
 }
 
 location /api/v1/addresses {
@@ -120,12 +177,14 @@ location /api/v1/addresses {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-ID $request_id;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
+    limit_req zone=api burst=100 nodelay;
 }
 
 # -----------------------------------------------------------------------------
@@ -140,12 +199,14 @@ location /api/v1/coupons {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-ID $request_id;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
+    limit_req zone=api burst=100 nodelay;
 }
 
 location /api/v1/admin/coupons {
@@ -157,12 +218,14 @@ location /api/v1/admin/coupons {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-ID $request_id;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
+    limit_req zone=api burst=100 nodelay;
 }
 
 # -----------------------------------------------------------------------------
@@ -177,12 +240,14 @@ location /api/v1/admin/inventory {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-ID $request_id;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
+    limit_req zone=api burst=100 nodelay;
 }
 
 location /api/v1/inventory {
@@ -194,12 +259,14 @@ location /api/v1/inventory {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-ID $request_id;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
+    limit_req zone=api burst=100 nodelay;
 }
 
 # -----------------------------------------------------------------------------
@@ -215,12 +282,14 @@ location ~ ^/api/v1/products/[^/]+/reviews {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-ID $request_id;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
+    limit_req zone=api burst=100 nodelay;
 }
 
 location /api/v1/products {
@@ -232,12 +301,14 @@ location /api/v1/products {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-ID $request_id;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
+    limit_req zone=api burst=100 nodelay;
 }
 
 location /api/v1/admin/products {
@@ -249,12 +320,14 @@ location /api/v1/admin/products {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-ID $request_id;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
+    limit_req zone=api burst=100 nodelay;
 }
 
 location /api/v1/categories {
@@ -266,12 +339,14 @@ location /api/v1/categories {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-ID $request_id;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
+    limit_req zone=api burst=100 nodelay;
 }
 
 location /api/v1/admin/categories {
@@ -283,12 +358,14 @@ location /api/v1/admin/categories {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-ID $request_id;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
+    limit_req zone=api burst=100 nodelay;
 }
 
 # -----------------------------------------------------------------------------
@@ -303,12 +380,14 @@ location /api/v1/cart {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-ID $request_id;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
+    limit_req zone=api burst=100 nodelay;
 }
 
 # -----------------------------------------------------------------------------
@@ -323,12 +402,14 @@ location /api/v1/orders {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-ID $request_id;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
+    limit_req zone=api burst=100 nodelay;
 }
 
 location /api/v1/admin/orders {
@@ -340,12 +421,14 @@ location /api/v1/admin/orders {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-ID $request_id;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
+    limit_req zone=api burst=100 nodelay;
 }
 
 location /api/v1/admin/returns {
@@ -357,12 +440,14 @@ location /api/v1/admin/returns {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-ID $request_id;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
+    limit_req zone=api burst=100 nodelay;
 }
 
 location /api/v1/shipping {
@@ -374,12 +459,14 @@ location /api/v1/shipping {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-ID $request_id;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
+    limit_req zone=api burst=100 nodelay;
 }
 
 # -----------------------------------------------------------------------------
@@ -407,6 +494,7 @@ location /api/v1/ {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-ID $request_id;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
 
@@ -417,6 +505,7 @@ location /api/v1/ {
 
     # Không buffer request lớn vào disk để tăng tốc độ upload
     proxy_request_buffering off;
+    limit_req zone=api burst=100 nodelay;
 }
 
 # -----------------------------------------------------------------------------
@@ -429,6 +518,7 @@ location /swagger/ {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-ID $request_id;
 }
 
 # -----------------------------------------------------------------------------
@@ -443,6 +533,7 @@ location /.well-known/ {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-ID $request_id;
 }
 
 # -----------------------------------------------------------------------------
@@ -451,6 +542,7 @@ location /.well-known/ {
 # Chuyển tiếp trực tiếp truy vấn tìm kiếm sang Meilisearch cluster,
 # giải phóng 100% tải đọc tìm kiếm ra khỏi PostgreSQL Master và Backend API.
 location /search-api/ {
+    limit_req zone=api burst=100 nodelay;
     # Dùng biến động để Nginx không bị crash nếu container meilisearch chưa khởi động
     set $meili_target http://meilisearch:7700;
     rewrite ^/search-api/(.*)$ /$1 break;
@@ -460,6 +552,7 @@ location /search-api/ {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-ID $request_id;
 
     # Bảo vệ an toàn: Chỉ cho phép GET, POST, OPTIONS phục vụ tìm kiếm tài liệu
     limit_except GET POST OPTIONS {
@@ -484,6 +577,7 @@ location / {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-ID $request_id;
 
     proxy_read_timeout 60s;
     proxy_connect_timeout 10s;
