@@ -15,10 +15,13 @@ import (
 	"goshop/internal/db"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
+	"goshop/pkg/eventledger"
 	"goshop/pkg/logger"
+	"goshop/pkg/rabbitmq"
 	"goshop/pkg/utils"
 	"goshop/pkg/validation"
 	cartv1 "goshop/proto/cart/v1"
+	cartconsumer "goshop/services/cart/internal/consumer"
 	cartsqlc "goshop/services/cart/internal/db/sqlc"
 	cartgrpc "goshop/services/cart/internal/grpc"
 	carthandler "goshop/services/cart/internal/handler"
@@ -32,6 +35,7 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
+	amqp "github.com/rabbitmq/amqp091-go"
 	"google.golang.org/grpc"
 )
 
@@ -42,6 +46,8 @@ type App struct {
 	grpcListener  net.Listener
 	cartService   cartservice.CartService
 	catalogClient catalogcontract.CatalogClient
+	rabbitMQ      rabbitmq.RabbitMQService
+	eventConsumer func(amqp.Table, []byte) error
 }
 
 func New(cfg *config.Config) (*App, error) {
@@ -104,6 +110,20 @@ func New(cfg *config.Config) (*App, error) {
 	cacheRedisService := cache.NewRedisCacheService(redisClient)
 	tokenService := auth.NewJWTService(cacheRedisService)
 
+	// RabbitMQ + event consumer (branch F: cart owns cart cleanup on order.created)
+	cartRabbitLogger := utils.NewLoggerWithPath("cart_rabbitmq.log", "info")
+	rabbitMQService, err := rabbitmq.NewRabbitMQService(
+		utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"), cartRabbitLogger,
+	)
+	if err != nil {
+		logger.Log.Error().Err(err).Msg("Failed to connect RabbitMQ for cart service event consumer")
+		return nil, fmt.Errorf("rabbitmq connect failed: %w", err)
+	}
+	if err := eventledger.Migrate(connStr, "event_ledger_migrations_cart"); err != nil {
+		logger.Log.Error().Err(err).Msg("Failed to migrate event ledger for cart service")
+		return nil, err
+	}
+
 	// Catalog gRPC client
 	catalogGRPCAddr := utils.GetEnv("CATALOG_GRPC_ADDR", "localhost:50055")
 	catalogClient, err := catalogcontract.NewGRPCCatalogClient(catalogGRPCAddr)
@@ -146,6 +166,13 @@ func New(cfg *config.Config) (*App, error) {
 		grpcListener:  grpcListener,
 		cartService:   cartService,
 		catalogClient: catalogClient,
+		rabbitMQ:      rabbitMQService,
+		eventConsumer: eventledger.Wrap(
+			eventledger.NewRepository(dbPool),
+			"cart.order_created",
+			cartconsumer.NewOrderCreatedConsumer(cartService).Apply,
+			eventledger.NewZerologLogger(cartRabbitLogger),
+		),
 	}, nil
 }
 
@@ -169,6 +196,15 @@ func (a *App) Run(ctx context.Context) error {
 		}
 	}()
 
+	// 3. Start event consumer (cart owns cart cleanup on order.created)
+	go func() {
+		if err := a.rabbitMQ.Consume(ctx, rabbitmq.QueueOrderCreated, a.eventConsumer); err != nil {
+			logger.Log.Error().Err(err).Str("queue", rabbitmq.QueueOrderCreated).Msg("Cart event consumer stopped")
+		} else {
+			logger.Log.Info().Str("queue", rabbitmq.QueueOrderCreated).Msg("Cart consuming order.created events")
+		}
+	}()
+
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
@@ -189,6 +225,10 @@ func (a *App) Run(ctx context.Context) error {
 	if a.grpcServer != nil {
 		logger.Log.Info().Msg("Gracefully stopping Cart gRPC server")
 		a.grpcServer.GracefulStop()
+	}
+
+	if err := a.rabbitMQ.Close(); err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to close Cart RabbitMQ connection cleanly")
 	}
 
 	if a.catalogClient != nil {

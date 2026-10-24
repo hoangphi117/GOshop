@@ -13,10 +13,13 @@ import (
 
 	"goshop/internal/config"
 	"goshop/internal/db"
+	"goshop/pkg/eventledger"
 	"goshop/pkg/logger"
+	"goshop/pkg/rabbitmq"
 	"goshop/pkg/utils"
 	"goshop/pkg/validation"
 	inventoryv1 "goshop/proto/inventory/v1"
+	inventoryconsumer "goshop/services/inventory/internal/consumer"
 	inventorysqlc "goshop/services/inventory/internal/db/sqlc"
 	inventorygrpc "goshop/services/inventory/internal/grpc"
 	inventoryhandler "goshop/services/inventory/internal/handler"
@@ -29,15 +32,25 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
+	amqp "github.com/rabbitmq/amqp091-go"
 	"google.golang.org/grpc"
 )
 
 type App struct {
-	cfg              *config.Config
-	server           *http.Server
-	grpcServer       *grpc.Server
-	grpcListener     net.Listener
-	inventoryService inventoryservice.InventoryService
+	cfg                *config.Config
+	server             *http.Server
+	grpcServer         *grpc.Server
+	grpcListener       net.Listener
+	inventoryService   inventoryservice.InventoryService
+	rabbitMQ           rabbitmq.RabbitMQService
+	topicSubscriptions []topicSubscription
+}
+
+// topicSubscription binds one topic queue + routing key to an event handler.
+type topicSubscription struct {
+	queue      string
+	routingKey string
+	handler    func(amqp.Table, []byte) error
 }
 
 func New(cfg *config.Config) (*App, error) {
@@ -53,7 +66,7 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	// Run embedded migrations
-	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&x-migrations-table=schema_migrations_inventory",
 		cfg.DB.User, cfg.DB.Password, cfg.DB.Host, cfg.DB.Port, cfg.DB.DBName, cfg.DB.SSLMode)
 	sourceDriver, err := iofs.New(migrations.FS, ".")
 	if err != nil {
@@ -80,6 +93,22 @@ func New(cfg *config.Config) (*App, error) {
 
 	inventoryroutes.RegisterRoutes(r, h)
 
+	// RabbitMQ + event consumers (branch F: inventory owns stock release/restock)
+	inventoryRabbitLogger := utils.NewLoggerWithPath("inventory_rabbitmq.log", "info")
+	rabbitMQService, err := rabbitmq.NewRabbitMQService(
+		utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"), inventoryRabbitLogger,
+	)
+	if err != nil {
+		logger.Log.Error().Err(err).Msg("Failed to connect RabbitMQ for inventory service event consumers")
+		return nil, fmt.Errorf("rabbitmq connect failed: %w", err)
+	}
+	if err := eventledger.Migrate(connStr, "event_ledger_migrations_inventory"); err != nil {
+		logger.Log.Error().Err(err).Msg("Failed to migrate event ledger for inventory service")
+		return nil, err
+	}
+	ledgerRepo := eventledger.NewRepository(dbPool)
+	ledgerLogger := eventledger.NewZerologLogger(inventoryRabbitLogger)
+
 	port := utils.GetEnv("INVENTORY_SERVER_PORT", "8085")
 	server := &http.Server{
 		Addr:    ":" + port,
@@ -102,6 +131,21 @@ func New(cfg *config.Config) (*App, error) {
 		grpcServer:       grpcServer,
 		grpcListener:     grpcLis,
 		inventoryService: svc,
+		rabbitMQ:         rabbitMQService,
+		topicSubscriptions: []topicSubscription{
+			{
+				queue:      rabbitmq.QueueInventoryOrderEvents,
+				routingKey: rabbitmq.RoutingKeyOrderCancelled,
+				handler: eventledger.Wrap(ledgerRepo, "inventory.order_cancelled",
+					inventoryconsumer.NewOrderCancelledConsumer(svc).Apply, ledgerLogger),
+			},
+			{
+				queue:      rabbitmq.QueueInventoryReturnEvents,
+				routingKey: rabbitmq.RoutingKeyOrderReturnCompleted,
+				handler: eventledger.Wrap(ledgerRepo, "inventory.return_completed",
+					inventoryconsumer.NewReturnCompletedConsumer(svc).Apply, ledgerLogger),
+			},
+		},
 	}, nil
 }
 
@@ -122,6 +166,18 @@ func (a *App) Run(ctx context.Context) error {
 		}
 	}()
 
+	// Topic consumers: stock release on order.cancelled, restock on
+	// order_return.completed (branch F ownership move).
+	go func() {
+		for _, sub := range a.topicSubscriptions {
+			if err := a.rabbitMQ.SubscribeTopic(ctx, sub.queue, []string{sub.routingKey}, sub.handler); err != nil {
+				logger.Log.Error().Err(err).Str("queue", sub.queue).Str("routing_key", sub.routingKey).Msg("Inventory event consumer stopped")
+			} else {
+				logger.Log.Info().Str("queue", sub.queue).Str("routing_key", sub.routingKey).Msg("Inventory consuming topic events")
+			}
+		}
+	}()
+
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
@@ -139,6 +195,10 @@ func (a *App) Run(ctx context.Context) error {
 
 	if err := a.server.Shutdown(shutdownCtx); err != nil {
 		logger.Log.Error().Err(err).Msg("Inventory HTTP server forced to shutdown")
+	}
+
+	if err := a.rabbitMQ.Close(); err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to close Inventory RabbitMQ connection cleanly")
 	}
 
 	a.grpcServer.GracefulStop()

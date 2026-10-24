@@ -13,10 +13,13 @@ import (
 
 	"goshop/internal/config"
 	"goshop/internal/db"
+	"goshop/pkg/eventledger"
 	"goshop/pkg/logger"
+	"goshop/pkg/rabbitmq"
 	"goshop/pkg/utils"
 	"goshop/pkg/validation"
 	couponv1 "goshop/proto/coupon/v1"
+	couponconsumer "goshop/services/coupon/internal/consumer"
 	couponsqlc "goshop/services/coupon/internal/db/sqlc"
 	coupongrpc "goshop/services/coupon/internal/grpc"
 	couponhandler "goshop/services/coupon/internal/handler"
@@ -29,15 +32,18 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
+	amqp "github.com/rabbitmq/amqp091-go"
 	"google.golang.org/grpc"
 )
 
 type App struct {
-	cfg           *config.Config
-	server        *http.Server
-	grpcServer    *grpc.Server
-	grpcListener  net.Listener
-	couponService couponservice.CouponService
+	cfg            *config.Config
+	server         *http.Server
+	grpcServer     *grpc.Server
+	grpcListener   net.Listener
+	couponService  couponservice.CouponService
+	rabbitMQ       rabbitmq.RabbitMQService
+	eventConsumers []func(amqp.Table, []byte) error
 }
 
 func New(cfg *config.Config) (*App, error) {
@@ -53,7 +59,7 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	// Run embedded migrations
-	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&x-migrations-table=schema_migrations_coupon",
 		cfg.DB.User, cfg.DB.Password, cfg.DB.Host, cfg.DB.Port, cfg.DB.DBName, cfg.DB.SSLMode)
 	sourceDriver, err := iofs.New(migrations.FS, ".")
 	if err != nil {
@@ -76,9 +82,23 @@ func New(cfg *config.Config) (*App, error) {
 	couponQuerier := couponsqlc.New(dbPool)
 	couponRepo := couponrepo.NewSqlCouponRepository(couponQuerier)
 	svc := couponservice.NewCouponService(couponRepo, dbPool)
-	h := couponhandler.NewCouponHandler(svc)
+	couponHandler := couponhandler.NewCouponHandler(svc)
 
-	couponroutes.RegisterRoutes(r, h)
+	couponroutes.RegisterRoutes(r, couponHandler)
+
+	// RabbitMQ + event consumer (branch F: coupon owns coupon release on order.cancelled)
+	couponRabbitLogger := utils.NewLoggerWithPath("coupon_rabbitmq.log", "info")
+	rabbitMQService, err := rabbitmq.NewRabbitMQService(
+		utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"), couponRabbitLogger,
+	)
+	if err != nil {
+		logger.Log.Error().Err(err).Msg("Failed to connect RabbitMQ for coupon service event consumer")
+		return nil, fmt.Errorf("rabbitmq connect failed: %w", err)
+	}
+	if err := eventledger.Migrate(connStr, "event_ledger_migrations_coupon"); err != nil {
+		logger.Log.Error().Err(err).Msg("Failed to migrate event ledger for coupon service")
+		return nil, err
+	}
 
 	port := utils.GetEnv("COUPON_SERVER_PORT", "8084")
 	server := &http.Server{
@@ -102,6 +122,15 @@ func New(cfg *config.Config) (*App, error) {
 		grpcServer:    grpcServer,
 		grpcListener:  grpcLis,
 		couponService: svc,
+		rabbitMQ:      rabbitMQService,
+		eventConsumers: []func(amqp.Table, []byte) error{
+			eventledger.Wrap(
+				eventledger.NewRepository(dbPool),
+				"coupon.order_cancelled",
+				couponconsumer.NewOrderCancelledConsumer(svc).Apply,
+				eventledger.NewZerologLogger(couponRabbitLogger),
+			),
+		},
 	}, nil
 }
 
@@ -122,6 +151,17 @@ func (a *App) Run(ctx context.Context) error {
 		}
 	}()
 
+	// Topic consumer: coupon release on order.cancelled (branch F ownership move)
+	go func() {
+		for _, consumerFn := range a.eventConsumers {
+			if err := a.rabbitMQ.SubscribeTopic(ctx, rabbitmq.QueueCouponOrderEvents, []string{rabbitmq.RoutingKeyOrderCancelled}, consumerFn); err != nil {
+				logger.Log.Error().Err(err).Str("queue", rabbitmq.QueueCouponOrderEvents).Msg("Coupon event consumer stopped")
+			} else {
+				logger.Log.Info().Str("queue", rabbitmq.QueueCouponOrderEvents).Str("routing_key", rabbitmq.RoutingKeyOrderCancelled).Msg("Coupon consuming order.cancelled events")
+			}
+		}
+	}()
+
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
@@ -139,6 +179,10 @@ func (a *App) Run(ctx context.Context) error {
 
 	if err := a.server.Shutdown(shutdownCtx); err != nil {
 		logger.Log.Error().Err(err).Msg("Coupon HTTP server forced to shutdown")
+	}
+
+	if err := a.rabbitMQ.Close(); err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to close Coupon RabbitMQ connection cleanly")
 	}
 
 	a.grpcServer.GracefulStop()
