@@ -6,6 +6,3 @@ lint:
   # packages, no unused imports, RPC request/response naming.
   use:
     - STANDARD
-breaking:
-  use:
-    - FILE
