@@ -316,15 +316,8 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 	admin.Use(middleware.RequireRole(middleware.RoleAdmin, middleware.RoleModerator))
 
 	for _, route := range normalRoutes {
-		if isCatalogProxied {
-			if _, ok := route.(*v1routes.CategoryRoutes); ok {
-				continue
-			}
-
-		}
 		switch r := route.(type) {
-		case *v1routes.CategoryRoutes,
-			*v1routes.ReviewPublicRoutes,
+		case *v1routes.ReviewPublicRoutes,
 			*v1routes.WSRoutes, *v1routes.BannerRoutes, *v1routes.HealthRoutes,
 			*v1routes.LocationRoutes:
 			r.Register(public)
@@ -334,11 +327,6 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 	}
 
 	for _, route := range adminRoutes {
-		if isCatalogProxied {
-			if _, ok := route.(*v1routes.AdminCategoryRoutes); ok {
-				continue
-			}
-		}
 		route.Register(admin)
 	}
 

@@ -3,7 +3,6 @@ package v1service
 import (
 	"context"
 	v1dto "goshop/internal/dto/v1"
-	"io"
 
 	"github.com/google/uuid"
 )
@@ -34,51 +33,10 @@ type AuthService interface {
 	ResetPassword(ctx context.Context, token, newPassword string) error
 }
 
-type CategoryService interface {
-	CreateCategory(ctx context.Context, input v1dto.CreateCategoryInput) (*v1dto.CategoryDTO, error)
-	GetAllCategories(ctx context.Context, search, orderBy, sort string, page, limit int32, deleted bool) ([]v1dto.CategoryDTO, int32, error)
-	GetCategoryByUUID(ctx context.Context, categoryUUID uuid.UUID) (*v1dto.CategoryDTO, error)
-	UpdateCategory(ctx context.Context, categoryUUID uuid.UUID, input v1dto.UpdateCategoryInput) (*v1dto.CategoryDTO, error)
-	SoftDeleteCategory(ctx context.Context, categoryUUID uuid.UUID) (*v1dto.CategoryDTO, error)
-	RestoreCategory(ctx context.Context, categoryUUID uuid.UUID) (*v1dto.CategoryDTO, error)
-	TrashCategory(ctx context.Context, categoryUUID uuid.UUID) error
-}
-
-type ProductQueryService interface {
-	GetAllProducts(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, orderBy, sort string, page, limit int32, deleted bool) ([]v1dto.ProductDTO, int32, error)
-	GetProductByUUID(ctx context.Context, productUUID uuid.UUID) (*v1dto.ProductDTO, error)
-	GetProductBySlug(ctx context.Context, slug string) (*v1dto.ProductDTO, error)
-	SearchProducts(ctx context.Context, q, categoryUUID string, minPrice, maxPrice, minRating float64, sort string, page, limit int32) ([]v1dto.ProductDTO, int64, error)
-	SuggestProducts(ctx context.Context, q string, limit int32) ([]v1dto.ProductSuggestionDTO, error)
-}
-
-type AdminProductService interface {
-	CreateProduct(ctx context.Context, input v1dto.CreateProductInput) (*v1dto.ProductDTO, error)
-	UpdateProduct(ctx context.Context, input v1dto.UpdateProductInput) (*v1dto.ProductDTO, error)
-	SoftDeleteProduct(ctx context.Context, productUUID uuid.UUID) (*v1dto.ProductDTO, error)
-	RestoreProduct(ctx context.Context, productUUID uuid.UUID) (*v1dto.ProductDTO, error)
-	TrashProduct(ctx context.Context, productUUID uuid.UUID) error
-	ImportProductsCSV(ctx context.Context, file io.Reader) (*v1dto.ProductCSVImportResponse, error)
-}
-
-type ProductService interface {
-	ProductQueryService
-	AdminProductService
-}
-
 type LocationService interface {
 	GetProvinces(ctx context.Context) ([]v1dto.ProvinceDTO, error)
 	GetDistricts(ctx context.Context, provinceID int) ([]v1dto.DistrictDTO, error)
 	GetWards(ctx context.Context, districtID int) ([]v1dto.WardDTO, error)
-}
-
-type CartService interface {
-	GetMyCart(ctx context.Context, userUUID uuid.UUID) (v1dto.CartDTO, error)
-	AddItemToCart(ctx context.Context, userUUID uuid.UUID, input v1dto.AddCartItemInput) (v1dto.CartDTO, error)
-	UpdateCartItemQuantity(ctx context.Context, userUUID uuid.UUID, itemUUID uuid.UUID, input v1dto.UpdateCartItemQuantityInput) (v1dto.CartDTO, error)
-	RemoveItemFromCart(ctx context.Context, userUUID uuid.UUID, itemUUID uuid.UUID) (v1dto.CartDTO, error)
-	ClearMyCart(ctx context.Context, userUUID uuid.UUID) error
-	RemovePurchasedItems(ctx context.Context, userID int32, productIDs []int32) error
 }
 
 const (

@@ -1,4 +1,4 @@
-package testutils
+﻿package testutils
 
 import (
 	"context"
@@ -15,10 +15,8 @@ import (
 // Ensure all mocks implement repository interfaces at compile time
 var (
 	_ repository.ProductRepository      = (*MockProductRepository)(nil)
-	_ repository.CartRepository         = (*MockCartRepository)(nil)
 	_ repository.UserRepository         = (*MockUserRepository)(nil)
 	_ repository.UserReader             = (*MockUserRepository)(nil)
-	_ repository.CategoryRepository     = (*MockCategoryRepository)(nil)
 	_ repository.ReviewRepository       = (*MockReviewRepository)(nil)
 	_ repository.AddressRepository      = (*MockAddressRepository)(nil)
 	_ repository.NotificationRepository = (*MockNotificationRepository)(nil)
@@ -124,84 +122,6 @@ func (m *MockProductRepository) DeductStock(ctx context.Context, tx pgx.Tx, prod
 func (m *MockProductRepository) RestoreStock(ctx context.Context, tx pgx.Tx, productID int32, quantity int32) error {
 	if m.RestoreStockFunc != nil {
 		return m.RestoreStockFunc(ctx, tx, productID, quantity)
-	}
-	return nil
-}
-
-// =========================================================================
-// 5. MockCartRepository
-// =========================================================================
-type MockCartRepository struct {
-	GetOrCreateCartFunc             func(ctx context.Context, userID int32) (sqlc.Cart, error)
-	GetCartByUserIDFunc             func(ctx context.Context, userID int32) (sqlc.Cart, error)
-	GetCartItemsFunc                func(ctx context.Context, cartID int32) ([]sqlc.GetCartItemsWithProductDetailsRow, error)
-	AddOrUpdateItemFunc             func(ctx context.Context, params sqlc.AddOrUpdateCartItemParams) (sqlc.CartItem, error)
-	GetCartItemQuantityFunc         func(ctx context.Context, cartID, productID int32) (int32, error)
-	SetCartItemQuantityFunc         func(ctx context.Context, params sqlc.SetCartItemQuantityParams) (sqlc.CartItem, error)
-	DeleteItemFunc                  func(ctx context.Context, cartID int32, itemUUID uuid.UUID) error
-	ClearCartFunc                   func(ctx context.Context, cartID int32) error
-	DeleteCartItemsByProductIDsFunc func(ctx context.Context, tx pgx.Tx, cartID int32, productIDs []int32) error
-}
-
-func (m *MockCartRepository) GetOrCreateCart(ctx context.Context, userID int32) (sqlc.Cart, error) {
-	if m.GetOrCreateCartFunc != nil {
-		return m.GetOrCreateCartFunc(ctx, userID)
-	}
-	return sqlc.Cart{}, nil
-}
-
-func (m *MockCartRepository) GetCartByUserID(ctx context.Context, userID int32) (sqlc.Cart, error) {
-	if m.GetCartByUserIDFunc != nil {
-		return m.GetCartByUserIDFunc(ctx, userID)
-	}
-	return sqlc.Cart{}, nil
-}
-
-func (m *MockCartRepository) GetCartItems(ctx context.Context, cartID int32) ([]sqlc.GetCartItemsWithProductDetailsRow, error) {
-	if m.GetCartItemsFunc != nil {
-		return m.GetCartItemsFunc(ctx, cartID)
-	}
-	return nil, nil
-}
-
-func (m *MockCartRepository) AddOrUpdateItem(ctx context.Context, params sqlc.AddOrUpdateCartItemParams) (sqlc.CartItem, error) {
-	if m.AddOrUpdateItemFunc != nil {
-		return m.AddOrUpdateItemFunc(ctx, params)
-	}
-	return sqlc.CartItem{}, nil
-}
-
-func (m *MockCartRepository) GetCartItemQuantity(ctx context.Context, cartID, productID int32) (int32, error) {
-	if m.GetCartItemQuantityFunc != nil {
-		return m.GetCartItemQuantityFunc(ctx, cartID, productID)
-	}
-	return 0, nil
-}
-
-func (m *MockCartRepository) SetCartItemQuantity(ctx context.Context, params sqlc.SetCartItemQuantityParams) (sqlc.CartItem, error) {
-	if m.SetCartItemQuantityFunc != nil {
-		return m.SetCartItemQuantityFunc(ctx, params)
-	}
-	return sqlc.CartItem{}, nil
-}
-
-func (m *MockCartRepository) DeleteItem(ctx context.Context, cartID int32, itemUUID uuid.UUID) error {
-	if m.DeleteItemFunc != nil {
-		return m.DeleteItemFunc(ctx, cartID, itemUUID)
-	}
-	return nil
-}
-
-func (m *MockCartRepository) ClearCart(ctx context.Context, cartID int32) error {
-	if m.ClearCartFunc != nil {
-		return m.ClearCartFunc(ctx, cartID)
-	}
-	return nil
-}
-
-func (m *MockCartRepository) DeleteCartItemsByProductIDs(ctx context.Context, tx pgx.Tx, cartID int32, productIDs []int32) error {
-	if m.DeleteCartItemsByProductIDsFunc != nil {
-		return m.DeleteCartItemsByProductIDsFunc(ctx, tx, cartID, productIDs)
 	}
 	return nil
 }
@@ -338,84 +258,6 @@ func (m *MockUserRepository) CreateOAuthUser(ctx context.Context, params sqlc.Cr
 		return m.CreateOAuthUserFunc(ctx, params)
 	}
 	return sqlc.User{}, nil
-}
-
-// =========================================================================
-// 10. MockCategoryRepository
-// =========================================================================
-type MockCategoryRepository struct {
-	CreateFunc          func(ctx context.Context, categoryParams sqlc.CreateCategoryParams) (sqlc.Category, error)
-	CountCategoriesFunc func(ctx context.Context, search string, deleted bool) (int64, error)
-	GetAllFunc          func(ctx context.Context, search, orderBy, sort string, limit, offset int32, deleted bool) ([]sqlc.Category, error)
-	GetBySlugFunc       func(ctx context.Context, slug string) (sqlc.Category, error)
-	GetByUUIDFunc       func(ctx context.Context, uuid uuid.UUID) (sqlc.Category, error)
-	UpdateFunc          func(ctx context.Context, input sqlc.UpdateCategoryParams) (sqlc.Category, error)
-	SoftDeleteFunc      func(ctx context.Context, uuid uuid.UUID) (sqlc.Category, error)
-	RestoreFunc         func(ctx context.Context, uuid uuid.UUID) (sqlc.Category, error)
-	TrashFunc           func(ctx context.Context, uuid uuid.UUID) (sqlc.Category, error)
-}
-
-func (m *MockCategoryRepository) Create(ctx context.Context, categoryParams sqlc.CreateCategoryParams) (sqlc.Category, error) {
-	if m.CreateFunc != nil {
-		return m.CreateFunc(ctx, categoryParams)
-	}
-	return sqlc.Category{}, nil
-}
-
-func (m *MockCategoryRepository) CountCategories(ctx context.Context, search string, deleted bool) (int64, error) {
-	if m.CountCategoriesFunc != nil {
-		return m.CountCategoriesFunc(ctx, search, deleted)
-	}
-	return 0, nil
-}
-
-func (m *MockCategoryRepository) GetAll(ctx context.Context, search, orderBy, sort string, limit, offset int32, deleted bool) ([]sqlc.Category, error) {
-	if m.GetAllFunc != nil {
-		return m.GetAllFunc(ctx, search, orderBy, sort, limit, offset, deleted)
-	}
-	return nil, nil
-}
-
-func (m *MockCategoryRepository) GetBySlug(ctx context.Context, slug string) (sqlc.Category, error) {
-	if m.GetBySlugFunc != nil {
-		return m.GetBySlugFunc(ctx, slug)
-	}
-	return sqlc.Category{}, nil
-}
-
-func (m *MockCategoryRepository) GetByUUID(ctx context.Context, uuid uuid.UUID) (sqlc.Category, error) {
-	if m.GetByUUIDFunc != nil {
-		return m.GetByUUIDFunc(ctx, uuid)
-	}
-	return sqlc.Category{}, nil
-}
-
-func (m *MockCategoryRepository) Update(ctx context.Context, input sqlc.UpdateCategoryParams) (sqlc.Category, error) {
-	if m.UpdateFunc != nil {
-		return m.UpdateFunc(ctx, input)
-	}
-	return sqlc.Category{}, nil
-}
-
-func (m *MockCategoryRepository) SoftDelete(ctx context.Context, uuid uuid.UUID) (sqlc.Category, error) {
-	if m.SoftDeleteFunc != nil {
-		return m.SoftDeleteFunc(ctx, uuid)
-	}
-	return sqlc.Category{}, nil
-}
-
-func (m *MockCategoryRepository) Restore(ctx context.Context, uuid uuid.UUID) (sqlc.Category, error) {
-	if m.RestoreFunc != nil {
-		return m.RestoreFunc(ctx, uuid)
-	}
-	return sqlc.Category{}, nil
-}
-
-func (m *MockCategoryRepository) Trash(ctx context.Context, uuid uuid.UUID) (sqlc.Category, error) {
-	if m.TrashFunc != nil {
-		return m.TrashFunc(ctx, uuid)
-	}
-	return sqlc.Category{}, nil
 }
 
 // =========================================================================
