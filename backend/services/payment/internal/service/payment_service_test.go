@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"goshop/pkg/utils"
 	paymentsqlc "goshop/services/payment/internal/db/sqlc"
 	"goshop/services/payment/internal/dto"
 	"goshop/services/payment/internal/provider"
 	paymentservice "goshop/services/payment/internal/service"
+	"goshop/services/payment/money"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -92,6 +92,15 @@ func (m *MockOrderReader) GetByUUID(ctx context.Context, orderUUID uuid.UUID) (*
 	return nil, args.Error(1)
 }
 
+// dong builds the ledger NUMERIC(15,2) value for a whole-dong amount, the way
+// the payment service writes it.
+func dong(t *testing.T, wholeDong int64) pgtype.Numeric {
+	t.Helper()
+	amount, err := money.FromWholeDong(wholeDong)
+	require.NoError(t, err)
+	return amount.Numeric()
+}
+
 func TestPaymentService_CreateCODPaymentIntent(t *testing.T) {
 	mockRepo := new(MockPaymentRepo)
 	mockOrderReader := new(MockOrderReader)
@@ -99,6 +108,7 @@ func TestPaymentService_CreateCODPaymentIntent(t *testing.T) {
 	orderUUID := uuid.New()
 	ptUUID := uuid.New()
 
+	// The order service still reports its total as a gRPC double in dong.
 	mockOrderReader.On("GetByUUID", mock.Anything, orderUUID).Return(&dto.PaymentOrderSummary{
 		OrderID:     10,
 		OrderUUID:   orderUUID,
@@ -113,7 +123,7 @@ func TestPaymentService_CreateCODPaymentIntent(t *testing.T) {
 		PtUuid:     ptUUID,
 		PtOrderID:  10,
 		PtProvider: "cod",
-		PtAmount:   utils.FloatToNumeric(150000),
+		PtAmount:   dong(t, 150000),
 		PtCurrency: "VND",
 		PtStatus:   1,
 	}, nil)
@@ -138,7 +148,37 @@ func TestPaymentService_CreateCODPaymentIntent(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, ptUUID.String(), intent.PaymentUUID)
 	assert.Equal(t, "cod", intent.Provider)
-	assert.Equal(t, float64(150000), intent.Amount)
+	// 150000 dong = 15_000_000 xu; the API speaks minor units.
+	assert.Equal(t, int64(15_000_000), intent.Amount)
+}
+
+// A total a float cannot represent exactly must be refused, not rounded into
+// the payment request.
+func TestPaymentService_CreatePaymentIntent_RejectsUnexactTotal(t *testing.T) {
+	mockRepo := new(MockPaymentRepo)
+	mockOrderReader := new(MockOrderReader)
+	orderUUID := uuid.New()
+
+	mockOrderReader.On("GetByUUID", mock.Anything, orderUUID).Return(&dto.PaymentOrderSummary{
+		OrderID:     10,
+		OrderUUID:   orderUUID,
+		OrderNumber: "ORD-1",
+		TotalAmount: 100000.005,
+	}, nil)
+
+	svc := paymentservice.NewPaymentService(
+		mockRepo, mockOrderReader, nil, nil, nil, nil, nil,
+		"http://localhost:3001/payment/result", "http://localhost:8083",
+	)
+
+	_, err := svc.CreatePaymentIntent(context.Background(), dto.CreatePaymentIntentInput{
+		OrderUUID: orderUUID,
+		Provider:  "cod",
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot be charged exactly")
+	mockRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 }
 
 func TestPaymentService_ConfirmCODPayment_NoPendingTransaction(t *testing.T) {
@@ -174,7 +214,7 @@ func TestPaymentService_RefundPayment_ExceedsPaidAmount(t *testing.T) {
 			PtUuid:     uuid.New(),
 			PtOrderID:  10,
 			PtStatus:   2, // Paid
-			PtAmount:   utils.FloatToNumeric(100000),
+			PtAmount:   dong(t, 100000),
 			PtCurrency: "VND",
 			PtProvider: "cod",
 		},
@@ -194,7 +234,7 @@ func TestPaymentService_RefundPayment_ExceedsPaidAmount(t *testing.T) {
 
 	_, err := svc.RefundPayment(context.Background(), dto.RefundPaymentInput{
 		OrderUUID: orderUUID.String(),
-		Amount:    200000, // Exceeds 100000
+		Amount:    20_000_000, // 200000 dong, exceeds the 100000 dong payment
 		Reason:    "Customer complaint",
 	})
 
@@ -215,19 +255,20 @@ func TestPaymentService_RefundPayment_RejectsCumulativeAmount(t *testing.T) {
 			PtUuid:     paidUUID,
 			PtOrderID:  10,
 			PtStatus:   2,
-			PtAmount:   utils.FloatToNumeric(100000),
+			PtAmount:   dong(t, 100000),
 			PtCurrency: "VND",
 			PtProvider: "cod",
 		},
 		{
 			PtID:           int32(existingRefundID),
 			PtRefundOf:     &refundOf,
-			PtRefundAmount: utils.FloatToNumeric(75000),
-			PtAmount:       utils.FloatToNumeric(-75000),
+			PtRefundAmount: dong(t, 75000),
+			PtAmount:       dong(t, -75000),
 			PtStatus:       5,
 		},
 	}, nil)
-	mockRepo.On("GetByIdempotencyKey", mock.Anything, "refund:"+orderUUID.String()+":30000.00").
+	// The idempotency key is built from integer minor units.
+	mockRepo.On("GetByIdempotencyKey", mock.Anything, "refund:"+orderUUID.String()+":3000000").
 		Return(paymentsqlc.PaymentTransaction{}, pgx.ErrNoRows)
 
 	svc := paymentservice.NewPaymentService(
@@ -244,12 +285,149 @@ func TestPaymentService_RefundPayment_RejectsCumulativeAmount(t *testing.T) {
 
 	_, err := svc.RefundPayment(context.Background(), dto.RefundPaymentInput{
 		OrderUUID: orderUUID.String(),
-		Amount:    30000,
+		Amount:    3_000_000, // 30000 dong; 75000 already refunded
 	})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "total refund amount")
-	mockRepo.AssertNotCalled(t, "CreateRefund", mock.Anything)
+	mockRepo.AssertNotCalled(t, "CreateRefund", mock.Anything, mock.Anything)
+}
+
+// The cumulative ceiling is exact: an amount that lands precisely on the paid
+// total is allowed, one xu more is not. The old float sum could not tell these
+// apart.
+func TestPaymentService_RefundPayment_CumulativeCeilingIsExact(t *testing.T) {
+	orderPaid := int64(10_000_000) // 100000 dong
+	alreadyRefunded := int64(3_333_300)
+
+	for _, tc := range []struct {
+		name    string
+		refund  int64
+		wantErr bool
+	}{
+		{"lands exactly on the paid total", orderPaid - alreadyRefunded, false},
+		{"one xu over the paid total", orderPaid - alreadyRefunded + 1, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mockRepo := new(MockPaymentRepo)
+			orderUUID := uuid.New()
+			paidUUID := uuid.New()
+			refundOf := int32(1)
+			txnRef := "261023-34-EXACT"
+			providerTxnID := "14567890"
+
+			mockRepo.On("GetByOrderUUID", mock.Anything, orderUUID).Return([]paymentsqlc.PaymentTransaction{
+				{
+					PtID:            1,
+					PtUuid:          paidUUID,
+					PtOrderID:       10,
+					PtStatus:        2,
+					PtAmount:        money.FromMinorUnits(orderPaid).Numeric(),
+					PtCurrency:      "VND",
+					PtProvider:      "vnpay",
+					PtTxnRef:        &txnRef,
+					PtProviderTxnID: &providerTxnID,
+				},
+				{
+					PtID:           2,
+					PtRefundOf:     &refundOf,
+					PtRefundAmount: money.FromMinorUnits(alreadyRefunded).Numeric(),
+					PtAmount:       money.FromMinorUnits(-alreadyRefunded).Numeric(),
+					PtStatus:       5,
+				},
+			}, nil)
+			mockRepo.On("GetByIdempotencyKey", mock.Anything, mock.Anything).
+				Return(paymentsqlc.PaymentTransaction{}, pgx.ErrNoRows)
+			mockRepo.On("CreateRefund", mock.Anything, mock.Anything).Return(paymentsqlc.PaymentTransaction{
+				PtID:        3,
+				PtUuid:      uuid.New(),
+				PtOrderUuid: pgtype.UUID{Bytes: orderUUID, Valid: true},
+				PtAmount:    money.FromMinorUnits(-tc.refund).Numeric(),
+				PtCurrency:  "VND",
+				PtStatus:    5,
+			}, nil)
+
+			svc := paymentservice.NewPaymentService(
+				mockRepo, nil, nil, nil,
+				map[string]provider.PaymentProvider{
+					"vnpay": &fakeProvider{refundResp: provider.RefundResponse{Status: provider.TxnStatusSuccess, RefundTxnID: "R-1"}},
+				},
+				nil, nil,
+				"http://localhost:3001/payment/result", "",
+			)
+
+			_, err := svc.RefundPayment(context.Background(), dto.RefundPaymentInput{
+				OrderUUID: orderUUID.String(),
+				Amount:    tc.refund,
+			})
+
+			if tc.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "total refund amount")
+				mockRepo.AssertNotCalled(t, "CreateRefund", mock.Anything, mock.Anything)
+				return
+			}
+			require.NoError(t, err)
+			mockRepo.AssertCalled(t, "CreateRefund", mock.Anything, mock.Anything)
+		})
+	}
+}
+
+// The refund row stores the amount without float rounding, and the gateway is
+// asked for exactly the requested minor units.
+func TestPaymentService_RefundPayment_PersistsExactMinorUnits(t *testing.T) {
+	mockRepo := new(MockPaymentRepo)
+	orderUUID := uuid.New()
+	paidUUID := uuid.New()
+	txnRef := "261023-34-EXACT-ROW"
+	providerTxnID := "14567890"
+
+	mockRepo.On("GetByOrderUUID", mock.Anything, orderUUID).Return([]paymentsqlc.PaymentTransaction{
+		{
+			PtID:            1,
+			PtUuid:          paidUUID,
+			PtOrderID:       10,
+			PtStatus:        2,
+			PtAmount:        money.FromMinorUnits(10_000_000).Numeric(),
+			PtCurrency:      "VND",
+			PtProvider:      "vnpay",
+			PtTxnRef:        &txnRef,
+			PtProviderTxnID: &providerTxnID,
+		},
+	}, nil)
+	mockRepo.On("GetByIdempotencyKey", mock.Anything, mock.Anything).
+		Return(paymentsqlc.PaymentTransaction{}, pgx.ErrNoRows)
+
+	var captured paymentsqlc.CreateRefundTransactionParams
+	mockRepo.On("CreateRefund", mock.Anything, mock.MatchedBy(func(p paymentsqlc.CreateRefundTransactionParams) bool {
+		captured = p
+		return true
+	})).Return(paymentsqlc.PaymentTransaction{
+		PtID:        2,
+		PtUuid:      uuid.New(),
+		PtOrderUuid: pgtype.UUID{Bytes: orderUUID, Valid: true},
+		PtAmount:    money.FromMinorUnits(-1_234_567).Numeric(),
+		PtCurrency:  "VND",
+		PtStatus:    5,
+	}, nil)
+
+	gateway := &fakeProvider{refundResp: provider.RefundResponse{Status: provider.TxnStatusSuccess, RefundTxnID: "R-2"}}
+	svc := paymentservice.NewPaymentService(
+		mockRepo, nil, nil, nil,
+		map[string]provider.PaymentProvider{"vnpay": gateway},
+		nil, nil, "http://localhost:3001/payment/result", "",
+	)
+
+	_, err := svc.RefundPayment(context.Background(), dto.RefundPaymentInput{
+		OrderUUID: orderUUID.String(),
+		Amount:    1_234_567, // 12345.67 dong
+	})
+
+	require.NoError(t, err)
+	// 12345.67 dong = 1_234_567 xu stored as NUMERIC(15,2).
+	assert.Equal(t, "1234567", captured.RefundAmount.Int.String())
+	assert.Equal(t, int32(-2), captured.RefundAmount.Exp)
+	assert.Equal(t, "-1234567", captured.Amount.Int.String())
 }
 
 func TestPaymentService_RefundPayment_ReusesDeterministicIdempotencyKey(t *testing.T) {
@@ -267,7 +445,7 @@ func TestPaymentService_RefundPayment_ReusesDeterministicIdempotencyKey(t *testi
 				PtUuid:          paidUUID,
 				PtOrderID:       10,
 				PtStatus:        2,
-				PtAmount:        utils.FloatToNumeric(100000),
+				PtAmount:        money.FromMinorUnits(10_000_000).Numeric(),
 				PtCurrency:      "VND",
 				PtProvider:      "vnpay",
 				PtTxnRef:        &txnRef,
@@ -275,18 +453,18 @@ func TestPaymentService_RefundPayment_ReusesDeterministicIdempotencyKey(t *testi
 			}
 		}(),
 	}, nil)
-	mockRepo.On("GetByIdempotencyKey", mock.Anything, "refund:"+orderUUID.String()+":25000.00").
+	mockRepo.On("GetByIdempotencyKey", mock.Anything, "refund:"+orderUUID.String()+":2500000").
 		Return(paymentsqlc.PaymentTransaction{}, pgx.ErrNoRows)
 	mockRepo.On("CreateRefund", mock.Anything, mock.MatchedBy(func(params paymentsqlc.CreateRefundTransactionParams) bool {
-		return params.IdempotencyKey == "refund:"+orderUUID.String()+":25000.00"
+		return params.IdempotencyKey == "refund:"+orderUUID.String()+":2500000"
 	})).Return(paymentsqlc.PaymentTransaction{
 		PtID:        2,
 		PtUuid:      refundUUID,
 		PtOrderUuid: pgtype.UUID{Bytes: orderUUID, Valid: true},
 		PtProvider:  "vnpay",
-		PtAmount:    utils.FloatToNumeric(-25000),
+		PtAmount:    money.FromMinorUnits(-2_500_000).Numeric(),
 		PtCurrency:  "VND",
-		PtStatus:    4,
+		PtStatus:    5,
 	}, nil)
 
 	vnpayTxnID := "14567890"
@@ -305,7 +483,7 @@ func TestPaymentService_RefundPayment_ReusesDeterministicIdempotencyKey(t *testi
 
 	result, err := svc.RefundPayment(context.Background(), dto.RefundPaymentInput{
 		OrderUUID: orderUUID.String(),
-		Amount:    25000,
+		Amount:    2_500_000, // 25000 dong
 		Reason:    "Customer complaint",
 	})
 

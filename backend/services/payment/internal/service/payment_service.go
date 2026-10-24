@@ -10,11 +10,11 @@ import (
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 	"goshop/pkg/rabbitmq"
-	"goshop/pkg/utils"
 	paymentsqlc "goshop/services/payment/internal/db/sqlc"
 	"goshop/services/payment/internal/dto"
 	"goshop/services/payment/internal/provider"
 	"goshop/services/payment/internal/repository"
+	"goshop/services/payment/money"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -92,6 +92,16 @@ func (s *paymentService) CreatePaymentIntent(ctx context.Context, input dto.Crea
 		return dto.PaymentIntentDTO{}, errors.New("order is cancelled")
 	}
 
+	// The order service still speaks its total as a gRPC double. Convert once,
+	// here, and use integer minor units for everything downstream.
+	totalAmount, err := money.FromFloat(order.TotalAmount)
+	if err != nil {
+		return dto.PaymentIntentDTO{}, fmt.Errorf("order %s has an amount that cannot be charged exactly: %w", input.OrderUUID, err)
+	}
+	if totalAmount <= 0 {
+		return dto.PaymentIntentDTO{}, fmt.Errorf("order %s has a non-positive total amount", input.OrderUUID)
+	}
+
 	// COD Payment flow
 	if input.Provider == "cod" {
 		idempotencyKey := input.IdempotencyKey
@@ -105,7 +115,7 @@ func (s *paymentService) CreatePaymentIntent(ctx context.Context, input dto.Crea
 			IdempotencyKey: idempotencyKey,
 			Provider:       "cod",
 			TxnRef:         &order.OrderNumber,
-			Amount:         utils.FloatToNumeric(order.TotalAmount),
+			Amount:         totalAmount.Numeric(),
 			Currency:       "VND",
 			Status:         PaymentStatusPending,
 		})
@@ -113,7 +123,7 @@ func (s *paymentService) CreatePaymentIntent(ctx context.Context, input dto.Crea
 			return dto.PaymentIntentDTO{}, fmt.Errorf("failed to create COD transaction: %w", err)
 		}
 
-		return dto.MapToPaymentIntentDTO(txn, order.OrderUUID), nil
+		return dto.MapToPaymentIntentDTO(txn, order.OrderUUID)
 	}
 
 	pvd, exists := s.providers[input.Provider]
@@ -129,7 +139,7 @@ func (s *paymentService) CreatePaymentIntent(ctx context.Context, input dto.Crea
 	existingTxn, err := s.paymentRepo.GetByIdempotencyKey(ctx, idempotencyKey)
 	if err == nil {
 		if existingTxn.PtStatus == PaymentStatusPending && existingTxn.PtProviderUrl != nil && *existingTxn.PtProviderUrl != "" {
-			return dto.MapToPaymentIntentDTO(existingTxn, order.OrderUUID), nil
+			return dto.MapToPaymentIntentDTO(existingTxn, order.OrderUUID)
 		}
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		logger.Log.Warn().Err(err).Msg("Database check for idempotency returned non-standard error, proceeding to create intent")
@@ -142,7 +152,7 @@ func (s *paymentService) CreatePaymentIntent(ctx context.Context, input dto.Crea
 		IdempotencyKey: idempotencyKey,
 		Provider:       input.Provider,
 		TxnRef:         &txnRef,
-		Amount:         utils.FloatToNumeric(order.TotalAmount),
+		Amount:         totalAmount.Numeric(),
 		Currency:       "VND",
 		Status:         PaymentStatusPending,
 	})
@@ -153,7 +163,7 @@ func (s *paymentService) CreatePaymentIntent(ctx context.Context, input dto.Crea
 	webhookURL := fmt.Sprintf("%s/api/v1/payments/webhook/%s", s.webhookBaseURL, input.Provider)
 	resp, err := pvd.CreatePaymentURL(ctx, provider.CreatePaymentRequest{
 		OrderNumber: order.OrderNumber,
-		Amount:      order.TotalAmount,
+		Amount:      totalAmount,
 		Currency:    "VND",
 		Description: fmt.Sprintf("Thanh toan don hang #%s", order.OrderNumber),
 		ReturnURL:   s.returnURL,
@@ -186,7 +196,7 @@ func (s *paymentService) CreatePaymentIntent(ctx context.Context, input dto.Crea
 		return dto.PaymentIntentDTO{}, fmt.Errorf("failed to update provider info on transaction: %w", err)
 	}
 
-	return dto.MapToPaymentIntentDTO(updatedTxn, order.OrderUUID), nil
+	return dto.MapToPaymentIntentDTO(updatedTxn, order.OrderUUID)
 }
 
 func (s *paymentService) GetPaymentTransactionsByOrderID(ctx context.Context, orderID int32) ([]dto.PaymentTransactionDTO, error) {
@@ -201,7 +211,11 @@ func (s *paymentService) GetPaymentTransactionsByOrderID(ctx context.Context, or
 		if t.PtOrderUuid.Valid {
 			orderUUID = t.PtOrderUuid.Bytes
 		}
-		result[i] = dto.MapToPaymentTransactionDTO(t, orderUUID)
+		mapped, mapErr := dto.MapToPaymentTransactionDTO(t, orderUUID)
+		if mapErr != nil {
+			return nil, fmt.Errorf("failed to map transaction %s: %w", t.PtUuid, mapErr)
+		}
+		result[i] = mapped
 	}
 	return result, nil
 }
@@ -214,7 +228,11 @@ func (s *paymentService) GetPaymentTransactionsByOrderUUID(ctx context.Context, 
 
 	result := make([]dto.PaymentTransactionDTO, len(txns))
 	for i, t := range txns {
-		result[i] = dto.MapToPaymentTransactionDTO(t, orderUUID)
+		mapped, mapErr := dto.MapToPaymentTransactionDTO(t, orderUUID)
+		if mapErr != nil {
+			return nil, fmt.Errorf("failed to map transaction %s: %w", t.PtUuid, mapErr)
+		}
+		result[i] = mapped
 	}
 	return result, nil
 }
@@ -247,6 +265,11 @@ func (s *paymentService) ConfirmCODPayment(ctx context.Context, orderUUID uuid.U
 		return fmt.Errorf("failed to atomically update COD transaction to paid: %w", err)
 	}
 
+	codAmount, err := money.NumericToAmount(updated.PtAmount)
+	if err != nil {
+		return fmt.Errorf("COD transaction %s has an unreadable amount: %w", updated.PtUuid, err)
+	}
+
 	var userUUIDStr string
 	var orderNumberStr string
 	if s.orderReader != nil {
@@ -262,7 +285,7 @@ func (s *paymentService) ConfirmCODPayment(ctx context.Context, orderUUID uuid.U
 		OrderNumber: orderNumberStr,
 		UserUUID:    userUUIDStr,
 		Provider:    "cod",
-		Amount:      utils.NumericToFloat(updated.PtAmount),
+		Amount:      codAmount.ToFloat(),
 		Currency:    updated.PtCurrency,
 		Status:      "Paid",
 		Timestamp:   time.Now().UTC(),
@@ -276,8 +299,14 @@ func (s *paymentService) RefundPayment(ctx context.Context, input dto.RefundPaym
 	if err != nil {
 		return dto.PaymentTransactionDTO{}, fmt.Errorf("invalid order uuid: %w", err)
 	}
+	// The API speaks minor units; anything non-positive is rejected before it
+	// can reach a comparison.
+	refundAmount := money.FromMinorUnits(input.Amount)
 	if input.Amount <= 0 {
 		return dto.PaymentTransactionDTO{}, errors.New("refund amount must be greater than zero")
+	}
+	if input.Amount > int64(money.MaxAmount) {
+		return dto.PaymentTransactionDTO{}, fmt.Errorf("refund amount %s exceeds the supported maximum %s", refundAmount, money.MaxAmount)
 	}
 
 	txns, err := s.paymentRepo.GetByOrderUUID(ctx, orderUUID)
@@ -298,32 +327,47 @@ func (s *paymentService) RefundPayment(ctx context.Context, input dto.RefundPaym
 		return dto.PaymentTransactionDTO{}, errors.New("cannot refund: no paid transaction found for order")
 	}
 
-	paidAmount := utils.NumericToFloat(paidTxn.PtAmount)
-	if input.Amount > paidAmount {
-		return dto.PaymentTransactionDTO{}, fmt.Errorf("refund amount (%.2f) exceeds original transaction amount (%.2f)", input.Amount, paidAmount)
+	paidAmount, err := money.NumericToAmount(paidTxn.PtAmount)
+	if err != nil {
+		return dto.PaymentTransactionDTO{}, fmt.Errorf("paid transaction %s has an unreadable amount: %w", paidTxn.PtUuid, err)
+	}
+	if refundAmount.Exceeds(paidAmount) {
+		return dto.PaymentTransactionDTO{}, fmt.Errorf("refund amount (%s) exceeds original transaction amount (%s)", refundAmount, paidAmount)
 	}
 
 	idempotencyKey := input.IdempotencyKey
 	if idempotencyKey == "" {
-		idempotencyKey = fmt.Sprintf("refund:%s:%.2f", input.OrderUUID, input.Amount)
+		idempotencyKey = fmt.Sprintf("refund:%s:%d", input.OrderUUID, input.Amount)
 	}
 
 	if existing, lookupErr := s.paymentRepo.GetByIdempotencyKey(ctx, idempotencyKey); lookupErr == nil {
-		return dto.MapToPaymentTransactionDTO(existing, orderUUID), nil
+		return dto.MapToPaymentTransactionDTO(existing, orderUUID)
 	} else if !errors.Is(lookupErr, pgx.ErrNoRows) {
 		return dto.PaymentTransactionDTO{}, fmt.Errorf("failed to check refund idempotency key: %w", lookupErr)
 	}
 
-	var refundedAmount float64
+	// Cumulative refund ceiling: integer addition of already-issued refunds.
+	var refundedAmount money.Amount
 	for _, txn := range txns {
 		if txn.PtRefundOf != nil && *txn.PtRefundOf == paidTxn.PtID && txn.PtStatus == PaymentStatusRefunded {
-			refundedAmount += utils.NumericToFloat(txn.PtRefundAmount)
+			alreadyRefunded, readErr := money.NumericToAmount(txn.PtRefundAmount)
+			if readErr != nil {
+				return dto.PaymentTransactionDTO{}, fmt.Errorf("refund %s of order %s has an unreadable amount: %w", txn.PtUuid, input.OrderUUID, readErr)
+			}
+			refundedAmount, err = refundedAmount.Add(alreadyRefunded)
+			if err != nil {
+				return dto.PaymentTransactionDTO{}, fmt.Errorf("failed to total refunded amount for order %s: %w", input.OrderUUID, err)
+			}
 		}
 	}
-	if refundedAmount+input.Amount > paidAmount {
+	claimed, err := refundedAmount.Add(refundAmount)
+	if err != nil {
+		return dto.PaymentTransactionDTO{}, fmt.Errorf("failed to total refunded amount for order %s: %w", input.OrderUUID, err)
+	}
+	if claimed.Exceeds(paidAmount) {
 		return dto.PaymentTransactionDTO{}, fmt.Errorf(
-			"total refund amount (%.2f) exceeds original transaction amount (%.2f)",
-			refundedAmount+input.Amount,
+			"total refund amount (%s) exceeds original transaction amount (%s)",
+			claimed,
 			paidAmount,
 		)
 	}
@@ -357,7 +401,7 @@ func (s *paymentService) RefundPayment(ctx context.Context, input dto.RefundPaym
 	refundResp, refundErr := pvd.Refund(ctx, provider.RefundRequest{
 		OrderNumber:     orderNumber,
 		ProviderTxnID:   providerTxnID,
-		Amount:          input.Amount,
+		Amount:          refundAmount,
 		TotalAmount:     paidAmount,
 		Reason:          reason,
 		TransactionDate: transactionDate,
@@ -376,11 +420,11 @@ func (s *paymentService) RefundPayment(ctx context.Context, input dto.RefundPaym
 		IdempotencyKey: idempotencyKey,
 		Provider:       paidTxn.PtProvider,
 		ProviderTxnID:  &refundResp.RefundTxnID,
-		Amount:         utils.FloatToNumeric(-input.Amount),
+		Amount:         refundAmount.Neg().Numeric(),
 		Currency:       paidTxn.PtCurrency,
 		Status:         PaymentStatusRefunded,
 		RefundOf:       &paidTxn.PtID,
-		RefundAmount:   utils.FloatToNumeric(input.Amount),
+		RefundAmount:   refundAmount.Numeric(),
 	})
 	if err != nil {
 		return dto.PaymentTransactionDTO{}, fmt.Errorf("failed to insert refund transaction: %w", err)
@@ -390,14 +434,14 @@ func (s *paymentService) RefundPayment(ctx context.Context, input dto.RefundPaym
 		PaymentUUID: refundTxn.PtUuid.String(),
 		OrderUUID:   input.OrderUUID,
 		Provider:    paidTxn.PtProvider,
-		Amount:      input.Amount,
+		Amount:      refundAmount.ToFloat(),
 		Currency:    paidTxn.PtCurrency,
 		Status:      "Refunded",
 		Reason:      input.Reason,
 		Timestamp:   time.Now().UTC(),
 	})
 
-	return dto.MapToPaymentTransactionDTO(refundTxn, orderUUID), nil
+	return dto.MapToPaymentTransactionDTO(refundTxn, orderUUID)
 }
 
 func (s *paymentService) publishPaymentEvent(ctx context.Context, routingKey string, payload dto.PaymentEventPayload) {
@@ -457,11 +501,18 @@ func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 			orderUUIDStr = uuid.UUID(txn.PtOrderUuid.Bytes).String()
 		}
 
+		expiredAmount, amountErr := money.NumericToAmount(txn.PtAmount)
+		if amountErr != nil {
+			logger.Log.Error().Err(amountErr).Str("pt_uuid", txn.PtUuid.String()).
+				Msg("Expired transaction carries an unreadable amount; publishing expiry without its amount")
+			expiredAmount = money.FromMinorUnits(0)
+		}
+
 		s.publishPaymentEvent(ctx, rabbitmq.RoutingKeyPaymentExpired, dto.PaymentEventPayload{
 			PaymentUUID: txn.PtUuid.String(),
 			OrderUUID:   orderUUIDStr,
 			Provider:    txn.PtProvider,
-			Amount:      utils.NumericToFloat(txn.PtAmount),
+			Amount:      expiredAmount.ToFloat(),
 			Currency:    txn.PtCurrency,
 			Status:      "Expired",
 			Reason:      "Transaction timed out after 15 minutes",

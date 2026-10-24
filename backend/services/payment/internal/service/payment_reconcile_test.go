@@ -6,16 +6,17 @@ import (
 	"testing"
 	"time"
 
-	"goshop/pkg/utils"
 	paymentsqlc "goshop/services/payment/internal/db/sqlc"
 	"goshop/services/payment/internal/dto"
 	"goshop/services/payment/internal/provider"
 	paymentservice "goshop/services/payment/internal/service"
+	"goshop/services/payment/money"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 // fakeProvider implements provider.PaymentProvider with canned query answers.
@@ -24,6 +25,9 @@ type fakeProvider struct {
 	err        error
 	refundResp provider.RefundResponse
 	refundErr  error
+	// lastRefund records the request the service sent, so tests can assert the
+	// exact minor units handed to the gateway.
+	lastRefund *provider.RefundRequest
 }
 
 func (p *fakeProvider) CreatePaymentURL(context.Context, provider.CreatePaymentRequest) (provider.CreatePaymentResponse, error) {
@@ -36,7 +40,8 @@ func (p *fakeProvider) ParseWebhookPayload([]byte) (provider.WebhookResult, erro
 func (p *fakeProvider) QueryTransactionStatus(context.Context, string, string) (provider.TransactionStatus, error) {
 	return p.status, p.err
 }
-func (p *fakeProvider) Refund(context.Context, provider.RefundRequest) (provider.RefundResponse, error) {
+func (p *fakeProvider) Refund(_ context.Context, req provider.RefundRequest) (provider.RefundResponse, error) {
+	p.lastRefund = &req
 	return p.refundResp, p.refundErr
 }
 
@@ -55,7 +60,7 @@ func pendingTxn(createdAt time.Time) paymentsqlc.PaymentTransaction {
 		PtOrderID:   34,
 		PtProvider:  "vnpay",
 		PtTxnRef:    &txnRef,
-		PtAmount:    utils.FloatToNumeric(380865),
+		PtAmount:    money.FromMinorUnits(38_086_500).Numeric(), // 380865 dong
 		PtCurrency:  "VND",
 		PtStatus:    paymentservice.PaymentStatusPending,
 		PtCreatedAt: createdAt,
@@ -134,13 +139,55 @@ func TestProcessWebhook_RejectsUncoveredAmount(t *testing.T) {
 	err := svc.ProcessWebhook(context.Background(), dto.PaymentWebhookMessage{
 		Provider:    "vnpay",
 		OrderNumber: *txn.PtTxnRef,
-		Amount:      1000,
+		Amount:      1_000, // 10 dong, far below 380865 dong
 		Status:      string(provider.TxnStatusSuccess),
 	})
 
 	assert.Error(t, err)
 	assert.True(t, errors.Is(err, paymentservice.ErrWebhookAmountMismatch))
 	repo.AssertNotCalled(t, "UpdateStatusAtomically", mock.Anything, mock.Anything)
+}
+
+// One xu short must be rejected: the old float+epsilon check could not tell
+// 380864.99 from 380865. The exact match (all minor units) must pass.
+func TestProcessWebhook_AmountCoverageIsExact(t *testing.T) {
+	txn := pendingTxn(time.Now().UTC())
+
+	for _, tc := range []struct {
+		name    string
+		amount  int64 // xu
+		wantErr bool
+	}{
+		{"one xu short of the order total", 38_086_499, true},
+		{"exactly the order total", 38_086_500, false},
+		{"more than the order total", 38_086_501, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := new(MockPaymentRepo)
+			repo.On("GetByTxnRef", mock.Anything, "vnpay", *txn.PtTxnRef).Return(txn, nil)
+			repo.On("UpdateStatusAtomically", mock.Anything, mock.Anything).Return(txn, nil)
+
+			svc := newTestService(repo, map[string]provider.PaymentProvider{
+				"vnpay": &fakeProvider{},
+			})
+
+			err := svc.ProcessWebhook(context.Background(), dto.PaymentWebhookMessage{
+				Provider:    "vnpay",
+				OrderNumber: *txn.PtTxnRef,
+				Amount:      tc.amount,
+				Status:      string(provider.TxnStatusSuccess),
+			})
+
+			if tc.wantErr {
+				require.Error(t, err)
+				assert.True(t, errors.Is(err, paymentservice.ErrWebhookAmountMismatch))
+				repo.AssertNotCalled(t, "UpdateStatusAtomically", mock.Anything, mock.Anything)
+				return
+			}
+			require.NoError(t, err)
+			repo.AssertCalled(t, "UpdateStatusAtomically", mock.Anything, mock.Anything)
+		})
+	}
 }
 
 // Unknown callbacks must report a not-found sentinel so the handler can answer
@@ -179,7 +226,7 @@ func TestRefundPayment_GatewayRejectedWritesNothing(t *testing.T) {
 
 	_, err := svc.RefundPayment(context.Background(), dto.RefundPaymentInput{
 		OrderUUID: uuid.New().String(),
-		Amount:    100000,
+		Amount:    1_000_000, // 10000 dong
 	})
 
 	assert.Error(t, err)
@@ -201,15 +248,19 @@ func TestRefundPayment_GatewayConfirmedPersistsRefund(t *testing.T) {
 		return p.ProviderTxnID != nil && *p.ProviderTxnID == "REFUND-TXN-1"
 	})).Return(txn, nil)
 
+	gateway := &fakeProvider{refundResp: provider.RefundResponse{Status: provider.TxnStatusSuccess, RefundTxnID: "REFUND-TXN-1"}}
 	svc := newTestService(repo, map[string]provider.PaymentProvider{
-		"vnpay": &fakeProvider{refundResp: provider.RefundResponse{Status: provider.TxnStatusSuccess, RefundTxnID: "REFUND-TXN-1"}},
+		"vnpay": gateway,
 	})
 
 	_, err := svc.RefundPayment(context.Background(), dto.RefundPaymentInput{
 		OrderUUID: uuid.New().String(),
-		Amount:    100000,
+		Amount:    1_000_000, // 10000 dong
 	})
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
+	// VNPay's vnp_Amount is xu, our native unit: no multiplication anywhere.
+	require.NotNil(t, gateway.lastRefund)
+	assert.Equal(t, int64(1_000_000), gateway.lastRefund.Amount.MinorUnits())
 	repo.AssertExpectations(t)
 }

@@ -1,6 +1,10 @@
 package provider
 
-import "context"
+import (
+	"context"
+
+	"goshop/services/payment/money"
+)
 
 type TransactionStatus string
 
@@ -11,9 +15,11 @@ const (
 	TxnStatusExpired TransactionStatus = "expired"
 )
 
+// CreatePaymentRequest carries an exact Amount; providers convert it to their
+// own wire format at the call site, never the other way around.
 type CreatePaymentRequest struct {
 	OrderNumber string
-	Amount      float64
+	Amount      money.Amount
 	Currency    string
 	Description string
 	ReturnURL   string
@@ -31,24 +37,25 @@ type WebhookResult struct {
 	EventType     string
 	ProviderTxnID string
 	OrderNumber   string
-	Amount        float64
+	Amount        money.Amount
 	Status        TransactionStatus
 	Metadata      map[string]string
 }
 
 type RefundRequest struct {
 	OrderNumber     string
-	ProviderTxnID   string  // Mã giao dịch ngân hàng gốc từ gateway (ví dụ: "2345678901" MoMo hoặc "14567890" VNPay)
-	Amount          float64 // Số tiền yêu cầu hoàn (VND)
-	TotalAmount     float64 // Tổng tiền đơn hàng gốc
+	ProviderTxnID   string       // Mã giao dịch ngân hàng gốc từ gateway (ví dụ: "2345678901" MoMo hoặc "14567890" VNPay)
+	Amount          money.Amount // Số tiền yêu cầu hoàn
+	TotalAmount     money.Amount // Tổng tiền đơn hàng gốc
 	Reason          string
 	TransactionDate string
 	CreatedBy       string
 	ClientIP        string
 }
+
 type RefundResponse struct {
 	RefundTxnID string
-	Amount      float64
+	Amount      money.Amount
 	Status      TransactionStatus // "success" / "failed"
 	Message     string            // Thông báo từ Gateway
 }

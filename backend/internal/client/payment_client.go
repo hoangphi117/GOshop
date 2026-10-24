@@ -39,6 +39,8 @@ func (a *PaymentServiceAdapter) RefundPayment(ctx context.Context, idempotencyKe
 		return v1dto.PaymentTransactionDTO{}, fmt.Errorf("payment gRPC client is not initialized")
 	}
 
+	// Both the v1 DTO and the payment contract carry integer minor units (xu),
+	// so the amount crosses unchanged.
 	res, err := a.client.RefundPayment(ctx, contract.RefundPaymentInput{
 		IdempotencyKey: idempotencyKey,
 		OrderUUID:      input.OrderUUID,

@@ -39,6 +39,7 @@ import (
 	orderservice "goshop/services/order/internal/service"
 	orderworker "goshop/services/order/internal/worker"
 	paymentcontract "goshop/services/payment/contract"
+	"goshop/services/payment/money"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-migrate/migrate/v4"
@@ -71,26 +72,43 @@ type paymentRefundAdapter struct {
 	client *paymentcontract.GRPCPaymentClient
 }
 
+// RefundPayment forwards the refund in the payment service's native unit.
+// The order side keeps whole dong in float64 (its own ledger); convert once
+// here, and convert the returned minor units back once, so neither side does
+// arithmetic on the float.
 func (a paymentRefundAdapter) RefundPayment(ctx context.Context, idempotencyKey string, input v1dto.RefundPaymentInput) (v1dto.PaymentTransactionDTO, error) {
+	amount, err := money.FromFloat(input.Amount)
+	if err != nil {
+		return v1dto.PaymentTransactionDTO{}, fmt.Errorf("refund amount %v cannot be sent exactly: %w", input.Amount, err)
+	}
+
 	txn, err := a.client.RefundPayment(ctx, paymentcontract.RefundPaymentInput{
 		IdempotencyKey: idempotencyKey,
 		OrderUUID:      input.OrderUUID,
-		Amount:         input.Amount,
+		Amount:         amount.MinorUnits(),
 		Reason:         input.Reason,
 	})
 	if err != nil {
 		return v1dto.PaymentTransactionDTO{}, err
 	}
+
+	txnAmount := money.FromMinorUnits(txn.Amount).ToFloat()
+	var refundAmount *float64
+	if txn.RefundAmount != nil {
+		refunded := money.FromMinorUnits(*txn.RefundAmount).ToFloat()
+		refundAmount = &refunded
+	}
+
 	return v1dto.PaymentTransactionDTO{
 		UUID:          txn.UUID,
 		OrderUUID:     txn.OrderUUID,
 		Provider:      txn.Provider,
 		ProviderTxnID: txn.ProviderTxnID,
-		Amount:        txn.Amount,
+		Amount:        txnAmount,
 		Currency:      txn.Currency,
 		Status:        txn.Status,
 		RefundOf:      txn.RefundOf,
-		RefundAmount:  txn.RefundAmount,
+		RefundAmount:  refundAmount,
 		PaidAt:        txn.PaidAt,
 	}, nil
 }

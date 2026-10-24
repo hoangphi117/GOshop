@@ -10,28 +10,30 @@ type CreatePaymentIntentInput struct {
 }
 
 type PaymentIntentDTO struct {
-	PaymentUUID string  `json:"payment_uuid"`
-	OrderUUID   string  `json:"order_uuid"`
-	Provider    string  `json:"provider"`
-	Amount      float64 `json:"amount"`
-	Currency    string  `json:"currency"`
-	Status      string  `json:"status"`
-	PaymentURL  string  `json:"payment_url"`
-	CreatedAt   string  `json:"created_at"`
+	PaymentUUID string `json:"payment_uuid"`
+	OrderUUID   string `json:"order_uuid"`
+	Provider    string `json:"provider"`
+	// Amount is in integer minor units (xu: 1 dong = 100 xu), matching the
+	// payment service contract. A float here reintroduces rounding into money.
+	Amount     int64  `json:"amount"`
+	Currency   string `json:"currency"`
+	Status     string `json:"status"`
+	PaymentURL string `json:"payment_url"`
+	CreatedAt  string `json:"created_at"`
 }
 
 type PaymentTransactionDTO struct {
-	UUID          string   `json:"uuid"`
-	OrderUUID     string   `json:"order_uuid"`
-	Provider      string   `json:"provider"`
-	ProviderTxnID *string  `json:"provider_txn_id,omitempty"`
-	Amount        float64  `json:"amount"`
-	Currency      string   `json:"currency"`
-	Status        string   `json:"status"`
-	RefundOf      *string  `json:"refund_of,omitempty"`
-	RefundAmount  *float64 `json:"refund_amount,omitempty"`
-	PaidAt        *string  `json:"paid_at,omitempty"`
-	CreatedAt     string   `json:"created_at"`
+	UUID          string  `json:"uuid"`
+	OrderUUID     string  `json:"order_uuid"`
+	Provider      string  `json:"provider"`
+	ProviderTxnID *string `json:"provider_txn_id,omitempty"`
+	Amount        int64   `json:"amount"`
+	Currency      string  `json:"currency"`
+	Status        string  `json:"status"`
+	RefundOf      *string `json:"refund_of,omitempty"`
+	RefundAmount  *int64  `json:"refund_amount,omitempty"`
+	PaidAt        *string `json:"paid_at,omitempty"`
+	CreatedAt     string  `json:"created_at"`
 }
 
 type PaymentWebhookMessage struct {
@@ -41,7 +43,7 @@ type PaymentWebhookMessage struct {
 	EventType      string            `json:"event_type"`
 	ProviderTxnID  string            `json:"provider_txn_id"`
 	OrderNumber    string            `json:"order_number"`
-	Amount         float64           `json:"amount"`
+	Amount         int64             `json:"amount"`
 	Status         string            `json:"status"`
 	Metadata       map[string]string `json:"metadata"`
 }
@@ -55,9 +57,10 @@ type ConfirmCODPaymentInput struct {
 }
 
 type RefundPaymentInput struct {
-	OrderUUID string  `json:"order_uuid" binding:"required,uuid"`
-	Amount    float64 `json:"amount" binding:"required,gt=0"`
-	Reason    string  `json:"reason" binding:"required,max=500"`
+	OrderUUID string `json:"order_uuid" binding:"required,uuid"`
+	// Amount is in integer minor units (xu), see PaymentIntentDTO.Amount.
+	Amount int64  `json:"amount" binding:"required,gt=0,max=99999999999999999"`
+	Reason string `json:"reason" binding:"required,max=500"`
 }
 
 func MapPaymentTxnStatusToString(status int32) string {
