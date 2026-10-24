@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"goshop/pkg/logger"
+	"goshop/services/payment/money"
 	"io"
 	"net/http"
 	"strconv"
@@ -78,7 +79,11 @@ type momoRefundResponse struct {
 
 func (p *momoProvider) CreatePaymentURL(ctx context.Context, req CreatePaymentRequest) (CreatePaymentResponse, error) {
 	requestID := fmt.Sprintf("%s-%d", req.OrderNumber, time.Now().UnixNano())
-	amountInt := int64(req.Amount)
+	// MoMo's API speaks whole dong; refuse to send a truncated amount.
+	amountInt, err := req.Amount.WholeDong()
+	if err != nil {
+		return CreatePaymentResponse{}, fmt.Errorf("momo requires a whole-dong amount: %w", err)
+	}
 	requestType := "payWithMethod"
 	extraData := ""
 
@@ -186,6 +191,13 @@ func (p *momoProvider) ParseWebhookPayload(payload []byte) (WebhookResult, error
 		return WebhookResult{}, errors.New("invalid momo webhook json format")
 	}
 
+	// MoMo reports whole dong; an out-of-range value is a malformed callback,
+	// not something to clamp.
+	momoAmount, err := money.FromWholeDong(body.Amount)
+	if err != nil {
+		return WebhookResult{}, fmt.Errorf("invalid momo webhook amount %d: %w", body.Amount, err)
+	}
+
 	status := TxnStatusFailed
 	if body.ResultCode == 0 {
 		status = TxnStatusSuccess
@@ -197,7 +209,7 @@ func (p *momoProvider) ParseWebhookPayload(payload []byte) (WebhookResult, error
 		ProviderTxnID: fmt.Sprintf("%d", body.TransID),
 		OrderNumber:   body.OrderID,
 		Status:        status,
-		Amount:        float64(body.Amount),
+		Amount:        momoAmount,
 		Metadata: map[string]string{
 			"pay_type":   body.PayType,
 			"order_type": body.OrderType,
@@ -313,7 +325,10 @@ func (p *momoProvider) Refund(ctx context.Context, req RefundRequest) (RefundRes
 
 	requestID := fmt.Sprintf("req-ref-%s-%d", req.OrderNumber, time.Now().UnixNano())
 	refundOrderID := fmt.Sprintf("ref-%s-%d", req.OrderNumber, time.Now().Unix())
-	amountInt := int64(req.Amount)
+	amountInt, err := req.Amount.WholeDong()
+	if err != nil {
+		return RefundResponse{}, fmt.Errorf("momo requires a whole-dong refund amount: %w", err)
+	}
 	description := req.Reason
 	if description == "" {
 		description = fmt.Sprintf("Refund for order %s", req.OrderNumber)
@@ -377,9 +392,11 @@ func (p *momoProvider) Refund(ctx context.Context, req RefundRequest) (RefundRes
 		}, fmt.Errorf("momo refund rejected with code %d: %s", momoResp.ResultCode, momoResp.Message)
 	}
 
+	// Report the amount we actually asked for in whole dong; the gateway echo in
+	// momoResp.Amount is informational only.
 	return RefundResponse{
 		RefundTxnID: strconv.FormatInt(momoResp.TransID, 10),
-		Amount:      float64(momoResp.Amount),
+		Amount:      req.Amount,
 		Status:      TxnStatusSuccess,
 		Message:     momoResp.Message,
 	}, nil

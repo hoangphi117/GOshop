@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"goshop/pkg/utils"
 	paymentsqlc "goshop/services/payment/internal/db/sqlc"
+	"goshop/services/payment/money"
 
 	"github.com/google/uuid"
 )
@@ -19,36 +19,38 @@ type CreatePaymentIntentInput struct {
 	IdempotencyKey string    `json:"idempotency_key"`
 }
 
+// Amount fields carry integer minor units (xu, see internal/money). Storing a
+// float here is what let binary floating point reach refund-limit checks.
 type PaymentIntentDTO struct {
-	PaymentUUID string  `json:"payment_uuid"`
-	OrderUUID   string  `json:"order_uuid"`
-	Provider    string  `json:"provider"`
-	Amount      float64 `json:"amount"`
-	Currency    string  `json:"currency"`
-	Status      string  `json:"status"`
-	PaymentURL  string  `json:"payment_url"`
-	CreatedAt   string  `json:"created_at"`
+	PaymentUUID string `json:"payment_uuid"`
+	OrderUUID   string `json:"order_uuid"`
+	Provider    string `json:"provider"`
+	Amount      int64  `json:"amount"`
+	Currency    string `json:"currency"`
+	Status      string `json:"status"`
+	PaymentURL  string `json:"payment_url"`
+	CreatedAt   string `json:"created_at"`
 }
 
 type PaymentTransactionDTO struct {
-	UUID          string   `json:"uuid"`
-	OrderUUID     string   `json:"order_uuid"`
-	Provider      string   `json:"provider"`
-	ProviderTxnID *string  `json:"provider_txn_id,omitempty"`
-	Amount        float64  `json:"amount"`
-	Currency      string   `json:"currency"`
-	Status        string   `json:"status"`
-	RefundOf      *string  `json:"refund_of,omitempty"`
-	RefundAmount  *float64 `json:"refund_amount,omitempty"`
-	PaidAt        *string  `json:"paid_at,omitempty"`
-	CreatedAt     string   `json:"created_at"`
+	UUID          string  `json:"uuid"`
+	OrderUUID     string  `json:"order_uuid"`
+	Provider      string  `json:"provider"`
+	ProviderTxnID *string `json:"provider_txn_id,omitempty"`
+	Amount        int64   `json:"amount"`
+	Currency      string  `json:"currency"`
+	Status        string  `json:"status"`
+	RefundOf      *string `json:"refund_of,omitempty"`
+	RefundAmount  *int64  `json:"refund_amount,omitempty"`
+	PaidAt        *string `json:"paid_at,omitempty"`
+	CreatedAt     string  `json:"created_at"`
 }
 
 type RefundPaymentInput struct {
-	IdempotencyKey string  `json:"idempotency_key"`
-	OrderUUID      string  `json:"order_uuid" binding:"required,uuid"`
-	Amount         float64 `json:"amount" binding:"required,gt=0"`
-	Reason         string  `json:"reason" binding:"required,max=500"`
+	IdempotencyKey string `json:"idempotency_key"`
+	OrderUUID      string `json:"order_uuid" binding:"required,uuid"`
+	Amount         int64  `json:"amount" binding:"required,gt=0"`
+	Reason         string `json:"reason" binding:"required,max=500"`
 }
 
 type PaymentWebhookMessage struct {
@@ -58,7 +60,7 @@ type PaymentWebhookMessage struct {
 	EventType      string            `json:"event_type"`
 	ProviderTxnID  string            `json:"provider_txn_id"`
 	OrderNumber    string            `json:"order_number"`
-	Amount         float64           `json:"amount"`
+	Amount         int64             `json:"amount"`
 	Status         string            `json:"status"`
 	Metadata       map[string]string `json:"metadata"`
 }
@@ -77,7 +79,14 @@ type PaymentOrderSummary struct {
 	CreatedAt           time.Time `json:"created_at"`
 }
 
-func MapToPaymentIntentDTO(pt paymentsqlc.PaymentTransaction, orderUUID uuid.UUID) PaymentIntentDTO {
+// MapToPaymentIntentDTO converts a ledger row to the API shape. It fails when
+// the stored amount cannot be represented exactly instead of reporting zero.
+func MapToPaymentIntentDTO(pt paymentsqlc.PaymentTransaction, orderUUID uuid.UUID) (PaymentIntentDTO, error) {
+	amount, err := money.NumericToAmount(pt.PtAmount)
+	if err != nil {
+		return PaymentIntentDTO{}, fmt.Errorf("payment %s has an unreadable amount: %w", pt.PtUuid, err)
+	}
+
 	var paymentURL string
 	if pt.PtProviderUrl != nil {
 		paymentURL = *pt.PtProviderUrl
@@ -87,24 +96,33 @@ func MapToPaymentIntentDTO(pt paymentsqlc.PaymentTransaction, orderUUID uuid.UUI
 		PaymentUUID: pt.PtUuid.String(),
 		OrderUUID:   orderUUID.String(),
 		Provider:    pt.PtProvider,
-		Amount:      utils.NumericToFloat(pt.PtAmount),
+		Amount:      amount.MinorUnits(),
 		Currency:    pt.PtCurrency,
 		Status:      MapPaymentTxnStatusToString(pt.PtStatus),
 		PaymentURL:  paymentURL,
 		CreatedAt:   pt.PtCreatedAt.Format(time.RFC3339),
-	}
+	}, nil
 }
 
-func MapToPaymentTransactionDTO(pt paymentsqlc.PaymentTransaction, orderUUID uuid.UUID) PaymentTransactionDTO {
+func MapToPaymentTransactionDTO(pt paymentsqlc.PaymentTransaction, orderUUID uuid.UUID) (PaymentTransactionDTO, error) {
+	amount, err := money.NumericToAmount(pt.PtAmount)
+	if err != nil {
+		return PaymentTransactionDTO{}, fmt.Errorf("payment %s has an unreadable amount: %w", pt.PtUuid, err)
+	}
+
 	var refundOf *string
 	if pt.PtRefundOf != nil {
 		str := fmt.Sprintf("%d", *pt.PtRefundOf)
 		refundOf = &str
 	}
 
-	var refundAmount *float64
+	var refundAmount *int64
 	if pt.PtRefundAmount.Valid {
-		val := utils.NumericToFloat(pt.PtRefundAmount)
+		refunded, refundErr := money.NumericToAmount(pt.PtRefundAmount)
+		if refundErr != nil {
+			return PaymentTransactionDTO{}, fmt.Errorf("payment %s has an unreadable refund amount: %w", pt.PtUuid, refundErr)
+		}
+		val := refunded.MinorUnits()
 		refundAmount = &val
 	}
 
@@ -119,14 +137,14 @@ func MapToPaymentTransactionDTO(pt paymentsqlc.PaymentTransaction, orderUUID uui
 		OrderUUID:     orderUUID.String(),
 		Provider:      pt.PtProvider,
 		ProviderTxnID: pt.PtProviderTxnID,
-		Amount:        utils.NumericToFloat(pt.PtAmount),
+		Amount:        amount.MinorUnits(),
 		Currency:      pt.PtCurrency,
 		Status:        MapPaymentTxnStatusToString(pt.PtStatus),
 		RefundOf:      refundOf,
 		RefundAmount:  refundAmount,
 		PaidAt:        paidAt,
 		CreatedAt:     pt.PtCreatedAt.Format(time.RFC3339),
-	}
+	}, nil
 }
 
 func MapPaymentTxnStatusToString(status int32) string {

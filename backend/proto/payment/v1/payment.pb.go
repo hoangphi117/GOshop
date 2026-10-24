@@ -22,15 +22,17 @@ const (
 )
 
 type PaymentIntentDTO struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	PaymentUuid   string                 `protobuf:"bytes,1,opt,name=payment_uuid,json=paymentUuid,proto3" json:"payment_uuid,omitempty"`
-	OrderUuid     string                 `protobuf:"bytes,2,opt,name=order_uuid,json=orderUuid,proto3" json:"order_uuid,omitempty"`
-	Provider      string                 `protobuf:"bytes,3,opt,name=provider,proto3" json:"provider,omitempty"`
-	Amount        float64                `protobuf:"fixed64,4,opt,name=amount,proto3" json:"amount,omitempty"`
-	Currency      string                 `protobuf:"bytes,5,opt,name=currency,proto3" json:"currency,omitempty"`
-	Status        string                 `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"`
-	PaymentUrl    string                 `protobuf:"bytes,7,opt,name=payment_url,json=paymentUrl,proto3" json:"payment_url,omitempty"`
-	CreatedAt     string                 `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	PaymentUuid string                 `protobuf:"bytes,1,opt,name=payment_uuid,json=paymentUuid,proto3" json:"payment_uuid,omitempty"`
+	OrderUuid   string                 `protobuf:"bytes,2,opt,name=order_uuid,json=orderUuid,proto3" json:"order_uuid,omitempty"`
+	Provider    string                 `protobuf:"bytes,3,opt,name=provider,proto3" json:"provider,omitempty"`
+	// Integer minor units (xu): 1 dong = 100 xu. A double here is what let
+	// binary floating point leak into refund-limit checks.
+	Amount        int64  `protobuf:"varint,4,opt,name=amount,proto3" json:"amount,omitempty"`
+	Currency      string `protobuf:"bytes,5,opt,name=currency,proto3" json:"currency,omitempty"`
+	Status        string `protobuf:"bytes,6,opt,name=status,proto3" json:"status,omitempty"`
+	PaymentUrl    string `protobuf:"bytes,7,opt,name=payment_url,json=paymentUrl,proto3" json:"payment_url,omitempty"`
+	CreatedAt     string `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -86,7 +88,7 @@ func (x *PaymentIntentDTO) GetProvider() string {
 	return ""
 }
 
-func (x *PaymentIntentDTO) GetAmount() float64 {
+func (x *PaymentIntentDTO) GetAmount() int64 {
 	if x != nil {
 		return x.Amount
 	}
@@ -127,11 +129,11 @@ type PaymentTransactionDTO struct {
 	OrderUuid     string                 `protobuf:"bytes,2,opt,name=order_uuid,json=orderUuid,proto3" json:"order_uuid,omitempty"`
 	Provider      string                 `protobuf:"bytes,3,opt,name=provider,proto3" json:"provider,omitempty"`
 	ProviderTxnId *string                `protobuf:"bytes,4,opt,name=provider_txn_id,json=providerTxnId,proto3,oneof" json:"provider_txn_id,omitempty"`
-	Amount        float64                `protobuf:"fixed64,5,opt,name=amount,proto3" json:"amount,omitempty"`
+	Amount        int64                  `protobuf:"varint,5,opt,name=amount,proto3" json:"amount,omitempty"`
 	Currency      string                 `protobuf:"bytes,6,opt,name=currency,proto3" json:"currency,omitempty"`
 	Status        string                 `protobuf:"bytes,7,opt,name=status,proto3" json:"status,omitempty"`
 	RefundOf      *string                `protobuf:"bytes,8,opt,name=refund_of,json=refundOf,proto3,oneof" json:"refund_of,omitempty"`
-	RefundAmount  *float64               `protobuf:"fixed64,9,opt,name=refund_amount,json=refundAmount,proto3,oneof" json:"refund_amount,omitempty"`
+	RefundAmount  *int64                 `protobuf:"varint,9,opt,name=refund_amount,json=refundAmount,proto3,oneof" json:"refund_amount,omitempty"`
 	PaidAt        *string                `protobuf:"bytes,10,opt,name=paid_at,json=paidAt,proto3,oneof" json:"paid_at,omitempty"`
 	CreatedAt     string                 `protobuf:"bytes,11,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -196,7 +198,7 @@ func (x *PaymentTransactionDTO) GetProviderTxnId() string {
 	return ""
 }
 
-func (x *PaymentTransactionDTO) GetAmount() float64 {
+func (x *PaymentTransactionDTO) GetAmount() int64 {
 	if x != nil {
 		return x.Amount
 	}
@@ -224,7 +226,7 @@ func (x *PaymentTransactionDTO) GetRefundOf() string {
 	return ""
 }
 
-func (x *PaymentTransactionDTO) GetRefundAmount() float64 {
+func (x *PaymentTransactionDTO) GetRefundAmount() int64 {
 	if x != nil && x.RefundAmount != nil {
 		return *x.RefundAmount
 	}
@@ -545,10 +547,11 @@ type RefundPaymentRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	IdempotencyKey string                 `protobuf:"bytes,1,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
 	OrderUuid      string                 `protobuf:"bytes,2,opt,name=order_uuid,json=orderUuid,proto3" json:"order_uuid,omitempty"`
-	Amount         float64                `protobuf:"fixed64,3,opt,name=amount,proto3" json:"amount,omitempty"`
-	Reason         string                 `protobuf:"bytes,4,opt,name=reason,proto3" json:"reason,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Minor units (xu), see PaymentIntentDTO.amount.
+	Amount        int64  `protobuf:"varint,3,opt,name=amount,proto3" json:"amount,omitempty"`
+	Reason        string `protobuf:"bytes,4,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RefundPaymentRequest) Reset() {
@@ -595,7 +598,7 @@ func (x *RefundPaymentRequest) GetOrderUuid() string {
 	return ""
 }
 
-func (x *RefundPaymentRequest) GetAmount() float64 {
+func (x *RefundPaymentRequest) GetAmount() int64 {
 	if x != nil {
 		return x.Amount
 	}
@@ -664,7 +667,7 @@ const file_proto_payment_v1_payment_proto_rawDesc = "" +
 	"\n" +
 	"order_uuid\x18\x02 \x01(\tR\torderUuid\x12\x1a\n" +
 	"\bprovider\x18\x03 \x01(\tR\bprovider\x12\x16\n" +
-	"\x06amount\x18\x04 \x01(\x01R\x06amount\x12\x1a\n" +
+	"\x06amount\x18\x04 \x01(\x03R\x06amount\x12\x1a\n" +
 	"\bcurrency\x18\x05 \x01(\tR\bcurrency\x12\x16\n" +
 	"\x06status\x18\x06 \x01(\tR\x06status\x12\x1f\n" +
 	"\vpayment_url\x18\a \x01(\tR\n" +
@@ -677,11 +680,11 @@ const file_proto_payment_v1_payment_proto_rawDesc = "" +
 	"order_uuid\x18\x02 \x01(\tR\torderUuid\x12\x1a\n" +
 	"\bprovider\x18\x03 \x01(\tR\bprovider\x12+\n" +
 	"\x0fprovider_txn_id\x18\x04 \x01(\tH\x00R\rproviderTxnId\x88\x01\x01\x12\x16\n" +
-	"\x06amount\x18\x05 \x01(\x01R\x06amount\x12\x1a\n" +
+	"\x06amount\x18\x05 \x01(\x03R\x06amount\x12\x1a\n" +
 	"\bcurrency\x18\x06 \x01(\tR\bcurrency\x12\x16\n" +
 	"\x06status\x18\a \x01(\tR\x06status\x12 \n" +
 	"\trefund_of\x18\b \x01(\tH\x01R\brefundOf\x88\x01\x01\x12(\n" +
-	"\rrefund_amount\x18\t \x01(\x01H\x02R\frefundAmount\x88\x01\x01\x12\x1c\n" +
+	"\rrefund_amount\x18\t \x01(\x03H\x02R\frefundAmount\x88\x01\x01\x12\x1c\n" +
 	"\apaid_at\x18\n" +
 	" \x01(\tH\x03R\x06paidAt\x88\x01\x01\x12\x1d\n" +
 	"\n" +
@@ -714,7 +717,7 @@ const file_proto_payment_v1_payment_proto_rawDesc = "" +
 	"\x0fidempotency_key\x18\x01 \x01(\tR\x0eidempotencyKey\x12\x1d\n" +
 	"\n" +
 	"order_uuid\x18\x02 \x01(\tR\torderUuid\x12\x16\n" +
-	"\x06amount\x18\x03 \x01(\x01R\x06amount\x12\x16\n" +
+	"\x06amount\x18\x03 \x01(\x03R\x06amount\x12\x16\n" +
 	"\x06reason\x18\x04 \x01(\tR\x06reason\"\\\n" +
 	"\x15RefundPaymentResponse\x12C\n" +
 	"\vtransaction\x18\x01 \x01(\v2!.payment.v1.PaymentTransactionDTOR\vtransaction2\xbd\x03\n" +

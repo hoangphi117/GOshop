@@ -9,10 +9,10 @@ import (
 
 	"goshop/pkg/logger"
 	"goshop/pkg/rabbitmq"
-	"goshop/pkg/utils"
 	paymentsqlc "goshop/services/payment/internal/db/sqlc"
 	"goshop/services/payment/internal/dto"
 	"goshop/services/payment/internal/provider"
+	"goshop/services/payment/money"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -96,13 +96,16 @@ func (s *paymentService) HandleWebhook(ctx context.Context, providerName string,
 // ProcessWebhook applies an already-persisted webhook message. The HTTP route
 // uses HandleWebhook; this stays for programmatic callers.
 func (s *paymentService) ProcessWebhook(ctx context.Context, msg dto.PaymentWebhookMessage) error {
+	if msg.Amount < 0 {
+		return fmt.Errorf("webhook amount must not be negative: %d", msg.Amount)
+	}
 	txn, err := s.resolveTransaction(ctx, msg.Provider, msg.ProviderTxnID, msg.OrderNumber, msg.OrderUUID)
 	if err != nil {
 		return err
 	}
 	_, err = s.finalizeTransaction(ctx, txn,
 		msg.Status == string(provider.TxnStatusSuccess),
-		msg.Amount, msg.ProviderTxnID, msg.Metadata, msg.WebhookEventID)
+		money.FromMinorUnits(msg.Amount), msg.ProviderTxnID, msg.Metadata, msg.WebhookEventID)
 	return err
 }
 
@@ -141,7 +144,7 @@ func (s *paymentService) finalizeTransaction(
 	ctx context.Context,
 	txn paymentsqlc.PaymentTransaction,
 	success bool,
-	amount float64,
+	amount money.Amount,
 	providerTxnID string,
 	metadata map[string]string,
 	webhookEventID int32,
@@ -151,21 +154,26 @@ func (s *paymentService) finalizeTransaction(
 
 	if success {
 		// Never confirm a payment that does not cover the order: a tampered or
-		// partial callback must not settle the transaction. amount <= 0 means
-		// "not reported by the source", which only reconciliation uses.
-		expected := utils.NumericToFloat(txn.PtAmount)
-		if amount > 0 && amount+0.01 < expected {
+		// partial callback must not settle the transaction. A zero amount means
+		// "not reported by the source", which only reconciliation uses. The
+		// comparison is exact integer arithmetic (the old float+0.01 epsilon is
+		// gone): no rounding can slide an under-payment through.
+		expected, err := money.NumericToAmount(txn.PtAmount)
+		if err != nil {
+			return WebhookUnknown, fmt.Errorf("transaction %s has an unreadable amount: %w", txn.PtUuid, err)
+		}
+		if amount > 0 && !amount.Covers(expected) {
 			logger.Log.Warn().
 				Str("pt_uuid", txn.PtUuid.String()).
-				Float64("expected", expected).
-				Float64("received", amount).
+				Str("expected", expected.String()).
+				Str("received", amount.String()).
 				Msg("Rejecting payment confirmation with an uncovered amount")
 			if webhookEventID != 0 {
 				if markErr := s.webhookRepo.MarkProcessed(ctx, webhookEventID); markErr != nil {
 					logger.Log.Warn().Err(markErr).Msg("Failed to mark webhook event as processed")
 				}
 			}
-			return WebhookAmountMismatch, fmt.Errorf("%w: %.2f does not cover %.2f", ErrWebhookAmountMismatch, amount, expected)
+			return WebhookAmountMismatch, fmt.Errorf("%w: %s does not cover %s", ErrWebhookAmountMismatch, amount, expected)
 		}
 		targetStatus = PaymentStatusPaid
 		routingKey = rabbitmq.RoutingKeyPaymentSucceeded
@@ -233,6 +241,11 @@ func (s *paymentService) finalizeTransaction(
 		orderNumberStr = *txn.PtTxnRef
 	}
 
+	eventAmount, err := money.NumericToAmount(updatedTxn.PtAmount)
+	if err != nil {
+		return WebhookUnknown, fmt.Errorf("settled transaction %s carries an unreadable amount: %w", updatedTxn.PtUuid, err)
+	}
+
 	s.publishPaymentEvent(ctx, routingKey, dto.PaymentEventPayload{
 		PaymentUUID:   updatedTxn.PtUuid.String(),
 		OrderUUID:     orderUUIDStr,
@@ -240,7 +253,7 @@ func (s *paymentService) finalizeTransaction(
 		UserUUID:      userUUIDStr,
 		Provider:      txn.PtProvider,
 		ProviderTxnID: providerTxnID,
-		Amount:        utils.NumericToFloat(updatedTxn.PtAmount),
+		Amount:        eventAmount.ToFloat(),
 		Currency:      updatedTxn.PtCurrency,
 		Status:        dto.MapPaymentTxnStatusToString(targetStatus),
 		Timestamp:     time.Now().UTC(),

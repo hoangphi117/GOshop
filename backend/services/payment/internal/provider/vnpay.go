@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"goshop/pkg/logger"
+	"goshop/services/payment/money"
 )
 
 type vnpayProvider struct {
@@ -49,13 +50,13 @@ func (p *vnpayProvider) CreatePaymentURL(ctx context.Context, req CreatePaymentR
 		clientIP = "127.0.0.1"
 	}
 
-	vnpAmount := int64(req.Amount * 100)
-
+	// VNPay's vnp_Amount unit is exactly one xu, which is our Amount unit, so
+	// the wire value is the amount itself: no multiplication, no rounding.
 	params := url.Values{}
 	params.Set("vnp_Version", "2.1.0")
 	params.Set("vnp_Command", "pay")
 	params.Set("vnp_TmnCode", p.config.TmnCode)
-	params.Set("vnp_Amount", strconv.FormatInt(vnpAmount, 10))
+	params.Set("vnp_Amount", strconv.FormatInt(req.Amount.MinorUnits(), 10))
 	params.Set("vnp_CreateDate", createDate)
 	params.Set("vnp_CurrCode", "VND")
 	params.Set("vnp_IpAddr", clientIP)
@@ -117,13 +118,14 @@ func (p *vnpayProvider) ParseWebhookPayload(payload []byte) (WebhookResult, erro
 	txnStatus := values.Get("vnp_TransactionStatus")
 	rawAmount := values.Get("vnp_Amount")
 
-	var amount float64
+	var amount money.Amount
 	if rawAmount != "" {
-		parsed, parseErr := strconv.ParseFloat(rawAmount, 64)
+		// vnp_Amount is already in xu, which is exactly our minor unit.
+		parsed, parseErr := strconv.ParseInt(rawAmount, 10, 64)
 		if parseErr != nil {
 			return WebhookResult{}, fmt.Errorf("invalid vnp_Amount (%s): %w", rawAmount, parseErr)
 		}
-		amount = parsed / 100.0
+		amount = money.FromMinorUnits(parsed)
 	}
 
 	status := TxnStatusFailed
@@ -271,7 +273,8 @@ func (p *vnpayProvider) Refund(ctx context.Context, req RefundRequest) (RefundRe
 		transactionType = "03"
 	}
 
-	vnpAmount := int64(req.Amount * 100)
+	// VNPay refund amounts are in xu, our native minor unit.
+	vnpAmount := req.Amount.MinorUnits()
 
 	reqData := map[string]string{
 		"vnp_RequestId":       requestID,
