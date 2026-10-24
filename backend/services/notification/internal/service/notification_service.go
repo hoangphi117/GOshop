@@ -216,9 +216,11 @@ func (s *notificationService) NotifyAdmins(ctx context.Context, input dto.AdminN
 	var adminIDs []int32
 	if s.identityClient != nil {
 		ids, err := s.identityClient.GetActiveAdminUserIDs(ctx)
-		if err == nil {
-			adminIDs = ids
+		if err != nil {
+			logger.Log.Error().Err(err).Str("type", input.Type).Msg("Failed to resolve admin recipients")
+			return utils.NewError(utils.ErrCodeInternal, "Failed to resolve admin recipients")
 		}
+		adminIDs = ids
 	}
 
 	adminType := input.Type
@@ -235,7 +237,8 @@ func (s *notificationService) NotifyAdmins(ctx context.Context, input dto.AdminN
 			NotificationData:   dataBytes,
 		}
 		if _, err := s.notificationRepo.Create(ctx, params); err != nil {
-			logger.Log.Warn().Err(err).Int32("admin_id", adminID).Msg("Failed to create admin notification row")
+			logger.Log.Error().Err(err).Int32("admin_id", adminID).Str("type", adminType).Msg("Failed to create admin notification row")
+			return utils.NewError(utils.ErrCodeInternal, "Failed to create admin notification")
 		}
 	}
 
@@ -356,13 +359,7 @@ func (s *notificationService) broadcastToUser(userID int32, created sqlc.Notific
 		Type: ws.EventTypeNotification,
 		Data: dto.MapToNotificationDTO(created),
 	}
-	if s.redisBridge != nil {
-		_ = s.redisBridge.Publish(context.Background(), ws.RedisNotificationEnvelope{
-			UserID:  &userID,
-			IsAdmin: false,
-			Message: wsMsg,
-		})
-	}
+	s.publishLiveUpdate(&userID, false, wsMsg)
 }
 
 func (s *notificationService) broadcastToAdmins(dtoData dto.NotificationDTO) {
@@ -370,12 +367,7 @@ func (s *notificationService) broadcastToAdmins(dtoData dto.NotificationDTO) {
 		Type: ws.EventTypeNotification,
 		Data: dtoData,
 	}
-	if s.redisBridge != nil {
-		_ = s.redisBridge.Publish(context.Background(), ws.RedisNotificationEnvelope{
-			IsAdmin: true,
-			Message: wsMsg,
-		})
-	}
+	s.publishLiveUpdate(nil, true, wsMsg)
 }
 
 func (s *notificationService) broadcastToAll(input dto.BroadcastNotificationInput) {
@@ -390,11 +382,22 @@ func (s *notificationService) broadcastToAll(input dto.BroadcastNotificationInpu
 			"created_at": time.Now().UTC(),
 		},
 	}
-	if s.redisBridge != nil {
-		_ = s.redisBridge.Publish(context.Background(), ws.RedisNotificationEnvelope{
-			IsAdmin: false,
-			Message: wsMsg,
-		})
+	s.publishLiveUpdate(nil, false, wsMsg)
+}
+
+// publishLiveUpdate fans a notification out over the WebSocket bridge. Delivery
+// is best-effort (the durable side effect is the notification row), but failures
+// are logged, never silently discarded.
+func (s *notificationService) publishLiveUpdate(userID *int32, isAdmin bool, wsMsg ws.WSMessage) {
+	if s.redisBridge == nil {
+		return
+	}
+	if err := s.redisBridge.Publish(context.Background(), ws.RedisNotificationEnvelope{
+		UserID:  userID,
+		IsAdmin: isAdmin,
+		Message: wsMsg,
+	}); err != nil {
+		logger.Log.Warn().Err(err).Bool("is_admin", isAdmin).Msg("Failed to publish live notification over WebSocket bridge")
 	}
 }
 
