@@ -49,7 +49,9 @@ jobs:
       - name: Buf breaking check
         # Both sides as git refs: identical file keying regardless of whether
         # develop has backend/buf.yaml yet. buf defaults to FILE breaking
-        # rules here, matching backend/buf.yaml.
+        # rules here, matching backend/buf.yaml. Runs from the repo root
+        # (overrides the job's backend default) so buf finds .git directly.
+        working-directory: .
         run: buf breaking ".git#ref=HEAD" --against ".git#ref=origin/develop"
 
       - name: Go Vet
