@@ -1,8 +1,9 @@
-package v1dto
+package dto
 
 import (
-	"goshop/internal/db/sqlc"
 	"time"
+
+	"goshop/services/chat/internal/db/sqlc"
 
 	"github.com/google/uuid"
 )
@@ -39,6 +40,8 @@ type ListConversationsRequest struct {
 type SendTypingRequest struct {
 	IsTyping bool `json:"is_typing"`
 }
+
+// --- Responses ---
 
 type ConversationDTO struct {
 	ConversationID   int32      `json:"conversation_id"`
@@ -94,8 +97,6 @@ type SendMessageResponse struct {
 type TotalUnreadCountResponse struct {
 	UnreadCount int64 `json:"unread_count"`
 }
-
-// --- Responses ---
 
 func MapChatMessageToResponse(m sqlc.ChatMessage) MessageResponse {
 	resp := MessageResponse{

@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	v1service "goshop/internal/service/v1"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
 	"goshop/pkg/mail"
@@ -18,23 +17,12 @@ import (
 
 // Ensure mocks implement service interfaces at compile time
 var (
-		_ rabbitmq.RabbitMQService  = (*MockRabbitMQService)(nil)
+	_ rabbitmq.RabbitMQService  = (*MockRabbitMQService)(nil)
 	_ shipping.ShippingProvider = (*MockShippingProvider)(nil)
 	_ auth.TokenService         = (*MockTokenService)(nil)
 	_ mail.EmailProviderService = (*MockEmailProviderService)(nil)
 	_ cache.RedisCacheService   = (*MockRedisCacheService)(nil)
 )
-
-type MockOrderReader struct {
-	GetOrderSummaryFunc func(ctx context.Context, orderUUID uuid.UUID) (*v1service.OrderSummary, error)
-}
-
-func (m *MockOrderReader) GetOrderSummary(ctx context.Context, orderUUID uuid.UUID) (*v1service.OrderSummary, error) {
-	if m.GetOrderSummaryFunc != nil {
-		return m.GetOrderSummaryFunc(ctx, orderUUID)
-	}
-	return nil, nil
-}
 
 // =========================================================================
 // MockRabbitMQService

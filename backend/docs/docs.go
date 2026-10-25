@@ -1084,7 +1084,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/v1dto.ConversationResponse"
+                                                "$ref": "#/definitions/dto.ConversationResponse"
                                             }
                                         }
                                     }
@@ -1149,7 +1149,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/v1dto.ConversationResponse"
+                                            "$ref": "#/definitions/dto.ConversationResponse"
                                         }
                                     }
                                 }
@@ -1305,7 +1305,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/v1dto.MessageResponse"
+                                                "$ref": "#/definitions/dto.MessageResponse"
                                             }
                                         }
                                     }
@@ -1370,7 +1370,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/v1dto.SendMessageRequest"
+                            "$ref": "#/definitions/dto.SendMessageRequest"
                         }
                     }
                 ],
@@ -1386,7 +1386,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/v1dto.SendMessageResponse"
+                                            "$ref": "#/definitions/dto.SendMessageResponse"
                                         }
                                     }
                                 }
@@ -1572,7 +1572,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/v1dto.MessageResponse"
+                                            "$ref": "#/definitions/dto.MessageResponse"
                                         }
                                     }
                                 }
@@ -1707,7 +1707,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/v1dto.ConversationResponse"
+                                            "$ref": "#/definitions/dto.ConversationResponse"
                                         }
                                     }
                                 }
@@ -6807,7 +6807,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/v1dto.ConversationResponse"
+                                            "$ref": "#/definitions/dto.ConversationResponse"
                                         }
                                     }
                                 }
@@ -6880,7 +6880,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/v1dto.MessageResponse"
+                                                "$ref": "#/definitions/dto.MessageResponse"
                                             }
                                         }
                                     }
@@ -6926,7 +6926,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/v1dto.SendMessageRequest"
+                            "$ref": "#/definitions/dto.SendMessageRequest"
                         }
                     }
                 ],
@@ -6942,7 +6942,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/v1dto.SendMessageResponse"
+                                            "$ref": "#/definitions/dto.SendMessageResponse"
                                         }
                                     }
                                 }
@@ -7043,7 +7043,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/v1dto.MessageResponse"
+                                            "$ref": "#/definitions/dto.MessageResponse"
                                         }
                                     }
                                 }
@@ -7105,7 +7105,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/v1dto.ShopStatusResponse"
+                                            "$ref": "#/definitions/dto.ShopStatusResponse"
                                         }
                                     }
                                 }
@@ -10419,6 +10419,56 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.ConversationResponse": {
+            "type": "object",
+            "properties": {
+                "admin_id": {
+                    "type": "integer"
+                },
+                "conversation_id": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "is_online": {
+                    "type": "boolean"
+                },
+                "is_shop_online": {
+                    "type": "boolean"
+                },
+                "last_message_at": {
+                    "type": "string"
+                },
+                "last_message_content": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "unread_count": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_avatar": {
+                    "type": "string"
+                },
+                "user_email": {
+                    "type": "string"
+                },
+                "user_fullname": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
         "dto.CouponDTO": {
             "type": "object",
             "properties": {
@@ -11156,6 +11206,41 @@ const docTemplate = `{
                 },
                 "total_low": {
                     "type": "integer"
+                }
+            }
+        },
+        "dto.MessageResponse": {
+            "type": "object",
+            "properties": {
+                "attachment_name": {
+                    "type": "string"
+                },
+                "attachment_size": {
+                    "type": "integer"
+                },
+                "attachment_url": {
+                    "type": "string"
+                },
+                "content": {
+                    "type": "string"
+                },
+                "content_type": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "is_read": {
+                    "type": "boolean"
+                },
+                "sender_id": {
+                    "type": "integer"
+                },
+                "sender_role": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
                 }
             }
         },
@@ -11920,6 +12005,57 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.SendMessageRequest": {
+            "type": "object",
+            "required": [
+                "content"
+            ],
+            "properties": {
+                "attachment_name": {
+                    "type": "string",
+                    "maxLength": 2000
+                },
+                "attachment_size": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "attachment_url": {
+                    "description": "Attachment fields (optional, set by FE after upload)",
+                    "type": "string",
+                    "maxLength": 8000
+                },
+                "content": {
+                    "type": "string",
+                    "maxLength": 4000
+                },
+                "content_type": {
+                    "type": "string",
+                    "enum": [
+                        "text",
+                        "image",
+                        "video",
+                        "order_ref",
+                        "product_ref",
+                        "media_group"
+                    ]
+                },
+                "order_uuid": {
+                    "description": "References (optional, used when content_type = 'order_ref' or 'product_ref')",
+                    "type": "string"
+                },
+                "product_uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.SendMessageResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "$ref": "#/definitions/dto.MessageResponse"
+                }
+            }
+        },
         "dto.SendRegisterOTPInput": {
             "type": "object",
             "required": [
@@ -11983,6 +12119,14 @@ const docTemplate = `{
                 },
                 "shipping_provider": {
                     "type": "string"
+                }
+            }
+        },
+        "dto.ShopStatusResponse": {
+            "type": "object",
+            "properties": {
+                "is_online": {
+                    "type": "boolean"
                 }
             }
         },
@@ -12874,150 +13018,6 @@ const docTemplate = `{
                 "reason": {
                     "type": "string",
                     "maxLength": 500
-                }
-            }
-        },
-        "v1dto.ConversationResponse": {
-            "type": "object",
-            "properties": {
-                "admin_id": {
-                    "type": "integer"
-                },
-                "conversation_id": {
-                    "type": "integer"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "is_online": {
-                    "type": "boolean"
-                },
-                "is_shop_online": {
-                    "type": "boolean"
-                },
-                "last_message_at": {
-                    "type": "string"
-                },
-                "last_message_content": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "string"
-                },
-                "unread_count": {
-                    "type": "integer"
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "user_avatar": {
-                    "type": "string"
-                },
-                "user_email": {
-                    "type": "string"
-                },
-                "user_fullname": {
-                    "type": "string"
-                },
-                "user_id": {
-                    "type": "integer"
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "v1dto.MessageResponse": {
-            "type": "object",
-            "properties": {
-                "attachment_name": {
-                    "type": "string"
-                },
-                "attachment_size": {
-                    "type": "integer"
-                },
-                "attachment_url": {
-                    "type": "string"
-                },
-                "content": {
-                    "type": "string"
-                },
-                "content_type": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "is_read": {
-                    "type": "boolean"
-                },
-                "sender_id": {
-                    "type": "integer"
-                },
-                "sender_role": {
-                    "type": "string"
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "v1dto.SendMessageRequest": {
-            "type": "object",
-            "required": [
-                "content"
-            ],
-            "properties": {
-                "attachment_name": {
-                    "type": "string",
-                    "maxLength": 2000
-                },
-                "attachment_size": {
-                    "type": "integer",
-                    "minimum": 0
-                },
-                "attachment_url": {
-                    "description": "Attachment fields (optional, set by FE after upload)",
-                    "type": "string",
-                    "maxLength": 8000
-                },
-                "content": {
-                    "type": "string",
-                    "maxLength": 4000
-                },
-                "content_type": {
-                    "type": "string",
-                    "enum": [
-                        "text",
-                        "image",
-                        "video",
-                        "order_ref",
-                        "product_ref",
-                        "media_group"
-                    ]
-                },
-                "order_uuid": {
-                    "description": "References (optional, used when content_type = 'order_ref' or 'product_ref')",
-                    "type": "string"
-                },
-                "product_uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "v1dto.SendMessageResponse": {
-            "type": "object",
-            "properties": {
-                "message": {
-                    "$ref": "#/definitions/v1dto.MessageResponse"
-                }
-            }
-        },
-        "v1dto.ShopStatusResponse": {
-            "type": "object",
-            "properties": {
-                "is_online": {
-                    "type": "boolean"
                 }
             }
         },

@@ -8,7 +8,6 @@ import (
 	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
 	"goshop/internal/routes"
-	v1service "goshop/internal/service/v1"
 	"goshop/internal/utils"
 	"goshop/internal/validation"
 	"goshop/pkg/auth"
@@ -18,7 +17,6 @@ import (
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/search"
 	"goshop/pkg/storage"
-	"goshop/pkg/ws"
 	catalogcontract "goshop/services/catalog/contract"
 	couponcontract "goshop/services/coupon/contract"
 	inventorycontract "goshop/services/inventory/contract"
@@ -43,11 +41,9 @@ type AdminModule interface {
 }
 
 type Application struct {
-	config      *config.Config
-	router      *gin.Engine
-	modules     []Module
-	wsHub       ws.Hub
-	redisBridge ws.RedisBridge
+	config  *config.Config
+	router  *gin.Engine
+	modules []Module
 }
 
 type ModuleContext struct {
@@ -169,10 +165,6 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		return nil, err
 	}
 
-	wsHub := ws.NewHub()
-	redisBridge := ws.NewRedisBridge(redisClient, wsHub)
-	go redisBridge.StartSubscriber(context.Background())
-
 	txManager := db.NewTxManager(db.DBPool)
 
 	searchClient, err := search.NewClient(cfg.Meilisearch.Host, cfg.Meilisearch.MasterKey, cfg.Meilisearch.IndexProducts)
@@ -228,26 +220,17 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		OrderClient:     grpcOrderClient,
 	}
 
-	var crossDomainOrderReader v1service.OrderReader
-	if grpcOrderClient != nil {
-		crossDomainOrderReader = client.NewGRPCOrderReader(grpcOrderClient)
-	}
-
 	modules := []Module{
-		NewWSModule(ctx, wsHub, tokenService, cacheRedisService),
 		NewUploadModule(ctx),
-		NewChatModule(ctx, wsHub, redisBridge, crossDomainOrderReader),
 		NewHealthModule(db.DBPool, redisClient, rabbitmqService, storageService, discord.NewDiscordNotifier(utils.GetEnv("DISCORD_WEBHOOK_URL", ""), logger.Log), logger.Log),
 	}
 
 	routes.RegisterRoutes(r, tokenService, cacheRedisService, getModuleRoutes(modules), getAdminModuleRoutes(modules))
 
 	return &Application{
-		config:      cfg,
-		router:      r,
-		modules:     modules,
-		wsHub:       wsHub,
-		redisBridge: redisBridge,
+		config:  cfg,
+		router:  r,
+		modules: modules,
 	}, nil
 }
 

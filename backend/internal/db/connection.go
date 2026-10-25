@@ -100,8 +100,8 @@ func InitDBWithConfig(cfg *config.Config, serviceName ...string) error {
 		Msg("✅ Connected to PostgreSQL database pool")
 
 	// Services that own a single database and read every other domain over
-	// gRPC (analytics) must not open pools into foreign databases.
-	singleDBOnly := len(serviceName) > 0 && serviceName[0] == "analytics"
+	// gRPC (analytics, chat) must not open pools into foreign databases.
+	singleDBOnly := len(serviceName) > 0 && (serviceName[0] == "analytics" || serviceName[0] == "chat")
 	if singleDBOnly {
 		ReadDBPool = DBPool
 		ReadDB = DB

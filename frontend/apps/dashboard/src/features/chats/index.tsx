@@ -27,16 +27,16 @@ import {
   Bell,
   BellOff,
 } from 'lucide-react'
+import { useAuthStore } from '@/stores/auth-store'
+import { cn, getDisplayNameInitials } from '@/lib/utils'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu'
-import { useAuthStore } from '@/stores/auth-store'
-import { cn, getDisplayNameInitials } from '@/lib/utils'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DashboardHeader } from '@/components/layout/dashboard-header'
 import { Main } from '@/components/layout/main'
@@ -489,7 +489,7 @@ function MessageContent({
             )}
             {isOutOfStock && (
               <div className='absolute inset-0 flex items-center justify-center bg-black/60 p-0.5 text-center'>
-                <span className='text-[7px] font-bold uppercase tracking-wider text-white leading-tight'>
+                <span className='text-[7px] leading-tight font-bold tracking-wider text-white uppercase'>
                   Out of stock
                 </span>
               </div>
@@ -792,14 +792,15 @@ export function Chats() {
     limit: 6,
   })
 
-  const searchResultsUsers = (usersData?.data as Array<{
-    uuid?: string
-    full_name?: string
-    email?: string
-    status?: string
-    level?: string
-    created_at?: string
-  }>) || []
+  const searchResultsUsers =
+    (usersData?.data as Array<{
+      uuid?: string
+      full_name?: string
+      email?: string
+      status?: string
+      level?: string
+      created_at?: string
+    }>) || []
 
   // 1c. Get or create conversation mutation
   const { mutateAsync: getOrCreateConversation } =
@@ -1022,7 +1023,8 @@ export function Chats() {
           const isVideo = file.type.startsWith('video/')
           await sendMessage({
             conversationUUID: selectedConvUUID,
-            content: content || uploaded.name || file.name,
+            // Caption only — never leak the filename as message content.
+            content,
             content_type: isVideo ? 'video' : 'image',
             attachment_url: uploaded.url,
             attachment_name: uploaded.name,
@@ -1045,8 +1047,7 @@ export function Chats() {
             content: content || `${filesToSend.length} attachments`,
             content_type: 'media_group',
             attachment_url: JSON.stringify(uploadedItems),
-          })
-        }
+          })        }
         setIsUploading(false)
       } else if (content) {
         let textToSend = content
@@ -1130,18 +1131,18 @@ export function Chats() {
       <Main
         fixed
         fluid
-        className='flex flex-1 min-h-0 flex-col overflow-hidden !p-0'
+        className='flex min-h-0 flex-1 flex-col overflow-hidden !p-0'
       >
-        <div className='flex h-full w-full flex-1 min-h-0 overflow-hidden border-t'>
+        <div className='flex h-full min-h-0 w-full flex-1 overflow-hidden border-t'>
           {/* Left Pane: Conversation List */}
           <div
             className={cn(
-              'flex w-full flex-col border-r bg-card md:w-80 lg:w-96 shrink-0 h-full min-h-0 overflow-hidden',
+              'flex h-full min-h-0 w-full shrink-0 flex-col overflow-hidden border-r bg-card md:w-80 lg:w-96',
               selectedConvUUID ? 'hidden md:flex' : 'flex'
             )}
           >
             {/* Search & Notification Permission Toggle */}
-            <div className='flex items-center gap-2 border-b p-3 shrink-0'>
+            <div className='flex shrink-0 items-center gap-2 border-b p-3'>
               <div ref={searchContainerRef} className='relative flex-1'>
                 <SearchIcon className='absolute top-2.5 left-2.5 h-4 w-4 text-muted-foreground' />
                 <Input
@@ -1172,7 +1173,7 @@ export function Chats() {
 
                 {/* Debounced User Search Dropdown */}
                 {isSearchOpen && debouncedSearch && (
-                  <div className='absolute top-full left-0 right-0 z-50 mt-1.5 overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-xl animate-in fade-in-50 zoom-in-95'>
+                  <div className='absolute top-full right-0 left-0 z-50 mt-1.5 animate-in overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-xl fade-in-50 zoom-in-95'>
                     <div className='flex items-center justify-between border-b bg-muted/40 px-3 py-1.5'>
                       <span className='text-[11px] font-medium text-muted-foreground'>
                         Global User Search
@@ -1190,7 +1191,8 @@ export function Chats() {
                         </div>
                       ) : searchResultsUsers.length === 0 ? (
                         <div className='py-4 text-center text-xs text-muted-foreground'>
-                          No users found matching &ldquo;{debouncedSearch}&rdquo;
+                          No users found matching &ldquo;{debouncedSearch}
+                          &rdquo;
                         </div>
                       ) : (
                         <div className='flex flex-col gap-0.5'>
@@ -1261,14 +1263,14 @@ export function Chats() {
             </div>
 
             {/* Status Filter Tabs (Active / Archived) */}
-            <div className='flex border-b bg-muted/30 p-1.5 gap-1 shrink-0'>
+            <div className='flex shrink-0 gap-1 border-b bg-muted/30 p-1.5'>
               <button
                 type='button'
                 onClick={() => setStatusFilter('open')}
                 className={cn(
-                  'flex-1 rounded py-1 text-xs font-medium transition-all text-center',
+                  'flex-1 rounded py-1 text-center text-xs font-medium transition-all',
                   statusFilter === 'open'
-                    ? 'bg-background text-foreground shadow-xs font-semibold'
+                    ? 'bg-background font-semibold text-foreground shadow-xs'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
               >
@@ -1278,9 +1280,9 @@ export function Chats() {
                 type='button'
                 onClick={() => setStatusFilter('closed')}
                 className={cn(
-                  'flex-1 rounded py-1 text-xs font-medium transition-all text-center',
+                  'flex-1 rounded py-1 text-center text-xs font-medium transition-all',
                   statusFilter === 'closed'
-                    ? 'bg-background text-foreground shadow-xs font-semibold'
+                    ? 'bg-background font-semibold text-foreground shadow-xs'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
               >
@@ -1289,7 +1291,7 @@ export function Chats() {
             </div>
 
             {/* Conversation Items - Direct scrollable container */}
-            <div className='flex-1 min-h-0 overflow-y-auto'>
+            <div className='min-h-0 flex-1 overflow-y-auto'>
               {isConversationsLoading ? (
                 <div className='p-6 text-center text-xs text-muted-foreground'>
                   Loading conversations...
@@ -1375,7 +1377,7 @@ export function Chats() {
           {/* Right Pane: Active Conversation Room */}
           <div
             className={cn(
-              'flex flex-1 flex-col overflow-hidden bg-background h-full min-h-0',
+              'flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background',
               !selectedConvUUID ? 'hidden md:flex' : 'flex'
             )}
           >
@@ -1515,7 +1517,7 @@ export function Chats() {
                             )}
                             <div
                               className={cn(
-                                'flex flex-col w-full',
+                                'flex w-full flex-col',
                                 isAdmin ? 'items-end' : 'items-start'
                               )}
                             >
@@ -1541,7 +1543,9 @@ export function Chats() {
                                   <div
                                     className={cn(
                                       'group/msg relative flex items-center gap-1',
-                                      isAdmin ? 'self-end justify-end' : 'self-start justify-start'
+                                      isAdmin
+                                        ? 'justify-end self-end'
+                                        : 'justify-start self-start'
                                     )}
                                   >
                                     {isAdmin && (
@@ -1556,7 +1560,10 @@ export function Chats() {
                                             <MoreHorizontal className='h-3.5 w-3.5' />
                                           </button>
                                         </DropdownMenuTrigger>
-                                        <DropdownMenuContent align='end' className='w-36 text-xs'>
+                                        <DropdownMenuContent
+                                          align='end'
+                                          className='w-36 text-xs'
+                                        >
                                           <DropdownMenuItem
                                             onClick={() => {
                                               setReplyingTo({
@@ -1565,11 +1572,14 @@ export function Chats() {
                                                 content:
                                                   msg.content_type === 'image'
                                                     ? '[Image]'
-                                                    : msg.content_type === 'video'
+                                                    : msg.content_type ===
+                                                        'video'
                                                       ? '[Video]'
-                                                      : msg.content_type === 'order_ref'
+                                                      : msg.content_type ===
+                                                          'order_ref'
                                                         ? '[Order]'
-                                                        : msg.content_type === 'product_ref'
+                                                        : msg.content_type ===
+                                                            'product_ref'
                                                           ? '[Product]'
                                                           : cleanContent,
                                               })
@@ -1584,7 +1594,9 @@ export function Chats() {
                                           {!isRecalled && msg.content && (
                                             <DropdownMenuItem
                                               onClick={() => {
-                                                navigator.clipboard.writeText(cleanContent)
+                                                navigator.clipboard.writeText(
+                                                  cleanContent
+                                                )
                                               }}
                                               className='cursor-pointer gap-2'
                                             >
@@ -1600,7 +1612,8 @@ export function Chats() {
                                                 recallMessage({
                                                   messageUUID: msg.uuid,
                                                   conversationUUID:
-                                                    selectedConvUUID || undefined,
+                                                    selectedConvUUID ||
+                                                    undefined,
                                                 })
                                               }
                                               variant='destructive'
@@ -1616,7 +1629,7 @@ export function Chats() {
 
                                     <div
                                       className={cn(
-                                        'relative flex flex-col max-w-[75%] text-xs break-words shadow-sm overflow-hidden',
+                                        'relative flex max-w-[75%] flex-col overflow-hidden text-xs break-words shadow-sm',
                                         isRecalled
                                           ? isAdmin
                                             ? 'rounded-lg rounded-br-none border border-dashed bg-muted/40 px-3.5 py-2 text-muted-foreground shadow-none'
@@ -1632,18 +1645,26 @@ export function Chats() {
                                       {replyQuote && (
                                         <div
                                           className={cn(
-                                            'flex items-center gap-1.5 px-3 py-1 text-[11px] border-b select-none',
+                                            'flex items-center gap-1.5 border-b px-3 py-1 text-[11px] select-none',
                                             isAdmin
-                                              ? 'bg-black/25 text-primary-foreground/90 border-white/15'
-                                              : 'bg-muted/90 text-muted-foreground border-border/50'
+                                              ? 'border-white/15 bg-black/25 text-primary-foreground/90'
+                                              : 'border-border/50 bg-muted/90 text-muted-foreground'
                                           )}
                                         >
                                           <Reply className='h-3 w-3 shrink-0 opacity-75' />
-                                          <span className='truncate italic'>{replyQuote}</span>
+                                          <span className='truncate italic'>
+                                            {replyQuote}
+                                          </span>
                                         </div>
                                       )}
 
-                                      <div className={cn(!isRecalled && !isMedia && 'px-3.5 py-2')}>
+                                      <div
+                                        className={cn(
+                                          !isRecalled &&
+                                            !isMedia &&
+                                            'px-3.5 py-2'
+                                        )}
+                                      >
                                         <MessageContent
                                           content={cleanContent}
                                           content_type={msg.content_type}
@@ -1672,7 +1693,10 @@ export function Chats() {
                                             <MoreHorizontal className='h-3.5 w-3.5' />
                                           </button>
                                         </DropdownMenuTrigger>
-                                        <DropdownMenuContent align='start' className='w-36 text-xs'>
+                                        <DropdownMenuContent
+                                          align='start'
+                                          className='w-36 text-xs'
+                                        >
                                           <DropdownMenuItem
                                             onClick={() => {
                                               setReplyingTo({
@@ -1683,11 +1707,14 @@ export function Chats() {
                                                 content:
                                                   msg.content_type === 'image'
                                                     ? '[Image]'
-                                                    : msg.content_type === 'video'
+                                                    : msg.content_type ===
+                                                        'video'
                                                       ? '[Video]'
-                                                      : msg.content_type === 'order_ref'
+                                                      : msg.content_type ===
+                                                          'order_ref'
                                                         ? '[Order]'
-                                                        : msg.content_type === 'product_ref'
+                                                        : msg.content_type ===
+                                                            'product_ref'
                                                           ? '[Product]'
                                                           : cleanContent,
                                               })
@@ -1702,7 +1729,9 @@ export function Chats() {
                                           {!isRecalled && msg.content && (
                                             <DropdownMenuItem
                                               onClick={() => {
-                                                navigator.clipboard.writeText(cleanContent)
+                                                navigator.clipboard.writeText(
+                                                  cleanContent
+                                                )
                                               }}
                                               className='cursor-pointer gap-2'
                                             >

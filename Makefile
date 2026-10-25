@@ -8,12 +8,14 @@ MIGRATION_INVENTORY_DIR=backend/services/inventory/internal/migrations
 MIGRATION_CATALOG_DIR=backend/services/catalog/internal/migrations
 MIGRATION_CART_DIR=backend/services/cart/internal/migrations
 MIGRATION_ORDER_DIR=backend/services/order/internal/migrations
+MIGRATION_CHAT_DIR=backend/services/chat/internal/migrations
 IDENTITY_DB_NAME?=shopping_identity
 COUPON_DB_NAME?=shopping_coupon
 INVENTORY_DB_NAME?=shopping_inventory
 CATALOG_DB_NAME?=shopping_catalog
 CART_DB_NAME?=shopping_cart
 ORDER_DB_NAME?=shopping_order
+CHAT_DB_NAME?=shopping_chat
 
 CONNECTION_STRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=${DB_SSL_MODE}
 IDENTITY_CONNECTION_STRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${IDENTITY_DB_NAME}?sslmode=${DB_SSL_MODE}
@@ -22,6 +24,7 @@ INVENTORY_CONNECTION_STRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB
 CATALOG_CONNECTION_STRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${CATALOG_DB_NAME}?sslmode=${DB_SSL_MODE}
 CART_CONNECTION_STRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${CART_DB_NAME}?sslmode=${DB_SSL_MODE}
 ORDER_CONNECTION_STRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${ORDER_DB_NAME}?sslmode=${DB_SSL_MODE}
+CHAT_CONNECTION_STRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${CHAT_DB_NAME}?sslmode=${DB_SSL_MODE}
 
 PROD_COMPOSE=docker-compose.prod.yml
 NOAPP_COMPOSE=docker-compose.noapp.yml
@@ -107,6 +110,12 @@ order:
 build-order:
 	cd backend && go build -o bin/order ./cmd/order
 
+chat:
+	cd backend && go run ./cmd/chat
+
+build-chat:
+	cd backend && go build -o bin/chat ./cmd/chat
+
 
 run-binary:
 	./backend/bin/goshop
@@ -147,6 +156,9 @@ migrate-cart-up:
 migrate-order-up:
 	migrate -path ${MIGRATION_ORDER_DIR} -database "${ORDER_CONNECTION_STRING}" up
 
+migrate-chat-up:
+	migrate -path ${MIGRATION_CHAT_DIR} -database "${CHAT_CONNECTION_STRING}" up
+
 # Rollback the last migration
 migrate-down: migrate-core-down migrate-identity-down migrate-coupon-down migrate-inventory-down migrate-catalog-down migrate-cart-down migrate-order-down
 
@@ -170,6 +182,9 @@ migrate-cart-down:
 
 migrate-order-down:
 	migrate -path ${MIGRATION_ORDER_DIR} -database "${ORDER_CONNECTION_STRING}" down 1
+
+migrate-chat-down:
+	migrate -path ${MIGRATION_CHAT_DIR} -database "${CHAT_CONNECTION_STRING}" down 1
 
 # Rollback the last N migrations
 migrate-down-n:
@@ -239,4 +254,4 @@ stresstest:
 spiketest:
 	docker run --rm -i --network=shopping_goshop-network -v "./loadtest:/loadtest" -e BASE_URL=http://goshop-nginx -e API_KEY=abcd-1234-1111 grafana/k6 run /loadtest/spike_test.js
 
-.PHONY: importdb exportdb server worker ws-gateway identity notification payment coupon inventory catalog order build-identity build-notification build-payment build-coupon build-inventory build-catalog build-order migrate-create migrate-up migrate-down migrate-force migrate-drop migrate-goto migrate-down-n sqlc build build-worker build-ws-gateway run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev dev-host swagger loadtest stresstest spiketest seed seed-docker
+.PHONY: importdb exportdb server worker ws-gateway identity notification payment coupon inventory catalog order chat build-identity build-notification build-payment build-coupon build-inventory build-catalog build-order build-chat migrate-create migrate-up migrate-down migrate-force migrate-drop migrate-goto migrate-down-n sqlc build build-worker build-ws-gateway run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev dev-host swagger loadtest stresstest spiketest seed seed-docker

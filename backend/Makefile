@@ -29,8 +29,14 @@ seed-docker:
 server:
 	go run ./cmd/api
 
+chat:
+	go run ./cmd/chat
+
 build:
 	go build -o bin/goshop ./cmd/api
+
+build-chat:
+	go build -o bin/chat ./cmd/chat
 
 run-binary:
 	./bin/goshop
@@ -41,6 +47,10 @@ sqlc:
 swagger:
 	swag init -g cmd/api/main.go -o docs --parseDependency --parseInternal
 	npx --yes swagger2openapi ./docs/swagger.json -o ./docs/openapi.json
+
+swagger-chat:
+	swag init -g cmd/chat/main.go -o services/chat/docs --parseDependency --parseInternal
+	npx --yes swagger2openapi ./services/chat/docs/swagger.json -o ./services/chat/docs/openapi.json
 
 migrate-create:
 	migrate create -ext sql -dir ${MIGRATION_CORE_DIR} -seq ${NAME}
@@ -119,4 +129,4 @@ logs-prod:
 bash:
 	docker exec -it goshop-api /bin/sh
 
-.PHONY: importdb exportdb server migrate-create migrate-up migrate-down migrate-force migrate-drop migrate-goto migrate-down-n sqlc build run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev swagger seed seed-docker
+.PHONY: importdb exportdb server chat migrate-create migrate-up migrate-down migrate-force migrate-drop migrate-goto migrate-down-n sqlc build build-chat run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev swagger swagger-chat seed seed-docker

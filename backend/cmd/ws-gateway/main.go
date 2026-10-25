@@ -19,6 +19,7 @@ import (
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
+	chatcontract "goshop/services/chat/contract"
 	"goshop/pkg/ws"
 
 	"github.com/gin-gonic/gin"
@@ -47,7 +48,7 @@ func main() {
 
 	_ = config.NewConfig()
 
-	// 1. Initialize Database for User & Chat authentication
+	// 1. Initialize Database for User authentication
 	if err := db.InitDB("ws_gateway"); err != nil {
 		logger.Log.Fatal().Err(err).Msg("Failed to initialize database for WS Gateway")
 	}
@@ -58,10 +59,18 @@ func main() {
 	tokenService := auth.NewJWTService(cacheService)
 
 	userRepo := repository.NewSqlUserRepository(db.DB)
-	chatRepo := repository.NewSqlChatRepository(db.DB)
 
-	// 3. Initialize WebSocket Hub & Redis Bridge
+	// Chat room resolver: chat moved into its own service; rooms are resolved
+	// over gRPC instead of querying the (now stale) monolith chat tables.
+	chatTarget := utils.GetEnv("CHAT_GRPC_TARGET", "localhost:50058")
+	chatClient, err := chatcontract.NewGRPCChatClient(chatTarget)
+	if err != nil {
+		logger.Log.Fatal().Err(err).Str("addr", chatTarget).Msg("Failed to initialize Chat gRPC client")
+	}
+
+	// 3. Initialize WebSocket Hub, Redis Bridge, and presence store
 	wsHub := ws.NewHub()
+	wsHub.SetPresenceStore(ws.NewPresenceStore(redisClient))
 	redisBridge := ws.NewRedisBridge(redisClient, wsHub)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -71,7 +80,7 @@ func main() {
 
 	// 4. Initialize WebSocket Handler
 	wsHandler := v1handler.NewWSHandler(wsHub, tokenService, cacheService, userRepo)
-	wsHandler.SetChatRepo(chatRepo)
+	wsHandler.SetChatClient(chatClient)
 
 	// 5. Setup Gin Engine for WS Gateway
 	if utils.GetEnv("APP_ENV", "development") == "production" {
@@ -127,6 +136,7 @@ func main() {
 
 	redisBridge.Stop()
 	wsHub.Shutdown()
+	_ = chatClient.Close()
 
 	logger.Log.Info().Msg("WebSocket Gateway exited cleanly")
 }

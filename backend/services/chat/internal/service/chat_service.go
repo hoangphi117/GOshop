@@ -1,4 +1,4 @@
-package v1service
+package service
 
 import (
 	"context"
@@ -8,44 +8,47 @@ import (
 	"strings"
 	"time"
 
-	"goshop/internal/db"
-	"goshop/internal/db/sqlc"
-	v1dto "goshop/internal/dto/v1"
-	"goshop/internal/repository"
 	"goshop/internal/utils"
 	"goshop/pkg/logger"
-	"goshop/pkg/ws"
+	ws "goshop/pkg/ws"
+	sqlc "goshop/services/chat/internal/db/sqlc"
+	chatdto "goshop/services/chat/internal/dto"
+	"goshop/services/chat/internal/repository"
+
+	pkgpgx "goshop/pkg/pgx"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 )
 
+const recallWindow = 60 * time.Minute
+
 type chatService struct {
 	chatRepo    repository.ChatRepository
-	userRepo    repository.UserReader
+	userRepo    UserReader
 	orderReader OrderReader
-	rdb         *redis.Client
-	redisBridge ws.RedisBridge
-	wsHub       ws.Hub // Fallback local mode if Redis is not available
-	txManager   db.TxManager
+	presence    PresenceReader
+	publisher   WSPublisher
+	txManager   pkgpgx.TxManager
 	logger      zerolog.Logger
 }
 
 func NewChatService(
 	chatRepo repository.ChatRepository,
-	userRepo repository.UserReader,
+	userRepo UserReader,
 	orderReader OrderReader,
-	txManager db.TxManager,
-	rdb *redis.Client,
+	presence PresenceReader,
+	publisher WSPublisher,
+	txManager pkgpgx.TxManager,
 ) ChatService {
 	return &chatService{
 		chatRepo:    chatRepo,
 		userRepo:    userRepo,
 		orderReader: orderReader,
+		presence:    presence,
+		publisher:   publisher,
 		txManager:   txManager,
-		rdb:         rdb,
 		logger:      *logger.Log,
 	}
 }
@@ -54,34 +57,13 @@ func NewChatService(
 // Helpers
 // -------------------------------------------------------------------------
 
-// SetRedisBridge supports DI injection for horizontal scaling bridge
-func (s *chatService) SetRedisBridge(bridge ws.RedisBridge) {
-	s.redisBridge = bridge
-}
-
-// SetWSHub supports DI injection for local in-memory hub
-func (s *chatService) SetWSHub(wsHub ws.Hub) {
-	s.wsHub = wsHub
-}
-
-func (s *chatService) publishToConversation(conversationID int32, msg ws.WSMessage) {
-	if s.redisBridge != nil {
-		go func() {
-			if err := s.redisBridge.PublishToConversation(context.Background(), conversationID, msg); err != nil {
-				s.logger.Error().
-					Err(err).
-					Int32("conversation_id", conversationID).
-					Str("event_type", string(msg.Type)).
-					Msg("Failed to publish chat event to Redis bridge")
-			}
-		}()
+func (s *chatService) publishToConversation(conversationID int32, msgType ws.EventType, payload any) {
+	if s.publisher == nil {
 		return
 	}
-
-	// Fallback local memory hub
-	if s.wsHub != nil {
-		s.wsHub.BroadcastToConversation(conversationID, msg)
-	}
+	go func() {
+		s.publisher.PublishToConversation(context.Background(), conversationID, string(msgType), payload)
+	}()
 }
 
 func (s *chatService) getConversation(ctx context.Context, convUUID uuid.UUID) (sqlc.ChatConversation, error) {
@@ -95,30 +77,34 @@ func (s *chatService) getConversation(ctx context.Context, convUUID uuid.UUID) (
 	return conv, nil
 }
 
-func (s *chatService) determineSenderRole(user sqlc.User) string {
+func (s *chatService) determineSenderRole(user User) string {
 	// user_level: 1 = Admin, 2 = Moderator, 3 = Member
-	if user.UserLevel == 1 || user.UserLevel == 2 {
+	if user.UserLevel == UserLevelAdmin || user.UserLevel == UserLevelModerator {
 		return "admin"
 	}
 	return "user"
 }
 
-func (s *chatService) getActiveUser(ctx context.Context, userUUID uuid.UUID) (sqlc.User, error) {
+func (s *chatService) getActiveUser(ctx context.Context, userUUID uuid.UUID) (User, error) {
 	user, err := s.userRepo.GetByUUID(ctx, userUUID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
-			return sqlc.User{}, utils.NewError(utils.ErrCodeNotFound, "user not found")
+			return User{}, utils.NewError(utils.ErrCodeNotFound, "user not found")
 		}
-		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to get user", err)
+		return User{}, utils.WrapError(utils.ErrCodeInternal, "failed to get user", err)
 	}
 
 	if user.UserStatus != 1 { // 1: Active
-		return sqlc.User{}, utils.NewError(utils.ErrCodeForbidden, "user account is not active")
+		return User{}, utils.NewError(utils.ErrCodeForbidden, "user account is not active")
 	}
 	return user, nil
 }
 
-func (s *chatService) GetOrCreateConversation(ctx context.Context, userUUID uuid.UUID) (*v1dto.ConversationDTO, error) {
+// -------------------------------------------------------------------------
+// Business logic (ported 1:1 from the monolith chat service)
+// -------------------------------------------------------------------------
+
+func (s *chatService) GetOrCreateConversation(ctx context.Context, userUUID uuid.UUID) (*chatdto.ConversationDTO, error) {
 	user, err := s.getActiveUser(ctx, userUUID)
 	if err != nil {
 		return nil, err
@@ -126,19 +112,24 @@ func (s *chatService) GetOrCreateConversation(ctx context.Context, userUUID uuid
 
 	conversation, err := s.chatRepo.GetConversationByUserID(ctx, user.UserID)
 	if err == nil {
-		return v1dto.MapChatConversationToDTO(conversation), nil
+		return chatdto.MapChatConversationToDTO(conversation), nil
 	}
 
 	if !errors.Is(err, sql.ErrNoRows) && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to get conversation", err)
 	}
 
-	newConv, err := s.chatRepo.CreateConversation(ctx, user.UserID)
+	newConv, err := s.chatRepo.CreateConversation(ctx, sqlc.CreateConversationParams{
+		UserID:       user.UserID,
+		UserEmail:    user.UserEmail,
+		UserFullname: user.UserFullname,
+		UserAvatar:   user.UserAvatar,
+	})
 	if err != nil {
 		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to create conversation", err)
 	}
 
-	return v1dto.MapChatConversationToDTO(newConv), nil
+	return chatdto.MapChatConversationToDTO(newConv), nil
 }
 
 func (s *chatService) SendMessage(
@@ -146,16 +137,16 @@ func (s *chatService) SendMessage(
 	conversationUUID uuid.UUID,
 	senderUUID uuid.UUID,
 	senderRole string,
-	req v1dto.SendMessageRequest,
-) (v1dto.MessageResponse, error) {
+	req chatdto.SendMessageRequest,
+) (chatdto.MessageResponse, error) {
 	sender, err := s.getActiveUser(ctx, senderUUID)
 	if err != nil {
-		return v1dto.MessageResponse{}, err
+		return chatdto.MessageResponse{}, err
 	}
 
 	conv, err := s.getConversation(ctx, conversationUUID)
 	if err != nil {
-		return v1dto.MessageResponse{}, err
+		return chatdto.MessageResponse{}, err
 	}
 
 	if conv.Status == "closed" {
@@ -163,14 +154,14 @@ func (s *chatService) SendMessage(
 	}
 
 	computedRole := "user"
-	if senderRole == "admin" || (conv.UserID != sender.UserID && (sender.UserLevel == 1 || sender.UserLevel == 2)) {
+	if senderRole == "admin" || (conv.UserID != sender.UserID && (sender.UserLevel == UserLevelAdmin || sender.UserLevel == UserLevelModerator)) {
 		computedRole = "admin"
 	} else if conv.UserID == sender.UserID {
 		computedRole = "user"
 	}
 
 	if computedRole == "user" && conv.UserID != sender.UserID {
-		return v1dto.MessageResponse{}, utils.NewError(utils.ErrCodeForbidden, "user is not part of this conversation")
+		return chatdto.MessageResponse{}, utils.NewError(utils.ErrCodeForbidden, "user is not part of this conversation")
 	}
 
 	contentType := strings.TrimSpace(req.ContentType)
@@ -197,29 +188,29 @@ func (s *chatService) SendMessage(
 	switch contentType {
 	case "order_ref":
 		if req.OrderUUID == "" {
-			return v1dto.MessageResponse{}, utils.NewError(utils.ErrCodeBadRequest, "order_uuid is required for order_ref messages")
+			return chatdto.MessageResponse{}, utils.NewError(utils.ErrCodeBadRequest, "order_uuid is required for order_ref messages")
 		}
 		if computedRole == "user" {
 			orderUUID, err := uuid.Parse(req.OrderUUID)
 			if err != nil {
-				return v1dto.MessageResponse{}, utils.WrapError(utils.ErrCodeBadRequest, "invalid order UUID", err)
+				return chatdto.MessageResponse{}, utils.WrapError(utils.ErrCodeBadRequest, "invalid order UUID", err)
 			}
 			if s.orderReader == nil {
-				return v1dto.MessageResponse{}, utils.NewError(utils.ErrCodeInternal, "order reader not configured")
+				return chatdto.MessageResponse{}, utils.NewError(utils.ErrCodeInternal, "order reader not configured")
 			}
 			order, err := s.orderReader.GetOrderSummary(ctx, orderUUID)
 			if err != nil {
 				var appErr *utils.AppError
 				if errors.As(err, &appErr) {
-					return v1dto.MessageResponse{}, appErr
+					return chatdto.MessageResponse{}, appErr
 				}
 				if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
-					return v1dto.MessageResponse{}, utils.NewError(utils.ErrCodeNotFound, "order not found")
+					return chatdto.MessageResponse{}, utils.NewError(utils.ErrCodeNotFound, "order not found")
 				}
-				return v1dto.MessageResponse{}, utils.WrapError(utils.ErrCodeInternal, "failed to get order", err)
+				return chatdto.MessageResponse{}, utils.WrapError(utils.ErrCodeInternal, "failed to get order", err)
 			}
 			if order.UserID != sender.UserID {
-				return v1dto.MessageResponse{}, utils.NewError(utils.ErrCodeForbidden, "user is not authorized to reference this order")
+				return chatdto.MessageResponse{}, utils.NewError(utils.ErrCodeForbidden, "user is not authorized to reference this order")
 			}
 		}
 		content = req.OrderUUID
@@ -230,7 +221,7 @@ func (s *chatService) SendMessage(
 	}
 
 	if contentType != "order_ref" && contentType != "product_ref" && content == "" && req.AttachmentURL == "" {
-		return v1dto.MessageResponse{}, utils.NewError(utils.ErrCodeBadRequest, "content or attachment is required for non-reference messages")
+		return chatdto.MessageResponse{}, utils.NewError(utils.ErrCodeBadRequest, "content or attachment is required for non-reference messages")
 	}
 
 	var attachURL, attachName *string
@@ -246,74 +237,56 @@ func (s *chatService) SendMessage(
 	}
 
 	var msg sqlc.ChatMessage
-	if s.txManager != nil {
-		err = s.txManager.WithTx(ctx, func(txCtx context.Context) error {
-			var txErr error
-			msg, txErr = s.chatRepo.CreateMessage(txCtx, sqlc.CreateMessageParams{
-				ConversationID: conv.ConversationID,
-				SenderID:       sender.UserID,
-				SenderRole:     computedRole,
-				Content:        content,
-				ContentType:    contentType,
-				AttachmentUrl:  attachURL,
-				AttachmentName: attachName,
-				AttachmentSize: attachSize,
-			})
-			if txErr != nil {
-				return utils.WrapError(utils.ErrCodeInternal, "failed to save chat message", txErr)
-			}
-
-			if txErr = s.chatRepo.UpdateLastMessageAt(txCtx, conv.ConversationID); txErr != nil {
-				return utils.WrapError(utils.ErrCodeInternal, "failed to update conversation timestamp", txErr)
-			}
-			return nil
-		})
-	} else {
-		msg, err = s.chatRepo.CreateMessage(ctx, sqlc.CreateMessageParams{
-			ConversationID: conv.ConversationID,
-			SenderID:       sender.UserID,
-			SenderRole:     computedRole,
-			Content:        content,
-			ContentType:    contentType,
-			AttachmentUrl:  attachURL,
-			AttachmentName: attachName,
-			AttachmentSize: attachSize,
-		})
-		if err == nil {
-			_ = s.chatRepo.UpdateLastMessageAt(ctx, conv.ConversationID)
-		}
+	createParams := sqlc.CreateMessageParams{
+		ConversationID: conv.ConversationID,
+		SenderID:       sender.UserID,
+		SenderRole:     computedRole,
+		Content:        content,
+		ContentType:    contentType,
+		AttachmentUrl:  attachURL,
+		AttachmentName: attachName,
+		AttachmentSize: attachSize,
 	}
+	err = s.txManager.WithTx(ctx, func(txCtx context.Context) error {
+		var txErr error
+		msg, txErr = s.chatRepo.CreateMessage(txCtx, createParams)
+		if txErr != nil {
+			return utils.WrapError(utils.ErrCodeInternal, "failed to save chat message", txErr)
+		}
+
+		if txErr = s.chatRepo.UpdateLastMessageAt(txCtx, conv.ConversationID); txErr != nil {
+			return utils.WrapError(utils.ErrCodeInternal, "failed to update conversation timestamp", txErr)
+		}
+		return nil
+	})
 
 	if err != nil {
-		return v1dto.MessageResponse{}, utils.WrapError(utils.ErrCodeInternal, "failed to save chat message", err)
+		return chatdto.MessageResponse{}, utils.WrapError(utils.ErrCodeInternal, "failed to save chat message", err)
 	}
 
 	// Publish the new message realtime event to the conversation
-	s.publishToConversation(conv.ConversationID, ws.WSMessage{
-		Type: ws.EventChatMessage,
-		Data: ws.ChatMessagePayload{
-			ConversationUUID: conv.ConversationUuid.String(),
-			MessageUUID:      msg.MessageUuid.String(),
-			SenderID:         msg.SenderID,
-			SenderRole:       msg.SenderRole,
-			Content:          msg.Content,
-			ContentType:      msg.ContentType,
-			AttachmentURL:    msg.AttachmentUrl,
-			AttachmentName:   msg.AttachmentName,
-			AttachmentSize:   msg.AttachmentSize,
-			CreatedAt:        msg.CreatedAt,
-		},
+	s.publishToConversation(conv.ConversationID, ws.EventChatMessage, ws.ChatMessagePayload{
+		ConversationUUID: conv.ConversationUuid.String(),
+		MessageUUID:      msg.MessageUuid.String(),
+		SenderID:         msg.SenderID,
+		SenderRole:       msg.SenderRole,
+		Content:          msg.Content,
+		ContentType:      msg.ContentType,
+		AttachmentURL:    msg.AttachmentUrl,
+		AttachmentName:   msg.AttachmentName,
+		AttachmentSize:   msg.AttachmentSize,
+		CreatedAt:        msg.CreatedAt,
 	})
 
-	return v1dto.MapChatMessageToResponse(msg), nil
+	return chatdto.MapChatMessageToResponse(msg), nil
 }
 
 func (s *chatService) ListMessages(
 	ctx context.Context,
 	conversationUUID uuid.UUID,
 	callerUUID uuid.UUID,
-	req v1dto.ListMessagesRequest,
-) ([]v1dto.MessageResponse, int64, error) {
+	req chatdto.ListMessagesRequest,
+) ([]chatdto.MessageResponse, int64, error) {
 	caller, err := s.getActiveUser(ctx, callerUUID)
 	if err != nil {
 		return nil, 0, err
@@ -365,10 +338,9 @@ func (s *chatService) ListMessages(
 		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "failed to count messages", err)
 	}
 
-	res := make([]v1dto.MessageResponse, len(messages))
+	res := make([]chatdto.MessageResponse, len(messages))
 	for i, m := range messages {
-
-		res[i] = v1dto.MapChatMessageToResponse(m)
+		res[i] = chatdto.MapChatMessageToResponse(m)
 	}
 
 	return res, total, nil
@@ -399,12 +371,9 @@ func (s *chatService) MarkRead(
 	}
 
 	// Publish the read realtime event to the conversation
-	s.publishToConversation(conv.ConversationID, ws.WSMessage{
-		Type: ws.EventChatRead,
-		Data: ws.ChatReadPayload{
-			ConversationUUID: conv.ConversationUuid.String(),
-			ReaderID:         caller.UserID,
-		},
+	s.publishToConversation(conv.ConversationID, ws.EventChatRead, ws.ChatReadPayload{
+		ConversationUUID: conv.ConversationUuid.String(),
+		ReaderID:         caller.UserID,
 	})
 
 	return nil
@@ -413,8 +382,8 @@ func (s *chatService) MarkRead(
 func (s *chatService) ListConversations(
 	ctx context.Context,
 	callerUUID uuid.UUID,
-	req v1dto.ListConversationsRequest,
-) ([]v1dto.ConversationResponse, int64, error) {
+	req chatdto.ListConversationsRequest,
+) ([]chatdto.ConversationResponse, int64, error) {
 	caller, err := s.getActiveUser(ctx, callerUUID)
 	if err != nil {
 		return nil, 0, err
@@ -464,29 +433,51 @@ func (s *chatService) ListConversations(
 		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "failed to count conversations", err)
 	}
 
-	res := make([]v1dto.ConversationResponse, len(rows))
+	res := make([]chatdto.ConversationResponse, len(rows))
 	for i, r := range rows {
 		var lastMsgAt *time.Time
 		if r.LastMessageAt.Valid {
 			lastMsgAt = &r.LastMessageAt.Time
 		}
 
-		isCustomerOnline := false
-		isShopOnline := false
-		if s.wsHub != nil {
-			isCustomerOnline = s.wsHub.IsUserOnline(r.UserID)
-			isShopOnline = s.wsHub.HasOnlineAdmin()
+		// Self-heal the denormalized user snapshot: conversations seeded from the
+		// monolith have all three columns empty (pre-extraction rows), which
+		// renders as "?" in the admin list. ponytail: renamed users keep their
+		// stale snapshot — refresh wipes identity or a real backfill fixes that.
+		userEmail, userFullname, userAvatar := r.UserEmail, r.UserFullname, r.UserAvatar
+		if userEmail == "" && userFullname == "" {
+			if owner, ownerErr := s.userRepo.GetByID(ctx, r.UserID); ownerErr == nil {
+				userEmail, userFullname, userAvatar = owner.UserEmail, owner.UserFullname, owner.UserAvatar
+				if userFullname == "" {
+					userFullname = userEmail
+				}
+				if backfillErr := s.chatRepo.UpdateConversationUserInfo(ctx, sqlc.UpdateConversationUserInfoParams{
+					ConversationID: r.ConversationID,
+					UserEmail:      userEmail,
+					UserFullname:   userFullname,
+					UserAvatar:     userAvatar,
+				}); backfillErr != nil {
+					s.logger.Warn().Err(backfillErr).Int32("conversation_id", r.ConversationID).
+						Msg("Failed to backfill conversation user snapshot")
+				}
+			} else {
+				s.logger.Warn().Err(ownerErr).Int32("user_id", r.UserID).
+					Msg("Failed to load conversation owner from identity")
+			}
 		}
 
-		res[i] = v1dto.ConversationResponse{
+		isCustomerOnline := s.presence.IsUserOnline(ctx, r.UserID)
+		isShopOnline := s.presence.HasOnlineAdmin(ctx)
+
+		res[i] = chatdto.ConversationResponse{
 			ConversationID:     r.ConversationID,
 			UUID:               r.ConversationUuid,
 			Status:             r.Status,
 			UserID:             r.UserID,
 			AdminID:            r.AdminID,
-			UserEmail:          r.UserEmail,
-			UserFullname:       r.UserFullname,
-			UserAvatar:         r.UserAvatar,
+			UserEmail:          userEmail,
+			UserFullname:       userFullname,
+			UserAvatar:         userAvatar,
 			UnreadCount:        r.UnreadCount,
 			LastMessageContent: r.LastMessageContent,
 			LastMessageAt:      lastMsgAt,
@@ -503,14 +494,14 @@ func (s *chatService) ListConversations(
 func (s *chatService) CloseConversation(
 	ctx context.Context,
 	conversationUUID uuid.UUID,
-) (*v1dto.ConversationDTO, error) {
+) (*chatdto.ConversationDTO, error) {
 	conv, err := s.getConversation(ctx, conversationUUID)
 	if err != nil {
 		return nil, err
 	}
 
 	if conv.Status == "closed" {
-		return v1dto.MapChatConversationToDTO(conv), nil
+		return chatdto.MapChatConversationToDTO(conv), nil
 	}
 
 	updatedConv, err := s.chatRepo.UpdateConversationStatus(ctx, conv.ConversationID, "closed")
@@ -519,27 +510,24 @@ func (s *chatService) CloseConversation(
 	}
 
 	// Publish the conversation closed event to the conversation
-	s.publishToConversation(conv.ConversationID, ws.WSMessage{
-		Type: ws.EventChatConvClosed,
-		Data: map[string]any{
-			"conversation_uuid": conv.ConversationUuid.String(),
-		},
+	s.publishToConversation(conv.ConversationID, ws.EventChatConvClosed, map[string]any{
+		"conversation_uuid": conv.ConversationUuid.String(),
 	})
 
-	return v1dto.MapChatConversationToDTO(updatedConv), nil
+	return chatdto.MapChatConversationToDTO(updatedConv), nil
 }
 
 func (s *chatService) ReopenConversation(
 	ctx context.Context,
 	conversationUUID uuid.UUID,
-) (*v1dto.ConversationDTO, error) {
+) (*chatdto.ConversationDTO, error) {
 	conv, err := s.getConversation(ctx, conversationUUID)
 	if err != nil {
 		return nil, err
 	}
 
 	if conv.Status == "open" {
-		return v1dto.MapChatConversationToDTO(conv), nil
+		return chatdto.MapChatConversationToDTO(conv), nil
 	}
 
 	updatedConv, err := s.chatRepo.UpdateConversationStatus(ctx, conv.ConversationID, "open")
@@ -547,38 +535,36 @@ func (s *chatService) ReopenConversation(
 		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to reopen conversation", err)
 	}
 
-	return v1dto.MapChatConversationToDTO(updatedConv), nil
+	return chatdto.MapChatConversationToDTO(updatedConv), nil
 }
 
 func (s *chatService) GetConversationDetails(
 	ctx context.Context,
 	conversationUUID uuid.UUID,
 	callerUUID uuid.UUID,
-) (v1dto.ConversationResponse, error) {
+) (chatdto.ConversationResponse, error) {
 	caller, err := s.getActiveUser(ctx, callerUUID)
 	if err != nil {
-		return v1dto.ConversationResponse{}, err
+		return chatdto.ConversationResponse{}, err
 	}
 
 	conv, err := s.getConversation(ctx, conversationUUID)
 	if err != nil {
-		return v1dto.ConversationResponse{}, err
+		return chatdto.ConversationResponse{}, err
 	}
 
 	role := s.determineSenderRole(caller)
 	if role == "user" && conv.UserID != caller.UserID {
-		return v1dto.ConversationResponse{}, utils.NewError(utils.ErrCodeForbidden, "you are not authorized to view this conversation")
+		return chatdto.ConversationResponse{}, utils.NewError(utils.ErrCodeForbidden, "you are not authorized to view this conversation")
 	}
 
-	var convOwner sqlc.User
-	if conv.UserID == caller.UserID {
-		convOwner = caller
-	} else {
-		var ownerErr error
-		convOwner, ownerErr = s.userRepo.GetByID(ctx, conv.UserID)
+	convOwner := caller
+	if conv.UserID != caller.UserID {
+		owner, ownerErr := s.userRepo.GetByID(ctx, conv.UserID)
 		if ownerErr != nil && !errors.Is(ownerErr, sql.ErrNoRows) && !errors.Is(ownerErr, pgx.ErrNoRows) {
-			return v1dto.ConversationResponse{}, utils.WrapError(utils.ErrCodeInternal, "failed to get conversation owner", ownerErr)
+			return chatdto.ConversationResponse{}, utils.WrapError(utils.ErrCodeInternal, "failed to get conversation owner", ownerErr)
 		}
+		convOwner = owner
 	}
 	unreadCount, _ := s.chatRepo.CountUnreadMessages(ctx, conv.ConversationID, caller.UserID)
 
@@ -587,14 +573,10 @@ func (s *chatService) GetConversationDetails(
 		lastMsgAt = &conv.LastMessageAt.Time
 	}
 
-	isCustOnline := false
-	isShopOnline := false
-	if s.wsHub != nil {
-		isCustOnline = s.wsHub.IsUserOnline(conv.UserID)
-		isShopOnline = s.wsHub.HasOnlineAdmin()
-	}
+	isCustOnline := s.presence.IsUserOnline(ctx, conv.UserID)
+	isShopOnline := s.presence.HasOnlineAdmin(ctx)
 
-	return v1dto.ConversationResponse{
+	return chatdto.ConversationResponse{
 		ConversationID: conv.ConversationID,
 		UUID:           conv.ConversationUuid,
 		Status:         conv.Status,
@@ -653,7 +635,7 @@ func (s *chatService) SendTyping(
 	}
 
 	role := "user"
-	if conv.UserID != caller.UserID && (caller.UserLevel == 1 || caller.UserLevel == 2) {
+	if conv.UserID != caller.UserID && (caller.UserLevel == UserLevelAdmin || caller.UserLevel == UserLevelModerator) {
 		role = "admin"
 	} else if conv.UserID == caller.UserID {
 		role = "user"
@@ -663,14 +645,11 @@ func (s *chatService) SendTyping(
 		return utils.NewError(utils.ErrCodeForbidden, "you cannot send typing in this conversation")
 	}
 
-	s.publishToConversation(conv.ConversationID, ws.WSMessage{
-		Type: ws.EventChatTyping,
-		Data: ws.ChatTypingPayload{
-			ConversationUUID: conv.ConversationUuid.String(),
-			UserID:           caller.UserID,
-			SenderRole:       role,
-			IsTyping:         isTyping,
-		},
+	s.publishToConversation(conv.ConversationID, ws.EventChatTyping, ws.ChatTypingPayload{
+		ConversationUUID: conv.ConversationUuid.String(),
+		UserID:           caller.UserID,
+		SenderRole:       role,
+		IsTyping:         isTyping,
 	})
 
 	return nil
@@ -680,60 +659,54 @@ func (s *chatService) RecallMessage(
 	ctx context.Context,
 	messageUUID uuid.UUID,
 	callerUUID uuid.UUID,
-) (v1dto.MessageResponse, error) {
+) (chatdto.MessageResponse, error) {
 	caller, err := s.getActiveUser(ctx, callerUUID)
 	if err != nil {
-		return v1dto.MessageResponse{}, err
+		return chatdto.MessageResponse{}, err
 	}
 
 	msg, err := s.chatRepo.GetMessageByUUID(ctx, messageUUID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
-			return v1dto.MessageResponse{}, utils.NewError(utils.ErrCodeNotFound, "message not found")
+			return chatdto.MessageResponse{}, utils.NewError(utils.ErrCodeNotFound, "message not found")
 		}
-		return v1dto.MessageResponse{}, utils.WrapError(utils.ErrCodeInternal, "failed to get message", err)
+		return chatdto.MessageResponse{}, utils.WrapError(utils.ErrCodeInternal, "failed to get message", err)
 	}
 
 	callerRole := s.determineSenderRole(caller)
 	// Only the message sender or an admin can recall the message
 	if msg.SenderID != caller.UserID && callerRole != "admin" {
-		return v1dto.MessageResponse{}, utils.NewError(utils.ErrCodeForbidden, "you can only recall your own messages")
+		return chatdto.MessageResponse{}, utils.NewError(utils.ErrCodeForbidden, "you can only recall your own messages")
 	}
 
 	// 60-minute time window check
-	if time.Since(msg.CreatedAt) > 60*time.Minute {
-		return v1dto.MessageResponse{}, utils.NewError(utils.ErrCodeBadRequest, "messages can only be recalled within 60 minutes of sending")
+	if time.Since(msg.CreatedAt) > recallWindow {
+		return chatdto.MessageResponse{}, utils.NewError(utils.ErrCodeBadRequest, "messages can only be recalled within 60 minutes of sending")
 	}
 
 	if msg.ContentType == "recalled" {
-		return v1dto.MapChatMessageToResponse(msg), nil
+		return chatdto.MapChatMessageToResponse(msg), nil
 	}
 
 	recalledMsg, err := s.chatRepo.RecallMessage(ctx, msg.MessageID)
 	if err != nil {
-		return v1dto.MessageResponse{}, utils.WrapError(utils.ErrCodeInternal, "failed to recall message", err)
+		return chatdto.MessageResponse{}, utils.WrapError(utils.ErrCodeInternal, "failed to recall message", err)
 	}
 
 	conv, err := s.chatRepo.GetConversationByID(ctx, msg.ConversationID)
 	if err == nil {
-		s.publishToConversation(conv.ConversationID, ws.WSMessage{
-			Type: ws.EventChatMessageRecalled,
-			Data: map[string]any{
-				"conversation_uuid": conv.ConversationUuid.String(),
-				"message_uuid":      msg.MessageUuid.String(),
-			},
+		s.publishToConversation(conv.ConversationID, ws.EventChatMessageRecalled, map[string]any{
+			"conversation_uuid": conv.ConversationUuid.String(),
+			"message_uuid":      msg.MessageUuid.String(),
 		})
 	}
 
-	return v1dto.MapChatMessageToResponse(recalledMsg), nil
+	return chatdto.MapChatMessageToResponse(recalledMsg), nil
 }
 
-func (s *chatService) GetShopStatus(ctx context.Context) (v1dto.ShopStatusResponse, error) {
-	isOnline := false
-	if s.wsHub != nil {
-		isOnline = s.wsHub.HasOnlineAdmin()
-	}
-	return v1dto.ShopStatusResponse{
+func (s *chatService) GetShopStatus(ctx context.Context) (chatdto.ShopStatusResponse, error) {
+	isOnline := s.presence.HasOnlineAdmin(ctx)
+	return chatdto.ShopStatusResponse{
 		IsOnline: isOnline,
 	}, nil
 }

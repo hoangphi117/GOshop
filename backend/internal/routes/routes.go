@@ -403,6 +403,54 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 		}
 	}
 
+	// API Gateway reverse proxy for Chat microservice endpoints. Chat moved to
+	// its own service and database: with CHAT_SERVICE_URL unset these paths 404.
+	chatURL := utils.GetEnv("CHAT_SERVICE_URL", "")
+	if chatURL != "" {
+		if parsedChatURL, err := url.Parse(chatURL); err == nil && parsedChatURL.Scheme != "" {
+			chatProxy := httputil.NewSingleHostReverseProxy(parsedChatURL)
+			transport := http.DefaultTransport.(*http.Transport).Clone()
+			transport.DisableCompression = true
+			chatProxy.Transport = transport
+
+			chatProxy.ModifyResponse = func(resp *http.Response) error {
+				resp.Header.Del("Access-Control-Allow-Origin")
+				resp.Header.Del("Access-Control-Allow-Credentials")
+				resp.Header.Del("Access-Control-Allow-Methods")
+				resp.Header.Del("Access-Control-Allow-Headers")
+				resp.Header.Del("Access-Control-Max-Age")
+				return nil
+			}
+			chatProxyHandler := func(ctx *gin.Context) {
+				ctx.Request.Host = parsedChatURL.Host
+				ctx.Request.Header.Del("Accept-Encoding")
+				chatProxy.ServeHTTP(ctx.Writer, ctx.Request)
+			}
+
+			v1api.Any("/chat", chatProxyHandler)
+			v1api.Any("/chat/*any", chatProxyHandler)
+			v1api.Any("/admin/chat", chatProxyHandler)
+			v1api.Any("/admin/chat/*any", chatProxyHandler)
+		}
+	}
+
+	// Reverse proxy for the WebSocket endpoint. The ws upgrade moved to the
+	// ws-gateway binary: with WS_GATEWAY_URL unset these paths 404. httputil
+	// handles the 101 Switching Protocols upgrade; ws-gateway authenticates
+	// via the ?token= query param itself, so no auth middleware here (same
+	// trust boundary as nginx routing /api/v1/ws straight to ws-gateway).
+	wsURL := utils.GetEnv("WS_GATEWAY_URL", "")
+	if wsURL != "" {
+		if parsedWSURL, err := url.Parse(wsURL); err == nil && parsedWSURL.Scheme != "" {
+			wsProxy := httputil.NewSingleHostReverseProxy(parsedWSURL)
+			wsProxyHandler := func(ctx *gin.Context) {
+				ctx.Request.Host = parsedWSURL.Host
+				wsProxy.ServeHTTP(ctx.Writer, ctx.Request)
+			}
+			v1api.GET("/ws", wsProxyHandler)
+		}
+	}
+
 	public := v1api.Group("")
 
 	protected := v1api.Group("")
@@ -413,11 +461,11 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 	admin.Use(middleware.RequireRole(middleware.RoleAdmin, middleware.RoleModerator))
 
 	for _, route := range normalRoutes {
-		switch r := route.(type) {
-		case *v1routes.WSRoutes, *v1routes.HealthRoutes:
-			r.Register(public)
+		switch route.(type) {
+		case *v1routes.HealthRoutes:
+			route.Register(public)
 		default:
-			r.Register(protected)
+			route.Register(protected)
 		}
 	}
 

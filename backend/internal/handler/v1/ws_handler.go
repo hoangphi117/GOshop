@@ -12,11 +12,14 @@ import (
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
-	"goshop/pkg/ws"
+	ws "goshop/pkg/ws"
+	chatcontract "goshop/services/chat/contract"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -24,12 +27,20 @@ const (
 	UserLevelModerator = 2
 )
 
+// ChatRoomResolver resolves conversation rooms over the chat service gRPC
+// contract. Chat data moved out of the monolith database, so the WS gateway no
+// longer reads chat tables directly.
+type ChatRoomResolver interface {
+	ResolveConversationByUUID(ctx context.Context, conversationUUID uuid.UUID) (*chatcontract.Conversation, error)
+	ResolveConversationByID(ctx context.Context, conversationID int32) (*chatcontract.Conversation, error)
+}
+
 type WSHandler struct {
 	hub          ws.Hub
 	jwtService   auth.TokenService
 	cacheService cache.RedisCacheService
 	userRepo     repository.UserReader
-	chatRepo     repository.ChatRepository
+	chatClient   ChatRoomResolver
 }
 
 func NewWSHandler(
@@ -46,9 +57,23 @@ func NewWSHandler(
 	}
 }
 
-// SetChatRepo helps DI injection for ChatRepository without causing breaking changes in the constructor
-func (h *WSHandler) SetChatRepo(chatRepo repository.ChatRepository) {
-	h.chatRepo = chatRepo
+// SetChatClient helps DI injection for the chat room resolver without breaking
+// the constructor signature.
+func (h *WSHandler) SetChatClient(chatClient ChatRoomResolver) {
+	h.chatClient = chatClient
+}
+
+// resolveRoomError maps gRPC status codes to API errors.
+func resolveRoomError(err error, notFoundMsg, failureMsg string) error {
+	if st, ok := status.FromError(err); ok {
+		switch st.Code() {
+		case codes.NotFound:
+			return utils.NewError(utils.ErrCodeNotFound, notFoundMsg)
+		case codes.InvalidArgument:
+			return utils.NewError(utils.ErrCodeBadRequest, "Invalid conversation identifier")
+		}
+	}
+	return utils.WrapError(utils.ErrCodeInternal, failureMsg, err)
 }
 
 // HandleWS godoc
@@ -123,14 +148,14 @@ func (h *WSHandler) HandleWS(ctx *gin.Context) {
 			return
 		}
 
-		if h.chatRepo != nil {
-			conv, convErr := h.chatRepo.GetConversationByUUID(ctx, convUUID)
+		if h.chatClient != nil {
+			conv, convErr := h.chatClient.ResolveConversationByUUID(ctx, convUUID)
 			if convErr != nil {
 				if errors.Is(convErr, sql.ErrNoRows) || errors.Is(convErr, pgx.ErrNoRows) {
 					utils.ResponseError(ctx, utils.NewError(utils.ErrCodeNotFound, "Conversation not found"))
 					return
 				}
-				utils.ResponseError(ctx, utils.WrapError(utils.ErrCodeInternal, "Failed to resolve conversation", convErr))
+				utils.ResponseError(ctx, resolveRoomError(convErr, "Conversation not found", "Failed to resolve conversation"))
 				return
 			}
 
@@ -182,14 +207,14 @@ func (h *WSHandler) HandleWS(ctx *gin.Context) {
 		client.SafeSend(shopPresence)
 
 		// 2. If client is admin and target conversation is set, send customer presence
-		if isAdmin && targetConvID != nil && h.chatRepo != nil {
-			conv, convErr := h.chatRepo.GetConversationByID(context.Background(), *targetConvID)
-			if convErr == nil {
+		if isAdmin && targetConvID != nil && h.chatClient != nil {
+			conv, convErr := h.chatClient.ResolveConversationByID(context.Background(), *targetConvID)
+			if convErr == nil && conv != nil {
 				custOnline := h.hub.IsUserOnline(conv.UserID)
 				custPresence, _ := json.Marshal(ws.WSMessage{
 					Type: ws.EventChatPresence,
 					Data: ws.ChatPresencePayload{
-						ConversationUUID: conv.ConversationUuid.String(),
+						ConversationUUID: conv.ConversationUUID.String(),
 						UserID:           conv.UserID,
 						Role:             "user",
 						IsOnline:         custOnline,

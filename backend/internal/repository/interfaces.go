@@ -78,27 +78,6 @@ type NotificationRepository interface {
 	DeleteOldReadNotifications(ctx context.Context, cutoff time.Time) (int64, error)
 }
 
-type ChatRepository interface {
-	CreateConversation(ctx context.Context, userID int32) (sqlc.ChatConversation, error)
-	GetConversationByUUID(ctx context.Context, conversationUUID uuid.UUID) (sqlc.ChatConversation, error)
-	GetConversationByID(ctx context.Context, conversationID int32) (sqlc.ChatConversation, error)
-	GetConversationByUserID(ctx context.Context, userID int32) (sqlc.ChatConversation, error)
-	UpdateConversationStatus(ctx context.Context, conversationID int32, status string) (sqlc.ChatConversation, error)
-	UpdateLastMessageAt(ctx context.Context, conversationID int32) error
-	ListConversations(ctx context.Context, params sqlc.ListConversationsParams) ([]sqlc.ListConversationsRow, error)
-	CountConversations(ctx context.Context, params sqlc.CountConversationsParams) (int64, error)
-	CreateMessage(ctx context.Context, params sqlc.CreateMessageParams) (sqlc.ChatMessage, error)
-	ListMessages(ctx context.Context, params sqlc.ListMessagesParams) ([]sqlc.ChatMessage, error)
-	ListMessagesCursor(ctx context.Context, params sqlc.ListMessagesCursorParams) ([]sqlc.ChatMessage, error)
-	CountMessagesByConversationID(ctx context.Context, conversationID int32) (int64, error)
-	MarkMessagesRead(ctx context.Context, conversationID int32, readerID int32) error
-	CountUnreadMessages(ctx context.Context, conversationID int32, readerID int32) (int64, error)
-	GetTotalUnreadMessagesForUser(ctx context.Context, userID int32) (int64, error)
-	GetTotalUnreadMessagesForAdmin(ctx context.Context) (int64, error)
-	GetMessageByUUID(ctx context.Context, messageUUID uuid.UUID) (sqlc.ChatMessage, error)
-	RecallMessage(ctx context.Context, messageID int32) (sqlc.ChatMessage, error)
-}
-
 type OutboxRepository interface {
 	Insert(ctx context.Context, tx pgx.Tx, aggregateType, aggregateID, eventType string, payload any) (sqlc.OutboxEvent, error)
 	GetPending(ctx context.Context, limit int32) ([]sqlc.OutboxEvent, error)

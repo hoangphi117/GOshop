@@ -12,16 +12,26 @@ import (
 )
 
 type mockHub struct {
-	broadcastToUserCalls         []struct{ UserID int32; Msg ws.WSMessage }
+	broadcastToUserCalls []struct {
+		UserID int32
+		Msg    ws.WSMessage
+	}
 	broadcastToAdminsCalls       []ws.WSMessage
 	broadcastToAllCalls          []ws.WSMessage
-	broadcastToConversationCalls []struct{ ConvID int32; Msg ws.WSMessage }
+	broadcastToConversationCalls []struct {
+		ConvID int32
+		Msg    ws.WSMessage
+	}
 }
 
-func (m *mockHub) Register(client *ws.Client)   {}
-func (m *mockHub) Unregister(client *ws.Client) {}
+func (m *mockHub) Register(client *ws.Client)            {}
+func (m *mockHub) Unregister(client *ws.Client)          {}
+func (m *mockHub) SetPresenceStore(ps *ws.PresenceStore) {}
 func (m *mockHub) BroadcastToUser(userID int32, msg ws.WSMessage) {
-	m.broadcastToUserCalls = append(m.broadcastToUserCalls, struct{ UserID int32; Msg ws.WSMessage }{userID, msg})
+	m.broadcastToUserCalls = append(m.broadcastToUserCalls, struct {
+		UserID int32
+		Msg    ws.WSMessage
+	}{userID, msg})
 }
 func (m *mockHub) BroadCastToAdmins(msg ws.WSMessage) {
 	m.broadcastToAdminsCalls = append(m.broadcastToAdminsCalls, msg)
@@ -30,9 +40,12 @@ func (m *mockHub) BroadcastToAll(msg ws.WSMessage) {
 	m.broadcastToAllCalls = append(m.broadcastToAllCalls, msg)
 }
 func (m *mockHub) BroadcastToConversation(conversationID int32, msg ws.WSMessage) {
-	m.broadcastToConversationCalls = append(m.broadcastToConversationCalls, struct{ ConvID int32; Msg ws.WSMessage }{conversationID, msg})
+	m.broadcastToConversationCalls = append(m.broadcastToConversationCalls, struct {
+		ConvID int32
+		Msg    ws.WSMessage
+	}{conversationID, msg})
 }
-func (m *mockHub) BroadcastAdminPresence(isOnline bool)                            {}
+func (m *mockHub) BroadcastAdminPresence(isOnline bool)                             {}
 func (m *mockHub) BroadcastUserPresence(userID int32, convID *int32, isOnline bool) {}
 func (m *mockHub) IsUserOnline(userID int32) bool                                   { return false }
 func (m *mockHub) HasOnlineAdmin() bool                                             { return false }
@@ -73,13 +86,6 @@ func TestRedisBridge_NilRedisSafe(t *testing.T) {
 
 	// Publish with nil Redis should not panic
 	err := bridge.Publish(context.Background(), ws.RedisNotificationEnvelope{})
-	assert.NoError(t, err)
-
-	// PublishToConversation with nil Redis should not panic
-	err = bridge.PublishToConversation(context.Background(), 10, ws.WSMessage{
-		Type: ws.EventChatMessage,
-		Data: "test message",
-	})
 	assert.NoError(t, err)
 
 	// StartSubscriber with nil Redis should exit immediately without panic

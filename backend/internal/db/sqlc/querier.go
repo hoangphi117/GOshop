@@ -22,17 +22,12 @@ type Querier interface {
 	CountAdminNotifications(ctx context.Context, arg CountAdminNotificationsParams) (int64, error)
 	CountCartItems(ctx context.Context, cartID int32) (int64, error)
 	CountCategories(ctx context.Context, arg CountCategoriesParams) (int64, error)
-	CountConversations(ctx context.Context, arg CountConversationsParams) (int64, error)
-	CountMessagesByConversationID(ctx context.Context, conversationID int32) (int64, error)
 	CountNotificationsByUserID(ctx context.Context, notificationUserID int32) (int64, error)
 	CountProducts(ctx context.Context, arg CountProductsParams) (int64, error)
-	CountUnreadMessages(ctx context.Context, arg CountUnreadMessagesParams) (int64, error)
 	CountUnreadNotificationsByUserID(ctx context.Context, notificationUserID int32) (int64, error)
 	CountUserAddresses(ctx context.Context, uaUserID int32) (int64, error)
 	CountUsers(ctx context.Context, arg CountUsersParams) (int64, error)
 	CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error)
-	CreateConversation(ctx context.Context, userID int32) (ChatConversation, error)
-	CreateMessage(ctx context.Context, arg CreateMessageParams) (ChatMessage, error)
 	CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error)
 	CreateNotificationForAllUsers(ctx context.Context, arg CreateNotificationForAllUsersParams) error
 	CreateOAuthUser(ctx context.Context, arg CreateOAuthUserParams) (User, error)
@@ -61,10 +56,6 @@ type Querier interface {
 	GetCartItemsWithProductDetails(ctx context.Context, cartID int32) ([]GetCartItemsWithProductDetailsRow, error)
 	GetCategoryBySlug(ctx context.Context, categorySlug string) (Category, error)
 	GetCategoryByUuid(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
-	GetConversationByID(ctx context.Context, conversationID int32) (ChatConversation, error)
-	GetConversationByUUID(ctx context.Context, conversationUuid uuid.UUID) (ChatConversation, error)
-	GetConversationByUserID(ctx context.Context, userID int32) (ChatConversation, error)
-	GetMessageByUUID(ctx context.Context, messageUuid uuid.UUID) (ChatMessage, error)
 	GetNotificationsByUserId(ctx context.Context, arg GetNotificationsByUserIdParams) ([]Notification, error)
 	// Upsert "no-op": if cart already exists for user, return it; otherwise create a new cart and return it.
 	// Atomic, safe for concurrent requests, and avoids race conditions by using INSERT ... ON CONFLICT.
@@ -73,9 +64,6 @@ type Querier interface {
 	GetPendingOutboxEventsByAggregateTypes(ctx context.Context, arg GetPendingOutboxEventsByAggregateTypesParams) ([]OutboxEvent, error)
 	GetProductBySlug(ctx context.Context, productSlug string) (GetProductBySlugRow, error)
 	GetProductByUUID(ctx context.Context, productUuid uuid.UUID) (GetProductByUUIDRow, error)
-	// Operational list view, not revenue-related; unchanged.
-	GetTotalUnreadMessagesForAdmin(ctx context.Context) (int64, error)
-	GetTotalUnreadMessagesForUser(ctx context.Context, userID int32) (int64, error)
 	GetUserAddressByUUID(ctx context.Context, arg GetUserAddressByUUIDParams) (UserAddress, error)
 	GetUserAddressesByUserID(ctx context.Context, uaUserID int32) ([]UserAddress, error)
 	GetUserByEmail(ctx context.Context, userEmail string) (User, error)
@@ -84,20 +72,15 @@ type Querier interface {
 	GetUserByUUID(ctx context.Context, userUuid uuid.UUID) (User, error)
 	GetUsersByIDs(ctx context.Context, dollar_1 []int32) ([]GetUsersByIDsRow, error)
 	InsertOutboxEvent(ctx context.Context, arg InsertOutboxEventParams) (OutboxEvent, error)
-	ListConversations(ctx context.Context, arg ListConversationsParams) ([]ListConversationsRow, error)
-	ListMessages(ctx context.Context, arg ListMessagesParams) ([]ChatMessage, error)
-	ListMessagesCursor(ctx context.Context, arg ListMessagesCursorParams) ([]ChatMessage, error)
 	ListUserUserCreatedAtAsc(ctx context.Context, arg ListUserUserCreatedAtAscParams) ([]User, error)
 	ListUserUserCreatedAtDesc(ctx context.Context, arg ListUserUserCreatedAtDescParams) ([]User, error)
 	ListUserUserIdAsc(ctx context.Context, arg ListUserUserIdAscParams) ([]User, error)
 	ListUserUserIdDesc(ctx context.Context, arg ListUserUserIdDescParams) ([]User, error)
 	MarkAllAdminNotificationsRead(ctx context.Context, notificationUserID int32) error
 	MarkAllNotificationsRead(ctx context.Context, notificationUserID int32) error
-	MarkMessagesRead(ctx context.Context, arg MarkMessagesReadParams) error
 	MarkNotificationRead(ctx context.Context, arg MarkNotificationReadParams) (Notification, error)
 	MarkOutboxEventFailed(ctx context.Context, arg MarkOutboxEventFailedParams) error
 	MarkOutboxEventsProcessed(ctx context.Context, dollar_1 []int64) error
-	RecallMessage(ctx context.Context, messageID int32) (ChatMessage, error)
 	RestoreCategory(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
 	RestoreProduct(ctx context.Context, productUuid uuid.UUID) (Product, error)
 	RestoreStock(ctx context.Context, arg RestoreStockParams) error
@@ -113,8 +96,6 @@ type Querier interface {
 	TrashProduct(ctx context.Context, productUuid uuid.UUID) (Product, error)
 	TrashUser(ctx context.Context, userUuid uuid.UUID) (User, error)
 	UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (Category, error)
-	UpdateConversationStatus(ctx context.Context, arg UpdateConversationStatusParams) (ChatConversation, error)
-	UpdateLastMessageAt(ctx context.Context, conversationID int32) error
 	UpdatePassword(ctx context.Context, arg UpdatePasswordParams) (User, error)
 	UpdateProduct(ctx context.Context, arg UpdateProductParams) (UpdateProductRow, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)

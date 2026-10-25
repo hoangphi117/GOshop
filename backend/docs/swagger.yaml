@@ -380,6 +380,39 @@ definitions:
     - new_password
     - old_password
     type: object
+  dto.ConversationResponse:
+    properties:
+      admin_id:
+        type: integer
+      conversation_id:
+        type: integer
+      created_at:
+        type: string
+      is_online:
+        type: boolean
+      is_shop_online:
+        type: boolean
+      last_message_at:
+        type: string
+      last_message_content:
+        type: string
+      status:
+        type: string
+      unread_count:
+        type: integer
+      updated_at:
+        type: string
+      user_avatar:
+        type: string
+      user_email:
+        type: string
+      user_fullname:
+        type: string
+      user_id:
+        type: integer
+      uuid:
+        type: string
+    type: object
   dto.CouponDTO:
     properties:
       code:
@@ -907,6 +940,29 @@ definitions:
       total_low:
         type: integer
     type: object
+  dto.MessageResponse:
+    properties:
+      attachment_name:
+        type: string
+      attachment_size:
+        type: integer
+      attachment_url:
+        type: string
+      content:
+        type: string
+      content_type:
+        type: string
+      created_at:
+        type: string
+      is_read:
+        type: boolean
+      sender_id:
+        type: integer
+      sender_role:
+        type: string
+      uuid:
+        type: string
+    type: object
   dto.MyReviewDTO:
     properties:
       can_edit:
@@ -1410,6 +1466,44 @@ definitions:
       user_name:
         type: string
     type: object
+  dto.SendMessageRequest:
+    properties:
+      attachment_name:
+        maxLength: 2000
+        type: string
+      attachment_size:
+        minimum: 0
+        type: integer
+      attachment_url:
+        description: Attachment fields (optional, set by FE after upload)
+        maxLength: 8000
+        type: string
+      content:
+        maxLength: 4000
+        type: string
+      content_type:
+        enum:
+        - text
+        - image
+        - video
+        - order_ref
+        - product_ref
+        - media_group
+        type: string
+      order_uuid:
+        description: References (optional, used when content_type = 'order_ref' or
+          'product_ref')
+        type: string
+      product_uuid:
+        type: string
+    required:
+    - content
+    type: object
+  dto.SendMessageResponse:
+    properties:
+      message:
+        $ref: '#/definitions/dto.MessageResponse'
+    type: object
   dto.SendRegisterOTPInput:
     properties:
       age:
@@ -1454,6 +1548,11 @@ definitions:
         type: number
       shipping_provider:
         type: string
+    type: object
+  dto.ShopStatusResponse:
+    properties:
+      is_online:
+        type: boolean
     type: object
   dto.StockMovementDTO:
     properties:
@@ -2074,105 +2173,6 @@ definitions:
     - amount
     - order_uuid
     - reason
-    type: object
-  v1dto.ConversationResponse:
-    properties:
-      admin_id:
-        type: integer
-      conversation_id:
-        type: integer
-      created_at:
-        type: string
-      is_online:
-        type: boolean
-      is_shop_online:
-        type: boolean
-      last_message_at:
-        type: string
-      last_message_content:
-        type: string
-      status:
-        type: string
-      unread_count:
-        type: integer
-      updated_at:
-        type: string
-      user_avatar:
-        type: string
-      user_email:
-        type: string
-      user_fullname:
-        type: string
-      user_id:
-        type: integer
-      uuid:
-        type: string
-    type: object
-  v1dto.MessageResponse:
-    properties:
-      attachment_name:
-        type: string
-      attachment_size:
-        type: integer
-      attachment_url:
-        type: string
-      content:
-        type: string
-      content_type:
-        type: string
-      created_at:
-        type: string
-      is_read:
-        type: boolean
-      sender_id:
-        type: integer
-      sender_role:
-        type: string
-      uuid:
-        type: string
-    type: object
-  v1dto.SendMessageRequest:
-    properties:
-      attachment_name:
-        maxLength: 2000
-        type: string
-      attachment_size:
-        minimum: 0
-        type: integer
-      attachment_url:
-        description: Attachment fields (optional, set by FE after upload)
-        maxLength: 8000
-        type: string
-      content:
-        maxLength: 4000
-        type: string
-      content_type:
-        enum:
-        - text
-        - image
-        - video
-        - order_ref
-        - product_ref
-        - media_group
-        type: string
-      order_uuid:
-        description: References (optional, used when content_type = 'order_ref' or
-          'product_ref')
-        type: string
-      product_uuid:
-        type: string
-    required:
-    - content
-    type: object
-  v1dto.SendMessageResponse:
-    properties:
-      message:
-        $ref: '#/definitions/v1dto.MessageResponse'
-    type: object
-  v1dto.ShopStatusResponse:
-    properties:
-      is_online:
-        type: boolean
     type: object
   v1dto.UploadResponseDTO:
     properties:
@@ -2825,7 +2825,7 @@ paths:
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/v1dto.ConversationResponse'
+                    $ref: '#/definitions/dto.ConversationResponse'
                   type: array
               type: object
         "401":
@@ -2864,7 +2864,7 @@ paths:
             - $ref: '#/definitions/goshop_internal_utils.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/v1dto.ConversationResponse'
+                  $ref: '#/definitions/dto.ConversationResponse'
               type: object
         "400":
           description: Bad Request
@@ -2962,7 +2962,7 @@ paths:
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/v1dto.MessageResponse'
+                    $ref: '#/definitions/dto.MessageResponse'
                   type: array
               type: object
         "400":
@@ -3001,7 +3001,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/v1dto.SendMessageRequest'
+          $ref: '#/definitions/dto.SendMessageRequest'
       produces:
       - application/json
       responses:
@@ -3012,7 +3012,7 @@ paths:
             - $ref: '#/definitions/goshop_internal_utils.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/v1dto.SendMessageResponse'
+                  $ref: '#/definitions/dto.SendMessageResponse'
               type: object
         "400":
           description: Bad Request
@@ -3128,7 +3128,7 @@ paths:
             - $ref: '#/definitions/goshop_internal_utils.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/v1dto.MessageResponse'
+                  $ref: '#/definitions/dto.MessageResponse'
               type: object
         "400":
           description: Bad Request
@@ -3210,7 +3210,7 @@ paths:
             - $ref: '#/definitions/goshop_internal_utils.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/v1dto.ConversationResponse'
+                  $ref: '#/definitions/dto.ConversationResponse'
               type: object
         "400":
           description: Bad Request
@@ -6296,7 +6296,7 @@ paths:
             - $ref: '#/definitions/goshop_internal_utils.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/v1dto.ConversationResponse'
+                  $ref: '#/definitions/dto.ConversationResponse'
               type: object
         "401":
           description: Unauthorized
@@ -6340,7 +6340,7 @@ paths:
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/v1dto.MessageResponse'
+                    $ref: '#/definitions/dto.MessageResponse'
                   type: array
               type: object
         "401":
@@ -6366,7 +6366,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/v1dto.SendMessageRequest'
+          $ref: '#/definitions/dto.SendMessageRequest'
       produces:
       - application/json
       responses:
@@ -6377,7 +6377,7 @@ paths:
             - $ref: '#/definitions/goshop_internal_utils.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/v1dto.SendMessageResponse'
+                  $ref: '#/definitions/dto.SendMessageResponse'
               type: object
         "400":
           description: Bad Request
@@ -6415,7 +6415,7 @@ paths:
             - $ref: '#/definitions/goshop_internal_utils.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/v1dto.MessageResponse'
+                  $ref: '#/definitions/dto.MessageResponse'
               type: object
         "400":
           description: Bad Request
@@ -6478,7 +6478,7 @@ paths:
             - $ref: '#/definitions/goshop_internal_utils.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/v1dto.ShopStatusResponse'
+                  $ref: '#/definitions/dto.ShopStatusResponse'
               type: object
         "500":
           description: Internal Server Error

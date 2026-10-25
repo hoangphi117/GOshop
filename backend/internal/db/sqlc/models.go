@@ -12,6 +12,69 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AnalyticsOrderItemsProjection struct {
+	OrderItemID          int32          `json:"order_item_id"`
+	OrderItemUuid        uuid.UUID      `json:"order_item_uuid"`
+	OrderItemOrderID     int32          `json:"order_item_order_id"`
+	OrderItemProductID   int32          `json:"order_item_product_id"`
+	OrderItemProductName string         `json:"order_item_product_name"`
+	OrderItemPrice       pgtype.Numeric `json:"order_item_price"`
+	OrderItemQuantity    int32          `json:"order_item_quantity"`
+	OrderItemSubtotal    pgtype.Numeric `json:"order_item_subtotal"`
+	OrderItemCreatedAt   time.Time      `json:"order_item_created_at"`
+}
+
+type AnalyticsOrderReturnsProjection struct {
+	ReturnID               int32          `json:"return_id"`
+	ReturnUuid             uuid.UUID      `json:"return_uuid"`
+	ReturnOrderID          int32          `json:"return_order_id"`
+	ReturnOrderNumber      string         `json:"return_order_number"`
+	ReturnUserID           int32          `json:"return_user_id"`
+	ReturnUserUuid         uuid.UUID      `json:"return_user_uuid"`
+	ReturnReason           string         `json:"return_reason"`
+	ReturnDescription      *string        `json:"return_description"`
+	ReturnImages           []string       `json:"return_images"`
+	ReturnStatus           int16          `json:"return_status"`
+	ReturnAdminNote        *string        `json:"return_admin_note"`
+	ReturnRefundAmount     pgtype.Numeric `json:"return_refund_amount"`
+	ReturnBankAccountName  *string        `json:"return_bank_account_name"`
+	ReturnBankAccountNum   *string        `json:"return_bank_account_num"`
+	ReturnBankName         *string        `json:"return_bank_name"`
+	ReturnShippingProvider *string        `json:"return_shipping_provider"`
+	ReturnShippingCode     *string        `json:"return_shipping_code"`
+	ReturnShippingFee      pgtype.Numeric `json:"return_shipping_fee"`
+	ReturnCreatedAt        time.Time      `json:"return_created_at"`
+	ReturnUpdatedAt        time.Time      `json:"return_updated_at"`
+}
+
+type AnalyticsOrdersProjection struct {
+	OrderID               int32              `json:"order_id"`
+	OrderUuid             uuid.UUID          `json:"order_uuid"`
+	OrderNumber           string             `json:"order_number"`
+	OrderUserID           int32              `json:"order_user_id"`
+	OrderUserUuid         uuid.UUID          `json:"order_user_uuid"`
+	OrderCustomerName     string             `json:"order_customer_name"`
+	OrderCustomerEmail    string             `json:"order_customer_email"`
+	OrderShippingName     string             `json:"order_shipping_name"`
+	OrderShippingPhone    string             `json:"order_shipping_phone"`
+	OrderShippingAddress  string             `json:"order_shipping_address"`
+	OrderTotalAmount      pgtype.Numeric     `json:"order_total_amount"`
+	OrderRefundedAmount   pgtype.Numeric     `json:"order_refunded_amount"`
+	OrderDiscountAmount   pgtype.Numeric     `json:"order_discount_amount"`
+	OrderCouponID         *int32             `json:"order_coupon_id"`
+	OrderPaymentMethod    int32              `json:"order_payment_method"`
+	OrderPaymentStatus    int32              `json:"order_payment_status"`
+	OrderNote             *string            `json:"order_note"`
+	OrderStatus           int32              `json:"order_status"`
+	OrderShippingProvider *string            `json:"order_shipping_provider"`
+	OrderShippingCode     *string            `json:"order_shipping_code"`
+	OrderShippingFee      pgtype.Numeric     `json:"order_shipping_fee"`
+	OrderDeliveredAt      pgtype.Timestamptz `json:"order_delivered_at"`
+	OrderCancelledAt      pgtype.Timestamptz `json:"order_cancelled_at"`
+	OrderCreatedAt        time.Time          `json:"order_created_at"`
+	OrderUpdatedAt        time.Time          `json:"order_updated_at"`
+}
+
 type Banner struct {
 	BannerID        int32              `json:"banner_id"`
 	BannerUuid      uuid.UUID          `json:"banner_uuid"`
@@ -172,6 +235,50 @@ type Product struct {
 	ProductDeletedAt   pgtype.Timestamptz `json:"product_deleted_at"`
 	ProductCreatedAt   time.Time          `json:"product_created_at"`
 	ProductUpdatedAt   time.Time          `json:"product_updated_at"`
+}
+
+type ProductReview struct {
+	ReviewID        int32     `json:"review_id"`
+	ReviewUuid      uuid.UUID `json:"review_uuid"`
+	ReviewUserID    int32     `json:"review_user_id"`
+	ReviewProductID int32     `json:"review_product_id"`
+	ReviewOrderID   *int32    `json:"review_order_id"`
+	ReviewOrderUuid uuid.UUID `json:"review_order_uuid"`
+	ReviewRating    int16     `json:"review_rating"`
+	ReviewTitle     *string   `json:"review_title"`
+	ReviewComment   *string   `json:"review_comment"`
+	ReviewImages    []string  `json:"review_images"`
+	ReviewVideoUrl  *string   `json:"review_video_url"`
+	ReviewHasMedia  bool      `json:"review_has_media"`
+	// 1: Visible, 2: Hidden, 3: Reported
+	ReviewStatus       int16              `json:"review_status"`
+	ReviewEditCount    int32              `json:"review_edit_count"`
+	ReviewHelpfulCount int32              `json:"review_helpful_count"`
+	ReviewUserName     string             `json:"review_user_name"`
+	ReviewUserEmail    string             `json:"review_user_email"`
+	ReviewUserAvatar   string             `json:"review_user_avatar"`
+	ReviewReply        *string            `json:"review_reply"`
+	ReviewReplyAt      pgtype.Timestamptz `json:"review_reply_at"`
+	ReviewCreatedAt    time.Time          `json:"review_created_at"`
+	ReviewUpdatedAt    time.Time          `json:"review_updated_at"`
+}
+
+type ProductReviewHelpfulVote struct {
+	VoteID    int32     `json:"vote_id"`
+	ReviewID  int32     `json:"review_id"`
+	UserID    int32     `json:"user_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type ProductReviewReport struct {
+	ReportID  int32     `json:"report_id"`
+	ReviewID  int32     `json:"review_id"`
+	UserID    int32     `json:"user_id"`
+	UserName  string    `json:"user_name"`
+	UserEmail string    `json:"user_email"`
+	Reason    string    `json:"reason"`
+	Details   *string   `json:"details"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type StockMovement struct {

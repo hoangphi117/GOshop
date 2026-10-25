@@ -1,23 +1,23 @@
-package v1handler
+package handler
 
 import (
 	"net/http"
 
-	v1dto "goshop/internal/dto/v1"
-	"goshop/pkg/middleware"
-	v1service "goshop/internal/service/v1"
 	"goshop/internal/utils"
 	"goshop/internal/validation"
+	"goshop/pkg/middleware"
+	chatdto "goshop/services/chat/internal/dto"
+	chatservice "goshop/services/chat/internal/service"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
 type ChatHandler struct {
-	chatService v1service.ChatService
+	chatService chatservice.ChatService
 }
 
-func NewChatHandler(chatService v1service.ChatService) *ChatHandler {
+func NewChatHandler(chatService chatservice.ChatService) *ChatHandler {
 	return &ChatHandler{chatService: chatService}
 }
 
@@ -31,7 +31,7 @@ func NewChatHandler(chatService v1service.ChatService) *ChatHandler {
 // @Tags         Chat
 // @Produce      json
 // @Security     BearerAuth
-// @Success      200 {object} utils.APIResponse{data=v1dto.ConversationResponse}
+// @Success      200 {object} utils.APIResponse{data=chatdto.ConversationResponse}
 // @Failure      401 {object} utils.ErrorResponse
 // @Failure      500 {object} utils.ErrorResponse
 // @Router       /chat/conversation [get]
@@ -66,7 +66,7 @@ func (h *ChatHandler) GetMyConversation(ctx *gin.Context) {
 // @Param        page     query int false "Page number" default(1)
 // @Param        limit    query int false "Items per page" default(20)
 // @Param        before_id query int false "Cursor before ID"
-// @Success      200 {object} utils.APIResponse{data=[]v1dto.MessageResponse}
+// @Success      200 {object} utils.APIResponse{data=[]chatdto.MessageResponse}
 // @Failure      401 {object} utils.ErrorResponse
 // @Failure      500 {object} utils.ErrorResponse
 // @Router       /chat/messages [get]
@@ -77,7 +77,7 @@ func (h *ChatHandler) GetMyMessages(ctx *gin.Context) {
 		return
 	}
 
-	var req v1dto.ListMessagesRequest
+	var req chatdto.ListMessagesRequest
 	if err := ctx.ShouldBindQuery(&req); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -112,8 +112,8 @@ func (h *ChatHandler) GetMyMessages(ctx *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Security     BearerAuth
-// @Param        body body v1dto.SendMessageRequest true "Message content payload"
-// @Success      201 {object} utils.APIResponse{data=v1dto.SendMessageResponse}
+// @Param        body body chatdto.SendMessageRequest true "Message content payload"
+// @Success      201 {object} utils.APIResponse{data=chatdto.SendMessageResponse}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      401 {object} utils.ErrorResponse
 // @Failure      500 {object} utils.ErrorResponse
@@ -125,7 +125,7 @@ func (h *ChatHandler) SendMessage(ctx *gin.Context) {
 		return
 	}
 
-	var req v1dto.SendMessageRequest
+	var req chatdto.SendMessageRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -143,7 +143,7 @@ func (h *ChatHandler) SendMessage(ctx *gin.Context) {
 		return
 	}
 
-	utils.ResponseSuccess(ctx, http.StatusCreated, "Message sent successfully", v1dto.SendMessageResponse{Message: msg})
+	utils.ResponseSuccess(ctx, http.StatusCreated, "Message sent successfully", chatdto.SendMessageResponse{Message: msg})
 }
 
 // MarkAsRead godoc
@@ -184,7 +184,7 @@ func (h *ChatHandler) MarkAsRead(ctx *gin.Context) {
 // @Produce      json
 // @Security     BearerAuth
 // @Param        id  path string true "Message UUID"
-// @Success      200 {object} utils.APIResponse{data=v1dto.MessageResponse}
+// @Success      200 {object} utils.APIResponse{data=chatdto.MessageResponse}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      401 {object} utils.ErrorResponse
 // @Failure      403 {object} utils.ErrorResponse
@@ -239,6 +239,51 @@ func (h *ChatHandler) GetUnreadCount(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Unread count retrieved successfully", gin.H{"unread_count": count})
 }
 
+// SendTyping handles customer typing status update
+func (h *ChatHandler) SendTyping(ctx *gin.Context) {
+	userUUID, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	var req chatdto.SendTypingRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	conv, err := h.chatService.GetOrCreateConversation(ctx.Request.Context(), userUUID)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	if err := h.chatService.SendTyping(ctx.Request.Context(), conv.ConversationUuid, userUUID, req.IsTyping); err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Typing event sent", nil)
+}
+
+// GetShopStatus godoc
+// @Summary      Get shop online status
+// @Description  Check whether any shop admin is currently online
+// @Tags         Chat
+// @Produce      json
+// @Success      200 {object} utils.APIResponse{data=chatdto.ShopStatusResponse}
+// @Failure      500 {object} utils.ErrorResponse
+// @Router       /chat/shop-status [get]
+func (h *ChatHandler) GetShopStatus(ctx *gin.Context) {
+	status, err := h.chatService.GetShopStatus(ctx.Request.Context())
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+	utils.ResponseSuccess(ctx, http.StatusOK, "Shop status retrieved successfully", status)
+}
+
 // -------------------------------------------------------------------------
 // Admin / Dashboard Endpoints
 // -------------------------------------------------------------------------
@@ -253,7 +298,7 @@ func (h *ChatHandler) GetUnreadCount(ctx *gin.Context) {
 // @Param        search query string false "Search keyword in user name or email"
 // @Param        page   query int    false "Page number" default(1)
 // @Param        limit  query int    false "Items per page" default(20)
-// @Success      200 {object} utils.APIResponse{data=[]v1dto.ConversationResponse}
+// @Success      200 {object} utils.APIResponse{data=[]chatdto.ConversationResponse}
 // @Failure      401 {object} utils.ErrorResponse
 // @Failure      403 {object} utils.ErrorResponse
 // @Failure      500 {object} utils.ErrorResponse
@@ -265,7 +310,7 @@ func (h *ChatHandler) AdminListConversations(ctx *gin.Context) {
 		return
 	}
 
-	var req v1dto.ListConversationsRequest
+	var req chatdto.ListConversationsRequest
 	if err := ctx.ShouldBindQuery(&req); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -294,7 +339,7 @@ func (h *ChatHandler) AdminListConversations(ctx *gin.Context) {
 // @Produce      json
 // @Security     BearerAuth
 // @Param        id  path string true "Conversation UUID"
-// @Success      200 {object} utils.APIResponse{data=v1dto.ConversationResponse}
+// @Success      200 {object} utils.APIResponse{data=chatdto.ConversationResponse}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      401 {object} utils.ErrorResponse
 // @Failure      403 {object} utils.ErrorResponse
@@ -333,7 +378,7 @@ func (h *ChatHandler) AdminGetConversation(ctx *gin.Context) {
 // @Param        page     query int    false "Page number" default(1)
 // @Param        limit    query int    false "Items per page" default(20)
 // @Param        before_id query int   false "Cursor before ID"
-// @Success      200 {object} utils.APIResponse{data=[]v1dto.MessageResponse}
+// @Success      200 {object} utils.APIResponse{data=[]chatdto.MessageResponse}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      401 {object} utils.ErrorResponse
 // @Failure      403 {object} utils.ErrorResponse
@@ -352,7 +397,7 @@ func (h *ChatHandler) AdminListMessages(ctx *gin.Context) {
 		return
 	}
 
-	var req v1dto.ListMessagesRequest
+	var req chatdto.ListMessagesRequest
 	if err := ctx.ShouldBindQuery(&req); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -382,8 +427,8 @@ func (h *ChatHandler) AdminListMessages(ctx *gin.Context) {
 // @Produce      json
 // @Security     BearerAuth
 // @Param        id   path string true "Conversation UUID"
-// @Param        body body v1dto.SendMessageRequest true "Message payload"
-// @Success      201 {object} utils.APIResponse{data=v1dto.SendMessageResponse}
+// @Param        body body chatdto.SendMessageRequest true "Message payload"
+// @Success      201 {object} utils.APIResponse{data=chatdto.SendMessageResponse}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      401 {object} utils.ErrorResponse
 // @Failure      403 {object} utils.ErrorResponse
@@ -402,7 +447,7 @@ func (h *ChatHandler) AdminSendMessage(ctx *gin.Context) {
 		return
 	}
 
-	var req v1dto.SendMessageRequest
+	var req chatdto.SendMessageRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -414,7 +459,7 @@ func (h *ChatHandler) AdminSendMessage(ctx *gin.Context) {
 		return
 	}
 
-	utils.ResponseSuccess(ctx, http.StatusCreated, "Message sent successfully", v1dto.SendMessageResponse{Message: msg})
+	utils.ResponseSuccess(ctx, http.StatusCreated, "Message sent successfully", chatdto.SendMessageResponse{Message: msg})
 }
 
 // AdminMarkAsRead godoc
@@ -516,7 +561,7 @@ func (h *ChatHandler) AdminReopenConversation(ctx *gin.Context) {
 // @Produce      json
 // @Security     BearerAuth
 // @Param        id  path string true "Message UUID"
-// @Success      200 {object} utils.APIResponse{data=v1dto.MessageResponse}
+// @Success      200 {object} utils.APIResponse{data=chatdto.MessageResponse}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      401 {object} utils.ErrorResponse
 // @Failure      403 {object} utils.ErrorResponse
@@ -572,34 +617,6 @@ func (h *ChatHandler) AdminGetUnreadCount(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Admin total unread count retrieved successfully", gin.H{"unread_count": count})
 }
 
-// SendTyping handles customer typing status update
-func (h *ChatHandler) SendTyping(ctx *gin.Context) {
-	userUUID, err := middleware.GetUserUUID(ctx)
-	if err != nil {
-		utils.ResponseError(ctx, err)
-		return
-	}
-
-	var req v1dto.SendTypingRequest
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
-		return
-	}
-
-	conv, err := h.chatService.GetOrCreateConversation(ctx.Request.Context(), userUUID)
-	if err != nil {
-		utils.ResponseError(ctx, err)
-		return
-	}
-
-	if err := h.chatService.SendTyping(ctx.Request.Context(), conv.ConversationUuid, userUUID, req.IsTyping); err != nil {
-		utils.ResponseError(ctx, err)
-		return
-	}
-
-	utils.ResponseSuccess(ctx, http.StatusOK, "Typing event sent", nil)
-}
-
 // AdminSendTyping handles admin typing status update for a conversation
 func (h *ChatHandler) AdminSendTyping(ctx *gin.Context) {
 	adminUUID, err := middleware.GetUserUUID(ctx)
@@ -614,7 +631,7 @@ func (h *ChatHandler) AdminSendTyping(ctx *gin.Context) {
 		return
 	}
 
-	var req v1dto.SendTypingRequest
+	var req chatdto.SendTypingRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -628,23 +645,6 @@ func (h *ChatHandler) AdminSendTyping(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Typing event sent", nil)
 }
 
-// GetShopStatus godoc
-// @Summary      Get shop online status
-// @Description  Check whether any shop admin is currently online
-// @Tags         Chat
-// @Produce      json
-// @Success      200 {object} utils.APIResponse{data=v1dto.ShopStatusResponse}
-// @Failure      500 {object} utils.ErrorResponse
-// @Router       /chat/shop-status [get]
-func (h *ChatHandler) GetShopStatus(ctx *gin.Context) {
-	status, err := h.chatService.GetShopStatus(ctx.Request.Context())
-	if err != nil {
-		utils.ResponseError(ctx, err)
-		return
-	}
-	utils.ResponseSuccess(ctx, http.StatusOK, "Shop status retrieved successfully", status)
-}
-
 // AdminGetOrCreateUserConversation godoc
 // @Summary      Get or create conversation for a customer
 // @Description  Admin get existing conversation with a user or create a new one
@@ -652,7 +652,7 @@ func (h *ChatHandler) GetShopStatus(ctx *gin.Context) {
 // @Produce      json
 // @Security     BearerAuth
 // @Param        user_uuid path string true "User UUID"
-// @Success      200 {object} utils.APIResponse{data=v1dto.ConversationResponse}
+// @Success      200 {object} utils.APIResponse{data=chatdto.ConversationResponse}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      401 {object} utils.ErrorResponse
 // @Failure      403 {object} utils.ErrorResponse
@@ -685,4 +685,3 @@ func (h *ChatHandler) AdminGetOrCreateUserConversation(ctx *gin.Context) {
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Conversation retrieved successfully", details)
 }
-

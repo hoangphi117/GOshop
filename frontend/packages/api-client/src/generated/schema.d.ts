@@ -965,7 +965,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["v1dto.ConversationResponse"][];
+                            data?: components["schemas"]["dto.ConversationResponse"][];
                         };
                     };
                 };
@@ -1036,7 +1036,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["v1dto.ConversationResponse"];
+                            data?: components["schemas"]["dto.ConversationResponse"];
                         };
                     };
                 };
@@ -1210,7 +1210,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["v1dto.MessageResponse"][];
+                            data?: components["schemas"]["dto.MessageResponse"][];
                         };
                     };
                 };
@@ -1270,7 +1270,7 @@ export interface paths {
             /** @description Message payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["v1dto.SendMessageRequest"];
+                    "application/json": components["schemas"]["dto.SendMessageRequest"];
                 };
             };
             responses: {
@@ -1281,7 +1281,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["v1dto.SendMessageResponse"];
+                            data?: components["schemas"]["dto.SendMessageResponse"];
                         };
                     };
                 };
@@ -1521,7 +1521,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["v1dto.MessageResponse"];
+                            data?: components["schemas"]["dto.MessageResponse"];
                         };
                     };
                 };
@@ -1676,7 +1676,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["v1dto.ConversationResponse"];
+                            data?: components["schemas"]["dto.ConversationResponse"];
                         };
                     };
                 };
@@ -6548,7 +6548,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["v1dto.ConversationResponse"];
+                            data?: components["schemas"]["dto.ConversationResponse"];
                         };
                     };
                 };
@@ -6614,7 +6614,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["v1dto.MessageResponse"][];
+                            data?: components["schemas"]["dto.MessageResponse"][];
                         };
                     };
                 };
@@ -6653,7 +6653,7 @@ export interface paths {
             /** @description Message content payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["v1dto.SendMessageRequest"];
+                    "application/json": components["schemas"]["dto.SendMessageRequest"];
                 };
             };
             responses: {
@@ -6664,7 +6664,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["v1dto.SendMessageResponse"];
+                            data?: components["schemas"]["dto.SendMessageResponse"];
                         };
                     };
                 };
@@ -6796,7 +6796,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["v1dto.MessageResponse"];
+                            data?: components["schemas"]["dto.MessageResponse"];
                         };
                     };
                 };
@@ -6876,7 +6876,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["v1dto.ShopStatusResponse"];
+                            data?: components["schemas"]["dto.ShopStatusResponse"];
                         };
                     };
                 };
@@ -9807,6 +9807,23 @@ export interface components {
             new_password: string;
             old_password: string;
         };
+        "dto.ConversationResponse": {
+            admin_id?: number;
+            conversation_id?: number;
+            created_at?: string;
+            is_online?: boolean;
+            is_shop_online?: boolean;
+            last_message_at?: string;
+            last_message_content?: string;
+            status?: string;
+            unread_count?: number;
+            updated_at?: string;
+            user_avatar?: string;
+            user_email?: string;
+            user_fullname?: string;
+            user_id?: number;
+            uuid?: string;
+        };
         "dto.CouponDTO": {
             code?: string;
             description?: string;
@@ -10010,6 +10027,18 @@ export interface components {
             items?: components["schemas"]["dto.LowStockProductDTO"][];
             threshold?: number;
             total_low?: number;
+        };
+        "dto.MessageResponse": {
+            attachment_name?: string;
+            attachment_size?: number;
+            attachment_url?: string;
+            content?: string;
+            content_type?: string;
+            created_at?: string;
+            is_read?: boolean;
+            sender_id?: number;
+            sender_role?: string;
+            uuid?: string;
         };
         "dto.MyReviewDTO": {
             can_edit?: boolean;
@@ -10259,6 +10288,21 @@ export interface components {
             user_id?: number;
             user_name?: string;
         };
+        "dto.SendMessageRequest": {
+            attachment_name?: string;
+            attachment_size?: number;
+            /** @description Attachment fields (optional, set by FE after upload) */
+            attachment_url?: string;
+            content: string;
+            /** @enum {string} */
+            content_type?: "text" | "image" | "video" | "order_ref" | "product_ref" | "media_group";
+            /** @description References (optional, used when content_type = 'order_ref' or 'product_ref') */
+            order_uuid?: string;
+            product_uuid?: string;
+        };
+        "dto.SendMessageResponse": {
+            message?: components["schemas"]["dto.MessageResponse"];
+        };
         "dto.SendRegisterOTPInput": {
             age?: number;
             email: string;
@@ -10279,6 +10323,9 @@ export interface components {
             shipping_code?: string;
             shipping_fee?: number;
             shipping_provider?: string;
+        };
+        "dto.ShopStatusResponse": {
+            is_online?: boolean;
         };
         "dto.StockMovementDTO": {
             actor_id?: number;
@@ -10551,53 +10598,6 @@ export interface components {
             idempotency_key?: string;
             order_uuid: string;
             reason: string;
-        };
-        "v1dto.ConversationResponse": {
-            admin_id?: number;
-            conversation_id?: number;
-            created_at?: string;
-            is_online?: boolean;
-            is_shop_online?: boolean;
-            last_message_at?: string;
-            last_message_content?: string;
-            status?: string;
-            unread_count?: number;
-            updated_at?: string;
-            user_avatar?: string;
-            user_email?: string;
-            user_fullname?: string;
-            user_id?: number;
-            uuid?: string;
-        };
-        "v1dto.MessageResponse": {
-            attachment_name?: string;
-            attachment_size?: number;
-            attachment_url?: string;
-            content?: string;
-            content_type?: string;
-            created_at?: string;
-            is_read?: boolean;
-            sender_id?: number;
-            sender_role?: string;
-            uuid?: string;
-        };
-        "v1dto.SendMessageRequest": {
-            attachment_name?: string;
-            attachment_size?: number;
-            /** @description Attachment fields (optional, set by FE after upload) */
-            attachment_url?: string;
-            content: string;
-            /** @enum {string} */
-            content_type?: "text" | "image" | "video" | "order_ref" | "product_ref" | "media_group";
-            /** @description References (optional, used when content_type = 'order_ref' or 'product_ref') */
-            order_uuid?: string;
-            product_uuid?: string;
-        };
-        "v1dto.SendMessageResponse": {
-            message?: components["schemas"]["v1dto.MessageResponse"];
-        };
-        "v1dto.ShopStatusResponse": {
-            is_online?: boolean;
         };
         "v1dto.UploadResponseDTO": {
             file_name?: string;

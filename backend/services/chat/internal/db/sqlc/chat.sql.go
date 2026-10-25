@@ -14,12 +14,12 @@ import (
 )
 
 const countConversations = `-- name: CountConversations :one
-SELECT COUNT(*) 
+SELECT COUNT(*)
 FROM chat_conversations c
 WHERE ($1::text = '' OR c.status = $1)
   AND (
-      $2::text = '' 
-      OR c.user_fullname ILIKE '%' || $2 || '%' 
+      $2::text = ''
+      OR c.user_fullname ILIKE '%' || $2 || '%'
       OR c.user_email ILIKE '%' || $2 || '%'
   )
 `
@@ -68,13 +68,25 @@ func (q *Queries) CountUnreadMessages(ctx context.Context, arg CountUnreadMessag
 }
 
 const createConversation = `-- name: CreateConversation :one
-INSERT INTO chat_conversations (user_id)
-VALUES ($1)
+INSERT INTO chat_conversations (user_id, user_email, user_fullname, user_avatar)
+VALUES ($1, $2, $3, $4)
 RETURNING conversation_id, conversation_uuid, user_id, admin_id, user_fullname, user_email, user_avatar, status, last_message_at, created_at, updated_at
 `
 
-func (q *Queries) CreateConversation(ctx context.Context, userID int32) (ChatConversation, error) {
-	row := q.db.QueryRow(ctx, createConversation, userID)
+type CreateConversationParams struct {
+	UserID       int32  `json:"user_id"`
+	UserEmail    string `json:"user_email"`
+	UserFullname string `json:"user_fullname"`
+	UserAvatar   string `json:"user_avatar"`
+}
+
+func (q *Queries) CreateConversation(ctx context.Context, arg CreateConversationParams) (ChatConversation, error) {
+	row := q.db.QueryRow(ctx, createConversation,
+		arg.UserID,
+		arg.UserEmail,
+		arg.UserFullname,
+		arg.UserAvatar,
+	)
 	var i ChatConversation
 	err := row.Scan(
 		&i.ConversationID,
@@ -94,7 +106,7 @@ func (q *Queries) CreateConversation(ctx context.Context, userID int32) (ChatCon
 
 const createMessage = `-- name: CreateMessage :one
 INSERT INTO chat_messages (
-  conversation_id, sender_id, sender_role, 
+  conversation_id, sender_id, sender_role,
   content, content_type,
   attachment_url, attachment_name, attachment_size
   )
@@ -190,9 +202,9 @@ func (q *Queries) GetConversationByUUID(ctx context.Context, conversationUuid uu
 }
 
 const getConversationByUserID = `-- name: GetConversationByUserID :one
-SELECT conversation_id, conversation_uuid, user_id, admin_id, user_fullname, user_email, user_avatar, status, last_message_at, created_at, updated_at FROM chat_conversations 
-WHERE user_id = $1 AND status != 'closed' 
-ORDER BY created_at DESC 
+SELECT conversation_id, conversation_uuid, user_id, admin_id, user_fullname, user_email, user_avatar, status, last_message_at, created_at, updated_at FROM chat_conversations
+WHERE user_id = $1 AND status != 'closed'
+ORDER BY created_at DESC
 LIMIT 1
 `
 
@@ -243,7 +255,7 @@ func (q *Queries) GetMessageByUUID(ctx context.Context, messageUuid uuid.UUID) (
 
 const getTotalUnreadMessagesForAdmin = `-- name: GetTotalUnreadMessagesForAdmin :one
 SELECT COUNT(*) FROM chat_messages
-WHERE sender_role = 'user' 
+WHERE sender_role = 'user'
   AND is_read = FALSE
 `
 
@@ -257,8 +269,8 @@ func (q *Queries) GetTotalUnreadMessagesForAdmin(ctx context.Context) (int64, er
 const getTotalUnreadMessagesForUser = `-- name: GetTotalUnreadMessagesForUser :one
 SELECT COUNT(*) FROM chat_messages m
 JOIN chat_conversations c ON c.conversation_id = m.conversation_id
-WHERE c.user_id = $1 
-  AND m.sender_role = 'admin' 
+WHERE c.user_id = $1
+  AND m.sender_role = 'admin'
   AND m.is_read = FALSE
 `
 
@@ -270,7 +282,7 @@ func (q *Queries) GetTotalUnreadMessagesForUser(ctx context.Context, userID int3
 }
 
 const listConversations = `-- name: ListConversations :many
-SELECT 
+SELECT
     c.conversation_id,
     c.conversation_uuid,
     c.user_id,
@@ -283,32 +295,32 @@ SELECT
     c.user_fullname,
     c.user_avatar,
     COALESCE((
-        SELECT COUNT(*) 
-        FROM chat_messages m 
-        WHERE m.conversation_id = c.conversation_id 
-          AND m.is_read = FALSE 
+        SELECT COUNT(*)
+        FROM chat_messages m
+        WHERE m.conversation_id = c.conversation_id
+          AND m.is_read = FALSE
           AND m.sender_role = 'user'
     ), 0)::bigint AS unread_count,
     COALESCE((
-        SELECT 
-            CASE 
+        SELECT
+            CASE
                 WHEN m.content_type = 'image' THEN '[Image]'
                 WHEN m.content_type = 'media_group' THEN '[Images]'
                 WHEN m.content_type = 'video' THEN '[Video]'
                 WHEN m.content_type = 'order_ref' THEN '[Order]'
                 WHEN m.content_type = 'product_ref' THEN '[Product]'
-                ELSE m.content 
+                ELSE m.content
             END
-        FROM chat_messages m 
-        WHERE m.conversation_id = c.conversation_id 
-        ORDER BY m.message_id DESC 
+        FROM chat_messages m
+        WHERE m.conversation_id = c.conversation_id
+        ORDER BY m.message_id DESC
         LIMIT 1
     ), '')::text AS last_message_content
 FROM chat_conversations c
 WHERE ($1::text = '' OR c.status = $1)
   AND (
-      $2::text = '' 
-      OR c.user_fullname ILIKE '%' || $2 || '%' 
+      $2::text = ''
+      OR c.user_fullname ILIKE '%' || $2 || '%'
       OR c.user_email ILIKE '%' || $2 || '%'
   )
 ORDER BY c.last_message_at DESC NULLS LAST
@@ -551,6 +563,31 @@ func (q *Queries) UpdateConversationStatus(ctx context.Context, arg UpdateConver
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const updateConversationUserInfo = `-- name: UpdateConversationUserInfo :exec
+UPDATE chat_conversations
+SET user_email = $1, user_fullname = $2, user_avatar = $3, updated_at = now()
+WHERE conversation_id = $4
+`
+
+type UpdateConversationUserInfoParams struct {
+	UserEmail      string `json:"user_email"`
+	UserFullname   string `json:"user_fullname"`
+	UserAvatar     string `json:"user_avatar"`
+	ConversationID int32  `json:"conversation_id"`
+}
+
+// Backfills the denormalized user snapshot: rows seeded from the monolith
+// (pre-extraction data) have empty email/fullname/avatar columns.
+func (q *Queries) UpdateConversationUserInfo(ctx context.Context, arg UpdateConversationUserInfoParams) error {
+	_, err := q.db.Exec(ctx, updateConversationUserInfo,
+		arg.UserEmail,
+		arg.UserFullname,
+		arg.UserAvatar,
+		arg.ConversationID,
+	)
+	return err
 }
 
 const updateLastMessageAt = `-- name: UpdateLastMessageAt :exec
