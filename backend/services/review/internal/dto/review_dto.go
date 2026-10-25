@@ -1,8 +1,9 @@
-package v1dto
+package dto
 
 import (
-	"goshop/internal/db/sqlc"
 	"time"
+
+	reviewsqlc "goshop/services/review/internal/db/sqlc"
 
 	"github.com/google/uuid"
 )
@@ -100,8 +101,8 @@ type ReviewReportDTO struct {
 }
 
 type ToggleHelpfulResponseDTO struct {
-	Voted        bool  `json:"voted"`         // true: đã vote, false: đã hủy vote
-	HelpfulCount int32 `json:"helpful_count"` // số lượng vote mới nhất
+	Voted        bool  `json:"voted"`         // true: voted, false: vote removed
+	HelpfulCount int32 `json:"helpful_count"` // latest vote count
 }
 
 // ── Input ───────────────────────────────────────────────
@@ -163,6 +164,7 @@ type GetMyReviewsQuery struct {
 type ReviewUUIDParam struct {
 	UUID string `uri:"uuid" binding:"required,uuid"`
 }
+
 type ProductReviewsParam struct {
 	ProductUUID string `uri:"uuid" binding:"required,uuid"`
 }
@@ -170,6 +172,7 @@ type ProductReviewsParam struct {
 type MyReviewDTO struct {
 	UUID            string   `json:"uuid"`
 	ProductUUID     string   `json:"product_uuid"`
+	OrderUUID       string   `json:"order_uuid"`
 	ProductName     string   `json:"product_name"`
 	ProductSlug     string   `json:"product_slug"`
 	ProductImageURL *string  `json:"product_image_url,omitempty"`
@@ -196,9 +199,9 @@ type RatingSummaryRow struct {
 
 // ── Mapping Functions ─────────────────────────────────────────────
 
-func MapCreatedReviewToDTO(r sqlc.ProductReview, reviewerName, productUUID, orderUUID string) ReviewDTO {
+func MapCreatedReviewToDTO(r reviewsqlc.ProductReview, reviewerName, productUUID, orderUUID string) ReviewDTO {
 	images := r.ReviewImages
-	if r.ReviewImages == nil {
+	if images == nil {
 		images = []string{}
 	}
 
@@ -219,7 +222,7 @@ func MapCreatedReviewToDTO(r sqlc.ProductReview, reviewerName, productUUID, orde
 	}
 }
 
-func MapToMyReviewDTO(r sqlc.GetReviewsByUserIDRow) MyReviewDTO {
+func MapToMyReviewDTO(r reviewsqlc.GetReviewsByUserIDRow) MyReviewDTO {
 	images := r.ReviewImages
 	if images == nil {
 		images = []string{}
@@ -228,23 +231,21 @@ func MapToMyReviewDTO(r sqlc.GetReviewsByUserIDRow) MyReviewDTO {
 	canEdit := (r.ReviewEditCount == 0) && (time.Since(r.ReviewCreatedAt) <= 30*24*time.Hour)
 
 	return MyReviewDTO{
-		UUID:            r.ReviewUuid.String(),
-		ProductUUID:     r.ProductUuid.String(),
-		ProductName:     r.ProductName,
-		ProductSlug:     r.ProductSlug,
-		ProductImageURL: r.ProductImageUrl,
-		Rating:          int32(r.ReviewRating),
-		Title:           r.ReviewTitle,
-		Comment:         r.ReviewComment,
-		Images:          images,
-		VideoURL:        r.ReviewVideoUrl,
-		HasMedia:        r.ReviewHasMedia,
-		CanEdit:         canEdit,
-		CreatedAt:       r.ReviewCreatedAt.Format("2006-01-02 15:04:05"),
+		UUID:        r.ReviewUuid.String(),
+		ProductUUID: r.ReviewProductUuid.String(),
+		OrderUUID:   r.ReviewOrderUuid.String(),
+		Rating:      int32(r.ReviewRating),
+		Title:       r.ReviewTitle,
+		Comment:     r.ReviewComment,
+		Images:      images,
+		VideoURL:    r.ReviewVideoUrl,
+		HasMedia:    r.ReviewHasMedia,
+		CanEdit:     canEdit,
+		CreatedAt:   r.ReviewCreatedAt.Format("2006-01-02 15:04:05"),
 	}
 }
 
-func MapToMyReviewDTOs(rows []sqlc.GetReviewsByUserIDRow) []MyReviewDTO {
+func MapToMyReviewDTOs(rows []reviewsqlc.GetReviewsByUserIDRow) []MyReviewDTO {
 	result := make([]MyReviewDTO, len(rows))
 	for i, r := range rows {
 		result[i] = MapToMyReviewDTO(r)
@@ -284,6 +285,7 @@ func MapToAdminReviewDTO(r AdminReviewRow) AdminReviewDTO {
 		UpdatedAt:     r.ReviewUpdatedAt.Format("2006-01-02 15:04:05"),
 	}
 }
+
 func MapToAdminReviewDTOs(rows []AdminReviewRow) []AdminReviewDTO {
 	result := make([]AdminReviewDTO, len(rows))
 	for i, r := range rows {
@@ -292,7 +294,7 @@ func MapToAdminReviewDTOs(rows []AdminReviewRow) []AdminReviewDTO {
 	return result
 }
 
-func MapToReviewReportDTO(r sqlc.GetReviewReportsByReviewIDRow) ReviewReportDTO {
+func MapToReviewReportDTO(r reviewsqlc.GetReviewReportsByReviewIDRow) ReviewReportDTO {
 	return ReviewReportDTO{
 		ReportID:  r.ReportID,
 		UserID:    r.UserID,
@@ -304,7 +306,7 @@ func MapToReviewReportDTO(r sqlc.GetReviewReportsByReviewIDRow) ReviewReportDTO 
 	}
 }
 
-func MapToReviewReportDTOs(rows []sqlc.GetReviewReportsByReviewIDRow) []ReviewReportDTO {
+func MapToReviewReportDTOs(rows []reviewsqlc.GetReviewReportsByReviewIDRow) []ReviewReportDTO {
 	result := make([]ReviewReportDTO, len(rows))
 	for i, r := range rows {
 		result[i] = MapToReviewReportDTO(r)

@@ -237,50 +237,6 @@ type Product struct {
 	ProductUpdatedAt   time.Time          `json:"product_updated_at"`
 }
 
-type ProductReview struct {
-	ReviewID        int32     `json:"review_id"`
-	ReviewUuid      uuid.UUID `json:"review_uuid"`
-	ReviewUserID    int32     `json:"review_user_id"`
-	ReviewProductID int32     `json:"review_product_id"`
-	ReviewOrderID   *int32    `json:"review_order_id"`
-	ReviewOrderUuid uuid.UUID `json:"review_order_uuid"`
-	ReviewRating    int16     `json:"review_rating"`
-	ReviewTitle     *string   `json:"review_title"`
-	ReviewComment   *string   `json:"review_comment"`
-	ReviewImages    []string  `json:"review_images"`
-	ReviewVideoUrl  *string   `json:"review_video_url"`
-	ReviewHasMedia  bool      `json:"review_has_media"`
-	// 1: Visible, 2: Hidden, 3: Reported
-	ReviewStatus       int16              `json:"review_status"`
-	ReviewEditCount    int32              `json:"review_edit_count"`
-	ReviewHelpfulCount int32              `json:"review_helpful_count"`
-	ReviewUserName     string             `json:"review_user_name"`
-	ReviewUserEmail    string             `json:"review_user_email"`
-	ReviewUserAvatar   string             `json:"review_user_avatar"`
-	ReviewReply        *string            `json:"review_reply"`
-	ReviewReplyAt      pgtype.Timestamptz `json:"review_reply_at"`
-	ReviewCreatedAt    time.Time          `json:"review_created_at"`
-	ReviewUpdatedAt    time.Time          `json:"review_updated_at"`
-}
-
-type ProductReviewHelpfulVote struct {
-	VoteID    int32     `json:"vote_id"`
-	ReviewID  int32     `json:"review_id"`
-	UserID    int32     `json:"user_id"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
-type ProductReviewReport struct {
-	ReportID  int32     `json:"report_id"`
-	ReviewID  int32     `json:"review_id"`
-	UserID    int32     `json:"user_id"`
-	UserName  string    `json:"user_name"`
-	UserEmail string    `json:"user_email"`
-	Reason    string    `json:"reason"`
-	Details   *string   `json:"details"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
 type StockMovement struct {
 	MovementID    int32     `json:"movement_id"`
 	MovementUuid  uuid.UUID `json:"movement_uuid"`

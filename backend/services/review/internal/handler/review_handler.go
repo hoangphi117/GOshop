@@ -1,22 +1,23 @@
-package v1handler
+package handler
 
 import (
-	v1dto "goshop/internal/dto/v1"
-	"goshop/pkg/middleware"
-	v1service "goshop/internal/service/v1"
-	"goshop/internal/utils"
-	"goshop/internal/validation"
 	"net/http"
+
+	"goshop/pkg/middleware"
+	"goshop/pkg/utils"
+	"goshop/pkg/validation"
+	reviewdto "goshop/services/review/internal/dto"
+	"goshop/services/review/internal/service"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
 type ReviewHandler struct {
-	service v1service.ReviewService
+	service service.ReviewService
 }
 
-func NewReviewHandler(service v1service.ReviewService) *ReviewHandler {
+func NewReviewHandler(service service.ReviewService) *ReviewHandler {
 	return &ReviewHandler{
 		service: service,
 	}
@@ -30,8 +31,8 @@ func NewReviewHandler(service v1service.ReviewService) *ReviewHandler {
 // @Produce      json
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
-// @Param        request body v1dto.CreateReviewInput true "Review request body"
-// @Success      201 {object} utils.APIResponse{data=v1dto.ReviewDTO}
+// @Param        request body reviewdto.CreateReviewInput true "Review request body"
+// @Success      201 {object} utils.APIResponse{data=reviewdto.ReviewDTO}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /reviews [post]
@@ -42,7 +43,7 @@ func (rh *ReviewHandler) CreateReview(ctx *gin.Context) {
 		return
 	}
 
-	var input v1dto.CreateReviewInput
+	var input reviewdto.CreateReviewInput
 	if err := ctx.ShouldBindJSON(&input); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -74,11 +75,11 @@ func (rh *ReviewHandler) CreateReview(ctx *gin.Context) {
 // @Param        has_media query bool false "Filter reviews with photos/videos"
 // @Param        order_by query string false "Order by field" Enums(created_at, rating, helpful)
 // @Param        sort query string false "Sort order" Enums(asc, desc)
-// @Success      200 {object} utils.APIResponse{data=[]v1dto.ReviewDTO}
+// @Success      200 {object} utils.APIResponse{data=[]reviewdto.ReviewDTO}
 // @Failure      400 {object} utils.ErrorResponse
 // @Router       /products/{uuid}/reviews [get]
 func (rh *ReviewHandler) GetProductReviews(ctx *gin.Context) {
-	var param v1dto.ProductReviewsParam
+	var param reviewdto.ProductReviewsParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -90,7 +91,7 @@ func (rh *ReviewHandler) GetProductReviews(ctx *gin.Context) {
 		return
 	}
 
-	var query v1dto.GetReviewsQuery
+	var query reviewdto.GetReviewsQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -126,7 +127,7 @@ func (rh *ReviewHandler) GetProductReviews(ctx *gin.Context) {
 // @Failure      400 {object} utils.ErrorResponse
 // @Router       /products/{uuid}/reviews/summary [get]
 func (rh *ReviewHandler) GetProductRatingSummary(ctx *gin.Context) {
-	var param v1dto.ProductReviewsParam
+	var param reviewdto.ProductReviewsParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -156,7 +157,7 @@ func (rh *ReviewHandler) GetProductRatingSummary(ctx *gin.Context) {
 // @Security     ApiKeyAuth
 // @Param        page query int false "Page number" default(1)
 // @Param        limit query int false "Items per page" default(10)
-// @Success      200 {object} utils.APIResponse{data=[]v1dto.MyReviewDTO}
+// @Success      200 {object} utils.APIResponse{data=[]reviewdto.MyReviewDTO}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /reviews/me [get]
@@ -167,7 +168,7 @@ func (rh *ReviewHandler) GetMyReviews(ctx *gin.Context) {
 		return
 	}
 
-	var query v1dto.GetMyReviewsQuery
+	var query reviewdto.GetMyReviewsQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -201,8 +202,8 @@ func (rh *ReviewHandler) GetMyReviews(ctx *gin.Context) {
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Param        uuid path string true "Review UUID"
-// @Param        body body v1dto.UpdateReviewInput true "Review update payload"
-// @Success      200 {object} utils.APIResponse{data=v1dto.ReviewDTO}
+// @Param        body body reviewdto.UpdateReviewInput true "Review update payload"
+// @Success      200 {object} utils.APIResponse{data=reviewdto.ReviewDTO}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /reviews/{uuid} [put]
@@ -213,7 +214,7 @@ func (rh *ReviewHandler) UpdateReview(ctx *gin.Context) {
 		return
 	}
 
-	var param v1dto.ReviewUUIDParam
+	var param reviewdto.ReviewUUIDParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -225,7 +226,7 @@ func (rh *ReviewHandler) UpdateReview(ctx *gin.Context) {
 		return
 	}
 
-	var input v1dto.UpdateReviewInput
+	var input reviewdto.UpdateReviewInput
 	if err := ctx.ShouldBindJSON(&input); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -259,7 +260,7 @@ func (rh *ReviewHandler) DeleteReview(ctx *gin.Context) {
 		return
 	}
 
-	var param v1dto.ReviewUUIDParam
+	var param reviewdto.ReviewUUIDParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -288,13 +289,13 @@ func (rh *ReviewHandler) DeleteReview(ctx *gin.Context) {
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Param        uuid path string true "Review UUID"
-// @Param        body body v1dto.UpdateReviewStatusInput true "Status payload"
-// @Success      200 {object} utils.APIResponse{data=v1dto.ReviewDTO}
+// @Param        body body reviewdto.UpdateReviewStatusInput true "Status payload"
+// @Success      200 {object} utils.APIResponse{data=reviewdto.ReviewDTO}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /admin/reviews/{uuid}/status [patch]
 func (rh *ReviewHandler) UpdateReviewStatus(ctx *gin.Context) {
-	var param v1dto.ReviewUUIDParam
+	var param reviewdto.ReviewUUIDParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -306,7 +307,7 @@ func (rh *ReviewHandler) UpdateReviewStatus(ctx *gin.Context) {
 		return
 	}
 
-	var input v1dto.UpdateReviewStatusInput
+	var input reviewdto.UpdateReviewStatusInput
 	if err := ctx.ShouldBindJSON(&input); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -336,12 +337,12 @@ func (rh *ReviewHandler) UpdateReviewStatus(ctx *gin.Context) {
 // @Param        search query string false "Search query"
 // @Param        order_by query string false "Order by" Enums(created_at, rating)
 // @Param        sort query string false "Sort order" Enums(asc, desc)
-// @Success      200 {object} utils.APIResponse{data=[]v1dto.ReviewDTO}
+// @Success      200 {object} utils.APIResponse{data=[]reviewdto.ReviewDTO}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /admin/reviews [get]
 func (rh *ReviewHandler) AdminGetAllReviews(ctx *gin.Context) {
-	var query v1dto.AdminGetReviewsQuery
+	var query reviewdto.AdminGetReviewsQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -376,13 +377,13 @@ func (rh *ReviewHandler) AdminGetAllReviews(ctx *gin.Context) {
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Param        uuid path string true "Review UUID"
-// @Param        body body v1dto.ReplyReviewInput true "Reply payload"
-// @Success      200 {object} utils.APIResponse{data=v1dto.ReviewDTO}
+// @Param        body body reviewdto.ReplyReviewInput true "Reply payload"
+// @Success      200 {object} utils.APIResponse{data=reviewdto.ReviewDTO}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /admin/reviews/{uuid}/reply [patch]
 func (rh *ReviewHandler) AdminReplyReview(ctx *gin.Context) {
-	var param v1dto.ReviewUUIDParam
+	var param reviewdto.ReviewUUIDParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -394,7 +395,7 @@ func (rh *ReviewHandler) AdminReplyReview(ctx *gin.Context) {
 		return
 	}
 
-	var input v1dto.ReplyReviewInput
+	var input reviewdto.ReplyReviewInput
 	if err := ctx.ShouldBindJSON(&input); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -417,7 +418,7 @@ func (rh *ReviewHandler) AdminReplyReview(ctx *gin.Context) {
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Param        uuid path string true "Review UUID"
-// @Success      200 {object} utils.APIResponse{data=v1dto.ToggleHelpfulResponseDTO}
+// @Success      200 {object} utils.APIResponse{data=reviewdto.ToggleHelpfulResponseDTO}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /reviews/{uuid}/helpful [post]
@@ -428,7 +429,7 @@ func (rh *ReviewHandler) ToggleHelpfulVote(ctx *gin.Context) {
 		return
 	}
 
-	var param v1dto.ReviewUUIDParam
+	var param reviewdto.ReviewUUIDParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -458,7 +459,7 @@ func (rh *ReviewHandler) ToggleHelpfulVote(ctx *gin.Context) {
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Param        uuid path string true "Review UUID"
-// @Param        body body v1dto.ReportReviewInput true "Report payload"
+// @Param        body body reviewdto.ReportReviewInput true "Report payload"
 // @Success      200 {object} utils.APIResponse
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      401 {object} utils.ErrorResponse
@@ -470,7 +471,7 @@ func (rh *ReviewHandler) ReportReview(ctx *gin.Context) {
 		return
 	}
 
-	var param v1dto.ReviewUUIDParam
+	var param reviewdto.ReviewUUIDParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -482,7 +483,7 @@ func (rh *ReviewHandler) ReportReview(ctx *gin.Context) {
 		return
 	}
 
-	var input v1dto.ReportReviewInput
+	var input reviewdto.ReportReviewInput
 	if err := ctx.ShouldBindJSON(&input); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -509,7 +510,7 @@ func (rh *ReviewHandler) ReportReview(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /admin/reviews/{uuid} [delete]
 func (rh *ReviewHandler) AdminForceDeleteReview(ctx *gin.Context) {
-	var param v1dto.ReviewUUIDParam
+	var param reviewdto.ReviewUUIDParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -535,12 +536,12 @@ func (rh *ReviewHandler) AdminForceDeleteReview(ctx *gin.Context) {
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Param        uuid path string true "Review UUID"
-// @Success      200 {object} utils.APIResponse{data=[]v1dto.ReviewReportDTO}
+// @Success      200 {object} utils.APIResponse{data=[]reviewdto.ReviewReportDTO}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /admin/reviews/{uuid}/reports [get]
 func (rh *ReviewHandler) GetReviewReports(ctx *gin.Context) {
-	var param v1dto.ReviewUUIDParam
+	var param reviewdto.ReviewUUIDParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -572,7 +573,7 @@ func (rh *ReviewHandler) GetReviewReports(ctx *gin.Context) {
 // @Failure      401 {object} utils.ErrorResponse
 // @Router       /admin/reviews/{uuid}/dismiss-reports [post]
 func (rh *ReviewHandler) AdminDismissReports(ctx *gin.Context) {
-	var param v1dto.ReviewUUIDParam
+	var param reviewdto.ReviewUUIDParam
 	if err := ctx.ShouldBindUri(&param); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return

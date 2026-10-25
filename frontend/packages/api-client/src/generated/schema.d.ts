@@ -3314,8 +3314,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["v1dto.ReviewDTO"][];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.ReviewDTO"][];
                         };
                     };
                 };
@@ -3325,7 +3325,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -3334,7 +3334,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -3379,7 +3379,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -3388,7 +3388,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -3397,7 +3397,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -3438,7 +3438,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -3447,7 +3447,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -3456,7 +3456,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -3497,7 +3497,7 @@ export interface paths {
             /** @description Reply payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["v1dto.ReplyReviewInput"];
+                    "application/json": components["schemas"]["dto.ReplyReviewInput"];
                 };
             };
             responses: {
@@ -3507,8 +3507,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["v1dto.ReviewDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.ReviewDTO"];
                         };
                     };
                 };
@@ -3518,7 +3518,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -3527,7 +3527,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -3563,8 +3563,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["v1dto.ReviewReportDTO"][];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.ReviewReportDTO"][];
                         };
                     };
                 };
@@ -3574,7 +3574,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -3583,7 +3583,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -3626,7 +3626,7 @@ export interface paths {
             /** @description Status payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["v1dto.UpdateReviewStatusInput"];
+                    "application/json": components["schemas"]["dto.UpdateReviewStatusInput"];
                 };
             };
             responses: {
@@ -3636,8 +3636,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["v1dto.ReviewDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.ReviewDTO"];
                         };
                     };
                 };
@@ -3647,7 +3647,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -3656,7 +3656,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -8813,8 +8813,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["v1dto.ReviewDTO"][];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.ReviewDTO"][];
                         };
                     };
                 };
@@ -8824,7 +8824,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -8866,7 +8866,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -8875,7 +8875,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -8911,7 +8911,7 @@ export interface paths {
             /** @description Review request body */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["v1dto.CreateReviewInput"];
+                    "application/json": components["schemas"]["dto.CreateReviewInput"];
                 };
             };
             responses: {
@@ -8921,8 +8921,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["v1dto.ReviewDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.ReviewDTO"];
                         };
                     };
                 };
@@ -8932,7 +8932,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -8941,7 +8941,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -8983,8 +8983,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["v1dto.MyReviewDTO"][];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.MyReviewDTO"][];
                         };
                     };
                 };
@@ -8994,7 +8994,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -9003,7 +9003,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -9041,7 +9041,7 @@ export interface paths {
             /** @description Review update payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["v1dto.UpdateReviewInput"];
+                    "application/json": components["schemas"]["dto.UpdateReviewInput"];
                 };
             };
             responses: {
@@ -9051,8 +9051,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["v1dto.ReviewDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.ReviewDTO"];
                         };
                     };
                 };
@@ -9062,7 +9062,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -9071,7 +9071,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -9099,7 +9099,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -9108,7 +9108,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -9117,7 +9117,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -9158,8 +9158,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["v1dto.ToggleHelpfulResponseDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.ToggleHelpfulResponseDTO"];
                         };
                     };
                 };
@@ -9169,7 +9169,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -9178,7 +9178,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -9215,7 +9215,7 @@ export interface paths {
             /** @description Report payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["v1dto.ReportReviewInput"];
+                    "application/json": components["schemas"]["dto.ReportReviewInput"];
                 };
             };
             responses: {
@@ -9225,7 +9225,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -9234,7 +9234,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -9243,7 +9243,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -10229,6 +10229,15 @@ export interface components {
             status?: 1 | 2 | 3;
             stock?: number;
         };
+        "dto.CreateReviewInput": {
+            comment?: string;
+            images?: string[];
+            order_uuid: string;
+            product_uuid: string;
+            rating: number;
+            title?: string;
+            video_url?: string;
+        };
         "dto.CreateShippingInput": {
             district_id: number;
             /** @description cm */
@@ -10285,6 +10294,21 @@ export interface components {
             access_token?: string;
             expires_in?: number;
             refresh_token?: string;
+        };
+        "dto.MyReviewDTO": {
+            can_edit?: boolean;
+            comment?: string;
+            created_at?: string;
+            has_media?: boolean;
+            images?: string[];
+            product_image_url?: string;
+            product_name?: string;
+            product_slug?: string;
+            product_uuid?: string;
+            rating?: number;
+            title?: string;
+            uuid?: string;
+            video_url?: string;
         };
         "dto.NotificationDTO": {
             body?: string;
@@ -10424,6 +10448,14 @@ export interface components {
             name: string;
             password: string;
         };
+        "dto.ReplyReviewInput": {
+            reply: string;
+        };
+        "dto.ReportReviewInput": {
+            details?: string;
+            /** @enum {string} */
+            reason: "spam" | "inappropriate" | "fake" | "other";
+        };
         "dto.RequestForgotPasswordInput": {
             email: string;
         };
@@ -10433,6 +10465,34 @@ export interface components {
         "dto.ResetPasswordInput": {
             new_password: string;
             token: string;
+        };
+        "dto.ReviewDTO": {
+            can_edit?: boolean;
+            comment?: string;
+            created_at?: string;
+            has_media?: boolean;
+            helpful_count?: number;
+            images?: string[];
+            order_uuid?: string;
+            product_uuid?: string;
+            rating?: number;
+            reply?: string;
+            reply_at?: string;
+            reviewer_name?: string;
+            title?: string;
+            updated_at?: string;
+            uuid?: string;
+            video_url?: string;
+        };
+        "dto.ReviewReportDTO": {
+            created_at?: string;
+            details?: string;
+            /** @description spam, inappropriate, fake, other */
+            reason?: string;
+            report_id?: number;
+            user_email?: string;
+            user_id?: number;
+            user_name?: string;
         };
         "dto.SendRegisterOTPInput": {
             age?: number;
@@ -10495,6 +10555,12 @@ export interface components {
             shipping_provider?: string;
             status_text?: string;
             timeline?: components["schemas"]["dto.TrackingEventDTO"][];
+        };
+        "dto.ToggleHelpfulResponseDTO": {
+            /** @description latest vote count */
+            helpful_count?: number;
+            /** @description true: voted, false: vote removed */
+            voted?: boolean;
         };
         "dto.TrackingEventDTO": {
             created_at?: string;
@@ -10600,6 +10666,18 @@ export interface components {
             bank_account: string;
             bank_account_name: string;
             bank_name: string;
+        };
+        "dto.UpdateReviewInput": {
+            comment?: string;
+            rating: number;
+            title?: string;
+        };
+        "dto.UpdateReviewStatusInput": {
+            /**
+             * @description 1: Visible, 2: Hidden, 3: Reported
+             * @enum {integer}
+             */
+            status: 1 | 2 | 3;
         };
         "dto.UpdateUserInput": {
             age?: number;
@@ -10765,15 +10843,6 @@ export interface components {
             total_discount_given?: number;
             total_revenue_generated?: number;
         };
-        "v1dto.CreateReviewInput": {
-            comment?: string;
-            images?: string[];
-            order_uuid: string;
-            product_uuid: string;
-            rating: number;
-            title?: string;
-            video_url?: string;
-        };
         "v1dto.LowStockProductDTO": {
             /** @description "critical" (stock <= 0), "warning" (stock <= threshold) */
             alert_level?: string;
@@ -10804,21 +10873,6 @@ export interface components {
             sender_id?: number;
             sender_role?: string;
             uuid?: string;
-        };
-        "v1dto.MyReviewDTO": {
-            can_edit?: boolean;
-            comment?: string;
-            created_at?: string;
-            has_media?: boolean;
-            images?: string[];
-            product_image_url?: string;
-            product_name?: string;
-            product_slug?: string;
-            product_uuid?: string;
-            rating?: number;
-            title?: string;
-            uuid?: string;
-            video_url?: string;
         };
         "v1dto.OrderStatusDistributionItemDTO": {
             /** @description Number of orders in this status */
@@ -10876,14 +10930,6 @@ export interface components {
             total_amount?: number;
             uuid?: string;
         };
-        "v1dto.ReplyReviewInput": {
-            reply: string;
-        };
-        "v1dto.ReportReviewInput": {
-            details?: string;
-            /** @enum {string} */
-            reason: "spam" | "inappropriate" | "fake" | "other";
-        };
         "v1dto.ReturnAnalyticsResponse": {
             reasons_breakdown?: components["schemas"]["v1dto.ReturnReasonBreakdownDTO"][];
             return_rate?: number;
@@ -10903,34 +10949,6 @@ export interface components {
             order_count?: number;
             revenue?: number;
         };
-        "v1dto.ReviewDTO": {
-            can_edit?: boolean;
-            comment?: string;
-            created_at?: string;
-            has_media?: boolean;
-            helpful_count?: number;
-            images?: string[];
-            order_uuid?: string;
-            product_uuid?: string;
-            rating?: number;
-            reply?: string;
-            reply_at?: string;
-            reviewer_name?: string;
-            title?: string;
-            updated_at?: string;
-            uuid?: string;
-            video_url?: string;
-        };
-        "v1dto.ReviewReportDTO": {
-            created_at?: string;
-            details?: string;
-            /** @description spam, inappropriate, fake, other */
-            reason?: string;
-            report_id?: number;
-            user_email?: string;
-            user_id?: number;
-            user_name?: string;
-        };
         "v1dto.SendMessageRequest": {
             attachment_name?: string;
             attachment_size?: number;
@@ -10948,12 +10966,6 @@ export interface components {
         };
         "v1dto.ShopStatusResponse": {
             is_online?: boolean;
-        };
-        "v1dto.ToggleHelpfulResponseDTO": {
-            /** @description số lượng vote mới nhất */
-            helpful_count?: number;
-            /** @description true: đã vote, false: đã hủy vote */
-            voted?: boolean;
         };
         "v1dto.TopProductDTO": {
             category_name?: string;
@@ -10974,18 +10986,6 @@ export interface components {
             slug?: string;
             units_returned?: number;
             uuid?: string;
-        };
-        "v1dto.UpdateReviewInput": {
-            comment?: string;
-            rating: number;
-            title?: string;
-        };
-        "v1dto.UpdateReviewStatusInput": {
-            /**
-             * @description 1: Visible, 2: Hidden, 3: Reported
-             * @enum {integer}
-             */
-            status: 1 | 2 | 3;
         };
         "v1dto.UploadResponseDTO": {
             file_name?: string;

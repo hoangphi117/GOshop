@@ -26,7 +26,6 @@ func TestArchitectureGuard_OrderCoreDomainIsolation(t *testing.T) {
 		"CouponRepository",
 		"StockMovementRepository",
 		"CartRepository",
-		"ReviewRepository",
 		"UserRepository",
 	}
 
@@ -57,10 +56,10 @@ func TestArchitectureGuard_OrderCoreDomainIsolation(t *testing.T) {
 }
 
 // TestArchitectureGuard_OtherDomainsIsolationFromOrderRepository verifies that
-// other service domains (e.g. Chat, Review) do not directly access OrderRepository/OrderItemRepository.
+// other service domains (e.g. Chat) do not directly access OrderRepository/OrderItemRepository.
 // Cross-domain access must go through OrderReader port.
 func TestArchitectureGuard_OtherDomainsIsolationFromOrderRepository(t *testing.T) {
-	domains := []string{"./chat*.go", "./review*.go"}
+	domains := []string{"./chat*.go"}
 	prohibitedOrderTypes := []string{
 		"OrderRepository",
 		"OrderItemRepository",
@@ -106,11 +105,9 @@ func TestArchitectureGuard_GolangciLinterConfig(t *testing.T) {
 	assert.Contains(t, content, "goshop/internal/repository/coupons_repository")
 	assert.Contains(t, content, "goshop/internal/repository/stock_movement_repository")
 	assert.Contains(t, content, "goshop/internal/repository/cart_repository")
-	assert.Contains(t, content, "goshop/internal/repository/review_repository")
 	assert.Contains(t, content, "goshop/internal/repository/user_repository")
 
 	assert.Contains(t, content, "chat_domain_isolation")
-	assert.Contains(t, content, "review_domain_isolation")
 	assert.Contains(t, content, "inventory_domain_isolation")
 	assert.Contains(t, content, "coupon_domain_isolation")
 }

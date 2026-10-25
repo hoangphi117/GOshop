@@ -17,12 +17,6 @@ type Querier interface {
 	// Stock check thực hiện ở tầng service TRƯỚC khi gọi query này — không block cứng ở đây vì Order mới là nơi enforce
 	// stock nghiêm ngặt.
 	AddOrUpdateCartItem(ctx context.Context, arg AddOrUpdateCartItemParams) (CartItem, error)
-	CheckReviewExists(ctx context.Context, arg CheckReviewExistsParams) (bool, error)
-	CheckUserPurchasedProduct(ctx context.Context, arg CheckUserPurchasedProductParams) (bool, error)
-	// Review Reports Queries
-	CheckUserReportedReview(ctx context.Context, arg CheckUserReportedReviewParams) (bool, error)
-	// Helpful Votes Queries
-	CheckUserVotedHelpful(ctx context.Context, arg CheckUserVotedHelpfulParams) (bool, error)
 	ClearCartByCartID(ctx context.Context, cartID int32) error
 	ClearDefaultAddress(ctx context.Context, uaUserID int32) error
 	CountAdminNotifications(ctx context.Context, arg CountAdminNotificationsParams) (int64, error)
@@ -32,8 +26,6 @@ type Querier interface {
 	CountMessagesByConversationID(ctx context.Context, conversationID int32) (int64, error)
 	CountNotificationsByUserID(ctx context.Context, notificationUserID int32) (int64, error)
 	CountProducts(ctx context.Context, arg CountProductsParams) (int64, error)
-	CountReportsByReviewID(ctx context.Context, reviewID int32) (int64, error)
-	CountReviewsByUserID(ctx context.Context, reviewUserID int32) (int64, error)
 	CountUnreadMessages(ctx context.Context, arg CountUnreadMessagesParams) (int64, error)
 	CountUnreadNotificationsByUserID(ctx context.Context, notificationUserID int32) (int64, error)
 	CountUserAddresses(ctx context.Context, uaUserID int32) (int64, error)
@@ -45,20 +37,15 @@ type Querier interface {
 	CreateNotificationForAllUsers(ctx context.Context, arg CreateNotificationForAllUsersParams) error
 	CreateOAuthUser(ctx context.Context, arg CreateOAuthUserParams) (User, error)
 	CreateProduct(ctx context.Context, arg CreateProductParams) (CreateProductRow, error)
-	CreateReview(ctx context.Context, arg CreateReviewParams) (ProductReview, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	CreateUserAddress(ctx context.Context, arg CreateUserAddressParams) (UserAddress, error)
-	DecrementHelpfulCount(ctx context.Context, reviewID int32) (int32, error)
 	DeductStock(ctx context.Context, arg DeductStockParams) (int64, error)
 	DeleteCartItemByUUID(ctx context.Context, arg DeleteCartItemByUUIDParams) (CartItem, error)
 	// Dùng cho bước "dọn giỏ hàng sau khi đặt" — xóa CHỌN
 	// LỌC theo danh sách product_id có trong đơn vừa tạo, không xóa sạch toàn bộ giỏ.
 	DeleteCartItemsByProductIDs(ctx context.Context, arg DeleteCartItemsByProductIDsParams) error
-	DeleteHelpfulVote(ctx context.Context, arg DeleteHelpfulVoteParams) error
 	DeleteNotification(ctx context.Context, arg DeleteNotificationParams) error
 	DeleteOldNotifications(ctx context.Context, notificationCreatedAt time.Time) (int64, error)
-	DeleteReview(ctx context.Context, reviewID int32) error
-	DeleteReviewReportsByReviewID(ctx context.Context, reviewID int32) error
 	DeleteUserAddress(ctx context.Context, arg DeleteUserAddressParams) (bool, error)
 	GetActiveAdminUserIDs(ctx context.Context) ([]int32, error)
 	GetAdminNotifications(ctx context.Context, arg GetAdminNotificationsParams) ([]Notification, error)
@@ -96,7 +83,6 @@ type Querier interface {
 	GetPendingOutboxEventsByAggregateTypes(ctx context.Context, arg GetPendingOutboxEventsByAggregateTypesParams) ([]OutboxEvent, error)
 	GetProductBySlug(ctx context.Context, productSlug string) (GetProductBySlugRow, error)
 	GetProductByUUID(ctx context.Context, productUuid uuid.UUID) (GetProductByUUIDRow, error)
-	GetProductRatingSummary(ctx context.Context, reviewProductID int32) (GetProductRatingSummaryRow, error)
 	// Operational list view, not revenue-related; unchanged.
 	GetRecentOrders(ctx context.Context, limitCount int32) ([]GetRecentOrdersRow, error)
 	GetReturnAnalyticsSummary(ctx context.Context, arg GetReturnAnalyticsSummaryParams) (GetReturnAnalyticsSummaryRow, error)
@@ -104,9 +90,6 @@ type Querier interface {
 	GetRevenueDailyChart(ctx context.Context, days int32) ([]GetRevenueDailyChartRow, error)
 	GetRevenueDailyCustom(ctx context.Context, arg GetRevenueDailyCustomParams) ([]GetRevenueDailyCustomRow, error)
 	GetRevenueMonthlyChart(ctx context.Context, months int32) ([]GetRevenueMonthlyChartRow, error)
-	GetReviewByUUID(ctx context.Context, reviewUuid uuid.UUID) (GetReviewByUUIDRow, error)
-	GetReviewReportsByReviewID(ctx context.Context, reviewID int32) ([]GetReviewReportsByReviewIDRow, error)
-	GetReviewsByUserID(ctx context.Context, arg GetReviewsByUserIDParams) ([]GetReviewsByUserIDRow, error)
 	GetTopReturnedProducts(ctx context.Context, arg GetTopReturnedProductsParams) ([]GetTopReturnedProductsRow, error)
 	GetTopSellingProducts(ctx context.Context, arg GetTopSellingProductsParams) ([]GetTopSellingProductsRow, error)
 	GetTopSellingProductsCustom(ctx context.Context, arg GetTopSellingProductsCustomParams) ([]GetTopSellingProductsCustomRow, error)
@@ -119,10 +102,7 @@ type Querier interface {
 	GetUserByOAuth(ctx context.Context, arg GetUserByOAuthParams) (User, error)
 	GetUserByUUID(ctx context.Context, userUuid uuid.UUID) (User, error)
 	GetUsersByIDs(ctx context.Context, dollar_1 []int32) ([]GetUsersByIDsRow, error)
-	IncrementHelpfulCount(ctx context.Context, reviewID int32) (int32, error)
-	InsertHelpfulVote(ctx context.Context, arg InsertHelpfulVoteParams) error
 	InsertOutboxEvent(ctx context.Context, arg InsertOutboxEventParams) (OutboxEvent, error)
-	InsertReviewReport(ctx context.Context, arg InsertReviewReportParams) error
 	ListConversations(ctx context.Context, arg ListConversationsParams) ([]ListConversationsRow, error)
 	ListMessages(ctx context.Context, arg ListMessagesParams) ([]ChatMessage, error)
 	ListMessagesCursor(ctx context.Context, arg ListMessagesCursorParams) ([]ChatMessage, error)
@@ -136,9 +116,7 @@ type Querier interface {
 	MarkNotificationRead(ctx context.Context, arg MarkNotificationReadParams) (Notification, error)
 	MarkOutboxEventFailed(ctx context.Context, arg MarkOutboxEventFailedParams) error
 	MarkOutboxEventsProcessed(ctx context.Context, dollar_1 []int64) error
-	RecalcProductRating(ctx context.Context, reviewProductID int32) error
 	RecallMessage(ctx context.Context, messageID int32) (ChatMessage, error)
-	ReplyReview(ctx context.Context, arg ReplyReviewParams) (ProductReview, error)
 	RestoreCategory(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
 	RestoreProduct(ctx context.Context, productUuid uuid.UUID) (Product, error)
 	RestoreStock(ctx context.Context, arg RestoreStockParams) error
@@ -158,8 +136,6 @@ type Querier interface {
 	UpdateLastMessageAt(ctx context.Context, conversationID int32) error
 	UpdatePassword(ctx context.Context, arg UpdatePasswordParams) (User, error)
 	UpdateProduct(ctx context.Context, arg UpdateProductParams) (UpdateProductRow, error)
-	UpdateReview(ctx context.Context, arg UpdateReviewParams) (ProductReview, error)
-	UpdateReviewStatus(ctx context.Context, arg UpdateReviewStatusParams) (ProductReview, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 	UpdateUserAddress(ctx context.Context, arg UpdateUserAddressParams) (UserAddress, error)
 	UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarParams) (User, error)

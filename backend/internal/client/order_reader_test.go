@@ -15,7 +15,6 @@ import (
 
 type mockOrderClient struct {
 	summaryFunc func(ctx context.Context, orderUUID uuid.UUID) (*ordercontract.OrderSummary, error)
-	verifyFunc  func(ctx context.Context, orderUUID uuid.UUID, userID, productID int32, userUUID, productUUID *uuid.UUID) (*ordercontract.PurchaseVerification, error)
 	paymentFunc func(ctx context.Context, orderUUID uuid.UUID) (*ordercontract.OrderPaymentInfo, error)
 }
 
@@ -27,9 +26,6 @@ func (m *mockOrderClient) GetOrderSummary(ctx context.Context, orderUUID uuid.UU
 }
 
 func (m *mockOrderClient) VerifyPurchase(ctx context.Context, orderUUID uuid.UUID, userID, productID int32, userUUID, productUUID *uuid.UUID) (*ordercontract.PurchaseVerification, error) {
-	if m.verifyFunc != nil {
-		return m.verifyFunc(ctx, orderUUID, userID, productID, userUUID, productUUID)
-	}
 	return nil, errors.New("not implemented")
 }
 
@@ -43,7 +39,6 @@ func (m *mockOrderClient) GetOrderForPayment(ctx context.Context, orderUUID uuid
 func (m *mockOrderClient) Close() error {
 	return nil
 }
-
 
 func TestGRPCOrderReader_GetOrderSummary(t *testing.T) {
 	targetUUID := uuid.New()
@@ -91,45 +86,4 @@ func TestGRPCOrderReader_GetOrderSummary(t *testing.T) {
 	nilReader := NewGRPCOrderReader(nil)
 	_, err = nilReader.GetOrderSummary(context.Background(), targetUUID)
 	assert.Error(t, err)
-}
-
-func TestGRPCOrderReader_VerifyPurchase(t *testing.T) {
-	orderUUID := uuid.New()
-	userID := int32(10)
-	productID := int32(202)
-
-	mockClient := &mockOrderClient{
-		verifyFunc: func(ctx context.Context, oUUID uuid.UUID, uID, pID int32, userUUID, prodUUID *uuid.UUID) (*ordercontract.PurchaseVerification, error) {
-			if oUUID == orderUUID && uID == userID && pID == productID {
-				return &ordercontract.PurchaseVerification{
-					OrderID:      201,
-					OrderUUID:    orderUUID,
-					UserID:       userID,
-					IsPurchased:  true,
-					CanReview:    true,
-					CustomerName: "Buyer",
-				}, nil
-			}
-			return &ordercontract.PurchaseVerification{
-				OrderID:     201,
-				OrderUUID:   oUUID,
-				UserID:      uID,
-				IsPurchased: false,
-				CanReview:   false,
-			}, nil
-		},
-	}
-
-	reader := NewGRPCOrderReader(mockClient)
-
-	// Authorized purchased
-	res, err := reader.VerifyPurchase(context.Background(), orderUUID, userID, productID)
-	require.NoError(t, err)
-	assert.True(t, res.IsPurchased)
-	assert.True(t, res.CanReview)
-
-	// Not purchased
-	res2, err := reader.VerifyPurchase(context.Background(), orderUUID, userID, 999)
-	require.NoError(t, err)
-	assert.False(t, res2.IsPurchased)
 }

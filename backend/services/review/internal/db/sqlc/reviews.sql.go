@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const checkReviewExists = `-- name: CheckReviewExists :one
@@ -19,7 +18,7 @@ SELECT EXISTS (
     WHERE review_user_id = $1
       AND review_product_id = $2
       AND review_order_uuid = $3
-) AS exists
+) AS "exists"
 `
 
 type CheckReviewExistsParams struct {
@@ -33,30 +32,6 @@ func (q *Queries) CheckReviewExists(ctx context.Context, arg CheckReviewExistsPa
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
-}
-
-const checkUserPurchasedProduct = `-- name: CheckUserPurchasedProduct :one
-SELECT EXISTS (
-    SELECT 1 FROM analytics_order_items_projection oi
-    JOIN analytics_orders_projection o ON o.order_id = oi.order_item_order_id
-    WHERE o.order_id = $1
-      AND o.order_user_id = $2
-      AND oi.order_item_product_id = $3
-      AND o.order_status = 4  -- Delivered
-) AS purchased
-`
-
-type CheckUserPurchasedProductParams struct {
-	OrderID            int32 `json:"order_id"`
-	OrderUserID        int32 `json:"order_user_id"`
-	OrderItemProductID int32 `json:"order_item_product_id"`
-}
-
-func (q *Queries) CheckUserPurchasedProduct(ctx context.Context, arg CheckUserPurchasedProductParams) (bool, error) {
-	row := q.db.QueryRow(ctx, checkUserPurchasedProduct, arg.OrderID, arg.OrderUserID, arg.OrderItemProductID)
-	var purchased bool
-	err := row.Scan(&purchased)
-	return purchased, err
 }
 
 const checkUserReportedReview = `-- name: CheckUserReportedReview :one
@@ -127,33 +102,35 @@ func (q *Queries) CountReviewsByUserID(ctx context.Context, reviewUserID int32) 
 
 const createReview = `-- name: CreateReview :one
 INSERT INTO product_reviews (
-    review_user_id, review_product_id, review_order_id, review_order_uuid,
+    review_user_id, review_product_id, review_product_uuid, review_order_id, review_order_uuid,
     review_rating, review_title, review_comment, review_images, review_video_url, review_has_media,
     review_user_name, review_user_email, review_user_avatar
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-RETURNING review_id, review_uuid, review_user_id, review_product_id, review_order_id, review_order_uuid, review_rating, review_title, review_comment, review_images, review_video_url, review_has_media, review_status, review_edit_count, review_helpful_count, review_user_name, review_user_email, review_user_avatar, review_reply, review_reply_at, review_created_at, review_updated_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+RETURNING review_id, review_uuid, review_user_id, review_product_id, review_product_uuid, review_order_id, review_order_uuid, review_rating, review_title, review_comment, review_images, review_video_url, review_has_media, review_status, review_edit_count, review_helpful_count, review_user_name, review_user_email, review_user_avatar, review_reply, review_reply_at, review_created_at, review_updated_at
 `
 
 type CreateReviewParams struct {
-	ReviewUserID     int32     `json:"review_user_id"`
-	ReviewProductID  int32     `json:"review_product_id"`
-	ReviewOrderID    *int32    `json:"review_order_id"`
-	ReviewOrderUuid  uuid.UUID `json:"review_order_uuid"`
-	ReviewRating     int16     `json:"review_rating"`
-	ReviewTitle      *string   `json:"review_title"`
-	ReviewComment    *string   `json:"review_comment"`
-	ReviewImages     []string  `json:"review_images"`
-	ReviewVideoUrl   *string   `json:"review_video_url"`
-	ReviewHasMedia   bool      `json:"review_has_media"`
-	ReviewUserName   string    `json:"review_user_name"`
-	ReviewUserEmail  string    `json:"review_user_email"`
-	ReviewUserAvatar string    `json:"review_user_avatar"`
+	ReviewUserID      int32     `json:"review_user_id"`
+	ReviewProductID   int32     `json:"review_product_id"`
+	ReviewProductUuid uuid.UUID `json:"review_product_uuid"`
+	ReviewOrderID     *int32    `json:"review_order_id"`
+	ReviewOrderUuid   uuid.UUID `json:"review_order_uuid"`
+	ReviewRating      int16     `json:"review_rating"`
+	ReviewTitle       *string   `json:"review_title"`
+	ReviewComment     *string   `json:"review_comment"`
+	ReviewImages      []string  `json:"review_images"`
+	ReviewVideoUrl    *string   `json:"review_video_url"`
+	ReviewHasMedia    bool      `json:"review_has_media"`
+	ReviewUserName    string    `json:"review_user_name"`
+	ReviewUserEmail   string    `json:"review_user_email"`
+	ReviewUserAvatar  string    `json:"review_user_avatar"`
 }
 
 func (q *Queries) CreateReview(ctx context.Context, arg CreateReviewParams) (ProductReview, error) {
 	row := q.db.QueryRow(ctx, createReview,
 		arg.ReviewUserID,
 		arg.ReviewProductID,
+		arg.ReviewProductUuid,
 		arg.ReviewOrderID,
 		arg.ReviewOrderUuid,
 		arg.ReviewRating,
@@ -172,6 +149,7 @@ func (q *Queries) CreateReview(ctx context.Context, arg CreateReviewParams) (Pro
 		&i.ReviewUuid,
 		&i.ReviewUserID,
 		&i.ReviewProductID,
+		&i.ReviewProductUuid,
 		&i.ReviewOrderID,
 		&i.ReviewOrderUuid,
 		&i.ReviewRating,
@@ -243,6 +221,26 @@ func (q *Queries) DeleteReviewReportsByReviewID(ctx context.Context, reviewID in
 	return err
 }
 
+const getProductRatingAggregate = `-- name: GetProductRatingAggregate :one
+SELECT
+    COALESCE(ROUND(AVG(review_rating)::numeric, 1), 0.0)::float8 AS avg_rating,
+    COUNT(*)::bigint AS review_count
+FROM product_reviews
+WHERE review_product_id = $1 AND review_status = 1
+`
+
+type GetProductRatingAggregateRow struct {
+	AvgRating   float64 `json:"avg_rating"`
+	ReviewCount int64   `json:"review_count"`
+}
+
+func (q *Queries) GetProductRatingAggregate(ctx context.Context, reviewProductID int32) (GetProductRatingAggregateRow, error) {
+	row := q.db.QueryRow(ctx, getProductRatingAggregate, reviewProductID)
+	var i GetProductRatingAggregateRow
+	err := row.Scan(&i.AvgRating, &i.ReviewCount)
+	return i, err
+}
+
 const getProductRatingSummary = `-- name: GetProductRatingSummary :one
 SELECT
     COUNT(*)::bigint AS total_reviews,
@@ -285,48 +283,20 @@ func (q *Queries) GetProductRatingSummary(ctx context.Context, reviewProductID i
 }
 
 const getReviewByUUID = `-- name: GetReviewByUUID :one
-SELECT 
-    r.review_id, r.review_uuid, r.review_user_id, r.review_product_id, r.review_order_id, r.review_order_uuid, r.review_rating, r.review_title, r.review_comment, r.review_images, r.review_video_url, r.review_has_media, r.review_status, r.review_edit_count, r.review_helpful_count, r.review_user_name, r.review_user_email, r.review_user_avatar, r.review_reply, r.review_reply_at, r.review_created_at, r.review_updated_at,
-    p.product_uuid
+SELECT review_id, review_uuid, review_user_id, review_product_id, review_product_uuid, review_order_id, review_order_uuid, review_rating, review_title, review_comment, review_images, review_video_url, review_has_media, review_status, review_edit_count, review_helpful_count, review_user_name, review_user_email, review_user_avatar, review_reply, review_reply_at, review_created_at, review_updated_at
 FROM product_reviews r
-JOIN products p ON p.product_id = r.review_product_id
 WHERE r.review_uuid = $1
 `
 
-type GetReviewByUUIDRow struct {
-	ReviewID           int32              `json:"review_id"`
-	ReviewUuid         uuid.UUID          `json:"review_uuid"`
-	ReviewUserID       int32              `json:"review_user_id"`
-	ReviewProductID    int32              `json:"review_product_id"`
-	ReviewOrderID      *int32             `json:"review_order_id"`
-	ReviewOrderUuid    uuid.UUID          `json:"review_order_uuid"`
-	ReviewRating       int16              `json:"review_rating"`
-	ReviewTitle        *string            `json:"review_title"`
-	ReviewComment      *string            `json:"review_comment"`
-	ReviewImages       []string           `json:"review_images"`
-	ReviewVideoUrl     *string            `json:"review_video_url"`
-	ReviewHasMedia     bool               `json:"review_has_media"`
-	ReviewStatus       int16              `json:"review_status"`
-	ReviewEditCount    int32              `json:"review_edit_count"`
-	ReviewHelpfulCount int32              `json:"review_helpful_count"`
-	ReviewUserName     string             `json:"review_user_name"`
-	ReviewUserEmail    string             `json:"review_user_email"`
-	ReviewUserAvatar   string             `json:"review_user_avatar"`
-	ReviewReply        *string            `json:"review_reply"`
-	ReviewReplyAt      pgtype.Timestamptz `json:"review_reply_at"`
-	ReviewCreatedAt    time.Time          `json:"review_created_at"`
-	ReviewUpdatedAt    time.Time          `json:"review_updated_at"`
-	ProductUuid        uuid.UUID          `json:"product_uuid"`
-}
-
-func (q *Queries) GetReviewByUUID(ctx context.Context, reviewUuid uuid.UUID) (GetReviewByUUIDRow, error) {
+func (q *Queries) GetReviewByUUID(ctx context.Context, reviewUuid uuid.UUID) (ProductReview, error) {
 	row := q.db.QueryRow(ctx, getReviewByUUID, reviewUuid)
-	var i GetReviewByUUIDRow
+	var i ProductReview
 	err := row.Scan(
 		&i.ReviewID,
 		&i.ReviewUuid,
 		&i.ReviewUserID,
 		&i.ReviewProductID,
+		&i.ReviewProductUuid,
 		&i.ReviewOrderID,
 		&i.ReviewOrderUuid,
 		&i.ReviewRating,
@@ -345,7 +315,6 @@ func (q *Queries) GetReviewByUUID(ctx context.Context, reviewUuid uuid.UUID) (Ge
 		&i.ReviewReplyAt,
 		&i.ReviewCreatedAt,
 		&i.ReviewUpdatedAt,
-		&i.ProductUuid,
 	)
 	return i, err
 }
@@ -414,12 +383,10 @@ SELECT
     r.review_has_media,
     r.review_edit_count,
     r.review_created_at,
-    p.product_uuid,
-    p.product_name,
-    p.product_slug,
-    p.product_image_url
+    r.review_product_id,
+    r.review_product_uuid,
+    r.review_order_uuid
 FROM product_reviews r
-JOIN products p ON p.product_id = r.review_product_id
 WHERE r.review_user_id = $1
 ORDER BY r.review_created_at DESC
 LIMIT $2 OFFSET $3
@@ -432,20 +399,19 @@ type GetReviewsByUserIDParams struct {
 }
 
 type GetReviewsByUserIDRow struct {
-	ReviewID        int32     `json:"review_id"`
-	ReviewUuid      uuid.UUID `json:"review_uuid"`
-	ReviewRating    int16     `json:"review_rating"`
-	ReviewTitle     *string   `json:"review_title"`
-	ReviewComment   *string   `json:"review_comment"`
-	ReviewImages    []string  `json:"review_images"`
-	ReviewVideoUrl  *string   `json:"review_video_url"`
-	ReviewHasMedia  bool      `json:"review_has_media"`
-	ReviewEditCount int32     `json:"review_edit_count"`
-	ReviewCreatedAt time.Time `json:"review_created_at"`
-	ProductUuid     uuid.UUID `json:"product_uuid"`
-	ProductName     string    `json:"product_name"`
-	ProductSlug     string    `json:"product_slug"`
-	ProductImageUrl *string   `json:"product_image_url"`
+	ReviewID          int32     `json:"review_id"`
+	ReviewUuid        uuid.UUID `json:"review_uuid"`
+	ReviewRating      int16     `json:"review_rating"`
+	ReviewTitle       *string   `json:"review_title"`
+	ReviewComment     *string   `json:"review_comment"`
+	ReviewImages      []string  `json:"review_images"`
+	ReviewVideoUrl    *string   `json:"review_video_url"`
+	ReviewHasMedia    bool      `json:"review_has_media"`
+	ReviewEditCount   int32     `json:"review_edit_count"`
+	ReviewCreatedAt   time.Time `json:"review_created_at"`
+	ReviewProductID   int32     `json:"review_product_id"`
+	ReviewProductUuid uuid.UUID `json:"review_product_uuid"`
+	ReviewOrderUuid   uuid.UUID `json:"review_order_uuid"`
 }
 
 func (q *Queries) GetReviewsByUserID(ctx context.Context, arg GetReviewsByUserIDParams) ([]GetReviewsByUserIDRow, error) {
@@ -468,10 +434,9 @@ func (q *Queries) GetReviewsByUserID(ctx context.Context, arg GetReviewsByUserID
 			&i.ReviewHasMedia,
 			&i.ReviewEditCount,
 			&i.ReviewCreatedAt,
-			&i.ProductUuid,
-			&i.ProductName,
-			&i.ProductSlug,
-			&i.ProductImageUrl,
+			&i.ReviewProductID,
+			&i.ReviewProductUuid,
+			&i.ReviewOrderUuid,
 		); err != nil {
 			return nil, err
 		}
@@ -535,33 +500,12 @@ func (q *Queries) InsertReviewReport(ctx context.Context, arg InsertReviewReport
 	return err
 }
 
-const recalcProductRating = `-- name: RecalcProductRating :exec
-UPDATE products SET
-    product_avg_rating = COALESCE(
-        (SELECT ROUND(AVG(pr.review_rating)::numeric, 1)
-         FROM product_reviews AS pr
-         WHERE pr.review_product_id = $1 AND pr.review_status = 1),
-        0.0
-    ),
-    product_review_count = (
-        SELECT COUNT(*)
-        FROM product_reviews AS pr
-        WHERE pr.review_product_id = $1 AND pr.review_status = 1
-    )
-WHERE product_id = $1
-`
-
-func (q *Queries) RecalcProductRating(ctx context.Context, reviewProductID int32) error {
-	_, err := q.db.Exec(ctx, recalcProductRating, reviewProductID)
-	return err
-}
-
 const replyReview = `-- name: ReplyReview :one
 UPDATE product_reviews SET
     review_reply = $2,
     review_reply_at = now()
 WHERE review_id = $1
-RETURNING review_id, review_uuid, review_user_id, review_product_id, review_order_id, review_order_uuid, review_rating, review_title, review_comment, review_images, review_video_url, review_has_media, review_status, review_edit_count, review_helpful_count, review_user_name, review_user_email, review_user_avatar, review_reply, review_reply_at, review_created_at, review_updated_at
+RETURNING review_id, review_uuid, review_user_id, review_product_id, review_product_uuid, review_order_id, review_order_uuid, review_rating, review_title, review_comment, review_images, review_video_url, review_has_media, review_status, review_edit_count, review_helpful_count, review_user_name, review_user_email, review_user_avatar, review_reply, review_reply_at, review_created_at, review_updated_at
 `
 
 type ReplyReviewParams struct {
@@ -577,6 +521,7 @@ func (q *Queries) ReplyReview(ctx context.Context, arg ReplyReviewParams) (Produ
 		&i.ReviewUuid,
 		&i.ReviewUserID,
 		&i.ReviewProductID,
+		&i.ReviewProductUuid,
 		&i.ReviewOrderID,
 		&i.ReviewOrderUuid,
 		&i.ReviewRating,
@@ -606,7 +551,7 @@ UPDATE product_reviews SET
     review_comment = $4,
     review_edit_count = review_edit_count + 1
 WHERE review_id = $1
-RETURNING review_id, review_uuid, review_user_id, review_product_id, review_order_id, review_order_uuid, review_rating, review_title, review_comment, review_images, review_video_url, review_has_media, review_status, review_edit_count, review_helpful_count, review_user_name, review_user_email, review_user_avatar, review_reply, review_reply_at, review_created_at, review_updated_at
+RETURNING review_id, review_uuid, review_user_id, review_product_id, review_product_uuid, review_order_id, review_order_uuid, review_rating, review_title, review_comment, review_images, review_video_url, review_has_media, review_status, review_edit_count, review_helpful_count, review_user_name, review_user_email, review_user_avatar, review_reply, review_reply_at, review_created_at, review_updated_at
 `
 
 type UpdateReviewParams struct {
@@ -629,6 +574,7 @@ func (q *Queries) UpdateReview(ctx context.Context, arg UpdateReviewParams) (Pro
 		&i.ReviewUuid,
 		&i.ReviewUserID,
 		&i.ReviewProductID,
+		&i.ReviewProductUuid,
 		&i.ReviewOrderID,
 		&i.ReviewOrderUuid,
 		&i.ReviewRating,
@@ -655,7 +601,7 @@ const updateReviewStatus = `-- name: UpdateReviewStatus :one
 UPDATE product_reviews SET
     review_status = $2
 WHERE review_id = $1
-RETURNING review_id, review_uuid, review_user_id, review_product_id, review_order_id, review_order_uuid, review_rating, review_title, review_comment, review_images, review_video_url, review_has_media, review_status, review_edit_count, review_helpful_count, review_user_name, review_user_email, review_user_avatar, review_reply, review_reply_at, review_created_at, review_updated_at
+RETURNING review_id, review_uuid, review_user_id, review_product_id, review_product_uuid, review_order_id, review_order_uuid, review_rating, review_title, review_comment, review_images, review_video_url, review_has_media, review_status, review_edit_count, review_helpful_count, review_user_name, review_user_email, review_user_avatar, review_reply, review_reply_at, review_created_at, review_updated_at
 `
 
 type UpdateReviewStatusParams struct {
@@ -671,6 +617,7 @@ func (q *Queries) UpdateReviewStatus(ctx context.Context, arg UpdateReviewStatus
 		&i.ReviewUuid,
 		&i.ReviewUserID,
 		&i.ReviewProductID,
+		&i.ReviewProductUuid,
 		&i.ReviewOrderID,
 		&i.ReviewOrderUuid,
 		&i.ReviewRating,

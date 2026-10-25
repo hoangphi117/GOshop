@@ -44,27 +44,3 @@ func (r *GRPCOrderReader) GetOrderSummary(ctx context.Context, orderUUID uuid.UU
 		UpdatedAt:     s.UpdatedAt,
 	}, nil
 }
-
-func (r *GRPCOrderReader) VerifyPurchase(ctx context.Context, orderUUID uuid.UUID, userID int32, productID int32) (*v1service.PurchaseVerification, error) {
-	if r.client == nil {
-		return nil, fmt.Errorf("order grpc client is not initialized")
-	}
-	v, err := r.client.VerifyPurchase(ctx, orderUUID, userID, productID, nil, nil)
-	if err != nil {
-		return nil, err
-	}
-	if v == nil {
-		return nil, nil
-	}
-	return &v1service.PurchaseVerification{
-		OrderID:       v.OrderID,
-		OrderUUID:     v.OrderUUID,
-		UserID:        v.UserID,
-		IsPurchased:   v.IsPurchased,
-		CanReview:     v.CanReview,
-		DeliveredAt:   v.DeliveredAt,
-		CustomerName:  v.CustomerName,
-		CustomerEmail: v.CustomerEmail,
-		ShippingName:  v.ShippingName,
-	}, nil
-}

@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"goshop/internal/db/sqlc"
-	v1dto "goshop/internal/dto/v1"
 	"time"
 
 	"github.com/google/uuid"
@@ -60,39 +59,6 @@ type AddressRepository interface {
 	SetDefault(ctx context.Context, tx pgx.Tx, userID int32, addressUUID uuid.UUID) (sqlc.UserAddress, error)
 	Delete(ctx context.Context, tx pgx.Tx, userID int32, addressUUID uuid.UUID) (bool, error)
 	SetLatestAsDefault(ctx context.Context, tx pgx.Tx, userID int32) error
-}
-
-type ReviewRepository interface {
-	Create(ctx context.Context, tx pgx.Tx, params sqlc.CreateReviewParams) (sqlc.ProductReview, error)
-	CheckPurchased(ctx context.Context, orderID, userID, productID int32) (bool, error)
-	CheckExists(ctx context.Context, userID, productID int32, orderUUID uuid.UUID) (bool, error)
-	RecalcRating(ctx context.Context, tx pgx.Tx, productID int32) error
-	GetByProduct(ctx context.Context, productID int32, rating *int32, hasMedia *bool, orderBy, sort string, limit, offset int32) ([]v1dto.ReviewRow, error)
-	CountByProduct(ctx context.Context, productID int32, rating *int32, hasMedia *bool) (int64, error)
-	GetRatingSummary(ctx context.Context, productID int32) (sqlc.GetProductRatingSummaryRow, error)
-	GetByUserID(ctx context.Context, userID int32, limit, offset int32) ([]sqlc.GetReviewsByUserIDRow, error)
-	CountByUserID(ctx context.Context, userID int32) (int64, error)
-	GetByUUID(ctx context.Context, reviewUUID uuid.UUID) (sqlc.GetReviewByUUIDRow, error)
-	Update(ctx context.Context, tx pgx.Tx, params sqlc.UpdateReviewParams) (sqlc.ProductReview, error)
-	Delete(ctx context.Context, tx pgx.Tx, reviewID int32) error
-
-	// Report
-	HasReported(ctx context.Context, userID, reviewID int32) (bool, error)
-	CreateReport(ctx context.Context, tx pgx.Tx, params sqlc.InsertReviewReportParams) error
-	CountReports(ctx context.Context, tx pgx.Tx, reviewID int32) (int64, error)
-	GetReportsByReviewID(ctx context.Context, reviewID int32) ([]sqlc.GetReviewReportsByReviewIDRow, error)
-	DeleteReportsByReviewID(ctx context.Context, tx pgx.Tx, reviewID int32) error
-
-	// Helpful votes
-	HasHelpfulVote(ctx context.Context, userID, reviewID int32) (bool, error)
-	AddHelpfulVote(ctx context.Context, tx pgx.Tx, userID, reviewID int32) (int32, error)
-	RemoveHelpfulVote(ctx context.Context, tx pgx.Tx, userID, reviewID int32) (int32, error)
-
-	// Admin
-	AdminGetAll(ctx context.Context, status *int16, rating *int32, productUUID, search *string, orderBy, sort string, limit, offset int32) ([]v1dto.AdminReviewRow, error)
-	AdminCount(ctx context.Context, status *int16, rating *int32, productID *int32, search *string) (int64, error)
-	UpdateStatus(ctx context.Context, tx pgx.Tx, reviewID int32, status int16) (sqlc.ProductReview, error)
-	Reply(ctx context.Context, tx pgx.Tx, reviewID int32, reply string) (sqlc.ProductReview, error)
 }
 
 type NotificationRepository interface {

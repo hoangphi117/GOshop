@@ -4155,7 +4155,7 @@
                                 "schema": {
                                     "allOf": [
                                         {
-                                            "$ref": "#/components/schemas/goshop_internal_utils.APIResponse"
+                                            "$ref": "#/components/schemas/goshop_pkg_utils.APIResponse"
                                         },
                                         {
                                             "type": "object",
@@ -4163,7 +4163,7 @@
                                                 "data": {
                                                     "type": "array",
                                                     "items": {
-                                                        "$ref": "#/components/schemas/v1dto.ReviewDTO"
+                                                        "$ref": "#/components/schemas/dto.ReviewDTO"
                                                     }
                                                 }
                                             }
@@ -4178,7 +4178,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                    "$ref": "#/components/schemas/goshop_pkg_utils.ErrorResponse"
                                 }
                             }
                         }
@@ -4188,7 +4188,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                    "$ref": "#/components/schemas/goshop_pkg_utils.ErrorResponse"
                                 }
                             }
                         }
@@ -4228,7 +4228,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/components/schemas/goshop_pkg_utils.APIResponse"
                                 }
                             }
                         }
@@ -4238,7 +4238,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                    "$ref": "#/components/schemas/goshop_pkg_utils.ErrorResponse"
                                 }
                             }
                         }
@@ -4248,7 +4248,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                    "$ref": "#/components/schemas/goshop_pkg_utils.ErrorResponse"
                                 }
                             }
                         }
@@ -4288,7 +4288,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/components/schemas/goshop_pkg_utils.APIResponse"
                                 }
                             }
                         }
@@ -4298,7 +4298,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                    "$ref": "#/components/schemas/goshop_pkg_utils.ErrorResponse"
                                 }
                             }
                         }
@@ -4308,7 +4308,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                    "$ref": "#/components/schemas/goshop_pkg_utils.ErrorResponse"
                                 }
                             }
                         }
@@ -4346,7 +4346,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/v1dto.ReplyReviewInput"
+                                "$ref": "#/components/schemas/dto.ReplyReviewInput"
                             }
                         }
                     },
@@ -4361,13 +4361,13 @@
                                 "schema": {
                                     "allOf": [
                                         {
-                                            "$ref": "#/components/schemas/goshop_internal_utils.APIResponse"
+                                            "$ref": "#/components/schemas/goshop_pkg_utils.APIResponse"
                                         },
                                         {
                                             "type": "object",
                                             "properties": {
                                                 "data": {
-                                                    "$ref": "#/components/schemas/v1dto.ReviewDTO"
+                                                    "$ref": "#/components/schemas/dto.ReviewDTO"
                                                 }
                                             }
                                         }
@@ -4381,7 +4381,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                    "$ref": "#/components/schemas/goshop_pkg_utils.ErrorResponse"
                                 }
                             }
                         }
@@ -4391,7 +4391,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                    "$ref": "#/components/schemas/goshop_pkg_utils.ErrorResponse"
                                 }
                             }
                         }
@@ -4433,7 +4433,7 @@
                                 "schema": {
                                     "allOf": [
                                         {
-                                            "$ref": "#/components/schemas/goshop_internal_utils.APIResponse"
+                                            "$ref": "#/components/schemas/goshop_pkg_utils.APIResponse"
                                         },
                                         {
                                             "type": "object",
@@ -4441,7 +4441,7 @@
                                                 "data": {
                                                     "type": "array",
                                                     "items": {
-                                                        "$ref": "#/components/schemas/v1dto.ReviewReportDTO"
+                                                        "$ref": "#/components/schemas/dto.ReviewReportDTO"
                                                     }
                                                 }
                                             }
@@ -4456,7 +4456,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                    "$ref": "#/components/schemas/goshop_pkg_utils.ErrorResponse"
                                 }
                             }
                         }
@@ -4466,7 +4466,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                    "$ref": "#/components/schemas/goshop_pkg_utils.ErrorResponse"
                                 }
                             }
                         }
@@ -4504,7 +4504,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/v1dto.UpdateReviewStatusInput"
+                                "$ref": "#/components/schemas/dto.UpdateReviewStatusInput"
                             }
                         }
                     },
@@ -4519,13 +4519,13 @@
                                 "schema": {
                                     "allOf": [
                                         {
-                                            "$ref": "#/components/schemas/goshop_internal_utils.APIResponse"
+                                            "$ref": "#/components/schemas/goshop_pkg_utils.APIResponse"
                                         },
                                         {
                                             "type": "object",
                                             "properties": {
                                                 "data": {
-                                                    "$ref": "#/components/schemas/v1dto.ReviewDTO"
+                                                    "$ref": "#/components/schemas/dto.ReviewDTO"
                                                 }
                                             }
                                         }
@@ -4539,7 +4539,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                    "$ref": "#/components/schemas/goshop_pkg_utils.ErrorResponse"
                                 }
                             }
                         }
@@ -4549,7 +4549,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                    "$ref": "#/components/schemas/goshop_pkg_utils.ErrorResponse"
                                 }
                             }
                         }
@@ -10694,7 +10694,7 @@
                                 "schema": {
                                     "allOf": [
                                         {
-                                            "$ref": "#/components/schemas/goshop_internal_utils.APIResponse"
+                                            "$ref": "#/components/schemas/goshop_pkg_utils.APIResponse"
                                         },
                                         {
                                             "type": "object",
@@ -10702,7 +10702,7 @@
                                                 "data": {
                                                     "type": "array",
                                                     "items": {
-                                                        "$ref": "#/components/schemas/v1dto.ReviewDTO"
+                                                        "$ref": "#/components/schemas/dto.ReviewDTO"
                                                     }
                                                 }
                                             }
@@ -10717,7 +10717,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                    "$ref": "#/components/schemas/goshop_pkg_utils.ErrorResponse"
                                 }
                             }
                         }
@@ -10749,7 +10749,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/components/schemas/goshop_pkg_utils.APIResponse"
                                 }
                             }
                         }
@@ -10759,7 +10759,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                    "$ref": "#/components/schemas/goshop_pkg_utils.ErrorResponse"
                                 }
                             }
                         }
@@ -10786,7 +10786,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/v1dto.CreateReviewInput"
+                                "$ref": "#/components/schemas/dto.CreateReviewInput"
                             }
                         }
                     },
@@ -10801,13 +10801,13 @@
                                 "schema": {
                                     "allOf": [
                                         {
-                                            "$ref": "#/components/schemas/goshop_internal_utils.APIResponse"
+                                            "$ref": "#/components/schemas/goshop_pkg_utils.APIResponse"
                                         },
                                         {
                                             "type": "object",
                                             "properties": {
                                                 "data": {
-                                                    "$ref": "#/components/schemas/v1dto.ReviewDTO"
+                                                    "$ref": "#/components/schemas/dto.ReviewDTO"
                                                 }
                                             }
                                         }
@@ -10821,7 +10821,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                    "$ref": "#/components/schemas/goshop_pkg_utils.ErrorResponse"
                                 }
                             }
                         }
@@ -10831,7 +10831,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                    "$ref": "#/components/schemas/goshop_pkg_utils.ErrorResponse"
                                 }
                             }
                         }
@@ -10882,7 +10882,7 @@
                                 "schema": {
                                     "allOf": [
                                         {
-                                            "$ref": "#/components/schemas/goshop_internal_utils.APIResponse"
+                                            "$ref": "#/components/schemas/goshop_pkg_utils.APIResponse"
                                         },
                                         {
                                             "type": "object",
@@ -10890,7 +10890,7 @@
                                                 "data": {
                                                     "type": "array",
                                                     "items": {
-                                                        "$ref": "#/components/schemas/v1dto.MyReviewDTO"
+                                                        "$ref": "#/components/schemas/dto.MyReviewDTO"
                                                     }
                                                 }
                                             }
@@ -10905,7 +10905,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                    "$ref": "#/components/schemas/goshop_pkg_utils.ErrorResponse"
                                 }
                             }
                         }
@@ -10915,7 +10915,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                    "$ref": "#/components/schemas/goshop_pkg_utils.ErrorResponse"
                                 }
                             }
                         }
@@ -10953,7 +10953,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/v1dto.UpdateReviewInput"
+                                "$ref": "#/components/schemas/dto.UpdateReviewInput"
                             }
                         }
                     },
@@ -10968,13 +10968,13 @@
                                 "schema": {
                                     "allOf": [
                                         {
-                                            "$ref": "#/components/schemas/goshop_internal_utils.APIResponse"
+                                            "$ref": "#/components/schemas/goshop_pkg_utils.APIResponse"
                                         },
                                         {
                                             "type": "object",
                                             "properties": {
                                                 "data": {
-                                                    "$ref": "#/components/schemas/v1dto.ReviewDTO"
+                                                    "$ref": "#/components/schemas/dto.ReviewDTO"
                                                 }
                                             }
                                         }
@@ -10988,7 +10988,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                    "$ref": "#/components/schemas/goshop_pkg_utils.ErrorResponse"
                                 }
                             }
                         }
@@ -10998,7 +10998,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                    "$ref": "#/components/schemas/goshop_pkg_utils.ErrorResponse"
                                 }
                             }
                         }
@@ -11036,7 +11036,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/components/schemas/goshop_pkg_utils.APIResponse"
                                 }
                             }
                         }
@@ -11046,7 +11046,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                    "$ref": "#/components/schemas/goshop_pkg_utils.ErrorResponse"
                                 }
                             }
                         }
@@ -11056,7 +11056,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                    "$ref": "#/components/schemas/goshop_pkg_utils.ErrorResponse"
                                 }
                             }
                         }
@@ -11098,13 +11098,13 @@
                                 "schema": {
                                     "allOf": [
                                         {
-                                            "$ref": "#/components/schemas/goshop_internal_utils.APIResponse"
+                                            "$ref": "#/components/schemas/goshop_pkg_utils.APIResponse"
                                         },
                                         {
                                             "type": "object",
                                             "properties": {
                                                 "data": {
-                                                    "$ref": "#/components/schemas/v1dto.ToggleHelpfulResponseDTO"
+                                                    "$ref": "#/components/schemas/dto.ToggleHelpfulResponseDTO"
                                                 }
                                             }
                                         }
@@ -11118,7 +11118,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                    "$ref": "#/components/schemas/goshop_pkg_utils.ErrorResponse"
                                 }
                             }
                         }
@@ -11128,7 +11128,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                    "$ref": "#/components/schemas/goshop_pkg_utils.ErrorResponse"
                                 }
                             }
                         }
@@ -11166,7 +11166,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/v1dto.ReportReviewInput"
+                                "$ref": "#/components/schemas/dto.ReportReviewInput"
                             }
                         }
                     },
@@ -11179,7 +11179,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/components/schemas/goshop_pkg_utils.APIResponse"
                                 }
                             }
                         }
@@ -11189,7 +11189,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                    "$ref": "#/components/schemas/goshop_pkg_utils.ErrorResponse"
                                 }
                             }
                         }
@@ -11199,7 +11199,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                    "$ref": "#/components/schemas/goshop_pkg_utils.ErrorResponse"
                                 }
                             }
                         }
@@ -12998,6 +12998,45 @@
                     }
                 }
             },
+            "dto.CreateReviewInput": {
+                "type": "object",
+                "required": [
+                    "order_uuid",
+                    "product_uuid",
+                    "rating"
+                ],
+                "properties": {
+                    "comment": {
+                        "type": "string",
+                        "maxLength": 2000
+                    },
+                    "images": {
+                        "type": "array",
+                        "maxItems": 5,
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "order_uuid": {
+                        "type": "string"
+                    },
+                    "product_uuid": {
+                        "type": "string"
+                    },
+                    "rating": {
+                        "type": "integer",
+                        "maximum": 5,
+                        "minimum": 1
+                    },
+                    "title": {
+                        "type": "string",
+                        "maxLength": 200
+                    },
+                    "video_url": {
+                        "type": "string"
+                    }
+                }
+            },
             "dto.CreateShippingInput": {
                 "type": "object",
                 "required": [
@@ -13185,6 +13224,53 @@
                         "type": "integer"
                     },
                     "refresh_token": {
+                        "type": "string"
+                    }
+                }
+            },
+            "dto.MyReviewDTO": {
+                "type": "object",
+                "properties": {
+                    "can_edit": {
+                        "type": "boolean"
+                    },
+                    "comment": {
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "has_media": {
+                        "type": "boolean"
+                    },
+                    "images": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "product_image_url": {
+                        "type": "string"
+                    },
+                    "product_name": {
+                        "type": "string"
+                    },
+                    "product_slug": {
+                        "type": "string"
+                    },
+                    "product_uuid": {
+                        "type": "string"
+                    },
+                    "rating": {
+                        "type": "integer"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "uuid": {
+                        "type": "string"
+                    },
+                    "video_url": {
                         "type": "string"
                     }
                 }
@@ -13602,6 +13688,40 @@
                     }
                 }
             },
+            "dto.ReplyReviewInput": {
+                "type": "object",
+                "required": [
+                    "reply"
+                ],
+                "properties": {
+                    "reply": {
+                        "type": "string",
+                        "maxLength": 2000,
+                        "minLength": 1
+                    }
+                }
+            },
+            "dto.ReportReviewInput": {
+                "type": "object",
+                "required": [
+                    "reason"
+                ],
+                "properties": {
+                    "details": {
+                        "type": "string",
+                        "maxLength": 500
+                    },
+                    "reason": {
+                        "type": "string",
+                        "enum": [
+                            "spam",
+                            "inappropriate",
+                            "fake",
+                            "other"
+                        ]
+                    }
+                }
+            },
             "dto.RequestForgotPasswordInput": {
                 "type": "object",
                 "required": [
@@ -13636,6 +13756,89 @@
                         "minLength": 6
                     },
                     "token": {
+                        "type": "string"
+                    }
+                }
+            },
+            "dto.ReviewDTO": {
+                "type": "object",
+                "properties": {
+                    "can_edit": {
+                        "type": "boolean"
+                    },
+                    "comment": {
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "has_media": {
+                        "type": "boolean"
+                    },
+                    "helpful_count": {
+                        "type": "integer"
+                    },
+                    "images": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "order_uuid": {
+                        "type": "string"
+                    },
+                    "product_uuid": {
+                        "type": "string"
+                    },
+                    "rating": {
+                        "type": "integer"
+                    },
+                    "reply": {
+                        "type": "string"
+                    },
+                    "reply_at": {
+                        "type": "string"
+                    },
+                    "reviewer_name": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "updated_at": {
+                        "type": "string"
+                    },
+                    "uuid": {
+                        "type": "string"
+                    },
+                    "video_url": {
+                        "type": "string"
+                    }
+                }
+            },
+            "dto.ReviewReportDTO": {
+                "type": "object",
+                "properties": {
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "details": {
+                        "type": "string"
+                    },
+                    "reason": {
+                        "description": "spam, inappropriate, fake, other",
+                        "type": "string"
+                    },
+                    "report_id": {
+                        "type": "integer"
+                    },
+                    "user_email": {
+                        "type": "string"
+                    },
+                    "user_id": {
+                        "type": "integer"
+                    },
+                    "user_name": {
                         "type": "string"
                     }
                 }
@@ -13834,6 +14037,19 @@
                         "items": {
                             "$ref": "#/components/schemas/dto.TrackingEventDTO"
                         }
+                    }
+                }
+            },
+            "dto.ToggleHelpfulResponseDTO": {
+                "type": "object",
+                "properties": {
+                    "helpful_count": {
+                        "description": "latest vote count",
+                        "type": "integer"
+                    },
+                    "voted": {
+                        "description": "true: voted, false: vote removed",
+                        "type": "boolean"
                     }
                 }
             },
@@ -14193,6 +14409,44 @@
                         "type": "string",
                         "maxLength": 100,
                         "minLength": 2
+                    }
+                }
+            },
+            "dto.UpdateReviewInput": {
+                "type": "object",
+                "required": [
+                    "rating"
+                ],
+                "properties": {
+                    "comment": {
+                        "type": "string",
+                        "maxLength": 2000
+                    },
+                    "rating": {
+                        "type": "integer",
+                        "maximum": 5,
+                        "minimum": 1
+                    },
+                    "title": {
+                        "type": "string",
+                        "maxLength": 200
+                    }
+                }
+            },
+            "dto.UpdateReviewStatusInput": {
+                "type": "object",
+                "required": [
+                    "status"
+                ],
+                "properties": {
+                    "status": {
+                        "description": "1: Visible, 2: Hidden, 3: Reported",
+                        "type": "integer",
+                        "enum": [
+                            1,
+                            2,
+                            3
+                        ]
                     }
                 }
             },
@@ -14707,45 +14961,6 @@
                     }
                 }
             },
-            "v1dto.CreateReviewInput": {
-                "type": "object",
-                "required": [
-                    "order_uuid",
-                    "product_uuid",
-                    "rating"
-                ],
-                "properties": {
-                    "comment": {
-                        "type": "string",
-                        "maxLength": 2000
-                    },
-                    "images": {
-                        "type": "array",
-                        "maxItems": 5,
-                        "items": {
-                            "type": "string"
-                        }
-                    },
-                    "order_uuid": {
-                        "type": "string"
-                    },
-                    "product_uuid": {
-                        "type": "string"
-                    },
-                    "rating": {
-                        "type": "integer",
-                        "maximum": 5,
-                        "minimum": 1
-                    },
-                    "title": {
-                        "type": "string",
-                        "maxLength": 200
-                    },
-                    "video_url": {
-                        "type": "string"
-                    }
-                }
-            },
             "v1dto.LowStockProductDTO": {
                 "type": "object",
                 "properties": {
@@ -14827,53 +15042,6 @@
                         "type": "string"
                     },
                     "uuid": {
-                        "type": "string"
-                    }
-                }
-            },
-            "v1dto.MyReviewDTO": {
-                "type": "object",
-                "properties": {
-                    "can_edit": {
-                        "type": "boolean"
-                    },
-                    "comment": {
-                        "type": "string"
-                    },
-                    "created_at": {
-                        "type": "string"
-                    },
-                    "has_media": {
-                        "type": "boolean"
-                    },
-                    "images": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        }
-                    },
-                    "product_image_url": {
-                        "type": "string"
-                    },
-                    "product_name": {
-                        "type": "string"
-                    },
-                    "product_slug": {
-                        "type": "string"
-                    },
-                    "product_uuid": {
-                        "type": "string"
-                    },
-                    "rating": {
-                        "type": "integer"
-                    },
-                    "title": {
-                        "type": "string"
-                    },
-                    "uuid": {
-                        "type": "string"
-                    },
-                    "video_url": {
                         "type": "string"
                     }
                 }
@@ -15020,40 +15188,6 @@
                     }
                 }
             },
-            "v1dto.ReplyReviewInput": {
-                "type": "object",
-                "required": [
-                    "reply"
-                ],
-                "properties": {
-                    "reply": {
-                        "type": "string",
-                        "maxLength": 2000,
-                        "minLength": 1
-                    }
-                }
-            },
-            "v1dto.ReportReviewInput": {
-                "type": "object",
-                "required": [
-                    "reason"
-                ],
-                "properties": {
-                    "details": {
-                        "type": "string",
-                        "maxLength": 500
-                    },
-                    "reason": {
-                        "type": "string",
-                        "enum": [
-                            "spam",
-                            "inappropriate",
-                            "fake",
-                            "other"
-                        ]
-                    }
-                }
-            },
             "v1dto.ReturnAnalyticsResponse": {
                 "type": "object",
                 "properties": {
@@ -15111,89 +15245,6 @@
                     },
                     "revenue": {
                         "type": "number"
-                    }
-                }
-            },
-            "v1dto.ReviewDTO": {
-                "type": "object",
-                "properties": {
-                    "can_edit": {
-                        "type": "boolean"
-                    },
-                    "comment": {
-                        "type": "string"
-                    },
-                    "created_at": {
-                        "type": "string"
-                    },
-                    "has_media": {
-                        "type": "boolean"
-                    },
-                    "helpful_count": {
-                        "type": "integer"
-                    },
-                    "images": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        }
-                    },
-                    "order_uuid": {
-                        "type": "string"
-                    },
-                    "product_uuid": {
-                        "type": "string"
-                    },
-                    "rating": {
-                        "type": "integer"
-                    },
-                    "reply": {
-                        "type": "string"
-                    },
-                    "reply_at": {
-                        "type": "string"
-                    },
-                    "reviewer_name": {
-                        "type": "string"
-                    },
-                    "title": {
-                        "type": "string"
-                    },
-                    "updated_at": {
-                        "type": "string"
-                    },
-                    "uuid": {
-                        "type": "string"
-                    },
-                    "video_url": {
-                        "type": "string"
-                    }
-                }
-            },
-            "v1dto.ReviewReportDTO": {
-                "type": "object",
-                "properties": {
-                    "created_at": {
-                        "type": "string"
-                    },
-                    "details": {
-                        "type": "string"
-                    },
-                    "reason": {
-                        "description": "spam, inappropriate, fake, other",
-                        "type": "string"
-                    },
-                    "report_id": {
-                        "type": "integer"
-                    },
-                    "user_email": {
-                        "type": "string"
-                    },
-                    "user_id": {
-                        "type": "integer"
-                    },
-                    "user_name": {
-                        "type": "string"
                     }
                 }
             },
@@ -15256,19 +15307,6 @@
                     }
                 }
             },
-            "v1dto.ToggleHelpfulResponseDTO": {
-                "type": "object",
-                "properties": {
-                    "helpful_count": {
-                        "description": "số lượng vote mới nhất",
-                        "type": "integer"
-                    },
-                    "voted": {
-                        "description": "true: đã vote, false: đã hủy vote",
-                        "type": "boolean"
-                    }
-                }
-            },
             "v1dto.TopProductDTO": {
                 "type": "object",
                 "properties": {
@@ -15324,44 +15362,6 @@
                     },
                     "uuid": {
                         "type": "string"
-                    }
-                }
-            },
-            "v1dto.UpdateReviewInput": {
-                "type": "object",
-                "required": [
-                    "rating"
-                ],
-                "properties": {
-                    "comment": {
-                        "type": "string",
-                        "maxLength": 2000
-                    },
-                    "rating": {
-                        "type": "integer",
-                        "maximum": 5,
-                        "minimum": 1
-                    },
-                    "title": {
-                        "type": "string",
-                        "maxLength": 200
-                    }
-                }
-            },
-            "v1dto.UpdateReviewStatusInput": {
-                "type": "object",
-                "required": [
-                    "status"
-                ],
-                "properties": {
-                    "status": {
-                        "description": "1: Visible, 2: Hidden, 3: Reported",
-                        "type": "integer",
-                        "enum": [
-                            1,
-                            2,
-                            3
-                        ]
                     }
                 }
             },

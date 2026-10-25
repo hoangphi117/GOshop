@@ -23,7 +23,7 @@ const (
 	OrderReturnStatusCancelled int16 = 5
 )
 
-// OrderSummary contains minimal order info needed for cross-domain reads (e.g. Chat, Review, Reporting).
+// OrderSummary contains minimal order info needed for cross-domain reads (e.g. Chat, Reporting).
 type OrderSummary struct {
 	OrderID       int32
 	OrderUUID     uuid.UUID
@@ -38,21 +38,7 @@ type OrderSummary struct {
 	UpdatedAt     time.Time
 }
 
-// PurchaseVerification contains the verification result for a user reviewing a product in an order.
-type PurchaseVerification struct {
-	OrderID       int32
-	OrderUUID     uuid.UUID
-	UserID        int32
-	IsPurchased   bool
-	CanReview     bool
-	DeliveredAt   *time.Time
-	CustomerName  string
-	CustomerEmail string
-	ShippingName  string
-}
-
-// OrderReader is the inbound read-only port for other domains (Chat, Review) to query orders via gRPC or client adapter.
+// OrderReader is the inbound read-only port for other domains (Chat) to query orders via gRPC or client adapter.
 type OrderReader interface {
 	GetOrderSummary(ctx context.Context, orderUUID uuid.UUID) (*OrderSummary, error)
-	VerifyPurchase(ctx context.Context, orderUUID uuid.UUID, userID int32, productID int32) (*PurchaseVerification, error)
 }

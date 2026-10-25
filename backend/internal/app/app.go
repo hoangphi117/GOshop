@@ -234,7 +234,6 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	}
 
 	modules := []Module{
-		NewReviewModule(ctx, rabbitmqService, crossDomainOrderReader),
 		NewWSModule(ctx, wsHub, tokenService, cacheRedisService),
 		NewUploadModule(ctx),
 		NewAnalyticsModule(ctx),

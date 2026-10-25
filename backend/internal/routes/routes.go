@@ -239,7 +239,8 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 			v1api.Any("/admin/products/*any", catalogProxyHandler)
 			v1api.Any("/admin/categories", catalogProxyHandler)
 			v1api.Any("/admin/categories/*any", catalogProxyHandler)
-			// Public /products is routed in NoRoute to avoid wildcard conflict with ReviewPublicRoutes (/:uuid/reviews)
+			// Public /products is routed in NoRoute so the catalog proxy can fall through
+	// to the review service for /products/{uuid}/reviews*.
 			isCatalogProxied = true
 		}
 	}
@@ -337,6 +338,41 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 		}
 	}
 
+	// API Gateway reverse proxy for Review microservice endpoints. The monolith
+	// no longer serves reviews: with REVIEW_SERVICE_URL unset these paths 404.
+	reviewURL := utils.GetEnv("REVIEW_SERVICE_URL", "")
+	isReviewProxied := false
+	var reviewProxyHandler func(ctx *gin.Context)
+	if reviewURL != "" {
+		if parsedReviewURL, err := url.Parse(reviewURL); err == nil && parsedReviewURL.Scheme != "" {
+			reviewProxy := httputil.NewSingleHostReverseProxy(parsedReviewURL)
+			transport := http.DefaultTransport.(*http.Transport).Clone()
+			transport.DisableCompression = true
+			reviewProxy.Transport = transport
+
+			reviewProxy.ModifyResponse = func(resp *http.Response) error {
+				resp.Header.Del("Access-Control-Allow-Origin")
+				resp.Header.Del("Access-Control-Allow-Credentials")
+				resp.Header.Del("Access-Control-Allow-Methods")
+				resp.Header.Del("Access-Control-Allow-Headers")
+				resp.Header.Del("Access-Control-Max-Age")
+				return nil
+			}
+			reviewProxyHandler = func(ctx *gin.Context) {
+				ctx.Request.Host = parsedReviewURL.Host
+				ctx.Request.Header.Del("Accept-Encoding")
+				reviewProxy.ServeHTTP(ctx.Writer, ctx.Request)
+			}
+
+			v1api.Any("/reviews", reviewProxyHandler)
+			v1api.Any("/reviews/*any", reviewProxyHandler)
+			v1api.Any("/admin/reviews", reviewProxyHandler)
+			v1api.Any("/admin/reviews/*any", reviewProxyHandler)
+			// /products/{uuid}/reviews* also lands here; catalog handles the rest via NoRoute.
+			isReviewProxied = true
+		}
+	}
+
 	public := v1api.Group("")
 
 	protected := v1api.Group("")
@@ -348,8 +384,7 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 
 	for _, route := range normalRoutes {
 		switch r := route.(type) {
-		case *v1routes.ReviewPublicRoutes,
-			*v1routes.WSRoutes, *v1routes.HealthRoutes:
+		case *v1routes.WSRoutes, *v1routes.HealthRoutes:
 			r.Register(public)
 		default:
 			r.Register(protected)
@@ -362,6 +397,18 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 
 	r.NoRoute(func(ctx *gin.Context) {
 		p := ctx.Request.URL.Path
+		// Product review endpoints belong to the review service; everything else
+		// under /products goes to catalog.
+		if isReviewProxied && reviewProxyHandler != nil &&
+			(strings.HasPrefix(p, "/api/v1/products/") || strings.HasPrefix(p, "/products/")) &&
+			strings.Contains(p, "/reviews") {
+			if !strings.HasPrefix(p, "/api/v1") {
+				ctx.Request.URL.Path = "/api/v1" + p
+			}
+			reviewProxyHandler(ctx)
+			return
+		}
+
 		if isCatalogProxied && catalogProxyHandler != nil && (strings.HasPrefix(p, "/api/v1/products") || strings.HasPrefix(p, "/products")) {
 			if !strings.HasPrefix(p, "/api/v1") {
 				ctx.Request.URL.Path = "/api/v1" + p

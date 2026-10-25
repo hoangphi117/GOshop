@@ -712,6 +712,34 @@ definitions:
     - name
     - price
     type: object
+  dto.CreateReviewInput:
+    properties:
+      comment:
+        maxLength: 2000
+        type: string
+      images:
+        items:
+          type: string
+        maxItems: 5
+        type: array
+      order_uuid:
+        type: string
+      product_uuid:
+        type: string
+      rating:
+        maximum: 5
+        minimum: 1
+        type: integer
+      title:
+        maxLength: 200
+        type: string
+      video_url:
+        type: string
+    required:
+    - order_uuid
+    - product_uuid
+    - rating
+    type: object
   dto.CreateShippingInput:
     properties:
       district_id:
@@ -846,6 +874,37 @@ definitions:
       expires_in:
         type: integer
       refresh_token:
+        type: string
+    type: object
+  dto.MyReviewDTO:
+    properties:
+      can_edit:
+        type: boolean
+      comment:
+        type: string
+      created_at:
+        type: string
+      has_media:
+        type: boolean
+      images:
+        items:
+          type: string
+        type: array
+      product_image_url:
+        type: string
+      product_name:
+        type: string
+      product_slug:
+        type: string
+      product_uuid:
+        type: string
+      rating:
+        type: integer
+      title:
+        type: string
+      uuid:
+        type: string
+      video_url:
         type: string
     type: object
   dto.NotificationDTO:
@@ -1121,6 +1180,30 @@ definitions:
     - name
     - password
     type: object
+  dto.ReplyReviewInput:
+    properties:
+      reply:
+        maxLength: 2000
+        minLength: 1
+        type: string
+    required:
+    - reply
+    type: object
+  dto.ReportReviewInput:
+    properties:
+      details:
+        maxLength: 500
+        type: string
+      reason:
+        enum:
+        - spam
+        - inappropriate
+        - fake
+        - other
+        type: string
+    required:
+    - reason
+    type: object
   dto.RequestForgotPasswordInput:
     properties:
       email:
@@ -1145,6 +1228,61 @@ definitions:
     required:
     - new_password
     - token
+    type: object
+  dto.ReviewDTO:
+    properties:
+      can_edit:
+        type: boolean
+      comment:
+        type: string
+      created_at:
+        type: string
+      has_media:
+        type: boolean
+      helpful_count:
+        type: integer
+      images:
+        items:
+          type: string
+        type: array
+      order_uuid:
+        type: string
+      product_uuid:
+        type: string
+      rating:
+        type: integer
+      reply:
+        type: string
+      reply_at:
+        type: string
+      reviewer_name:
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+      uuid:
+        type: string
+      video_url:
+        type: string
+    type: object
+  dto.ReviewReportDTO:
+    properties:
+      created_at:
+        type: string
+      details:
+        type: string
+      reason:
+        description: spam, inappropriate, fake, other
+        type: string
+      report_id:
+        type: integer
+      user_email:
+        type: string
+      user_id:
+        type: integer
+      user_name:
+        type: string
     type: object
   dto.SendRegisterOTPInput:
     properties:
@@ -1278,6 +1416,15 @@ definitions:
         items:
           $ref: '#/definitions/dto.TrackingEventDTO'
         type: array
+    type: object
+  dto.ToggleHelpfulResponseDTO:
+    properties:
+      helpful_count:
+        description: latest vote count
+        type: integer
+      voted:
+        description: 'true: voted, false: vote removed'
+        type: boolean
     type: object
   dto.TrackingEventDTO:
     properties:
@@ -1530,6 +1677,33 @@ definitions:
     - bank_account
     - bank_account_name
     - bank_name
+    type: object
+  dto.UpdateReviewInput:
+    properties:
+      comment:
+        maxLength: 2000
+        type: string
+      rating:
+        maximum: 5
+        minimum: 1
+        type: integer
+      title:
+        maxLength: 200
+        type: string
+    required:
+    - rating
+    type: object
+  dto.UpdateReviewStatusInput:
+    properties:
+      status:
+        description: '1: Visible, 2: Hidden, 3: Reported'
+        enum:
+        - 1
+        - 2
+        - 3
+        type: integer
+    required:
+    - status
     type: object
   dto.UpdateUserInput:
     properties:
@@ -1882,34 +2056,6 @@ definitions:
       total_revenue_generated:
         type: number
     type: object
-  v1dto.CreateReviewInput:
-    properties:
-      comment:
-        maxLength: 2000
-        type: string
-      images:
-        items:
-          type: string
-        maxItems: 5
-        type: array
-      order_uuid:
-        type: string
-      product_uuid:
-        type: string
-      rating:
-        maximum: 5
-        minimum: 1
-        type: integer
-      title:
-        maxLength: 200
-        type: string
-      video_url:
-        type: string
-    required:
-    - order_uuid
-    - product_uuid
-    - rating
-    type: object
   v1dto.LowStockProductDTO:
     properties:
       alert_level:
@@ -1965,37 +2111,6 @@ definitions:
       sender_role:
         type: string
       uuid:
-        type: string
-    type: object
-  v1dto.MyReviewDTO:
-    properties:
-      can_edit:
-        type: boolean
-      comment:
-        type: string
-      created_at:
-        type: string
-      has_media:
-        type: boolean
-      images:
-        items:
-          type: string
-        type: array
-      product_image_url:
-        type: string
-      product_name:
-        type: string
-      product_slug:
-        type: string
-      product_uuid:
-        type: string
-      rating:
-        type: integer
-      title:
-        type: string
-      uuid:
-        type: string
-      video_url:
         type: string
     type: object
   v1dto.OrderStatusDistributionItemDTO:
@@ -2096,30 +2211,6 @@ definitions:
       uuid:
         type: string
     type: object
-  v1dto.ReplyReviewInput:
-    properties:
-      reply:
-        maxLength: 2000
-        minLength: 1
-        type: string
-    required:
-    - reply
-    type: object
-  v1dto.ReportReviewInput:
-    properties:
-      details:
-        maxLength: 500
-        type: string
-      reason:
-        enum:
-        - spam
-        - inappropriate
-        - fake
-        - other
-        type: string
-    required:
-    - reason
-    type: object
   v1dto.ReturnAnalyticsResponse:
     properties:
       reasons_breakdown:
@@ -2158,61 +2249,6 @@ definitions:
         type: integer
       revenue:
         type: number
-    type: object
-  v1dto.ReviewDTO:
-    properties:
-      can_edit:
-        type: boolean
-      comment:
-        type: string
-      created_at:
-        type: string
-      has_media:
-        type: boolean
-      helpful_count:
-        type: integer
-      images:
-        items:
-          type: string
-        type: array
-      order_uuid:
-        type: string
-      product_uuid:
-        type: string
-      rating:
-        type: integer
-      reply:
-        type: string
-      reply_at:
-        type: string
-      reviewer_name:
-        type: string
-      title:
-        type: string
-      updated_at:
-        type: string
-      uuid:
-        type: string
-      video_url:
-        type: string
-    type: object
-  v1dto.ReviewReportDTO:
-    properties:
-      created_at:
-        type: string
-      details:
-        type: string
-      reason:
-        description: spam, inappropriate, fake, other
-        type: string
-      report_id:
-        type: integer
-      user_email:
-        type: string
-      user_id:
-        type: integer
-      user_name:
-        type: string
     type: object
   v1dto.SendMessageRequest:
     properties:
@@ -2257,15 +2293,6 @@ definitions:
       is_online:
         type: boolean
     type: object
-  v1dto.ToggleHelpfulResponseDTO:
-    properties:
-      helpful_count:
-        description: số lượng vote mới nhất
-        type: integer
-      voted:
-        description: 'true: đã vote, false: đã hủy vote'
-        type: boolean
-    type: object
   v1dto.TopProductDTO:
     properties:
       category_name:
@@ -2303,33 +2330,6 @@ definitions:
         type: integer
       uuid:
         type: string
-    type: object
-  v1dto.UpdateReviewInput:
-    properties:
-      comment:
-        maxLength: 2000
-        type: string
-      rating:
-        maximum: 5
-        minimum: 1
-        type: integer
-      title:
-        maxLength: 200
-        type: string
-    required:
-    - rating
-    type: object
-  v1dto.UpdateReviewStatusInput:
-    properties:
-      status:
-        description: '1: Visible, 2: Hidden, 3: Reported'
-        enum:
-        - 1
-        - 2
-        - 3
-        type: integer
-    required:
-    - status
     type: object
   v1dto.UploadResponseDTO:
     properties:
@@ -4466,21 +4466,21 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - $ref: '#/definitions/goshop_pkg_utils.APIResponse'
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/v1dto.ReviewDTO'
+                    $ref: '#/definitions/dto.ReviewDTO'
                   type: array
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
       security:
       - BearerAuth: []
       - ApiKeyAuth: []
@@ -4502,15 +4502,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            $ref: '#/definitions/goshop_pkg_utils.APIResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
       security:
       - BearerAuth: []
       - ApiKeyAuth: []
@@ -4532,15 +4532,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            $ref: '#/definitions/goshop_pkg_utils.APIResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
       security:
       - BearerAuth: []
       - ApiKeyAuth: []
@@ -4563,7 +4563,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/v1dto.ReplyReviewInput'
+          $ref: '#/definitions/dto.ReplyReviewInput'
       produces:
       - application/json
       responses:
@@ -4571,19 +4571,19 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - $ref: '#/definitions/goshop_pkg_utils.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/v1dto.ReviewDTO'
+                  $ref: '#/definitions/dto.ReviewDTO'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
       security:
       - BearerAuth: []
       - ApiKeyAuth: []
@@ -4606,21 +4606,21 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - $ref: '#/definitions/goshop_pkg_utils.APIResponse'
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/v1dto.ReviewReportDTO'
+                    $ref: '#/definitions/dto.ReviewReportDTO'
                   type: array
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
       security:
       - BearerAuth: []
       - ApiKeyAuth: []
@@ -4644,7 +4644,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/v1dto.UpdateReviewStatusInput'
+          $ref: '#/definitions/dto.UpdateReviewStatusInput'
       produces:
       - application/json
       responses:
@@ -4652,19 +4652,19 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - $ref: '#/definitions/goshop_pkg_utils.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/v1dto.ReviewDTO'
+                  $ref: '#/definitions/dto.ReviewDTO'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
       security:
       - BearerAuth: []
       - ApiKeyAuth: []
@@ -7832,17 +7832,17 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - $ref: '#/definitions/goshop_pkg_utils.APIResponse'
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/v1dto.ReviewDTO'
+                    $ref: '#/definitions/dto.ReviewDTO'
                   type: array
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
       summary: Get product reviews
       tags:
       - Reviews
@@ -7861,11 +7861,11 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            $ref: '#/definitions/goshop_pkg_utils.APIResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
       summary: Get product rating summary
       tags:
       - Reviews
@@ -7880,7 +7880,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/v1dto.CreateReviewInput'
+          $ref: '#/definitions/dto.CreateReviewInput'
       produces:
       - application/json
       responses:
@@ -7888,19 +7888,19 @@ paths:
           description: Created
           schema:
             allOf:
-            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - $ref: '#/definitions/goshop_pkg_utils.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/v1dto.ReviewDTO'
+                  $ref: '#/definitions/dto.ReviewDTO'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
       security:
       - BearerAuth: []
       - ApiKeyAuth: []
@@ -7922,15 +7922,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            $ref: '#/definitions/goshop_pkg_utils.APIResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
       security:
       - BearerAuth: []
       - ApiKeyAuth: []
@@ -7952,7 +7952,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/v1dto.UpdateReviewInput'
+          $ref: '#/definitions/dto.UpdateReviewInput'
       produces:
       - application/json
       responses:
@@ -7960,19 +7960,19 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - $ref: '#/definitions/goshop_pkg_utils.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/v1dto.ReviewDTO'
+                  $ref: '#/definitions/dto.ReviewDTO'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
       security:
       - BearerAuth: []
       - ApiKeyAuth: []
@@ -7995,19 +7995,19 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - $ref: '#/definitions/goshop_pkg_utils.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/v1dto.ToggleHelpfulResponseDTO'
+                  $ref: '#/definitions/dto.ToggleHelpfulResponseDTO'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
       security:
       - BearerAuth: []
       - ApiKeyAuth: []
@@ -8030,22 +8030,22 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/v1dto.ReportReviewInput'
+          $ref: '#/definitions/dto.ReportReviewInput'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            $ref: '#/definitions/goshop_pkg_utils.APIResponse'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
       security:
       - BearerAuth: []
       - ApiKeyAuth: []
@@ -8074,21 +8074,21 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - $ref: '#/definitions/goshop_pkg_utils.APIResponse'
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/v1dto.MyReviewDTO'
+                    $ref: '#/definitions/dto.MyReviewDTO'
                   type: array
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
       security:
       - BearerAuth: []
       - ApiKeyAuth: []

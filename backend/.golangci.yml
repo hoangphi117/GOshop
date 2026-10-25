@@ -31,8 +31,6 @@ linters:
               desc: "Order domain must not import concrete cart repository directly; use CartService"
             - pkg: "goshop/internal/repository/stock_movement_repository"
               desc: "Order domain must not import stock movement repository directly; use OrderStockPort"
-            - pkg: "goshop/internal/repository/review_repository"
-              desc: "Order domain must not import Review repository directly"
             - pkg: "goshop/internal/repository/user_repository"
               desc: "Order domain must not import User repository directly; use IdentityUserReader"
         chat_domain_isolation:
@@ -45,16 +43,6 @@ linters:
               desc: "Chat domain must not import Order repository directly; use OrderReader"
             - pkg: "goshop/internal/repository/order_item_repository"
               desc: "Chat domain must not import Order item repository directly; use OrderReader"
-        review_domain_isolation:
-          list-mode: lax
-          files:
-            - "$/internal/service/v1/review*.go"
-            - "!$/**/*_test.go"
-          deny:
-            - pkg: "goshop/internal/repository/order_repository"
-              desc: "Review domain must not import Order repository directly; use OrderReader"
-            - pkg: "goshop/internal/repository/order_item_repository"
-              desc: "Review domain must not import Order item repository directly; use OrderReader"
         payment_domain_isolation:
           list-mode: lax
           files:
