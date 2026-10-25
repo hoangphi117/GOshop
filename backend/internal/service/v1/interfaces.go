@@ -7,32 +7,6 @@ import (
 	"github.com/google/uuid"
 )
 
-type UserService interface {
-	GetAllUsers(ctx context.Context, search, orderBy, sort string, page, limit int32, deleted bool) ([]v1dto.UserDTO, int32, error)
-	CreateUsers(ctx context.Context, input v1dto.CreateUserInput) (*v1dto.UserDTO, error)
-	GetUserByUUID(ctx context.Context, userUUID uuid.UUID) (*v1dto.UserDTO, error)
-	UpdateUser(ctx context.Context, userUUID uuid.UUID, input v1dto.UpdateUserInput) (*v1dto.UserDTO, error)
-	GetProfile(ctx context.Context, userUUID uuid.UUID) (*v1dto.UserDTO, error)
-	UpdateProfile(ctx context.Context, userUUID uuid.UUID, input v1dto.UpdateProfileInput) (*v1dto.UserDTO, error)
-	ChangePassword(ctx context.Context, userUUID uuid.UUID, input v1dto.ChangePasswordRequest) error
-	SoftDeleteUser(ctx context.Context, userUUID uuid.UUID) (*v1dto.UserDTO, error)
-	RestoreUser(ctx context.Context, userUUID uuid.UUID) (*v1dto.UserDTO, error)
-	TrashUser(ctx context.Context, userUUID uuid.UUID) error
-}
-
-type AuthService interface {
-	Register(ctx context.Context, input v1dto.RegisterInput) error
-	SendRegisterOTP(ctx context.Context, input v1dto.SendRegisterOTPInput) error
-	VerifyRegisterOTP(ctx context.Context, input v1dto.VerifyRegisterOTPInput) (string, string, int, error)
-	ResendRegisterOTP(ctx context.Context, input v1dto.ResendRegisterOTPInput) error
-	Login(ctx context.Context, ip, userAgent string, email, password string) (string, string, int, error)
-	GoogleLogin(ctx context.Context, ip, userAgent, idToken string) (string, string, int, error)
-	Logout(ctx context.Context, accessToken string, refreshToken string) error
-	RefreshToken(ctx context.Context, refreshToken string) (string, string, int, error)
-	RequestForgotPassword(ctx context.Context, email string) error
-	ResetPassword(ctx context.Context, token, newPassword string) error
-}
-
 const (
 	PaymentStatusPending  int32 = 1
 	PaymentStatusPaid     int32 = 2
@@ -51,15 +25,6 @@ type PaymentService interface {
 	ConfirmCODPayment(ctx context.Context, orderUUID uuid.UUID) error
 }
 
-type AddressService interface {
-	CreateUserAddress(ctx context.Context, userUUID uuid.UUID, input v1dto.CreateAddressInput) (v1dto.AddressDTO, error)
-	GetMyAddresses(ctx context.Context, userUUID uuid.UUID) ([]v1dto.AddressDTO, error)
-	GetAddressByUUID(ctx context.Context, userUUID uuid.UUID, addressUUID uuid.UUID) (v1dto.AddressDTO, error)
-	UpdateUserAddress(ctx context.Context, userUUID uuid.UUID, addressUUID uuid.UUID, input v1dto.UpdateAddressInput) (v1dto.AddressDTO, error)
-	SetDefaultUserAddress(ctx context.Context, userUUID uuid.UUID, addressUUID uuid.UUID) error
-	DeleteUserAddress(ctx context.Context, userUUID uuid.UUID, addressUUID uuid.UUID) error
-}
-
 type ReviewService interface {
 	CreateReview(ctx context.Context, userID int32, input v1dto.CreateReviewInput, imageURLs []string, videoURL *string) (v1dto.ReviewDTO, error)
 	GetProductReviews(ctx context.Context, productUUID uuid.UUID, query v1dto.GetReviewsQuery) ([]v1dto.ReviewDTO, int32, error)
@@ -75,24 +40,6 @@ type ReviewService interface {
 	AdminForceDeleteReview(ctx context.Context, reviewUUID uuid.UUID) error
 	GetReviewReports(ctx context.Context, reviewUUID uuid.UUID) ([]v1dto.ReviewReportDTO, error)
 	AdminDismissReports(ctx context.Context, reviewUUID uuid.UUID) error
-}
-
-type NotificationService interface {
-	Send(ctx context.Context, input v1dto.SendNotificationInput) error
-	SendAsync(ctx context.Context, input v1dto.SendNotificationInput) error
-	CreateNotification(ctx context.Context, input v1dto.CreateNotificationInput) (v1dto.NotificationDTO, error)
-	NotifyAdmins(ctx context.Context, input v1dto.AdminNotifyInput) error
-	NotifyAdminsAsync(ctx context.Context, input v1dto.AdminNotifyInput) error
-	BroadcastNotification(ctx context.Context, input v1dto.BroadcastNotificationInput) error
-	GetMyNotifications(ctx context.Context, userUUID uuid.UUID, query v1dto.GetNotificationsQuery) ([]v1dto.NotificationDTO, int32, error)
-	GetAdminNotifications(ctx context.Context, userUUID uuid.UUID, query v1dto.AdminGetNotificationsQuery) ([]v1dto.NotificationDTO, int32, error)
-	GetUnreadNotificationCount(ctx context.Context, userUUID uuid.UUID) (v1dto.UnreadCountDTO, error)
-	GetAdminUnreadNotificationCount(ctx context.Context, userUUID uuid.UUID) (v1dto.UnreadCountDTO, error)
-	MarkNotificationAsRead(ctx context.Context, userUUID uuid.UUID, notificationUUID uuid.UUID) (v1dto.NotificationDTO, error)
-	MarkAllNotificationsAsRead(ctx context.Context, userUUID uuid.UUID) error
-	MarkAllAdminNotificationsAsRead(ctx context.Context, userUUID uuid.UUID) error
-	DeleteNotification(ctx context.Context, userUUID uuid.UUID, notificationUUID uuid.UUID) error
-	PurgeStaleNotifications(ctx context.Context, retentionDays int) (int64, error)
 }
 
 type AnalyticsService interface {
