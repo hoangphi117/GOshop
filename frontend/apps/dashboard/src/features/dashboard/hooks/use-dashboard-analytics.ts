@@ -15,14 +15,6 @@ import type {
   RevenueChartQueryParams,
   TopProduct,
   TopProductsQueryParams,
-  CartFunnelQueryParams,
-  CartFunnelStats,
-  ReturnAnalyticsQueryParams,
-  ReturnAnalyticsResponse,
-  CategorySalesQueryParams,
-  CategorySalesBreakdownResponse,
-  CouponPerformanceQueryParams,
-  CouponPerformanceResponse,
 } from '../types'
 
 export function useAnalyticsOverview(params: OverviewStatsQueryParams = {}) {
@@ -219,113 +211,6 @@ export function usePaymentMethodBreakdown(
         )
       }
       return data?.data as PaymentMethodBreakdownResponse
-    },
-    staleTime: 1000 * 60 * 5,
-  })
-}
-
-export function useCartFunnel(params: CartFunnelQueryParams = {}) {
-  return useQuery({
-    queryKey: ['analyticsCartFunnel', params],
-    queryFn: async () => {
-      const { data, error } = await api.GET(
-        '/api/v1/admin/analytics/cart-funnel',
-        {
-          params: {
-            query: {
-              from_date: params.from_date,
-              to_date: params.to_date,
-            },
-          },
-        }
-      )
-      if (error) {
-        throw new Error(
-          (error as { error?: string })?.error || 'Failed to fetch cart funnel'
-        )
-      }
-      return data?.data as CartFunnelStats
-    },
-    staleTime: 1000 * 60 * 2,
-  })
-}
-
-export function useReturnAnalytics(params: ReturnAnalyticsQueryParams = {}) {
-  return useQuery({
-    queryKey: ['analyticsReturns', params],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/api/v1/admin/analytics/returns', {
-        params: {
-          query: {
-            days: params.days,
-            from_date: params.from_date,
-            to_date: params.to_date,
-          },
-        },
-      })
-      if (error) {
-        throw new Error(
-          (error as { error?: string })?.error ||
-            'Failed to fetch return analytics'
-        )
-      }
-      return data?.data as ReturnAnalyticsResponse
-    },
-    staleTime: 1000 * 60 * 2,
-  })
-}
-
-export function useCategorySales(params: CategorySalesQueryParams = {}) {
-  return useQuery({
-    queryKey: ['analyticsCategorySales', params],
-    queryFn: async () => {
-      const { data, error } = await api.GET(
-        '/api/v1/admin/analytics/category-sales',
-        {
-          params: {
-            query: {
-              days: params.days,
-              from_date: params.from_date,
-              to_date: params.to_date,
-            },
-          },
-        }
-      )
-      if (error) {
-        throw new Error(
-          (error as { error?: string })?.error ||
-            'Failed to fetch category sales breakdown'
-        )
-      }
-      return data?.data as CategorySalesBreakdownResponse
-    },
-    staleTime: 1000 * 60 * 5,
-  })
-}
-
-export function useCouponPerformance(
-  params: CouponPerformanceQueryParams = {}
-) {
-  return useQuery({
-    queryKey: ['analyticsCouponPerformance', params],
-    queryFn: async () => {
-      const { data, error } = await api.GET('/api/v1/admin/analytics/coupons', {
-        params: {
-          query: {
-            days: params.days,
-            from_date: params.from_date,
-            to_date: params.to_date,
-            limit: params.limit,
-          },
-        },
-      })
-      if (error) {
-        throw new Error(
-          (error as { error?: string })?.error ||
-            'Failed to fetch coupon performance'
-        )
-      }
-      return data?.data as CouponPerformanceResponse
     },
     staleTime: 1000 * 60 * 5,
   })

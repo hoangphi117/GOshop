@@ -12,6 +12,8 @@ import (
 
 type Querier interface {
 	ClearDefaultAddress(ctx context.Context, uaUserID int32) error
+	// Customers = user_level 3 (existing GetOverviewStats semantics), soft-deleted excluded.
+	CountCustomersCreatedBetween(ctx context.Context, arg CountCustomersCreatedBetweenParams) (int64, error)
 	CountUserAddresses(ctx context.Context, uaUserID int32) (int64, error)
 	CountUsers(ctx context.Context, arg CountUsersParams) (int64, error)
 	CreateOAuthUser(ctx context.Context, arg CreateOAuthUserParams) (User, error)

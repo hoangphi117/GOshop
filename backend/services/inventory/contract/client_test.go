@@ -19,11 +19,12 @@ import (
 )
 
 type mockInventoryService struct {
-	deductFunc  func(ctx context.Context, items []dto.DeductItem, refID string, refType string, actorID *int32, actorUUID *string, note *string) (map[string]dto.ItemStockDTO, error)
-	restoreFunc func(ctx context.Context, items []dto.RestoreItem, refID string, refType string, actorID *int32, actorUUID *string, note *string) error
-	getStockFn  func(ctx context.Context, productUUIDs []string, productIDs []int32) ([]dto.ItemStockDTO, error)
-	adjustFn    func(ctx context.Context, actorUUID *uuid.UUID, actorName *string, input dto.AdjustStockInput) (*dto.StockMovementDTO, error)
-	listMoveFn  func(ctx context.Context, params dto.GetStockMovementsParam) ([]dto.StockMovementDTO, int64, error)
+	deductFunc     func(ctx context.Context, items []dto.DeductItem, refID string, refType string, actorID *int32, actorUUID *string, note *string) (map[string]dto.ItemStockDTO, error)
+	restoreFunc    func(ctx context.Context, items []dto.RestoreItem, refID string, refType string, actorID *int32, actorUUID *string, note *string) error
+	getStockFn     func(ctx context.Context, productUUIDs []string, productIDs []int32) ([]dto.ItemStockDTO, error)
+	adjustFn       func(ctx context.Context, actorUUID *uuid.UUID, actorName *string, input dto.AdjustStockInput) (*dto.StockMovementDTO, error)
+	listMoveFn     func(ctx context.Context, params dto.GetStockMovementsParam) ([]dto.StockMovementDTO, int64, error)
+	listLowStockFn func(ctx context.Context, threshold, limit int32) ([]dto.ItemStockDTO, int64, error)
 }
 
 func (m *mockInventoryService) LockAndDeductStockWithRef(ctx context.Context, items []dto.DeductItem, refID string, refType string, actorID *int32, actorUUID *string, note *string) (map[string]dto.ItemStockDTO, error) {
@@ -206,4 +207,11 @@ func TestInventoryContract_AdjustStockIdempotencyFields(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, seen.ReferenceID)
 	assert.Nil(t, seen.TargetQuantity)
+}
+
+func (m *mockInventoryService) ListLowStockProducts(ctx context.Context, threshold, limit int32) ([]dto.ItemStockDTO, int64, error) {
+	if m.listLowStockFn != nil {
+		return m.listLowStockFn(ctx, threshold, limit)
+	}
+	return []dto.ItemStockDTO{}, 0, nil
 }

@@ -162,3 +162,12 @@ SELECT user_id, user_uuid, user_fullname, user_email, user_avatar, user_avatar_u
 FROM users
 WHERE user_id = ANY($1::int[])
   AND user_deleted_at IS NULL;
+
+-- name: CountCustomersCreatedBetween :one
+-- Customers = user_level 3 (existing GetOverviewStats semantics), soft-deleted excluded.
+SELECT count(*)::bigint
+FROM users
+WHERE user_level = 3
+  AND user_deleted_at IS NULL
+  AND user_created_at >= sqlc.arg(from_time)::timestamptz
+  AND user_created_at <= sqlc.arg(to_time)::timestamptz;

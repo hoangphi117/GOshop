@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"goshop/services/identity/internal/db/sqlc"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -144,6 +145,15 @@ func (ur *SqlUserRepository) CountUsers(ctx context.Context, search string, dele
 		return 0, err
 	}
 	return total, nil
+}
+
+// CountCustomersCreatedBetween counts registered customers (user_level 3,
+// not soft-deleted) whose user_created_at falls inside [fromTime, toTime].
+func (ur *SqlUserRepository) CountCustomersCreatedBetween(ctx context.Context, fromTime, toTime time.Time) (int64, error) {
+	return ur.db.CountCustomersCreatedBetween(ctx, sqlc.CountCustomersCreatedBetweenParams{
+		FromTime: fromTime,
+		ToTime:   toTime,
+	})
 }
 
 func (ur *SqlUserRepository) Create(ctx context.Context, userParams sqlc.CreateUserParams) (sqlc.User, error) {

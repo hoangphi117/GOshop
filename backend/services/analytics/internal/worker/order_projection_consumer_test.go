@@ -20,8 +20,6 @@ func TestOrderProjectionConsumer_HandleInvalidJSON(t *testing.T) {
 	assert.Error(t, consumer.HandleOrderStatusChanged(headers, badBody))
 	assert.Error(t, consumer.HandleOrderCancelled(headers, badBody))
 	assert.Error(t, consumer.HandlePaymentSucceeded(headers, badBody))
-	assert.Error(t, consumer.HandleOrderReturnRequested(headers, badBody))
-	assert.Error(t, consumer.HandleOrderReturnUpdated(headers, badBody))
 }
 
 func TestOrderProjectionConsumer_HandleNilDB(t *testing.T) {
@@ -87,37 +85,6 @@ func TestOrderProjectionConsumer_HandleNilDB(t *testing.T) {
 	body, err = json.Marshal(payEvt)
 	assert.NoError(t, err)
 	assert.NoError(t, consumer.HandlePaymentSucceeded(headers, body))
-
-	// Return Requested
-	retReqEvt := rabbitmq.NewOrderReturnRequestedEvent(
-		uuid.New().String(),
-		uuid.New().String(),
-		uuid.New().String(),
-		"ORD-TEST-001",
-		201,
-		1001,
-		501,
-		"Defective item",
-	)
-	body, err = json.Marshal(retReqEvt)
-	assert.NoError(t, err)
-	assert.NoError(t, consumer.HandleOrderReturnRequested(headers, body))
-
-	// Return Updated
-	retUpdEvt := rabbitmq.NewOrderReturnUpdatedEvent(
-		uuid.New().String(),
-		uuid.New().String(),
-		uuid.New().String(),
-		"ORD-TEST-001",
-		201,
-		1001,
-		501,
-		2,
-		"Approved by manager",
-	)
-	body, err = json.Marshal(retUpdEvt)
-	assert.NoError(t, err)
-	assert.NoError(t, consumer.HandleOrderReturnUpdated(headers, body))
 }
 
 func TestOrderProjectionConsumer_StructConstruction(t *testing.T) {

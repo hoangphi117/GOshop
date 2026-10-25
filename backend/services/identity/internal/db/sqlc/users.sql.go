@@ -7,9 +7,32 @@ package sqlc
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
+
+const countCustomersCreatedBetween = `-- name: CountCustomersCreatedBetween :one
+SELECT count(*)::bigint
+FROM users
+WHERE user_level = 3
+  AND user_deleted_at IS NULL
+  AND user_created_at >= $1::timestamptz
+  AND user_created_at <= $2::timestamptz
+`
+
+type CountCustomersCreatedBetweenParams struct {
+	FromTime time.Time `json:"from_time"`
+	ToTime   time.Time `json:"to_time"`
+}
+
+// Customers = user_level 3 (existing GetOverviewStats semantics), soft-deleted excluded.
+func (q *Queries) CountCustomersCreatedBetween(ctx context.Context, arg CountCustomersCreatedBetweenParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countCustomersCreatedBetween, arg.FromTime, arg.ToTime)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
 
 const countUsers = `-- name: CountUsers :one
 SELECT count(*)

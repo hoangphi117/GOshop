@@ -233,8 +233,8 @@ func TestCartService_AddItemToCart(t *testing.T) {
 		CartItemUuid: itemUUID,
 		CartID:       1,
 		ProductUuid:  productUUID,
-		ProductID:   &prodID,
-		Quantity:    2,
+		ProductID:    &prodID,
+		Quantity:     2,
 	}, nil)
 
 	mockRepo.On("GetCartItems", mock.Anything, int32(1)).Return([]sqlc.CartItem{
@@ -243,7 +243,7 @@ func TestCartService_AddItemToCart(t *testing.T) {
 			CartItemUuid: itemUUID,
 			CartID:       1,
 			ProductUuid:  productUUID,
-			ProductID:   &prodID,
+			ProductID:    &prodID,
 			Quantity:     2,
 		},
 	}, nil)
@@ -290,3 +290,4 @@ func TestCartService_RemovePurchasedItems(t *testing.T) {
 	assert.NoError(t, err)
 	mockRepo.AssertExpectations(t)
 }
+

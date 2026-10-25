@@ -4,10 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"goshop/internal/client"
 	"goshop/internal/config"
 	"goshop/internal/db"
-	v1service "goshop/internal/service/v1"
 	"goshop/internal/utils"
 	"goshop/internal/worker"
 	"goshop/pkg/cache"
@@ -16,7 +14,6 @@ import (
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/ws"
 	catalogcontract "goshop/services/catalog/contract"
-	ordercontract "goshop/services/order/contract"
 	"os/signal"
 	"path/filepath"
 	"sync"
@@ -30,16 +27,15 @@ import (
 )
 
 type Worker struct {
-	rabbitMQ                rabbitmq.RabbitMQService
-	mailService             mail.EmailProviderService
-	cache                   cache.RedisCacheService
-	redisClient             *redis.Client
-	cfg                     *config.Config
-	logger                  *zerolog.Logger
-	userSyncConsumer        *worker.UserSyncConsumer
-	orderProjectionConsumer *worker.OrderProjectionConsumer
-	redisBridge             ws.RedisBridge
-	grpcCatalogClient       *catalogcontract.GRPCCatalogClient
+	rabbitMQ          rabbitmq.RabbitMQService
+	mailService       mail.EmailProviderService
+	cache             cache.RedisCacheService
+	redisClient       *redis.Client
+	cfg               *config.Config
+	logger            *zerolog.Logger
+	userSyncConsumer  *worker.UserSyncConsumer
+	redisBridge       ws.RedisBridge
+	grpcCatalogClient *catalogcontract.GRPCCatalogClient
 }
 
 func NewWorker(cfg *config.Config) *Worker {
@@ -97,27 +93,16 @@ func NewWorker(cfg *config.Config) *Worker {
 
 	userSyncConsumer := worker.NewUserSyncConsumer(redisClient, db.DBPool)
 
-	orderTarget := utils.GetEnv("ORDER_GRPC_TARGET", utils.GetEnv("ORDER_GRPC_ADDR", "localhost:50057"))
-	var orderReader v1service.OrderReader
-	grpcOrderClient, err := ordercontract.NewGRPCOrderClient(orderTarget)
-	if err != nil {
-		log.Warn().Err(err).Str("target", orderTarget).Msg("Failed to connect to Order gRPC service in worker")
-	} else {
-		orderReader = client.NewGRPCOrderReader(grpcOrderClient)
-	}
-	orderProjectionConsumer := worker.NewOrderProjectionConsumer(db.DBPool, orderReader, log)
-
 	return &Worker{
-		rabbitMQ:                rabbitMQ,
-		mailService:             mailService,
-		cache:                   cacheService,
-		redisClient:             redisClient,
-		cfg:                     cfg,
-		logger:                  log,
-		userSyncConsumer:        userSyncConsumer,
-		orderProjectionConsumer: orderProjectionConsumer,
-		redisBridge:             redisBridge,
-		grpcCatalogClient:       grpcCatalogClient,
+		rabbitMQ:          rabbitMQ,
+		mailService:       mailService,
+		cache:             cacheService,
+		redisClient:       redisClient,
+		cfg:               cfg,
+		logger:            log,
+		userSyncConsumer:  userSyncConsumer,
+		redisBridge:       redisBridge,
+		grpcCatalogClient: grpcCatalogClient,
 	}
 }
 
@@ -156,45 +141,8 @@ func (w *Worker) Start(ctx context.Context) error {
 
 	w.logger.Info().Msgf("Worker started and consuming email queue: %s", emailQueueName)
 
-	// Topic Pub/Sub: Analytics Order Events (Reporting Read Model Projection)
-	// NOTE (branch F): cart cleanup, coupon release and inventory stock
-	// release/restock are owned by their services now; the worker must not
-	// subscribe to those queues.
-	if w.orderProjectionConsumer != nil {
-		const queueAnalyticsOrders = "analytics.order_events"
-		routingKeys := []string{
-			rabbitmq.RoutingKeyOrderCreated,
-			rabbitmq.RoutingKeyOrderCancelled,
-			rabbitmq.RoutingKeyOrderStatusChanged,
-			rabbitmq.RoutingKeyOrderShipped,
-			rabbitmq.RoutingKeyOrderDelivered,
-			rabbitmq.RoutingKeyPaymentSucceeded,
-			rabbitmq.RoutingKeyOrderReturnRequested,
-			rabbitmq.RoutingKeyOrderReturnUpdated,
-		}
-		analyticsHandler := w.withIdempotency(queueAnalyticsOrders, func(headers amqp.Table, body []byte) error {
-			rk, _ := headers["x-routing-key"].(string)
-			switch rk {
-			case rabbitmq.RoutingKeyOrderCancelled:
-				return w.orderProjectionConsumer.HandleOrderCancelled(headers, body)
-			case rabbitmq.RoutingKeyOrderStatusChanged, rabbitmq.RoutingKeyOrderShipped, rabbitmq.RoutingKeyOrderDelivered:
-				return w.orderProjectionConsumer.HandleOrderStatusChanged(headers, body)
-			case rabbitmq.RoutingKeyPaymentSucceeded:
-				return w.orderProjectionConsumer.HandlePaymentSucceeded(headers, body)
-			case rabbitmq.RoutingKeyOrderReturnRequested:
-				return w.orderProjectionConsumer.HandleOrderReturnRequested(headers, body)
-			case rabbitmq.RoutingKeyOrderReturnUpdated:
-				return w.orderProjectionConsumer.HandleOrderReturnUpdated(headers, body)
-			default:
-				return w.orderProjectionConsumer.HandleOrderCreated(headers, body)
-			}
-		})
-		if err := w.rabbitMQ.SubscribeTopic(ctx, queueAnalyticsOrders, routingKeys, analyticsHandler); err != nil {
-			w.logger.Error().Err(err).Msg("Failed to subscribe analytics order events topic")
-		} else {
-			w.logger.Info().Msgf("Worker subscribed topic queue: %s for analytics projection", queueAnalyticsOrders)
-		}
-	}
+	// Analytics projection moved to services/analytics, which owns its own
+	// topic subscription (analytics.order_events).
 
 	// Consume User Sync Events (Cache invalidation & cross-service sync)
 	if w.userSyncConsumer != nil {

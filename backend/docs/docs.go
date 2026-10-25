@@ -4446,228 +4446,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/analytics/cart-funnel": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Get active carts, order drop-offs, abandonment rate, and potential lost revenue",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Admin - Analytics"
-                ],
-                "summary": "Get cart abandonment and conversion funnel statistics",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Start date (YYYY-MM-DD)",
-                        "name": "from_date",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "End date (YYYY-MM-DD)",
-                        "name": "to_date",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/v1dto.CartFunnelDTO"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/admin/analytics/category-sales": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Get sales volume, gross revenue, and revenue contribution percentages by category",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Admin - Analytics"
-                ],
-                "summary": "Get category sales breakdown",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "default": 30,
-                        "description": "Time window in days (default: 30)",
-                        "name": "days",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Start date (YYYY-MM-DD)",
-                        "name": "from_date",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "End date (YYYY-MM-DD)",
-                        "name": "to_date",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/v1dto.CategorySalesBreakdownResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/admin/analytics/coupons": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Get coupon usage statistics, total discounts given, revenue generated, and ROI multipliers by campaign",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Admin - Analytics"
-                ],
-                "summary": "Get coupon ROI and campaign performance analytics",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "default": 30,
-                        "description": "Time window in days (default: 30)",
-                        "name": "days",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Start date (YYYY-MM-DD)",
-                        "name": "from_date",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "End date (YYYY-MM-DD)",
-                        "name": "to_date",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 20,
-                        "description": "Maximum number of campaigns to return (default: 20)",
-                        "name": "limit",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/v1dto.CouponPerformanceResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/api/v1/admin/analytics/low-stock-alerts": {
             "get": {
                 "security": [
@@ -4708,13 +4486,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/goshop_pkg_utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/v1dto.LowStockProductResponse"
+                                            "$ref": "#/definitions/dto.LowStockProductResponse"
                                         }
                                     }
                                 }
@@ -4724,25 +4502,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/goshop_pkg_utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/goshop_pkg_utils.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/goshop_pkg_utils.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/goshop_pkg_utils.ErrorResponse"
                         }
                     }
                 }
@@ -4793,13 +4571,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/goshop_pkg_utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/v1dto.OrderStatusDistributionResponse"
+                                            "$ref": "#/definitions/dto.OrderStatusDistributionResponse"
                                         }
                                     }
                                 }
@@ -4809,25 +4587,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/goshop_pkg_utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/goshop_pkg_utils.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/goshop_pkg_utils.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/goshop_pkg_utils.ErrorResponse"
                         }
                     }
                 }
@@ -4878,13 +4656,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/goshop_pkg_utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/v1dto.OverviewStatsDTO"
+                                            "$ref": "#/definitions/dto.OverviewStatsDTO"
                                         }
                                     }
                                 }
@@ -4894,19 +4672,19 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/goshop_pkg_utils.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/goshop_pkg_utils.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/goshop_pkg_utils.ErrorResponse"
                         }
                     }
                 }
@@ -4957,13 +4735,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/goshop_pkg_utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/v1dto.PaymentMethodBreakdownResponse"
+                                            "$ref": "#/definitions/dto.PaymentMethodBreakdownResponse"
                                         }
                                     }
                                 }
@@ -4973,25 +4751,25 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/goshop_pkg_utils.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/goshop_pkg_utils.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/goshop_pkg_utils.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/goshop_pkg_utils.ErrorResponse"
                         }
                     }
                 }
@@ -5030,7 +4808,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/goshop_pkg_utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
@@ -5038,7 +4816,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/v1dto.RecentOrderDTO"
+                                                "$ref": "#/definitions/dto.RecentOrderDTO"
                                             }
                                         }
                                     }
@@ -5049,95 +4827,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/goshop_pkg_utils.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/admin/analytics/returns": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Get return rates, total refunded amount, reason breakdown, and top returned products",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Admin - Analytics"
-                ],
-                "summary": "Get return and refund financial analytics",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "default": 30,
-                        "description": "Time window in days (default: 30)",
-                        "name": "days",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Start date (YYYY-MM-DD)",
-                        "name": "from_date",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "End date (YYYY-MM-DD)",
-                        "name": "to_date",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/v1dto.ReturnAnalyticsResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/goshop_pkg_utils.ErrorResponse"
                         }
                     }
                 }
@@ -5206,7 +4902,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/goshop_pkg_utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
@@ -5214,7 +4910,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/v1dto.RevenueChartPointDTO"
+                                                "$ref": "#/definitions/dto.RevenueChartPointDTO"
                                             }
                                         }
                                     }
@@ -5225,13 +4921,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/goshop_pkg_utils.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/goshop_pkg_utils.ErrorResponse"
                         }
                     }
                 }
@@ -5289,7 +4985,7 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
+                                    "$ref": "#/definitions/goshop_pkg_utils.APIResponse"
                                 },
                                 {
                                     "type": "object",
@@ -5297,7 +4993,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/v1dto.TopProductDTO"
+                                                "$ref": "#/definitions/dto.TopProductDTO"
                                             }
                                         }
                                     }
@@ -5308,13 +5004,13 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/goshop_pkg_utils.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
+                            "$ref": "#/definitions/goshop_pkg_utils.ErrorResponse"
                         }
                     }
                 }
@@ -11416,6 +11112,53 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.LowStockProductDTO": {
+            "type": "object",
+            "properties": {
+                "alert_level": {
+                    "description": "\"critical\" (stock \u003c= 0) or \"warning\"",
+                    "type": "string"
+                },
+                "category_name": {
+                    "type": "string"
+                },
+                "image_url": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "number"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "stock": {
+                    "type": "integer"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.LowStockProductResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.LowStockProductDTO"
+                    }
+                },
+                "threshold": {
+                    "type": "integer"
+                },
+                "total_low": {
+                    "type": "integer"
+                }
+            }
+        },
         "dto.MyReviewDTO": {
             "type": "object",
             "properties": {
@@ -11436,6 +11179,9 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                },
+                "order_uuid": {
+                    "type": "string"
                 },
                 "product_image_url": {
                     "type": "string"
@@ -11638,6 +11384,40 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.OrderStatusDistributionItemDTO": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "percentage": {
+                    "type": "number"
+                },
+                "status": {
+                    "type": "integer"
+                },
+                "status_name": {
+                    "type": "string"
+                },
+                "total_amount": {
+                    "type": "number"
+                }
+            }
+        },
+        "dto.OrderStatusDistributionResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.OrderStatusDistributionItemDTO"
+                    }
+                },
+                "total_orders": {
+                    "type": "integer"
+                }
+            }
+        },
         "dto.OrderTimelineResponseDTO": {
             "type": "object",
             "properties": {
@@ -11652,6 +11432,32 @@ const docTemplate = `{
                 },
                 "order_uuid": {
                     "type": "string"
+                }
+            }
+        },
+        "dto.OverviewStatsDTO": {
+            "type": "object",
+            "properties": {
+                "customer_growth": {
+                    "type": "number"
+                },
+                "new_customers": {
+                    "type": "integer"
+                },
+                "order_growth": {
+                    "type": "number"
+                },
+                "pending_orders": {
+                    "type": "integer"
+                },
+                "revenue_growth": {
+                    "type": "number"
+                },
+                "total_orders": {
+                    "type": "integer"
+                },
+                "total_revenue": {
+                    "type": "number"
                 }
             }
         },
@@ -11681,6 +11487,43 @@ const docTemplate = `{
                 },
                 "status": {
                     "type": "string"
+                }
+            }
+        },
+        "dto.PaymentMethodBreakdownItemDTO": {
+            "type": "object",
+            "properties": {
+                "method_name": {
+                    "type": "string"
+                },
+                "net_revenue": {
+                    "type": "number"
+                },
+                "order_count": {
+                    "type": "integer"
+                },
+                "payment_method": {
+                    "type": "integer"
+                },
+                "percentage": {
+                    "type": "number"
+                }
+            }
+        },
+        "dto.PaymentMethodBreakdownResponse": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.PaymentMethodBreakdownItemDTO"
+                    }
+                },
+                "total_orders": {
+                    "type": "integer"
+                },
+                "total_revenue": {
+                    "type": "number"
                 }
             }
         },
@@ -11843,6 +11686,38 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.RecentOrderDTO": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "customer_email": {
+                    "type": "string"
+                },
+                "customer_name": {
+                    "type": "string"
+                },
+                "order_number": {
+                    "type": "string"
+                },
+                "payment_method": {
+                    "type": "integer"
+                },
+                "payment_status": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "integer"
+                },
+                "total_amount": {
+                    "type": "number"
+                },
+                "uuid": {
+                    "type": "string"
+                }
+            }
+        },
         "dto.RefreshTokenInput": {
             "type": "object",
             "properties": {
@@ -11945,6 +11820,20 @@ const docTemplate = `{
                 },
                 "token": {
                     "type": "string"
+                }
+            }
+        },
+        "dto.RevenueChartPointDTO": {
+            "type": "object",
+            "properties": {
+                "date": {
+                    "type": "string"
+                },
+                "order_count": {
+                    "type": "integer"
+                },
+                "revenue": {
+                    "type": "number"
                 }
             }
         },
@@ -12238,6 +12127,35 @@ const docTemplate = `{
                 "voted": {
                     "description": "true: voted, false: vote removed",
                     "type": "boolean"
+                }
+            }
+        },
+        "dto.TopProductDTO": {
+            "type": "object",
+            "properties": {
+                "category_name": {
+                    "type": "string"
+                },
+                "image_url": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "number"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "total_revenue": {
+                    "type": "number"
+                },
+                "total_units_sold": {
+                    "type": "integer"
+                },
+                "uuid": {
+                    "type": "string"
                 }
             }
         },
@@ -12959,88 +12877,6 @@ const docTemplate = `{
                 }
             }
         },
-        "v1dto.CartFunnelDTO": {
-            "type": "object",
-            "properties": {
-                "abandoned_carts": {
-                    "type": "integer"
-                },
-                "abandonment_rate": {
-                    "description": "Percentage (0 - 100%)",
-                    "type": "number"
-                },
-                "cart_to_order_rate": {
-                    "description": "Conversion (0 - 100%)",
-                    "type": "number"
-                },
-                "order_to_paid_rate": {
-                    "description": "Conversion (0 - 100%)",
-                    "type": "number"
-                },
-                "orders_created": {
-                    "type": "integer"
-                },
-                "orders_paid": {
-                    "type": "integer"
-                },
-                "potential_lost_revenue": {
-                    "description": "Currency value",
-                    "type": "number"
-                },
-                "total_carts": {
-                    "type": "integer"
-                }
-            }
-        },
-        "v1dto.CategorySalesBreakdownResponse": {
-            "type": "object",
-            "properties": {
-                "categories": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/v1dto.CategorySalesItemDTO"
-                    }
-                },
-                "total_orders": {
-                    "type": "integer"
-                },
-                "total_revenue": {
-                    "type": "number"
-                },
-                "total_units_sold": {
-                    "type": "integer"
-                }
-            }
-        },
-        "v1dto.CategorySalesItemDTO": {
-            "type": "object",
-            "properties": {
-                "category_id": {
-                    "type": "integer"
-                },
-                "category_name": {
-                    "type": "string"
-                },
-                "category_slug": {
-                    "type": "string"
-                },
-                "category_uuid": {
-                    "type": "string"
-                },
-                "gross_revenue": {
-                    "type": "number"
-                },
-                "order_count": {
-                    "type": "integer"
-                },
-                "percentage": {
-                    "type": "number"
-                },
-                "units_sold": {
-                    "type": "integer"
-                }
-            }
-        },
         "v1dto.ConversationResponse": {
             "type": "object",
             "properties": {
@@ -13091,114 +12927,6 @@ const docTemplate = `{
                 }
             }
         },
-        "v1dto.CouponCampaignItemDTO": {
-            "type": "object",
-            "properties": {
-                "coupon_code": {
-                    "type": "string"
-                },
-                "coupon_id": {
-                    "type": "integer"
-                },
-                "coupon_name": {
-                    "type": "string"
-                },
-                "coupon_type": {
-                    "type": "integer"
-                },
-                "coupon_uuid": {
-                    "type": "string"
-                },
-                "discount_value": {
-                    "type": "number"
-                },
-                "roi_multiplier": {
-                    "type": "number"
-                },
-                "total_discount": {
-                    "type": "number"
-                },
-                "total_revenue": {
-                    "type": "number"
-                },
-                "usage_count": {
-                    "type": "integer"
-                }
-            }
-        },
-        "v1dto.CouponPerformanceResponse": {
-            "type": "object",
-            "properties": {
-                "campaigns": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/v1dto.CouponCampaignItemDTO"
-                    }
-                },
-                "overall_roi_multiplier": {
-                    "type": "number"
-                },
-                "total_coupons_used": {
-                    "type": "integer"
-                },
-                "total_discount_given": {
-                    "type": "number"
-                },
-                "total_revenue_generated": {
-                    "type": "number"
-                }
-            }
-        },
-        "v1dto.LowStockProductDTO": {
-            "type": "object",
-            "properties": {
-                "alert_level": {
-                    "description": "\"critical\" (stock \u003c= 0), \"warning\" (stock \u003c= threshold)",
-                    "type": "string"
-                },
-                "category_name": {
-                    "type": "string"
-                },
-                "image_url": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "price": {
-                    "type": "number"
-                },
-                "slug": {
-                    "type": "string"
-                },
-                "stock": {
-                    "description": "Current available stock",
-                    "type": "integer"
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "v1dto.LowStockProductResponse": {
-            "type": "object",
-            "properties": {
-                "items": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/v1dto.LowStockProductDTO"
-                    }
-                },
-                "threshold": {
-                    "description": "Warning threshold used (e.g., 5)",
-                    "type": "integer"
-                },
-                "total_low": {
-                    "description": "Count of items below threshold",
-                    "type": "integer"
-                }
-            }
-        },
         "v1dto.MessageResponse": {
             "type": "object",
             "properties": {
@@ -13231,208 +12959,6 @@ const docTemplate = `{
                 },
                 "uuid": {
                     "type": "string"
-                }
-            }
-        },
-        "v1dto.OrderStatusDistributionItemDTO": {
-            "type": "object",
-            "properties": {
-                "count": {
-                    "description": "Number of orders in this status",
-                    "type": "integer"
-                },
-                "percentage": {
-                    "description": "Percentage of total orders (0.0 to 100.0)",
-                    "type": "number"
-                },
-                "status": {
-                    "description": "1: Pending, 2: Confirmed, 3: Shipped, 4: Delivered, 5: Cancelled, 6: Returned",
-                    "type": "integer"
-                },
-                "status_name": {
-                    "description": "e.g., \"Pending\", \"Delivered\", \"Cancelled\"",
-                    "type": "string"
-                },
-                "total_amount": {
-                    "description": "Total monetary value of orders in this status",
-                    "type": "number"
-                }
-            }
-        },
-        "v1dto.OrderStatusDistributionResponse": {
-            "type": "object",
-            "properties": {
-                "items": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/v1dto.OrderStatusDistributionItemDTO"
-                    }
-                },
-                "total_orders": {
-                    "type": "integer"
-                }
-            }
-        },
-        "v1dto.OverviewStatsDTO": {
-            "type": "object",
-            "properties": {
-                "customer_growth": {
-                    "description": "% vs previous 30 days",
-                    "type": "number"
-                },
-                "new_customers": {
-                    "type": "integer"
-                },
-                "order_growth": {
-                    "description": "% vs previous 30 days",
-                    "type": "number"
-                },
-                "pending_orders": {
-                    "type": "integer"
-                },
-                "revenue_growth": {
-                    "description": "% vs previous 30 days",
-                    "type": "number"
-                },
-                "total_orders": {
-                    "type": "integer"
-                },
-                "total_revenue": {
-                    "type": "number"
-                }
-            }
-        },
-        "v1dto.PaymentMethodBreakdownItemDTO": {
-            "type": "object",
-            "properties": {
-                "method_name": {
-                    "description": "\"COD (Cash on Delivery)\", \"Bank Transfer\", \"E-Wallet\"",
-                    "type": "string"
-                },
-                "net_revenue": {
-                    "description": "Net revenue after refunds",
-                    "type": "number"
-                },
-                "order_count": {
-                    "description": "Total orders paid via this method",
-                    "type": "integer"
-                },
-                "payment_method": {
-                    "description": "1: COD, 2: Online / Bank Transfer, 3: E-Wallet",
-                    "type": "integer"
-                },
-                "percentage": {
-                    "description": "Revenue share percentage (0.0 to 100.0)",
-                    "type": "number"
-                }
-            }
-        },
-        "v1dto.PaymentMethodBreakdownResponse": {
-            "type": "object",
-            "properties": {
-                "items": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/v1dto.PaymentMethodBreakdownItemDTO"
-                    }
-                },
-                "total_orders": {
-                    "type": "integer"
-                },
-                "total_revenue": {
-                    "type": "number"
-                }
-            }
-        },
-        "v1dto.RecentOrderDTO": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string"
-                },
-                "customer_email": {
-                    "type": "string"
-                },
-                "customer_name": {
-                    "type": "string"
-                },
-                "order_number": {
-                    "type": "string"
-                },
-                "payment_method": {
-                    "type": "integer"
-                },
-                "payment_status": {
-                    "type": "integer"
-                },
-                "status": {
-                    "type": "integer"
-                },
-                "total_amount": {
-                    "type": "number"
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "v1dto.ReturnAnalyticsResponse": {
-            "type": "object",
-            "properties": {
-                "reasons_breakdown": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/v1dto.ReturnReasonBreakdownDTO"
-                    }
-                },
-                "return_rate": {
-                    "type": "number"
-                },
-                "returned_orders_count": {
-                    "type": "integer"
-                },
-                "top_returned_products": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/v1dto.TopReturnedProductDTO"
-                    }
-                },
-                "total_paid_orders": {
-                    "type": "integer"
-                },
-                "total_refunded_amount": {
-                    "type": "number"
-                },
-                "total_returns": {
-                    "type": "integer"
-                }
-            }
-        },
-        "v1dto.ReturnReasonBreakdownDTO": {
-            "type": "object",
-            "properties": {
-                "count": {
-                    "type": "integer"
-                },
-                "percentage": {
-                    "type": "number"
-                },
-                "reason": {
-                    "type": "string"
-                }
-            }
-        },
-        "v1dto.RevenueChartPointDTO": {
-            "type": "object",
-            "properties": {
-                "date": {
-                    "type": "string"
-                },
-                "order_count": {
-                    "type": "integer"
-                },
-                "revenue": {
-                    "type": "number"
                 }
             }
         },
@@ -13492,64 +13018,6 @@ const docTemplate = `{
             "properties": {
                 "is_online": {
                     "type": "boolean"
-                }
-            }
-        },
-        "v1dto.TopProductDTO": {
-            "type": "object",
-            "properties": {
-                "category_name": {
-                    "type": "string"
-                },
-                "image_url": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "price": {
-                    "type": "number"
-                },
-                "slug": {
-                    "type": "string"
-                },
-                "total_revenue": {
-                    "type": "number"
-                },
-                "total_units_sold": {
-                    "type": "integer"
-                },
-                "uuid": {
-                    "type": "string"
-                }
-            }
-        },
-        "v1dto.TopReturnedProductDTO": {
-            "type": "object",
-            "properties": {
-                "image_url": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "price": {
-                    "type": "number"
-                },
-                "return_case_count": {
-                    "type": "integer"
-                },
-                "returned_value": {
-                    "type": "number"
-                },
-                "slug": {
-                    "type": "string"
-                },
-                "units_returned": {
-                    "type": "integer"
-                },
-                "uuid": {
-                    "type": "string"
                 }
             }
         },

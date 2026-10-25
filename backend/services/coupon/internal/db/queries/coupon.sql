@@ -143,3 +143,4 @@ UPDATE coupons
 SET coupon_used_count = GREATEST(0, coupon_used_count - 1), coupon_updated_at = now()
 WHERE coupon_id = sqlc.arg(coupon_id)
 RETURNING *;
+

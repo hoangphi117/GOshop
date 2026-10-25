@@ -240,7 +240,7 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 			v1api.Any("/admin/categories", catalogProxyHandler)
 			v1api.Any("/admin/categories/*any", catalogProxyHandler)
 			// Public /products is routed in NoRoute so the catalog proxy can fall through
-	// to the review service for /products/{uuid}/reviews*.
+			// to the review service for /products/{uuid}/reviews*.
 			isCatalogProxied = true
 		}
 	}
@@ -370,6 +370,36 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 			v1api.Any("/admin/reviews/*any", reviewProxyHandler)
 			// /products/{uuid}/reviews* also lands here; catalog handles the rest via NoRoute.
 			isReviewProxied = true
+		}
+	}
+
+	// API Gateway reverse proxy for Analytics microservice endpoints. Analytics
+	// owns its reporting DB and projection consumer now: with
+	// ANALYTICS_SERVICE_URL unset these paths 404.
+	analyticsURL := utils.GetEnv("ANALYTICS_SERVICE_URL", "")
+	if analyticsURL != "" {
+		if parsedAnalyticsURL, err := url.Parse(analyticsURL); err == nil && parsedAnalyticsURL.Scheme != "" {
+			analyticsProxy := httputil.NewSingleHostReverseProxy(parsedAnalyticsURL)
+			transport := http.DefaultTransport.(*http.Transport).Clone()
+			transport.DisableCompression = true
+			analyticsProxy.Transport = transport
+
+			analyticsProxy.ModifyResponse = func(resp *http.Response) error {
+				resp.Header.Del("Access-Control-Allow-Origin")
+				resp.Header.Del("Access-Control-Allow-Credentials")
+				resp.Header.Del("Access-Control-Allow-Methods")
+				resp.Header.Del("Access-Control-Allow-Headers")
+				resp.Header.Del("Access-Control-Max-Age")
+				return nil
+			}
+			analyticsProxyHandler := func(ctx *gin.Context) {
+				ctx.Request.Host = parsedAnalyticsURL.Host
+				ctx.Request.Header.Del("Accept-Encoding")
+				analyticsProxy.ServeHTTP(ctx.Writer, ctx.Request)
+			}
+
+			v1api.Any("/admin/analytics", analyticsProxyHandler)
+			v1api.Any("/admin/analytics/*any", analyticsProxyHandler)
 		}
 	}
 

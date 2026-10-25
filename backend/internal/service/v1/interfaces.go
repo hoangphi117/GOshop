@@ -25,20 +25,6 @@ type PaymentService interface {
 	ConfirmCODPayment(ctx context.Context, orderUUID uuid.UUID) error
 }
 
-type AnalyticsService interface {
-	GetOverview(ctx context.Context, query v1dto.OverviewStatsQuery) (v1dto.OverviewStatsDTO, error)
-	GetRevenueChart(ctx context.Context, query v1dto.RevenueChartQuery) ([]v1dto.RevenueChartPointDTO, error)
-	GetRecentOrders(ctx context.Context, limit int32) ([]v1dto.RecentOrderDTO, error)
-	GetTopProducts(ctx context.Context, query v1dto.TopProductsQuery) ([]v1dto.TopProductDTO, error)
-	GetOrderStatusDistribution(ctx context.Context, params v1dto.OrderStatusDistributionQuery) (v1dto.OrderStatusDistributionResponse, error)
-	GetLowStockProducts(ctx context.Context, params v1dto.LowStockProductsQuery) (v1dto.LowStockProductResponse, error)
-	GetPaymentMethodBreakdown(ctx context.Context, params v1dto.PaymentMethodBreakdownQuery) (v1dto.PaymentMethodBreakdownResponse, error)
-	GetCartFunnel(ctx context.Context, params v1dto.CartFunnelQuery) (*v1dto.CartFunnelDTO, error)
-	GetReturnAnalytics(ctx context.Context, params v1dto.ReturnAnalyticsQuery) (*v1dto.ReturnAnalyticsResponse, error)
-	GetCategorySalesBreakdown(ctx context.Context, params v1dto.CategorySalesBreakdownQuery) (*v1dto.CategorySalesBreakdownResponse, error)
-	GetCouponPerformance(ctx context.Context, params v1dto.CouponPerformanceQuery) (*v1dto.CouponPerformanceResponse, error)
-}
-
 type ChatService interface {
 	GetOrCreateConversation(ctx context.Context, userUUID uuid.UUID) (*v1dto.ConversationDTO, error)
 	SendMessage(ctx context.Context, conversationUUID uuid.UUID, senderUUID uuid.UUID, senderRole string, req v1dto.SendMessageRequest) (v1dto.MessageResponse, error)

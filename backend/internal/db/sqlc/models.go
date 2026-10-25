@@ -12,69 +12,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type AnalyticsOrderItemsProjection struct {
-	OrderItemID          int32          `json:"order_item_id"`
-	OrderItemUuid        uuid.UUID      `json:"order_item_uuid"`
-	OrderItemOrderID     int32          `json:"order_item_order_id"`
-	OrderItemProductID   int32          `json:"order_item_product_id"`
-	OrderItemProductName string         `json:"order_item_product_name"`
-	OrderItemPrice       pgtype.Numeric `json:"order_item_price"`
-	OrderItemQuantity    int32          `json:"order_item_quantity"`
-	OrderItemSubtotal    pgtype.Numeric `json:"order_item_subtotal"`
-	OrderItemCreatedAt   time.Time      `json:"order_item_created_at"`
-}
-
-type AnalyticsOrderReturnsProjection struct {
-	ReturnID               int32          `json:"return_id"`
-	ReturnUuid             uuid.UUID      `json:"return_uuid"`
-	ReturnOrderID          int32          `json:"return_order_id"`
-	ReturnOrderNumber      string         `json:"return_order_number"`
-	ReturnUserID           int32          `json:"return_user_id"`
-	ReturnUserUuid         uuid.UUID      `json:"return_user_uuid"`
-	ReturnReason           string         `json:"return_reason"`
-	ReturnDescription      *string        `json:"return_description"`
-	ReturnImages           []string       `json:"return_images"`
-	ReturnStatus           int16          `json:"return_status"`
-	ReturnAdminNote        *string        `json:"return_admin_note"`
-	ReturnRefundAmount     pgtype.Numeric `json:"return_refund_amount"`
-	ReturnBankAccountName  *string        `json:"return_bank_account_name"`
-	ReturnBankAccountNum   *string        `json:"return_bank_account_num"`
-	ReturnBankName         *string        `json:"return_bank_name"`
-	ReturnShippingProvider *string        `json:"return_shipping_provider"`
-	ReturnShippingCode     *string        `json:"return_shipping_code"`
-	ReturnShippingFee      pgtype.Numeric `json:"return_shipping_fee"`
-	ReturnCreatedAt        time.Time      `json:"return_created_at"`
-	ReturnUpdatedAt        time.Time      `json:"return_updated_at"`
-}
-
-type AnalyticsOrdersProjection struct {
-	OrderID               int32              `json:"order_id"`
-	OrderUuid             uuid.UUID          `json:"order_uuid"`
-	OrderNumber           string             `json:"order_number"`
-	OrderUserID           int32              `json:"order_user_id"`
-	OrderUserUuid         uuid.UUID          `json:"order_user_uuid"`
-	OrderCustomerName     string             `json:"order_customer_name"`
-	OrderCustomerEmail    string             `json:"order_customer_email"`
-	OrderShippingName     string             `json:"order_shipping_name"`
-	OrderShippingPhone    string             `json:"order_shipping_phone"`
-	OrderShippingAddress  string             `json:"order_shipping_address"`
-	OrderTotalAmount      pgtype.Numeric     `json:"order_total_amount"`
-	OrderRefundedAmount   pgtype.Numeric     `json:"order_refunded_amount"`
-	OrderDiscountAmount   pgtype.Numeric     `json:"order_discount_amount"`
-	OrderCouponID         *int32             `json:"order_coupon_id"`
-	OrderPaymentMethod    int32              `json:"order_payment_method"`
-	OrderPaymentStatus    int32              `json:"order_payment_status"`
-	OrderNote             *string            `json:"order_note"`
-	OrderStatus           int32              `json:"order_status"`
-	OrderShippingProvider *string            `json:"order_shipping_provider"`
-	OrderShippingCode     *string            `json:"order_shipping_code"`
-	OrderShippingFee      pgtype.Numeric     `json:"order_shipping_fee"`
-	OrderDeliveredAt      pgtype.Timestamptz `json:"order_delivered_at"`
-	OrderCancelledAt      pgtype.Timestamptz `json:"order_cancelled_at"`
-	OrderCreatedAt        time.Time          `json:"order_created_at"`
-	OrderUpdatedAt        time.Time          `json:"order_updated_at"`
-}
-
 type Banner struct {
 	BannerID        int32              `json:"banner_id"`
 	BannerUuid      uuid.UUID          `json:"banner_uuid"`

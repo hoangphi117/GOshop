@@ -1,24 +1,22 @@
-package v1handler
+package handler
 
 import (
 	"net/http"
 
-	v1dto "goshop/internal/dto/v1"
-	v1service "goshop/internal/service/v1"
-	"goshop/internal/utils"
-	"goshop/internal/validation"
+	"goshop/pkg/utils"
+	"goshop/pkg/validation"
+	analyticsdto "goshop/services/analytics/internal/dto"
+	"goshop/services/analytics/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
 
 type AnalyticsHandler struct {
-	service v1service.AnalyticsService
+	service service.AnalyticsService
 }
 
-func NewAnalyticsHandler(service v1service.AnalyticsService) *AnalyticsHandler {
-	return &AnalyticsHandler{
-		service: service,
-	}
+func NewAnalyticsHandler(service service.AnalyticsService) *AnalyticsHandler {
+	return &AnalyticsHandler{service: service}
 }
 
 // GetOverview godoc
@@ -31,13 +29,13 @@ func NewAnalyticsHandler(service v1service.AnalyticsService) *AnalyticsHandler {
 // @Param        days      query int    false "Time window in days (default: 30)" default(30)
 // @Param        from_date query string false "Start date (YYYY-MM-DD)"
 // @Param        to_date   query string false "End date (YYYY-MM-DD)"
-// @Success      200 {object} utils.APIResponse{data=v1dto.OverviewStatsDTO}
+// @Success      200 {object} utils.APIResponse{data=analyticsdto.OverviewStatsDTO}
 // @Failure      401 {object} utils.ErrorResponse
 // @Failure      403 {object} utils.ErrorResponse
 // @Failure      500 {object} utils.ErrorResponse
 // @Router       /api/v1/admin/analytics/overview [get]
 func (h *AnalyticsHandler) GetOverview(ctx *gin.Context) {
-	var query v1dto.OverviewStatsQuery
+	var query analyticsdto.OverviewStatsQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -64,12 +62,12 @@ func (h *AnalyticsHandler) GetOverview(ctx *gin.Context) {
 // @Param        months    query int    false "Number of months (for monthly)" default(12)
 // @Param        from_date query string false "Start date (YYYY-MM-DD)"
 // @Param        to_date   query string false "End date (YYYY-MM-DD)"
-// @Success      200 {object} utils.APIResponse{data=[]v1dto.RevenueChartPointDTO}
+// @Success      200 {object} utils.APIResponse{data=[]analyticsdto.RevenueChartPointDTO}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      500 {object} utils.ErrorResponse
 // @Router       /api/v1/admin/analytics/revenue-chart [get]
 func (h *AnalyticsHandler) GetRevenueChart(ctx *gin.Context) {
-	var query v1dto.RevenueChartQuery
+	var query analyticsdto.RevenueChartQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -92,12 +90,12 @@ func (h *AnalyticsHandler) GetRevenueChart(ctx *gin.Context) {
 // @Security     BearerAuth
 // @Security     ApiKeyAuth
 // @Param        limit query int false "Max orders to return (1-50)" default(5)
-// @Success      200 {object} utils.APIResponse{data=[]v1dto.RecentOrderDTO}
+// @Success      200 {object} utils.APIResponse{data=[]analyticsdto.RecentOrderDTO}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      500 {object} utils.ErrorResponse
 // @Router       /api/v1/admin/analytics/recent-orders [get]
 func (h *AnalyticsHandler) GetRecentOrders(ctx *gin.Context) {
-	var query v1dto.RecentOrdersQuery
+	var query analyticsdto.RecentOrdersQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -123,12 +121,12 @@ func (h *AnalyticsHandler) GetRecentOrders(ctx *gin.Context) {
 // @Param        limit     query int    false "Max items to return (1-50)" default(5)
 // @Param        from_date query string false "Start date (YYYY-MM-DD)"
 // @Param        to_date   query string false "End date (YYYY-MM-DD)"
-// @Success      200 {object} utils.APIResponse{data=[]v1dto.TopProductDTO}
+// @Success      200 {object} utils.APIResponse{data=[]analyticsdto.TopProductDTO}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      500 {object} utils.ErrorResponse
 // @Router       /api/v1/admin/analytics/top-products [get]
 func (h *AnalyticsHandler) GetTopProducts(ctx *gin.Context) {
-	var query v1dto.TopProductsQuery
+	var query analyticsdto.TopProductsQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -153,14 +151,14 @@ func (h *AnalyticsHandler) GetTopProducts(ctx *gin.Context) {
 // @Param        days      query int    false "Time window in days (default: 30)" default(30)
 // @Param        from_date query string false "Start date (YYYY-MM-DD)"
 // @Param        to_date   query string false "End date (YYYY-MM-DD)"
-// @Success      200 {object} utils.APIResponse{data=v1dto.OrderStatusDistributionResponse}
+// @Success      200 {object} utils.APIResponse{data=analyticsdto.OrderStatusDistributionResponse}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      401 {object} utils.ErrorResponse
 // @Failure      403 {object} utils.ErrorResponse
 // @Failure      500 {object} utils.ErrorResponse
 // @Router       /api/v1/admin/analytics/order-status-distribution [get]
 func (h *AnalyticsHandler) GetOrderStatusDistribution(ctx *gin.Context) {
-	var query v1dto.OrderStatusDistributionQuery
+	var query analyticsdto.OrderStatusDistributionQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -184,14 +182,14 @@ func (h *AnalyticsHandler) GetOrderStatusDistribution(ctx *gin.Context) {
 // @Security     ApiKeyAuth
 // @Param        threshold query int false "Inventory threshold alert limit (default: 5)" default(5)
 // @Param        limit     query int false "Max items to return (1-50, default: 10)" default(10)
-// @Success      200 {object} utils.APIResponse{data=v1dto.LowStockProductResponse}
+// @Success      200 {object} utils.APIResponse{data=analyticsdto.LowStockProductResponse}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      401 {object} utils.ErrorResponse
 // @Failure      403 {object} utils.ErrorResponse
 // @Failure      500 {object} utils.ErrorResponse
 // @Router       /api/v1/admin/analytics/low-stock-alerts [get]
 func (h *AnalyticsHandler) GetLowStockProducts(ctx *gin.Context) {
-	var query v1dto.LowStockProductsQuery
+	var query analyticsdto.LowStockProductsQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -216,14 +214,14 @@ func (h *AnalyticsHandler) GetLowStockProducts(ctx *gin.Context) {
 // @Param        days      query int    false "Time window in days (default: 30)" default(30)
 // @Param        from_date query string false "Start date (YYYY-MM-DD)"
 // @Param        to_date   query string false "End date (YYYY-MM-DD)"
-// @Success      200 {object} utils.APIResponse{data=v1dto.PaymentMethodBreakdownResponse}
+// @Success      200 {object} utils.APIResponse{data=analyticsdto.PaymentMethodBreakdownResponse}
 // @Failure      400 {object} utils.ErrorResponse
 // @Failure      401 {object} utils.ErrorResponse
 // @Failure      403 {object} utils.ErrorResponse
 // @Failure      500 {object} utils.ErrorResponse
 // @Router       /api/v1/admin/analytics/payment-methods [get]
 func (h *AnalyticsHandler) GetPaymentMethodBreakdown(ctx *gin.Context) {
-	var query v1dto.PaymentMethodBreakdownQuery
+	var query analyticsdto.PaymentMethodBreakdownQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -237,125 +235,3 @@ func (h *AnalyticsHandler) GetPaymentMethodBreakdown(ctx *gin.Context) {
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Payment method breakdown retrieved successfully", res)
 }
-
-// GetCartFunnel godoc
-// @Summary      Get cart abandonment and conversion funnel statistics
-// @Description  Get active carts, order drop-offs, abandonment rate, and potential lost revenue
-// @Tags         Admin - Analytics
-// @Produce      json
-// @Security     BearerAuth
-// @Param        from_date query string false "Start date (YYYY-MM-DD)"
-// @Param        to_date   query string false "End date (YYYY-MM-DD)"
-// @Success      200 {object} utils.APIResponse{data=v1dto.CartFunnelDTO}
-// @Router       /api/v1/admin/analytics/cart-funnel [get]
-func (h *AnalyticsHandler) GetCartFunnel(ctx *gin.Context) {
-	var query v1dto.CartFunnelQuery
-	if err := ctx.ShouldBindQuery(&query); err != nil {
-		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
-		return
-	}
-
-	res, err := h.service.GetCartFunnel(ctx.Request.Context(), query)
-	if err != nil {
-		utils.ResponseError(ctx, err)
-		return
-	}
-
-	utils.ResponseSuccess(ctx, http.StatusOK, "Cart funnel statistics retrieved successfully", res)
-}
-
-// GetReturnAnalytics godoc
-// @Summary      Get return and refund financial analytics
-// @Description  Get return rates, total refunded amount, reason breakdown, and top returned products
-// @Tags         Admin - Analytics
-// @Produce      json
-// @Security     BearerAuth
-// @Param        days      query int    false "Time window in days (default: 30)" default(30)
-// @Param        from_date query string false "Start date (YYYY-MM-DD)"
-// @Param        to_date   query string false "End date (YYYY-MM-DD)"
-// @Success      200 {object} utils.APIResponse{data=v1dto.ReturnAnalyticsResponse}
-// @Failure      400 {object} utils.ErrorResponse
-// @Failure      401 {object} utils.ErrorResponse
-// @Failure      403 {object} utils.ErrorResponse
-// @Failure      500 {object} utils.ErrorResponse
-// @Router       /api/v1/admin/analytics/returns [get]
-func (h *AnalyticsHandler) GetReturnAnalytics(ctx *gin.Context) {
-	var query v1dto.ReturnAnalyticsQuery
-	if err := ctx.ShouldBindQuery(&query); err != nil {
-		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
-		return
-	}
-
-	res, err := h.service.GetReturnAnalytics(ctx.Request.Context(), query)
-	if err != nil {
-		utils.ResponseError(ctx, err)
-		return
-	}
-
-	utils.ResponseSuccess(ctx, http.StatusOK, "Return and refund analytics retrieved successfully", res)
-}
-
-// GetCategorySalesBreakdown godoc
-// @Summary      Get category sales breakdown
-// @Description  Get sales volume, gross revenue, and revenue contribution percentages by category
-// @Tags         Admin - Analytics
-// @Produce      json
-// @Security     BearerAuth
-// @Param        days      query int    false "Time window in days (default: 30)" default(30)
-// @Param        from_date query string false "Start date (YYYY-MM-DD)"
-// @Param        to_date   query string false "End date (YYYY-MM-DD)"
-// @Success      200 {object} utils.APIResponse{data=v1dto.CategorySalesBreakdownResponse}
-// @Failure      400 {object} utils.ErrorResponse
-// @Failure      401 {object} utils.ErrorResponse
-// @Failure      403 {object} utils.ErrorResponse
-// @Failure      500 {object} utils.ErrorResponse
-// @Router       /api/v1/admin/analytics/category-sales [get]
-func (h *AnalyticsHandler) GetCategorySalesBreakdown(ctx *gin.Context) {
-	var query v1dto.CategorySalesBreakdownQuery
-	if err := ctx.ShouldBindQuery(&query); err != nil {
-		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
-		return
-	}
-
-	res, err := h.service.GetCategorySalesBreakdown(ctx.Request.Context(), query)
-	if err != nil {
-		utils.ResponseError(ctx, err)
-		return
-	}
-
-	utils.ResponseSuccess(ctx, http.StatusOK, "Category sales breakdown retrieved successfully", res)
-}
-
-// GetCouponPerformance godoc
-// @Summary      Get coupon ROI and campaign performance analytics
-// @Description  Get coupon usage statistics, total discounts given, revenue generated, and ROI multipliers by campaign
-// @Tags         Admin - Analytics
-// @Produce      json
-// @Security     BearerAuth
-// @Param        days      query int    false "Time window in days (default: 30)" default(30)
-// @Param        from_date query string false "Start date (YYYY-MM-DD)"
-// @Param        to_date   query string false "End date (YYYY-MM-DD)"
-// @Param        limit     query int    false "Maximum number of campaigns to return (default: 20)" default(20)
-// @Success      200 {object} utils.APIResponse{data=v1dto.CouponPerformanceResponse}
-// @Failure      400 {object} utils.ErrorResponse
-// @Failure      401 {object} utils.ErrorResponse
-// @Failure      403 {object} utils.ErrorResponse
-// @Failure      500 {object} utils.ErrorResponse
-// @Router       /api/v1/admin/analytics/coupons [get]
-func (h *AnalyticsHandler) GetCouponPerformance(ctx *gin.Context) {
-	var query v1dto.CouponPerformanceQuery
-	if err := ctx.ShouldBindQuery(&query); err != nil {
-		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
-		return
-	}
-
-	res, err := h.service.GetCouponPerformance(ctx.Request.Context(), query)
-	if err != nil {
-		utils.ResponseError(ctx, err)
-		return
-	}
-
-	utils.ResponseSuccess(ctx, http.StatusOK, "Coupon performance analytics retrieved successfully", res)
-}
-
-

@@ -99,6 +99,17 @@ func InitDBWithConfig(cfg *config.Config, serviceName ...string) error {
 		Int32("min_conns", conf.MinConns).
 		Msg("✅ Connected to PostgreSQL database pool")
 
+	// Services that own a single database and read every other domain over
+	// gRPC (analytics) must not open pools into foreign databases.
+	singleDBOnly := len(serviceName) > 0 && serviceName[0] == "analytics"
+	if singleDBOnly {
+		ReadDBPool = DBPool
+		ReadDB = DB
+		IdentityDBPool = DBPool
+		IdentityDB = DB
+		return nil
+	}
+
 	// Read Replica initialization (defaults to DBPool if identical connection string)
 	if cfg.ReadDNS() == cfg.DNS() {
 		ReadDBPool = DBPool

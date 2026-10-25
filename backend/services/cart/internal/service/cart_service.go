@@ -9,10 +9,10 @@ import (
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
-	catalogcontract "goshop/services/catalog/contract"
 	"goshop/services/cart/internal/db/sqlc"
 	"goshop/services/cart/internal/dto"
 	"goshop/services/cart/internal/repository"
+	catalogcontract "goshop/services/catalog/contract"
 
 	"github.com/google/uuid"
 )

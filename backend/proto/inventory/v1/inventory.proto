@@ -83,4 +83,17 @@ service InventoryService {
   rpc ReleaseStock(ReleaseStockRequest) returns (ReleaseStockResponse);
   rpc GetStock(GetStockRequest) returns (GetStockResponse);
   rpc AdjustStock(AdjustStockRequest) returns (AdjustStockResponse);
+  // ListLowStockProducts feeds analytics low-stock alerts. Stock is
+  // inventory-owned; analytics never reads this database directly.
+  rpc ListLowStockProducts(ListLowStockProductsRequest) returns (ListLowStockProductsResponse);
+}
+
+message ListLowStockProductsRequest {
+  int32 threshold = 1; // available_quantity <= threshold
+  int32 limit = 2;
+}
+
+message ListLowStockProductsResponse {
+  repeated ItemStockInfo items = 1;
+  int64 total_count = 2;
 }

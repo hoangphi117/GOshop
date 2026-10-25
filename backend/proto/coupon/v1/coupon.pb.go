@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.12
 // 	protoc        (unknown)
-// source: proto/coupon/v1/coupon.proto
+// source: coupon/v1/coupon.proto
 
 package couponv1
 
@@ -32,7 +32,7 @@ type PreviewCouponRequest struct {
 
 func (x *PreviewCouponRequest) Reset() {
 	*x = PreviewCouponRequest{}
-	mi := &file_proto_coupon_v1_coupon_proto_msgTypes[0]
+	mi := &file_coupon_v1_coupon_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -44,7 +44,7 @@ func (x *PreviewCouponRequest) String() string {
 func (*PreviewCouponRequest) ProtoMessage() {}
 
 func (x *PreviewCouponRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_coupon_v1_coupon_proto_msgTypes[0]
+	mi := &file_coupon_v1_coupon_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57,7 +57,7 @@ func (x *PreviewCouponRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PreviewCouponRequest.ProtoReflect.Descriptor instead.
 func (*PreviewCouponRequest) Descriptor() ([]byte, []int) {
-	return file_proto_coupon_v1_coupon_proto_rawDescGZIP(), []int{0}
+	return file_coupon_v1_coupon_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *PreviewCouponRequest) GetCouponCode() string {
@@ -99,7 +99,7 @@ type PreviewCouponResponse struct {
 
 func (x *PreviewCouponResponse) Reset() {
 	*x = PreviewCouponResponse{}
-	mi := &file_proto_coupon_v1_coupon_proto_msgTypes[1]
+	mi := &file_coupon_v1_coupon_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -111,7 +111,7 @@ func (x *PreviewCouponResponse) String() string {
 func (*PreviewCouponResponse) ProtoMessage() {}
 
 func (x *PreviewCouponResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_coupon_v1_coupon_proto_msgTypes[1]
+	mi := &file_coupon_v1_coupon_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -124,7 +124,7 @@ func (x *PreviewCouponResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PreviewCouponResponse.ProtoReflect.Descriptor instead.
 func (*PreviewCouponResponse) Descriptor() ([]byte, []int) {
-	return file_proto_coupon_v1_coupon_proto_rawDescGZIP(), []int{1}
+	return file_coupon_v1_coupon_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *PreviewCouponResponse) GetCouponId() int32 {
@@ -211,7 +211,7 @@ type ReserveCouponRequest struct {
 
 func (x *ReserveCouponRequest) Reset() {
 	*x = ReserveCouponRequest{}
-	mi := &file_proto_coupon_v1_coupon_proto_msgTypes[2]
+	mi := &file_coupon_v1_coupon_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -223,7 +223,7 @@ func (x *ReserveCouponRequest) String() string {
 func (*ReserveCouponRequest) ProtoMessage() {}
 
 func (x *ReserveCouponRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_coupon_v1_coupon_proto_msgTypes[2]
+	mi := &file_coupon_v1_coupon_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -236,7 +236,7 @@ func (x *ReserveCouponRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReserveCouponRequest.ProtoReflect.Descriptor instead.
 func (*ReserveCouponRequest) Descriptor() ([]byte, []int) {
-	return file_proto_coupon_v1_coupon_proto_rawDescGZIP(), []int{2}
+	return file_coupon_v1_coupon_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ReserveCouponRequest) GetCouponId() int32 {
@@ -291,7 +291,7 @@ type ReserveCouponResponse struct {
 
 func (x *ReserveCouponResponse) Reset() {
 	*x = ReserveCouponResponse{}
-	mi := &file_proto_coupon_v1_coupon_proto_msgTypes[3]
+	mi := &file_coupon_v1_coupon_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -303,7 +303,7 @@ func (x *ReserveCouponResponse) String() string {
 func (*ReserveCouponResponse) ProtoMessage() {}
 
 func (x *ReserveCouponResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_coupon_v1_coupon_proto_msgTypes[3]
+	mi := &file_coupon_v1_coupon_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -316,7 +316,7 @@ func (x *ReserveCouponResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReserveCouponResponse.ProtoReflect.Descriptor instead.
 func (*ReserveCouponResponse) Descriptor() ([]byte, []int) {
-	return file_proto_coupon_v1_coupon_proto_rawDescGZIP(), []int{3}
+	return file_coupon_v1_coupon_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ReserveCouponResponse) GetSuccess() bool {
@@ -345,7 +345,7 @@ type ReleaseCouponRequest struct {
 
 func (x *ReleaseCouponRequest) Reset() {
 	*x = ReleaseCouponRequest{}
-	mi := &file_proto_coupon_v1_coupon_proto_msgTypes[4]
+	mi := &file_coupon_v1_coupon_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -357,7 +357,7 @@ func (x *ReleaseCouponRequest) String() string {
 func (*ReleaseCouponRequest) ProtoMessage() {}
 
 func (x *ReleaseCouponRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_coupon_v1_coupon_proto_msgTypes[4]
+	mi := &file_coupon_v1_coupon_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -370,7 +370,7 @@ func (x *ReleaseCouponRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReleaseCouponRequest.ProtoReflect.Descriptor instead.
 func (*ReleaseCouponRequest) Descriptor() ([]byte, []int) {
-	return file_proto_coupon_v1_coupon_proto_rawDescGZIP(), []int{4}
+	return file_coupon_v1_coupon_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ReleaseCouponRequest) GetCouponId() int32 {
@@ -410,7 +410,7 @@ type ReleaseCouponResponse struct {
 
 func (x *ReleaseCouponResponse) Reset() {
 	*x = ReleaseCouponResponse{}
-	mi := &file_proto_coupon_v1_coupon_proto_msgTypes[5]
+	mi := &file_coupon_v1_coupon_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -422,7 +422,7 @@ func (x *ReleaseCouponResponse) String() string {
 func (*ReleaseCouponResponse) ProtoMessage() {}
 
 func (x *ReleaseCouponResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_coupon_v1_coupon_proto_msgTypes[5]
+	mi := &file_coupon_v1_coupon_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -435,7 +435,7 @@ func (x *ReleaseCouponResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReleaseCouponResponse.ProtoReflect.Descriptor instead.
 func (*ReleaseCouponResponse) Descriptor() ([]byte, []int) {
-	return file_proto_coupon_v1_coupon_proto_rawDescGZIP(), []int{5}
+	return file_coupon_v1_coupon_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ReleaseCouponResponse) GetSuccess() bool {
@@ -445,11 +445,11 @@ func (x *ReleaseCouponResponse) GetSuccess() bool {
 	return false
 }
 
-var File_proto_coupon_v1_coupon_proto protoreflect.FileDescriptor
+var File_coupon_v1_coupon_proto protoreflect.FileDescriptor
 
-const file_proto_coupon_v1_coupon_proto_rawDesc = "" +
+const file_coupon_v1_coupon_proto_rawDesc = "" +
 	"\n" +
-	"\x1cproto/coupon/v1/coupon.proto\x12\tcoupon.v1\"{\n" +
+	"\x16coupon/v1/coupon.proto\x12\tcoupon.v1\"{\n" +
 	"\x14PreviewCouponRequest\x12\x1f\n" +
 	"\vcoupon_code\x18\x01 \x01(\tR\n" +
 	"couponCode\x12%\n" +
@@ -499,19 +499,19 @@ const file_proto_coupon_v1_coupon_proto_rawDesc = "" +
 	"\rReleaseCoupon\x12\x1f.coupon.v1.ReleaseCouponRequest\x1a .coupon.v1.ReleaseCouponResponseB!Z\x1fgoshop/proto/coupon/v1;couponv1b\x06proto3"
 
 var (
-	file_proto_coupon_v1_coupon_proto_rawDescOnce sync.Once
-	file_proto_coupon_v1_coupon_proto_rawDescData []byte
+	file_coupon_v1_coupon_proto_rawDescOnce sync.Once
+	file_coupon_v1_coupon_proto_rawDescData []byte
 )
 
-func file_proto_coupon_v1_coupon_proto_rawDescGZIP() []byte {
-	file_proto_coupon_v1_coupon_proto_rawDescOnce.Do(func() {
-		file_proto_coupon_v1_coupon_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_proto_coupon_v1_coupon_proto_rawDesc), len(file_proto_coupon_v1_coupon_proto_rawDesc)))
+func file_coupon_v1_coupon_proto_rawDescGZIP() []byte {
+	file_coupon_v1_coupon_proto_rawDescOnce.Do(func() {
+		file_coupon_v1_coupon_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_coupon_v1_coupon_proto_rawDesc), len(file_coupon_v1_coupon_proto_rawDesc)))
 	})
-	return file_proto_coupon_v1_coupon_proto_rawDescData
+	return file_coupon_v1_coupon_proto_rawDescData
 }
 
-var file_proto_coupon_v1_coupon_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
-var file_proto_coupon_v1_coupon_proto_goTypes = []any{
+var file_coupon_v1_coupon_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_coupon_v1_coupon_proto_goTypes = []any{
 	(*PreviewCouponRequest)(nil),  // 0: coupon.v1.PreviewCouponRequest
 	(*PreviewCouponResponse)(nil), // 1: coupon.v1.PreviewCouponResponse
 	(*ReserveCouponRequest)(nil),  // 2: coupon.v1.ReserveCouponRequest
@@ -519,7 +519,7 @@ var file_proto_coupon_v1_coupon_proto_goTypes = []any{
 	(*ReleaseCouponRequest)(nil),  // 4: coupon.v1.ReleaseCouponRequest
 	(*ReleaseCouponResponse)(nil), // 5: coupon.v1.ReleaseCouponResponse
 }
-var file_proto_coupon_v1_coupon_proto_depIdxs = []int32{
+var file_coupon_v1_coupon_proto_depIdxs = []int32{
 	0, // 0: coupon.v1.CouponService.PreviewCoupon:input_type -> coupon.v1.PreviewCouponRequest
 	2, // 1: coupon.v1.CouponService.ReserveCoupon:input_type -> coupon.v1.ReserveCouponRequest
 	4, // 2: coupon.v1.CouponService.ReleaseCoupon:input_type -> coupon.v1.ReleaseCouponRequest
@@ -533,26 +533,26 @@ var file_proto_coupon_v1_coupon_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for field type_name
 }
 
-func init() { file_proto_coupon_v1_coupon_proto_init() }
-func file_proto_coupon_v1_coupon_proto_init() {
-	if File_proto_coupon_v1_coupon_proto != nil {
+func init() { file_coupon_v1_coupon_proto_init() }
+func file_coupon_v1_coupon_proto_init() {
+	if File_coupon_v1_coupon_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_coupon_v1_coupon_proto_rawDesc), len(file_proto_coupon_v1_coupon_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_coupon_v1_coupon_proto_rawDesc), len(file_coupon_v1_coupon_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_proto_coupon_v1_coupon_proto_goTypes,
-		DependencyIndexes: file_proto_coupon_v1_coupon_proto_depIdxs,
-		MessageInfos:      file_proto_coupon_v1_coupon_proto_msgTypes,
+		GoTypes:           file_coupon_v1_coupon_proto_goTypes,
+		DependencyIndexes: file_coupon_v1_coupon_proto_depIdxs,
+		MessageInfos:      file_coupon_v1_coupon_proto_msgTypes,
 	}.Build()
-	File_proto_coupon_v1_coupon_proto = out.File
-	file_proto_coupon_v1_coupon_proto_goTypes = nil
-	file_proto_coupon_v1_coupon_proto_depIdxs = nil
+	File_coupon_v1_coupon_proto = out.File
+	file_coupon_v1_coupon_proto_goTypes = nil
+	file_coupon_v1_coupon_proto_depIdxs = nil
 }

@@ -236,7 +236,6 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	modules := []Module{
 		NewWSModule(ctx, wsHub, tokenService, cacheRedisService),
 		NewUploadModule(ctx),
-		NewAnalyticsModule(ctx),
 		NewChatModule(ctx, wsHub, redisBridge, crossDomainOrderReader),
 		NewHealthModule(db.DBPool, redisClient, rabbitmqService, storageService, discord.NewDiscordNotifier(utils.GetEnv("DISCORD_WEBHOOK_URL", ""), logger.Log), logger.Log),
 	}

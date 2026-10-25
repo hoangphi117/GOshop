@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	v1service "goshop/internal/service/v1"
-	"goshop/pkg/rabbitmq"
 	"time"
+
+	"goshop/pkg/rabbitmq"
+	"goshop/services/analytics/internal/service"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -14,17 +15,17 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// OrderProjectionConsumer consumes order lifecycle events from RabbitMQ
-// and maintains the reporting read model projection tables (analytics_orders_projection,
-// analytics_order_items_projection, analytics_order_returns_projection) in real time.
+// OrderProjectionConsumer consumes order lifecycle events from RabbitMQ and
+// maintains the reporting read model (analytics_orders_projection,
+// analytics_order_items_projection) inside the analytics database.
 type OrderProjectionConsumer struct {
 	dbPool      *pgxpool.Pool
-	orderReader v1service.OrderReader
+	orderReader service.OrderReader
 	logger      *zerolog.Logger
 }
 
 // NewOrderProjectionConsumer constructs a new OrderProjectionConsumer.
-func NewOrderProjectionConsumer(dbPool *pgxpool.Pool, orderReader v1service.OrderReader, logger *zerolog.Logger) *OrderProjectionConsumer {
+func NewOrderProjectionConsumer(dbPool *pgxpool.Pool, orderReader service.OrderReader, logger *zerolog.Logger) *OrderProjectionConsumer {
 	return &OrderProjectionConsumer{
 		dbPool:      dbPool,
 		orderReader: orderReader,
@@ -57,7 +58,6 @@ func (c *OrderProjectionConsumer) HandleOrderCreated(headers amqp.Table, body []
 	status := int32(1)
 	totalAmount := event.TotalAmount
 
-	// If OrderReader is available, fetch rich details
 	if c.orderReader != nil && parsedOrderUUID != uuid.Nil {
 		if summary, err := c.orderReader.GetOrderSummary(ctx, parsedOrderUUID); err == nil && summary != nil {
 			if summary.CustomerName != "" {
@@ -76,26 +76,25 @@ func (c *OrderProjectionConsumer) HandleOrderCreated(headers amqp.Table, body []
 	}
 
 	upsertOrderSQL := `
-		INSERT INTO public.analytics_orders_projection (
+		INSERT INTO analytics_orders_projection (
 			order_id, order_uuid, order_number, order_user_id, order_user_uuid,
 			order_customer_name, order_customer_email, order_shipping_name,
 			order_shipping_phone, order_shipping_address, order_total_amount,
-			order_refunded_amount, order_discount_amount, order_coupon_id,
+			order_refunded_amount, order_discount_amount,
 			order_payment_method, order_payment_status, order_shipping_fee,
 			order_status, order_created_at, order_updated_at
 		) VALUES (
 			$1, $2, $3, $4, $5,
 			$6, $7, $8,
 			$9, $10, $11,
-			0.00, $12, $13,
-			COALESCE(NULLIF($14, 0), 1), 1, $15,
-			$16, $17, $17
+			0.00, $12,
+			COALESCE(NULLIF($13, 0), 1), 1, $14,
+			$15, $16, $16
 		)
 		ON CONFLICT (order_id) DO UPDATE SET
 			order_status = EXCLUDED.order_status,
 			order_total_amount = EXCLUDED.order_total_amount,
 			order_discount_amount = EXCLUDED.order_discount_amount,
-			order_coupon_id = EXCLUDED.order_coupon_id,
 			order_payment_method = EXCLUDED.order_payment_method,
 			order_shipping_fee = EXCLUDED.order_shipping_fee,
 			order_customer_name = CASE WHEN EXCLUDED.order_customer_name <> '' THEN EXCLUDED.order_customer_name ELSE analytics_orders_projection.order_customer_name END,
@@ -126,7 +125,6 @@ func (c *OrderProjectionConsumer) HandleOrderCreated(headers amqp.Table, body []
 		"N/A",
 		totalAmount,
 		event.DiscountAmount,
-		event.CouponID,
 		event.PaymentMethod,
 		event.ShippingFee,
 		status,
@@ -139,9 +137,8 @@ func (c *OrderProjectionConsumer) HandleOrderCreated(headers amqp.Table, body []
 		return err
 	}
 
-	// Insert items if available
 	upsertItemSQL := `
-		INSERT INTO public.analytics_order_items_projection (
+		INSERT INTO analytics_order_items_projection (
 			order_item_uuid, order_item_order_id,
 			order_item_product_id, order_item_product_name,
 			order_item_price, order_item_quantity, order_item_subtotal, order_item_created_at
@@ -220,7 +217,7 @@ func (c *OrderProjectionConsumer) HandleOrderStatusChanged(headers amqp.Table, b
 	parsedOrderUUID, _ := uuid.Parse(event.OrderUUID)
 
 	query := `
-		UPDATE public.analytics_orders_projection
+		UPDATE analytics_orders_projection
 		SET order_status = $1,
 		    order_payment_status = CASE WHEN $5 > 0 THEN $5 ELSE order_payment_status END,
 		    order_shipping_code = CASE WHEN $2 <> '' THEN $2 ELSE order_shipping_code END,
@@ -253,7 +250,7 @@ func (c *OrderProjectionConsumer) HandleOrderCancelled(headers amqp.Table, body 
 	parsedOrderUUID, _ := uuid.Parse(event.OrderUUID)
 
 	query := `
-		UPDATE public.analytics_orders_projection
+		UPDATE analytics_orders_projection
 		SET order_status = 5,
 		    order_cancelled_at = COALESCE(order_cancelled_at, NOW()),
 		    order_updated_at = NOW()
@@ -284,7 +281,7 @@ func (c *OrderProjectionConsumer) HandlePaymentSucceeded(headers amqp.Table, bod
 	parsedOrderUUID, _ := uuid.Parse(event.OrderUUID)
 
 	query := `
-		UPDATE public.analytics_orders_projection
+		UPDATE analytics_orders_projection
 		SET order_payment_status = 2,
 		    order_updated_at = NOW()
 		WHERE order_uuid = $1 OR order_number = $2;
@@ -293,74 +290,6 @@ func (c *OrderProjectionConsumer) HandlePaymentSucceeded(headers amqp.Table, bod
 	_, err := c.dbPool.Exec(ctx, query, parsedOrderUUID, event.OrderNumber)
 	if err != nil && c.logger != nil {
 		c.logger.Error().Err(err).Str("order_uuid", event.OrderUUID).Msg("failed to update payment status in analytics_orders_projection")
-	}
-	return err
-}
-
-// HandleOrderReturnRequested inserts a new return record into projection.
-func (c *OrderProjectionConsumer) HandleOrderReturnRequested(headers amqp.Table, body []byte) error {
-	var event rabbitmq.OrderReturnRequestedEvent
-	if err := json.Unmarshal(body, &event); err != nil {
-		return err
-	}
-
-	if c.dbPool == nil {
-		return nil
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	parsedReturnUUID, _ := uuid.Parse(event.ReturnUUID)
-
-	query := `
-		INSERT INTO public.analytics_order_returns_projection (
-			return_id, return_uuid, return_order_id, return_user_id,
-			return_order_number, return_reason, return_status, return_created_at, return_updated_at
-		) VALUES (
-			$1, $2, $3, $4,
-			$5, $6, 1, NOW(), NOW()
-		)
-		ON CONFLICT (return_id) DO UPDATE SET
-			return_order_number = EXCLUDED.return_order_number,
-			return_reason = EXCLUDED.return_reason,
-			return_updated_at = NOW();
-	`
-
-	_, err := c.dbPool.Exec(ctx, query, event.ReturnID, parsedReturnUUID, event.OrderID, event.UserID, event.OrderNumber, event.ReturnReason)
-	if err != nil && c.logger != nil {
-		c.logger.Error().Err(err).Int32("return_id", event.ReturnID).Msg("failed to insert return in analytics_order_returns_projection")
-	}
-	return err
-}
-
-// HandleOrderReturnUpdated updates return request status and admin notes in projection.
-func (c *OrderProjectionConsumer) HandleOrderReturnUpdated(headers amqp.Table, body []byte) error {
-	var event rabbitmq.OrderReturnUpdatedEvent
-	if err := json.Unmarshal(body, &event); err != nil {
-		return err
-	}
-
-	if c.dbPool == nil {
-		return nil
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	parsedReturnUUID, _ := uuid.Parse(event.ReturnUUID)
-
-	query := `
-		UPDATE public.analytics_order_returns_projection
-		SET return_status = $1,
-		    return_admin_note = $2,
-		    return_updated_at = NOW()
-		WHERE return_uuid = $3 OR return_id = $4;
-	`
-
-	_, err := c.dbPool.Exec(ctx, query, event.ReturnStatus, event.AdminNote, parsedReturnUUID, event.ReturnID)
-	if err != nil && c.logger != nil {
-		c.logger.Error().Err(err).Int32("return_id", event.ReturnID).Msg("failed to update return in analytics_order_returns_projection")
 	}
 	return err
 }

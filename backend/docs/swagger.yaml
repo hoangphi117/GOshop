@@ -876,6 +876,37 @@ definitions:
       refresh_token:
         type: string
     type: object
+  dto.LowStockProductDTO:
+    properties:
+      alert_level:
+        description: '"critical" (stock <= 0) or "warning"'
+        type: string
+      category_name:
+        type: string
+      image_url:
+        type: string
+      name:
+        type: string
+      price:
+        type: number
+      slug:
+        type: string
+      stock:
+        type: integer
+      uuid:
+        type: string
+    type: object
+  dto.LowStockProductResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/dto.LowStockProductDTO'
+        type: array
+      threshold:
+        type: integer
+      total_low:
+        type: integer
+    type: object
   dto.MyReviewDTO:
     properties:
       can_edit:
@@ -890,6 +921,8 @@ definitions:
         items:
           type: string
         type: array
+      order_uuid:
+        type: string
       product_image_url:
         type: string
       product_name:
@@ -1023,6 +1056,28 @@ definitions:
       video_url:
         type: string
     type: object
+  dto.OrderStatusDistributionItemDTO:
+    properties:
+      count:
+        type: integer
+      percentage:
+        type: number
+      status:
+        type: integer
+      status_name:
+        type: string
+      total_amount:
+        type: number
+    type: object
+  dto.OrderStatusDistributionResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/dto.OrderStatusDistributionItemDTO'
+        type: array
+      total_orders:
+        type: integer
+    type: object
   dto.OrderTimelineResponseDTO:
     properties:
       events:
@@ -1033,6 +1088,23 @@ definitions:
         type: string
       order_uuid:
         type: string
+    type: object
+  dto.OverviewStatsDTO:
+    properties:
+      customer_growth:
+        type: number
+      new_customers:
+        type: integer
+      order_growth:
+        type: number
+      pending_orders:
+        type: integer
+      revenue_growth:
+        type: number
+      total_orders:
+        type: integer
+      total_revenue:
+        type: number
     type: object
   dto.PaymentIntentDTO:
     properties:
@@ -1052,6 +1124,30 @@ definitions:
         type: string
       status:
         type: string
+    type: object
+  dto.PaymentMethodBreakdownItemDTO:
+    properties:
+      method_name:
+        type: string
+      net_revenue:
+        type: number
+      order_count:
+        type: integer
+      payment_method:
+        type: integer
+      percentage:
+        type: number
+    type: object
+  dto.PaymentMethodBreakdownResponse:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/dto.PaymentMethodBreakdownItemDTO'
+        type: array
+      total_orders:
+        type: integer
+      total_revenue:
+        type: number
     type: object
   dto.PreviewCouponDTO:
     properties:
@@ -1157,6 +1253,27 @@ definitions:
       province_name:
         type: string
     type: object
+  dto.RecentOrderDTO:
+    properties:
+      created_at:
+        type: string
+      customer_email:
+        type: string
+      customer_name:
+        type: string
+      order_number:
+        type: string
+      payment_method:
+        type: integer
+      payment_status:
+        type: integer
+      status:
+        type: integer
+      total_amount:
+        type: number
+      uuid:
+        type: string
+    type: object
   dto.RefreshTokenInput:
     properties:
       refresh_token:
@@ -1228,6 +1345,15 @@ definitions:
     required:
     - new_password
     - token
+    type: object
+  dto.RevenueChartPointDTO:
+    properties:
+      date:
+        type: string
+      order_count:
+        type: integer
+      revenue:
+        type: number
     type: object
   dto.ReviewDTO:
     properties:
@@ -1425,6 +1551,25 @@ definitions:
       voted:
         description: 'true: voted, false: vote removed'
         type: boolean
+    type: object
+  dto.TopProductDTO:
+    properties:
+      category_name:
+        type: string
+      image_url:
+        type: string
+      name:
+        type: string
+      price:
+        type: number
+      slug:
+        type: string
+      total_revenue:
+        type: number
+      total_units_sold:
+        type: integer
+      uuid:
+        type: string
     type: object
   dto.TrackingEventDTO:
     properties:
@@ -1930,61 +2075,6 @@ definitions:
     - order_uuid
     - reason
     type: object
-  v1dto.CartFunnelDTO:
-    properties:
-      abandoned_carts:
-        type: integer
-      abandonment_rate:
-        description: Percentage (0 - 100%)
-        type: number
-      cart_to_order_rate:
-        description: Conversion (0 - 100%)
-        type: number
-      order_to_paid_rate:
-        description: Conversion (0 - 100%)
-        type: number
-      orders_created:
-        type: integer
-      orders_paid:
-        type: integer
-      potential_lost_revenue:
-        description: Currency value
-        type: number
-      total_carts:
-        type: integer
-    type: object
-  v1dto.CategorySalesBreakdownResponse:
-    properties:
-      categories:
-        items:
-          $ref: '#/definitions/v1dto.CategorySalesItemDTO'
-        type: array
-      total_orders:
-        type: integer
-      total_revenue:
-        type: number
-      total_units_sold:
-        type: integer
-    type: object
-  v1dto.CategorySalesItemDTO:
-    properties:
-      category_id:
-        type: integer
-      category_name:
-        type: string
-      category_slug:
-        type: string
-      category_uuid:
-        type: string
-      gross_revenue:
-        type: number
-      order_count:
-        type: integer
-      percentage:
-        type: number
-      units_sold:
-        type: integer
-    type: object
   v1dto.ConversationResponse:
     properties:
       admin_id:
@@ -2018,78 +2108,6 @@ definitions:
       uuid:
         type: string
     type: object
-  v1dto.CouponCampaignItemDTO:
-    properties:
-      coupon_code:
-        type: string
-      coupon_id:
-        type: integer
-      coupon_name:
-        type: string
-      coupon_type:
-        type: integer
-      coupon_uuid:
-        type: string
-      discount_value:
-        type: number
-      roi_multiplier:
-        type: number
-      total_discount:
-        type: number
-      total_revenue:
-        type: number
-      usage_count:
-        type: integer
-    type: object
-  v1dto.CouponPerformanceResponse:
-    properties:
-      campaigns:
-        items:
-          $ref: '#/definitions/v1dto.CouponCampaignItemDTO'
-        type: array
-      overall_roi_multiplier:
-        type: number
-      total_coupons_used:
-        type: integer
-      total_discount_given:
-        type: number
-      total_revenue_generated:
-        type: number
-    type: object
-  v1dto.LowStockProductDTO:
-    properties:
-      alert_level:
-        description: '"critical" (stock <= 0), "warning" (stock <= threshold)'
-        type: string
-      category_name:
-        type: string
-      image_url:
-        type: string
-      name:
-        type: string
-      price:
-        type: number
-      slug:
-        type: string
-      stock:
-        description: Current available stock
-        type: integer
-      uuid:
-        type: string
-    type: object
-  v1dto.LowStockProductResponse:
-    properties:
-      items:
-        items:
-          $ref: '#/definitions/v1dto.LowStockProductDTO'
-        type: array
-      threshold:
-        description: Warning threshold used (e.g., 5)
-        type: integer
-      total_low:
-        description: Count of items below threshold
-        type: integer
-    type: object
   v1dto.MessageResponse:
     properties:
       attachment_name:
@@ -2112,143 +2130,6 @@ definitions:
         type: string
       uuid:
         type: string
-    type: object
-  v1dto.OrderStatusDistributionItemDTO:
-    properties:
-      count:
-        description: Number of orders in this status
-        type: integer
-      percentage:
-        description: Percentage of total orders (0.0 to 100.0)
-        type: number
-      status:
-        description: '1: Pending, 2: Confirmed, 3: Shipped, 4: Delivered, 5: Cancelled,
-          6: Returned'
-        type: integer
-      status_name:
-        description: e.g., "Pending", "Delivered", "Cancelled"
-        type: string
-      total_amount:
-        description: Total monetary value of orders in this status
-        type: number
-    type: object
-  v1dto.OrderStatusDistributionResponse:
-    properties:
-      items:
-        items:
-          $ref: '#/definitions/v1dto.OrderStatusDistributionItemDTO'
-        type: array
-      total_orders:
-        type: integer
-    type: object
-  v1dto.OverviewStatsDTO:
-    properties:
-      customer_growth:
-        description: '% vs previous 30 days'
-        type: number
-      new_customers:
-        type: integer
-      order_growth:
-        description: '% vs previous 30 days'
-        type: number
-      pending_orders:
-        type: integer
-      revenue_growth:
-        description: '% vs previous 30 days'
-        type: number
-      total_orders:
-        type: integer
-      total_revenue:
-        type: number
-    type: object
-  v1dto.PaymentMethodBreakdownItemDTO:
-    properties:
-      method_name:
-        description: '"COD (Cash on Delivery)", "Bank Transfer", "E-Wallet"'
-        type: string
-      net_revenue:
-        description: Net revenue after refunds
-        type: number
-      order_count:
-        description: Total orders paid via this method
-        type: integer
-      payment_method:
-        description: '1: COD, 2: Online / Bank Transfer, 3: E-Wallet'
-        type: integer
-      percentage:
-        description: Revenue share percentage (0.0 to 100.0)
-        type: number
-    type: object
-  v1dto.PaymentMethodBreakdownResponse:
-    properties:
-      items:
-        items:
-          $ref: '#/definitions/v1dto.PaymentMethodBreakdownItemDTO'
-        type: array
-      total_orders:
-        type: integer
-      total_revenue:
-        type: number
-    type: object
-  v1dto.RecentOrderDTO:
-    properties:
-      created_at:
-        type: string
-      customer_email:
-        type: string
-      customer_name:
-        type: string
-      order_number:
-        type: string
-      payment_method:
-        type: integer
-      payment_status:
-        type: integer
-      status:
-        type: integer
-      total_amount:
-        type: number
-      uuid:
-        type: string
-    type: object
-  v1dto.ReturnAnalyticsResponse:
-    properties:
-      reasons_breakdown:
-        items:
-          $ref: '#/definitions/v1dto.ReturnReasonBreakdownDTO'
-        type: array
-      return_rate:
-        type: number
-      returned_orders_count:
-        type: integer
-      top_returned_products:
-        items:
-          $ref: '#/definitions/v1dto.TopReturnedProductDTO'
-        type: array
-      total_paid_orders:
-        type: integer
-      total_refunded_amount:
-        type: number
-      total_returns:
-        type: integer
-    type: object
-  v1dto.ReturnReasonBreakdownDTO:
-    properties:
-      count:
-        type: integer
-      percentage:
-        type: number
-      reason:
-        type: string
-    type: object
-  v1dto.RevenueChartPointDTO:
-    properties:
-      date:
-        type: string
-      order_count:
-        type: integer
-      revenue:
-        type: number
     type: object
   v1dto.SendMessageRequest:
     properties:
@@ -2292,44 +2173,6 @@ definitions:
     properties:
       is_online:
         type: boolean
-    type: object
-  v1dto.TopProductDTO:
-    properties:
-      category_name:
-        type: string
-      image_url:
-        type: string
-      name:
-        type: string
-      price:
-        type: number
-      slug:
-        type: string
-      total_revenue:
-        type: number
-      total_units_sold:
-        type: integer
-      uuid:
-        type: string
-    type: object
-  v1dto.TopReturnedProductDTO:
-    properties:
-      image_url:
-        type: string
-      name:
-        type: string
-      price:
-        type: number
-      return_case_count:
-        type: integer
-      returned_value:
-        type: number
-      slug:
-        type: string
-      units_returned:
-        type: integer
-      uuid:
-        type: string
     type: object
   v1dto.UploadResponseDTO:
     properties:
@@ -5003,143 +4846,6 @@ paths:
       summary: Get soft-deleted users
       tags:
       - Admin - Users
-  /api/v1/admin/analytics/cart-funnel:
-    get:
-      description: Get active carts, order drop-offs, abandonment rate, and potential
-        lost revenue
-      parameters:
-      - description: Start date (YYYY-MM-DD)
-        in: query
-        name: from_date
-        type: string
-      - description: End date (YYYY-MM-DD)
-        in: query
-        name: to_date
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/v1dto.CartFunnelDTO'
-              type: object
-      security:
-      - BearerAuth: []
-      summary: Get cart abandonment and conversion funnel statistics
-      tags:
-      - Admin - Analytics
-  /api/v1/admin/analytics/category-sales:
-    get:
-      description: Get sales volume, gross revenue, and revenue contribution percentages
-        by category
-      parameters:
-      - default: 30
-        description: 'Time window in days (default: 30)'
-        in: query
-        name: days
-        type: integer
-      - description: Start date (YYYY-MM-DD)
-        in: query
-        name: from_date
-        type: string
-      - description: End date (YYYY-MM-DD)
-        in: query
-        name: to_date
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/v1dto.CategorySalesBreakdownResponse'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Get category sales breakdown
-      tags:
-      - Admin - Analytics
-  /api/v1/admin/analytics/coupons:
-    get:
-      description: Get coupon usage statistics, total discounts given, revenue generated,
-        and ROI multipliers by campaign
-      parameters:
-      - default: 30
-        description: 'Time window in days (default: 30)'
-        in: query
-        name: days
-        type: integer
-      - description: Start date (YYYY-MM-DD)
-        in: query
-        name: from_date
-        type: string
-      - description: End date (YYYY-MM-DD)
-        in: query
-        name: to_date
-        type: string
-      - default: 20
-        description: 'Maximum number of campaigns to return (default: 20)'
-        in: query
-        name: limit
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/v1dto.CouponPerformanceResponse'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Get coupon ROI and campaign performance analytics
-      tags:
-      - Admin - Analytics
   /api/v1/admin/analytics/low-stock-alerts:
     get:
       description: Get list of products with inventory stock below or equal to the
@@ -5162,27 +4868,27 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - $ref: '#/definitions/goshop_pkg_utils.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/v1dto.LowStockProductResponse'
+                  $ref: '#/definitions/dto.LowStockProductResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
       security:
       - BearerAuth: []
       - ApiKeyAuth: []
@@ -5214,27 +4920,27 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - $ref: '#/definitions/goshop_pkg_utils.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/v1dto.OrderStatusDistributionResponse'
+                  $ref: '#/definitions/dto.OrderStatusDistributionResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
       security:
       - BearerAuth: []
       - ApiKeyAuth: []
@@ -5266,23 +4972,23 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - $ref: '#/definitions/goshop_pkg_utils.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/v1dto.OverviewStatsDTO'
+                  $ref: '#/definitions/dto.OverviewStatsDTO'
               type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
       security:
       - BearerAuth: []
       - ApiKeyAuth: []
@@ -5314,27 +5020,27 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - $ref: '#/definitions/goshop_pkg_utils.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/v1dto.PaymentMethodBreakdownResponse'
+                  $ref: '#/definitions/dto.PaymentMethodBreakdownResponse'
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
       security:
       - BearerAuth: []
       - ApiKeyAuth: []
@@ -5357,76 +5063,25 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - $ref: '#/definitions/goshop_pkg_utils.APIResponse'
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/v1dto.RecentOrderDTO'
+                    $ref: '#/definitions/dto.RecentOrderDTO'
                   type: array
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
       security:
       - BearerAuth: []
       - ApiKeyAuth: []
       summary: Get recent orders for dashboard
-      tags:
-      - Admin - Analytics
-  /api/v1/admin/analytics/returns:
-    get:
-      description: Get return rates, total refunded amount, reason breakdown, and
-        top returned products
-      parameters:
-      - default: 30
-        description: 'Time window in days (default: 30)'
-        in: query
-        name: days
-        type: integer
-      - description: Start date (YYYY-MM-DD)
-        in: query
-        name: from_date
-        type: string
-      - description: End date (YYYY-MM-DD)
-        in: query
-        name: to_date
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/v1dto.ReturnAnalyticsResponse'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Get return and refund financial analytics
       tags:
       - Admin - Analytics
   /api/v1/admin/analytics/revenue-chart:
@@ -5467,21 +5122,21 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - $ref: '#/definitions/goshop_pkg_utils.APIResponse'
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/v1dto.RevenueChartPointDTO'
+                    $ref: '#/definitions/dto.RevenueChartPointDTO'
                   type: array
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
       security:
       - BearerAuth: []
       - ApiKeyAuth: []
@@ -5518,21 +5173,21 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
+            - $ref: '#/definitions/goshop_pkg_utils.APIResponse'
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/v1dto.TopProductDTO'
+                    $ref: '#/definitions/dto.TopProductDTO'
                   type: array
               type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
+            $ref: '#/definitions/goshop_pkg_utils.ErrorResponse'
       security:
       - BearerAuth: []
       - ApiKeyAuth: []
