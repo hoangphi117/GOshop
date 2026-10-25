@@ -1,4 +1,4 @@
-package v1service
+package service
 
 import (
 	"context"
@@ -8,12 +8,12 @@ import (
 	"strings"
 	"time"
 
-	"goshop/internal/db/sqlc"
-	v1dto "goshop/internal/dto/v1"
-	"goshop/internal/repository"
 	"goshop/internal/utils"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
+	bannersqlc "goshop/services/banner/internal/db/sqlc"
+	bannerdto "goshop/services/banner/internal/dto"
+	bannerrepo "goshop/services/banner/internal/repository"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -28,28 +28,40 @@ const (
 	bannerCacheTTL        = 10 * time.Minute
 )
 
+type BannerService interface {
+	GetActiveBanners(ctx context.Context, position string) ([]bannerdto.BannerDTO, error)
+	AdminGetBanners(ctx context.Context, query bannerdto.AdminGetBannersQuery) ([]bannerdto.AdminBannerDetailDTO, int64, error)
+	AdminGetBannerByUUID(ctx context.Context, bannerUUID uuid.UUID) (bannerdto.AdminBannerDetailDTO, error)
+	AdminCreateBanner(ctx context.Context, input bannerdto.CreateBannerRequest) (bannerdto.AdminBannerDetailDTO, error)
+	AdminUpdateBanner(ctx context.Context, bannerUUID uuid.UUID, input bannerdto.UpdateBannerRequest) (bannerdto.AdminBannerDetailDTO, error)
+	AdminUpdateBannerStatus(ctx context.Context, bannerUUID uuid.UUID, input bannerdto.UpdateBannerStatusRequest) (bannerdto.AdminBannerDetailDTO, error)
+	AdminSoftDeleteBanner(ctx context.Context, bannerUUID uuid.UUID) error
+	AdminRestoreBanner(ctx context.Context, bannerUUID uuid.UUID) (bannerdto.AdminBannerDetailDTO, error)
+	AdminTrashBanner(ctx context.Context, bannerUUID uuid.UUID) error
+}
+
 type bannerService struct {
-	bannerRepo repository.BannerRepository
+	bannerRepo bannerrepo.BannerRepository
 	cache      cache.RedisCacheService
 	sf         singleflight.Group
 }
 
 // NewBannerService creates a new instance of BannerService.
-func NewBannerService(bannerRepo repository.BannerRepository, cache cache.RedisCacheService) BannerService {
+func NewBannerService(bannerRepo bannerrepo.BannerRepository, cache cache.RedisCacheService) BannerService {
 	return &bannerService{
 		bannerRepo: bannerRepo,
 		cache:      cache,
 	}
 }
 
-// ── Public Endpoints ──────────────────────────────────────────────
+// ─────────────────────────── Public Endpoints ───────────────────────────────
 
-func (s *bannerService) GetActiveBanners(ctx context.Context, position string) ([]v1dto.BannerDTO, error) {
+func (s *bannerService) GetActiveBanners(ctx context.Context, position string) ([]bannerdto.BannerDTO, error) {
 	normPos := s.normalizePosition(position)
 	cacheKey := fmt.Sprintf("%s%s", bannerCacheKeyPrefix, normPos)
 
 	if s.cache != nil {
-		var cachedBanners []v1dto.BannerDTO
+		var cachedBanners []bannerdto.BannerDTO
 		if err := s.cache.Get(cacheKey, &cachedBanners); err == nil && len(cachedBanners) > 0 {
 			return cachedBanners, nil
 		}
@@ -58,7 +70,7 @@ func (s *bannerService) GetActiveBanners(ctx context.Context, position string) (
 	res, err, _ := s.sf.Do(cacheKey, func() (any, error) {
 		// Re-check cache inside singleflight
 		if s.cache != nil {
-			var cb []v1dto.BannerDTO
+			var cb []bannerdto.BannerDTO
 			if err := s.cache.Get(cacheKey, &cb); err == nil && len(cb) > 0 {
 				return cb, nil
 			}
@@ -69,9 +81,9 @@ func (s *bannerService) GetActiveBanners(ctx context.Context, position string) (
 			return nil, utils.WrapError(utils.ErrCodeInternal, "failed to query active banners", err)
 		}
 
-		banners := make([]v1dto.BannerDTO, len(rows))
+		banners := make([]bannerdto.BannerDTO, len(rows))
 		for i, r := range rows {
-			banners[i] = v1dto.MapBannerToDTO(r)
+			banners[i] = bannerdto.MapBannerToDTO(r)
 		}
 
 		if s.cache != nil {
@@ -85,12 +97,12 @@ func (s *bannerService) GetActiveBanners(ctx context.Context, position string) (
 		return nil, err
 	}
 
-	return res.([]v1dto.BannerDTO), nil
+	return res.([]bannerdto.BannerDTO), nil
 }
 
-// ── Admin Endpoints ───────────────────────────────────────────────
+// ─────────────────────────── Admin Endpoints ────────────────────────────────
 
-func (s *bannerService) AdminGetBanners(ctx context.Context, query v1dto.AdminGetBannersQuery) ([]v1dto.AdminBannerDetailDTO, int64, error) {
+func (s *bannerService) AdminGetBanners(ctx context.Context, query bannerdto.AdminGetBannersQuery) ([]bannerdto.AdminBannerDetailDTO, int64, error) {
 	page := query.Page
 	if page <= 0 {
 		page = 1
@@ -113,7 +125,7 @@ func (s *bannerService) AdminGetBanners(ctx context.Context, query v1dto.AdminGe
 		deleted = &f
 	}
 
-	params := sqlc.AdminListBannersParams{
+	params := bannersqlc.AdminListBannersParams{
 		Limit:    limit,
 		Offset:   offset,
 		Position: position,
@@ -121,7 +133,7 @@ func (s *bannerService) AdminGetBanners(ctx context.Context, query v1dto.AdminGe
 		Deleted:  deleted,
 	}
 
-	countParams := sqlc.AdminCountBannersParams{
+	countParams := bannersqlc.AdminCountBannersParams{
 		Position: position,
 		IsActive: query.IsActive,
 		Deleted:  deleted,
@@ -137,26 +149,26 @@ func (s *bannerService) AdminGetBanners(ctx context.Context, query v1dto.AdminGe
 		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "failed to count banners", err)
 	}
 
-	res := make([]v1dto.AdminBannerDetailDTO, len(rows))
+	res := make([]bannerdto.AdminBannerDetailDTO, len(rows))
 	for i, r := range rows {
-		res[i] = v1dto.MapAdminBannerDetailDTO(r)
+		res[i] = bannerdto.MapAdminBannerDetailDTO(r)
 	}
 
 	return res, total, nil
 }
 
-func (s *bannerService) AdminGetBannerByUUID(ctx context.Context, bannerUUID uuid.UUID) (v1dto.AdminBannerDetailDTO, error) {
+func (s *bannerService) AdminGetBannerByUUID(ctx context.Context, bannerUUID uuid.UUID) (bannerdto.AdminBannerDetailDTO, error) {
 	banner, err := s.getBanner(ctx, bannerUUID)
 	if err != nil {
-		return v1dto.AdminBannerDetailDTO{}, err
+		return bannerdto.AdminBannerDetailDTO{}, err
 	}
 
-	return v1dto.MapAdminBannerDetailDTO(banner), nil
+	return bannerdto.MapAdminBannerDetailDTO(banner), nil
 }
 
-func (s *bannerService) AdminCreateBanner(ctx context.Context, input v1dto.CreateBannerRequest) (v1dto.AdminBannerDetailDTO, error) {
+func (s *bannerService) AdminCreateBanner(ctx context.Context, input bannerdto.CreateBannerRequest) (bannerdto.AdminBannerDetailDTO, error) {
 	if err := s.validateDateRange(input.StartAt, input.EndAt); err != nil {
-		return v1dto.AdminBannerDetailDTO{}, err
+		return bannerdto.AdminBannerDetailDTO{}, err
 	}
 
 	isActive := true
@@ -164,7 +176,7 @@ func (s *bannerService) AdminCreateBanner(ctx context.Context, input v1dto.Creat
 		isActive = *input.IsActive
 	}
 
-	params := sqlc.CreateBannerParams{
+	params := bannersqlc.CreateBannerParams{
 		BannerTitle:    strings.TrimSpace(input.Title),
 		BannerImageUrl: strings.TrimSpace(input.ImageURL),
 		BannerLinkUrl:  input.LinkURL,
@@ -177,17 +189,17 @@ func (s *bannerService) AdminCreateBanner(ctx context.Context, input v1dto.Creat
 
 	banner, err := s.bannerRepo.Create(ctx, params)
 	if err != nil {
-		return v1dto.AdminBannerDetailDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to create banner", err)
+		return bannerdto.AdminBannerDetailDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to create banner", err)
 	}
 
 	s.invalidateCache()
 
-	return v1dto.MapAdminBannerDetailDTO(banner), nil
+	return bannerdto.MapAdminBannerDetailDTO(banner), nil
 }
 
-func (s *bannerService) AdminUpdateBanner(ctx context.Context, bannerUUID uuid.UUID, input v1dto.UpdateBannerRequest) (v1dto.AdminBannerDetailDTO, error) {
+func (s *bannerService) AdminUpdateBanner(ctx context.Context, bannerUUID uuid.UUID, input bannerdto.UpdateBannerRequest) (bannerdto.AdminBannerDetailDTO, error) {
 	if err := s.validateDateRange(input.StartAt, input.EndAt); err != nil {
-		return v1dto.AdminBannerDetailDTO{}, err
+		return bannerdto.AdminBannerDetailDTO{}, err
 	}
 
 	var pos *string
@@ -196,7 +208,7 @@ func (s *bannerService) AdminUpdateBanner(ctx context.Context, bannerUUID uuid.U
 		pos = &p
 	}
 
-	params := sqlc.UpdateBannerParams{
+	params := bannersqlc.UpdateBannerParams{
 		BannerUuid:     bannerUUID,
 		BannerTitle:    input.Title,
 		BannerImageUrl: input.ImageURL,
@@ -211,28 +223,28 @@ func (s *bannerService) AdminUpdateBanner(ctx context.Context, bannerUUID uuid.U
 	banner, err := s.bannerRepo.Update(ctx, params)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) || errors.Is(err, sql.ErrNoRows) {
-			return v1dto.AdminBannerDetailDTO{}, utils.NewError(utils.ErrCodeNotFound, "Banner not found or has been deleted")
+			return bannerdto.AdminBannerDetailDTO{}, utils.NewError(utils.ErrCodeNotFound, "Banner not found or has been deleted")
 		}
-		return v1dto.AdminBannerDetailDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to update banner", err)
+		return bannerdto.AdminBannerDetailDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to update banner", err)
 	}
 
 	s.invalidateCache()
 
-	return v1dto.MapAdminBannerDetailDTO(banner), nil
+	return bannerdto.MapAdminBannerDetailDTO(banner), nil
 }
 
-func (s *bannerService) AdminUpdateBannerStatus(ctx context.Context, bannerUUID uuid.UUID, input v1dto.UpdateBannerStatusRequest) (v1dto.AdminBannerDetailDTO, error) {
+func (s *bannerService) AdminUpdateBannerStatus(ctx context.Context, bannerUUID uuid.UUID, input bannerdto.UpdateBannerStatusRequest) (bannerdto.AdminBannerDetailDTO, error) {
 	banner, err := s.bannerRepo.UpdateStatus(ctx, bannerUUID, *input.IsActive)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) || errors.Is(err, sql.ErrNoRows) {
-			return v1dto.AdminBannerDetailDTO{}, utils.NewError(utils.ErrCodeNotFound, "Banner not found or has been deleted")
+			return bannerdto.AdminBannerDetailDTO{}, utils.NewError(utils.ErrCodeNotFound, "Banner not found or has been deleted")
 		}
-		return v1dto.AdminBannerDetailDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to update banner status", err)
+		return bannerdto.AdminBannerDetailDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to update banner status", err)
 	}
 
 	s.invalidateCache()
 
-	return v1dto.MapAdminBannerDetailDTO(banner), nil
+	return bannerdto.MapAdminBannerDetailDTO(banner), nil
 }
 
 func (s *bannerService) AdminSoftDeleteBanner(ctx context.Context, bannerUUID uuid.UUID) error {
@@ -249,23 +261,26 @@ func (s *bannerService) AdminSoftDeleteBanner(ctx context.Context, bannerUUID uu
 	return nil
 }
 
-func (s *bannerService) AdminRestoreBanner(ctx context.Context, bannerUUID uuid.UUID) (v1dto.AdminBannerDetailDTO, error) {
+func (s *bannerService) AdminRestoreBanner(ctx context.Context, bannerUUID uuid.UUID) (bannerdto.AdminBannerDetailDTO, error) {
 	banner, err := s.bannerRepo.Restore(ctx, bannerUUID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) || errors.Is(err, sql.ErrNoRows) {
-			return v1dto.AdminBannerDetailDTO{}, utils.NewError(utils.ErrCodeNotFound, "Banner not found or not in trash")
+			return bannerdto.AdminBannerDetailDTO{}, utils.NewError(utils.ErrCodeNotFound, "Banner not found or not in trash")
 		}
-		return v1dto.AdminBannerDetailDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to restore banner", err)
+		return bannerdto.AdminBannerDetailDTO{}, utils.WrapError(utils.ErrCodeInternal, "failed to restore banner", err)
 	}
 
 	s.invalidateCache()
 
-	return v1dto.MapAdminBannerDetailDTO(banner), nil
+	return bannerdto.MapAdminBannerDetailDTO(banner), nil
 }
 
 func (s *bannerService) AdminTrashBanner(ctx context.Context, bannerUUID uuid.UUID) error {
 	err := s.bannerRepo.Trash(ctx, bannerUUID)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) || errors.Is(err, sql.ErrNoRows) {
+			return utils.NewError(utils.ErrCodeNotFound, "Banner not found or not in trash")
+		}
 		return utils.WrapError(utils.ErrCodeInternal, "failed to permanently delete banner", err)
 	}
 
@@ -274,15 +289,15 @@ func (s *bannerService) AdminTrashBanner(ctx context.Context, bannerUUID uuid.UU
 	return nil
 }
 
-// ── Private SRP Helper Methods ────────────────────────────────────
+// ─────────────────────── Private SRP Helper Methods ─────────────────────────
 
-func (s *bannerService) getBanner(ctx context.Context, bannerUUID uuid.UUID) (sqlc.Banner, error) {
+func (s *bannerService) getBanner(ctx context.Context, bannerUUID uuid.UUID) (bannersqlc.Banner, error) {
 	banner, err := s.bannerRepo.GetByUUID(ctx, bannerUUID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) || errors.Is(err, sql.ErrNoRows) {
-			return sqlc.Banner{}, utils.NewError(utils.ErrCodeNotFound, "Banner not found")
+			return bannersqlc.Banner{}, utils.NewError(utils.ErrCodeNotFound, "Banner not found")
 		}
-		return sqlc.Banner{}, utils.WrapError(utils.ErrCodeInternal, "failed to get banner", err)
+		return bannersqlc.Banner{}, utils.WrapError(utils.ErrCodeInternal, "failed to get banner", err)
 	}
 	return banner, nil
 }

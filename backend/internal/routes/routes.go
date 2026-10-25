@@ -272,6 +272,37 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 		}
 	}
 
+	// API Gateway reverse proxy for Banner microservice endpoints.
+	// Dual-run: when BANNER_SERVICE_URL is unset, the in-monolith banner module
+	// keeps serving /banners and /admin/banners (registered further below).
+	bannerURL := utils.GetEnv("BANNER_SERVICE_URL", "")
+	if bannerURL != "" {
+		if parsedBannerURL, err := url.Parse(bannerURL); err == nil && parsedBannerURL.Scheme != "" {
+			bannerProxy := httputil.NewSingleHostReverseProxy(parsedBannerURL)
+			transport := http.DefaultTransport.(*http.Transport).Clone()
+			transport.DisableCompression = true
+			bannerProxy.Transport = transport
+
+			bannerProxy.ModifyResponse = func(resp *http.Response) error {
+				resp.Header.Del("Access-Control-Allow-Origin")
+				resp.Header.Del("Access-Control-Allow-Credentials")
+				resp.Header.Del("Access-Control-Allow-Methods")
+				resp.Header.Del("Access-Control-Allow-Headers")
+				resp.Header.Del("Access-Control-Max-Age")
+				return nil
+			}
+			bannerProxyHandler := func(ctx *gin.Context) {
+				ctx.Request.Host = parsedBannerURL.Host
+				ctx.Request.Header.Del("Accept-Encoding")
+				bannerProxy.ServeHTTP(ctx.Writer, ctx.Request)
+			}
+
+			v1api.Any("/banners", bannerProxyHandler)
+			v1api.Any("/admin/banners", bannerProxyHandler)
+			v1api.Any("/admin/banners/*any", bannerProxyHandler)
+		}
+	}
+
 	// API Gateway reverse proxy for Order microservice endpoints
 	orderURL := utils.GetEnv("ORDER_SERVICE_URL", "")
 	if orderURL != "" {
@@ -318,7 +349,7 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 	for _, route := range normalRoutes {
 		switch r := route.(type) {
 		case *v1routes.ReviewPublicRoutes,
-			*v1routes.WSRoutes, *v1routes.BannerRoutes, *v1routes.HealthRoutes,
+			*v1routes.WSRoutes, *v1routes.HealthRoutes,
 			*v1routes.LocationRoutes:
 			r.Register(public)
 		default:
@@ -351,4 +382,3 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 		})
 	})
 }
-

@@ -17,8 +17,6 @@ type Querier interface {
 	// Stock check thực hiện ở tầng service TRƯỚC khi gọi query này — không block cứng ở đây vì Order mới là nơi enforce
 	// stock nghiêm ngặt.
 	AddOrUpdateCartItem(ctx context.Context, arg AddOrUpdateCartItemParams) (CartItem, error)
-	AdminCountBanners(ctx context.Context, arg AdminCountBannersParams) (int64, error)
-	AdminListBanners(ctx context.Context, arg AdminListBannersParams) ([]Banner, error)
 	CheckReviewExists(ctx context.Context, arg CheckReviewExistsParams) (bool, error)
 	CheckUserPurchasedProduct(ctx context.Context, arg CheckUserPurchasedProductParams) (bool, error)
 	// Review Reports Queries
@@ -40,7 +38,6 @@ type Querier interface {
 	CountUnreadNotificationsByUserID(ctx context.Context, notificationUserID int32) (int64, error)
 	CountUserAddresses(ctx context.Context, uaUserID int32) (int64, error)
 	CountUsers(ctx context.Context, arg CountUsersParams) (int64, error)
-	CreateBanner(ctx context.Context, arg CreateBannerParams) (Banner, error)
 	CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error)
 	CreateConversation(ctx context.Context, userID int32) (ChatConversation, error)
 	CreateMessage(ctx context.Context, arg CreateMessageParams) (ChatMessage, error)
@@ -64,9 +61,7 @@ type Querier interface {
 	DeleteReviewReportsByReviewID(ctx context.Context, reviewID int32) error
 	DeleteUserAddress(ctx context.Context, arg DeleteUserAddressParams) (bool, error)
 	GetActiveAdminUserIDs(ctx context.Context) ([]int32, error)
-	GetActiveBannersByPosition(ctx context.Context, bannerPosition string) ([]GetActiveBannersByPositionRow, error)
 	GetAdminNotifications(ctx context.Context, arg GetAdminNotificationsParams) ([]Notification, error)
-	GetBannerByUUID(ctx context.Context, bannerUuid uuid.UUID) (Banner, error)
 	GetByUUIDsForUpdate(ctx context.Context, uuids []uuid.UUID) ([]GetByUUIDsForUpdateRow, error)
 	GetCartAbandonmentAndFunnelStats(ctx context.Context, arg GetCartAbandonmentAndFunnelStatsParams) (GetCartAbandonmentAndFunnelStatsRow, error)
 	// Khác GetOrCreateCartByUserID: KHÔNG tự tạo cart nếu chưa có. Dùng cho
@@ -144,7 +139,6 @@ type Querier interface {
 	RecalcProductRating(ctx context.Context, reviewProductID int32) error
 	RecallMessage(ctx context.Context, messageID int32) (ChatMessage, error)
 	ReplyReview(ctx context.Context, arg ReplyReviewParams) (ProductReview, error)
-	RestoreBanner(ctx context.Context, bannerUuid uuid.UUID) (Banner, error)
 	RestoreCategory(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
 	RestoreProduct(ctx context.Context, productUuid uuid.UUID) (Product, error)
 	RestoreStock(ctx context.Context, arg RestoreStockParams) error
@@ -153,16 +147,12 @@ type Querier interface {
 	SetCartItemQuantity(ctx context.Context, arg SetCartItemQuantityParams) (CartItem, error)
 	SetDefaultAddress(ctx context.Context, arg SetDefaultAddressParams) (UserAddress, error)
 	SetLatestAddressAsDefault(ctx context.Context, uaUserID int32) error
-	SoftDeleteBanner(ctx context.Context, bannerUuid uuid.UUID) (Banner, error)
 	SoftDeleteCategory(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
 	SoftDeleteProduct(ctx context.Context, productUuid uuid.UUID) (Product, error)
 	SoftDeleteUser(ctx context.Context, userUuid uuid.UUID) (User, error)
-	TrashBanner(ctx context.Context, bannerUuid uuid.UUID) (Banner, error)
 	TrashCategory(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
 	TrashProduct(ctx context.Context, productUuid uuid.UUID) (Product, error)
 	TrashUser(ctx context.Context, userUuid uuid.UUID) (User, error)
-	UpdateBanner(ctx context.Context, arg UpdateBannerParams) (Banner, error)
-	UpdateBannerStatus(ctx context.Context, arg UpdateBannerStatusParams) (Banner, error)
 	UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (Category, error)
 	UpdateConversationStatus(ctx context.Context, arg UpdateConversationStatusParams) (ChatConversation, error)
 	UpdateLastMessageAt(ctx context.Context, conversationID int32) error

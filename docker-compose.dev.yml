@@ -38,6 +38,7 @@ services:
       - PAYMENT_GRPC_ADDR=payment-service:50052
       - ORDER_SERVICE_URL=http://order-service:8088
       - ORDER_GRPC_TARGET=order-service:50057
+      - BANNER_SERVICE_URL=http://banner-service:8089
       - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:-goshop-internal-secret-token}
       - JWT_SIGNING_ENABLED=false
       - JWT_PRIVATE_KEY=
@@ -341,6 +342,44 @@ services:
       goshop-network:
         aliases:
           - cart-service
+
+  banner:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.microservice.dev
+      args:
+        SERVICE: banner
+    container_name: goshop-banner
+    restart: unless-stopped
+    ports:
+      - "8089:8089"
+    env_file:
+      - ./backend/.env
+    environment:
+      - APP_ENV=development
+      - DB_HOST=postgres
+      - DB_NAME=shopping_banner
+      - BANNER_DB_NAME=shopping_banner
+      - BANNER_SERVER_PORT=8089
+      - JWT_SIGNING_ENABLED=false
+      - JWT_PRIVATE_KEY=
+      - JWT_PUBLIC_KEY=/app/certs/jwt_public.pem
+      - REDIS_ADDR=redis:6379
+      - GOMEMLIMIT=96MiB
+      - GOMAXPROCS=1
+    mem_limit: 128m
+    cpus: 0.50
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend/certs:/app/certs:ro
+    networks:
+      goshop-network:
+        aliases:
+          - banner-service
 
   order:
     build:

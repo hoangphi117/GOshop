@@ -1,4 +1,4 @@
-﻿-- ============================================================================
+-- ============================================================================
 -- Monolith Core Database Schema (Squashed Init Migration)
 -- Domains: Users, Products, Carts, Coupons, Payments, Reviews, Notifications,
 --          Banners, Stock Movements, Chat, Outbox Events, Analytics Projections

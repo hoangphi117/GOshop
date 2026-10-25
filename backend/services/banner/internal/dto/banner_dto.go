@@ -1,9 +1,9 @@
-package v1dto
+package dto
 
 import (
 	"time"
 
-	"goshop/internal/db/sqlc"
+	"goshop/services/banner/internal/db/sqlc"
 )
 
 // Public DTO for clients (Home page, Category page)

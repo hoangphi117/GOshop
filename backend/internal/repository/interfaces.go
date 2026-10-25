@@ -112,19 +112,6 @@ type NotificationRepository interface {
 	DeleteOldReadNotifications(ctx context.Context, cutoff time.Time) (int64, error)
 }
 
-type BannerRepository interface {
-	GetActiveByPosition(ctx context.Context, position string) ([]sqlc.GetActiveBannersByPositionRow, error)
-	Create(ctx context.Context, params sqlc.CreateBannerParams) (sqlc.Banner, error)
-	GetByUUID(ctx context.Context, bannerUUID uuid.UUID) (sqlc.Banner, error)
-	AdminList(ctx context.Context, params sqlc.AdminListBannersParams) ([]sqlc.Banner, error)
-	AdminCount(ctx context.Context, params sqlc.AdminCountBannersParams) (int64, error)
-	Update(ctx context.Context, params sqlc.UpdateBannerParams) (sqlc.Banner, error)
-	UpdateStatus(ctx context.Context, bannerUUID uuid.UUID, isActive bool) (sqlc.Banner, error)
-	SoftDelete(ctx context.Context, bannerUUID uuid.UUID) (sqlc.Banner, error)
-	Restore(ctx context.Context, bannerUUID uuid.UUID) (sqlc.Banner, error)
-	Trash(ctx context.Context, bannerUUID uuid.UUID) error
-}
-
 type AnalyticsRepository interface {
 	GetOverview(ctx context.Context) (sqlc.GetOverviewStatsRow, error)
 	GetOverviewCustom(ctx context.Context, fromDate, toDate, prevFromDate time.Time) (sqlc.GetOverviewStatsCustomRow, error)

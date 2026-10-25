@@ -1,4 +1,4 @@
-package v1service_test
+package service_test
 
 import (
 	"context"
@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"goshop/internal/db/sqlc"
-	v1dto "goshop/internal/dto/v1"
-	v1service "goshop/internal/service/v1"
-	"goshop/internal/testutils"
 	"goshop/internal/utils"
+	bannersqlc "goshop/services/banner/internal/db/sqlc"
+	bannerdto "goshop/services/banner/internal/dto"
+	bannersvc "goshop/services/banner/internal/service"
+	"goshop/services/banner/internal/service/servicetest"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -25,11 +25,11 @@ func TestBannerService_GetActiveBanners(t *testing.T) {
 	bannerUUID := uuid.New()
 
 	t.Run("Case 1: Cache Hit -> Returns Cached Banners Without DB Call", func(t *testing.T) {
-		mockCache := &testutils.MockRedisCacheService{
+		mockCache := &servicetest.MockRedisCacheService{
 			GetFunc: func(key string, target interface{}) error {
-				ptr, ok := target.(*[]v1dto.BannerDTO)
+				ptr, ok := target.(*[]bannerdto.BannerDTO)
 				if ok {
-					*ptr = []v1dto.BannerDTO{
+					*ptr = []bannerdto.BannerDTO{
 						{
 							UUID:     bannerUUID.String(),
 							Title:    "Cached Promo",
@@ -45,14 +45,14 @@ func TestBannerService_GetActiveBanners(t *testing.T) {
 		}
 
 		dbCalled := false
-		mockRepo := &testutils.MockBannerRepository{
-			GetActiveByPositionFunc: func(ctx context.Context, position string) ([]sqlc.GetActiveBannersByPositionRow, error) {
+		mockRepo := &servicetest.MockBannerRepository{
+			GetActiveByPositionFunc: func(ctx context.Context, position string) ([]bannersqlc.GetActiveBannersByPositionRow, error) {
 				dbCalled = true
 				return nil, nil
 			},
 		}
 
-		svc := v1service.NewBannerService(mockRepo, mockCache)
+		svc := bannersvc.NewBannerService(mockRepo, mockCache)
 		banners, err := svc.GetActiveBanners(ctx, "")
 
 		require.NoError(t, err)
@@ -62,7 +62,7 @@ func TestBannerService_GetActiveBanners(t *testing.T) {
 	})
 
 	t.Run("Case 2: Cache Miss, Default Position -> Queries home_main and Caches Result", func(t *testing.T) {
-		mockCache := &testutils.MockRedisCacheService{
+		mockCache := &servicetest.MockRedisCacheService{
 			GetFunc: func(key string, target interface{}) error {
 				return errors.New("cache miss")
 			},
@@ -72,10 +72,10 @@ func TestBannerService_GetActiveBanners(t *testing.T) {
 		}
 
 		queriedPos := ""
-		mockRepo := &testutils.MockBannerRepository{
-			GetActiveByPositionFunc: func(ctx context.Context, position string) ([]sqlc.GetActiveBannersByPositionRow, error) {
+		mockRepo := &servicetest.MockBannerRepository{
+			GetActiveByPositionFunc: func(ctx context.Context, position string) ([]bannersqlc.GetActiveBannersByPositionRow, error) {
 				queriedPos = position
-				return []sqlc.GetActiveBannersByPositionRow{
+				return []bannersqlc.GetActiveBannersByPositionRow{
 					{
 						BannerID:       1,
 						BannerUuid:     bannerUUID,
@@ -89,7 +89,7 @@ func TestBannerService_GetActiveBanners(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewBannerService(mockRepo, mockCache)
+		svc := bannersvc.NewBannerService(mockRepo, mockCache)
 		banners, err := svc.GetActiveBanners(ctx, "")
 
 		require.NoError(t, err)
@@ -101,14 +101,14 @@ func TestBannerService_GetActiveBanners(t *testing.T) {
 
 	t.Run("Case 3: Custom Position -> Normalized and Queried", func(t *testing.T) {
 		queriedPos := ""
-		mockRepo := &testutils.MockBannerRepository{
-			GetActiveByPositionFunc: func(ctx context.Context, position string) ([]sqlc.GetActiveBannersByPositionRow, error) {
+		mockRepo := &servicetest.MockBannerRepository{
+			GetActiveByPositionFunc: func(ctx context.Context, position string) ([]bannersqlc.GetActiveBannersByPositionRow, error) {
 				queriedPos = position
-				return []sqlc.GetActiveBannersByPositionRow{}, nil
+				return []bannersqlc.GetActiveBannersByPositionRow{}, nil
 			},
 		}
 
-		svc := v1service.NewBannerService(mockRepo, nil)
+		svc := bannersvc.NewBannerService(mockRepo, nil)
 		banners, err := svc.GetActiveBanners(ctx, "  SIDEBAR  ")
 
 		require.NoError(t, err)
@@ -117,13 +117,13 @@ func TestBannerService_GetActiveBanners(t *testing.T) {
 	})
 
 	t.Run("Case 4: Repository Error -> Returns Internal Server Error", func(t *testing.T) {
-		mockRepo := &testutils.MockBannerRepository{
-			GetActiveByPositionFunc: func(ctx context.Context, position string) ([]sqlc.GetActiveBannersByPositionRow, error) {
+		mockRepo := &servicetest.MockBannerRepository{
+			GetActiveByPositionFunc: func(ctx context.Context, position string) ([]bannersqlc.GetActiveBannersByPositionRow, error) {
 				return nil, errors.New("db connection failure")
 			},
 		}
 
-		svc := v1service.NewBannerService(mockRepo, nil)
+		svc := bannersvc.NewBannerService(mockRepo, nil)
 		_, err := svc.GetActiveBanners(ctx, "home_main")
 
 		require.Error(t, err)
@@ -136,13 +136,13 @@ func TestBannerService_AdminGetBanners(t *testing.T) {
 	bannerUUID := uuid.New()
 
 	t.Run("Case 1: Default Pagination and Filter Values", func(t *testing.T) {
-		var capturedParams sqlc.AdminListBannersParams
-		var capturedCountParams sqlc.AdminCountBannersParams
+		var capturedParams bannersqlc.AdminListBannersParams
+		var capturedCountParams bannersqlc.AdminCountBannersParams
 
-		mockRepo := &testutils.MockBannerRepository{
-			AdminListFunc: func(ctx context.Context, params sqlc.AdminListBannersParams) ([]sqlc.Banner, error) {
+		mockRepo := &servicetest.MockBannerRepository{
+			AdminListFunc: func(ctx context.Context, params bannersqlc.AdminListBannersParams) ([]bannersqlc.Banner, error) {
 				capturedParams = params
-				return []sqlc.Banner{
+				return []bannersqlc.Banner{
 					{
 						BannerID:       1,
 						BannerUuid:     bannerUUID,
@@ -154,14 +154,14 @@ func TestBannerService_AdminGetBanners(t *testing.T) {
 					},
 				}, nil
 			},
-			AdminCountFunc: func(ctx context.Context, params sqlc.AdminCountBannersParams) (int64, error) {
+			AdminCountFunc: func(ctx context.Context, params bannersqlc.AdminCountBannersParams) (int64, error) {
 				capturedCountParams = params
 				return 1, nil
 			},
 		}
 
-		svc := v1service.NewBannerService(mockRepo, nil)
-		banners, total, err := svc.AdminGetBanners(ctx, v1dto.AdminGetBannersQuery{})
+		svc := bannersvc.NewBannerService(mockRepo, nil)
+		banners, total, err := svc.AdminGetBanners(ctx, bannerdto.AdminGetBannersQuery{})
 
 		require.NoError(t, err)
 		assert.Equal(t, int64(1), total)
@@ -178,19 +178,19 @@ func TestBannerService_AdminGetBanners(t *testing.T) {
 		isDeleted := true
 		isActive := true
 
-		var capturedParams sqlc.AdminListBannersParams
-		mockRepo := &testutils.MockBannerRepository{
-			AdminListFunc: func(ctx context.Context, params sqlc.AdminListBannersParams) ([]sqlc.Banner, error) {
+		var capturedParams bannersqlc.AdminListBannersParams
+		mockRepo := &servicetest.MockBannerRepository{
+			AdminListFunc: func(ctx context.Context, params bannersqlc.AdminListBannersParams) ([]bannersqlc.Banner, error) {
 				capturedParams = params
-				return []sqlc.Banner{}, nil
+				return []bannersqlc.Banner{}, nil
 			},
-			AdminCountFunc: func(ctx context.Context, params sqlc.AdminCountBannersParams) (int64, error) {
+			AdminCountFunc: func(ctx context.Context, params bannersqlc.AdminCountBannersParams) (int64, error) {
 				return 0, nil
 			},
 		}
 
-		svc := v1service.NewBannerService(mockRepo, nil)
-		_, _, err := svc.AdminGetBanners(ctx, v1dto.AdminGetBannersQuery{
+		svc := bannersvc.NewBannerService(mockRepo, nil)
+		_, _, err := svc.AdminGetBanners(ctx, bannerdto.AdminGetBannersQuery{
 			Page:     2,
 			Limit:    5,
 			Position: &pos,
@@ -207,31 +207,31 @@ func TestBannerService_AdminGetBanners(t *testing.T) {
 	})
 
 	t.Run("Case 3: AdminList Error -> Returns 500", func(t *testing.T) {
-		mockRepo := &testutils.MockBannerRepository{
-			AdminListFunc: func(ctx context.Context, params sqlc.AdminListBannersParams) ([]sqlc.Banner, error) {
+		mockRepo := &servicetest.MockBannerRepository{
+			AdminListFunc: func(ctx context.Context, params bannersqlc.AdminListBannersParams) ([]bannersqlc.Banner, error) {
 				return nil, errors.New("list query failed")
 			},
 		}
 
-		svc := v1service.NewBannerService(mockRepo, nil)
-		_, _, err := svc.AdminGetBanners(ctx, v1dto.AdminGetBannersQuery{})
+		svc := bannersvc.NewBannerService(mockRepo, nil)
+		_, _, err := svc.AdminGetBanners(ctx, bannerdto.AdminGetBannersQuery{})
 
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeInternal)
 	})
 
 	t.Run("Case 4: AdminCount Error -> Returns 500", func(t *testing.T) {
-		mockRepo := &testutils.MockBannerRepository{
-			AdminListFunc: func(ctx context.Context, params sqlc.AdminListBannersParams) ([]sqlc.Banner, error) {
-				return []sqlc.Banner{}, nil
+		mockRepo := &servicetest.MockBannerRepository{
+			AdminListFunc: func(ctx context.Context, params bannersqlc.AdminListBannersParams) ([]bannersqlc.Banner, error) {
+				return []bannersqlc.Banner{}, nil
 			},
-			AdminCountFunc: func(ctx context.Context, params sqlc.AdminCountBannersParams) (int64, error) {
+			AdminCountFunc: func(ctx context.Context, params bannersqlc.AdminCountBannersParams) (int64, error) {
 				return 0, errors.New("count query failed")
 			},
 		}
 
-		svc := v1service.NewBannerService(mockRepo, nil)
-		_, _, err := svc.AdminGetBanners(ctx, v1dto.AdminGetBannersQuery{})
+		svc := bannersvc.NewBannerService(mockRepo, nil)
+		_, _, err := svc.AdminGetBanners(ctx, bannerdto.AdminGetBannersQuery{})
 
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeInternal)
@@ -243,13 +243,13 @@ func TestBannerService_AdminGetBannerByUUID(t *testing.T) {
 	bannerUUID := uuid.New()
 
 	t.Run("Case 1: Banner Not Found -> Returns 404", func(t *testing.T) {
-		mockRepo := &testutils.MockBannerRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.Banner, error) {
-				return sqlc.Banner{}, pgx.ErrNoRows
+		mockRepo := &servicetest.MockBannerRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (bannersqlc.Banner, error) {
+				return bannersqlc.Banner{}, pgx.ErrNoRows
 			},
 		}
 
-		svc := v1service.NewBannerService(mockRepo, nil)
+		svc := bannersvc.NewBannerService(mockRepo, nil)
 		_, err := svc.AdminGetBannerByUUID(ctx, bannerUUID)
 
 		require.Error(t, err)
@@ -257,9 +257,9 @@ func TestBannerService_AdminGetBannerByUUID(t *testing.T) {
 	})
 
 	t.Run("Case 2: Happy Path -> Returns Banner Detail", func(t *testing.T) {
-		mockRepo := &testutils.MockBannerRepository{
-			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.Banner, error) {
-				return sqlc.Banner{
+		mockRepo := &servicetest.MockBannerRepository{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (bannersqlc.Banner, error) {
+				return bannersqlc.Banner{
 					BannerID:        10,
 					BannerUuid:      bannerUUID,
 					BannerTitle:     "Black Friday Promo",
@@ -273,7 +273,7 @@ func TestBannerService_AdminGetBannerByUUID(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewBannerService(mockRepo, nil)
+		svc := bannersvc.NewBannerService(mockRepo, nil)
 		detail, err := svc.AdminGetBannerByUUID(ctx, bannerUUID)
 
 		require.NoError(t, err)
@@ -290,8 +290,8 @@ func TestBannerService_AdminCreateBanner(t *testing.T) {
 	endAt := now.Add(1 * time.Hour) // end is before start!
 
 	t.Run("Case 1: Invalid Date Range -> Returns 400 Bad Request", func(t *testing.T) {
-		svc := v1service.NewBannerService(nil, nil)
-		_, err := svc.AdminCreateBanner(ctx, v1dto.CreateBannerRequest{
+		svc := bannersvc.NewBannerService(nil, nil)
+		_, err := svc.AdminCreateBanner(ctx, bannerdto.CreateBannerRequest{
 			Title:    "Invalid Dates",
 			ImageURL: "https://example.com/img.jpg",
 			Position: "home_main",
@@ -309,18 +309,18 @@ func TestBannerService_AdminCreateBanner(t *testing.T) {
 		validEnd := now.Add(48 * time.Hour)
 		cacheCleared := false
 
-		mockCache := &testutils.MockRedisCacheService{
+		mockCache := &servicetest.MockRedisCacheService{
 			ClearFunc: func(pattern string) error {
 				cacheCleared = true
 				return nil
 			},
 		}
 
-		var capturedParams sqlc.CreateBannerParams
-		mockRepo := &testutils.MockBannerRepository{
-			CreateFunc: func(ctx context.Context, params sqlc.CreateBannerParams) (sqlc.Banner, error) {
+		var capturedParams bannersqlc.CreateBannerParams
+		mockRepo := &servicetest.MockBannerRepository{
+			CreateFunc: func(ctx context.Context, params bannersqlc.CreateBannerParams) (bannersqlc.Banner, error) {
 				capturedParams = params
-				return sqlc.Banner{
+				return bannersqlc.Banner{
 					BannerID:        1,
 					BannerUuid:      bannerUUID,
 					BannerTitle:     params.BannerTitle,
@@ -336,8 +336,8 @@ func TestBannerService_AdminCreateBanner(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewBannerService(mockRepo, mockCache)
-		detail, err := svc.AdminCreateBanner(ctx, v1dto.CreateBannerRequest{
+		svc := bannersvc.NewBannerService(mockRepo, mockCache)
+		detail, err := svc.AdminCreateBanner(ctx, bannerdto.CreateBannerRequest{
 			Title:    "Summer Festival",
 			ImageURL: "https://example.com/summer.jpg",
 			Position: "  HOME_MAIN  ",
@@ -355,14 +355,14 @@ func TestBannerService_AdminCreateBanner(t *testing.T) {
 	})
 
 	t.Run("Case 3: Repository Error -> Returns 500", func(t *testing.T) {
-		mockRepo := &testutils.MockBannerRepository{
-			CreateFunc: func(ctx context.Context, params sqlc.CreateBannerParams) (sqlc.Banner, error) {
-				return sqlc.Banner{}, errors.New("insert failed")
+		mockRepo := &servicetest.MockBannerRepository{
+			CreateFunc: func(ctx context.Context, params bannersqlc.CreateBannerParams) (bannersqlc.Banner, error) {
+				return bannersqlc.Banner{}, errors.New("insert failed")
 			},
 		}
 
-		svc := v1service.NewBannerService(mockRepo, nil)
-		_, err := svc.AdminCreateBanner(ctx, v1dto.CreateBannerRequest{
+		svc := bannersvc.NewBannerService(mockRepo, nil)
+		_, err := svc.AdminCreateBanner(ctx, bannerdto.CreateBannerRequest{
 			Title:    "Failed Banner",
 			ImageURL: "https://example.com/failed.jpg",
 		})
@@ -380,8 +380,8 @@ func TestBannerService_AdminUpdateBanner(t *testing.T) {
 	endAt := now.Add(1 * time.Hour) // end is before start
 
 	t.Run("Case 1: Invalid Date Range -> Returns 400 Bad Request", func(t *testing.T) {
-		svc := v1service.NewBannerService(nil, nil)
-		_, err := svc.AdminUpdateBanner(ctx, bannerUUID, v1dto.UpdateBannerRequest{
+		svc := bannersvc.NewBannerService(nil, nil)
+		_, err := svc.AdminUpdateBanner(ctx, bannerUUID, bannerdto.UpdateBannerRequest{
 			StartAt: &startAt,
 			EndAt:   &endAt,
 		})
@@ -391,14 +391,14 @@ func TestBannerService_AdminUpdateBanner(t *testing.T) {
 	})
 
 	t.Run("Case 2: Banner Not Found -> Returns 404", func(t *testing.T) {
-		mockRepo := &testutils.MockBannerRepository{
-			UpdateFunc: func(ctx context.Context, params sqlc.UpdateBannerParams) (sqlc.Banner, error) {
-				return sqlc.Banner{}, sql.ErrNoRows
+		mockRepo := &servicetest.MockBannerRepository{
+			UpdateFunc: func(ctx context.Context, params bannersqlc.UpdateBannerParams) (bannersqlc.Banner, error) {
+				return bannersqlc.Banner{}, sql.ErrNoRows
 			},
 		}
 
-		svc := v1service.NewBannerService(mockRepo, nil)
-		_, err := svc.AdminUpdateBanner(ctx, bannerUUID, v1dto.UpdateBannerRequest{
+		svc := bannersvc.NewBannerService(mockRepo, nil)
+		_, err := svc.AdminUpdateBanner(ctx, bannerUUID, bannerdto.UpdateBannerRequest{
 			Title: utils.StringToPointer("Updated Title"),
 		})
 
@@ -408,7 +408,7 @@ func TestBannerService_AdminUpdateBanner(t *testing.T) {
 
 	t.Run("Case 3: Happy Path -> Updates Banner and Clears Cache", func(t *testing.T) {
 		cacheCleared := false
-		mockCache := &testutils.MockRedisCacheService{
+		mockCache := &servicetest.MockRedisCacheService{
 			ClearFunc: func(pattern string) error {
 				cacheCleared = true
 				return nil
@@ -417,9 +417,9 @@ func TestBannerService_AdminUpdateBanner(t *testing.T) {
 
 		newTitle := "Updated Title"
 		newPos := "HOME_SUB"
-		mockRepo := &testutils.MockBannerRepository{
-			UpdateFunc: func(ctx context.Context, params sqlc.UpdateBannerParams) (sqlc.Banner, error) {
-				return sqlc.Banner{
+		mockRepo := &servicetest.MockBannerRepository{
+			UpdateFunc: func(ctx context.Context, params bannersqlc.UpdateBannerParams) (bannersqlc.Banner, error) {
+				return bannersqlc.Banner{
 					BannerID:        1,
 					BannerUuid:      bannerUUID,
 					BannerTitle:     *params.BannerTitle,
@@ -430,8 +430,8 @@ func TestBannerService_AdminUpdateBanner(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewBannerService(mockRepo, mockCache)
-		detail, err := svc.AdminUpdateBanner(ctx, bannerUUID, v1dto.UpdateBannerRequest{
+		svc := bannersvc.NewBannerService(mockRepo, mockCache)
+		detail, err := svc.AdminUpdateBanner(ctx, bannerUUID, bannerdto.UpdateBannerRequest{
 			Title:    &newTitle,
 			Position: &newPos,
 		})
@@ -448,14 +448,14 @@ func TestBannerService_AdminUpdateBannerStatus(t *testing.T) {
 	isActive := false
 
 	t.Run("Case 1: Banner Not Found -> Returns 404", func(t *testing.T) {
-		mockRepo := &testutils.MockBannerRepository{
-			UpdateStatusFunc: func(ctx context.Context, u uuid.UUID, active bool) (sqlc.Banner, error) {
-				return sqlc.Banner{}, pgx.ErrNoRows
+		mockRepo := &servicetest.MockBannerRepository{
+			UpdateStatusFunc: func(ctx context.Context, u uuid.UUID, active bool) (bannersqlc.Banner, error) {
+				return bannersqlc.Banner{}, pgx.ErrNoRows
 			},
 		}
 
-		svc := v1service.NewBannerService(mockRepo, nil)
-		_, err := svc.AdminUpdateBannerStatus(ctx, bannerUUID, v1dto.UpdateBannerStatusRequest{
+		svc := bannersvc.NewBannerService(mockRepo, nil)
+		_, err := svc.AdminUpdateBannerStatus(ctx, bannerUUID, bannerdto.UpdateBannerStatusRequest{
 			IsActive: &isActive,
 		})
 
@@ -465,16 +465,16 @@ func TestBannerService_AdminUpdateBannerStatus(t *testing.T) {
 
 	t.Run("Case 2: Happy Path -> Deactivates Banner and Clears Cache", func(t *testing.T) {
 		cacheCleared := false
-		mockCache := &testutils.MockRedisCacheService{
+		mockCache := &servicetest.MockRedisCacheService{
 			ClearFunc: func(pattern string) error {
 				cacheCleared = true
 				return nil
 			},
 		}
 
-		mockRepo := &testutils.MockBannerRepository{
-			UpdateStatusFunc: func(ctx context.Context, u uuid.UUID, active bool) (sqlc.Banner, error) {
-				return sqlc.Banner{
+		mockRepo := &servicetest.MockBannerRepository{
+			UpdateStatusFunc: func(ctx context.Context, u uuid.UUID, active bool) (bannersqlc.Banner, error) {
+				return bannersqlc.Banner{
 					BannerID:        1,
 					BannerUuid:      bannerUUID,
 					BannerTitle:     "Deactivated Banner",
@@ -485,8 +485,8 @@ func TestBannerService_AdminUpdateBannerStatus(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewBannerService(mockRepo, mockCache)
-		detail, err := svc.AdminUpdateBannerStatus(ctx, bannerUUID, v1dto.UpdateBannerStatusRequest{
+		svc := bannersvc.NewBannerService(mockRepo, mockCache)
+		detail, err := svc.AdminUpdateBannerStatus(ctx, bannerUUID, bannerdto.UpdateBannerStatusRequest{
 			IsActive: &isActive,
 		})
 
@@ -501,13 +501,13 @@ func TestBannerService_AdminSoftDeleteBanner(t *testing.T) {
 	bannerUUID := uuid.New()
 
 	t.Run("Case 1: Banner Not Found -> Returns 404", func(t *testing.T) {
-		mockRepo := &testutils.MockBannerRepository{
-			SoftDeleteFunc: func(ctx context.Context, u uuid.UUID) (sqlc.Banner, error) {
-				return sqlc.Banner{}, pgx.ErrNoRows
+		mockRepo := &servicetest.MockBannerRepository{
+			SoftDeleteFunc: func(ctx context.Context, u uuid.UUID) (bannersqlc.Banner, error) {
+				return bannersqlc.Banner{}, pgx.ErrNoRows
 			},
 		}
 
-		svc := v1service.NewBannerService(mockRepo, nil)
+		svc := bannersvc.NewBannerService(mockRepo, nil)
 		err := svc.AdminSoftDeleteBanner(ctx, bannerUUID)
 
 		require.Error(t, err)
@@ -516,16 +516,16 @@ func TestBannerService_AdminSoftDeleteBanner(t *testing.T) {
 
 	t.Run("Case 2: Happy Path -> Soft Deletes and Clears Cache", func(t *testing.T) {
 		cacheCleared := false
-		mockCache := &testutils.MockRedisCacheService{
+		mockCache := &servicetest.MockRedisCacheService{
 			ClearFunc: func(pattern string) error {
 				cacheCleared = true
 				return nil
 			},
 		}
 
-		mockRepo := &testutils.MockBannerRepository{
-			SoftDeleteFunc: func(ctx context.Context, u uuid.UUID) (sqlc.Banner, error) {
-				return sqlc.Banner{
+		mockRepo := &servicetest.MockBannerRepository{
+			SoftDeleteFunc: func(ctx context.Context, u uuid.UUID) (bannersqlc.Banner, error) {
+				return bannersqlc.Banner{
 					BannerID:   1,
 					BannerUuid: bannerUUID,
 					BannerDeletedAt: pgtype.Timestamptz{
@@ -536,7 +536,7 @@ func TestBannerService_AdminSoftDeleteBanner(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewBannerService(mockRepo, mockCache)
+		svc := bannersvc.NewBannerService(mockRepo, mockCache)
 		err := svc.AdminSoftDeleteBanner(ctx, bannerUUID)
 
 		require.NoError(t, err)
@@ -549,13 +549,13 @@ func TestBannerService_AdminRestoreBanner(t *testing.T) {
 	bannerUUID := uuid.New()
 
 	t.Run("Case 1: Banner Not Found -> Returns 404", func(t *testing.T) {
-		mockRepo := &testutils.MockBannerRepository{
-			RestoreFunc: func(ctx context.Context, u uuid.UUID) (sqlc.Banner, error) {
-				return sqlc.Banner{}, pgx.ErrNoRows
+		mockRepo := &servicetest.MockBannerRepository{
+			RestoreFunc: func(ctx context.Context, u uuid.UUID) (bannersqlc.Banner, error) {
+				return bannersqlc.Banner{}, pgx.ErrNoRows
 			},
 		}
 
-		svc := v1service.NewBannerService(mockRepo, nil)
+		svc := bannersvc.NewBannerService(mockRepo, nil)
 		_, err := svc.AdminRestoreBanner(ctx, bannerUUID)
 
 		require.Error(t, err)
@@ -564,16 +564,16 @@ func TestBannerService_AdminRestoreBanner(t *testing.T) {
 
 	t.Run("Case 2: Happy Path -> Restores Banner and Clears Cache", func(t *testing.T) {
 		cacheCleared := false
-		mockCache := &testutils.MockRedisCacheService{
+		mockCache := &servicetest.MockRedisCacheService{
 			ClearFunc: func(pattern string) error {
 				cacheCleared = true
 				return nil
 			},
 		}
 
-		mockRepo := &testutils.MockBannerRepository{
-			RestoreFunc: func(ctx context.Context, u uuid.UUID) (sqlc.Banner, error) {
-				return sqlc.Banner{
+		mockRepo := &servicetest.MockBannerRepository{
+			RestoreFunc: func(ctx context.Context, u uuid.UUID) (bannersqlc.Banner, error) {
+				return bannersqlc.Banner{
 					BannerID:        1,
 					BannerUuid:      bannerUUID,
 					BannerTitle:     "Restored Banner",
@@ -584,7 +584,7 @@ func TestBannerService_AdminRestoreBanner(t *testing.T) {
 			},
 		}
 
-		svc := v1service.NewBannerService(mockRepo, mockCache)
+		svc := bannersvc.NewBannerService(mockRepo, mockCache)
 		detail, err := svc.AdminRestoreBanner(ctx, bannerUUID)
 
 		require.NoError(t, err)
@@ -597,14 +597,28 @@ func TestBannerService_AdminTrashBanner(t *testing.T) {
 	ctx := context.Background()
 	bannerUUID := uuid.New()
 
+	t.Run("Case 0: Banner Not In Trash -> Returns 404", func(t *testing.T) {
+		mockRepo := &servicetest.MockBannerRepository{
+			TrashFunc: func(ctx context.Context, u uuid.UUID) error {
+				return pgx.ErrNoRows
+			},
+		}
+
+		svc := bannersvc.NewBannerService(mockRepo, nil)
+		err := svc.AdminTrashBanner(ctx, bannerUUID)
+
+		require.Error(t, err)
+		assertAppErrorCode(t, err, utils.ErrCodeNotFound)
+	})
+
 	t.Run("Case 1: Repository Error -> Returns 500", func(t *testing.T) {
-		mockRepo := &testutils.MockBannerRepository{
+		mockRepo := &servicetest.MockBannerRepository{
 			TrashFunc: func(ctx context.Context, u uuid.UUID) error {
 				return errors.New("foreign key constraint error")
 			},
 		}
 
-		svc := v1service.NewBannerService(mockRepo, nil)
+		svc := bannersvc.NewBannerService(mockRepo, nil)
 		err := svc.AdminTrashBanner(ctx, bannerUUID)
 
 		require.Error(t, err)
@@ -613,20 +627,20 @@ func TestBannerService_AdminTrashBanner(t *testing.T) {
 
 	t.Run("Case 2: Happy Path -> Permanently Deletes Banner and Clears Cache", func(t *testing.T) {
 		cacheCleared := false
-		mockCache := &testutils.MockRedisCacheService{
+		mockCache := &servicetest.MockRedisCacheService{
 			ClearFunc: func(pattern string) error {
 				cacheCleared = true
 				return nil
 			},
 		}
 
-		mockRepo := &testutils.MockBannerRepository{
+		mockRepo := &servicetest.MockBannerRepository{
 			TrashFunc: func(ctx context.Context, u uuid.UUID) error {
 				return nil
 			},
 		}
 
-		svc := v1service.NewBannerService(mockRepo, mockCache)
+		svc := bannersvc.NewBannerService(mockRepo, mockCache)
 		err := svc.AdminTrashBanner(ctx, bannerUUID)
 
 		require.NoError(t, err)

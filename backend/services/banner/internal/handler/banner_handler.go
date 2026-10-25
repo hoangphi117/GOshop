@@ -1,22 +1,22 @@
-package v1handler
+package handler
 
 import (
 	"net/http"
 
-	v1dto "goshop/internal/dto/v1"
-	v1service "goshop/internal/service/v1"
 	"goshop/internal/utils"
 	"goshop/internal/validation"
+	bannerdto "goshop/services/banner/internal/dto"
+	bannersvc "goshop/services/banner/internal/service"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
 type BannerHandler struct {
-	service v1service.BannerService
+	service bannersvc.BannerService
 }
 
-func NewBannerHandler(service v1service.BannerService) *BannerHandler {
+func NewBannerHandler(service bannersvc.BannerService) *BannerHandler {
 	return &BannerHandler{service: service}
 }
 
@@ -26,11 +26,11 @@ func NewBannerHandler(service v1service.BannerService) *BannerHandler {
 // @Tags         Banners
 // @Produce      json
 // @Param        position query string false "Banner position" Enums(home_main, home_sub, home_middle, home_popup, category_top, sidebar, common)
-// @Success      200 {object} utils.APIResponse{data=[]v1dto.BannerDTO}
+// @Success      200 {object} utils.APIResponse{data=[]bannerdto.BannerDTO}
 // @Failure      400 {object} utils.ErrorResponse
 // @Router       /banners [get]
 func (h *BannerHandler) GetActiveBanners(ctx *gin.Context) {
-	var query v1dto.GetBannersQuery
+	var query bannerdto.GetBannersQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -55,15 +55,12 @@ func (h *BannerHandler) GetActiveBanners(ctx *gin.Context) {
 // @Param        position query string false "Filter by position"
 // @Param        is_active query bool false "Filter active state"
 // @Param        deleted query bool false "Include soft-deleted banners"
-// @Param        search query string false "Search title"
 // @Param        page query int false "Page number" default(1)
 // @Param        limit query int false "Items per page" default(10)
-// @Success      200 {object} utils.APIResponse{data=[]v1dto.AdminBannerDetailDTO}
-// @Failure      400 {object} utils.ErrorResponse
-// @Failure      401 {object} utils.ErrorResponse
+// @Success      200 {object} utils.APIResponse{data=[]bannerdto.AdminBannerDetailDTO}
 // @Router       /admin/banners [get]
 func (h *BannerHandler) AdminGetBanners(ctx *gin.Context) {
-	var query v1dto.AdminGetBannersQuery
+	var query bannerdto.AdminGetBannersQuery
 	if err := ctx.ShouldBindQuery(&query); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -90,15 +87,10 @@ func (h *BannerHandler) AdminGetBanners(ctx *gin.Context) {
 
 // AdminGetBannerByUUID godoc
 // @Summary      Get banner detail
-// @Description  Retrieve banner by UUID (Admin/Moderator)
 // @Tags         Admin - Banners
-// @Produce      json
 // @Security     BearerAuth
-// @Security     ApiKeyAuth
 // @Param        uuid path string true "Banner UUID"
-// @Success      200 {object} utils.APIResponse{data=v1dto.AdminBannerDetailDTO}
-// @Failure      400 {object} utils.ErrorResponse
-// @Failure      401 {object} utils.ErrorResponse
+// @Success      200 {object} utils.APIResponse{data=bannerdto.AdminBannerDetailDTO}
 // @Router       /admin/banners/{uuid} [get]
 func (h *BannerHandler) AdminGetBannerByUUID(ctx *gin.Context) {
 	bannerUUID, err := uuid.Parse(ctx.Param("uuid"))
@@ -118,19 +110,13 @@ func (h *BannerHandler) AdminGetBannerByUUID(ctx *gin.Context) {
 
 // AdminCreateBanner godoc
 // @Summary      Create banner
-// @Description  Create a new banner (Admin/Moderator)
 // @Tags         Admin - Banners
-// @Accept       json
-// @Produce      json
 // @Security     BearerAuth
-// @Security     ApiKeyAuth
-// @Param        body body v1dto.CreateBannerRequest true "Banner payload"
-// @Success      201 {object} utils.APIResponse{data=v1dto.AdminBannerDetailDTO}
-// @Failure      400 {object} utils.ErrorResponse
-// @Failure      401 {object} utils.ErrorResponse
+// @Param        body body bannerdto.CreateBannerRequest true "Banner payload"
+// @Success      201 {object} utils.APIResponse{data=bannerdto.AdminBannerDetailDTO}
 // @Router       /admin/banners [post]
 func (h *BannerHandler) AdminCreateBanner(ctx *gin.Context) {
-	var input v1dto.CreateBannerRequest
+	var input bannerdto.CreateBannerRequest
 	if err := ctx.ShouldBindJSON(&input); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -147,17 +133,11 @@ func (h *BannerHandler) AdminCreateBanner(ctx *gin.Context) {
 
 // AdminUpdateBanner godoc
 // @Summary      Update banner
-// @Description  Update banner details by UUID (Admin/Moderator)
 // @Tags         Admin - Banners
-// @Accept       json
-// @Produce      json
 // @Security     BearerAuth
-// @Security     ApiKeyAuth
 // @Param        uuid path string true "Banner UUID"
-// @Param        body body v1dto.UpdateBannerRequest true "Banner update payload"
-// @Success      200 {object} utils.APIResponse{data=v1dto.AdminBannerDetailDTO}
-// @Failure      400 {object} utils.ErrorResponse
-// @Failure      401 {object} utils.ErrorResponse
+// @Param        body body bannerdto.UpdateBannerRequest true "Banner update payload"
+// @Success      200 {object} utils.APIResponse{data=bannerdto.AdminBannerDetailDTO}
 // @Router       /admin/banners/{uuid} [put]
 func (h *BannerHandler) AdminUpdateBanner(ctx *gin.Context) {
 	bannerUUID, err := uuid.Parse(ctx.Param("uuid"))
@@ -166,7 +146,7 @@ func (h *BannerHandler) AdminUpdateBanner(ctx *gin.Context) {
 		return
 	}
 
-	var input v1dto.UpdateBannerRequest
+	var input bannerdto.UpdateBannerRequest
 	if err := ctx.ShouldBindJSON(&input); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -183,17 +163,11 @@ func (h *BannerHandler) AdminUpdateBanner(ctx *gin.Context) {
 
 // AdminUpdateBannerStatus godoc
 // @Summary      Update banner status
-// @Description  Enable or disable banner active status (Admin/Moderator)
 // @Tags         Admin - Banners
-// @Accept       json
-// @Produce      json
 // @Security     BearerAuth
-// @Security     ApiKeyAuth
 // @Param        uuid path string true "Banner UUID"
-// @Param        body body v1dto.UpdateBannerStatusRequest true "Status payload"
-// @Success      200 {object} utils.APIResponse{data=v1dto.AdminBannerDetailDTO}
-// @Failure      400 {object} utils.ErrorResponse
-// @Failure      401 {object} utils.ErrorResponse
+// @Param        body body bannerdto.UpdateBannerStatusRequest true "Status payload"
+// @Success      200 {object} utils.APIResponse{data=bannerdto.AdminBannerDetailDTO}
 // @Router       /admin/banners/{uuid}/status [patch]
 func (h *BannerHandler) AdminUpdateBannerStatus(ctx *gin.Context) {
 	bannerUUID, err := uuid.Parse(ctx.Param("uuid"))
@@ -202,7 +176,7 @@ func (h *BannerHandler) AdminUpdateBannerStatus(ctx *gin.Context) {
 		return
 	}
 
-	var input v1dto.UpdateBannerStatusRequest
+	var input bannerdto.UpdateBannerStatusRequest
 	if err := ctx.ShouldBindJSON(&input); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -219,15 +193,10 @@ func (h *BannerHandler) AdminUpdateBannerStatus(ctx *gin.Context) {
 
 // AdminSoftDeleteBanner godoc
 // @Summary      Soft delete banner
-// @Description  Move banner to trash (Admin/Moderator)
 // @Tags         Admin - Banners
-// @Produce      json
 // @Security     BearerAuth
-// @Security     ApiKeyAuth
 // @Param        uuid path string true "Banner UUID"
 // @Success      200 {object} utils.APIResponse
-// @Failure      400 {object} utils.ErrorResponse
-// @Failure      401 {object} utils.ErrorResponse
 // @Router       /admin/banners/{uuid} [delete]
 func (h *BannerHandler) AdminSoftDeleteBanner(ctx *gin.Context) {
 	bannerUUID, err := uuid.Parse(ctx.Param("uuid"))
@@ -246,15 +215,10 @@ func (h *BannerHandler) AdminSoftDeleteBanner(ctx *gin.Context) {
 
 // AdminRestoreBanner godoc
 // @Summary      Restore banner
-// @Description  Restore a soft-deleted banner (Admin/Moderator)
 // @Tags         Admin - Banners
-// @Produce      json
 // @Security     BearerAuth
-// @Security     ApiKeyAuth
 // @Param        uuid path string true "Banner UUID"
-// @Success      200 {object} utils.APIResponse{data=v1dto.AdminBannerDetailDTO}
-// @Failure      400 {object} utils.ErrorResponse
-// @Failure      401 {object} utils.ErrorResponse
+// @Success      200 {object} utils.APIResponse{data=bannerdto.AdminBannerDetailDTO}
 // @Router       /admin/banners/{uuid}/restore [put]
 func (h *BannerHandler) AdminRestoreBanner(ctx *gin.Context) {
 	bannerUUID, err := uuid.Parse(ctx.Param("uuid"))
@@ -274,15 +238,10 @@ func (h *BannerHandler) AdminRestoreBanner(ctx *gin.Context) {
 
 // AdminTrashBanner godoc
 // @Summary      Permanently delete banner
-// @Description  Permanently delete a banner from database (Admin/Moderator)
 // @Tags         Admin - Banners
-// @Produce      json
 // @Security     BearerAuth
-// @Security     ApiKeyAuth
 // @Param        uuid path string true "Banner UUID"
 // @Success      200 {object} utils.APIResponse
-// @Failure      400 {object} utils.ErrorResponse
-// @Failure      401 {object} utils.ErrorResponse
 // @Router       /admin/banners/{uuid}/trash [delete]
 func (h *BannerHandler) AdminTrashBanner(ctx *gin.Context) {
 	bannerUUID, err := uuid.Parse(ctx.Param("uuid"))

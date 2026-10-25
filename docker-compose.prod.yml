@@ -355,6 +355,42 @@ services:
         aliases:
           - cart-service
 
+  banner:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.microservice.prod
+      args:
+        SERVICE: banner
+    container_name: goshop-banner
+    restart: unless-stopped
+    ports:
+      - "8089:8089"
+    env_file:
+      - ./backend/.env
+    environment:
+      - DB_NAME=shopping_banner
+      - BANNER_DB_NAME=shopping_banner
+      - BANNER_SERVER_PORT=8089
+      - JWT_SIGNING_ENABLED=false
+      - JWT_PRIVATE_KEY=
+      - JWT_PUBLIC_KEY=/app/certs/jwt_public.pem
+      - REDIS_ADDR=redis:6379
+      - GOMEMLIMIT=96MiB
+      - GOMAXPROCS=1
+    mem_limit: 128m
+    cpus: 0.50
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend/certs:/app/certs:ro
+    networks:
+      goshop-network:
+        aliases:
+          - banner-service
+
   order:
     build:
       context: ./backend

@@ -1,4 +1,4 @@
-﻿package testutils
+package testutils
 
 import (
 	"context"
@@ -81,7 +81,6 @@ func (m *MockOrderCouponPort) ReleaseCoupon(ctx context.Context, couponID int32,
 	}
 	return nil
 }
-
 
 type MockNotificationService struct {
 	SendFunc                            func(ctx context.Context, input v1dto.SendNotificationInput) error
@@ -303,7 +302,6 @@ func (m *MockRabbitMQService) IsHealthy() bool {
 	}
 	return true
 }
-
 
 // =========================================================================
 // MockShippingProvider
@@ -665,85 +663,6 @@ func (m *MockReviewService) AdminDismissReports(ctx context.Context, reviewUUID 
 }
 
 // =========================================================================
-// MockBannerService
-// =========================================================================
-
-type MockBannerService struct {
-	GetActiveBannersFunc        func(ctx context.Context, position string) ([]v1dto.BannerDTO, error)
-	AdminGetBannersFunc         func(ctx context.Context, query v1dto.AdminGetBannersQuery) ([]v1dto.AdminBannerDetailDTO, int64, error)
-	AdminGetBannerByUUIDFunc    func(ctx context.Context, bannerUUID uuid.UUID) (v1dto.AdminBannerDetailDTO, error)
-	AdminCreateBannerFunc       func(ctx context.Context, input v1dto.CreateBannerRequest) (v1dto.AdminBannerDetailDTO, error)
-	AdminUpdateBannerFunc       func(ctx context.Context, bannerUUID uuid.UUID, input v1dto.UpdateBannerRequest) (v1dto.AdminBannerDetailDTO, error)
-	AdminUpdateBannerStatusFunc func(ctx context.Context, bannerUUID uuid.UUID, input v1dto.UpdateBannerStatusRequest) (v1dto.AdminBannerDetailDTO, error)
-	AdminSoftDeleteBannerFunc   func(ctx context.Context, bannerUUID uuid.UUID) error
-	AdminRestoreBannerFunc      func(ctx context.Context, bannerUUID uuid.UUID) (v1dto.AdminBannerDetailDTO, error)
-	AdminTrashBannerFunc        func(ctx context.Context, bannerUUID uuid.UUID) error
-}
-
-func (m *MockBannerService) GetActiveBanners(ctx context.Context, position string) ([]v1dto.BannerDTO, error) {
-	if m.GetActiveBannersFunc != nil {
-		return m.GetActiveBannersFunc(ctx, position)
-	}
-	return nil, nil
-}
-
-func (m *MockBannerService) AdminGetBanners(ctx context.Context, query v1dto.AdminGetBannersQuery) ([]v1dto.AdminBannerDetailDTO, int64, error) {
-	if m.AdminGetBannersFunc != nil {
-		return m.AdminGetBannersFunc(ctx, query)
-	}
-	return nil, 0, nil
-}
-
-func (m *MockBannerService) AdminGetBannerByUUID(ctx context.Context, bannerUUID uuid.UUID) (v1dto.AdminBannerDetailDTO, error) {
-	if m.AdminGetBannerByUUIDFunc != nil {
-		return m.AdminGetBannerByUUIDFunc(ctx, bannerUUID)
-	}
-	return v1dto.AdminBannerDetailDTO{}, nil
-}
-
-func (m *MockBannerService) AdminCreateBanner(ctx context.Context, input v1dto.CreateBannerRequest) (v1dto.AdminBannerDetailDTO, error) {
-	if m.AdminCreateBannerFunc != nil {
-		return m.AdminCreateBannerFunc(ctx, input)
-	}
-	return v1dto.AdminBannerDetailDTO{}, nil
-}
-
-func (m *MockBannerService) AdminUpdateBanner(ctx context.Context, bannerUUID uuid.UUID, input v1dto.UpdateBannerRequest) (v1dto.AdminBannerDetailDTO, error) {
-	if m.AdminUpdateBannerFunc != nil {
-		return m.AdminUpdateBannerFunc(ctx, bannerUUID, input)
-	}
-	return v1dto.AdminBannerDetailDTO{}, nil
-}
-
-func (m *MockBannerService) AdminUpdateBannerStatus(ctx context.Context, bannerUUID uuid.UUID, input v1dto.UpdateBannerStatusRequest) (v1dto.AdminBannerDetailDTO, error) {
-	if m.AdminUpdateBannerStatusFunc != nil {
-		return m.AdminUpdateBannerStatusFunc(ctx, bannerUUID, input)
-	}
-	return v1dto.AdminBannerDetailDTO{}, nil
-}
-
-func (m *MockBannerService) AdminSoftDeleteBanner(ctx context.Context, bannerUUID uuid.UUID) error {
-	if m.AdminSoftDeleteBannerFunc != nil {
-		return m.AdminSoftDeleteBannerFunc(ctx, bannerUUID)
-	}
-	return nil
-}
-
-func (m *MockBannerService) AdminRestoreBanner(ctx context.Context, bannerUUID uuid.UUID) (v1dto.AdminBannerDetailDTO, error) {
-	if m.AdminRestoreBannerFunc != nil {
-		return m.AdminRestoreBannerFunc(ctx, bannerUUID)
-	}
-	return v1dto.AdminBannerDetailDTO{}, nil
-}
-
-func (m *MockBannerService) AdminTrashBanner(ctx context.Context, bannerUUID uuid.UUID) error {
-	if m.AdminTrashBannerFunc != nil {
-		return m.AdminTrashBannerFunc(ctx, bannerUUID)
-	}
-	return nil
-}
-
-// =========================================================================
 // MockAddressService
 // =========================================================================
 
@@ -868,7 +787,6 @@ func (m *MockLocationService) GetWards(ctx context.Context, districtID int) ([]v
 	return nil, nil
 }
 
-
 type MockAuthService struct {
 	RegisterFunc              func(ctx context.Context, input v1dto.RegisterInput) error
 	SendRegisterOTPFunc       func(ctx context.Context, input v1dto.SendRegisterOTPInput) error
@@ -951,6 +869,3 @@ func (m *MockAuthService) ResetPassword(ctx context.Context, token, newPassword 
 	}
 	return nil
 }
-
-
-

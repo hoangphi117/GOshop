@@ -101,18 +101,6 @@ type NotificationService interface {
 	PurgeStaleNotifications(ctx context.Context, retentionDays int) (int64, error)
 }
 
-type BannerService interface {
-	GetActiveBanners(ctx context.Context, position string) ([]v1dto.BannerDTO, error)
-	AdminGetBanners(ctx context.Context, query v1dto.AdminGetBannersQuery) ([]v1dto.AdminBannerDetailDTO, int64, error)
-	AdminGetBannerByUUID(ctx context.Context, bannerUUID uuid.UUID) (v1dto.AdminBannerDetailDTO, error)
-	AdminCreateBanner(ctx context.Context, input v1dto.CreateBannerRequest) (v1dto.AdminBannerDetailDTO, error)
-	AdminUpdateBanner(ctx context.Context, bannerUUID uuid.UUID, input v1dto.UpdateBannerRequest) (v1dto.AdminBannerDetailDTO, error)
-	AdminUpdateBannerStatus(ctx context.Context, bannerUUID uuid.UUID, input v1dto.UpdateBannerStatusRequest) (v1dto.AdminBannerDetailDTO, error)
-	AdminSoftDeleteBanner(ctx context.Context, bannerUUID uuid.UUID) error
-	AdminRestoreBanner(ctx context.Context, bannerUUID uuid.UUID) (v1dto.AdminBannerDetailDTO, error)
-	AdminTrashBanner(ctx context.Context, bannerUUID uuid.UUID) error
-}
-
 type AnalyticsService interface {
 	GetOverview(ctx context.Context, query v1dto.OverviewStatsQuery) (v1dto.OverviewStatsDTO, error)
 	GetRevenueChart(ctx context.Context, query v1dto.RevenueChartQuery) ([]v1dto.RevenueChartPointDTO, error)
