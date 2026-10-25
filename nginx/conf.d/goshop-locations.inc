@@ -273,7 +273,7 @@ location /api/v1/admin/banners {
 # 4.3. INVENTORY SERVICE REVERSE PROXY (/api/v1/admin/inventory, /api/v1/inventory)
 # -----------------------------------------------------------------------------
 location /api/v1/admin/inventory {
-    set $inventory_target http://inventory-service:8085;
+    set $inventory_target http://inventory-service:8090;
     proxy_pass $inventory_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -292,7 +292,7 @@ location /api/v1/admin/inventory {
 }
 
 location /api/v1/inventory {
-    set $inventory_target http://inventory-service:8085;
+    set $inventory_target http://inventory-service:8090;
     proxy_pass $inventory_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";

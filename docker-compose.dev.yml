@@ -232,7 +232,7 @@ services:
     container_name: goshop-inventory
     restart: unless-stopped
     ports:
-      - "8085:8085"
+      - "8090:8090"
       - "50054:50054"
     env_file:
       - ./backend/.env
@@ -241,7 +241,7 @@ services:
       - DB_HOST=postgres
       - DB_NAME=shopping_inventory
       - INVENTORY_DB_NAME=shopping_inventory
-      - INVENTORY_SERVER_PORT=8085
+      - INVENTORY_SERVER_PORT=8090
       - INVENTORY_GRPC_PORT=50054
       - JWT_PRIVATE_KEY=
       - REDIS_ADDR=redis:6379
