@@ -7367,180 +7367,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/location/districts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get administrative districts
-         * @description Get list of districts by province ID (cached)
-         */
-        get: {
-            parameters: {
-                query: {
-                    /** @description Province ID */
-                    province_id: number;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["v1dto.DistrictDTO"][];
-                        };
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Internal Server Error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/location/provinces": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get administrative provinces
-         * @description Get list of provinces from location provider (cached)
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["v1dto.ProvinceDTO"][];
-                        };
-                    };
-                };
-                /** @description Internal Server Error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/location/wards": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get administrative wards
-         * @description Get list of wards by district ID (cached)
-         */
-        get: {
-            parameters: {
-                query: {
-                    /** @description District ID */
-                    district_id: number;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["v1dto.WardDTO"][];
-                        };
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Internal Server Error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/notifications/me": {
         parameters: {
             query?: never;
@@ -9458,7 +9284,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
-                            data?: components["schemas"]["v1dto.DistrictDTO"][];
+                            data?: components["schemas"]["dto.DistrictDTO"][];
                         };
                     };
                 };
@@ -9508,7 +9334,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
-                            data?: components["schemas"]["v1dto.ProvinceDTO"][];
+                            data?: components["schemas"]["dto.ProvinceDTO"][];
                         };
                     };
                 };
@@ -9561,7 +9387,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
-                            data?: components["schemas"]["v1dto.WardDTO"][];
+                            data?: components["schemas"]["dto.WardDTO"][];
                         };
                     };
                 };
@@ -10430,6 +10256,12 @@ export interface components {
             /** @enum {integer} */
             status: 1 | 2 | 3;
         };
+        "dto.DistrictDTO": {
+            code?: string;
+            district_id?: number;
+            district_name?: string;
+            province_id?: number;
+        };
         "dto.GHNWebhookPayload": {
             CODAmount?: number;
             /** @description Lý do nếu giao thất bại hoặc trả hàng */
@@ -10577,6 +10409,11 @@ export interface components {
             price?: number;
             slug?: string;
             uuid?: string;
+        };
+        "dto.ProvinceDTO": {
+            code?: string;
+            province_id?: number;
+            province_name?: string;
         };
         "dto.RefreshTokenInput": {
             refresh_token?: string;
@@ -10786,6 +10623,11 @@ export interface components {
             email: string;
             otp: string;
         };
+        "dto.WardDTO": {
+            district_id?: number;
+            ward_code?: string;
+            ward_name?: string;
+        };
         "goshop_internal_utils.APIResponse": {
             data?: unknown;
             /** @example Operation completed successfully */
@@ -10932,12 +10774,6 @@ export interface components {
             title?: string;
             video_url?: string;
         };
-        "v1dto.DistrictDTO": {
-            code?: string;
-            district_id?: number;
-            district_name?: string;
-            province_id?: number;
-        };
         "v1dto.LowStockProductDTO": {
             /** @description "critical" (stock <= 0), "warning" (stock <= threshold) */
             alert_level?: string;
@@ -11028,11 +10864,6 @@ export interface components {
             items?: components["schemas"]["v1dto.PaymentMethodBreakdownItemDTO"][];
             total_orders?: number;
             total_revenue?: number;
-        };
-        "v1dto.ProvinceDTO": {
-            code?: string;
-            province_id?: number;
-            province_name?: string;
         };
         "v1dto.RecentOrderDTO": {
             created_at?: string;
@@ -11161,11 +10992,6 @@ export interface components {
             media_type?: string;
             size?: number;
             url?: string;
-        };
-        "v1dto.WardDTO": {
-            district_id?: number;
-            ward_code?: string;
-            ward_name?: string;
         };
         "v1handler.PresignRequest": {
             content_type?: string;

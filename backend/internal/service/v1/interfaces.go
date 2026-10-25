@@ -33,12 +33,6 @@ type AuthService interface {
 	ResetPassword(ctx context.Context, token, newPassword string) error
 }
 
-type LocationService interface {
-	GetProvinces(ctx context.Context) ([]v1dto.ProvinceDTO, error)
-	GetDistricts(ctx context.Context, provinceID int) ([]v1dto.DistrictDTO, error)
-	GetWards(ctx context.Context, districtID int) ([]v1dto.WardDTO, error)
-}
-
 const (
 	PaymentStatusPending  int32 = 1
 	PaymentStatusPaid     int32 = 2

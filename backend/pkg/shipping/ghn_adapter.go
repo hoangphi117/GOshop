@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	v1dto "goshop/internal/dto/v1"
 	"io"
 	"net/http"
 	"strconv"
@@ -335,7 +334,7 @@ func (a *GHNAdapter) GetPrintBillURL(ctx context.Context, shippingCode string) (
 	}, nil
 }
 
-func (a *GHNAdapter) GetProvinces(ctx context.Context) ([]v1dto.ProvinceDTO, error) {
+func (a *GHNAdapter) GetProvinces(ctx context.Context) ([]ProvinceDTO, error) {
 	endpoint := fmt.Sprintf("%s/shiip/public-api/master-data/province", a.baseURL)
 	body, err := a.doRequest(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
@@ -347,19 +346,15 @@ func (a *GHNAdapter) GetProvinces(ctx context.Context) ([]v1dto.ProvinceDTO, err
 		return nil, fmt.Errorf("failed to parse ghn provinces response: %w", err)
 	}
 
-	res := make([]v1dto.ProvinceDTO, len(raws))
+	res := make([]ProvinceDTO, len(raws))
 	for i, raw := range raws {
-		res[i] = v1dto.ProvinceDTO{
-			ProvinceID:   raw.ProvinceID,
-			ProvinceName: raw.ProvinceName,
-			Code:         raw.Code,
-		}
+		res[i] = ProvinceDTO(raw)
 	}
 
 	return res, nil
 }
 
-func (a *GHNAdapter) GetDistricts(ctx context.Context, provinceID int) ([]v1dto.DistrictDTO, error) {
+func (a *GHNAdapter) GetDistricts(ctx context.Context, provinceID int) ([]DistrictDTO, error) {
 	endpoint := fmt.Sprintf("%s/shiip/public-api/master-data/district", a.baseURL)
 	var body json.RawMessage
 	var err error
@@ -377,20 +372,15 @@ func (a *GHNAdapter) GetDistricts(ctx context.Context, provinceID int) ([]v1dto.
 		return nil, fmt.Errorf("failed to parse ghn districts response: %w", err)
 	}
 
-	res := make([]v1dto.DistrictDTO, len(raws))
+	res := make([]DistrictDTO, len(raws))
 	for i, raw := range raws {
-		res[i] = v1dto.DistrictDTO{
-			DistrictID:   raw.DistrictID,
-			ProvinceID:   raw.ProvinceID,
-			DistrictName: raw.DistrictName,
-			Code:         raw.Code,
-		}
+		res[i] = DistrictDTO(raw)
 	}
 
 	return res, nil
 }
 
-func (a *GHNAdapter) GetWards(ctx context.Context, districtID int) ([]v1dto.WardDTO, error) {
+func (a *GHNAdapter) GetWards(ctx context.Context, districtID int) ([]WardDTO, error) {
 	endpoint := fmt.Sprintf("%s/shiip/public-api/master-data/ward?district_id=%d", a.baseURL, districtID)
 	body, err := a.doRequest(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
@@ -402,13 +392,9 @@ func (a *GHNAdapter) GetWards(ctx context.Context, districtID int) ([]v1dto.Ward
 		return nil, fmt.Errorf("failed to parse ghn wards response: %w", err)
 	}
 
-	res := make([]v1dto.WardDTO, len(raws))
+	res := make([]WardDTO, len(raws))
 	for i, raw := range raws {
-		res[i] = v1dto.WardDTO{
-			DistrictID: raw.DistrictID,
-			WardName:   raw.WardName,
-			WardCode:   raw.WardCode,
-		}
+		res[i] = WardDTO(raw)
 	}
 
 	return res, nil

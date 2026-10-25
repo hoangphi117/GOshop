@@ -787,6 +787,17 @@ definitions:
     - password
     - status
     type: object
+  dto.DistrictDTO:
+    properties:
+      code:
+        type: string
+      district_id:
+        type: integer
+      district_name:
+        type: string
+      province_id:
+        type: integer
+    type: object
   dto.GHNWebhookPayload:
     properties:
       CODAmount:
@@ -1076,6 +1087,15 @@ definitions:
       slug:
         type: string
       uuid:
+        type: string
+    type: object
+  dto.ProvinceDTO:
+    properties:
+      code:
+        type: string
+      province_id:
+        type: integer
+      province_name:
         type: string
     type: object
   dto.RefreshTokenInput:
@@ -1558,6 +1578,15 @@ definitions:
     - email
     - otp
     type: object
+  dto.WardDTO:
+    properties:
+      district_id:
+        type: integer
+      ward_code:
+        type: string
+      ward_name:
+        type: string
+    type: object
   goshop_internal_utils.APIResponse:
     properties:
       data: {}
@@ -1881,17 +1910,6 @@ definitions:
     - product_uuid
     - rating
     type: object
-  v1dto.DistrictDTO:
-    properties:
-      code:
-        type: string
-      district_id:
-        type: integer
-      district_name:
-        type: string
-      province_id:
-        type: integer
-    type: object
   v1dto.LowStockProductDTO:
     properties:
       alert_level:
@@ -2056,15 +2074,6 @@ definitions:
         type: integer
       total_revenue:
         type: number
-    type: object
-  v1dto.ProvinceDTO:
-    properties:
-      code:
-        type: string
-      province_id:
-        type: integer
-      province_name:
-        type: string
     type: object
   v1dto.RecentOrderDTO:
     properties:
@@ -2331,15 +2340,6 @@ definitions:
       size:
         type: integer
       url:
-        type: string
-    type: object
-  v1dto.WardDTO:
-    properties:
-      district_id:
-        type: integer
-      ward_code:
-        type: string
-      ward_name:
         type: string
     type: object
   v1handler.PresignRequest:
@@ -6914,98 +6914,6 @@ paths:
       summary: Comprehensive System Healthcheck
       tags:
       - Health
-  /location/districts:
-    get:
-      description: Get list of districts by province ID (cached)
-      parameters:
-      - description: Province ID
-        in: query
-        name: province_id
-        required: true
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/v1dto.DistrictDTO'
-                  type: array
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
-      summary: Get administrative districts
-      tags:
-      - Location
-  /location/provinces:
-    get:
-      description: Get list of provinces from location provider (cached)
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/v1dto.ProvinceDTO'
-                  type: array
-              type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
-      summary: Get administrative provinces
-      tags:
-      - Location
-  /location/wards:
-    get:
-      description: Get list of wards by district ID (cached)
-      parameters:
-      - description: District ID
-        in: query
-        name: district_id
-        required: true
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/goshop_internal_utils.APIResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/v1dto.WardDTO'
-                  type: array
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/goshop_internal_utils.ErrorResponse'
-      summary: Get administrative wards
-      tags:
-      - Location
   /notifications/{uuid}:
     delete:
       description: Delete a notification by UUID
@@ -8207,7 +8115,7 @@ paths:
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/v1dto.DistrictDTO'
+                    $ref: '#/definitions/dto.DistrictDTO'
                   type: array
               type: object
         "400":
@@ -8231,7 +8139,7 @@ paths:
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/v1dto.ProvinceDTO'
+                    $ref: '#/definitions/dto.ProvinceDTO'
                   type: array
               type: object
         "400":
@@ -8261,7 +8169,7 @@ paths:
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/v1dto.WardDTO'
+                    $ref: '#/definitions/dto.WardDTO'
                   type: array
               type: object
         "400":

@@ -1,12 +1,10 @@
-package v1dto
+package shipping
 
-type GetDistrictsQuery struct {
-	ProvinceID int `form:"province_id" binding:"required,gt=0"`
-}
-
-type GetWardsQuery struct {
-	DistrictID int `form:"district_id" binding:"required,gt=0"`
-}
+// Administrative hierarchy DTOs returned by the GHN provider.
+//
+// They live here rather than in the monolith's internal/dto package so that
+// pkg/shipping stays reusable by the extracted services (order-service keeps
+// its own copies that it maps from these).
 
 type ProvinceDTO struct {
 	ProvinceID   int    `json:"province_id"`

@@ -27,7 +27,6 @@ var (
 	_ v1service.PaymentService       = (*MockPaymentService)(nil)
 	_ v1service.PaymentRefundService = (*MockPaymentService)(nil)
 	_ v1service.PaymentRefundService = (*MockPaymentRefundService)(nil)
-	_ v1service.LocationService      = (*MockLocationService)(nil)
 	_ v1service.AuthService          = (*MockAuthService)(nil)
 	_ rabbitmq.RabbitMQService       = (*MockRabbitMQService)(nil)
 	_ shipping.ShippingProvider      = (*MockShippingProvider)(nil)
@@ -758,33 +757,6 @@ func (m *MockPaymentRefundService) RefundPayment(ctx context.Context, idempotenc
 		return m.RefundPaymentFunc(ctx, idempotencyKey, input)
 	}
 	return v1dto.PaymentTransactionDTO{}, nil
-}
-
-type MockLocationService struct {
-	GetProvincesFunc func(ctx context.Context) ([]v1dto.ProvinceDTO, error)
-	GetDistrictsFunc func(ctx context.Context, provinceID int) ([]v1dto.DistrictDTO, error)
-	GetWardsFunc     func(ctx context.Context, districtID int) ([]v1dto.WardDTO, error)
-}
-
-func (m *MockLocationService) GetProvinces(ctx context.Context) ([]v1dto.ProvinceDTO, error) {
-	if m.GetProvincesFunc != nil {
-		return m.GetProvincesFunc(ctx)
-	}
-	return nil, nil
-}
-
-func (m *MockLocationService) GetDistricts(ctx context.Context, provinceID int) ([]v1dto.DistrictDTO, error) {
-	if m.GetDistrictsFunc != nil {
-		return m.GetDistrictsFunc(ctx, provinceID)
-	}
-	return nil, nil
-}
-
-func (m *MockLocationService) GetWards(ctx context.Context, districtID int) ([]v1dto.WardDTO, error) {
-	if m.GetWardsFunc != nil {
-		return m.GetWardsFunc(ctx, districtID)
-	}
-	return nil, nil
 }
 
 type MockAuthService struct {

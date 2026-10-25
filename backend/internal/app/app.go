@@ -17,7 +17,6 @@ import (
 	"goshop/pkg/logger"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/search"
-	"goshop/pkg/shipping"
 	"goshop/pkg/storage"
 	"goshop/pkg/ws"
 	catalogcontract "goshop/services/catalog/contract"
@@ -27,7 +26,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -187,14 +185,6 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		logger.Log.Fatal().Err(err).Str("addr", cfg.IdentityGRPCAddr).Msg("Failed to initialize Identity gRPC client")
 		return nil, err
 	}
-	// Location Domain Initialization
-	ghnToken := utils.GetEnv("GHN_TOKEN", "")
-	ghnShopID, _ := strconv.Atoi(utils.GetEnv("GHN_SHOP_ID", "0"))
-	ghnBaseURL := utils.GetEnv("GHN_BASE_URL", "")
-	ghnAdapter := shipping.NewGHNAdapter(ghnToken, ghnShopID, ghnBaseURL)
-	shippingFactory := shipping.NewShippingFactory(ghnAdapter)
-	locationService := v1service.NewLocationService(shippingFactory, cacheRedisService)
-
 	// Cross-domain Core Service Singletons
 	catalogTarget := utils.GetEnv("CATALOG_GRPC_TARGET", "localhost:50055")
 	grpcCatalogClient, err := catalogcontract.NewGRPCCatalogClient(catalogTarget)
@@ -246,7 +236,6 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	modules := []Module{
 		NewReviewModule(ctx, rabbitmqService, crossDomainOrderReader),
 		NewWSModule(ctx, wsHub, tokenService, cacheRedisService),
-		NewLocationModule(locationService),
 		NewUploadModule(ctx),
 		NewAnalyticsModule(ctx),
 		NewChatModule(ctx, wsHub, redisBridge, crossDomainOrderReader),

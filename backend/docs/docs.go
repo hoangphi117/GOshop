@@ -7558,159 +7558,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/location/districts": {
-            "get": {
-                "description": "Get list of districts by province ID (cached)",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Location"
-                ],
-                "summary": "Get administrative districts",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Province ID",
-                        "name": "province_id",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/v1dto.DistrictDTO"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/location/provinces": {
-            "get": {
-                "description": "Get list of provinces from location provider (cached)",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Location"
-                ],
-                "summary": "Get administrative provinces",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/v1dto.ProvinceDTO"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/location/wards": {
-            "get": {
-                "description": "Get list of wards by district ID (cached)",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Location"
-                ],
-                "summary": "Get administrative wards",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "District ID",
-                        "name": "district_id",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/goshop_internal_utils.APIResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/v1dto.WardDTO"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/goshop_internal_utils.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/notifications/me": {
             "get": {
                 "security": [
@@ -9708,7 +9555,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/v1dto.DistrictDTO"
+                                                "$ref": "#/definitions/dto.DistrictDTO"
                                             }
                                         }
                                     }
@@ -9749,7 +9596,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/v1dto.ProvinceDTO"
+                                                "$ref": "#/definitions/dto.ProvinceDTO"
                                             }
                                         }
                                     }
@@ -9799,7 +9646,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/v1dto.WardDTO"
+                                                "$ref": "#/definitions/dto.WardDTO"
                                             }
                                         }
                                     }
@@ -11439,6 +11286,23 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.DistrictDTO": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "district_id": {
+                    "type": "integer"
+                },
+                "district_name": {
+                    "type": "string"
+                },
+                "province_id": {
+                    "type": "integer"
+                }
+            }
+        },
         "dto.GHNWebhookPayload": {
             "type": "object",
             "required": [
@@ -11875,6 +11739,20 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "dto.ProvinceDTO": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "province_id": {
+                    "type": "integer"
+                },
+                "province_name": {
                     "type": "string"
                 }
             }
@@ -12576,6 +12454,20 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.WardDTO": {
+            "type": "object",
+            "properties": {
+                "district_id": {
+                    "type": "integer"
+                },
+                "ward_code": {
+                    "type": "string"
+                },
+                "ward_name": {
+                    "type": "string"
+                }
+            }
+        },
         "goshop_internal_utils.APIResponse": {
             "type": "object",
             "properties": {
@@ -13042,23 +12934,6 @@ const docTemplate = `{
                 }
             }
         },
-        "v1dto.DistrictDTO": {
-            "type": "object",
-            "properties": {
-                "code": {
-                    "type": "string"
-                },
-                "district_id": {
-                    "type": "integer"
-                },
-                "district_name": {
-                    "type": "string"
-                },
-                "province_id": {
-                    "type": "integer"
-                }
-            }
-        },
         "v1dto.LowStockProductDTO": {
             "type": "object",
             "properties": {
@@ -13298,20 +13173,6 @@ const docTemplate = `{
                 },
                 "total_revenue": {
                     "type": "number"
-                }
-            }
-        },
-        "v1dto.ProvinceDTO": {
-            "type": "object",
-            "properties": {
-                "code": {
-                    "type": "string"
-                },
-                "province_id": {
-                    "type": "integer"
-                },
-                "province_name": {
-                    "type": "string"
                 }
             }
         },
@@ -13705,20 +13566,6 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "url": {
-                    "type": "string"
-                }
-            }
-        },
-        "v1dto.WardDTO": {
-            "type": "object",
-            "properties": {
-                "district_id": {
-                    "type": "integer"
-                },
-                "ward_code": {
-                    "type": "string"
-                },
-                "ward_name": {
                     "type": "string"
                 }
             }
