@@ -1,19 +1,19 @@
-package worker_test
+package identityworker_test
 
 import (
 	"encoding/json"
 	"testing"
 	"time"
 
-	"goshop/internal/worker"
 	"goshop/pkg/rabbitmq"
+	identityworker "goshop/services/identity/worker"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestUserSyncConsumer_Handle(t *testing.T) {
-	consumer := worker.NewUserSyncConsumer(nil)
+	consumer := identityworker.NewUserSyncConsumer(nil)
 
 	t.Run("Valid user updated event", func(t *testing.T) {
 		event := rabbitmq.UserSyncEvent{

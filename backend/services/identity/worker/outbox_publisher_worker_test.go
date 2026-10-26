@@ -1,4 +1,4 @@
-package worker_test
+package identityworker_test
 
 import (
 	"context"
@@ -6,8 +6,8 @@ import (
 	"errors"
 	"goshop/internal/db/sqlc"
 	"goshop/internal/testutils"
-	"goshop/internal/worker"
 	"goshop/pkg/rabbitmq"
+	identityworker "goshop/services/identity/worker"
 	"testing"
 	"time"
 
@@ -21,12 +21,12 @@ func TestOutboxPublisherWorker_ProcessBatch(t *testing.T) {
 	logger := zerolog.Nop()
 
 	t.Run("Returns 0 when dependencies are nil", func(t *testing.T) {
-		w1 := worker.NewOutboxPublisherWorker(nil, &testutils.MockRabbitMQService{}, time.Second, 10, &logger)
+		w1 := identityworker.NewOutboxPublisherWorker(nil, &testutils.MockRabbitMQService{}, time.Second, 10, &logger)
 		count, err := w1.ProcessBatch(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
 
-		w2 := worker.NewOutboxPublisherWorker(&testutils.MockOutboxRepository{}, nil, time.Second, 10, &logger)
+		w2 := identityworker.NewOutboxPublisherWorker(&testutils.MockOutboxRepository{}, nil, time.Second, 10, &logger)
 		count, err = w2.ProcessBatch(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
@@ -41,7 +41,7 @@ func TestOutboxPublisherWorker_ProcessBatch(t *testing.T) {
 		}
 		mockRabbitMQ := &testutils.MockRabbitMQService{}
 
-		w := worker.NewOutboxPublisherWorker(mockOutbox, mockRabbitMQ, time.Second, 10, &logger)
+		w := identityworker.NewOutboxPublisherWorker(mockOutbox, mockRabbitMQ, time.Second, 10, &logger)
 		count, err := w.ProcessBatch(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
@@ -55,7 +55,7 @@ func TestOutboxPublisherWorker_ProcessBatch(t *testing.T) {
 		}
 		mockRabbitMQ := &testutils.MockRabbitMQService{}
 
-		w := worker.NewOutboxPublisherWorker(mockOutbox, mockRabbitMQ, time.Second, 10, &logger)
+		w := identityworker.NewOutboxPublisherWorker(mockOutbox, mockRabbitMQ, time.Second, 10, &logger)
 		_, err := w.ProcessBatch(ctx)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to fetch pending order/payment outbox events")
@@ -101,7 +101,7 @@ func TestOutboxPublisherWorker_ProcessBatch(t *testing.T) {
 			},
 		}
 
-		w := worker.NewOutboxPublisherWorker(mockOutbox, mockRabbitMQ, time.Second, 10, &logger)
+		w := identityworker.NewOutboxPublisherWorker(mockOutbox, mockRabbitMQ, time.Second, 10, &logger)
 		count, err := w.ProcessBatch(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, 2, count)
@@ -153,7 +153,7 @@ func TestOutboxPublisherWorker_ProcessBatch(t *testing.T) {
 			},
 		}
 
-		w := worker.NewOutboxPublisherWorker(mockOutbox, mockRabbitMQ, time.Second, 10, &logger)
+		w := identityworker.NewOutboxPublisherWorker(mockOutbox, mockRabbitMQ, time.Second, 10, &logger)
 		count, err := w.ProcessBatch(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, 1, count)

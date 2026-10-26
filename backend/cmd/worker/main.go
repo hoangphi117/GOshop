@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"goshop/internal/config"
 	"goshop/internal/db"
-	"goshop/internal/worker"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 	"goshop/pkg/mail"
@@ -15,6 +14,7 @@ import (
 	"goshop/pkg/utils"
 	"goshop/pkg/ws"
 	catalogcontract "goshop/services/catalog/contract"
+	identityworker "goshop/services/identity/worker"
 	mediaworker "goshop/services/media/worker"
 	"os/signal"
 	"path/filepath"
@@ -35,7 +35,7 @@ type Worker struct {
 	redisClient       *redis.Client
 	cfg               *config.Config
 	logger            *zerolog.Logger
-	userSyncConsumer  *worker.UserSyncConsumer
+	userSyncConsumer  *identityworker.UserSyncConsumer
 	mediaProcessor    *mediaworker.MediaProcessor
 	redisBridge       ws.RedisBridge
 	grpcCatalogClient *catalogcontract.GRPCCatalogClient
@@ -94,7 +94,7 @@ func NewWorker(cfg *config.Config) *Worker {
 		log.Warn().Err(err).Str("target", catalogTarget).Msg("Failed to initialize Catalog gRPC client")
 	}
 
-	userSyncConsumer := worker.NewUserSyncConsumer(redisClient, db.DBPool)
+	userSyncConsumer := identityworker.NewUserSyncConsumer(redisClient, db.DBPool)
 
 	// Media post-processing: resize/re-encode images right after a direct upload.
 	storageService, err := storage.NewStorageService(context.Background(), cfg.Storage, log)
@@ -298,4 +298,3 @@ func main() {
 	wg.Wait()
 	logger.Log.Info().Msg("Main process terminated")
 }
-

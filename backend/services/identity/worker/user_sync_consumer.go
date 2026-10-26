@@ -1,4 +1,4 @@
-package worker
+package identityworker
 
 import (
 	"context"
