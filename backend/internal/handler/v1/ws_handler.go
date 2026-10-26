@@ -7,13 +7,13 @@ import (
 	"errors"
 	"strings"
 
-	"goshop/internal/repository"
-	"goshop/pkg/utils"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
+	"goshop/pkg/utils"
 	ws "goshop/pkg/ws"
 	chatcontract "goshop/services/chat/contract"
+	identitycontract "goshop/services/identity/contract"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -35,11 +35,18 @@ type ChatRoomResolver interface {
 	ResolveConversationByID(ctx context.Context, conversationID int32) (*chatcontract.Conversation, error)
 }
 
+// UserResolver resolves the connected user over the identity service gRPC
+// contract. Users live in the identity service database, so the WS gateway no
+// longer reads the (now dropped) monolith users table.
+type UserResolver interface {
+	GetUserByUUID(ctx context.Context, userUUID uuid.UUID) (*identitycontract.InternalUserDTO, error)
+}
+
 type WSHandler struct {
 	hub          ws.Hub
 	jwtService   auth.TokenService
 	cacheService cache.RedisCacheService
-	userRepo     repository.UserReader
+	userRepo     UserResolver
 	chatClient   ChatRoomResolver
 }
 
@@ -47,7 +54,7 @@ func NewWSHandler(
 	hub ws.Hub,
 	jwtService auth.TokenService,
 	cacheService cache.RedisCacheService,
-	userRepo repository.UserReader,
+	userRepo UserResolver,
 ) *WSHandler {
 	return &WSHandler{
 		hub:          hub,
@@ -130,7 +137,7 @@ func (h *WSHandler) HandleWS(ctx *gin.Context) {
 		return
 	}
 
-	user, err := h.userRepo.GetByUUID(ctx, userUUID)
+	user, err := h.userRepo.GetUserByUUID(ctx, userUUID)
 	if err != nil {
 		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeUnauthorized, "User not found"))
 		return

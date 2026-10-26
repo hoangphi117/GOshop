@@ -11,16 +11,15 @@ import (
 	"time"
 
 	"goshop/internal/config"
-	"goshop/internal/db"
 	v1handler "goshop/internal/handler/v1"
-	"goshop/pkg/middleware"
-	"goshop/internal/repository"
-	"goshop/pkg/utils"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
-	chatcontract "goshop/services/chat/contract"
+	"goshop/pkg/middleware"
+	"goshop/pkg/utils"
 	"goshop/pkg/ws"
+	chatcontract "goshop/services/chat/contract"
+	identitycontract "goshop/services/identity/contract"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -48,17 +47,18 @@ func main() {
 
 	_ = config.NewConfig()
 
-	// 1. Initialize Database for User authentication
-	if err := db.InitDB("ws_gateway"); err != nil {
-		logger.Log.Fatal().Err(err).Msg("Failed to initialize database for WS Gateway")
-	}
-
-	// 2. Initialize Redis and Auth Services
+	// 1. Initialize Redis and Auth Services
 	redisClient := config.NewRedisClient()
 	cacheService := cache.NewRedisCacheService(redisClient)
 	tokenService := auth.NewJWTService(cacheService)
 
-	userRepo := repository.NewSqlUserRepository(db.DB)
+	// User lookups go through the identity service; the monolith users table is
+	// gone, so the gateway no longer opens the monolith database at all.
+	cfg := config.NewConfig()
+	userResolver, err := identitycontract.NewGRPCIdentityClient(cfg.IdentityGRPCAddr, redisClient)
+	if err != nil {
+		logger.Log.Fatal().Err(err).Str("addr", cfg.IdentityGRPCAddr).Msg("Failed to initialize Identity gRPC client")
+	}
 
 	// Chat room resolver: chat moved into its own service; rooms are resolved
 	// over gRPC instead of querying the (now stale) monolith chat tables.
@@ -66,9 +66,7 @@ func main() {
 	chatClient, err := chatcontract.NewGRPCChatClient(chatTarget)
 	if err != nil {
 		logger.Log.Fatal().Err(err).Str("addr", chatTarget).Msg("Failed to initialize Chat gRPC client")
-	}
-
-	// 3. Initialize WebSocket Hub, Redis Bridge, and presence store
+	} // 3. Initialize WebSocket Hub, Redis Bridge, and presence store
 	wsHub := ws.NewHub()
 	wsHub.SetPresenceStore(ws.NewPresenceStore(redisClient))
 	redisBridge := ws.NewRedisBridge(redisClient, wsHub)
@@ -79,7 +77,7 @@ func main() {
 	go redisBridge.StartSubscriber(ctx)
 
 	// 4. Initialize WebSocket Handler
-	wsHandler := v1handler.NewWSHandler(wsHub, tokenService, cacheService, userRepo)
+	wsHandler := v1handler.NewWSHandler(wsHub, tokenService, cacheService, userResolver)
 	wsHandler.SetChatClient(chatClient)
 
 	// 5. Setup Gin Engine for WS Gateway
@@ -137,6 +135,9 @@ func main() {
 	redisBridge.Stop()
 	wsHub.Shutdown()
 	_ = chatClient.Close()
+	if c, ok := userResolver.(*identitycontract.GRPCIdentityClient); ok {
+		_ = c.Close()
+	}
 
 	logger.Log.Info().Msg("WebSocket Gateway exited cleanly")
 }

@@ -2,24 +2,20 @@ package db
 
 import (
 	"context"
-	"goshop/internal/db/sqlc"
+
 	pkgpgx "goshop/pkg/pgx"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// Thin re-exports so services can share one transaction manager without
+// depending on the monolith sqlc package. The monolith sqlc package is gone.
+
 type TxManager = pkgpgx.TxManager
 
 func NewTxManager(pool *pgxpool.Pool) TxManager {
 	return pkgpgx.NewTxManager(pool)
-}
-
-func GetQuerier(ctx context.Context, defaultQuerier sqlc.Querier) sqlc.Querier {
-	if tx, ok := pkgpgx.GetTx(ctx); ok {
-		return sqlc.New(tx)
-	}
-	return defaultQuerier
 }
 
 func GetTx(ctx context.Context) (pgx.Tx, bool) {
@@ -29,5 +25,3 @@ func GetTx(ctx context.Context) (pgx.Tx, bool) {
 func InjectTx(ctx context.Context, tx pgx.Tx) context.Context {
 	return pkgpgx.InjectTx(ctx, tx)
 }
-
-

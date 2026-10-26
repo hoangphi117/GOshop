@@ -28,4 +28,7 @@ func TestArchitectureGuard_GolangciLinterConfig(t *testing.T) {
 
 	assert.Contains(t, content, "inventory_domain_isolation")
 	assert.Contains(t, content, "coupon_domain_isolation")
+	assert.Contains(t, content, "monolith_core_isolation")
+	assert.Contains(t, content, "pkg: \"goshop/internal/repository\"")
+	assert.Contains(t, content, "pkg: \"goshop/internal/db/sqlc\"")
 }

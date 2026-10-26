@@ -4,10 +4,9 @@ import (
 	"context"
 	"fmt"
 	"goshop/internal/config"
-	"goshop/internal/db/sqlc"
-	"goshop/pkg/utils"
 	"goshop/pkg/logger"
 	"goshop/pkg/pgx"
+	"goshop/pkg/utils"
 	"time"
 
 	pgxv5 "github.com/jackc/pgx/v5"
@@ -15,27 +14,19 @@ import (
 	"github.com/jackc/pgx/v5/tracelog"
 )
 
-var DB sqlc.Querier
+// Pools only. Each service generates its own sqlc package from its own schema,
+// so the monolith no longer exposes a shared Querier.
 var DBPool *pgxpool.Pool
 
-var ReadDB sqlc.Querier
 var ReadDBPool *pgxpool.Pool
 
-var IdentityDB sqlc.Querier
 var IdentityDBPool *pgxpool.Pool
 
-func GetReadDB() sqlc.Querier {
-	if ReadDB != nil {
-		return ReadDB
+func GetReadDBPool() *pgxpool.Pool {
+	if ReadDBPool != nil {
+		return ReadDBPool
 	}
-	return DB
-}
-
-func GetIdentityDB() sqlc.Querier {
-	if IdentityDB != nil {
-		return IdentityDB
-	}
-	return DB
+	return DBPool
 }
 
 func InitDB(serviceName ...string) error {
@@ -88,8 +79,6 @@ func InitDBWithConfig(cfg *config.Config, serviceName ...string) error {
 		return fmt.Errorf("error creating DB Pool: %w", err)
 	}
 
-	DB = sqlc.New(DBPool)
-
 	if err = DBPool.Ping(ctx); err != nil {
 		return fmt.Errorf("error pinging DB: %w", err)
 	}
@@ -104,22 +93,18 @@ func InitDBWithConfig(cfg *config.Config, serviceName ...string) error {
 	singleDBOnly := len(serviceName) > 0 && (serviceName[0] == "analytics" || serviceName[0] == "chat")
 	if singleDBOnly {
 		ReadDBPool = DBPool
-		ReadDB = DB
 		IdentityDBPool = DBPool
-		IdentityDB = DB
 		return nil
 	}
 
 	// Read Replica initialization (defaults to DBPool if identical connection string)
 	if cfg.ReadDNS() == cfg.DNS() {
 		ReadDBPool = DBPool
-		ReadDB = DB
 	} else {
 		readConf, err := pgxpool.ParseConfig(cfg.ReadDNS())
 		if err != nil {
 			logger.Log.Warn().Err(err).Msg("Failed to parse Read DB config, falling back to primary DB")
 			ReadDBPool = DBPool
-			ReadDB = DB
 		} else {
 			readConf.MaxConns = int32(utils.GetIntEnv("DB_READ_MAX_CONNS", utils.GetIntEnv("DB_MAX_CONNS", 20)))
 			readConf.MinConns = int32(utils.GetIntEnv("DB_READ_MIN_CONNS", utils.GetIntEnv("DB_MIN_CONNS", 5)))
@@ -131,14 +116,11 @@ func InitDBWithConfig(cfg *config.Config, serviceName ...string) error {
 			if err != nil {
 				logger.Log.Warn().Err(err).Msg("Failed to connect to Read DB pool, falling back to primary DB")
 				ReadDBPool = DBPool
-				ReadDB = DB
 			} else if err = ReadDBPool.Ping(ctx); err != nil {
 				logger.Log.Warn().Err(err).Msg("Failed to ping Read DB pool, falling back to primary DB")
 				ReadDBPool.Close()
 				ReadDBPool = DBPool
-				ReadDB = DB
 			} else {
-				ReadDB = sqlc.New(ReadDBPool)
 				logger.Log.Info().
 					Str("host", readConf.ConnConfig.Host).
 					Str("database", readConf.ConnConfig.Database).
@@ -152,13 +134,11 @@ func InitDBWithConfig(cfg *config.Config, serviceName ...string) error {
 	identityDNS := cfg.IdentityDNS()
 	if identityDNS == "" || identityDNS == cfg.DNS() {
 		IdentityDBPool = DBPool
-		IdentityDB = DB
 	} else {
 		identityConf, err := pgxpool.ParseConfig(identityDNS)
 		if err != nil {
 			logger.Log.Warn().Err(err).Msg("Failed to parse Identity DB config, falling back to primary DB")
 			IdentityDBPool = DBPool
-			IdentityDB = DB
 		} else {
 			identityConf.MaxConns = int32(utils.GetIntEnv("DB_IDENTITY_MAX_CONNS", 15))
 			identityConf.MinConns = int32(utils.GetIntEnv("DB_IDENTITY_MIN_CONNS", 3))
@@ -170,14 +150,11 @@ func InitDBWithConfig(cfg *config.Config, serviceName ...string) error {
 			if err != nil {
 				logger.Log.Warn().Err(err).Msg("Failed to connect to Identity DB pool, falling back to primary DB")
 				IdentityDBPool = DBPool
-				IdentityDB = DB
 			} else if err = IdentityDBPool.Ping(ctx); err != nil {
 				logger.Log.Warn().Err(err).Msg("Failed to ping Identity DB pool, falling back to primary DB")
 				IdentityDBPool.Close()
 				IdentityDBPool = DBPool
-				IdentityDB = DB
 			} else {
-				IdentityDB = sqlc.New(IdentityDBPool)
 				logger.Log.Info().
 					Str("host", identityConf.ConnConfig.Host).
 					Str("database", identityConf.ConnConfig.Database).
