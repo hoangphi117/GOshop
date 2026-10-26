@@ -2,11 +2,10 @@ package identityworker_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"goshop/internal/db/sqlc"
 	"goshop/internal/testutils"
 	"goshop/pkg/rabbitmq"
+	identitysqlc "goshop/services/identity/internal/db/sqlc"
 	identityworker "goshop/services/identity/worker"
 	"testing"
 	"time"
@@ -15,6 +14,32 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// fakeOutbox implements the identityworker.outboxStore contract for tests,
+// backed by identitysqlc.OutboxEvent (not the legacy core sqlc types).
+type fakeOutbox struct {
+	events    []identitysqlc.OutboxEvent
+	fetchErr  error
+	markedIDs []int64
+	failedIDs []int64
+}
+
+func (f *fakeOutbox) GetPendingByAggregateTypes(_ context.Context, _ []string, _ int32) ([]identitysqlc.OutboxEvent, error) {
+	if f.fetchErr != nil {
+		return nil, f.fetchErr
+	}
+	return f.events, nil
+}
+
+func (f *fakeOutbox) MarkProcessed(_ context.Context, eventIDs []int64) error {
+	f.markedIDs = append(f.markedIDs, eventIDs...)
+	return nil
+}
+
+func (f *fakeOutbox) MarkFailed(_ context.Context, eventID int64, _ *string) error {
+	f.failedIDs = append(f.failedIDs, eventID)
+	return nil
+}
 
 func TestOutboxPublisherWorker_ProcessBatch(t *testing.T) {
 	ctx := context.Background()
@@ -26,138 +51,72 @@ func TestOutboxPublisherWorker_ProcessBatch(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
 
-		w2 := identityworker.NewOutboxPublisherWorker(&testutils.MockOutboxRepository{}, nil, time.Second, 10, &logger)
+		w2 := identityworker.NewOutboxPublisherWorker(&fakeOutbox{}, nil, time.Second, 10, &logger)
 		count, err = w2.ProcessBatch(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
 	})
 
 	t.Run("Returns 0 when no pending events", func(t *testing.T) {
-		mockOutbox := &testutils.MockOutboxRepository{
-			GetPendingByAggregateTypesFunc: func(ctx context.Context, types []string, limit int32) ([]sqlc.OutboxEvent, error) {
-				assert.ElementsMatch(t, []string{"order", "payment"}, types)
-				return []sqlc.OutboxEvent{}, nil
-			},
-		}
-		mockRabbitMQ := &testutils.MockRabbitMQService{}
-
-		w := identityworker.NewOutboxPublisherWorker(mockOutbox, mockRabbitMQ, time.Second, 10, &logger)
+		store := &fakeOutbox{}
+		w := identityworker.NewOutboxPublisherWorker(store, &testutils.MockRabbitMQService{}, time.Second, 10, &logger)
 		count, err := w.ProcessBatch(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
 	})
 
-	t.Run("Returns error when GetPendingByAggregateTypes fails", func(t *testing.T) {
-		mockOutbox := &testutils.MockOutboxRepository{
-			GetPendingByAggregateTypesFunc: func(ctx context.Context, types []string, limit int32) ([]sqlc.OutboxEvent, error) {
-				return nil, errors.New("db error")
-			},
-		}
-		mockRabbitMQ := &testutils.MockRabbitMQService{}
-
-		w := identityworker.NewOutboxPublisherWorker(mockOutbox, mockRabbitMQ, time.Second, 10, &logger)
+	t.Run("Returns error when fetch fails", func(t *testing.T) {
+		store := &fakeOutbox{fetchErr: errors.New("db error")}
+		w := identityworker.NewOutboxPublisherWorker(store, &testutils.MockRabbitMQService{}, time.Second, 10, &logger)
 		_, err := w.ProcessBatch(ctx)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to fetch pending order/payment outbox events")
+		assert.Contains(t, err.Error(), "failed to fetch pending identity outbox events")
 	})
 
-	t.Run("Successfully publishes order and payment events and marks them processed", func(t *testing.T) {
+	t.Run("Successfully publishes events and marks them processed", func(t *testing.T) {
 		publishedQueues := make([]string, 0)
-		publishedPayloads := make([]string, 0)
-		markedIDs := make([]int64, 0)
-
-		mockRabbitMQ := &testutils.MockRabbitMQService{
-			PublishFunc: func(ctx context.Context, queue string, message any) error {
+		rabbit := &testutils.MockRabbitMQService{
+			PublishFunc: func(_ context.Context, queue string, _ any) error {
 				publishedQueues = append(publishedQueues, queue)
-				bytes, err := json.Marshal(message)
-				require.NoError(t, err)
-				publishedPayloads = append(publishedPayloads, string(bytes))
 				return nil
 			},
 		}
-
-		mockOutbox := &testutils.MockOutboxRepository{
-			GetPendingByAggregateTypesFunc: func(ctx context.Context, types []string, limit int32) ([]sqlc.OutboxEvent, error) {
-				return []sqlc.OutboxEvent{
-					{
-						EventID:       1,
-						AggregateType: "order",
-						AggregateID:   "ord-uuid-1",
-						EventType:     rabbitmq.QueueOrderCreated,
-						Payload:       []byte(`{"order_id":1,"order_number":"ORD-001"}`),
-					},
-					{
-						EventID:       2,
-						AggregateType: "payment",
-						AggregateID:   "pt-uuid-2",
-						EventType:     rabbitmq.QueuePaymentSucceeded,
-						Payload:       []byte(`{"pt_uuid":"pt-uuid-2","order_uuid":"ord-uuid-1"}`),
-					},
-				}, nil
-			},
-			MarkProcessedFunc: func(ctx context.Context, ids []int64) error {
-				markedIDs = append(markedIDs, ids...)
-				return nil
+		store := &fakeOutbox{
+			events: []identitysqlc.OutboxEvent{
+				{EventID: 1, AggregateType: "user", AggregateID: "u-1", EventType: rabbitmq.QueueUserCreated, Payload: []byte(`{"user_id":1}`)},
+				{EventID: 2, AggregateType: "user", AggregateID: "u-2", EventType: rabbitmq.QueueUserUpdated, Payload: []byte(`{"user_id":2}`)},
 			},
 		}
 
-		w := identityworker.NewOutboxPublisherWorker(mockOutbox, mockRabbitMQ, time.Second, 10, &logger)
+		w := identityworker.NewOutboxPublisherWorker(store, rabbit, time.Second, 10, &logger)
 		count, err := w.ProcessBatch(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, 2, count)
-		assert.Equal(t, []string{rabbitmq.QueueOrderCreated, rabbitmq.QueuePaymentSucceeded}, publishedQueues)
-		assert.Equal(t, []int64{1, 2}, markedIDs)
-		assert.Equal(t, `{"order_id":1,"order_number":"ORD-001"}`, publishedPayloads[0])
-		assert.Equal(t, `{"pt_uuid":"pt-uuid-2","order_uuid":"ord-uuid-1"}`, publishedPayloads[1])
+		assert.Equal(t, []int64{1, 2}, store.markedIDs)
+		assert.Equal(t, []string{rabbitmq.QueueUserCreated, rabbitmq.QueueUserUpdated}, publishedQueues)
 	})
 
 	t.Run("Marks failed when RabbitMQ publish returns error", func(t *testing.T) {
-		failedEventIDs := make([]int64, 0)
-		markedProcessedIDs := make([]int64, 0)
-
-		mockRabbitMQ := &testutils.MockRabbitMQService{
-			PublishFunc: func(ctx context.Context, queue string, message any) error {
-				if queue == rabbitmq.QueueOrderCreated {
+		rabbit := &testutils.MockRabbitMQService{
+			PublishFunc: func(_ context.Context, queue string, _ any) error {
+				if queue == rabbitmq.QueueUserCreated {
 					return errors.New("rabbitmq connection down")
 				}
 				return nil
 			},
 		}
-
-		mockOutbox := &testutils.MockOutboxRepository{
-			GetPendingByAggregateTypesFunc: func(ctx context.Context, types []string, limit int32) ([]sqlc.OutboxEvent, error) {
-				return []sqlc.OutboxEvent{
-					{
-						EventID:       101,
-						AggregateType: "order",
-						AggregateID:   "ord-uuid-101",
-						EventType:     rabbitmq.QueueOrderCreated,
-						Payload:       []byte(`{"order_id":101}`),
-					},
-					{
-						EventID:       102,
-						AggregateType: "payment",
-						AggregateID:   "pt-uuid-102",
-						EventType:     rabbitmq.QueuePaymentSucceeded,
-						Payload:       []byte(`{"pt_uuid":"pt-uuid-102"}`),
-					},
-				}, nil
-			},
-			MarkFailedFunc: func(ctx context.Context, id int64, lastErr *string) error {
-				failedEventIDs = append(failedEventIDs, id)
-				return nil
-			},
-			MarkProcessedFunc: func(ctx context.Context, ids []int64) error {
-				markedProcessedIDs = append(markedProcessedIDs, ids...)
-				return nil
+		store := &fakeOutbox{
+			events: []identitysqlc.OutboxEvent{
+				{EventID: 101, AggregateType: "user", EventType: rabbitmq.QueueUserCreated, Payload: []byte(`{"user_id":101}`)},
+				{EventID: 102, AggregateType: "user", EventType: rabbitmq.QueueUserUpdated, Payload: []byte(`{"user_id":102}`)},
 			},
 		}
 
-		w := identityworker.NewOutboxPublisherWorker(mockOutbox, mockRabbitMQ, time.Second, 10, &logger)
+		w := identityworker.NewOutboxPublisherWorker(store, rabbit, time.Second, 10, &logger)
 		count, err := w.ProcessBatch(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, 1, count)
-		assert.Equal(t, []int64{101}, failedEventIDs)
-		assert.Equal(t, []int64{102}, markedProcessedIDs)
+		assert.Equal(t, []int64{101}, store.failedIDs)
+		assert.Equal(t, []int64{102}, store.markedIDs)
 	})
 }

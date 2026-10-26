@@ -4,15 +4,24 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"goshop/internal/repository"
 	"goshop/pkg/rabbitmq"
+	identitysqlc "goshop/services/identity/internal/db/sqlc"
 	"time"
 
 	"github.com/rs/zerolog"
 )
 
+// outboxStore is the slice of the identity outbox repository this worker needs.
+// Declared here (not shared) so the worker owns no cross-service contract and can
+// be tested with a local fake.
+type outboxStore interface {
+	GetPendingByAggregateTypes(ctx context.Context, aggregateTypes []string, limit int32) ([]identitysqlc.OutboxEvent, error)
+	MarkProcessed(ctx context.Context, eventIDs []int64) error
+	MarkFailed(ctx context.Context, eventID int64, lastErr *string) error
+}
+
 type OutboxPublisherWorker struct {
-	outboxRepo     repository.OutboxRepository
+	outboxRepo     outboxStore
 	rabbitMQ       rabbitmq.RabbitMQService
 	interval       time.Duration
 	batchSize      int32
@@ -21,17 +30,17 @@ type OutboxPublisherWorker struct {
 }
 
 func NewOutboxPublisherWorker(
-	outboxRepo repository.OutboxRepository,
+	outboxRepo outboxStore,
 	rabbitMQ rabbitmq.RabbitMQService,
 	interval time.Duration,
 	batchSize int32,
 	logger *zerolog.Logger,
 ) *OutboxPublisherWorker {
-	return NewOutboxPublisherWorkerWithAggregates(outboxRepo, rabbitMQ, interval, batchSize, logger, []string{"order", "payment"})
+	return NewOutboxPublisherWorkerWithAggregates(outboxRepo, rabbitMQ, interval, batchSize, logger, []string{"user"})
 }
 
 func NewOutboxPublisherWorkerWithAggregates(
-	outboxRepo repository.OutboxRepository,
+	outboxRepo outboxStore,
 	rabbitMQ rabbitmq.RabbitMQService,
 	interval time.Duration,
 	batchSize int32,
@@ -63,12 +72,12 @@ func (w *OutboxPublisherWorker) ProcessBatch(ctx context.Context) (int, error) {
 
 	types := w.aggregateTypes
 	if len(types) == 0 {
-		types = []string{"order", "payment"}
+		types = []string{"user"}
 	}
 
 	events, err := w.outboxRepo.GetPendingByAggregateTypes(ctx, types, w.batchSize)
 	if err != nil {
-		return 0, fmt.Errorf("failed to fetch pending order/payment outbox events: %w", err)
+		return 0, fmt.Errorf("failed to fetch pending identity outbox events: %w", err)
 	}
 
 	if len(events) == 0 {
@@ -138,7 +147,7 @@ func (w *OutboxPublisherWorker) Start(ctx context.Context) {
 	w.logger.Info().
 		Dur("interval", w.interval).
 		Int32("batch_size", w.batchSize).
-		Msg("Starting Transactional Outbox Publisher worker (order/payment)")
+		Msg("Starting Transactional Outbox Publisher worker (identity)")
 
 	ticker := time.NewTicker(w.interval)
 	defer ticker.Stop()

@@ -130,10 +130,9 @@ func New(cfg *config.Config) (*App, error) {
 	})
 
 	// Transactional Outbox Publisher for Identity Service (Guaranteed At-Least-Once Delivery)
-	coreOutboxRepo := identityrepo.NewWorkerOutboxRepository(outboxRepo)
 	if rabbitmqService != nil {
 		identityOutboxWorker := identityworker.NewOutboxPublisherWorkerWithAggregates(
-			coreOutboxRepo,
+			outboxRepo,
 			rabbitmqService,
 			1*time.Second,
 			50,

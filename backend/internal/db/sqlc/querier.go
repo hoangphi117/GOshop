@@ -6,100 +6,29 @@ package sqlc
 
 import (
 	"context"
-	"time"
 
 	"github.com/google/uuid"
 )
 
 type Querier interface {
-	// Atomic increment, giới hạn trần 99 ngay trong SQL — không cần đọc trước rồi
-	// ghi lại (tránh check-then-act race hoàn toàn cho riêng bước tăng số lượng).
-	// Stock check thực hiện ở tầng service TRƯỚC khi gọi query này — không block cứng ở đây vì Order mới là nơi enforce
-	// stock nghiêm ngặt.
-	AddOrUpdateCartItem(ctx context.Context, arg AddOrUpdateCartItemParams) (CartItem, error)
-	ClearCartByCartID(ctx context.Context, cartID int32) error
-	ClearDefaultAddress(ctx context.Context, uaUserID int32) error
-	CountAdminNotifications(ctx context.Context, arg CountAdminNotificationsParams) (int64, error)
-	CountCartItems(ctx context.Context, cartID int32) (int64, error)
-	CountCategories(ctx context.Context, arg CountCategoriesParams) (int64, error)
-	CountNotificationsByUserID(ctx context.Context, notificationUserID int32) (int64, error)
-	CountProducts(ctx context.Context, arg CountProductsParams) (int64, error)
-	CountUnreadNotificationsByUserID(ctx context.Context, notificationUserID int32) (int64, error)
-	CountUserAddresses(ctx context.Context, uaUserID int32) (int64, error)
 	CountUsers(ctx context.Context, arg CountUsersParams) (int64, error)
-	CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error)
-	CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error)
-	CreateNotificationForAllUsers(ctx context.Context, arg CreateNotificationForAllUsersParams) error
 	CreateOAuthUser(ctx context.Context, arg CreateOAuthUserParams) (User, error)
-	CreateProduct(ctx context.Context, arg CreateProductParams) (CreateProductRow, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
-	CreateUserAddress(ctx context.Context, arg CreateUserAddressParams) (UserAddress, error)
-	DeductStock(ctx context.Context, arg DeductStockParams) (int64, error)
-	DeleteCartItemByUUID(ctx context.Context, arg DeleteCartItemByUUIDParams) (CartItem, error)
-	// Dùng cho bước "dọn giỏ hàng sau khi đặt" — xóa CHỌN
-	// LỌC theo danh sách product_id có trong đơn vừa tạo, không xóa sạch toàn bộ giỏ.
-	DeleteCartItemsByProductIDs(ctx context.Context, arg DeleteCartItemsByProductIDsParams) error
-	DeleteNotification(ctx context.Context, arg DeleteNotificationParams) error
-	DeleteOldNotifications(ctx context.Context, notificationCreatedAt time.Time) (int64, error)
-	DeleteUserAddress(ctx context.Context, arg DeleteUserAddressParams) (bool, error)
 	GetActiveAdminUserIDs(ctx context.Context) ([]int32, error)
-	GetAdminNotifications(ctx context.Context, arg GetAdminNotificationsParams) ([]Notification, error)
-	GetByUUIDsForUpdate(ctx context.Context, uuids []uuid.UUID) ([]GetByUUIDsForUpdateRow, error)
-	// Khác GetOrCreateCartByUserID: KHÔNG tự tạo cart nếu chưa có. Dùng cho
-	// CleanupCartAfterOrder — nếu user chưa từng có giỏ hàng (mua thẳng, không qua
-	// cart), không cần thiết phải tạo mới 1 cart rỗng chỉ để phục vụ bước dọn dẹp.
-	GetCartByUserID(ctx context.Context, userID int32) (Cart, error)
-	// Dùng cho soft-check tồn kho trước khi AddOrUpdateCartItem (Key Design Decision #2).
-	GetCartItemQuantity(ctx context.Context, arg GetCartItemQuantityParams) (int32, error)
-	// JOIN directly with products to get the LATEST price/inventory/status at the time of reading.
-	// product_deleted_at and product_status are returned so the service layer can automatically calculate is_available.
-	GetCartItemsWithProductDetails(ctx context.Context, cartID int32) ([]GetCartItemsWithProductDetailsRow, error)
-	GetCategoryBySlug(ctx context.Context, categorySlug string) (Category, error)
-	GetCategoryByUuid(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
-	GetNotificationsByUserId(ctx context.Context, arg GetNotificationsByUserIdParams) ([]Notification, error)
-	// Upsert "no-op": if cart already exists for user, return it; otherwise create a new cart and return it.
-	// Atomic, safe for concurrent requests, and avoids race conditions by using INSERT ... ON CONFLICT.
-	GetOrCreateCartByUserID(ctx context.Context, userID int32) (Cart, error)
-	GetPendingOutboxEvents(ctx context.Context, limit int32) ([]OutboxEvent, error)
-	GetPendingOutboxEventsByAggregateTypes(ctx context.Context, arg GetPendingOutboxEventsByAggregateTypesParams) ([]OutboxEvent, error)
-	GetProductBySlug(ctx context.Context, productSlug string) (GetProductBySlugRow, error)
-	GetProductByUUID(ctx context.Context, productUuid uuid.UUID) (GetProductByUUIDRow, error)
-	GetUserAddressByUUID(ctx context.Context, arg GetUserAddressByUUIDParams) (UserAddress, error)
-	GetUserAddressesByUserID(ctx context.Context, uaUserID int32) ([]UserAddress, error)
 	GetUserByEmail(ctx context.Context, userEmail string) (User, error)
 	GetUserByID(ctx context.Context, userID int32) (User, error)
 	GetUserByOAuth(ctx context.Context, arg GetUserByOAuthParams) (User, error)
 	GetUserByUUID(ctx context.Context, userUuid uuid.UUID) (User, error)
 	GetUsersByIDs(ctx context.Context, dollar_1 []int32) ([]GetUsersByIDsRow, error)
-	InsertOutboxEvent(ctx context.Context, arg InsertOutboxEventParams) (OutboxEvent, error)
 	ListUserUserCreatedAtAsc(ctx context.Context, arg ListUserUserCreatedAtAscParams) ([]User, error)
 	ListUserUserCreatedAtDesc(ctx context.Context, arg ListUserUserCreatedAtDescParams) ([]User, error)
 	ListUserUserIdAsc(ctx context.Context, arg ListUserUserIdAscParams) ([]User, error)
 	ListUserUserIdDesc(ctx context.Context, arg ListUserUserIdDescParams) ([]User, error)
-	MarkAllAdminNotificationsRead(ctx context.Context, notificationUserID int32) error
-	MarkAllNotificationsRead(ctx context.Context, notificationUserID int32) error
-	MarkNotificationRead(ctx context.Context, arg MarkNotificationReadParams) (Notification, error)
-	MarkOutboxEventFailed(ctx context.Context, arg MarkOutboxEventFailedParams) error
-	MarkOutboxEventsProcessed(ctx context.Context, dollar_1 []int64) error
-	RestoreCategory(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
-	RestoreProduct(ctx context.Context, productUuid uuid.UUID) (Product, error)
-	RestoreStock(ctx context.Context, arg RestoreStockParams) error
 	RestoreUser(ctx context.Context, userUuid uuid.UUID) (User, error)
-	// Dùng cho UpdateQuantity (ghi đè tuyệt đối, không cộng dồn) — khác AddOrUpdateCartItem.
-	SetCartItemQuantity(ctx context.Context, arg SetCartItemQuantityParams) (CartItem, error)
-	SetDefaultAddress(ctx context.Context, arg SetDefaultAddressParams) (UserAddress, error)
-	SetLatestAddressAsDefault(ctx context.Context, uaUserID int32) error
-	SoftDeleteCategory(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
-	SoftDeleteProduct(ctx context.Context, productUuid uuid.UUID) (Product, error)
 	SoftDeleteUser(ctx context.Context, userUuid uuid.UUID) (User, error)
-	TrashCategory(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
-	TrashProduct(ctx context.Context, productUuid uuid.UUID) (Product, error)
 	TrashUser(ctx context.Context, userUuid uuid.UUID) (User, error)
-	UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (Category, error)
 	UpdatePassword(ctx context.Context, arg UpdatePasswordParams) (User, error)
-	UpdateProduct(ctx context.Context, arg UpdateProductParams) (UpdateProductRow, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
-	UpdateUserAddress(ctx context.Context, arg UpdateUserAddressParams) (UserAddress, error)
 	UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarParams) (User, error)
 }
 
