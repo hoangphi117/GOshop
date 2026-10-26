@@ -6,15 +6,15 @@ import (
 	"fmt"
 	"time"
 
-	catalogcontract "goshop/services/catalog/contract"
-	reviewdto "goshop/services/review/internal/dto"
-	reviewrepo "goshop/services/review/internal/repository"
-	reviewsqlc "goshop/services/review/internal/db/sqlc"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 	pkgpgx "goshop/pkg/pgx"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/utils"
+	catalogcontract "goshop/services/catalog/contract"
+	reviewsqlc "goshop/services/review/internal/db/sqlc"
+	reviewdto "goshop/services/review/internal/dto"
+	reviewrepo "goshop/services/review/internal/repository"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -639,14 +639,8 @@ func (rs *reviewService) DeleteReview(ctx context.Context, userID int32, reviewU
 	rs.invalidateProductReviewCache(review.ReviewProductUuid.String())
 	rs.publishRatingUpdate(review.ReviewProductID, review.ReviewProductUuid.String())
 
-	go func(images []string, videoURL *string) {
-		files := make([]string, 0, len(images)+1)
-		files = append(files, images...)
-		if videoURL != nil {
-			files = append(files, *videoURL)
-		}
-		utils.DeleteUploadedFiles(files...)
-	}(review.ReviewImages, review.ReviewVideoUrl)
+	// ponytail: deleted reviews leave their media objects in the bucket; wire an
+	// orphan-GC job (or a media-service delete event) before storage costs matter.
 
 	return nil
 }
@@ -893,14 +887,8 @@ func (rs *reviewService) AdminForceDeleteReview(ctx context.Context, reviewUUID 
 	rs.invalidateProductReviewCache(review.ReviewProductUuid.String())
 	rs.publishRatingUpdate(review.ReviewProductID, review.ReviewProductUuid.String())
 
-	go func(images []string, videoURL *string) {
-		files := make([]string, 0, len(images)+1)
-		files = append(files, images...)
-		if videoURL != nil {
-			files = append(files, *videoURL)
-		}
-		utils.DeleteUploadedFiles(files...)
-	}(review.ReviewImages, review.ReviewVideoUrl)
+	// ponytail: deleted reviews leave their media objects in the bucket; wire an
+	// orphan-GC job (or a media-service delete event) before storage costs matter.
 
 	return nil
 }

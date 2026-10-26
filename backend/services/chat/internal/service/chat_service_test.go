@@ -333,6 +333,21 @@ func TestSendMessage_RulesAndEvents(t *testing.T) {
 	assert.Equal(t, "chat.message", ev.Type)
 	assert.Equal(t, conv.ConversationID, ev.ConversationID)
 
+	// Image-only message: empty content + attachment must be accepted.
+	imgMsg, err := svc.SendMessage(context.Background(), conv.ConversationUuid, custUUID, "user", chatdto.SendMessageRequest{
+		ContentType:    "image",
+		AttachmentURL:  "https://cdn.example.com/chat/abc.png",
+		AttachmentName: "abc.png",
+		AttachmentSize: 1234,
+	})
+	assert.NoError(t, err, "attachment-only message must be allowed")
+	assert.Equal(t, "image", imgMsg.ContentType)
+	publisher.awaitEvent(t)
+
+	// Neither content nor attachment: rejected.
+	_, err = svc.SendMessage(context.Background(), conv.ConversationUuid, custUUID, "user", chatdto.SendMessageRequest{})
+	assert.Error(t, err, "empty message must be rejected")
+
 	// Customer references someone else's order: forbidden.
 	_, err = svc.SendMessage(context.Background(), conv.ConversationUuid, custUUID, "user", chatdto.SendMessageRequest{Content: orderUUID.String(), ContentType: "order_ref", OrderUUID: orderUUID.String()})
 	assert.NoError(t, err, "owner of the order may reference it")

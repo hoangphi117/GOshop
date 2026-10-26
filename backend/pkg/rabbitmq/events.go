@@ -49,6 +49,10 @@ const (
 	// Review→Catalog rating propagation (Work Queue)
 	QueueReviewRatingUpdated = "review.rating_updated"
 
+	// Media processing (Work Queue): published after a direct upload is
+	// confirmed, consumed by the worker to resize/re-encode the object in place.
+	QueueMediaUploaded = "media.uploaded"
+
 	// Topic Exchange Routing Keys (Pub/Sub)
 	RoutingKeyNotificationEvent    = "notification_events"
 	RoutingKeyOrderCreated         = "order.created"
@@ -506,4 +510,12 @@ func NewUserSyncEvent(eventType string, userID int32, userUUID, fullname, email,
 		UserLevel:     level,
 		Timestamp:     time.Now().UTC(),
 	}
+}
+
+// MediaUploadedEvent is published by the media service once a direct upload is
+// confirmed. The worker consumes it to normalise the object in place.
+type MediaUploadedEvent struct {
+	FileKey     string `json:"file_key"`
+	ContentType string `json:"content_type"`
+	Size        int64  `json:"size"`
 }

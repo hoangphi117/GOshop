@@ -66,8 +66,7 @@ func NewConfig() *Config {
 	useSSL, _ := strconv.ParseBool(utils.GetEnv("S3_USE_SSL", "false"))
 
 	storageConfig := storage.StorageConfig{
-		Driver:        storage.StorageDriver(utils.GetEnv("STORAGE_DRIVER", "local")),
-		UploadDir:     utils.GetEnv("UPLOAD_DIR", "./uploads"),
+		Driver:        storage.StorageDriver(utils.GetEnv("STORAGE_DRIVER", "minio")),
 		PublicBaseURL: utils.GetEnv("STORAGE_PUBLIC_BASE_URL", ""),
 		S3: storage.S3Config{
 			Endpoint:      utils.GetEnv("S3_ENDPOINT", ""),
@@ -156,4 +155,3 @@ func (c *Config) IdentityDNS() string {
 	sslMode := utils.GetEnv("IDENTITY_DB_SSL_MODE", utils.GetEnv("DB_IDENTITY_SSL_MODE", c.DB.SSLMode))
 	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", host, port, user, password, identityDBName, sslMode)
 }
-

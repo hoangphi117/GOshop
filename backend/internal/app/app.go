@@ -3,10 +3,8 @@ package app
 import (
 	"context"
 	"fmt"
-	"goshop/internal/client"
 	"goshop/internal/config"
 	"goshop/internal/db"
-	"goshop/internal/db/sqlc"
 	"goshop/internal/routes"
 	"goshop/internal/utils"
 	"goshop/internal/validation"
@@ -15,12 +13,7 @@ import (
 	"goshop/pkg/discord"
 	"goshop/pkg/logger"
 	"goshop/pkg/rabbitmq"
-	"goshop/pkg/search"
 	"goshop/pkg/storage"
-	catalogcontract "goshop/services/catalog/contract"
-	couponcontract "goshop/services/coupon/contract"
-	inventorycontract "goshop/services/inventory/contract"
-	ordercontract "goshop/services/order/contract"
 	"net/http"
 	"os"
 	"os/signal"
@@ -29,7 +22,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 )
 
 type Module interface {
@@ -44,22 +36,6 @@ type Application struct {
 	config  *config.Config
 	router  *gin.Engine
 	modules []Module
-}
-
-type ModuleContext struct {
-	DB              sqlc.Querier
-	ReadDB          sqlc.Querier
-	IdentityDB      sqlc.Querier
-	Redis           *redis.Client
-	TxManager       db.TxManager
-	Storage         storage.StorageService
-	Search          *search.Client
-	IdentityClient  client.IdentityClient
-	RabbitMQ        rabbitmq.RabbitMQService
-	InventoryClient inventorycontract.InventoryClient
-	CatalogClient   catalogcontract.CatalogClient
-	CouponClient    couponcontract.CouponClient
-	OrderClient     ordercontract.OrderClient
 }
 
 func NewApplication(cfg *config.Config) (*Application, error) {
@@ -104,42 +80,25 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	r.MaxMultipartMemory = 8 << 20 // 8MB memory buffer for multipart forms (prevents OOM DoS)
 
 	// Media Storage Decoupling:
-	// In local driver mode, serve the static /uploads directory with security headers.
-	// In remote object storage mode (S3, MinIO, Cloudflare R2), local disk is decoupled
-	// and requests to legacy /uploads/:filepath are redirected to the configured public CDN/S3 URL.
-	uploadDir := cfg.Storage.UploadDir
-	if uploadDir == "" {
-		uploadDir = "./uploads"
+	// All uploads live in object storage (S3/MinIO/R2). Requests to the legacy
+	// /uploads/:filepath path are redirected to the configured public CDN/S3 URL.
+	remoteBaseURL := cfg.Storage.S3.PublicBaseURL
+	if remoteBaseURL == "" {
+		remoteBaseURL = cfg.Storage.PublicBaseURL
 	}
-
-	if cfg.Storage.Driver == storage.DriverLocal {
-		r.Use(func(c *gin.Context) {
-			if strings.HasPrefix(c.Request.URL.Path, "/uploads") {
-				c.Header("X-Content-Options", "nosniff")
-				c.Header("Content-Security-Policy", "default-src 'none'; img-src 'self'; media-src 'self'")
-			}
-			c.Next()
+	if remoteBaseURL == "" && cfg.Storage.S3.Endpoint != "" {
+		if cfg.Storage.S3.UsePathStyle {
+			remoteBaseURL = fmt.Sprintf("%s/%s", strings.TrimRight(cfg.Storage.S3.Endpoint, "/"), cfg.Storage.S3.Bucket)
+		} else {
+			remoteBaseURL = cfg.Storage.S3.Endpoint
+		}
+	}
+	if remoteBaseURL != "" {
+		remoteBaseURL = strings.TrimRight(remoteBaseURL, "/")
+		r.GET("/uploads/*filepath", func(c *gin.Context) {
+			fp := strings.TrimPrefix(c.Param("filepath"), "/")
+			c.Redirect(http.StatusMovedPermanently, fmt.Sprintf("%s/%s", remoteBaseURL, fp))
 		})
-		r.Static("/uploads", uploadDir)
-	} else {
-		remoteBaseURL := cfg.Storage.S3.PublicBaseURL
-		if remoteBaseURL == "" {
-			remoteBaseURL = cfg.Storage.PublicBaseURL
-		}
-		if remoteBaseURL == "" && cfg.Storage.S3.Endpoint != "" {
-			if cfg.Storage.S3.UsePathStyle {
-				remoteBaseURL = fmt.Sprintf("%s/%s", strings.TrimRight(cfg.Storage.S3.Endpoint, "/"), cfg.Storage.S3.Bucket)
-			} else {
-				remoteBaseURL = cfg.Storage.S3.Endpoint
-			}
-		}
-		if remoteBaseURL != "" {
-			remoteBaseURL = strings.TrimRight(remoteBaseURL, "/")
-			r.GET("/uploads/*filepath", func(c *gin.Context) {
-				fp := strings.TrimPrefix(c.Param("filepath"), "/")
-				c.Redirect(http.StatusMovedPermanently, fmt.Sprintf("%s/%s", remoteBaseURL, fp))
-			})
-		}
 	}
 
 	if err := db.InitDBWithConfig(cfg, "api"); err != nil {
@@ -165,63 +124,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		return nil, err
 	}
 
-	txManager := db.NewTxManager(db.DBPool)
-
-	searchClient, err := search.NewClient(cfg.Meilisearch.Host, cfg.Meilisearch.MasterKey, cfg.Meilisearch.IndexProducts)
-	if err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to initialize Meilisearch client")
-	}
-
-	identityClient, err := client.NewGRPCIdentityClient(cfg.IdentityGRPCAddr, redisClient)
-	if err != nil {
-		logger.Log.Fatal().Err(err).Str("addr", cfg.IdentityGRPCAddr).Msg("Failed to initialize Identity gRPC client")
-		return nil, err
-	}
-	// Cross-domain Core Service Singletons
-	catalogTarget := utils.GetEnv("CATALOG_GRPC_TARGET", "localhost:50055")
-	grpcCatalogClient, err := catalogcontract.NewGRPCCatalogClient(catalogTarget)
-	if err != nil {
-		logger.Log.Warn().Err(err).Str("addr", catalogTarget).Msg("Failed to initialize Catalog gRPC client")
-	}
-
-	couponTarget := utils.GetEnv("COUPON_GRPC_TARGET", "localhost:50053")
-	grpcCouponClient, err := couponcontract.NewGRPCCouponClient(couponTarget)
-	if err != nil {
-		logger.Log.Fatal().Err(err).Str("addr", couponTarget).Msg("Failed to initialize Coupon gRPC client")
-		return nil, err
-	}
-
-	inventoryTarget := utils.GetEnv("INVENTORY_GRPC_TARGET", "localhost:50054")
-	grpcInventoryClient, err := inventorycontract.NewGRPCInventoryClient(inventoryTarget)
-	if err != nil {
-		logger.Log.Fatal().Err(err).Str("addr", inventoryTarget).Msg("Failed to initialize Inventory gRPC client")
-		return nil, err
-	}
-
-	orderTarget := utils.GetEnv("ORDER_GRPC_TARGET", utils.GetEnv("ORDER_GRPC_ADDR", "localhost:50057"))
-	grpcOrderClient, err := ordercontract.NewGRPCOrderClient(orderTarget)
-	if err != nil {
-		logger.Log.Warn().Err(err).Str("addr", orderTarget).Msg("Failed to initialize Order gRPC client")
-	}
-
-	ctx := &ModuleContext{
-		DB:              db.DB,
-		ReadDB:          db.GetReadDB(),
-		IdentityDB:      db.GetIdentityDB(),
-		Redis:           redisClient,
-		TxManager:       txManager,
-		Storage:         storageService,
-		Search:          searchClient,
-		IdentityClient:  identityClient,
-		RabbitMQ:        rabbitmqService,
-		InventoryClient: grpcInventoryClient,
-		CatalogClient:   grpcCatalogClient,
-		CouponClient:    grpcCouponClient,
-		OrderClient:     grpcOrderClient,
-	}
-
 	modules := []Module{
-		NewUploadModule(ctx),
 		NewHealthModule(db.DBPool, redisClient, rabbitmqService, storageService, discord.NewDiscordNotifier(utils.GetEnv("DISCORD_WEBHOOK_URL", ""), logger.Log), logger.Log),
 	}
 

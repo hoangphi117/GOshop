@@ -12,6 +12,7 @@ import (
 	"goshop/pkg/logger"
 	"goshop/pkg/mail"
 	"goshop/pkg/rabbitmq"
+	"goshop/pkg/storage"
 	"goshop/pkg/ws"
 	catalogcontract "goshop/services/catalog/contract"
 	"os/signal"
@@ -34,6 +35,7 @@ type Worker struct {
 	cfg               *config.Config
 	logger            *zerolog.Logger
 	userSyncConsumer  *worker.UserSyncConsumer
+	mediaProcessor    *worker.MediaProcessor
 	redisBridge       ws.RedisBridge
 	grpcCatalogClient *catalogcontract.GRPCCatalogClient
 }
@@ -93,6 +95,16 @@ func NewWorker(cfg *config.Config) *Worker {
 
 	userSyncConsumer := worker.NewUserSyncConsumer(redisClient, db.DBPool)
 
+	// Media post-processing: resize/re-encode images right after a direct upload.
+	storageService, err := storage.NewStorageService(context.Background(), cfg.Storage, log)
+	if err != nil {
+		log.Error().Err(err).Msg("Storage unavailable, media post-processing disabled")
+	}
+	var mediaProcessor *worker.MediaProcessor
+	if storageService != nil {
+		mediaProcessor = worker.NewMediaProcessor(storageService, log)
+	}
+
 	return &Worker{
 		rabbitMQ:          rabbitMQ,
 		mailService:       mailService,
@@ -101,6 +113,7 @@ func NewWorker(cfg *config.Config) *Worker {
 		cfg:               cfg,
 		logger:            log,
 		userSyncConsumer:  userSyncConsumer,
+		mediaProcessor:    mediaProcessor,
 		redisBridge:       redisBridge,
 		grpcCatalogClient: grpcCatalogClient,
 	}
@@ -153,6 +166,16 @@ func (w *Worker) Start(ctx context.Context) error {
 				return err
 			}
 			w.logger.Info().Msgf("Worker consuming queue: %s", queueName)
+		}
+	}
+
+	// Consume Media Uploaded Events (image resize/re-encode)
+	if w.mediaProcessor != nil {
+		mediaHandler := w.withIdempotency(rabbitmq.QueueMediaUploaded, w.mediaProcessor.Handle)
+		if err := w.rabbitMQ.Consume(ctx, rabbitmq.QueueMediaUploaded, mediaHandler); err != nil {
+			w.logger.Error().Err(err).Str("queue", rabbitmq.QueueMediaUploaded).Msg("Failed to consume media queue")
+		} else {
+			w.logger.Info().Msgf("Worker consuming queue: %s", rabbitmq.QueueMediaUploaded)
 		}
 	}
 

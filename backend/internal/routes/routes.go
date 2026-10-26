@@ -434,6 +434,37 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 		}
 	}
 
+	// API Gateway reverse proxy for Media microservice endpoints. Upload moved
+	// to its own stateless service: with MEDIA_SERVICE_URL unset and the
+	// UploadModule still wired, these paths would double-register, so the
+	// legacy module must be removed from app.go at the same time.
+	mediaURL := utils.GetEnv("MEDIA_SERVICE_URL", "")
+	if mediaURL != "" {
+		if parsedMediaURL, err := url.Parse(mediaURL); err == nil && parsedMediaURL.Scheme != "" {
+			mediaProxy := httputil.NewSingleHostReverseProxy(parsedMediaURL)
+			transport := http.DefaultTransport.(*http.Transport).Clone()
+			transport.DisableCompression = true
+			mediaProxy.Transport = transport
+
+			mediaProxy.ModifyResponse = func(resp *http.Response) error {
+				resp.Header.Del("Access-Control-Allow-Origin")
+				resp.Header.Del("Access-Control-Allow-Credentials")
+				resp.Header.Del("Access-Control-Allow-Methods")
+				resp.Header.Del("Access-Control-Allow-Headers")
+				resp.Header.Del("Access-Control-Max-Age")
+				return nil
+			}
+			mediaProxyHandler := func(ctx *gin.Context) {
+				ctx.Request.Host = parsedMediaURL.Host
+				ctx.Request.Header.Del("Accept-Encoding")
+				mediaProxy.ServeHTTP(ctx.Writer, ctx.Request)
+			}
+
+			// /upload/presign and /upload/confirm are proxied to the media service.
+			v1api.Any("/upload/*any", mediaProxyHandler)
+		}
+	}
+
 	// Reverse proxy for the WebSocket endpoint. The ws upgrade moved to the
 	// ws-gateway binary: with WS_GATEWAY_URL unset these paths 404. httputil
 	// handles the 101 Switching Protocols upgrade; ws-gateway authenticates

@@ -11,7 +11,9 @@ import (
 // --- Requests ---
 
 type SendMessageRequest struct {
-	Content     string `json:"content"      binding:"required,max=4000"`
+	// Content is empty for attachment-only messages; the service enforces
+	// "content or attachment" once it knows the content type.
+	Content     string `json:"content"      binding:"max=4000"`
 	ContentType string `json:"content_type" binding:"omitempty,oneof=text image video order_ref product_ref media_group"`
 
 	// Attachment fields (optional, set by FE after upload)

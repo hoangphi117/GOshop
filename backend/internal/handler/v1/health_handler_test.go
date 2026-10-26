@@ -1,6 +1,7 @@
 package v1handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -67,6 +68,22 @@ func (m *MockStorage) Delete(ctx context.Context, fileKey string) error {
 
 func (m *MockStorage) GeneratePresignedUploadURL(ctx context.Context, folder, filename, contentType string, expire time.Duration) (string, string, string, error) {
 	return "", "", "", nil
+}
+
+func (m *MockStorage) Stat(ctx context.Context, fileKey string) (int64, string, error) {
+	return 0, "", nil
+}
+
+func (m *MockStorage) PublicURL(fileKey string) string {
+	return ""
+}
+
+func (m *MockStorage) RangeReader(ctx context.Context, fileKey string, n int64) (io.ReadCloser, error) {
+	return io.NopCloser(bytes.NewReader(nil)), nil
+}
+
+func (m *MockStorage) Open(ctx context.Context, fileKey string) (io.ReadCloser, error) {
+	return io.NopCloser(bytes.NewReader(nil)), nil
 }
 
 func (m *MockStorage) IsHealthy(ctx context.Context) bool {

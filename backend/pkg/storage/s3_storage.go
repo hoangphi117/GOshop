@@ -109,6 +109,47 @@ func (s *s3StorageService) buildKey(folder, filename string) string {
 	return path.Join(cleanFolder, cleanFilename)
 }
 
+// RangeReader fetches the first n bytes of an object so callers can sniff magic
+// bytes without pulling the whole file (direct uploads never pass through us).
+func (s *s3StorageService) RangeReader(ctx context.Context, fileKey string, n int64) (io.ReadCloser, error) {
+	ctxTimeout, cancel := context.WithTimeout(ctx, 10*time.Second)
+
+	cleanKey := strings.Trim(strings.TrimSpace(fileKey), "/")
+	out, err := s.client.GetObject(ctxTimeout, &s3.GetObjectInput{
+		Bucket: aws.String(s.cfg.Bucket),
+		Key:    aws.String(cleanKey),
+		Range:  aws.String(fmt.Sprintf("bytes=0-%d", n-1)),
+	})
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("failed to read object head: %w", err)
+	}
+	// The body is consumed by the caller: cancel on Close, not on return, or
+	// the stream is killed before a single byte is read.
+	return &cancelOnCloseCloser{ReadCloser: out.Body, cancel: cancel}, nil
+}
+
+// Open streams the whole object for server-side processing (e.g. re-encoding).
+func (s *s3StorageService) Open(ctx context.Context, fileKey string) (io.ReadCloser, error) {
+	ctxTimeout, cancel := context.WithTimeout(ctx, 60*time.Second)
+
+	cleanKey := strings.Trim(strings.TrimSpace(fileKey), "/")
+	out, err := s.client.GetObject(ctxTimeout, &s3.GetObjectInput{
+		Bucket: aws.String(s.cfg.Bucket),
+		Key:    aws.String(cleanKey),
+	})
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("failed to open object: %w", err)
+	}
+	return &cancelOnCloseCloser{ReadCloser: out.Body, cancel: cancel}, nil
+}
+
+// PublicURL resolves the public URL for a stored object key.
+func (s *s3StorageService) PublicURL(fileKey string) string {
+	return s.buildPublicURL(fileKey)
+}
+
 func (s *s3StorageService) buildPublicURL(fileKey string) string {
 	if s.cfg.PublicBaseURL != "" {
 		baseURL := strings.TrimRight(s.cfg.PublicBaseURL, "/")
@@ -155,6 +196,19 @@ func (s *s3StorageService) Upload(ctx context.Context, folder, filename string, 
 	return publicURL, fileKey, nil
 }
 
+// cancelOnCloseCloser releases the request context when the response body is
+// closed, so callers may stream the body after the accessor has returned.
+type cancelOnCloseCloser struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+}
+
+func (c *cancelOnCloseCloser) Close() error {
+	err := c.ReadCloser.Close()
+	c.cancel()
+	return err
+}
+
 func (s *s3StorageService) Delete(ctx context.Context, fileKey string) error {
 	cleanKey := strings.Trim(strings.TrimSpace(fileKey), "/")
 	if cleanKey == "" {
@@ -191,6 +245,30 @@ func (s *s3StorageService) GeneratePresignedUploadURL(ctx context.Context, folde
 
 	publicURL := s.buildPublicURL(fileKey)
 	return req.URL, publicURL, fileKey, nil
+}
+
+// Stat HEADs an object so callers can verify a direct upload actually landed.
+func (s *s3StorageService) Stat(ctx context.Context, fileKey string) (int64, string, error) {
+	ctxTimeout, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	cleanKey := strings.Trim(strings.TrimSpace(fileKey), "/")
+	head, err := s.client.HeadObject(ctxTimeout, &s3.HeadObjectInput{
+		Bucket: aws.String(s.cfg.Bucket),
+		Key:    aws.String(cleanKey),
+	})
+	if err != nil {
+		s.logger.Warn().Err(err).Str("bucket", s.cfg.Bucket).Str("key", cleanKey).Msg("Object not found in storage")
+		return 0, "", fmt.Errorf("object not found in storage: %w", err)
+	}
+	var contentType string
+	if head.ContentType != nil {
+		contentType = *head.ContentType
+	}
+	if head.ContentLength == nil {
+		return 0, contentType, fmt.Errorf("object %q has no content length", cleanKey)
+	}
+	return *head.ContentLength, contentType, nil
 }
 
 func (s *s3StorageService) IsHealthy(ctx context.Context) bool {

@@ -38,6 +38,12 @@ build:
 build-chat:
 	go build -o bin/chat ./cmd/chat
 
+media:
+	go run ./cmd/media
+
+build-media:
+	go build -o bin/media ./cmd/media
+
 run-binary:
 	./bin/goshop
 
@@ -129,4 +135,4 @@ logs-prod:
 bash:
 	docker exec -it goshop-api /bin/sh
 
-.PHONY: importdb exportdb server chat migrate-create migrate-up migrate-down migrate-force migrate-drop migrate-goto migrate-down-n sqlc build build-chat run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev swagger swagger-chat seed seed-docker
+.PHONY: importdb exportdb server chat media migrate-create migrate-up migrate-down migrate-force migrate-drop migrate-goto migrate-down-n sqlc build build-chat build-media run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev swagger swagger-chat seed seed-docker

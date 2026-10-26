@@ -1,5 +1,6 @@
 import { useRef, useCallback, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { directUpload } from '@goshop/api-client'
 import { useAuthStore } from '@/stores/auth-store'
 import { fetchWithAuth, API_BASE_URL, API_KEY } from '@/lib/api'
 import { useChatTypingStore } from '../stores/chat-typing-store'
@@ -29,22 +30,17 @@ export async function uploadChatFile(
   file: File,
   getToken: () => string | null
 ): Promise<{ url: string; name: string; size: number }> {
-  const form = new FormData()
-  form.append('file', file)
-  form.append('folder', 'chat')
   const token = getToken()
   const headers: Record<string, string> = { 'X-API-KEY': API_KEY }
   if (token) headers['Authorization'] = `Bearer ${token}`
-  const res = await fetch(`${API_BASE_URL}/api/v1/upload`, {
-    method: 'POST',
-    headers,
-    body: form,
-    credentials: 'include',
-  })
-  if (!res.ok) throw new Error('Upload failed')
-  const json = await res.json()
-  const fileUrl: string = json.data?.url || json.data?.file_url || ''
-  return { url: fileUrl, name: file.name, size: file.size }
+  const result = await directUpload(file, 'chat', (path, init) =>
+    fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers: { ...headers, ...(init?.headers as Record<string, string>) },
+      credentials: 'include',
+    }),
+  )
+  return { url: result.url, name: result.name, size: result.size }
 }
 
 export const adminChatKeys = {

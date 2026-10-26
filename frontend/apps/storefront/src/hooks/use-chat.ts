@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { directUpload } from "@goshop/api-client";
 import { authFetch, API_BASE_URL, API_KEY } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 import { useChatUIStore } from "@/stores/chat-ui-store";
@@ -81,26 +82,21 @@ export interface ProductRef {
   status?: string;
 }
 
-// Uploads a file to /api/v1/upload?folder=chat, returns the served URL
+// Direct-to-storage upload: presign → PUT to bucket → confirm, returns the verified URL.
 export async function uploadChatFile(
   file: File,
   accessToken: string | null,
 ): Promise<{ url: string; name: string; size: number }> {
-  const form = new FormData();
-  form.append("file", file);
-  form.append("folder", "chat");
   const headers: Record<string, string> = { "X-API-KEY": API_KEY };
   if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
-  const res = await fetch(`${API_BASE_URL}/api/v1/upload`, {
-    method: "POST",
-    headers,
-    body: form,
-    credentials: "include",
-  });
-  if (!res.ok) throw new Error("Upload failed");
-  const json = await res.json();
-  const fileUrl: string = json.data?.url || json.data?.file_url || "";
-  return { url: fileUrl, name: file.name, size: file.size };
+  const result = await directUpload(file, "chat", (path, init) =>
+    fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers: { ...headers, ...(init?.headers as Record<string, string>) },
+      credentials: "include",
+    }),
+  );
+  return { url: result.url, name: result.name, size: result.size };
 }
 
 // Fetch user orders for the order-attach modal (supports search query)

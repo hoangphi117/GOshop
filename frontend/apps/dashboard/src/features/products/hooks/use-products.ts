@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { directUpload, type UploadFolder } from '@goshop/api-client'
 import { api, fetchWithAuth } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
 import type { Product, ProductCSVImportResponse, ProductFormData, ProductSuggestion } from '../types'
@@ -191,22 +192,8 @@ export function useProductMutations() {
 export function useUploadImage() {
   return useMutation({
     mutationFn: async ({ file, folder = 'products' }: { file: File; folder?: string }) => {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('folder', folder)
-
-      const res = await fetchWithAuth('/api/v1/upload', {
-        method: 'POST',
-        body: formData,
-      })
-
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}))
-        throw new Error(errJson.error || errJson.detail || 'Image upload failed')
-      }
-
-      const json = await res.json()
-      return json.data as { url: string; file_name: string; size: number }
+      const result = await directUpload(file, folder as UploadFolder, fetchWithAuth)
+      return { url: result.url, file_name: result.name, size: result.size }
     },
   })
 }

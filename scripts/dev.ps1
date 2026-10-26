@@ -29,8 +29,8 @@ Write-Host ">>> [2/3] Building Go Binaries (Sequential)..." -ForegroundColor Yel
 $binDir = Join-Path $PSScriptRoot "..\backend\bin"
 if (!(Test-Path $binDir)) { New-Item -ItemType Directory -Path $binDir -Force | Out-Null }
 
-$services = @("api", "identity", "notification", "payment", "worker", "coupon", "inventory", "catalog", "cart", "order", "review", "analytics", "chat", "ws-gateway")
-$hostServices = @("api", "identity", "notification", "payment", "worker", "order", "review", "analytics", "chat", "ws-gateway")
+$services = @("api", "identity", "notification", "payment", "worker", "coupon", "inventory", "catalog", "cart", "order", "review", "analytics", "chat", "media", "ws-gateway")
+$hostServices = @("api", "identity", "notification", "payment", "worker", "order", "review", "analytics", "chat", "media", "ws-gateway")
 $backendDir = Join-Path $PSScriptRoot "..\backend"
 $serviceBinaryPaths = $services | ForEach-Object {
     [System.IO.Path]::GetFullPath((Join-Path $backendDir "bin\$_.exe"))
@@ -42,7 +42,7 @@ foreach ($process in $runningServiceProcesses) {
     Stop-Process -Id $process.Id -Force
 }
 
-$requiredPorts = @(8080, 8081, 8082, 8083, 8088, 8091, 8092, 8093, 8085, 50057, 50058)
+$requiredPorts = @(8080, 8081, 8082, 8083, 8088, 8091, 8092, 8093, 8094, 8085, 50057, 50058)
 $deadline = (Get-Date).AddSeconds(10)
 do {
     $occupiedPorts = @(
@@ -81,8 +81,8 @@ Write-Host ">>> [3/3] Starting Go Services on Host" -ForegroundColor Green
 $exe = if ($IsWindows -or $env:OS -match "Windows") { ".exe" } else { "" }
 $binPrefix = if ($IsWindows -or $env:OS -match "Windows") { "bin\" } else { "./bin/" }
 npx -y concurrently `
-  -n "api,identity,notif,payment,worker,order,review,analytics,chat,wsgw" `
-  -c "cyan,green,magenta,blue,yellow,orange,white,gray,red,darkyellow" `
+  -n "api,identity,notif,payment,worker,order,review,analytics,chat,media,wsgw" `
+  -c "cyan,green,magenta,blue,yellow,orange,white,gray,red,cyan,darkyellow" `
   --kill-others-on-fail `
   "cd backend && ${binPrefix}api$exe" `
   "cd backend && ${binPrefix}identity$exe" `
@@ -93,4 +93,5 @@ npx -y concurrently `
   "cd backend && ${binPrefix}review$exe" `
   "cd backend && ${binPrefix}analytics$exe" `
   "cd backend && ${binPrefix}chat$exe" `
+  "cd backend && ${binPrefix}media$exe" `
   "cd backend && ${binPrefix}ws-gateway$exe"
