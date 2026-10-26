@@ -6,7 +6,7 @@ import (
 	"goshop/internal/config"
 	"goshop/internal/db"
 	"goshop/internal/routes"
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	"goshop/internal/validation"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"

@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"goshop/internal/repository"
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"

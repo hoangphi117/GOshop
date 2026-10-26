@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	bannersqlc "goshop/services/banner/internal/db/sqlc"
 	bannerdto "goshop/services/banner/internal/dto"
 	bannersvc "goshop/services/banner/internal/service"

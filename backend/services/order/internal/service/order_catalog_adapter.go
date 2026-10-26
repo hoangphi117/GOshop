@@ -2,7 +2,7 @@ package service
 
 import (
 	"context"
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	catalogcontract "goshop/services/catalog/contract"
 
 	"github.com/google/uuid"

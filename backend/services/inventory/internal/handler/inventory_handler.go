@@ -3,7 +3,7 @@ package handler
 import (
 	"net/http"
 
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	"goshop/pkg/middleware"
 	"goshop/pkg/validation"
 	inventorydto "goshop/services/inventory/internal/dto"

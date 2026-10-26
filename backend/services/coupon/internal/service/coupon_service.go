@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	"goshop/services/coupon/internal/db/sqlc"
 	"goshop/services/coupon/internal/dto"
 	"goshop/services/coupon/internal/repository"

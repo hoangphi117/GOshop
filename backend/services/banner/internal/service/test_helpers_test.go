@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 
 	"github.com/stretchr/testify/assert"
 )

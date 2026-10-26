@@ -2,7 +2,7 @@ package validation
 
 import (
 	"fmt"
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	"path/filepath"
 	"regexp"
 	"strconv"

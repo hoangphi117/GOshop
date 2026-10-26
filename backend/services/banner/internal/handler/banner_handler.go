@@ -3,7 +3,7 @@ package handler
 import (
 	"net/http"
 
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	"goshop/internal/validation"
 	bannerdto "goshop/services/banner/internal/dto"
 	bannersvc "goshop/services/banner/internal/service"

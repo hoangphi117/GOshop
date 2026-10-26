@@ -7,7 +7,7 @@ import (
 
 	"goshop/internal/db"
 	"goshop/internal/testutils"
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	"goshop/pkg/rabbitmq"
 	"goshop/services/order/internal/db/sqlc"
 	v1dto "goshop/services/order/internal/dto"

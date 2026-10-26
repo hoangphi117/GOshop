@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	v1dto "goshop/services/order/internal/dto"
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 	"strings"

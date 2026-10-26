@@ -8,7 +8,7 @@ import (
 
 	"goshop/internal/db"
 	"goshop/internal/testutils"
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/shipping"
 	"goshop/services/order/internal/db/sqlc"

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	"goshop/pkg/logger"
 	ws "goshop/pkg/ws"
 	sqlc "goshop/services/chat/internal/db/sqlc"

@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	coupondto "goshop/services/coupon/internal/dto"
 	"goshop/services/coupon/internal/service"
 

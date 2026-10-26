@@ -9,7 +9,7 @@ import (
 	"goshop/internal/db"
 	"goshop/services/order/internal/db/sqlc"
 	v1dto "goshop/services/order/internal/dto"
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	"goshop/pkg/logger"
 	"goshop/pkg/rabbitmq"
 

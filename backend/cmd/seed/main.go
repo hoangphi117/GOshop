@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	"goshop/pkg/logger"
 	"goshop/pkg/search"
 

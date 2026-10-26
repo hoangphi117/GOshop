@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"goshop/internal/db"
 	"goshop/internal/db/sqlc"
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	"strings"
 
 	"github.com/google/uuid"

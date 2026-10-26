@@ -3,7 +3,7 @@ package v1handler
 import (
 	"context"
 	"fmt"
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	"goshop/pkg/discord"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/storage"

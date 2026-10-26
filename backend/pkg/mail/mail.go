@@ -3,7 +3,7 @@ package mail
 import (
 	"context"
 	"goshop/internal/config"
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	"goshop/pkg/logger"
 	"time"
 

@@ -3,7 +3,7 @@ package routes
 import (
 	_ "goshop/docs"
 	v1routes "goshop/internal/routes/v1"
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
 	"goshop/pkg/middleware"

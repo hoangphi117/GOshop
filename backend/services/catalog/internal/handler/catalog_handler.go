@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	"goshop/pkg/validation"
 	catalogdto "goshop/services/catalog/internal/dto"
 	"goshop/services/catalog/internal/service"

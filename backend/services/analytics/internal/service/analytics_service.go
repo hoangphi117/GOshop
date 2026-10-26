@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	analyticsdto "goshop/services/analytics/internal/dto"
 	"goshop/services/analytics/internal/repository"
 	catalogcontract "goshop/services/catalog/contract"

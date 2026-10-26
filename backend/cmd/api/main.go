@@ -3,7 +3,7 @@ package main
 import (
 	"goshop/internal/app"
 	"goshop/internal/config"
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	"goshop/pkg/logger"
 	"path/filepath"
 

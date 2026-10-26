@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"goshop/internal/config"
 	"goshop/internal/db/sqlc"
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	"goshop/pkg/logger"
 	"goshop/pkg/pgx"
 	"time"

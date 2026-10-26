@@ -6,15 +6,16 @@ import (
 	"fmt"
 	"goshop/internal/config"
 	"goshop/internal/db"
-	"goshop/internal/utils"
 	"goshop/internal/worker"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 	"goshop/pkg/mail"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/storage"
+	"goshop/pkg/utils"
 	"goshop/pkg/ws"
 	catalogcontract "goshop/services/catalog/contract"
+	mediaworker "goshop/services/media/worker"
 	"os/signal"
 	"path/filepath"
 	"sync"
@@ -35,7 +36,7 @@ type Worker struct {
 	cfg               *config.Config
 	logger            *zerolog.Logger
 	userSyncConsumer  *worker.UserSyncConsumer
-	mediaProcessor    *worker.MediaProcessor
+	mediaProcessor    *mediaworker.MediaProcessor
 	redisBridge       ws.RedisBridge
 	grpcCatalogClient *catalogcontract.GRPCCatalogClient
 }
@@ -100,9 +101,9 @@ func NewWorker(cfg *config.Config) *Worker {
 	if err != nil {
 		log.Error().Err(err).Msg("Storage unavailable, media post-processing disabled")
 	}
-	var mediaProcessor *worker.MediaProcessor
+	var mediaProcessor *mediaworker.MediaProcessor
 	if storageService != nil {
-		mediaProcessor = worker.NewMediaProcessor(storageService, log)
+		mediaProcessor = mediaworker.NewMediaProcessor(storageService, log)
 	}
 
 	return &Worker{
@@ -262,7 +263,7 @@ func main() {
 	})
 
 	if err := godotenv.Load(filepath.Join(rootDir, ".env")); err != nil {
-		logger.Log.Warn().Msg("⚠️ No .env found")
+		logger.Log.Warn().Msg("No .env found, continuing with environment variables")
 	} else {
 		logger.Log.Info().Msg("Loaded .env successfully in worker!")
 	}
@@ -297,3 +298,4 @@ func main() {
 	wg.Wait()
 	logger.Log.Info().Msg("Main process terminated")
 }
+

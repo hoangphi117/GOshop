@@ -12,7 +12,7 @@ import (
 	"goshop/services/order/internal/repository"
 	orderservice "goshop/services/order/internal/service"
 	"goshop/internal/testutils"
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	"goshop/pkg/rabbitmq"
 
 	"github.com/google/uuid"

@@ -7,7 +7,7 @@ import (
 	"sort"
 	"time"
 
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	"goshop/pkg/logger"
 	"goshop/pkg/rabbitmq"
 	"goshop/services/inventory/internal/db/sqlc"

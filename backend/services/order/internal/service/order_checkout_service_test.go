@@ -10,7 +10,7 @@ import (
 	v1dto "goshop/services/order/internal/dto"
 	orderservice "goshop/services/order/internal/service"
 	"goshop/internal/testutils"
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
