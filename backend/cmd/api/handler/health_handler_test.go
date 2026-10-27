@@ -1,4 +1,4 @@
-package v1handler
+package handler
 
 import (
 	"bytes"

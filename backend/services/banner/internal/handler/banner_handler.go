@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"goshop/pkg/utils"
-	"goshop/internal/validation"
+	"goshop/pkg/validation"
 	bannerdto "goshop/services/banner/internal/dto"
 	bannersvc "goshop/services/banner/internal/service"
 

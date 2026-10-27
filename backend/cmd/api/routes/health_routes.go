@@ -1,20 +1,25 @@
-﻿package v1routes
+package routes
 
 import (
-	v1handler "goshop/internal/handler/v1"
+	handler "goshop/cmd/api/handler"
 
 	"github.com/gin-gonic/gin"
 )
 
 type HealthRoutes struct {
-	handler *v1handler.HealthHandler
+	handler *handler.HealthHandler
 }
 
-func NewHealthRoutes(handler *v1handler.HealthHandler) *HealthRoutes {
+func NewHealthRoutes(handler *handler.HealthHandler) *HealthRoutes {
 	return &HealthRoutes{handler: handler}
 }
 
 func (hr *HealthRoutes) Register(r *gin.RouterGroup) {
+	hr.RegisterPublic(r)
+}
+
+// RegisterPublic makes the liveness/readiness probes reachable without auth.
+func (hr *HealthRoutes) RegisterPublic(r *gin.RouterGroup) {
 	// Support both GET and HEAD requests (UptimeRobot, AWS ALB, Pingdom send HEAD by default)
 	r.GET("/healthz", hr.handler.HealthCheck)
 	r.HEAD("/healthz", hr.handler.HealthCheck)
@@ -27,10 +32,10 @@ func (hr *HealthRoutes) Register(r *gin.RouterGroup) {
 }
 
 type HealthAdminRoutes struct {
-	handler *v1handler.HealthHandler
+	handler *handler.HealthHandler
 }
 
-func NewHealthAdminRoutes(handler *v1handler.HealthHandler) *HealthAdminRoutes {
+func NewHealthAdminRoutes(handler *handler.HealthHandler) *HealthAdminRoutes {
 	return &HealthAdminRoutes{handler: handler}
 }
 

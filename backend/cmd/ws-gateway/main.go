@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"time"
 
+	v1handler "goshop/cmd/api/handler"
 	"goshop/internal/config"
-	v1handler "goshop/internal/handler/v1"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"

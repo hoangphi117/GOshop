@@ -1,10 +1,10 @@
 package main
 
 import (
-	"goshop/internal/app"
+	app "goshop/cmd/api/app"
 	"goshop/internal/config"
-	"goshop/pkg/utils"
 	"goshop/pkg/logger"
+	"goshop/pkg/utils"
 	"path/filepath"
 
 	"github.com/joho/godotenv"

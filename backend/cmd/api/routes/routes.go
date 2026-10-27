@@ -2,11 +2,10 @@ package routes
 
 import (
 	_ "goshop/docs"
-	v1routes "goshop/internal/routes/v1"
-	"goshop/pkg/utils"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
 	"goshop/pkg/middleware"
+	"goshop/pkg/utils"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -491,11 +490,13 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 	admin.Use(middleware.ApiKeyMiddleware(), middleware.AuthMiddleware())
 	admin.Use(middleware.RequireRole(middleware.RoleAdmin, middleware.RoleModerator))
 
+	// PublicRegistrar marks routes that must skip auth (health checks polled by
+	// uptime monitors and load balancers).
+	type PublicRegistrar interface{ RegisterPublic(r *gin.RouterGroup) }
 	for _, route := range normalRoutes {
-		switch route.(type) {
-		case *v1routes.HealthRoutes:
-			route.Register(public)
-		default:
+		if pr, ok := route.(PublicRegistrar); ok {
+			pr.RegisterPublic(public)
+		} else {
 			route.Register(protected)
 		}
 	}

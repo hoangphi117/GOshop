@@ -1,12 +1,12 @@
-package v1handler
+package handler
 
 import (
 	"context"
 	"fmt"
-	"goshop/pkg/utils"
 	"goshop/pkg/discord"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/storage"
+	"goshop/pkg/utils"
 	"net/http"
 	"time"
 

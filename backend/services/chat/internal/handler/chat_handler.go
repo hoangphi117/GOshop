@@ -3,9 +3,9 @@ package handler
 import (
 	"net/http"
 
-	"goshop/pkg/utils"
-	"goshop/internal/validation"
 	"goshop/pkg/middleware"
+	"goshop/pkg/utils"
+	"goshop/pkg/validation"
 	chatdto "goshop/services/chat/internal/dto"
 	chatservice "goshop/services/chat/internal/service"
 

@@ -1,9 +1,9 @@
-﻿package app
+package app
 
 import (
-	v1handler "goshop/internal/handler/v1"
-	"goshop/internal/routes"
-	v1routes "goshop/internal/routes/v1"
+	handler "goshop/cmd/api/handler"
+	"goshop/cmd/api/routes"
+
 	"goshop/pkg/discord"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/storage"
@@ -26,9 +26,9 @@ func NewHealthModule(
 	discordNotifier discord.Notifier,
 	logger *zerolog.Logger,
 ) *HealthModule {
-	handler := v1handler.NewHealthHandler(dbPool, redisClient, rabbitmqService, storageService, discordNotifier, logger)
-	healthRoutes := v1routes.NewHealthRoutes(handler)
-	healthAdminRoutes := v1routes.NewHealthAdminRoutes(handler)
+	handler := handler.NewHealthHandler(dbPool, redisClient, rabbitmqService, storageService, discordNotifier, logger)
+	healthRoutes := routes.NewHealthRoutes(handler)
+	healthAdminRoutes := routes.NewHealthAdminRoutes(handler)
 
 	return &HealthModule{
 		routes:      []routes.Route{healthRoutes},
