@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"goshop/internal/config"
-	"goshop/internal/db"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 	"goshop/pkg/mail"
@@ -77,12 +76,7 @@ func NewWorker(cfg *config.Config) *Worker {
 	}
 
 	// Add DB & NotificationConsumer initialization into worker
-	if err := db.InitDB("worker"); err != nil {
-		log.Fatal().Err(err).Msg("Failed to initialize database for worker")
-	}
-
 	redisBridge := ws.NewRedisBridge(redisClient, nil)
-
 	// Branch F: cart cleanup (Cart), coupon release (Coupon) and stock
 	// release/restock (Inventory) consumers moved to their owning services.
 	// The worker keeps cross-cutting jobs: auth emails, user sync, analytics
@@ -94,7 +88,7 @@ func NewWorker(cfg *config.Config) *Worker {
 		log.Warn().Err(err).Str("target", catalogTarget).Msg("Failed to initialize Catalog gRPC client")
 	}
 
-	userSyncConsumer := identityworker.NewUserSyncConsumer(redisClient, db.DBPool)
+	userSyncConsumer := identityworker.NewUserSyncConsumer(redisClient)
 
 	// Media post-processing: resize/re-encode images right after a direct upload.
 	storageService, err := storage.NewStorageService(context.Background(), cfg.Storage, log)

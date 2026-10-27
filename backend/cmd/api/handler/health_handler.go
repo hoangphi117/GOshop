@@ -11,15 +11,22 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
 )
 
 var appStartTime = time.Now()
 
+// Pinger is the dependency HealthHandler needs from a database pool.
+type Pinger interface {
+	Ping(ctx context.Context) error
+}
+
 type HealthHandler struct {
-	dbPool          *pgxpool.Pool
+	// dbPool is the database dependency of this service. It is accepted as a
+	// minimal interface so any service binary (owning its own pool) can plug
+	// its connectivity check in.
+	dbPool          Pinger
 	redisClient     *redis.Client
 	rabbitmqService rabbitmq.RabbitMQService
 	storageService  storage.StorageService
@@ -28,7 +35,7 @@ type HealthHandler struct {
 }
 
 func NewHealthHandler(
-	dbPool *pgxpool.Pool,
+	dbPool Pinger,
 	redisClient *redis.Client,
 	rabbitmqService rabbitmq.RabbitMQService,
 	storageService storage.StorageService,

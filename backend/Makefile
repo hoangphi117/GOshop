@@ -1,8 +1,8 @@
 include .env
 export
 
-MIGRATION_CORE_DIR=internal/db/migrations_core
-MIGRATION_IDENTITY_DIR=internal/db/migrations_identity
+MIGRATION_CORE_DIR=pkg/db/migrations_core
+MIGRATION_IDENTITY_DIR=pkg/db/migrations_identity
 IDENTITY_DB_NAME?=shopping_identity
 
 CONNECTION_STRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=${DB_SSL_MODE}

@@ -1,3 +1,6 @@
+// Package db is the shared PostgreSQL helper: connection pools for the
+// primary, read-replica and identity databases plus thin re-exports of the
+// transaction manager in pkg/pgx.
 package db
 
 import (
@@ -27,6 +30,13 @@ func GetReadDBPool() *pgxpool.Pool {
 		return ReadDBPool
 	}
 	return DBPool
+}
+
+// TxManager is the transaction manager shared by every service.
+type TxManager = pgx.TxManager
+
+func NewTxManager(pool *pgxpool.Pool) TxManager {
+	return pgx.NewTxManager(pool)
 }
 
 func InitDB(serviceName ...string) error {
@@ -187,4 +197,12 @@ func BeginIdentityTx(ctx context.Context) (pgxv5.Tx, error) {
 		return nil, fmt.Errorf("identity database connection pool is not initialized")
 	}
 	return pool.Begin(ctx)
+}
+
+func GetTx(ctx context.Context) (pgxv5.Tx, bool) {
+	return pgx.GetTx(ctx)
+}
+
+func InjectTx(ctx context.Context, tx pgxv5.Tx) context.Context {
+	return pgx.InjectTx(ctx, tx)
 }

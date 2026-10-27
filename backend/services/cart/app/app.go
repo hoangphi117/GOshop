@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"goshop/internal/config"
-	"goshop/internal/db"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
+	"goshop/pkg/db"
 	"goshop/pkg/eventledger"
 	"goshop/pkg/logger"
 	"goshop/pkg/rabbitmq"

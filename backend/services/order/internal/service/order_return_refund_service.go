@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"goshop/internal/db"
-	"goshop/pkg/utils"
+	"goshop/pkg/db"
 	"goshop/pkg/rabbitmq"
+	"goshop/pkg/utils"
 	"goshop/services/order/internal/db/sqlc"
 	v1dto "goshop/services/order/internal/dto"
 

@@ -6,14 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"goshop/internal/db"
+	"goshop/internal/testutils"
+	"goshop/pkg/db"
+	"goshop/pkg/rabbitmq"
+	"goshop/pkg/utils"
 	"goshop/services/order/internal/db/sqlc"
 	v1dto "goshop/services/order/internal/dto"
 	"goshop/services/order/internal/repository"
 	orderservice "goshop/services/order/internal/service"
-	"goshop/internal/testutils"
-	"goshop/pkg/utils"
-	"goshop/pkg/rabbitmq"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -23,18 +23,18 @@ import (
 )
 
 type testOrderServiceDeps struct {
-	txManager           db.TxManager
-	pricingService      orderservice.OrderPricingService
-	stockPort           orderservice.OrderStockPort
-	orderRepo           repository.OrderRepository
-	orderItemRepo       repository.OrderItemRepository
-	userRepo            *MockUserRepository
-	cartService         orderservice.CartService
-	couponPort          orderservice.OrderCouponPort
-	trackingRepo        repository.TrackingRepository
-		redisClient         *redis.Client
-	rabbitMQ            rabbitmq.RabbitMQService
-	outboxRepo          repository.OutboxRepository
+	txManager      db.TxManager
+	pricingService orderservice.OrderPricingService
+	stockPort      orderservice.OrderStockPort
+	orderRepo      repository.OrderRepository
+	orderItemRepo  repository.OrderItemRepository
+	userRepo       *MockUserRepository
+	cartService    orderservice.CartService
+	couponPort     orderservice.OrderCouponPort
+	trackingRepo   repository.TrackingRepository
+	redisClient    *redis.Client
+	rabbitMQ       rabbitmq.RabbitMQService
+	outboxRepo     repository.OutboxRepository
 }
 
 func newTestOrderService(deps testOrderServiceDeps) orderservice.OrderService {
@@ -58,7 +58,7 @@ func newTestOrderService(deps testOrderServiceDeps) orderservice.OrderService {
 	if orderItemRepo == nil {
 		orderItemRepo = &MockOrderItemRepository{}
 	}
-		cartSvc := deps.cartService
+	cartSvc := deps.cartService
 	if cartSvc == nil {
 		cartSvc = &MockCartService{}
 	}
@@ -70,7 +70,7 @@ func newTestOrderService(deps testOrderServiceDeps) orderservice.OrderService {
 	if trackingRepo == nil {
 		trackingRepo = &MockTrackingRepository{}
 	}
-	
+
 	var outboxArgs []repository.OutboxRepository
 	if deps.outboxRepo != nil {
 		outboxArgs = append(outboxArgs, deps.outboxRepo)
@@ -230,7 +230,7 @@ func TestOrderService_CreateOrder(t *testing.T) {
 
 		svc := newTestOrderService(testOrderServiceDeps{
 			pricingService: mockPricing,
-			userRepo: mockUserRepo,
+			userRepo:       mockUserRepo,
 		})
 
 		_, err := svc.CreateOrder(ctx, userUUID, baseInput)
@@ -269,9 +269,9 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		}
 
 		svc := newTestOrderService(testOrderServiceDeps{
-			pricingService:   mockPricing,
-			userRepo:         mockUserRepo,
-			couponPort:       mockCouponPort,
+			pricingService: mockPricing,
+			userRepo:       mockUserRepo,
+			couponPort:     mockCouponPort,
 		})
 
 		_, err := svc.CreateOrder(ctx, userUUID, baseInput)
@@ -303,8 +303,8 @@ func TestOrderService_CreateOrder(t *testing.T) {
 
 		svc := newTestOrderService(testOrderServiceDeps{
 			pricingService: mockPricing,
-			orderRepo: mockOrderRepo,
-			userRepo: mockUserRepo,
+			orderRepo:      mockOrderRepo,
+			userRepo:       mockUserRepo,
 		})
 
 		_, err := svc.CreateOrder(ctx, userUUID, baseInput)
@@ -345,10 +345,10 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		}
 
 		svc := newTestOrderService(testOrderServiceDeps{
-			pricingService:   mockPricing,
-			orderRepo:        mockOrderRepo,
-			userRepo:         mockUserRepo,
-			couponPort:       mockCouponPort,
+			pricingService: mockPricing,
+			orderRepo:      mockOrderRepo,
+			userRepo:       mockUserRepo,
+			couponPort:     mockCouponPort,
 		})
 
 		_, err := svc.CreateOrder(ctx, userUUID, baseInput)
@@ -385,9 +385,9 @@ func TestOrderService_CreateOrder(t *testing.T) {
 
 		svc := newTestOrderService(testOrderServiceDeps{
 			pricingService: mockPricing,
-			orderRepo: mockOrderRepo,
-			orderItemRepo: mockOrderItemRepo,
-			userRepo: mockUserRepo,
+			orderRepo:      mockOrderRepo,
+			orderItemRepo:  mockOrderItemRepo,
+			userRepo:       mockUserRepo,
 		})
 
 		_, err := svc.CreateOrder(ctx, userUUID, baseInput)
@@ -429,10 +429,10 @@ func TestOrderService_CreateOrder(t *testing.T) {
 
 		svc := newTestOrderService(testOrderServiceDeps{
 			pricingService: mockPricing,
-			orderRepo: mockOrderRepo,
-			orderItemRepo: mockOrderItemRepo,
-			userRepo: mockUserRepo,
-			trackingRepo: mockTrackingRepo,
+			orderRepo:      mockOrderRepo,
+			orderItemRepo:  mockOrderItemRepo,
+			userRepo:       mockUserRepo,
+			trackingRepo:   mockTrackingRepo,
 		})
 
 		_, err := svc.CreateOrder(ctx, userUUID, baseInput)
@@ -473,11 +473,11 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		}
 
 		svc := newTestOrderService(testOrderServiceDeps{
-			pricingService:   mockPricing,
-			orderRepo:        mockOrderRepo,
-			orderItemRepo:    mockOrderItemRepo,
-			userRepo:         mockUserRepo,
-			trackingRepo:     mockTrackingRepo,
+			pricingService: mockPricing,
+			orderRepo:      mockOrderRepo,
+			orderItemRepo:  mockOrderItemRepo,
+			userRepo:       mockUserRepo,
+			trackingRepo:   mockTrackingRepo,
 		})
 
 		_, err := svc.CreateOrder(ctx, userUUID, baseInput)
@@ -496,7 +496,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 				return baseUser, nil
 			},
 		}
-
 
 		mockPricing := &MockOrderPricingService{
 			CalculateOrderTotalsFunc: func(ctx context.Context, items []orderservice.ItemPriceInput, couponCode *string, userID int32, shippingFee float64, now time.Time) (*orderservice.OrderPricingResult, error) {
@@ -605,13 +604,13 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		}
 
 		svc := newTestOrderService(testOrderServiceDeps{
-			pricingService:   mockPricing,
-			orderRepo:        mockOrderRepo,
-			orderItemRepo:    mockOrderItemRepo,
-			userRepo:         mockUserRepo,
-			cartService:      mockCartService,
-			trackingRepo:     mockTrackingRepo,
-			outboxRepo:       mockOutbox,
+			pricingService: mockPricing,
+			orderRepo:      mockOrderRepo,
+			orderItemRepo:  mockOrderItemRepo,
+			userRepo:       mockUserRepo,
+			cartService:    mockCartService,
+			trackingRepo:   mockTrackingRepo,
+			outboxRepo:     mockOutbox,
 		})
 
 		orderDTO, err := svc.CreateOrder(ctx, userUUID, baseInput)
@@ -665,7 +664,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 
-
 		mockPricing := &MockOrderPricingService{
 			CalculateOrderTotalsFunc: func(ctx context.Context, items []orderservice.ItemPriceInput, couponCode *string, userID int32, shippingFee float64, now time.Time) (*orderservice.OrderPricingResult, error) {
 				return &orderservice.OrderPricingResult{
@@ -709,12 +707,12 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		}
 
 		svc := newTestOrderService(testOrderServiceDeps{
-			pricingService:   mockPricing,
-			orderRepo:        mockOrderRepo,
-			orderItemRepo:    mockOrderItemRepo,
-			userRepo:         mockUserRepo,
-			trackingRepo:     mockTrackingRepo,
-			outboxRepo:       mockOutbox,
+			pricingService: mockPricing,
+			orderRepo:      mockOrderRepo,
+			orderItemRepo:  mockOrderItemRepo,
+			userRepo:       mockUserRepo,
+			trackingRepo:   mockTrackingRepo,
+			outboxRepo:     mockOutbox,
 		})
 
 		orderDTO, err := svc.CreateOrder(ctx, userUUID, baseInput)
@@ -755,7 +753,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 				return baseUser, nil
 			},
 		}
-
 
 		mockPricing := &MockOrderPricingService{
 			CalculateOrderTotalsFunc: func(ctx context.Context, items []orderservice.ItemPriceInput, couponCode *string, userID int32, shippingFee float64, now time.Time) (*orderservice.OrderPricingResult, error) {
@@ -800,13 +797,13 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		}
 
 		svc := newTestOrderService(testOrderServiceDeps{
-			pricingService:   mockPricing,
-			orderRepo:        mockOrderRepo,
-			orderItemRepo:    mockOrderItemRepo,
-			userRepo:         mockUserRepo,
-			trackingRepo:     mockTrackingRepo,
-			rabbitMQ:         mockRabbitMQ,
-			outboxRepo:       mockOutbox,
+			pricingService: mockPricing,
+			orderRepo:      mockOrderRepo,
+			orderItemRepo:  mockOrderItemRepo,
+			userRepo:       mockUserRepo,
+			trackingRepo:   mockTrackingRepo,
+			rabbitMQ:       mockRabbitMQ,
+			outboxRepo:     mockOutbox,
 		})
 
 		orderDTO, err := svc.CreateOrder(ctx, userUUID, baseInput)
@@ -831,7 +828,6 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 
-
 		mockPricing := &MockOrderPricingService{
 			CalculateOrderTotalsFunc: func(ctx context.Context, items []orderservice.ItemPriceInput, couponCode *string, userID int32, shippingFee float64, now time.Time) (*orderservice.OrderPricingResult, error) {
 				require.NotNil(t, couponCode)
@@ -843,7 +839,7 @@ func TestOrderService_CreateOrder(t *testing.T) {
 						{ProductID: 102, ProductName: "Mouse", Price: 250000, Quantity: 1, Subtotal: 250000},
 					},
 					SubtotalAmount:    1250000,
-					DiscountAmount:    125000, // 10% off
+					DiscountAmount:    125000,  // 10% off
 					FinalTotalAmount:  1155000, // 1250000 - 125000 + 30000
 					ShippingFee:       30000,
 					AppliedCouponID:   &appliedCouponID,
@@ -1004,10 +1000,10 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		}
 		svc := newTestOrderService(testOrderServiceDeps{
 			pricingService: mockPricing,
-			orderRepo: mockOrderRepo,
-			orderItemRepo: mockOrderItemRepo,
-			userRepo: mockUserRepo,
-			trackingRepo: mockTrackingRepo,
+			orderRepo:      mockOrderRepo,
+			orderItemRepo:  mockOrderItemRepo,
+			userRepo:       mockUserRepo,
+			trackingRepo:   mockTrackingRepo,
 		})
 
 		orderDTO, err := svc.CreateOrder(ctx, userUUID, baseInput)
@@ -1089,7 +1085,7 @@ func TestOrderService_CancelOrder(t *testing.T) {
 
 		svc := newTestOrderService(testOrderServiceDeps{
 			orderRepo: mockOrderRepo,
-			userRepo: mockUserRepo,
+			userRepo:  mockUserRepo,
 		})
 
 		_, err := svc.CancelOrder(ctx, userUUID, orderUUID, nil)
@@ -1118,7 +1114,7 @@ func TestOrderService_CancelOrder(t *testing.T) {
 
 		svc := newTestOrderService(testOrderServiceDeps{
 			orderRepo: mockOrderRepo,
-			userRepo: mockUserRepo,
+			userRepo:  mockUserRepo,
 		})
 
 		_, err := svc.CancelOrder(ctx, otherUserUUID, orderUUID, nil)
@@ -1143,7 +1139,7 @@ func TestOrderService_CancelOrder(t *testing.T) {
 
 		svc := newTestOrderService(testOrderServiceDeps{
 			orderRepo: mockOrderRepo,
-			userRepo: mockUserRepo,
+			userRepo:  mockUserRepo,
 		})
 
 		_, err := svc.CancelOrder(ctx, userUUID, orderUUID, nil)
@@ -1168,7 +1164,7 @@ func TestOrderService_CancelOrder(t *testing.T) {
 
 		svc := newTestOrderService(testOrderServiceDeps{
 			orderRepo: mockOrderRepo,
-			userRepo: mockUserRepo,
+			userRepo:  mockUserRepo,
 		})
 
 		_, err := svc.CancelOrder(ctx, userUUID, orderUUID, nil)
@@ -1194,9 +1190,9 @@ func TestOrderService_CancelOrder(t *testing.T) {
 		}
 
 		svc := newTestOrderService(testOrderServiceDeps{
-			orderRepo: mockOrderRepo,
+			orderRepo:     mockOrderRepo,
 			orderItemRepo: mockOrderItemRepo,
-			userRepo: mockUserRepo,
+			userRepo:      mockUserRepo,
 		})
 
 		_, err := svc.CancelOrder(ctx, userUUID, orderUUID, nil)
@@ -1225,9 +1221,9 @@ func TestOrderService_CancelOrder(t *testing.T) {
 		}
 
 		svc := newTestOrderService(testOrderServiceDeps{
-			orderRepo: mockOrderRepo,
+			orderRepo:     mockOrderRepo,
 			orderItemRepo: mockOrderItemRepo,
-			userRepo: mockUserRepo,
+			userRepo:      mockUserRepo,
 		})
 
 		_, err := svc.CancelOrder(ctx, userUUID, orderUUID, nil)
@@ -1298,10 +1294,10 @@ func TestOrderService_CancelOrder(t *testing.T) {
 		}
 
 		svc := newTestOrderService(testOrderServiceDeps{
-			orderRepo: mockOrderRepo,
+			orderRepo:     mockOrderRepo,
 			orderItemRepo: mockOrderItemRepo,
-			userRepo: mockUserRepo,
-			trackingRepo: mockTracking,
+			userRepo:      mockUserRepo,
+			trackingRepo:  mockTracking,
 		})
 
 		_, err := svc.CancelOrder(ctx, userUUID, orderUUID, nil)
@@ -1364,12 +1360,12 @@ func TestOrderService_CancelOrder(t *testing.T) {
 		}
 
 		svc := newTestOrderService(testOrderServiceDeps{
-			stockPort:        mockStockPort,
-			orderRepo:        mockOrderRepo,
-			orderItemRepo:    mockOrderItemRepo,
-			userRepo:         mockUserRepo,
-			trackingRepo:     mockTracking,
-			outboxRepo:       mockOutbox,
+			stockPort:     mockStockPort,
+			orderRepo:     mockOrderRepo,
+			orderItemRepo: mockOrderItemRepo,
+			userRepo:      mockUserRepo,
+			trackingRepo:  mockTracking,
+			outboxRepo:    mockOutbox,
 		})
 
 		cancelledOrder, err := svc.CancelOrder(ctx, userUUID, orderUUID, &reason)
@@ -1444,11 +1440,11 @@ func TestOrderService_CancelOrder(t *testing.T) {
 		}
 
 		svc := newTestOrderService(testOrderServiceDeps{
-			orderRepo:        mockOrderRepo,
-			orderItemRepo:    mockOrderItemRepo,
-			userRepo:         mockUserRepo,
-			trackingRepo:     mockTracking,
-			outboxRepo:       mockOutbox,
+			orderRepo:     mockOrderRepo,
+			orderItemRepo: mockOrderItemRepo,
+			userRepo:      mockUserRepo,
+			trackingRepo:  mockTracking,
+			outboxRepo:    mockOutbox,
 		})
 
 		cancelledOrder, err := svc.CancelOrder(ctx, adminUUID, orderUUID, nil)
@@ -1490,10 +1486,10 @@ func TestOrderService_CancelOrder(t *testing.T) {
 		}
 
 		svc := newTestOrderService(testOrderServiceDeps{
-			orderRepo:        mockOrderRepo,
-			orderItemRepo:    mockOrderItemRepo,
-			userRepo:         mockUserRepo,
-			trackingRepo:     mockTracking,
+			orderRepo:     mockOrderRepo,
+			orderItemRepo: mockOrderItemRepo,
+			userRepo:      mockUserRepo,
+			trackingRepo:  mockTracking,
 		})
 
 		cancelledOrder, err := svc.CancelOrder(ctx, userUUID, orderUUID, nil)
@@ -1576,7 +1572,6 @@ func TestOrderService_CancelExpiredOrder(t *testing.T) {
 			},
 		}
 
-
 		mockTracking := &MockTrackingRepository{
 			InsertEventFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.InsertTrackingEventParams) (sqlc.OrderTrackingEvent, error) {
 				trackingRecorded = true
@@ -1651,7 +1646,7 @@ func TestOrderService_GetMyOrders(t *testing.T) {
 
 		svc := newTestOrderService(testOrderServiceDeps{
 			orderRepo: mockOrderRepo,
-			userRepo: mockUserRepo,
+			userRepo:  mockUserRepo,
 		})
 
 		orders, total, err := svc.GetMyOrders(ctx, userUUID, v1dto.GetOrdersParam{})
@@ -1680,7 +1675,7 @@ func TestOrderService_GetMyOrders(t *testing.T) {
 
 		svc := newTestOrderService(testOrderServiceDeps{
 			orderRepo: mockOrderRepo,
-			userRepo: mockUserRepo,
+			userRepo:  mockUserRepo,
 		})
 
 		orders, total, err := svc.GetMyOrders(ctx, userUUID, v1dto.GetOrdersParam{Page: 1, Limit: 10})
@@ -1698,13 +1693,13 @@ func TestOrderService_GetMyOrders(t *testing.T) {
 		}
 		orderUUID1 := uuid.New()
 		order1 := sqlc.Order{
-			OrderID:           101,
-			OrderUuid:         orderUUID1,
-			OrderUserID:       baseUser.UserID,
-			OrderNumber:       "ORD-101",
-			OrderStatus:       orderservice.OrderStatusPending,
-			OrderTotalAmount:  utils.FloatToNumeric(500000),
-			OrderCreatedAt:    time.Now(),
+			OrderID:          101,
+			OrderUuid:        orderUUID1,
+			OrderUserID:      baseUser.UserID,
+			OrderNumber:      "ORD-101",
+			OrderStatus:      orderservice.OrderStatusPending,
+			OrderTotalAmount: utils.FloatToNumeric(500000),
+			OrderCreatedAt:   time.Now(),
 		}
 		mockOrderRepo := &MockOrderRepository{
 			CountOrdersFunc: func(ctx context.Context, userID, status *int32, search string) (int64, error) {
@@ -1730,9 +1725,9 @@ func TestOrderService_GetMyOrders(t *testing.T) {
 		}
 
 		svc := newTestOrderService(testOrderServiceDeps{
-			orderRepo: mockOrderRepo,
+			orderRepo:     mockOrderRepo,
 			orderItemRepo: mockOrderItemRepo,
-			userRepo: mockUserRepo,
+			userRepo:      mockUserRepo,
 		})
 
 		orders, total, err := svc.GetMyOrders(ctx, userUUID, v1dto.GetOrdersParam{Page: 1, Limit: 10})
@@ -1803,7 +1798,7 @@ func TestOrderService_GetOrderByUUID(t *testing.T) {
 		}
 		svc := newTestOrderService(testOrderServiceDeps{
 			orderRepo: mockOrderRepo,
-			userRepo: mockUserRepo,
+			userRepo:  mockUserRepo,
 		})
 
 		_, err := svc.GetOrderByUUID(ctx, userUUID, orderUUID)
@@ -1824,7 +1819,7 @@ func TestOrderService_GetOrderByUUID(t *testing.T) {
 		}
 		svc := newTestOrderService(testOrderServiceDeps{
 			orderRepo: mockOrderRepo,
-			userRepo: mockUserRepo,
+			userRepo:  mockUserRepo,
 		})
 
 		_, err := svc.GetOrderByUUID(ctx, otherUserUUID, orderUUID)
@@ -1851,9 +1846,9 @@ func TestOrderService_GetOrderByUUID(t *testing.T) {
 			},
 		}
 		svc := newTestOrderService(testOrderServiceDeps{
-			orderRepo: mockOrderRepo,
+			orderRepo:     mockOrderRepo,
 			orderItemRepo: mockOrderItemRepo,
-			userRepo: mockUserRepo,
+			userRepo:      mockUserRepo,
 		})
 
 		order, err := svc.GetOrderByUUID(ctx, userUUID, orderUUID)
@@ -1879,9 +1874,9 @@ func TestOrderService_GetOrderByUUID(t *testing.T) {
 			},
 		}
 		svc := newTestOrderService(testOrderServiceDeps{
-			orderRepo: mockOrderRepo,
+			orderRepo:     mockOrderRepo,
 			orderItemRepo: mockOrderItemRepo,
-			userRepo: mockUserRepo,
+			userRepo:      mockUserRepo,
 		})
 
 		order, err := svc.GetOrderByUUID(ctx, adminUUID, orderUUID)
@@ -1951,7 +1946,7 @@ func TestOrderService_GetAllOrders(t *testing.T) {
 			},
 		}
 		svc := newTestOrderService(testOrderServiceDeps{
-			orderRepo: mockOrderRepo,
+			orderRepo:     mockOrderRepo,
 			orderItemRepo: mockOrderItemRepo,
 		})
 
@@ -2124,7 +2119,7 @@ func TestOrderService_UpdateOrderShippingInfo(t *testing.T) {
 		}
 		svc := newTestOrderService(testOrderServiceDeps{
 			orderRepo: mockOrderRepo,
-			userRepo: mockUserRepo,
+			userRepo:  mockUserRepo,
 		})
 
 		_, err := svc.UpdateOrderShippingInfo(ctx, otherUserUUID, orderUUID, v1dto.UpdateOrderShippingInfoInput{})
@@ -2147,7 +2142,7 @@ func TestOrderService_UpdateOrderShippingInfo(t *testing.T) {
 		}
 		svc := newTestOrderService(testOrderServiceDeps{
 			orderRepo: mockOrderRepo,
-			userRepo: mockUserRepo,
+			userRepo:  mockUserRepo,
 		})
 
 		_, err := svc.UpdateOrderShippingInfo(ctx, userUUID, orderUUID, v1dto.UpdateOrderShippingInfoInput{})
@@ -2193,9 +2188,9 @@ func TestOrderService_UpdateOrderShippingInfo(t *testing.T) {
 			},
 		}
 		svc := newTestOrderService(testOrderServiceDeps{
-			orderRepo: mockOrderRepo,
+			orderRepo:     mockOrderRepo,
 			orderItemRepo: mockOrderItemRepo,
-			userRepo: mockUserRepo,
+			userRepo:      mockUserRepo,
 		})
 
 		shippingName := "Tran Van B"
@@ -2246,9 +2241,9 @@ func TestOrderService_UpdateOrderShippingInfo(t *testing.T) {
 			},
 		}
 		svc := newTestOrderService(testOrderServiceDeps{
-			orderRepo: mockOrderRepo,
+			orderRepo:     mockOrderRepo,
 			orderItemRepo: mockOrderItemRepo,
-			userRepo: mockUserRepo,
+			userRepo:      mockUserRepo,
 		})
 
 		shippingName := "Admin Updated Name"
@@ -2268,12 +2263,12 @@ func TestOrderService_UpdateOrderPaymentStatus(t *testing.T) {
 	orderUUID := uuid.New()
 
 	baseOrder := sqlc.GetOrderByUUIDRow{
-		OrderID:            1,
-		OrderUuid:          orderUUID,
-		UserUuid:           uuid.New(),
-		OrderStatus:        orderservice.OrderStatusPending,
-		OrderPaymentStatus: orderservice.OrderPaymentStatusUnpaid,
-		OrderTotalAmount:   utils.FloatToNumeric(500000),
+		OrderID:             1,
+		OrderUuid:           orderUUID,
+		UserUuid:            uuid.New(),
+		OrderStatus:         orderservice.OrderStatusPending,
+		OrderPaymentStatus:  orderservice.OrderPaymentStatusUnpaid,
+		OrderTotalAmount:    utils.FloatToNumeric(500000),
 		OrderRefundedAmount: utils.FloatToNumeric(0),
 	}
 
@@ -2313,7 +2308,7 @@ func TestOrderService_UpdateOrderPaymentStatus(t *testing.T) {
 			},
 		}
 		svc := newTestOrderService(testOrderServiceDeps{
-			orderRepo: mockOrderRepo,
+			orderRepo:     mockOrderRepo,
 			orderItemRepo: mockOrderItemRepo,
 		})
 
@@ -2377,9 +2372,9 @@ func TestOrderService_UpdateOrderPaymentStatus(t *testing.T) {
 			UpdateOrderPaymentStatusFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.UpdateOrderPaymentStatusParams) (sqlc.Order, error) {
 				capturedParams = params
 				return sqlc.Order{
-					OrderID:            paidCancelledOrder.OrderID,
-					OrderUuid:          paidCancelledOrder.OrderUuid,
-					OrderPaymentStatus: params.PaymentStatus,
+					OrderID:             paidCancelledOrder.OrderID,
+					OrderUuid:           paidCancelledOrder.OrderUuid,
+					OrderPaymentStatus:  params.PaymentStatus,
 					OrderRefundedAmount: params.RefundedAmount,
 				}, nil
 			},
@@ -2390,7 +2385,7 @@ func TestOrderService_UpdateOrderPaymentStatus(t *testing.T) {
 			},
 		}
 		svc := newTestOrderService(testOrderServiceDeps{
-			orderRepo: mockOrderRepo,
+			orderRepo:     mockOrderRepo,
 			orderItemRepo: mockOrderItemRepo,
 		})
 
@@ -2462,7 +2457,7 @@ func TestOrderService_GetOrderInvoicePDF(t *testing.T) {
 		}
 		svc := newTestOrderService(testOrderServiceDeps{
 			orderRepo: mockOrderRepo,
-			userRepo: mockUserRepo,
+			userRepo:  mockUserRepo,
 		})
 
 		_, _, err := svc.GetOrderInvoicePDF(ctx, userUUID, orderUUID)
@@ -2483,7 +2478,7 @@ func TestOrderService_GetOrderInvoicePDF(t *testing.T) {
 		}
 		svc := newTestOrderService(testOrderServiceDeps{
 			orderRepo: mockOrderRepo,
-			userRepo: mockUserRepo,
+			userRepo:  mockUserRepo,
 		})
 
 		_, _, err := svc.GetOrderInvoicePDF(ctx, otherUserUUID, orderUUID)
@@ -2517,9 +2512,9 @@ func TestOrderService_GetOrderInvoicePDF(t *testing.T) {
 			},
 		}
 		svc := newTestOrderService(testOrderServiceDeps{
-			orderRepo: mockOrderRepo,
+			orderRepo:     mockOrderRepo,
 			orderItemRepo: mockOrderItemRepo,
-			userRepo: mockUserRepo,
+			userRepo:      mockUserRepo,
 		})
 
 		pdfBytes, filename, err := svc.GetOrderInvoicePDF(ctx, userUUID, orderUUID)
@@ -2545,9 +2540,9 @@ func TestOrderService_GetOrderInvoicePDF(t *testing.T) {
 			},
 		}
 		svc := newTestOrderService(testOrderServiceDeps{
-			orderRepo: mockOrderRepo,
+			orderRepo:     mockOrderRepo,
 			orderItemRepo: mockOrderItemRepo,
-			userRepo: mockUserRepo,
+			userRepo:      mockUserRepo,
 		})
 
 		pdfBytes, filename, err := svc.GetOrderInvoicePDF(ctx, adminUUID, orderUUID)
@@ -2556,4 +2551,3 @@ func TestOrderService_GetOrderInvoicePDF(t *testing.T) {
 		assert.Equal(t, "Invoice_ORD-100.pdf", filename)
 	})
 }
-

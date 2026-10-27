@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"strings"
 
-	"goshop/internal/db"
-	"goshop/services/order/internal/db/sqlc"
-	v1dto "goshop/services/order/internal/dto"
-	"goshop/pkg/utils"
+	"goshop/pkg/db"
 	"goshop/pkg/logger"
 	"goshop/pkg/rabbitmq"
+	"goshop/pkg/utils"
+	"goshop/services/order/internal/db/sqlc"
+	v1dto "goshop/services/order/internal/dto"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"

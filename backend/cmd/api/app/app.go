@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"goshop/cmd/api/routes"
 	"goshop/internal/config"
-	"goshop/internal/db"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
 	"goshop/pkg/discord"
@@ -101,11 +100,6 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		})
 	}
 
-	if err := db.InitDBWithConfig(cfg, "api"); err != nil {
-		logger.Log.Fatal().Err(err).Msg("Failed to initialize database")
-		return nil, err
-	}
-
 	redisClient := config.NewRedisClient()
 	cacheRedisService := cache.NewRedisCacheService(redisClient)
 	tokenService := auth.NewJWTService(cacheRedisService)
@@ -125,7 +119,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	}
 
 	modules := []Module{
-		NewHealthModule(db.DBPool, redisClient, rabbitmqService, storageService, discord.NewDiscordNotifier(utils.GetEnv("DISCORD_WEBHOOK_URL", ""), logger.Log), logger.Log),
+		NewHealthModule(identityHealthPinger{}, redisClient, rabbitmqService, storageService, discord.NewDiscordNotifier(utils.GetEnv("DISCORD_WEBHOOK_URL", ""), logger.Log), logger.Log),
 	}
 
 	routes.RegisterRoutes(r, tokenService, cacheRedisService, getModuleRoutes(modules), getAdminModuleRoutes(modules))
@@ -135,6 +129,31 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		router:  r,
 		modules: modules,
 	}, nil
+}
+
+// identityHealthPinger reports database connectivity for the health endpoint.
+// The api binary owns no database; user data lives in the identity service, so
+// the check probes that service over HTTP instead of opening a pool.
+type identityHealthPinger struct{}
+
+func (identityHealthPinger) Ping(ctx context.Context) error {
+	baseURL := strings.TrimRight(utils.GetEnv("IDENTITY_SERVICE_URL", "http://localhost:8081"), "/")
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/healthz", nil)
+	if err != nil {
+		return err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("identity service unreachable: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("identity service unhealthy: status %d", resp.StatusCode)
+	}
+	return nil
 }
 
 func getModuleRoutes(modules []Module) []routes.Route {
