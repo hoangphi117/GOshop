@@ -25,6 +25,8 @@ type InventoryRepository interface {
 	GetMovementByRefAndProductID(ctx context.Context, refType, refID string, productID int32) (sqlc.StockMovement, error)
 	ListStockMovements(ctx context.Context, params sqlc.ListStockMovementsParams) ([]sqlc.StockMovement, error)
 	CountStockMovements(ctx context.Context, params sqlc.CountStockMovementsParams) (int64, error)
+	ListLowStockProducts(ctx context.Context, threshold, limit int32) ([]sqlc.ListLowStockProductsRow, error)
+	CountLowStockProducts(ctx context.Context, threshold int32) (int64, error)
 }
 
 type SqlInventoryRepository struct {
@@ -130,4 +132,15 @@ func (r *SqlInventoryRepository) ListStockMovements(ctx context.Context, params 
 
 func (r *SqlInventoryRepository) CountStockMovements(ctx context.Context, params sqlc.CountStockMovementsParams) (int64, error) {
 	return r.q.CountStockMovements(ctx, params)
+}
+
+func (r *SqlInventoryRepository) ListLowStockProducts(ctx context.Context, threshold, limit int32) ([]sqlc.ListLowStockProductsRow, error) {
+	return r.q.ListLowStockProducts(ctx, sqlc.ListLowStockProductsParams{
+		Threshold:  threshold,
+		LimitCount: limit,
+	})
+}
+
+func (r *SqlInventoryRepository) CountLowStockProducts(ctx context.Context, threshold int32) (int64, error) {
+	return r.q.CountLowStockProducts(ctx, threshold)
 }

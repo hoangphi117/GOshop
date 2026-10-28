@@ -15,6 +15,7 @@ const (
 	EventTypeStockLow       = "inventory"
 	EventReturnRequested    = "order_return"
 	EventTypeReviewReported = "review"
+	EventTypeReviewRating   = "review_rating"
 
 	// Actions
 	ActionCreated   = "created"
@@ -45,7 +46,15 @@ const (
 	QueueUserUpdated = "user.updated"
 	QueueUserDeleted = "user.deleted"
 
+	// Review→Catalog rating propagation (Work Queue)
+	QueueReviewRatingUpdated = "review.rating_updated"
+
+	// Media processing (Work Queue): published after a direct upload is
+	// confirmed, consumed by the worker to resize/re-encode the object in place.
+	QueueMediaUploaded = "media.uploaded"
+
 	// Topic Exchange Routing Keys (Pub/Sub)
+	RoutingKeyNotificationEvent    = "notification_events"
 	RoutingKeyOrderCreated         = "order.created"
 	RoutingKeyOrderCancelled       = "order.cancelled"
 	RoutingKeyOrderStatusChanged   = "order.status_changed"
@@ -447,6 +456,30 @@ func NewCustomerNotificationEvent(eventID string, userID int32, eventType, actio
 	}
 }
 
+// ReviewRatingUpdatedEvent is emitted by the Review service after a review change so
+// the Catalog service can refresh the denormalized product rating columns (the
+// reviews and products tables live in separate databases since the review extraction).
+type ReviewRatingUpdatedEvent struct {
+	EventID     string    `json:"event_id"`
+	ProductID   int32     `json:"product_id"`
+	ProductUUID string    `json:"product_uuid,omitempty"`
+	AvgRating   float64   `json:"avg_rating"`
+	ReviewCount int64     `json:"review_count"`
+	Timestamp   time.Time `json:"timestamp"`
+}
+
+// NewReviewRatingUpdatedEvent constructs a ReviewRatingUpdatedEvent.
+func NewReviewRatingUpdatedEvent(productID int32, productUUID string, avgRating float64, reviewCount int64) ReviewRatingUpdatedEvent {
+	return ReviewRatingUpdatedEvent{
+		EventID:     uuid.New().String(),
+		ProductID:   productID,
+		ProductUUID: productUUID,
+		AvgRating:   avgRating,
+		ReviewCount: reviewCount,
+		Timestamp:   time.Now().UTC(),
+	}
+}
+
 // UserSyncEvent is emitted when a user profile is created, updated, or deleted in Identity Service.
 type UserSyncEvent struct {
 	EventID       string    `json:"event_id"`
@@ -477,4 +510,12 @@ func NewUserSyncEvent(eventType string, userID int32, userUUID, fullname, email,
 		UserLevel:     level,
 		Timestamp:     time.Now().UTC(),
 	}
+}
+
+// MediaUploadedEvent is published by the media service once a direct upload is
+// confirmed. The worker consumes it to normalise the object in place.
+type MediaUploadedEvent struct {
+	FileKey     string `json:"file_key"`
+	ContentType string `json:"content_type"`
+	Size        int64  `json:"size"`
 }

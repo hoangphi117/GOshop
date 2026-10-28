@@ -39,7 +39,7 @@ func main() {
 	}
 
 	cfg := config.NewConfig()
-	if notifDBName := utils.GetEnv("NOTIFICATION_DB_NAME", utils.GetEnv("DB_NOTIFICATION_NAME", "")); notifDBName != "" {
+	if notifDBName := utils.GetEnv("NOTIFICATION_DB_NAME", utils.GetEnv("DB_NOTIFICATION_NAME", "shopping_notification")); notifDBName != "" {
 		cfg.DB.DBName = notifDBName
 	}
 	port := utils.GetEnv("NOTIFICATION_SERVER_PORT", "8082")

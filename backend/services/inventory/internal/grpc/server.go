@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	inventoryv1 "goshop/proto/inventory/v1"
 	"goshop/pkg/utils"
+	inventoryv1 "goshop/proto/inventory/v1"
 	"goshop/services/inventory/internal/dto"
 	"goshop/services/inventory/internal/service"
 
@@ -176,6 +176,33 @@ func (s *InventoryGRPCServer) GetStock(ctx context.Context, req *inventoryv1.Get
 
 	return &inventoryv1.GetStockResponse{
 		Items: items,
+	}, nil
+}
+
+// ListLowStockProducts serves analytics low-stock alerts from the inventory
+// database (available = quantity - reserved), analytics never reads it.
+func (s *InventoryGRPCServer) ListLowStockProducts(ctx context.Context, req *inventoryv1.ListLowStockProductsRequest) (*inventoryv1.ListLowStockProductsResponse, error) {
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
+	}
+
+	stocks, total, err := s.inventoryService.ListLowStockProducts(ctx, req.Threshold, req.Limit)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to list low stock products: %v", err)
+	}
+
+	items := make([]*inventoryv1.ItemStockInfo, len(stocks))
+	for i, st := range stocks {
+		items[i] = &inventoryv1.ItemStockInfo{
+			ProductId:         st.ProductID,
+			ProductUuid:       st.ProductUUID,
+			AvailableQuantity: st.AvailableQuantity,
+		}
+	}
+
+	return &inventoryv1.ListLowStockProductsResponse{
+		Items:      items,
+		TotalCount: total,
 	}, nil
 }
 

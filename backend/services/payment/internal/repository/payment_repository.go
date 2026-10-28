@@ -20,7 +20,7 @@ func NewSqlPaymentRepository(querier paymentsqlc.Querier) PaymentRepository {
 }
 
 func (r *sqlPaymentRepository) Create(ctx context.Context, params paymentsqlc.CreatePaymentTransactionParams) (paymentsqlc.PaymentTransaction, error) {
-	txn, err := r.querier.CreatePaymentTransaction(ctx, params)
+	txn, err := txQuerier(ctx, r.querier).CreatePaymentTransaction(ctx, params)
 	if err != nil {
 		return paymentsqlc.PaymentTransaction{}, fmt.Errorf("failed to create payment transaction: %w", err)
 	}
@@ -28,7 +28,7 @@ func (r *sqlPaymentRepository) Create(ctx context.Context, params paymentsqlc.Cr
 }
 
 func (r *sqlPaymentRepository) GetByIdempotencyKey(ctx context.Context, key string) (paymentsqlc.PaymentTransaction, error) {
-	txn, err := r.querier.GetPaymentByIdempotencyKey(ctx, key)
+	txn, err := txQuerier(ctx, r.querier).GetPaymentByIdempotencyKey(ctx, key)
 	if err != nil {
 		return paymentsqlc.PaymentTransaction{}, fmt.Errorf("failed to get payment by idempotency key: %w", err)
 	}
@@ -36,7 +36,7 @@ func (r *sqlPaymentRepository) GetByIdempotencyKey(ctx context.Context, key stri
 }
 
 func (r *sqlPaymentRepository) GetByUUID(ctx context.Context, ptUUID uuid.UUID) (paymentsqlc.PaymentTransaction, error) {
-	txn, err := r.querier.GetPaymentByUUID(ctx, ptUUID)
+	txn, err := txQuerier(ctx, r.querier).GetPaymentByUUID(ctx, ptUUID)
 	if err != nil {
 		return paymentsqlc.PaymentTransaction{}, fmt.Errorf("failed to get payment by uuid %s: %w", ptUUID, err)
 	}
@@ -44,7 +44,7 @@ func (r *sqlPaymentRepository) GetByUUID(ctx context.Context, ptUUID uuid.UUID) 
 }
 
 func (r *sqlPaymentRepository) GetByTxnRef(ctx context.Context, provider, txnRef string) (paymentsqlc.PaymentTransaction, error) {
-	txn, err := r.querier.GetPaymentByTxnRef(ctx, paymentsqlc.GetPaymentByTxnRefParams{
+	txn, err := txQuerier(ctx, r.querier).GetPaymentByTxnRef(ctx, paymentsqlc.GetPaymentByTxnRefParams{
 		PtProvider: provider,
 		PtTxnRef:   &txnRef,
 	})
@@ -55,8 +55,8 @@ func (r *sqlPaymentRepository) GetByTxnRef(ctx context.Context, provider, txnRef
 }
 
 func (r *sqlPaymentRepository) GetByProviderTxnID(ctx context.Context, provider, providerTxnID string) (paymentsqlc.PaymentTransaction, error) {
-	txn, err := r.querier.GetPaymentByProviderTxnID(ctx, paymentsqlc.GetPaymentByProviderTxnIDParams{
-		PtProvider:        provider,
+	txn, err := txQuerier(ctx, r.querier).GetPaymentByProviderTxnID(ctx, paymentsqlc.GetPaymentByProviderTxnIDParams{
+		PtProvider:      provider,
 		PtProviderTxnID: &providerTxnID,
 	})
 	if err != nil {
@@ -66,7 +66,7 @@ func (r *sqlPaymentRepository) GetByProviderTxnID(ctx context.Context, provider,
 }
 
 func (r *sqlPaymentRepository) UpdateStatusAtomically(ctx context.Context, params paymentsqlc.UpdatePaymentStatusAtomicallyParams) (paymentsqlc.PaymentTransaction, error) {
-	txn, err := r.querier.UpdatePaymentStatusAtomically(ctx, params)
+	txn, err := txQuerier(ctx, r.querier).UpdatePaymentStatusAtomically(ctx, params)
 	if err != nil {
 		return paymentsqlc.PaymentTransaction{}, fmt.Errorf("failed to update payment status atomically: %w", err)
 	}
@@ -74,7 +74,7 @@ func (r *sqlPaymentRepository) UpdateStatusAtomically(ctx context.Context, param
 }
 
 func (r *sqlPaymentRepository) GetByOrderID(ctx context.Context, orderID int32) ([]paymentsqlc.PaymentTransaction, error) {
-	txns, err := r.querier.GetPaymentTransactionsByOrderID(ctx, orderID)
+	txns, err := txQuerier(ctx, r.querier).GetPaymentTransactionsByOrderID(ctx, orderID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get payments by order id %d: %w", orderID, err)
 	}
@@ -83,7 +83,7 @@ func (r *sqlPaymentRepository) GetByOrderID(ctx context.Context, orderID int32) 
 
 func (r *sqlPaymentRepository) GetByOrderUUID(ctx context.Context, orderUUID uuid.UUID) ([]paymentsqlc.PaymentTransaction, error) {
 	pgUUID := pgtype.UUID{Bytes: orderUUID, Valid: true}
-	txns, err := r.querier.GetPaymentTransactionsByOrderUUID(ctx, pgUUID)
+	txns, err := txQuerier(ctx, r.querier).GetPaymentTransactionsByOrderUUID(ctx, pgUUID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get payments by order uuid %s: %w", orderUUID, err)
 	}
@@ -91,7 +91,7 @@ func (r *sqlPaymentRepository) GetByOrderUUID(ctx context.Context, orderUUID uui
 }
 
 func (r *sqlPaymentRepository) CreateRefund(ctx context.Context, params paymentsqlc.CreateRefundTransactionParams) (paymentsqlc.PaymentTransaction, error) {
-	txn, err := r.querier.CreateRefundTransaction(ctx, params)
+	txn, err := txQuerier(ctx, r.querier).CreateRefundTransaction(ctx, params)
 	if err != nil {
 		return paymentsqlc.PaymentTransaction{}, fmt.Errorf("failed to create refund transaction: %w", err)
 	}
@@ -99,7 +99,7 @@ func (r *sqlPaymentRepository) CreateRefund(ctx context.Context, params payments
 }
 
 func (r *sqlPaymentRepository) GetPendingOlderThan(ctx context.Context, olderThan time.Time, limit int32) ([]paymentsqlc.PaymentTransaction, error) {
-	txns, err := r.querier.GetPendingTransactionsOlderThan(ctx, paymentsqlc.GetPendingTransactionsOlderThanParams{
+	txns, err := txQuerier(ctx, r.querier).GetPendingTransactionsOlderThan(ctx, paymentsqlc.GetPendingTransactionsOlderThanParams{
 		OlderThan: olderThan,
 		Lim:       limit,
 	})
@@ -110,7 +110,7 @@ func (r *sqlPaymentRepository) GetPendingOlderThan(ctx context.Context, olderTha
 }
 
 func (r *sqlPaymentRepository) UpdateProviderInfo(ctx context.Context, params paymentsqlc.UpdatePaymentProviderInfoParams) (paymentsqlc.PaymentTransaction, error) {
-	txn, err := r.querier.UpdatePaymentProviderInfo(ctx, params)
+	txn, err := txQuerier(ctx, r.querier).UpdatePaymentProviderInfo(ctx, params)
 	if err != nil {
 		return paymentsqlc.PaymentTransaction{}, fmt.Errorf("failed to update provider info: %w", err)
 	}
@@ -126,7 +126,7 @@ func NewSqlWebhookEventRepository(querier paymentsqlc.Querier) WebhookEventRepos
 }
 
 func (r *sqlWebhookEventRepository) Insert(ctx context.Context, params paymentsqlc.InsertWebhookEventParams) (paymentsqlc.WebhookEvent, error) {
-	event, err := r.querier.InsertWebhookEvent(ctx, params)
+	event, err := txQuerier(ctx, r.querier).InsertWebhookEvent(ctx, params)
 	if err != nil {
 		return paymentsqlc.WebhookEvent{}, fmt.Errorf("failed to insert webhook event: %w", err)
 	}
@@ -134,7 +134,7 @@ func (r *sqlWebhookEventRepository) Insert(ctx context.Context, params paymentsq
 }
 
 func (r *sqlWebhookEventRepository) MarkProcessed(ctx context.Context, eventID int32) error {
-	if err := r.querier.MarkWebhookEventProcessed(ctx, eventID); err != nil {
+	if err := txQuerier(ctx, r.querier).MarkWebhookEventProcessed(ctx, eventID); err != nil {
 		return fmt.Errorf("failed to mark webhook event %d as processed: %w", eventID, err)
 	}
 	return nil
@@ -149,7 +149,7 @@ func NewSqlOutboxRepository(querier paymentsqlc.Querier) OutboxRepository {
 }
 
 func (r *sqlOutboxRepository) Create(ctx context.Context, aggregateType, aggregateID, eventType string, payload []byte) (paymentsqlc.OutboxEvent, error) {
-	evt, err := r.querier.CreateOutboxEvent(ctx, paymentsqlc.CreateOutboxEventParams{
+	evt, err := txQuerier(ctx, r.querier).CreateOutboxEvent(ctx, paymentsqlc.CreateOutboxEventParams{
 		OeAggregateType: aggregateType,
 		OeAggregateID:   aggregateID,
 		OeEventType:     eventType,
@@ -162,7 +162,7 @@ func (r *sqlOutboxRepository) Create(ctx context.Context, aggregateType, aggrega
 }
 
 func (r *sqlOutboxRepository) GetPending(ctx context.Context, limit int32) ([]paymentsqlc.OutboxEvent, error) {
-	evts, err := r.querier.GetPendingOutboxEvents(ctx, limit)
+	evts, err := txQuerier(ctx, r.querier).GetPendingOutboxEvents(ctx, limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pending outbox events: %w", err)
 	}
@@ -170,7 +170,7 @@ func (r *sqlOutboxRepository) GetPending(ctx context.Context, limit int32) ([]pa
 }
 
 func (r *sqlOutboxRepository) MarkPublished(ctx context.Context, eventID int64) error {
-	if err := r.querier.MarkOutboxEventPublished(ctx, eventID); err != nil {
+	if err := txQuerier(ctx, r.querier).MarkOutboxEventPublished(ctx, eventID); err != nil {
 		return fmt.Errorf("failed to mark outbox event %d as published: %w", eventID, err)
 	}
 	return nil

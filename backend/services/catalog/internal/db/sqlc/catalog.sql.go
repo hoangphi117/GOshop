@@ -1095,3 +1095,22 @@ func (q *Queries) UpdateProduct(ctx context.Context, arg UpdateProductParams) (U
 	)
 	return i, err
 }
+
+const updateProductRating = `-- name: UpdateProductRating :exec
+UPDATE products SET
+    product_avg_rating = $2::text::numeric,
+    product_review_count = $3,
+    product_updated_at = now()
+WHERE product_id = $1
+`
+
+type UpdateProductRatingParams struct {
+	ProductID          int32  `json:"product_id"`
+	Column2            string `json:"column_2"`
+	ProductReviewCount int32  `json:"product_review_count"`
+}
+
+func (q *Queries) UpdateProductRating(ctx context.Context, arg UpdateProductRatingParams) error {
+	_, err := q.db.Exec(ctx, updateProductRating, arg.ProductID, arg.Column2, arg.ProductReviewCount)
+	return err
+}

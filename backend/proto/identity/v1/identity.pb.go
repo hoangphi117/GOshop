@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.12
 // 	protoc        (unknown)
-// source: proto/identity/v1/identity.proto
+// source: identity/v1/identity.proto
 
 package identityv1
 
@@ -37,7 +37,7 @@ type UserDTO struct {
 
 func (x *UserDTO) Reset() {
 	*x = UserDTO{}
-	mi := &file_proto_identity_v1_identity_proto_msgTypes[0]
+	mi := &file_identity_v1_identity_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -49,7 +49,7 @@ func (x *UserDTO) String() string {
 func (*UserDTO) ProtoMessage() {}
 
 func (x *UserDTO) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_identity_v1_identity_proto_msgTypes[0]
+	mi := &file_identity_v1_identity_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -62,7 +62,7 @@ func (x *UserDTO) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserDTO.ProtoReflect.Descriptor instead.
 func (*UserDTO) Descriptor() ([]byte, []int) {
-	return file_proto_identity_v1_identity_proto_rawDescGZIP(), []int{0}
+	return file_identity_v1_identity_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *UserDTO) GetUserId() int32 {
@@ -145,7 +145,7 @@ type AddressDTO struct {
 
 func (x *AddressDTO) Reset() {
 	*x = AddressDTO{}
-	mi := &file_proto_identity_v1_identity_proto_msgTypes[1]
+	mi := &file_identity_v1_identity_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -157,7 +157,7 @@ func (x *AddressDTO) String() string {
 func (*AddressDTO) ProtoMessage() {}
 
 func (x *AddressDTO) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_identity_v1_identity_proto_msgTypes[1]
+	mi := &file_identity_v1_identity_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -170,7 +170,7 @@ func (x *AddressDTO) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddressDTO.ProtoReflect.Descriptor instead.
 func (*AddressDTO) Descriptor() ([]byte, []int) {
-	return file_proto_identity_v1_identity_proto_rawDescGZIP(), []int{1}
+	return file_identity_v1_identity_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *AddressDTO) GetUuid() string {
@@ -294,7 +294,7 @@ type GetUserByIDRequest struct {
 
 func (x *GetUserByIDRequest) Reset() {
 	*x = GetUserByIDRequest{}
-	mi := &file_proto_identity_v1_identity_proto_msgTypes[2]
+	mi := &file_identity_v1_identity_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -306,7 +306,7 @@ func (x *GetUserByIDRequest) String() string {
 func (*GetUserByIDRequest) ProtoMessage() {}
 
 func (x *GetUserByIDRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_identity_v1_identity_proto_msgTypes[2]
+	mi := &file_identity_v1_identity_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -319,7 +319,7 @@ func (x *GetUserByIDRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserByIDRequest.ProtoReflect.Descriptor instead.
 func (*GetUserByIDRequest) Descriptor() ([]byte, []int) {
-	return file_proto_identity_v1_identity_proto_rawDescGZIP(), []int{2}
+	return file_identity_v1_identity_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *GetUserByIDRequest) GetUserId() int32 {
@@ -338,7 +338,7 @@ type GetUserByIDResponse struct {
 
 func (x *GetUserByIDResponse) Reset() {
 	*x = GetUserByIDResponse{}
-	mi := &file_proto_identity_v1_identity_proto_msgTypes[3]
+	mi := &file_identity_v1_identity_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -350,7 +350,7 @@ func (x *GetUserByIDResponse) String() string {
 func (*GetUserByIDResponse) ProtoMessage() {}
 
 func (x *GetUserByIDResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_identity_v1_identity_proto_msgTypes[3]
+	mi := &file_identity_v1_identity_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -363,7 +363,7 @@ func (x *GetUserByIDResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserByIDResponse.ProtoReflect.Descriptor instead.
 func (*GetUserByIDResponse) Descriptor() ([]byte, []int) {
-	return file_proto_identity_v1_identity_proto_rawDescGZIP(), []int{3}
+	return file_identity_v1_identity_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *GetUserByIDResponse) GetUser() *UserDTO {
@@ -382,7 +382,7 @@ type GetUserByUUIDRequest struct {
 
 func (x *GetUserByUUIDRequest) Reset() {
 	*x = GetUserByUUIDRequest{}
-	mi := &file_proto_identity_v1_identity_proto_msgTypes[4]
+	mi := &file_identity_v1_identity_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -394,7 +394,7 @@ func (x *GetUserByUUIDRequest) String() string {
 func (*GetUserByUUIDRequest) ProtoMessage() {}
 
 func (x *GetUserByUUIDRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_identity_v1_identity_proto_msgTypes[4]
+	mi := &file_identity_v1_identity_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -407,7 +407,7 @@ func (x *GetUserByUUIDRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserByUUIDRequest.ProtoReflect.Descriptor instead.
 func (*GetUserByUUIDRequest) Descriptor() ([]byte, []int) {
-	return file_proto_identity_v1_identity_proto_rawDescGZIP(), []int{4}
+	return file_identity_v1_identity_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *GetUserByUUIDRequest) GetUserUuid() string {
@@ -426,7 +426,7 @@ type GetUserByUUIDResponse struct {
 
 func (x *GetUserByUUIDResponse) Reset() {
 	*x = GetUserByUUIDResponse{}
-	mi := &file_proto_identity_v1_identity_proto_msgTypes[5]
+	mi := &file_identity_v1_identity_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -438,7 +438,7 @@ func (x *GetUserByUUIDResponse) String() string {
 func (*GetUserByUUIDResponse) ProtoMessage() {}
 
 func (x *GetUserByUUIDResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_identity_v1_identity_proto_msgTypes[5]
+	mi := &file_identity_v1_identity_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -451,7 +451,7 @@ func (x *GetUserByUUIDResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetUserByUUIDResponse.ProtoReflect.Descriptor instead.
 func (*GetUserByUUIDResponse) Descriptor() ([]byte, []int) {
-	return file_proto_identity_v1_identity_proto_rawDescGZIP(), []int{5}
+	return file_identity_v1_identity_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *GetUserByUUIDResponse) GetUser() *UserDTO {
@@ -470,7 +470,7 @@ type GetBatchUsersRequest struct {
 
 func (x *GetBatchUsersRequest) Reset() {
 	*x = GetBatchUsersRequest{}
-	mi := &file_proto_identity_v1_identity_proto_msgTypes[6]
+	mi := &file_identity_v1_identity_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -482,7 +482,7 @@ func (x *GetBatchUsersRequest) String() string {
 func (*GetBatchUsersRequest) ProtoMessage() {}
 
 func (x *GetBatchUsersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_identity_v1_identity_proto_msgTypes[6]
+	mi := &file_identity_v1_identity_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -495,7 +495,7 @@ func (x *GetBatchUsersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBatchUsersRequest.ProtoReflect.Descriptor instead.
 func (*GetBatchUsersRequest) Descriptor() ([]byte, []int) {
-	return file_proto_identity_v1_identity_proto_rawDescGZIP(), []int{6}
+	return file_identity_v1_identity_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *GetBatchUsersRequest) GetUserIds() []int32 {
@@ -514,7 +514,7 @@ type GetBatchUsersResponse struct {
 
 func (x *GetBatchUsersResponse) Reset() {
 	*x = GetBatchUsersResponse{}
-	mi := &file_proto_identity_v1_identity_proto_msgTypes[7]
+	mi := &file_identity_v1_identity_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -526,7 +526,7 @@ func (x *GetBatchUsersResponse) String() string {
 func (*GetBatchUsersResponse) ProtoMessage() {}
 
 func (x *GetBatchUsersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_identity_v1_identity_proto_msgTypes[7]
+	mi := &file_identity_v1_identity_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -539,7 +539,7 @@ func (x *GetBatchUsersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetBatchUsersResponse.ProtoReflect.Descriptor instead.
 func (*GetBatchUsersResponse) Descriptor() ([]byte, []int) {
-	return file_proto_identity_v1_identity_proto_rawDescGZIP(), []int{7}
+	return file_identity_v1_identity_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *GetBatchUsersResponse) GetUsers() map[int32]*UserDTO {
@@ -557,7 +557,7 @@ type GetActiveAdminUserIDsRequest struct {
 
 func (x *GetActiveAdminUserIDsRequest) Reset() {
 	*x = GetActiveAdminUserIDsRequest{}
-	mi := &file_proto_identity_v1_identity_proto_msgTypes[8]
+	mi := &file_identity_v1_identity_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -569,7 +569,7 @@ func (x *GetActiveAdminUserIDsRequest) String() string {
 func (*GetActiveAdminUserIDsRequest) ProtoMessage() {}
 
 func (x *GetActiveAdminUserIDsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_identity_v1_identity_proto_msgTypes[8]
+	mi := &file_identity_v1_identity_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -582,7 +582,7 @@ func (x *GetActiveAdminUserIDsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetActiveAdminUserIDsRequest.ProtoReflect.Descriptor instead.
 func (*GetActiveAdminUserIDsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_identity_v1_identity_proto_rawDescGZIP(), []int{8}
+	return file_identity_v1_identity_proto_rawDescGZIP(), []int{8}
 }
 
 type GetActiveAdminUserIDsResponse struct {
@@ -594,7 +594,7 @@ type GetActiveAdminUserIDsResponse struct {
 
 func (x *GetActiveAdminUserIDsResponse) Reset() {
 	*x = GetActiveAdminUserIDsResponse{}
-	mi := &file_proto_identity_v1_identity_proto_msgTypes[9]
+	mi := &file_identity_v1_identity_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -606,7 +606,7 @@ func (x *GetActiveAdminUserIDsResponse) String() string {
 func (*GetActiveAdminUserIDsResponse) ProtoMessage() {}
 
 func (x *GetActiveAdminUserIDsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_identity_v1_identity_proto_msgTypes[9]
+	mi := &file_identity_v1_identity_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -619,7 +619,7 @@ func (x *GetActiveAdminUserIDsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetActiveAdminUserIDsResponse.ProtoReflect.Descriptor instead.
 func (*GetActiveAdminUserIDsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_identity_v1_identity_proto_rawDescGZIP(), []int{9}
+	return file_identity_v1_identity_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *GetActiveAdminUserIDsResponse) GetAdminUserIds() []int32 {
@@ -639,7 +639,7 @@ type GetAddressByUUIDRequest struct {
 
 func (x *GetAddressByUUIDRequest) Reset() {
 	*x = GetAddressByUUIDRequest{}
-	mi := &file_proto_identity_v1_identity_proto_msgTypes[10]
+	mi := &file_identity_v1_identity_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -651,7 +651,7 @@ func (x *GetAddressByUUIDRequest) String() string {
 func (*GetAddressByUUIDRequest) ProtoMessage() {}
 
 func (x *GetAddressByUUIDRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_identity_v1_identity_proto_msgTypes[10]
+	mi := &file_identity_v1_identity_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -664,7 +664,7 @@ func (x *GetAddressByUUIDRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAddressByUUIDRequest.ProtoReflect.Descriptor instead.
 func (*GetAddressByUUIDRequest) Descriptor() ([]byte, []int) {
-	return file_proto_identity_v1_identity_proto_rawDescGZIP(), []int{10}
+	return file_identity_v1_identity_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *GetAddressByUUIDRequest) GetUserId() int32 {
@@ -690,7 +690,7 @@ type GetAddressByUUIDResponse struct {
 
 func (x *GetAddressByUUIDResponse) Reset() {
 	*x = GetAddressByUUIDResponse{}
-	mi := &file_proto_identity_v1_identity_proto_msgTypes[11]
+	mi := &file_identity_v1_identity_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -702,7 +702,7 @@ func (x *GetAddressByUUIDResponse) String() string {
 func (*GetAddressByUUIDResponse) ProtoMessage() {}
 
 func (x *GetAddressByUUIDResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_identity_v1_identity_proto_msgTypes[11]
+	mi := &file_identity_v1_identity_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -715,7 +715,7 @@ func (x *GetAddressByUUIDResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAddressByUUIDResponse.ProtoReflect.Descriptor instead.
 func (*GetAddressByUUIDResponse) Descriptor() ([]byte, []int) {
-	return file_proto_identity_v1_identity_proto_rawDescGZIP(), []int{11}
+	return file_identity_v1_identity_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *GetAddressByUUIDResponse) GetAddress() *AddressDTO {
@@ -734,7 +734,7 @@ type GetAddressesByUserIDRequest struct {
 
 func (x *GetAddressesByUserIDRequest) Reset() {
 	*x = GetAddressesByUserIDRequest{}
-	mi := &file_proto_identity_v1_identity_proto_msgTypes[12]
+	mi := &file_identity_v1_identity_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -746,7 +746,7 @@ func (x *GetAddressesByUserIDRequest) String() string {
 func (*GetAddressesByUserIDRequest) ProtoMessage() {}
 
 func (x *GetAddressesByUserIDRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_identity_v1_identity_proto_msgTypes[12]
+	mi := &file_identity_v1_identity_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -759,7 +759,7 @@ func (x *GetAddressesByUserIDRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAddressesByUserIDRequest.ProtoReflect.Descriptor instead.
 func (*GetAddressesByUserIDRequest) Descriptor() ([]byte, []int) {
-	return file_proto_identity_v1_identity_proto_rawDescGZIP(), []int{12}
+	return file_identity_v1_identity_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *GetAddressesByUserIDRequest) GetUserId() int32 {
@@ -778,7 +778,7 @@ type GetAddressesByUserIDResponse struct {
 
 func (x *GetAddressesByUserIDResponse) Reset() {
 	*x = GetAddressesByUserIDResponse{}
-	mi := &file_proto_identity_v1_identity_proto_msgTypes[13]
+	mi := &file_identity_v1_identity_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -790,7 +790,7 @@ func (x *GetAddressesByUserIDResponse) String() string {
 func (*GetAddressesByUserIDResponse) ProtoMessage() {}
 
 func (x *GetAddressesByUserIDResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_identity_v1_identity_proto_msgTypes[13]
+	mi := &file_identity_v1_identity_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -803,7 +803,7 @@ func (x *GetAddressesByUserIDResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAddressesByUserIDResponse.ProtoReflect.Descriptor instead.
 func (*GetAddressesByUserIDResponse) Descriptor() ([]byte, []int) {
-	return file_proto_identity_v1_identity_proto_rawDescGZIP(), []int{13}
+	return file_identity_v1_identity_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *GetAddressesByUserIDResponse) GetAddresses() []*AddressDTO {
@@ -813,11 +813,107 @@ func (x *GetAddressesByUserIDResponse) GetAddresses() []*AddressDTO {
 	return nil
 }
 
-var File_proto_identity_v1_identity_proto protoreflect.FileDescriptor
+type CountCustomersCreatedBetweenRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	FromTime      string                 `protobuf:"bytes,1,opt,name=from_time,json=fromTime,proto3" json:"from_time,omitempty"` // RFC3339
+	ToTime        string                 `protobuf:"bytes,2,opt,name=to_time,json=toTime,proto3" json:"to_time,omitempty"`       // RFC3339
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
 
-const file_proto_identity_v1_identity_proto_rawDesc = "" +
+func (x *CountCustomersCreatedBetweenRequest) Reset() {
+	*x = CountCustomersCreatedBetweenRequest{}
+	mi := &file_identity_v1_identity_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CountCustomersCreatedBetweenRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CountCustomersCreatedBetweenRequest) ProtoMessage() {}
+
+func (x *CountCustomersCreatedBetweenRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_identity_v1_identity_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CountCustomersCreatedBetweenRequest.ProtoReflect.Descriptor instead.
+func (*CountCustomersCreatedBetweenRequest) Descriptor() ([]byte, []int) {
+	return file_identity_v1_identity_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *CountCustomersCreatedBetweenRequest) GetFromTime() string {
+	if x != nil {
+		return x.FromTime
+	}
+	return ""
+}
+
+func (x *CountCustomersCreatedBetweenRequest) GetToTime() string {
+	if x != nil {
+		return x.ToTime
+	}
+	return ""
+}
+
+type CountCustomersCreatedBetweenResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CustomerCount int64                  `protobuf:"varint,1,opt,name=customer_count,json=customerCount,proto3" json:"customer_count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CountCustomersCreatedBetweenResponse) Reset() {
+	*x = CountCustomersCreatedBetweenResponse{}
+	mi := &file_identity_v1_identity_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CountCustomersCreatedBetweenResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CountCustomersCreatedBetweenResponse) ProtoMessage() {}
+
+func (x *CountCustomersCreatedBetweenResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_identity_v1_identity_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CountCustomersCreatedBetweenResponse.ProtoReflect.Descriptor instead.
+func (*CountCustomersCreatedBetweenResponse) Descriptor() ([]byte, []int) {
+	return file_identity_v1_identity_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *CountCustomersCreatedBetweenResponse) GetCustomerCount() int64 {
+	if x != nil {
+		return x.CustomerCount
+	}
+	return 0
+}
+
+var File_identity_v1_identity_proto protoreflect.FileDescriptor
+
+const file_identity_v1_identity_proto_rawDesc = "" +
 	"\n" +
-	" proto/identity/v1/identity.proto\x12\videntity.v1\"\xa5\x02\n" +
+	"\x1aidentity/v1/identity.proto\x12\videntity.v1\"\xa5\x02\n" +
 	"\aUserDTO\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x05R\x06userId\x12\x1b\n" +
 	"\tuser_uuid\x18\x02 \x01(\tR\buserUuid\x12#\n" +
@@ -888,49 +984,57 @@ const file_proto_identity_v1_identity_proto_rawDesc = "" +
 	"\x1bGetAddressesByUserIDRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x05R\x06userId\"U\n" +
 	"\x1cGetAddressesByUserIDResponse\x125\n" +
-	"\taddresses\x18\x01 \x03(\v2\x17.identity.v1.AddressDTOR\taddresses2\xd1\x04\n" +
+	"\taddresses\x18\x01 \x03(\v2\x17.identity.v1.AddressDTOR\taddresses\"[\n" +
+	"#CountCustomersCreatedBetweenRequest\x12\x1b\n" +
+	"\tfrom_time\x18\x01 \x01(\tR\bfromTime\x12\x17\n" +
+	"\ato_time\x18\x02 \x01(\tR\x06toTime\"M\n" +
+	"$CountCustomersCreatedBetweenResponse\x12%\n" +
+	"\x0ecustomer_count\x18\x01 \x01(\x03R\rcustomerCount2\xd7\x05\n" +
 	"\x0fIdentityService\x12P\n" +
 	"\vGetUserByID\x12\x1f.identity.v1.GetUserByIDRequest\x1a .identity.v1.GetUserByIDResponse\x12V\n" +
 	"\rGetUserByUUID\x12!.identity.v1.GetUserByUUIDRequest\x1a\".identity.v1.GetUserByUUIDResponse\x12V\n" +
 	"\rGetBatchUsers\x12!.identity.v1.GetBatchUsersRequest\x1a\".identity.v1.GetBatchUsersResponse\x12n\n" +
 	"\x15GetActiveAdminUserIDs\x12).identity.v1.GetActiveAdminUserIDsRequest\x1a*.identity.v1.GetActiveAdminUserIDsResponse\x12_\n" +
 	"\x10GetAddressByUUID\x12$.identity.v1.GetAddressByUUIDRequest\x1a%.identity.v1.GetAddressByUUIDResponse\x12k\n" +
-	"\x14GetAddressesByUserID\x12(.identity.v1.GetAddressesByUserIDRequest\x1a).identity.v1.GetAddressesByUserIDResponseB%Z#goshop/proto/identity/v1;identityv1b\x06proto3"
+	"\x14GetAddressesByUserID\x12(.identity.v1.GetAddressesByUserIDRequest\x1a).identity.v1.GetAddressesByUserIDResponse\x12\x83\x01\n" +
+	"\x1cCountCustomersCreatedBetween\x120.identity.v1.CountCustomersCreatedBetweenRequest\x1a1.identity.v1.CountCustomersCreatedBetweenResponseB%Z#goshop/proto/identity/v1;identityv1b\x06proto3"
 
 var (
-	file_proto_identity_v1_identity_proto_rawDescOnce sync.Once
-	file_proto_identity_v1_identity_proto_rawDescData []byte
+	file_identity_v1_identity_proto_rawDescOnce sync.Once
+	file_identity_v1_identity_proto_rawDescData []byte
 )
 
-func file_proto_identity_v1_identity_proto_rawDescGZIP() []byte {
-	file_proto_identity_v1_identity_proto_rawDescOnce.Do(func() {
-		file_proto_identity_v1_identity_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_proto_identity_v1_identity_proto_rawDesc), len(file_proto_identity_v1_identity_proto_rawDesc)))
+func file_identity_v1_identity_proto_rawDescGZIP() []byte {
+	file_identity_v1_identity_proto_rawDescOnce.Do(func() {
+		file_identity_v1_identity_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_identity_v1_identity_proto_rawDesc), len(file_identity_v1_identity_proto_rawDesc)))
 	})
-	return file_proto_identity_v1_identity_proto_rawDescData
+	return file_identity_v1_identity_proto_rawDescData
 }
 
-var file_proto_identity_v1_identity_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
-var file_proto_identity_v1_identity_proto_goTypes = []any{
-	(*UserDTO)(nil),                       // 0: identity.v1.UserDTO
-	(*AddressDTO)(nil),                    // 1: identity.v1.AddressDTO
-	(*GetUserByIDRequest)(nil),            // 2: identity.v1.GetUserByIDRequest
-	(*GetUserByIDResponse)(nil),           // 3: identity.v1.GetUserByIDResponse
-	(*GetUserByUUIDRequest)(nil),          // 4: identity.v1.GetUserByUUIDRequest
-	(*GetUserByUUIDResponse)(nil),         // 5: identity.v1.GetUserByUUIDResponse
-	(*GetBatchUsersRequest)(nil),          // 6: identity.v1.GetBatchUsersRequest
-	(*GetBatchUsersResponse)(nil),         // 7: identity.v1.GetBatchUsersResponse
-	(*GetActiveAdminUserIDsRequest)(nil),  // 8: identity.v1.GetActiveAdminUserIDsRequest
-	(*GetActiveAdminUserIDsResponse)(nil), // 9: identity.v1.GetActiveAdminUserIDsResponse
-	(*GetAddressByUUIDRequest)(nil),       // 10: identity.v1.GetAddressByUUIDRequest
-	(*GetAddressByUUIDResponse)(nil),      // 11: identity.v1.GetAddressByUUIDResponse
-	(*GetAddressesByUserIDRequest)(nil),   // 12: identity.v1.GetAddressesByUserIDRequest
-	(*GetAddressesByUserIDResponse)(nil),  // 13: identity.v1.GetAddressesByUserIDResponse
-	nil,                                   // 14: identity.v1.GetBatchUsersResponse.UsersEntry
+var file_identity_v1_identity_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_identity_v1_identity_proto_goTypes = []any{
+	(*UserDTO)(nil),                              // 0: identity.v1.UserDTO
+	(*AddressDTO)(nil),                           // 1: identity.v1.AddressDTO
+	(*GetUserByIDRequest)(nil),                   // 2: identity.v1.GetUserByIDRequest
+	(*GetUserByIDResponse)(nil),                  // 3: identity.v1.GetUserByIDResponse
+	(*GetUserByUUIDRequest)(nil),                 // 4: identity.v1.GetUserByUUIDRequest
+	(*GetUserByUUIDResponse)(nil),                // 5: identity.v1.GetUserByUUIDResponse
+	(*GetBatchUsersRequest)(nil),                 // 6: identity.v1.GetBatchUsersRequest
+	(*GetBatchUsersResponse)(nil),                // 7: identity.v1.GetBatchUsersResponse
+	(*GetActiveAdminUserIDsRequest)(nil),         // 8: identity.v1.GetActiveAdminUserIDsRequest
+	(*GetActiveAdminUserIDsResponse)(nil),        // 9: identity.v1.GetActiveAdminUserIDsResponse
+	(*GetAddressByUUIDRequest)(nil),              // 10: identity.v1.GetAddressByUUIDRequest
+	(*GetAddressByUUIDResponse)(nil),             // 11: identity.v1.GetAddressByUUIDResponse
+	(*GetAddressesByUserIDRequest)(nil),          // 12: identity.v1.GetAddressesByUserIDRequest
+	(*GetAddressesByUserIDResponse)(nil),         // 13: identity.v1.GetAddressesByUserIDResponse
+	(*CountCustomersCreatedBetweenRequest)(nil),  // 14: identity.v1.CountCustomersCreatedBetweenRequest
+	(*CountCustomersCreatedBetweenResponse)(nil), // 15: identity.v1.CountCustomersCreatedBetweenResponse
+	nil, // 16: identity.v1.GetBatchUsersResponse.UsersEntry
 }
-var file_proto_identity_v1_identity_proto_depIdxs = []int32{
+var file_identity_v1_identity_proto_depIdxs = []int32{
 	0,  // 0: identity.v1.GetUserByIDResponse.user:type_name -> identity.v1.UserDTO
 	0,  // 1: identity.v1.GetUserByUUIDResponse.user:type_name -> identity.v1.UserDTO
-	14, // 2: identity.v1.GetBatchUsersResponse.users:type_name -> identity.v1.GetBatchUsersResponse.UsersEntry
+	16, // 2: identity.v1.GetBatchUsersResponse.users:type_name -> identity.v1.GetBatchUsersResponse.UsersEntry
 	1,  // 3: identity.v1.GetAddressByUUIDResponse.address:type_name -> identity.v1.AddressDTO
 	1,  // 4: identity.v1.GetAddressesByUserIDResponse.addresses:type_name -> identity.v1.AddressDTO
 	0,  // 5: identity.v1.GetBatchUsersResponse.UsersEntry.value:type_name -> identity.v1.UserDTO
@@ -940,41 +1044,43 @@ var file_proto_identity_v1_identity_proto_depIdxs = []int32{
 	8,  // 9: identity.v1.IdentityService.GetActiveAdminUserIDs:input_type -> identity.v1.GetActiveAdminUserIDsRequest
 	10, // 10: identity.v1.IdentityService.GetAddressByUUID:input_type -> identity.v1.GetAddressByUUIDRequest
 	12, // 11: identity.v1.IdentityService.GetAddressesByUserID:input_type -> identity.v1.GetAddressesByUserIDRequest
-	3,  // 12: identity.v1.IdentityService.GetUserByID:output_type -> identity.v1.GetUserByIDResponse
-	5,  // 13: identity.v1.IdentityService.GetUserByUUID:output_type -> identity.v1.GetUserByUUIDResponse
-	7,  // 14: identity.v1.IdentityService.GetBatchUsers:output_type -> identity.v1.GetBatchUsersResponse
-	9,  // 15: identity.v1.IdentityService.GetActiveAdminUserIDs:output_type -> identity.v1.GetActiveAdminUserIDsResponse
-	11, // 16: identity.v1.IdentityService.GetAddressByUUID:output_type -> identity.v1.GetAddressByUUIDResponse
-	13, // 17: identity.v1.IdentityService.GetAddressesByUserID:output_type -> identity.v1.GetAddressesByUserIDResponse
-	12, // [12:18] is the sub-list for method output_type
-	6,  // [6:12] is the sub-list for method input_type
+	14, // 12: identity.v1.IdentityService.CountCustomersCreatedBetween:input_type -> identity.v1.CountCustomersCreatedBetweenRequest
+	3,  // 13: identity.v1.IdentityService.GetUserByID:output_type -> identity.v1.GetUserByIDResponse
+	5,  // 14: identity.v1.IdentityService.GetUserByUUID:output_type -> identity.v1.GetUserByUUIDResponse
+	7,  // 15: identity.v1.IdentityService.GetBatchUsers:output_type -> identity.v1.GetBatchUsersResponse
+	9,  // 16: identity.v1.IdentityService.GetActiveAdminUserIDs:output_type -> identity.v1.GetActiveAdminUserIDsResponse
+	11, // 17: identity.v1.IdentityService.GetAddressByUUID:output_type -> identity.v1.GetAddressByUUIDResponse
+	13, // 18: identity.v1.IdentityService.GetAddressesByUserID:output_type -> identity.v1.GetAddressesByUserIDResponse
+	15, // 19: identity.v1.IdentityService.CountCustomersCreatedBetween:output_type -> identity.v1.CountCustomersCreatedBetweenResponse
+	13, // [13:20] is the sub-list for method output_type
+	6,  // [6:13] is the sub-list for method input_type
 	6,  // [6:6] is the sub-list for extension type_name
 	6,  // [6:6] is the sub-list for extension extendee
 	0,  // [0:6] is the sub-list for field type_name
 }
 
-func init() { file_proto_identity_v1_identity_proto_init() }
-func file_proto_identity_v1_identity_proto_init() {
-	if File_proto_identity_v1_identity_proto != nil {
+func init() { file_identity_v1_identity_proto_init() }
+func file_identity_v1_identity_proto_init() {
+	if File_identity_v1_identity_proto != nil {
 		return
 	}
-	file_proto_identity_v1_identity_proto_msgTypes[0].OneofWrappers = []any{}
-	file_proto_identity_v1_identity_proto_msgTypes[1].OneofWrappers = []any{}
+	file_identity_v1_identity_proto_msgTypes[0].OneofWrappers = []any{}
+	file_identity_v1_identity_proto_msgTypes[1].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_identity_v1_identity_proto_rawDesc), len(file_proto_identity_v1_identity_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_identity_v1_identity_proto_rawDesc), len(file_identity_v1_identity_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   15,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_proto_identity_v1_identity_proto_goTypes,
-		DependencyIndexes: file_proto_identity_v1_identity_proto_depIdxs,
-		MessageInfos:      file_proto_identity_v1_identity_proto_msgTypes,
+		GoTypes:           file_identity_v1_identity_proto_goTypes,
+		DependencyIndexes: file_identity_v1_identity_proto_depIdxs,
+		MessageInfos:      file_identity_v1_identity_proto_msgTypes,
 	}.Build()
-	File_proto_identity_v1_identity_proto = out.File
-	file_proto_identity_v1_identity_proto_goTypes = nil
-	file_proto_identity_v1_identity_proto_depIdxs = nil
+	File_identity_v1_identity_proto = out.File
+	file_identity_v1_identity_proto_goTypes = nil
+	file_identity_v1_identity_proto_depIdxs = nil
 }

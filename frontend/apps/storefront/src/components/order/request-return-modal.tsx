@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef } from "react";
+import { directUpload } from "@goshop/api-client";
 import { authFetch } from "@/lib/api";
 import { extractErrorMessage } from "@/lib/utils";
 import {
@@ -238,29 +239,18 @@ export function RequestReturnModal({
 
       if (files.length > 0) {
         for (const file of files) {
-          const uploadData = new FormData();
-          uploadData.append("file", file);
-          uploadData.append("folder", "returns");
-
-          const uploadRes = await authFetch("/api/v1/upload", {
-            method: "POST",
-            body: uploadData,
-          });
-
-          if (!uploadRes.ok) {
-            const errJson = await uploadRes.json().catch(() => null);
-            const msg = extractErrorMessage(
-              errJson,
-              `Failed to upload "${file.name}".`,
-            );
+          let fileUrl: string;
+          try {
+            const uploaded = await directUpload(file, "returns", authFetch);
+            fileUrl = uploaded.url;
+          } catch (err) {
+            const msg = `Failed to upload "${file.name}". ${(err as Error).message}`;
             setErrorMsg(msg);
             toast.error(msg);
             setIsSubmitting(false);
             return;
           }
 
-          const resData = await uploadRes.json();
-          const fileUrl = resData?.data?.url || resData?.url;
           if (file.type.startsWith("video/")) {
             uploadedVideoUrl = fileUrl;
           } else {

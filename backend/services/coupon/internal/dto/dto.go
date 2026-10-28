@@ -69,18 +69,18 @@ type ReleaseCouponInput struct {
 }
 
 type CreateCouponInput struct {
-	Code              string   `json:"code" binding:"required,min=2,max=50,alphanum"`
-	Name              string   `json:"name" binding:"required,min=2,max=100"`
-	Description       string   `json:"description" binding:"omitempty,max=500"`
-	Type              int32    `json:"type" binding:"required,oneof=1 2"`
-	DiscountValue     float64  `json:"discount_value" binding:"required,gt=0"`
-	MaxDiscountAmount *float64 `json:"max_discount_amount" binding:"omitempty,gt=0"`
-	MinOrderAmount    float64  `json:"min_order_amount" binding:"omitempty,gte=0"`
-	UsageLimit        *int32   `json:"usage_limit" binding:"omitempty,gte=1"`
-	UserUsageLimit    int32    `json:"user_usage_limit" binding:"omitempty,gte=1"`
+	Code              string    `json:"code" binding:"required,min=2,max=50,alphanum"`
+	Name              string    `json:"name" binding:"required,min=2,max=100"`
+	Description       string    `json:"description" binding:"omitempty,max=500"`
+	Type              int32     `json:"type" binding:"required,oneof=1 2"`
+	DiscountValue     float64   `json:"discount_value" binding:"required,gt=0"`
+	MaxDiscountAmount *float64  `json:"max_discount_amount" binding:"omitempty,gt=0"`
+	MinOrderAmount    float64   `json:"min_order_amount" binding:"omitempty,gte=0"`
+	UsageLimit        *int32    `json:"usage_limit" binding:"omitempty,gte=1"`
+	UserUsageLimit    int32     `json:"user_usage_limit" binding:"omitempty,gte=1"`
 	StartDate         time.Time `json:"start_date"`
 	EndDate           time.Time `json:"end_date"`
-	IsActive          bool     `json:"is_active"`
+	IsActive          bool      `json:"is_active"`
 }
 
 type UpdateCouponInput struct {

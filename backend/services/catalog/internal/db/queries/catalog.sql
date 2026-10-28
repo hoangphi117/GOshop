@@ -256,3 +256,10 @@ LIMIT $1;
 UPDATE outbox_events
 SET status = 'PROCESSED', processed_at = NOW()
 WHERE event_id = $1;
+
+-- name: UpdateProductRating :exec
+UPDATE products SET
+    product_avg_rating = $2::text::numeric,
+    product_review_count = $3,
+    product_updated_at = now()
+WHERE product_id = $1;

@@ -12,6 +12,7 @@ import (
 
 type Querier interface {
 	AdjustStockByUUID(ctx context.Context, arg AdjustStockByUUIDParams) (InventoryStock, error)
+	CountLowStockProducts(ctx context.Context, threshold int32) (int64, error)
 	CountStockMovements(ctx context.Context, arg CountStockMovementsParams) (int64, error)
 	CreateStockMovement(ctx context.Context, arg CreateStockMovementParams) (StockMovement, error)
 	DeductStockByID(ctx context.Context, arg DeductStockByIDParams) (InventoryStock, error)
@@ -22,6 +23,8 @@ type Querier interface {
 	GetStockByProductIDs(ctx context.Context, dollar_1 []int32) ([]InventoryStock, error)
 	GetStockByUUID(ctx context.Context, productUuid uuid.UUID) (InventoryStock, error)
 	GetStockByUUIDs(ctx context.Context, dollar_1 []uuid.UUID) ([]InventoryStock, error)
+	// Lowest available stock first (available = quantity - reserved).
+	ListLowStockProducts(ctx context.Context, arg ListLowStockProductsParams) ([]ListLowStockProductsRow, error)
 	ListStockMovements(ctx context.Context, arg ListStockMovementsParams) ([]StockMovement, error)
 	RestoreStockByID(ctx context.Context, arg RestoreStockByIDParams) (InventoryStock, error)
 	RestoreStockByUUID(ctx context.Context, arg RestoreStockByUUIDParams) (InventoryStock, error)

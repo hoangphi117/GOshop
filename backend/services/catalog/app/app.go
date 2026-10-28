@@ -12,13 +12,16 @@ import (
 	"time"
 
 	"goshop/internal/config"
-	"goshop/internal/db"
 	"goshop/pkg/cache"
+	"goshop/pkg/db"
 	"goshop/pkg/logger"
+	"goshop/pkg/rabbitmq"
 	"goshop/pkg/search"
 	"goshop/pkg/utils"
 	"goshop/pkg/validation"
 	catalogv1 "goshop/proto/catalog/v1"
+	ratingconsumer "goshop/services/catalog/internal/consumer"
+	catalogsqlc "goshop/services/catalog/internal/db/sqlc"
 	cataloggrpc "goshop/services/catalog/internal/grpc"
 	cataloghandler "goshop/services/catalog/internal/handler"
 	"goshop/services/catalog/internal/migrations"
@@ -96,6 +99,19 @@ func New(cfg *config.Config) (*App, error) {
 	h := cataloghandler.NewCatalogHandler(svc)
 
 	catalogroutes.RegisterRoutes(r, h)
+
+	// Consume review rating updates from the Review service (reviews live in a separate DB).
+	ratingQuerier := catalogsqlc.New(dbPool)
+	ratingConsumer := ratingconsumer.NewRatingConsumer(ratingQuerier, cacheRedisService)
+	if rmq, err := rabbitmq.NewRabbitMQService(utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"), utils.NewLoggerWithPath("catalog_rabbitmq.log", "info")); err == nil {
+		go func() {
+			if err := rmq.Consume(context.Background(), rabbitmq.QueueReviewRatingUpdated, ratingConsumer.HandleEvent); err != nil {
+				logger.Log.Error().Err(err).Msg("Catalog review-rating consumer stopped")
+			}
+		}()
+	} else {
+		logger.Log.Warn().Err(err).Msg("RabbitMQ unavailable, review rating updates disabled")
+	}
 
 	port := utils.GetEnv("CATALOG_SERVER_PORT", "8086")
 	server := &http.Server{

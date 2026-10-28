@@ -15,7 +15,7 @@ import (
 // @title           GOshop Inventory Service API
 // @version         1.0
 // @description     Dedicated Inventory microservice providing stock deduction, restoration, concurrency controls, and gRPC contracts.
-// @host            localhost:8085
+// @host            localhost:8084
 // @BasePath        /
 
 func main() {
@@ -42,7 +42,7 @@ func main() {
 	if inventoryDBName := utils.GetEnv("INVENTORY_DB_NAME", utils.GetEnv("DB_INVENTORY_NAME", "shopping_inventory")); inventoryDBName != "" {
 		cfg.DB.DBName = inventoryDBName
 	}
-	port := utils.GetEnv("INVENTORY_SERVER_PORT", "8085")
+	port := utils.GetEnv("INVENTORY_SERVER_PORT", "8090")
 	cfg.ServerAddress = ":" + port
 
 	application, err := inventoryapp.New(cfg)

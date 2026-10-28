@@ -14,10 +14,9 @@ import (
 	"strings"
 
 	"goshop/internal/config"
-	"goshop/internal/db"
-	"goshop/internal/worker"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
+	"goshop/pkg/db"
 	"goshop/pkg/logger"
 	"goshop/pkg/mail"
 	"goshop/pkg/rabbitmq"
@@ -31,6 +30,7 @@ import (
 	identityrepo "goshop/services/identity/internal/repository"
 	identityroutes "goshop/services/identity/internal/routes"
 	identityservice "goshop/services/identity/internal/service"
+	identityworker "goshop/services/identity/worker"
 
 	"github.com/gin-gonic/gin"
 	"google.golang.org/grpc"
@@ -130,10 +130,9 @@ func New(cfg *config.Config) (*App, error) {
 	})
 
 	// Transactional Outbox Publisher for Identity Service (Guaranteed At-Least-Once Delivery)
-	coreOutboxRepo := identityrepo.NewWorkerOutboxRepository(outboxRepo)
 	if rabbitmqService != nil {
-		identityOutboxWorker := worker.NewOutboxPublisherWorkerWithAggregates(
-			coreOutboxRepo,
+		identityOutboxWorker := identityworker.NewOutboxPublisherWorkerWithAggregates(
+			outboxRepo,
 			rabbitmqService,
 			1*time.Second,
 			50,

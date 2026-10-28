@@ -229,10 +229,51 @@ location /api/v1/admin/coupons {
 }
 
 # -----------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# 4.2.5. BANNER SERVICE REVERSE PROXY (/api/v1/banners, /api/v1/admin/banners)
+# -----------------------------------------------------------------------------
+location /api/v1/banners {
+    set $banner_target http://banner-service:8089;
+    proxy_pass $banner_target;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-ID $request_id;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Port $server_port;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 60s;
+    proxy_send_timeout 60s;
+    proxy_request_buffering off;
+    limit_req zone=api burst=100 nodelay;
+}
+
+location /api/v1/admin/banners {
+    set $banner_target http://banner-service:8089;
+    proxy_pass $banner_target;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-ID $request_id;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Port $server_port;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 60s;
+    proxy_send_timeout 60s;
+    proxy_request_buffering off;
+    limit_req zone=api burst=100 nodelay;
+}
 # 4.3. INVENTORY SERVICE REVERSE PROXY (/api/v1/admin/inventory, /api/v1/inventory)
 # -----------------------------------------------------------------------------
 location /api/v1/admin/inventory {
-    set $inventory_target http://inventory-service:8085;
+    set $inventory_target http://inventory-service:8090;
     proxy_pass $inventory_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -251,7 +292,7 @@ location /api/v1/admin/inventory {
 }
 
 location /api/v1/inventory {
-    set $inventory_target http://inventory-service:8085;
+    set $inventory_target http://inventory-service:8090;
     proxy_pass $inventory_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";

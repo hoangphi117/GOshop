@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	"goshop/services/coupon/internal/db/sqlc"
 	"goshop/services/coupon/internal/dto"
 	"goshop/services/coupon/internal/service"
@@ -145,18 +145,18 @@ func TestCouponService_PreviewCoupon(t *testing.T) {
 		mock := &mockCouponRepo{
 			getByCodeFunc: func(ctx context.Context, code string) (sqlc.Coupon, error) {
 				return sqlc.Coupon{
-					CouponID:                  1,
-					CouponUuid:                uuid.New(),
-					CouponCode:                "SAVE10",
-					CouponName:                "10% Off",
-					CouponType:                dto.CouponTypePercentage,
-					CouponDiscountValue:       utils.FloatToNumeric(10), // 10%
-					CouponMaxDiscountAmount:   utils.FloatPointerToNumeric(&maxDiscount),
-					CouponMinOrderAmount:      utils.FloatToNumeric(100),
-					CouponIsActive:            true,
-					CouponStartDate:           time.Now().Add(-1 * time.Hour),
-					CouponEndDate:             time.Now().Add(24 * time.Hour),
-					CouponUserUsageLimit:      1,
+					CouponID:                1,
+					CouponUuid:              uuid.New(),
+					CouponCode:              "SAVE10",
+					CouponName:              "10% Off",
+					CouponType:              dto.CouponTypePercentage,
+					CouponDiscountValue:     utils.FloatToNumeric(10), // 10%
+					CouponMaxDiscountAmount: utils.FloatPointerToNumeric(&maxDiscount),
+					CouponMinOrderAmount:    utils.FloatToNumeric(100),
+					CouponIsActive:          true,
+					CouponStartDate:         time.Now().Add(-1 * time.Hour),
+					CouponEndDate:           time.Now().Add(24 * time.Hour),
+					CouponUserUsageLimit:    1,
 				}, nil
 			},
 		}
@@ -506,3 +506,4 @@ func TestCouponService_ConcurrentReserve(t *testing.T) {
 	}
 	assert.Equal(t, 1, increments, "concurrent duplicates consume quota once")
 }
+

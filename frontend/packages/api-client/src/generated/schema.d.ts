@@ -13,7 +13,7 @@ export interface paths {
         };
         /**
          * Get user addresses
-         * @description Retrieve all shipping addresses of current user
+         * @description Retrieve all shipping addresses belonging to the authenticated user
          */
         get: {
             parameters: {
@@ -30,8 +30,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.AddressDTO"][];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.AddressDTO"][];
                         };
                     };
                 };
@@ -41,7 +41,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -61,7 +61,7 @@ export interface paths {
             /** @description Address payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.CreateAddressInput"];
+                    "application/json": components["schemas"]["dto.CreateAddressInput"];
                 };
             };
             responses: {
@@ -71,8 +71,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.AddressDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.AddressDTO"];
                         };
                     };
                 };
@@ -82,7 +82,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -91,7 +91,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -111,7 +111,7 @@ export interface paths {
         };
         /**
          * Get address by UUID
-         * @description Retrieve single user address by UUID
+         * @description Retrieve a specific user address by UUID
          */
         get: {
             parameters: {
@@ -131,8 +131,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.AddressDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.AddressDTO"];
                         };
                     };
                 };
@@ -142,7 +142,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -151,14 +151,23 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
         };
         /**
          * Update user address
-         * @description Update shipping address details by UUID
+         * @description Update fields of an existing user address
          */
         put: {
             parameters: {
@@ -173,7 +182,7 @@ export interface paths {
             /** @description Update address payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.UpdateAddressInput"];
+                    "application/json": components["schemas"]["dto.UpdateAddressInput"];
                 };
             };
             responses: {
@@ -183,8 +192,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.AddressDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.AddressDTO"];
                         };
                     };
                 };
@@ -194,7 +203,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -203,7 +212,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -211,7 +220,7 @@ export interface paths {
         post?: never;
         /**
          * Delete user address
-         * @description Delete address by UUID
+         * @description Remove an address from user profile
          */
         delete: {
             parameters: {
@@ -238,7 +247,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -247,7 +256,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -271,8 +280,8 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Set default address
-         * @description Set this address as primary default shipping address
+         * Set address as default
+         * @description Set this address as primary/default for checkout
          */
         patch: {
             parameters: {
@@ -292,7 +301,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -301,7 +310,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -310,836 +319,11 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
         };
-        trace?: never;
-    };
-    "/api/v1/admin/analytics/cart-funnel": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get cart abandonment and conversion funnel statistics
-         * @description Get active carts, order drop-offs, abandonment rate, and potential lost revenue
-         */
-        get: {
-            parameters: {
-                query?: {
-                    /** @description Start date (YYYY-MM-DD) */
-                    from_date?: string;
-                    /** @description End date (YYYY-MM-DD) */
-                    to_date?: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.CartFunnelDTO"];
-                        };
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/analytics/category-sales": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get category sales breakdown
-         * @description Get sales volume, gross revenue, and revenue contribution percentages by category
-         */
-        get: {
-            parameters: {
-                query?: {
-                    /** @description Time window in days (default: 30) */
-                    days?: number;
-                    /** @description Start date (YYYY-MM-DD) */
-                    from_date?: string;
-                    /** @description End date (YYYY-MM-DD) */
-                    to_date?: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.CategorySalesBreakdownResponse"];
-                        };
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Internal Server Error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/analytics/coupons": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get coupon ROI and campaign performance analytics
-         * @description Get coupon usage statistics, total discounts given, revenue generated, and ROI multipliers by campaign
-         */
-        get: {
-            parameters: {
-                query?: {
-                    /** @description Time window in days (default: 30) */
-                    days?: number;
-                    /** @description Start date (YYYY-MM-DD) */
-                    from_date?: string;
-                    /** @description End date (YYYY-MM-DD) */
-                    to_date?: string;
-                    /** @description Maximum number of campaigns to return (default: 20) */
-                    limit?: number;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.CouponPerformanceResponse"];
-                        };
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Internal Server Error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/analytics/low-stock-alerts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get low stock product alerts
-         * @description Get list of products with inventory stock below or equal to the specified threshold
-         */
-        get: {
-            parameters: {
-                query?: {
-                    /** @description Inventory threshold alert limit (default: 5) */
-                    threshold?: number;
-                    /** @description Max items to return (1-50, default: 10) */
-                    limit?: number;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.LowStockProductResponse"];
-                        };
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Internal Server Error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/analytics/order-status-distribution": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get order status distribution
-         * @description Get order counts, revenue, and percentages grouped by order status with optional date filtering
-         */
-        get: {
-            parameters: {
-                query?: {
-                    /** @description Time window in days (default: 30) */
-                    days?: number;
-                    /** @description Start date (YYYY-MM-DD) */
-                    from_date?: string;
-                    /** @description End date (YYYY-MM-DD) */
-                    to_date?: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.OrderStatusDistributionResponse"];
-                        };
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Internal Server Error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/analytics/overview": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get analytics overview statistics
-         * @description Get KPI cards (revenue, orders, new customers, pending orders) with growth comparison for 30 days or custom date range
-         */
-        get: {
-            parameters: {
-                query?: {
-                    /** @description Time window in days (default: 30) */
-                    days?: number;
-                    /** @description Start date (YYYY-MM-DD) */
-                    from_date?: string;
-                    /** @description End date (YYYY-MM-DD) */
-                    to_date?: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.OverviewStatsDTO"];
-                        };
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Internal Server Error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/analytics/payment-methods": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get payment method breakdown
-         * @description Get net revenue, order volume, and percentages categorized by payment method
-         */
-        get: {
-            parameters: {
-                query?: {
-                    /** @description Time window in days (default: 30) */
-                    days?: number;
-                    /** @description Start date (YYYY-MM-DD) */
-                    from_date?: string;
-                    /** @description End date (YYYY-MM-DD) */
-                    to_date?: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.PaymentMethodBreakdownResponse"];
-                        };
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Internal Server Error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/analytics/recent-orders": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get recent orders for dashboard
-         * @description Retrieve the latest N orders with basic customer info
-         */
-        get: {
-            parameters: {
-                query?: {
-                    /** @description Max orders to return (1-50) */
-                    limit?: number;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.RecentOrderDTO"][];
-                        };
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Internal Server Error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/analytics/returns": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get return and refund financial analytics
-         * @description Get return rates, total refunded amount, reason breakdown, and top returned products
-         */
-        get: {
-            parameters: {
-                query?: {
-                    /** @description Time window in days (default: 30) */
-                    days?: number;
-                    /** @description Start date (YYYY-MM-DD) */
-                    from_date?: string;
-                    /** @description End date (YYYY-MM-DD) */
-                    to_date?: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.ReturnAnalyticsResponse"];
-                        };
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Internal Server Error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/analytics/revenue-chart": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get revenue chart data
-         * @description Get historical revenue and order count points aggregated by daily or monthly
-         */
-        get: {
-            parameters: {
-                query?: {
-                    /** @description Aggregation period: daily or monthly */
-                    period?: "daily" | "monthly";
-                    /** @description Number of days (for daily) */
-                    days?: number;
-                    /** @description Number of months (for monthly) */
-                    months?: number;
-                    /** @description Start date (YYYY-MM-DD) */
-                    from_date?: string;
-                    /** @description End date (YYYY-MM-DD) */
-                    to_date?: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.RevenueChartPointDTO"][];
-                        };
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Internal Server Error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/analytics/top-products": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get top selling products
-         * @description Get the top best-selling products by quantity and revenue over the last N days or custom date range
-         */
-        get: {
-            parameters: {
-                query?: {
-                    /** @description Time window in days */
-                    days?: number;
-                    /** @description Max items to return (1-50) */
-                    limit?: number;
-                    /** @description Start date (YYYY-MM-DD) */
-                    from_date?: string;
-                    /** @description End date (YYYY-MM-DD) */
-                    to_date?: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.TopProductDTO"][];
-                        };
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Internal Server Error */
-                500: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
         trace?: never;
     };
     "/admin/banners": {
@@ -1162,8 +346,6 @@ export interface paths {
                     is_active?: boolean;
                     /** @description Include soft-deleted banners */
                     deleted?: boolean;
-                    /** @description Search title */
-                    search?: string;
                     /** @description Page number */
                     page?: number;
                     /** @description Items per page */
@@ -1182,35 +364,14 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.AdminBannerDetailDTO"][];
+                            data?: components["schemas"]["dto.AdminBannerDetailDTO"][];
                         };
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
                     };
                 };
             };
         };
         put?: never;
-        /**
-         * Create banner
-         * @description Create a new banner (Admin/Moderator)
-         */
+        /** Create banner */
         post: {
             parameters: {
                 query?: never;
@@ -1221,7 +382,7 @@ export interface paths {
             /** @description Banner payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.CreateBannerRequest"];
+                    "application/json": components["schemas"]["dto.CreateBannerRequest"];
                 };
             };
             responses: {
@@ -1231,27 +392,9 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.AdminBannerDetailDTO"];
+                        "*/*": components["schemas"]["goshop_internal_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.AdminBannerDetailDTO"];
                         };
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
                     };
                 };
             };
@@ -1269,10 +412,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Get banner detail
-         * @description Retrieve banner by UUID (Admin/Moderator)
-         */
+        /** Get banner detail */
         get: {
             parameters: {
                 query?: never;
@@ -1291,35 +431,14 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.AdminBannerDetailDTO"];
+                        "*/*": components["schemas"]["goshop_internal_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.AdminBannerDetailDTO"];
                         };
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
                     };
                 };
             };
         };
-        /**
-         * Update banner
-         * @description Update banner details by UUID (Admin/Moderator)
-         */
+        /** Update banner */
         put: {
             parameters: {
                 query?: never;
@@ -1333,7 +452,7 @@ export interface paths {
             /** @description Banner update payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.UpdateBannerRequest"];
+                    "application/json": components["schemas"]["dto.UpdateBannerRequest"];
                 };
             };
             responses: {
@@ -1343,36 +462,15 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.AdminBannerDetailDTO"];
+                        "*/*": components["schemas"]["goshop_internal_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.AdminBannerDetailDTO"];
                         };
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
                     };
                 };
             };
         };
         post?: never;
-        /**
-         * Soft delete banner
-         * @description Move banner to trash (Admin/Moderator)
-         */
+        /** Soft delete banner */
         delete: {
             parameters: {
                 query?: never;
@@ -1391,25 +489,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "*/*": components["schemas"]["goshop_internal_utils.APIResponse"];
                     };
                 };
             };
@@ -1427,10 +507,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /**
-         * Restore banner
-         * @description Restore a soft-deleted banner (Admin/Moderator)
-         */
+        /** Restore banner */
         put: {
             parameters: {
                 query?: never;
@@ -1449,27 +526,9 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.AdminBannerDetailDTO"];
+                        "*/*": components["schemas"]["goshop_internal_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.AdminBannerDetailDTO"];
                         };
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
                     };
                 };
             };
@@ -1494,10 +553,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /**
-         * Update banner status
-         * @description Enable or disable banner active status (Admin/Moderator)
-         */
+        /** Update banner status */
         patch: {
             parameters: {
                 query?: never;
@@ -1511,7 +567,7 @@ export interface paths {
             /** @description Status payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.UpdateBannerStatusRequest"];
+                    "application/json": components["schemas"]["dto.UpdateBannerStatusRequest"];
                 };
             };
             responses: {
@@ -1521,27 +577,9 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.AdminBannerDetailDTO"];
+                        "*/*": components["schemas"]["goshop_internal_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.AdminBannerDetailDTO"];
                         };
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
                     };
                 };
             };
@@ -1558,10 +596,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /**
-         * Permanently delete banner
-         * @description Permanently delete a banner from database (Admin/Moderator)
-         */
+        /** Permanently delete banner */
         delete: {
             parameters: {
                 query?: never;
@@ -1580,25 +615,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "*/*": components["schemas"]["goshop_internal_utils.APIResponse"];
                     };
                 };
             };
@@ -1631,7 +648,7 @@ export interface paths {
             /** @description Category creation payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.CreateCategoryInput"];
+                    "application/json": components["schemas"]["dto.CreateCategoryInput"];
                 };
             };
             responses: {
@@ -1642,7 +659,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.CategoryDTO"];
+                            data?: components["schemas"]["dto.CategoryDTO"];
                         };
                     };
                 };
@@ -1688,7 +705,7 @@ export interface paths {
             /** @description Category update payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.UpdateCategoryInput"];
+                    "application/json": components["schemas"]["dto.UpdateCategoryInput"];
                 };
             };
             responses: {
@@ -1699,7 +716,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.CategoryDTO"];
+                            data?: components["schemas"]["dto.CategoryDTO"];
                         };
                     };
                 };
@@ -1761,7 +778,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.CategoryDTO"];
+                            data?: components["schemas"]["dto.CategoryDTO"];
                         };
                     };
                 };
@@ -1825,7 +842,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.CategoryDTO"];
+                            data?: components["schemas"]["dto.CategoryDTO"];
                         };
                     };
                 };
@@ -1948,7 +965,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.ConversationResponse"][];
+                            data?: components["schemas"]["dto.ConversationResponse"][];
                         };
                     };
                 };
@@ -2019,7 +1036,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.ConversationResponse"];
+                            data?: components["schemas"]["dto.ConversationResponse"];
                         };
                     };
                 };
@@ -2193,7 +1210,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.MessageResponse"][];
+                            data?: components["schemas"]["dto.MessageResponse"][];
                         };
                     };
                 };
@@ -2253,7 +1270,7 @@ export interface paths {
             /** @description Message payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.SendMessageRequest"];
+                    "application/json": components["schemas"]["dto.SendMessageRequest"];
                 };
             };
             responses: {
@@ -2264,7 +1281,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.SendMessageResponse"];
+                            data?: components["schemas"]["dto.SendMessageResponse"];
                         };
                     };
                 };
@@ -2504,7 +1521,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.MessageResponse"];
+                            data?: components["schemas"]["dto.MessageResponse"];
                         };
                     };
                 };
@@ -2659,7 +1676,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.ConversationResponse"];
+                            data?: components["schemas"]["dto.ConversationResponse"];
                         };
                     };
                 };
@@ -2751,7 +1768,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.CouponDTO"][];
+                            data?: components["schemas"]["dto.CouponDTO"][];
                         };
                     };
                 };
@@ -2790,7 +1807,7 @@ export interface paths {
             /** @description Coupon payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.CreateCouponInput"];
+                    "application/json": components["schemas"]["dto.CreateCouponInput"];
                 };
             };
             responses: {
@@ -2801,7 +1818,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.CouponDTO"];
+                            data?: components["schemas"]["dto.CouponDTO"];
                         };
                     };
                 };
@@ -2838,7 +1855,44 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Get coupon by UUID
+         * @description Retrieve a single coupon by its UUID (Admin)
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Coupon UUID */
+                    uuid: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.CouponDTO"];
+                        };
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
         /**
          * Update coupon
          * @description Update coupon details by UUID (Admin/Moderator)
@@ -2856,7 +1910,7 @@ export interface paths {
             /** @description Coupon update payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.UpdateCouponInput"];
+                    "application/json": components["schemas"]["dto.UpdateCouponInput"];
                 };
             };
             responses: {
@@ -2867,7 +1921,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.CouponDTO"];
+                            data?: components["schemas"]["dto.CouponDTO"];
                         };
                     };
                 };
@@ -2915,7 +1969,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.CouponDTO"];
+                            data?: components["schemas"]["dto.CouponDTO"];
                         };
                     };
                 };
@@ -2935,126 +1989,6 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-            };
-        };
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/admin/coupons/{uuid}/restore": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /**
-         * Restore coupon
-         * @description Restore a soft-deleted coupon by UUID (Admin/Moderator)
-         */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description Coupon UUID */
-                    uuid: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.CouponDTO"];
-                        };
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-            };
-        };
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/admin/coupons/{uuid}/trash": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Permanently delete coupon
-         * @description Permanently delete a coupon by UUID (Admin only)
-         */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description Coupon UUID */
-                    uuid: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description No Content */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "*/*": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "*/*": components["schemas"]["goshop_internal_utils.ErrorResponse"];
                     };
                 };
             };
@@ -3130,7 +2064,7 @@ export interface paths {
             /** @description Stock adjustment payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.AdjustStockInput"];
+                    "application/json": components["schemas"]["dto.AdjustStockInput"];
                 };
             };
             responses: {
@@ -3204,7 +2138,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.StockMovementDTO"][];
+                            data?: components["schemas"]["dto.StockMovementDTO"][];
                         };
                     };
                 };
@@ -3259,7 +2193,7 @@ export interface paths {
             /** @description Notification payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.CreateNotificationInput"];
+                    "application/json": components["schemas"]["dto.CreateNotificationInput"];
                 };
             };
             responses: {
@@ -3269,8 +2203,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.NotificationDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.NotificationDTO"];
                         };
                     };
                 };
@@ -3280,7 +2214,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -3289,7 +2223,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -3323,7 +2257,7 @@ export interface paths {
             /** @description Broadcast payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.BroadcastNotificationInput"];
+                    "application/json": components["schemas"]["dto.BroadcastNotificationInput"];
                 };
             };
             responses: {
@@ -3333,7 +2267,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -3342,7 +2276,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -3351,11 +2285,109 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/notifications/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Mark all admin notifications as read
+         * @description Mark all unread admin notifications of current user as read
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/admin/notifications/unread": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get admin unread notification count
+         * @description Get number of unread admin notifications for current admin user
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.UnreadCountDTO"];
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3401,8 +2433,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.OrderDTO"][];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.OrderDTO"][];
                         };
                     };
                 };
@@ -3412,7 +2444,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -3421,7 +2453,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -3457,7 +2489,7 @@ export interface paths {
             /** @description Bulk cancel payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.BulkCancelOrdersInput"];
+                    "application/json": components["schemas"]["dto.BulkCancelOrdersInput"];
                 };
             };
             responses: {
@@ -3467,8 +2499,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.BulkOperationResultDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.BulkOperationResultDTO"];
                         };
                     };
                 };
@@ -3478,7 +2510,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -3487,7 +2519,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -3521,7 +2553,7 @@ export interface paths {
             /** @description Bulk update payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.BulkUpdateOrderStatusInput"];
+                    "application/json": components["schemas"]["dto.BulkUpdateOrderStatusInput"];
                 };
             };
             responses: {
@@ -3531,8 +2563,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.BulkOperationResultDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.BulkOperationResultDTO"];
                         };
                     };
                 };
@@ -3542,7 +2574,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -3551,7 +2583,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -3590,8 +2622,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.SyncActiveShippingStatsDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.SyncActiveShippingStatsDTO"];
                         };
                     };
                 };
@@ -3601,7 +2633,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -3610,7 +2642,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -3651,7 +2683,7 @@ export interface paths {
             /** @description Status payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.UpdateOrderStatusInput"];
+                    "application/json": components["schemas"]["dto.UpdateOrderStatusInput"];
                 };
             };
             responses: {
@@ -3661,8 +2693,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.OrderDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.OrderDTO"];
                         };
                     };
                 };
@@ -3672,7 +2704,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -3681,7 +2713,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -3718,7 +2750,7 @@ export interface paths {
             /** @description Payment status payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.UpdateOrderPaymentStatusInput"];
+                    "application/json": components["schemas"]["dto.UpdateOrderPaymentStatusInput"];
                 };
             };
             responses: {
@@ -3728,8 +2760,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.OrderDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.OrderDTO"];
                         };
                     };
                 };
@@ -3739,7 +2771,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -3748,7 +2780,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -3781,7 +2813,7 @@ export interface paths {
             /** @description Shipping order payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.CreateShippingInput"];
+                    "application/json": components["schemas"]["dto.CreateShippingInput"];
                 };
             };
             responses: {
@@ -3791,8 +2823,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.ShippingResponseDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.ShippingResponseDTO"];
                         };
                     };
                 };
@@ -3802,7 +2834,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -3811,7 +2843,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -3848,7 +2880,7 @@ export interface paths {
             /** @description Cancel reason payload */
             requestBody?: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.CancelShippingInput"];
+                    "application/json": components["schemas"]["dto.CancelShippingInput"];
                 };
             };
             responses: {
@@ -3858,8 +2890,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.CancelShippingResponseDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.CancelShippingResponseDTO"];
                         };
                     };
                 };
@@ -3869,7 +2901,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -3909,7 +2941,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -3918,7 +2950,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -3954,7 +2986,7 @@ export interface paths {
             /** @description Refund payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.RefundPaymentInput"];
+                    "application/json": components["schemas"]["goshop_services_payment_internal_dto.RefundPaymentInput"];
                 };
             };
             responses: {
@@ -3964,8 +2996,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.PaymentTransactionDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["goshop_services_payment_internal_dto.PaymentTransactionDTO"];
                         };
                     };
                 };
@@ -3975,7 +3007,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -3984,67 +3016,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/admin/payments/{order_uuid}/confirm-cod": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Confirm COD payment
-         * @description Confirm that cash on delivery payment has been received (Admin/Moderator)
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description Order UUID */
-                    order_uuid: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -4090,8 +3062,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.OrderReturnDTO"][];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.OrderReturnDTO"][];
                         };
                     };
                 };
@@ -4101,7 +3073,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -4110,7 +3082,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -4152,8 +3124,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.OrderReturnDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.OrderReturnDTO"];
                         };
                     };
                 };
@@ -4163,7 +3135,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -4172,7 +3144,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -4199,7 +3171,7 @@ export interface paths {
             /** @description Update return status payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.AdminUpdateReturnInput"];
+                    "application/json": components["schemas"]["dto.AdminUpdateReturnInput"];
                 };
             };
             responses: {
@@ -4209,7 +3181,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -4218,7 +3190,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -4227,7 +3199,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -4260,7 +3232,7 @@ export interface paths {
             /** @description Refund process payload */
             requestBody?: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.AdminReturnRefundInput"];
+                    "application/json": components["schemas"]["dto.AdminReturnRefundInput"];
                 };
             };
             responses: {
@@ -4270,7 +3242,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -4279,7 +3251,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -4288,7 +3260,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -4342,8 +3314,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.ReviewDTO"][];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.ReviewDTO"][];
                         };
                     };
                 };
@@ -4353,7 +3325,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -4362,7 +3334,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -4407,7 +3379,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -4416,7 +3388,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -4425,7 +3397,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -4466,7 +3438,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -4475,7 +3447,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -4484,7 +3456,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -4525,7 +3497,7 @@ export interface paths {
             /** @description Reply payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.ReplyReviewInput"];
+                    "application/json": components["schemas"]["dto.ReplyReviewInput"];
                 };
             };
             responses: {
@@ -4535,8 +3507,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.ReviewDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.ReviewDTO"];
                         };
                     };
                 };
@@ -4546,7 +3518,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -4555,7 +3527,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -4591,8 +3563,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.ReviewReportDTO"][];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.ReviewReportDTO"][];
                         };
                     };
                 };
@@ -4602,7 +3574,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -4611,7 +3583,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -4654,7 +3626,7 @@ export interface paths {
             /** @description Status payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.UpdateReviewStatusInput"];
+                    "application/json": components["schemas"]["dto.UpdateReviewStatusInput"];
                 };
             };
             responses: {
@@ -4664,8 +3636,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.ReviewDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.ReviewDTO"];
                         };
                     };
                 };
@@ -4675,7 +3647,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -4684,7 +3656,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -4728,8 +3700,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.UserDTO"][];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.UserDTO"][];
                         };
                     };
                 };
@@ -4739,7 +3711,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -4748,7 +3720,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -4768,7 +3740,7 @@ export interface paths {
             /** @description User payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.CreateUserInput"];
+                    "application/json": components["schemas"]["dto.CreateUserInput"];
                 };
             };
             responses: {
@@ -4778,8 +3750,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.UserDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.UserDTO"];
                         };
                     };
                 };
@@ -4789,7 +3761,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -4798,7 +3770,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -4846,8 +3818,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.UserDTO"][];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.UserDTO"][];
                         };
                     };
                 };
@@ -4857,7 +3829,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -4866,7 +3838,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -4908,8 +3880,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.UserDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.UserDTO"];
                         };
                     };
                 };
@@ -4919,7 +3891,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -4928,7 +3900,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -4950,7 +3922,7 @@ export interface paths {
             /** @description Update user payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.UpdateUserInput"];
+                    "application/json": components["schemas"]["dto.UpdateUserInput"];
                 };
             };
             responses: {
@@ -4960,8 +3932,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.UserDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.UserDTO"];
                         };
                     };
                 };
@@ -4971,7 +3943,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -4980,7 +3952,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -5022,8 +3994,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.UserDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.UserDTO"];
                         };
                     };
                 };
@@ -5033,7 +4005,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -5042,7 +4014,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -5086,8 +4058,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.UserDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.UserDTO"];
                         };
                     };
                 };
@@ -5097,7 +4069,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -5106,7 +4078,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -5155,7 +4127,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -5164,11 +4136,536 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
         };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/analytics/low-stock-alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get low stock product alerts
+         * @description Get list of products with inventory stock below or equal to the specified threshold
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Inventory threshold alert limit (default: 5) */
+                    threshold?: number;
+                    /** @description Max items to return (1-50, default: 10) */
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.LowStockProductResponse"];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/analytics/order-status-distribution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get order status distribution
+         * @description Get order counts, revenue, and percentages grouped by order status with optional date filtering
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Time window in days (default: 30) */
+                    days?: number;
+                    /** @description Start date (YYYY-MM-DD) */
+                    from_date?: string;
+                    /** @description End date (YYYY-MM-DD) */
+                    to_date?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.OrderStatusDistributionResponse"];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/analytics/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get analytics overview statistics
+         * @description Get KPI cards (revenue, orders, new customers, pending orders) with growth comparison for 30 days or custom date range
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Time window in days (default: 30) */
+                    days?: number;
+                    /** @description Start date (YYYY-MM-DD) */
+                    from_date?: string;
+                    /** @description End date (YYYY-MM-DD) */
+                    to_date?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.OverviewStatsDTO"];
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/analytics/payment-methods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get payment method breakdown
+         * @description Get net revenue, order volume, and percentages categorized by payment method
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Time window in days (default: 30) */
+                    days?: number;
+                    /** @description Start date (YYYY-MM-DD) */
+                    from_date?: string;
+                    /** @description End date (YYYY-MM-DD) */
+                    to_date?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.PaymentMethodBreakdownResponse"];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/analytics/recent-orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get recent orders for dashboard
+         * @description Retrieve the latest N orders with basic customer info
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Max orders to return (1-50) */
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.RecentOrderDTO"][];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/analytics/revenue-chart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get revenue chart data
+         * @description Get historical revenue and order count points aggregated by daily or monthly
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Aggregation period: daily or monthly */
+                    period?: "daily" | "monthly";
+                    /** @description Number of days (for daily) */
+                    days?: number;
+                    /** @description Number of months (for monthly) */
+                    months?: number;
+                    /** @description Start date (YYYY-MM-DD) */
+                    from_date?: string;
+                    /** @description End date (YYYY-MM-DD) */
+                    to_date?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.RevenueChartPointDTO"][];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/analytics/top-products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get top selling products
+         * @description Get the top best-selling products by quantity and revenue over the last N days or custom date range
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Time window in days */
+                    days?: number;
+                    /** @description Max items to return (1-50) */
+                    limit?: number;
+                    /** @description Start date (YYYY-MM-DD) */
+                    from_date?: string;
+                    /** @description End date (YYYY-MM-DD) */
+                    to_date?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.TopProductDTO"][];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -5184,8 +4681,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Create a new product
-         * @description Admin endpoint to create a new product catalog item
+         * Create product
+         * @description Create a new product (Admin/Moderator)
          */
         post: {
             parameters: {
@@ -5197,22 +4694,22 @@ export interface paths {
             /** @description Product creation payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.CreateProductRequest"];
+                    "application/json": components["schemas"]["dto.CreateProductInput"];
                 };
             };
             responses: {
-                /** @description Created product successfully */
+                /** @description Created */
                 201: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.ProductDTO"];
+                            data?: components["schemas"]["dto.ProductDTO"];
                         };
                     };
                 };
-                /** @description Validation error */
+                /** @description Bad Request */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -5239,7 +4736,7 @@ export interface paths {
                         "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
                     };
                 };
-                /** @description Internal server error */
+                /** @description Internal Server Error */
                 500: {
                     headers: {
                         [name: string]: unknown;
@@ -5295,7 +4792,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.ProductCSVImportResponse"];
+                            data?: components["schemas"]["dto.ProductCSVImportResponse"];
                         };
                     };
                 };
@@ -5359,7 +4856,7 @@ export interface paths {
             /** @description Product update payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.UpdateProductRequest"];
+                    "application/json": components["schemas"]["dto.UpdateProductInput"];
                 };
             };
             responses: {
@@ -5370,7 +4867,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.ProductDTO"];
+                            data?: components["schemas"]["dto.ProductDTO"];
                         };
                     };
                 };
@@ -5436,7 +4933,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.ProductDTO"];
+                            data?: components["schemas"]["dto.ProductDTO"];
                         };
                     };
                 };
@@ -5514,7 +5011,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.ProductDTO"];
+                            data?: components["schemas"]["dto.ProductDTO"];
                         };
                     };
                 };
@@ -5662,7 +5159,7 @@ export interface paths {
             /** @description User email */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.RequestForgotPasswordInput"];
+                    "application/json": components["schemas"]["dto.RequestForgotPasswordInput"];
                 };
             };
             responses: {
@@ -5672,7 +5169,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"];
                     };
                 };
                 /** @description Validation error */
@@ -5681,7 +5178,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description User with this email not found */
@@ -5690,7 +5187,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Internal server error */
@@ -5699,7 +5196,69 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/google-login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Login with Google
+         * @description Authenticate user using Google OAuth ID token
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description Google ID token */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["dto.GoogleLoginInput"];
+                };
+            };
+            responses: {
+                /** @description Login with Google successful */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"];
+                    };
+                };
+                /** @description Validation error */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -5733,7 +5292,7 @@ export interface paths {
             /** @description Login credentials */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.LoginInput"];
+                    "application/json": components["schemas"]["dto.LoginInput"];
                 };
             };
             responses: {
@@ -5743,8 +5302,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.LoginResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.LoginResponse"];
                         };
                     };
                 };
@@ -5754,7 +5313,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Invalid email or password */
@@ -5763,7 +5322,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Internal server error */
@@ -5772,7 +5331,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -5803,7 +5362,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: components["requestBodies"]["goshop_internal_dto_v1.RefreshTokenInput"];
+            requestBody?: components["requestBodies"]["dto.RefreshTokenInput"];
             responses: {
                 /** @description Logout successfully */
                 200: {
@@ -5811,7 +5370,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"];
                     };
                 };
                 /** @description Validation error */
@@ -5820,7 +5379,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Internal server error */
@@ -5829,7 +5388,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -5860,7 +5419,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: components["requestBodies"]["goshop_internal_dto_v1.RefreshTokenInput"];
+            requestBody?: components["requestBodies"]["dto.RefreshTokenInput"];
             responses: {
                 /** @description Token refreshed successfully */
                 200: {
@@ -5868,8 +5427,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.LoginResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.LoginResponse"];
                         };
                     };
                 };
@@ -5879,7 +5438,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Invalid or expired refresh token */
@@ -5888,7 +5447,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Internal server error */
@@ -5897,7 +5456,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -5931,7 +5490,7 @@ export interface paths {
             /** @description Registration credentials */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.RegisterInput"];
+                    "application/json": components["schemas"]["dto.RegisterInput"];
                 };
             };
             responses: {
@@ -5941,7 +5500,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"];
                     };
                 };
                 /** @description Validation error */
@@ -5950,7 +5509,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Email already registered */
@@ -5959,7 +5518,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Internal server error */
@@ -5968,7 +5527,222 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/register-otp/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resend registration verification OTP
+         * @description Resend a new 6-digit OTP code to the user email if cooldown elapsed
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description Resend payload */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["dto.ResendRegisterOTPInput"];
+                };
+            };
+            responses: {
+                /** @description Verification code resent successfully */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"];
+                    };
+                };
+                /** @description No pending registration found */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Cooldown active */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Internal server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/register-otp/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send registration verification OTP
+         * @description Validate registration input, hash password, and send 6-digit OTP code to email
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description Registration credentials */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["dto.SendRegisterOTPInput"];
+                };
+            };
+            responses: {
+                /** @description Verification code sent to email */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"];
+                    };
+                };
+                /** @description Validation error */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Email already registered */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Cooldown active */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Internal server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/register-otp/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify registration OTP and create account
+         * @description Verify the 6-digit OTP code sent to user email and return access/refresh token
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description Verification payload */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["dto.VerifyRegisterOTPInput"];
+                };
+            };
+            responses: {
+                /** @description Registration verified successfully */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.LoginResponse"];
+                        };
+                    };
+                };
+                /** @description Invalid or expired OTP */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
+                    };
+                };
+                /** @description Internal server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -6002,7 +5776,7 @@ export interface paths {
             /** @description Token and new password */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.ResetPasswordInput"];
+                    "application/json": components["schemas"]["dto.ResetPasswordInput"];
                 };
             };
             responses: {
@@ -6012,7 +5786,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"];
                     };
                 };
                 /** @description Validation error or invalid token */
@@ -6021,7 +5795,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Internal server error */
@@ -6030,7 +5804,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -6087,7 +5861,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.ProductDTO"][];
+                            data?: components["schemas"]["dto.ProductDTO"][];
                         };
                     };
                 };
@@ -6141,7 +5915,9 @@ export interface paths {
                     min_price?: number;
                     /** @description Maximum price */
                     max_price?: number;
-                    /** @description Sort option (price:asc, price:desc, created_at:desc, created_at:asc) */
+                    /** @description Minimum rating (0-5) */
+                    min_rating?: number;
+                    /** @description Sort option (price:asc, price:desc, created_at:desc, created_at:asc, rating:desc, rating:asc) */
                     sort?: string;
                     /** @description Page number (default 1) */
                     page?: number;
@@ -6161,7 +5937,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.ProductDTO"][];
+                            data?: components["schemas"]["dto.ProductDTO"][];
                         };
                     };
                 };
@@ -6216,7 +5992,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.ProductSuggestionDTO"][];
+                            data?: components["schemas"]["dto.ProductSuggestionDTO"][];
                         };
                     };
                 };
@@ -6269,7 +6045,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.ProductDTO"];
+                            data?: components["schemas"]["dto.ProductDTO"];
                         };
                     };
                 };
@@ -6340,7 +6116,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.BannerDTO"][];
+                            data?: components["schemas"]["dto.BannerDTO"][];
                         };
                     };
                 };
@@ -6390,7 +6166,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.CartDTO"];
+                            data?: components["schemas"]["dto.CartDTO"];
                         };
                     };
                 };
@@ -6468,7 +6244,7 @@ export interface paths {
             /** @description Item payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.AddCartItemInput"];
+                    "application/json": components["schemas"]["dto.AddCartItemInput"];
                 };
             };
             responses: {
@@ -6479,7 +6255,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.CartDTO"];
+                            data?: components["schemas"]["dto.CartDTO"];
                         };
                     };
                 };
@@ -6534,7 +6310,7 @@ export interface paths {
             /** @description Quantity payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.UpdateCartItemQuantityInput"];
+                    "application/json": components["schemas"]["dto.UpdateCartItemQuantityInput"];
                 };
             };
             responses: {
@@ -6545,7 +6321,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.CartDTO"];
+                            data?: components["schemas"]["dto.CartDTO"];
                         };
                     };
                 };
@@ -6593,7 +6369,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.CartDTO"];
+                            data?: components["schemas"]["dto.CartDTO"];
                         };
                     };
                 };
@@ -6660,7 +6436,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.CategoryDTO"][];
+                            data?: components["schemas"]["dto.CategoryDTO"][];
                         };
                     };
                 };
@@ -6713,7 +6489,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.CategoryDTO"];
+                            data?: components["schemas"]["dto.CategoryDTO"];
                         };
                     };
                 };
@@ -6772,7 +6548,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.ConversationResponse"];
+                            data?: components["schemas"]["dto.ConversationResponse"];
                         };
                     };
                 };
@@ -6838,7 +6614,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.MessageResponse"][];
+                            data?: components["schemas"]["dto.MessageResponse"][];
                         };
                     };
                 };
@@ -6877,7 +6653,7 @@ export interface paths {
             /** @description Message content payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.SendMessageRequest"];
+                    "application/json": components["schemas"]["dto.SendMessageRequest"];
                 };
             };
             responses: {
@@ -6888,7 +6664,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.SendMessageResponse"];
+                            data?: components["schemas"]["dto.SendMessageResponse"];
                         };
                     };
                 };
@@ -7020,7 +6796,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.MessageResponse"];
+                            data?: components["schemas"]["dto.MessageResponse"];
                         };
                     };
                 };
@@ -7100,7 +6876,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.ShopStatusResponse"];
+                            data?: components["schemas"]["dto.ShopStatusResponse"];
                         };
                     };
                 };
@@ -7207,7 +6983,7 @@ export interface paths {
             /** @description Preview payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.PreviewCouponInput"];
+                    "application/json": components["schemas"]["dto.PreviewCouponInput"];
                 };
             };
             responses: {
@@ -7218,7 +6994,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.PreviewCouponDTO"];
+                            data?: components["schemas"]["dto.PreviewCouponDTO"];
                         };
                     };
                 };
@@ -7322,8 +7098,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.NotificationDTO"][];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.NotificationDTO"][];
                         };
                     };
                 };
@@ -7333,7 +7109,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -7342,7 +7118,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -7381,8 +7157,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.UnreadCountDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.UnreadCountDTO"];
                         };
                     };
                 };
@@ -7392,7 +7168,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -7437,7 +7213,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -7446,7 +7222,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -7492,7 +7268,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -7501,7 +7277,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -7546,8 +7322,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.NotificationDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.NotificationDTO"];
                         };
                     };
                 };
@@ -7557,7 +7333,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -7566,7 +7342,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -7612,8 +7388,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.OrderDTO"][];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.OrderDTO"][];
                         };
                     };
                 };
@@ -7623,7 +7399,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -7632,7 +7408,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -7652,7 +7428,7 @@ export interface paths {
             /** @description Order creation payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.CreateOrderInput"];
+                    "application/json": components["schemas"]["dto.CreateOrderInput"];
                 };
             };
             responses: {
@@ -7662,8 +7438,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.OrderDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.OrderDTO"];
                         };
                     };
                 };
@@ -7673,7 +7449,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -7682,7 +7458,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -7716,7 +7492,7 @@ export interface paths {
             /** @description Calculate fee payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.CalculateShippingFeeInput"];
+                    "application/json": components["schemas"]["dto.CalculateShippingFeeInput"];
                 };
             };
             responses: {
@@ -7726,8 +7502,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.ShippingFeeResponseDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.ShippingFeeResponseDTO"];
                         };
                     };
                 };
@@ -7737,7 +7513,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -7783,8 +7559,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.OrderReturnDTO"][];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.OrderReturnDTO"][];
                         };
                     };
                 };
@@ -7794,7 +7570,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -7803,7 +7579,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -7845,8 +7621,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.OrderDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.OrderDTO"];
                         };
                     };
                 };
@@ -7856,7 +7632,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -7865,7 +7641,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Not Found */
@@ -7874,7 +7650,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -7922,7 +7698,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -7931,7 +7707,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -7940,7 +7716,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -7978,7 +7754,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -7987,7 +7763,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -7996,7 +7772,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -8048,7 +7824,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/pdf": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/pdf": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -8057,7 +7833,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/pdf": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/pdf": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -8099,8 +7875,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.OrderReturnDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.OrderReturnDTO"];
                         };
                     };
                 };
@@ -8110,7 +7886,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -8119,7 +7895,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -8139,23 +7915,10 @@ export interface paths {
                 };
                 cookie?: never;
             };
+            /** @description Return request body */
             requestBody: {
                 content: {
-                    "multipart/form-data": {
-                        /** @description Return reason */
-                        reason: string;
-                        /** @description Bank name for refund */
-                        bank_name?: string;
-                        /** @description Bank account number */
-                        bank_account?: string;
-                        /** @description Bank account holder name */
-                        bank_account_name?: string;
-                        /**
-                         * Format: binary
-                         * @description Proof images (max 5) or video (max 1)
-                         */
-                        files?: string;
-                    };
+                    "application/json": components["schemas"]["dto.CreateOrderReturnInput"];
                 };
             };
             responses: {
@@ -8165,8 +7928,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.OrderReturnDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.OrderReturnDTO"];
                         };
                     };
                 };
@@ -8176,7 +7939,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -8185,7 +7948,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -8221,7 +7984,7 @@ export interface paths {
             /** @description Bank account payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.UpdateReturnBankAccountInput"];
+                    "application/json": components["schemas"]["dto.UpdateReturnBankAccountInput"];
                 };
             };
             responses: {
@@ -8231,7 +7994,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -8240,7 +8003,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -8249,7 +8012,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -8291,7 +8054,7 @@ export interface paths {
             /** @description Cancel reason */
             requestBody?: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.CancelOrderReturnInput"];
+                    "application/json": components["schemas"]["dto.CancelOrderReturnInput"];
                 };
             };
             responses: {
@@ -8301,7 +8064,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -8310,7 +8073,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -8319,7 +8082,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -8352,7 +8115,7 @@ export interface paths {
             /** @description Return shipment info */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.SubmitReturnShippingInput"];
+                    "application/json": components["schemas"]["dto.SubmitReturnShippingInput"];
                 };
             };
             responses: {
@@ -8362,7 +8125,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -8371,7 +8134,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -8380,7 +8143,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -8416,7 +8179,7 @@ export interface paths {
             /** @description Shipping info payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.UpdateOrderShippingInfoInput"];
+                    "application/json": components["schemas"]["dto.UpdateOrderShippingInfoInput"];
                 };
             };
             responses: {
@@ -8426,8 +8189,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.OrderDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.OrderDTO"];
                         };
                     };
                 };
@@ -8437,7 +8200,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -8446,7 +8209,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -8489,8 +8252,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.SyncTrackingResponseDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.SyncTrackingResponseDTO"];
                         };
                     };
                 };
@@ -8500,7 +8263,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -8509,7 +8272,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -8549,8 +8312,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.OrderTimelineResponseDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.OrderTimelineResponseDTO"];
                         };
                     };
                 };
@@ -8560,7 +8323,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -8569,7 +8332,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -8605,7 +8368,7 @@ export interface paths {
             /** @description Payment intent payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.CreatePaymentIntentInput"];
+                    "application/json": components["schemas"]["dto.CreatePaymentIntentInput"];
                 };
             };
             responses: {
@@ -8615,8 +8378,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.PaymentIntentDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.PaymentIntentDTO"];
                         };
                     };
                 };
@@ -8626,7 +8389,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -8635,7 +8398,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -8675,8 +8438,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.PaymentTransactionDTO"][];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["goshop_services_payment_internal_dto.PaymentTransactionDTO"][];
                         };
                     };
                 };
@@ -8686,7 +8449,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -8695,7 +8458,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -8750,8 +8513,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.ReviewDTO"][];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.ReviewDTO"][];
                         };
                     };
                 };
@@ -8761,7 +8524,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -8803,7 +8566,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -8812,7 +8575,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -8845,25 +8608,10 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
+            /** @description Review request body */
             requestBody: {
                 content: {
-                    "multipart/form-data": {
-                        /** @description Product UUID */
-                        product_uuid: string;
-                        /** @description Order UUID */
-                        order_uuid: string;
-                        /** @description Rating from 1 to 5 */
-                        rating: number;
-                        /** @description Review title */
-                        title?: string;
-                        /** @description Review comment */
-                        comment?: string;
-                        /**
-                         * Format: binary
-                         * @description Review media files (max 5 images, 1 video)
-                         */
-                        files?: string;
-                    };
+                    "application/json": components["schemas"]["dto.CreateReviewInput"];
                 };
             };
             responses: {
@@ -8873,8 +8621,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.ReviewDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.ReviewDTO"];
                         };
                     };
                 };
@@ -8884,7 +8632,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -8893,7 +8641,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -8935,8 +8683,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.MyReviewDTO"][];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.MyReviewDTO"][];
                         };
                     };
                 };
@@ -8946,7 +8694,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -8955,7 +8703,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -8993,7 +8741,7 @@ export interface paths {
             /** @description Review update payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.UpdateReviewInput"];
+                    "application/json": components["schemas"]["dto.UpdateReviewInput"];
                 };
             };
             responses: {
@@ -9003,8 +8751,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.ReviewDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.ReviewDTO"];
                         };
                     };
                 };
@@ -9014,7 +8762,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -9023,7 +8771,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -9051,7 +8799,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -9060,7 +8808,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -9069,7 +8817,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -9110,8 +8858,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.ToggleHelpfulResponseDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.ToggleHelpfulResponseDTO"];
                         };
                     };
                 };
@@ -9121,7 +8869,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -9130,7 +8878,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -9167,7 +8915,7 @@ export interface paths {
             /** @description Report payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.ReportReviewInput"];
+                    "application/json": components["schemas"]["dto.ReportReviewInput"];
                 };
             };
             responses: {
@@ -9177,7 +8925,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -9186,7 +8934,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -9195,7 +8943,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -9235,8 +8983,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.DistrictDTO"][];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.DistrictDTO"][];
                         };
                     };
                 };
@@ -9246,7 +8994,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -9285,8 +9033,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.ProvinceDTO"][];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.ProvinceDTO"][];
                         };
                     };
                 };
@@ -9296,7 +9044,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -9338,8 +9086,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.WardDTO"][];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.WardDTO"][];
                         };
                     };
                 };
@@ -9349,7 +9097,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -9385,7 +9133,7 @@ export interface paths {
             /** @description GHN webhook payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.GHNWebhookPayload"];
+                    "application/json": components["schemas"]["dto.GHNWebhookPayload"];
                 };
             };
             responses: {
@@ -9406,7 +9154,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -9450,7 +9198,7 @@ export interface paths {
                          * @default common
                          * @enum {string}
                          */
-                        folder?: "products" | "categories" | "banners" | "avatars" | "common" | "chat";
+                        folder?: "products" | "categories" | "banners" | "avatars" | "reviews" | "returns" | "common" | "chat";
                     };
                 };
             };
@@ -9462,7 +9210,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.UploadResponseDTO"];
+                            data?: components["schemas"]["v1dto.UploadResponseDTO"];
                         };
                     };
                 };
@@ -9514,19 +9262,19 @@ export interface paths {
          */
         get: {
             parameters: {
-                query: {
+                query?: {
                     /** @description Destination folder */
                     folder?: string;
                     /** @description Original file name */
-                    filename: string;
+                    filename?: string;
                     /** @description MIME type (e.g. image/jpeg) */
-                    content_type: string;
+                    content_type?: string;
                 };
                 header?: never;
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody?: components["requestBodies"]["v1handler.PresignRequest"];
             responses: {
                 /** @description OK */
                 200: {
@@ -9544,7 +9292,41 @@ export interface paths {
             };
         };
         put?: never;
-        post?: never;
+        /**
+         * Get Direct-to-S3 Presigned Upload URL
+         * @description Generates a presigned URL allowing the client to upload files directly to S3 / Cloudflare R2
+         */
+        post: {
+            parameters: {
+                query?: {
+                    /** @description Destination folder */
+                    folder?: string;
+                    /** @description Original file name */
+                    filename?: string;
+                    /** @description MIME type (e.g. image/jpeg) */
+                    content_type?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: components["requestBodies"]["v1handler.PresignRequest"];
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
+                            data?: {
+                                [key: string]: unknown;
+                            };
+                        };
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -9577,8 +9359,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.UserDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.UserDTO"];
                         };
                     };
                 };
@@ -9588,7 +9370,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -9607,7 +9389,7 @@ export interface paths {
             /** @description Profile payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.UpdateProfileInput"];
+                    "application/json": components["schemas"]["dto.UpdateProfileInput"];
                 };
             };
             responses: {
@@ -9617,8 +9399,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.UserDTO"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.UserDTO"];
                         };
                     };
                 };
@@ -9628,7 +9410,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -9637,7 +9419,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -9671,7 +9453,7 @@ export interface paths {
             /** @description Change password payload */
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["goshop_internal_dto_v1.ChangePasswordRequest"];
+                    "application/json": components["schemas"]["dto.ChangePasswordRequest"];
                 };
             };
             responses: {
@@ -9681,7 +9463,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.APIResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -9690,7 +9472,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -9699,182 +9481,13 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
         };
         post?: never;
         delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/users/sessions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get active login sessions
-         * @description Retrieve all active devices/sessions for the authenticated user
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["goshop_internal_dto_v1.SessionDTO"][];
-                        };
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        /**
-         * Revoke all other sessions
-         * @description Log out of all other devices except the current active session
-         */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-            };
-        };
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/users/sessions/{uuid}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Revoke specific session
-         * @description Terminate a specific active login session by its UUID
-         */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description Session UUID */
-                    uuid: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-                /** @description Not Found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
-                    };
-                };
-            };
-        };
         options?: never;
         head?: never;
         patch?: never;
@@ -9922,7 +9535,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "*/*": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "*/*": components["schemas"]["goshop_pkg_utils.ErrorResponse"];
                     };
                 };
             };
@@ -10015,11 +9628,11 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        "goshop_internal_dto_v1.AddCartItemInput": {
+        "dto.AddCartItemInput": {
             product_uuid: string;
             quantity: number;
         };
-        "goshop_internal_dto_v1.AddressDTO": {
+        "dto.AddressDTO": {
             address?: string;
             district_id?: number;
             district_name?: string;
@@ -10034,14 +9647,31 @@ export interface components {
             ward_code?: string;
             ward_name?: string;
         };
-        "goshop_internal_dto_v1.AdjustStockInput": {
+        "dto.AdjustStockInput": {
             /** @enum {string} */
             change_type: "RESTOCK" | "MANUAL_ADJUSTMENT" | "DAMAGED_DISCARD" | "INITIAL_STOCK";
             note?: string;
+            /**
+             * @description ProductID links the stock row back to the catalog's internal ID; it is
+             *     only written when the stock row is first created.
+             */
+            product_id?: number;
             product_uuid: string;
             quantity_change: number;
+            /**
+             * @description ReferenceID makes the adjustment idempotent: retrying with the same
+             *     reference returns the original movement instead of applying it twice.
+             *     Only honoured for INITIAL_STOCK.
+             */
+            reference_id?: string;
+            /**
+             * @description TargetQuantity sets the stock to an absolute value in one transaction;
+             *     inherently idempotent. Exclusive with QuantityChange for callers that
+             *     mean "make stock equal X".
+             */
+            target_quantity?: number;
         };
-        "goshop_internal_dto_v1.AdminBannerDetailDTO": {
+        "dto.AdminBannerDetailDTO": {
             created_at?: string;
             deleted_at?: string;
             end_at?: string;
@@ -10055,7 +9685,7 @@ export interface components {
             updated_at?: string;
             uuid?: string;
         };
-        "goshop_internal_dto_v1.AdminReturnRefundInput": {
+        "dto.AdminReturnRefundInput": {
             accounting_note?: string;
             amount?: number;
             bank_account?: string;
@@ -10064,7 +9694,7 @@ export interface components {
             bank_txn_ref?: string;
             reason?: string;
         };
-        "goshop_internal_dto_v1.AdminUpdateReturnInput": {
+        "dto.AdminUpdateReturnInput": {
             admin_note?: string;
             /**
              * @description 2: Approved, 3: Rejected, 4: Completed
@@ -10072,7 +9702,7 @@ export interface components {
              */
             status: 2 | 3 | 4;
         };
-        "goshop_internal_dto_v1.BannerDTO": {
+        "dto.BannerDTO": {
             image_url?: string;
             link_url?: string;
             order?: number;
@@ -10080,7 +9710,7 @@ export interface components {
             title?: string;
             uuid?: string;
         };
-        "goshop_internal_dto_v1.BroadcastNotificationInput": {
+        "dto.BroadcastNotificationInput": {
             body: string;
             data?: {
                 [key: string]: unknown;
@@ -10088,31 +9718,31 @@ export interface components {
             title: string;
             type: string;
         };
-        "goshop_internal_dto_v1.BulkCancelOrdersInput": {
+        "dto.BulkCancelOrdersInput": {
             order_uuids: string[];
             reason?: string;
         };
-        "goshop_internal_dto_v1.BulkItemError": {
+        "dto.BulkItemError": {
             error?: string;
             order_uuid?: string;
         };
-        "goshop_internal_dto_v1.BulkOperationResultDTO": {
-            errors?: components["schemas"]["goshop_internal_dto_v1.BulkItemError"][];
+        "dto.BulkOperationResultDTO": {
+            errors?: components["schemas"]["dto.BulkItemError"][];
             failed?: number;
             succeeded?: number;
             total?: number;
         };
-        "goshop_internal_dto_v1.BulkUpdateOrderStatusInput": {
+        "dto.BulkUpdateOrderStatusInput": {
             order_uuids: string[];
             /** @enum {integer} */
             status: 1 | 2 | 3 | 4 | 5 | 6;
         };
-        "goshop_internal_dto_v1.CSVRowError": {
+        "dto.CSVRowError": {
             field?: string;
             reason?: string;
             row?: number;
         };
-        "goshop_internal_dto_v1.CalculateShippingFeeInput": {
+        "dto.CalculateShippingFeeInput": {
             district_id: number;
             /** @description cm */
             height?: number;
@@ -10128,14 +9758,14 @@ export interface components {
             /** @description cm */
             width?: number;
         };
-        "goshop_internal_dto_v1.CancelOrderReturnInput": {
+        "dto.CancelOrderReturnInput": {
             reason?: string;
         };
-        "goshop_internal_dto_v1.CancelShippingInput": {
+        "dto.CancelShippingInput": {
             /** @description Lý do hủy đơn vận chuyển */
             reason?: string;
         };
-        "goshop_internal_dto_v1.CancelShippingResponseDTO": {
+        "dto.CancelShippingResponseDTO": {
             message?: string;
             order_number?: string;
             /** @description "Confirmed" */
@@ -10143,30 +9773,16 @@ export interface components {
             order_uuid?: string;
             shipping_code?: string;
         };
-        "goshop_internal_dto_v1.CartDTO": {
-            items?: components["schemas"]["goshop_internal_dto_v1.CartItemDTO"][];
+        "dto.CartDTO": {
+            items?: components["schemas"]["dto.CartItemDTO"][];
             total_amount?: number;
             total_items?: number;
             uuid?: string;
         };
-        "goshop_internal_dto_v1.CartFunnelDTO": {
-            abandoned_carts?: number;
-            /** @description Percentage (0 - 100%) */
-            abandonment_rate?: number;
-            /** @description Conversion (0 - 100%) */
-            cart_to_order_rate?: number;
-            /** @description Conversion (0 - 100%) */
-            order_to_paid_rate?: number;
-            orders_created?: number;
-            orders_paid?: number;
-            /** @description Currency value */
-            potential_lost_revenue?: number;
-            total_carts?: number;
-        };
-        "goshop_internal_dto_v1.CartItemDTO": {
-            /** @description false if product is deleted/inactive/out of stock */
+        "dto.CartItemDTO": {
             is_available?: boolean;
             price?: number;
+            product_id?: number;
             product_image?: string;
             product_name?: string;
             product_slug?: string;
@@ -10176,37 +9792,22 @@ export interface components {
             subtotal?: number;
             uuid?: string;
         };
-        "goshop_internal_dto_v1.CategoryDTO": {
+        "dto.CategoryDTO": {
             category_id?: number;
             category_name?: string;
             created_at?: string;
             description?: string;
             slug?: string;
             status?: string;
+            updated_at?: string;
             uuid?: string;
         };
-        "goshop_internal_dto_v1.CategorySalesBreakdownResponse": {
-            categories?: components["schemas"]["goshop_internal_dto_v1.CategorySalesItemDTO"][];
-            total_orders?: number;
-            total_revenue?: number;
-            total_units_sold?: number;
-        };
-        "goshop_internal_dto_v1.CategorySalesItemDTO": {
-            category_id?: number;
-            category_name?: string;
-            category_slug?: string;
-            category_uuid?: string;
-            gross_revenue?: number;
-            order_count?: number;
-            percentage?: number;
-            units_sold?: number;
-        };
-        "goshop_internal_dto_v1.ChangePasswordRequest": {
+        "dto.ChangePasswordRequest": {
             confirm_password: string;
             new_password: string;
             old_password: string;
         };
-        "goshop_internal_dto_v1.ConversationResponse": {
+        "dto.ConversationResponse": {
             admin_id?: number;
             conversation_id?: number;
             created_at?: string;
@@ -10223,23 +9824,12 @@ export interface components {
             user_id?: number;
             uuid?: string;
         };
-        "goshop_internal_dto_v1.CouponCampaignItemDTO": {
-            coupon_code?: string;
-            coupon_id?: number;
-            coupon_name?: string;
-            coupon_type?: number;
-            coupon_uuid?: string;
-            discount_value?: number;
-            roi_multiplier?: number;
-            total_discount?: number;
-            total_revenue?: number;
-            usage_count?: number;
-        };
-        "goshop_internal_dto_v1.CouponDTO": {
+        "dto.CouponDTO": {
             code?: string;
             description?: string;
             discount_value?: number;
             end_date?: string;
+            id?: number;
             is_active?: boolean;
             is_expired?: boolean;
             max_discount_amount?: number;
@@ -10253,14 +9843,7 @@ export interface components {
             user_usage_limit?: number;
             uuid?: string;
         };
-        "goshop_internal_dto_v1.CouponPerformanceResponse": {
-            campaigns?: components["schemas"]["goshop_internal_dto_v1.CouponCampaignItemDTO"][];
-            overall_roi_multiplier?: number;
-            total_coupons_used?: number;
-            total_discount_given?: number;
-            total_revenue_generated?: number;
-        };
-        "goshop_internal_dto_v1.CreateAddressInput": {
+        "dto.CreateAddressInput": {
             address: string;
             district_id: number;
             district_name: string;
@@ -10273,7 +9856,7 @@ export interface components {
             ward_code: string;
             ward_name: string;
         };
-        "goshop_internal_dto_v1.CreateBannerRequest": {
+        "dto.CreateBannerRequest": {
             end_at?: string;
             image_url: string;
             is_active?: boolean;
@@ -10284,28 +9867,29 @@ export interface components {
             start_at?: string;
             title: string;
         };
-        "goshop_internal_dto_v1.CreateCategoryInput": {
-            category_name: string;
+        "dto.CreateCategoryInput": {
+            category_name?: string;
             description?: string;
+            name?: string;
             /** @enum {integer} */
             status?: 1 | 2;
         };
-        "goshop_internal_dto_v1.CreateCouponInput": {
+        "dto.CreateCouponInput": {
             code: string;
             description?: string;
             discount_value: number;
-            end_date: string;
+            end_date?: string;
             is_active?: boolean;
             max_discount_amount?: number;
             min_order_amount?: number;
             name: string;
-            start_date: string;
+            start_date?: string;
             /** @enum {integer} */
             type: 1 | 2;
             usage_limit?: number;
             user_usage_limit?: number;
         };
-        "goshop_internal_dto_v1.CreateNotificationInput": {
+        "dto.CreateNotificationInput": {
             body: string;
             data?: {
                 [key: string]: unknown;
@@ -10314,9 +9898,11 @@ export interface components {
             type: string;
             user_uuid: string;
         };
-        "goshop_internal_dto_v1.CreateOrderInput": {
+        "dto.CreateOrderInput": {
             coupon_code?: string;
-            items: components["schemas"]["goshop_internal_dto_v1.CreateOrderItemInput"][];
+            district_id?: number;
+            idempotency_key?: string;
+            items: components["schemas"]["dto.CreateOrderItemInput"][];
             note?: string;
             /** @enum {integer} */
             payment_method: 1 | 2 | 3;
@@ -10324,19 +9910,34 @@ export interface components {
             shipping_fee: number;
             shipping_name: string;
             shipping_phone: string;
+            shipping_provider?: string;
+            ward_code?: string;
         };
-        "goshop_internal_dto_v1.CreateOrderItemInput": {
+        "dto.CreateOrderItemInput": {
             product_uuid: string;
             quantity: number;
         };
-        "goshop_internal_dto_v1.CreatePaymentIntentInput": {
+        "dto.CreateOrderReturnInput": {
+            bank_account?: string;
+            bank_account_name?: string;
+            bank_name?: string;
+            images?: string[];
+            reason: string;
+            video_url?: string;
+        };
+        "dto.CreatePaymentIntentInput": {
+            client_ip?: string;
+            idempotency_key?: string;
             order_uuid: string;
             /** @enum {string} */
-            provider: "momo";
+            provider: "momo" | "cod" | "vnpay";
+            user_id?: number;
         };
-        "goshop_internal_dto_v1.CreateProductRequest": {
-            category_uuid: string;
+        "dto.CreateProductInput": {
+            categoryUuid?: string;
+            category_uuid?: string;
             description?: string;
+            imageUrl?: string;
             image_url?: string;
             name: string;
             price: number;
@@ -10345,7 +9946,16 @@ export interface components {
             status?: 1 | 2 | 3;
             stock?: number;
         };
-        "goshop_internal_dto_v1.CreateShippingInput": {
+        "dto.CreateReviewInput": {
+            comment?: string;
+            images?: string[];
+            order_uuid: string;
+            product_uuid: string;
+            rating: number;
+            title?: string;
+            video_url?: string;
+        };
+        "dto.CreateShippingInput": {
             district_id: number;
             /** @description cm */
             height: number;
@@ -10362,7 +9972,7 @@ export interface components {
             /** @description cm */
             width: number;
         };
-        "goshop_internal_dto_v1.CreateUserInput": {
+        "dto.CreateUserInput": {
             age?: number;
             email: string;
             /** @enum {integer} */
@@ -10372,13 +9982,13 @@ export interface components {
             /** @enum {integer} */
             status: 1 | 2 | 3;
         };
-        "goshop_internal_dto_v1.DistrictDTO": {
+        "dto.DistrictDTO": {
             code?: string;
             district_id?: number;
             district_name?: string;
             province_id?: number;
         };
-        "goshop_internal_dto_v1.GHNWebhookPayload": {
+        "dto.GHNWebhookPayload": {
             CODAmount?: number;
             /** @description Lý do nếu giao thất bại hoặc trả hàng */
             Description?: string;
@@ -10390,35 +10000,35 @@ export interface components {
             TotalFee?: number;
             Warehouse?: string;
         };
-        "goshop_internal_dto_v1.LoginInput": {
+        "dto.GoogleLoginInput": {
+            id_token: string;
+        };
+        "dto.LoginInput": {
             email: string;
             password: string;
         };
-        "goshop_internal_dto_v1.LoginResponse": {
+        "dto.LoginResponse": {
             access_token?: string;
             expires_in?: number;
             refresh_token?: string;
         };
-        "goshop_internal_dto_v1.LowStockProductDTO": {
-            /** @description "critical" (stock <= 0), "warning" (stock <= threshold) */
+        "dto.LowStockProductDTO": {
+            /** @description "critical" (stock <= 0) or "warning" */
             alert_level?: string;
             category_name?: string;
             image_url?: string;
             name?: string;
             price?: number;
             slug?: string;
-            /** @description Current available stock */
             stock?: number;
             uuid?: string;
         };
-        "goshop_internal_dto_v1.LowStockProductResponse": {
-            items?: components["schemas"]["goshop_internal_dto_v1.LowStockProductDTO"][];
-            /** @description Warning threshold used (e.g., 5) */
+        "dto.LowStockProductResponse": {
+            items?: components["schemas"]["dto.LowStockProductDTO"][];
             threshold?: number;
-            /** @description Count of items below threshold */
             total_low?: number;
         };
-        "goshop_internal_dto_v1.MessageResponse": {
+        "dto.MessageResponse": {
             attachment_name?: string;
             attachment_size?: number;
             attachment_url?: string;
@@ -10430,12 +10040,13 @@ export interface components {
             sender_role?: string;
             uuid?: string;
         };
-        "goshop_internal_dto_v1.MyReviewDTO": {
+        "dto.MyReviewDTO": {
             can_edit?: boolean;
             comment?: string;
             created_at?: string;
             has_media?: boolean;
             images?: string[];
+            order_uuid?: string;
             product_image_url?: string;
             product_name?: string;
             product_slug?: string;
@@ -10445,7 +10056,7 @@ export interface components {
             uuid?: string;
             video_url?: string;
         };
-        "goshop_internal_dto_v1.NotificationDTO": {
+        "dto.NotificationDTO": {
             body?: string;
             created_at?: string;
             data?: {
@@ -10457,12 +10068,12 @@ export interface components {
             type?: string;
             uuid?: string;
         };
-        "goshop_internal_dto_v1.OrderDTO": {
+        "dto.OrderDTO": {
             coupon_code?: string;
             created_at?: string;
             discount_amount?: number;
             expected_delivery?: string;
-            items?: components["schemas"]["goshop_internal_dto_v1.OrderItemDTO"][];
+            items?: components["schemas"]["dto.OrderItemDTO"][];
             note?: string;
             order_number?: string;
             payment_method?: string;
@@ -10481,7 +10092,7 @@ export interface components {
             user_uuid?: string;
             uuid?: string;
         };
-        "goshop_internal_dto_v1.OrderItemDTO": {
+        "dto.OrderItemDTO": {
             image_url?: string;
             price?: number;
             product_name?: string;
@@ -10491,7 +10102,7 @@ export interface components {
             subtotal?: number;
             uuid?: string;
         };
-        "goshop_internal_dto_v1.OrderReturnDTO": {
+        "dto.OrderReturnDTO": {
             bank_account?: string;
             bank_account_name?: string;
             bank_name?: string;
@@ -10505,40 +10116,32 @@ export interface components {
             status?: string;
             video_url?: string;
         };
-        "goshop_internal_dto_v1.OrderStatusDistributionItemDTO": {
-            /** @description Number of orders in this status */
+        "dto.OrderStatusDistributionItemDTO": {
             count?: number;
-            /** @description Percentage of total orders (0.0 to 100.0) */
             percentage?: number;
-            /** @description 1: Pending, 2: Confirmed, 3: Shipped, 4: Delivered, 5: Cancelled, 6: Returned */
             status?: number;
-            /** @description e.g., "Pending", "Delivered", "Cancelled" */
             status_name?: string;
-            /** @description Total monetary value of orders in this status */
             total_amount?: number;
         };
-        "goshop_internal_dto_v1.OrderStatusDistributionResponse": {
-            items?: components["schemas"]["goshop_internal_dto_v1.OrderStatusDistributionItemDTO"][];
+        "dto.OrderStatusDistributionResponse": {
+            items?: components["schemas"]["dto.OrderStatusDistributionItemDTO"][];
             total_orders?: number;
         };
-        "goshop_internal_dto_v1.OrderTimelineResponseDTO": {
-            events?: components["schemas"]["goshop_internal_dto_v1.TrackingEventDTO"][];
+        "dto.OrderTimelineResponseDTO": {
+            events?: components["schemas"]["dto.TrackingEventDTO"][];
             order_number?: string;
             order_uuid?: string;
         };
-        "goshop_internal_dto_v1.OverviewStatsDTO": {
-            /** @description % vs previous 30 days */
+        "dto.OverviewStatsDTO": {
             customer_growth?: number;
             new_customers?: number;
-            /** @description % vs previous 30 days */
             order_growth?: number;
             pending_orders?: number;
-            /** @description % vs previous 30 days */
             revenue_growth?: number;
             total_orders?: number;
             total_revenue?: number;
         };
-        "goshop_internal_dto_v1.PaymentIntentDTO": {
+        "dto.PaymentIntentDTO": {
             amount?: number;
             created_at?: string;
             currency?: string;
@@ -10548,61 +10151,47 @@ export interface components {
             provider?: string;
             status?: string;
         };
-        "goshop_internal_dto_v1.PaymentMethodBreakdownItemDTO": {
-            /** @description "COD (Cash on Delivery)", "Bank Transfer", "E-Wallet" */
+        "dto.PaymentMethodBreakdownItemDTO": {
             method_name?: string;
-            /** @description Net revenue after refunds */
             net_revenue?: number;
-            /** @description Total orders paid via this method */
             order_count?: number;
-            /** @description 1: COD, 2: Online / Bank Transfer, 3: E-Wallet */
             payment_method?: number;
-            /** @description Revenue share percentage (0.0 to 100.0) */
             percentage?: number;
         };
-        "goshop_internal_dto_v1.PaymentMethodBreakdownResponse": {
-            items?: components["schemas"]["goshop_internal_dto_v1.PaymentMethodBreakdownItemDTO"][];
+        "dto.PaymentMethodBreakdownResponse": {
+            items?: components["schemas"]["dto.PaymentMethodBreakdownItemDTO"][];
             total_orders?: number;
             total_revenue?: number;
         };
-        "goshop_internal_dto_v1.PaymentTransactionDTO": {
-            amount?: number;
-            created_at?: string;
-            currency?: string;
-            order_uuid?: string;
-            paid_at?: string;
-            provider?: string;
-            provider_txn_id?: string;
-            refund_amount?: number;
-            refund_of?: string;
-            status?: string;
-            uuid?: string;
-        };
-        "goshop_internal_dto_v1.PreviewCouponDTO": {
+        "dto.PreviewCouponDTO": {
             coupon_code?: string;
+            coupon_id?: number;
             coupon_name?: string;
-            /** @description 1: Percentage, 2: Fixed Amount */
             coupon_type?: number;
+            coupon_uuid?: string;
             discount_amount?: number;
             discount_value?: number;
             final_total_amount?: number;
             min_order_amount?: number;
             subtotal_amount?: number;
         };
-        "goshop_internal_dto_v1.PreviewCouponInput": {
-            code: string;
-            subtotal_amount: number;
+        "dto.PreviewCouponInput": {
+            code?: string;
+            subtotal_amount?: number;
+            user_uuid?: string;
         };
-        "goshop_internal_dto_v1.ProductCSVImportResponse": {
+        "dto.ProductCSVImportResponse": {
             error_count?: number;
-            errors?: components["schemas"]["goshop_internal_dto_v1.CSVRowError"][];
+            errors?: components["schemas"]["dto.CSVRowError"][];
             success_count?: number;
         };
-        "goshop_internal_dto_v1.ProductDTO": {
+        "dto.ProductDTO": {
+            category_id?: number;
             category_name?: string;
             category_uuid?: string;
             created_at?: string;
             description?: string;
+            id?: number;
             image_url?: string;
             name?: string;
             price?: number;
@@ -10612,9 +10201,10 @@ export interface components {
             slug?: string;
             status?: string;
             stock?: number;
+            updated_at?: string;
             uuid?: string;
         };
-        "goshop_internal_dto_v1.ProductSuggestionDTO": {
+        "dto.ProductSuggestionDTO": {
             category_name?: string;
             image_url?: string;
             name?: string;
@@ -10622,12 +10212,12 @@ export interface components {
             slug?: string;
             uuid?: string;
         };
-        "goshop_internal_dto_v1.ProvinceDTO": {
+        "dto.ProvinceDTO": {
             code?: string;
             province_id?: number;
             province_name?: string;
         };
-        "goshop_internal_dto_v1.RecentOrderDTO": {
+        "dto.RecentOrderDTO": {
             created_at?: string;
             customer_email?: string;
             customer_name?: string;
@@ -10638,55 +10228,39 @@ export interface components {
             total_amount?: number;
             uuid?: string;
         };
-        "goshop_internal_dto_v1.RefreshTokenInput": {
+        "dto.RefreshTokenInput": {
             refresh_token?: string;
         };
-        "goshop_internal_dto_v1.RefundPaymentInput": {
-            amount: number;
-            order_uuid: string;
-            reason: string;
-        };
-        "goshop_internal_dto_v1.RegisterInput": {
+        "dto.RegisterInput": {
             age?: number;
             email: string;
             name: string;
             password: string;
         };
-        "goshop_internal_dto_v1.ReplyReviewInput": {
+        "dto.ReplyReviewInput": {
             reply: string;
         };
-        "goshop_internal_dto_v1.ReportReviewInput": {
+        "dto.ReportReviewInput": {
             details?: string;
             /** @enum {string} */
             reason: "spam" | "inappropriate" | "fake" | "other";
         };
-        "goshop_internal_dto_v1.RequestForgotPasswordInput": {
+        "dto.RequestForgotPasswordInput": {
             email: string;
         };
-        "goshop_internal_dto_v1.ResetPasswordInput": {
+        "dto.ResendRegisterOTPInput": {
+            email: string;
+        };
+        "dto.ResetPasswordInput": {
             new_password: string;
             token: string;
         };
-        "goshop_internal_dto_v1.ReturnAnalyticsResponse": {
-            reasons_breakdown?: components["schemas"]["goshop_internal_dto_v1.ReturnReasonBreakdownDTO"][];
-            return_rate?: number;
-            returned_orders_count?: number;
-            top_returned_products?: components["schemas"]["goshop_internal_dto_v1.TopReturnedProductDTO"][];
-            total_paid_orders?: number;
-            total_refunded_amount?: number;
-            total_returns?: number;
-        };
-        "goshop_internal_dto_v1.ReturnReasonBreakdownDTO": {
-            count?: number;
-            percentage?: number;
-            reason?: string;
-        };
-        "goshop_internal_dto_v1.RevenueChartPointDTO": {
+        "dto.RevenueChartPointDTO": {
             date?: string;
             order_count?: number;
             revenue?: number;
         };
-        "goshop_internal_dto_v1.ReviewDTO": {
+        "dto.ReviewDTO": {
             can_edit?: boolean;
             comment?: string;
             created_at?: string;
@@ -10704,7 +10278,7 @@ export interface components {
             uuid?: string;
             video_url?: string;
         };
-        "goshop_internal_dto_v1.ReviewReportDTO": {
+        "dto.ReviewReportDTO": {
             created_at?: string;
             details?: string;
             /** @description spam, inappropriate, fake, other */
@@ -10714,7 +10288,7 @@ export interface components {
             user_id?: number;
             user_name?: string;
         };
-        "goshop_internal_dto_v1.SendMessageRequest": {
+        "dto.SendMessageRequest": {
             attachment_name?: string;
             attachment_size?: number;
             /** @description Attachment fields (optional, set by FE after upload) */
@@ -10726,23 +10300,20 @@ export interface components {
             order_uuid?: string;
             product_uuid?: string;
         };
-        "goshop_internal_dto_v1.SendMessageResponse": {
-            message?: components["schemas"]["goshop_internal_dto_v1.MessageResponse"];
+        "dto.SendMessageResponse": {
+            message?: components["schemas"]["dto.MessageResponse"];
         };
-        "goshop_internal_dto_v1.SessionDTO": {
-            created_at?: string;
-            device_name?: string;
-            ip_address?: string;
-            is_current?: boolean;
-            last_active_at?: string;
-            user_agent?: string;
-            uuid?: string;
+        "dto.SendRegisterOTPInput": {
+            age?: number;
+            email: string;
+            name: string;
+            password: string;
         };
-        "goshop_internal_dto_v1.ShippingFeeResponseDTO": {
+        "dto.ShippingFeeResponseDTO": {
             provider?: string;
             shipping_fee?: number;
         };
-        "goshop_internal_dto_v1.ShippingResponseDTO": {
+        "dto.ShippingResponseDTO": {
             created_at?: string;
             expected_delivery_date?: string;
             order_number?: string;
@@ -10753,19 +10324,19 @@ export interface components {
             shipping_fee?: number;
             shipping_provider?: string;
         };
-        "goshop_internal_dto_v1.ShopStatusResponse": {
+        "dto.ShopStatusResponse": {
             is_online?: boolean;
         };
-        "goshop_internal_dto_v1.StockMovementDTO": {
+        "dto.StockMovementDTO": {
+            actor_id?: number;
             actor_name?: string;
             actor_uuid?: string;
             change_type?: string;
             created_at?: string;
+            movement_id?: number;
             movement_uuid?: string;
             note?: string;
-            product_image_url?: string;
-            product_name?: string;
-            product_sku?: string;
+            product_id?: number;
             product_uuid?: string;
             quantity_change?: number;
             reference_id?: string;
@@ -10773,19 +10344,19 @@ export interface components {
             stock_after?: number;
             stock_before?: number;
         };
-        "goshop_internal_dto_v1.SubmitReturnShippingInput": {
+        "dto.SubmitReturnShippingInput": {
             note?: string;
             shipping_code: string;
             shipping_provider: string;
         };
-        "goshop_internal_dto_v1.SyncActiveShippingStatsDTO": {
+        "dto.SyncActiveShippingStatsDTO": {
             delivered_count?: number;
             failed_count?: number;
             scanned_count?: number;
             synced_at?: string;
             synced_count?: number;
         };
-        "goshop_internal_dto_v1.SyncTrackingResponseDTO": {
+        "dto.SyncTrackingResponseDTO": {
             current_status?: string;
             is_delivered?: boolean;
             last_sync_at?: string;
@@ -10795,15 +10366,15 @@ export interface components {
             shipping_code?: string;
             shipping_provider?: string;
             status_text?: string;
-            timeline?: components["schemas"]["goshop_internal_dto_v1.TrackingEventDTO"][];
+            timeline?: components["schemas"]["dto.TrackingEventDTO"][];
         };
-        "goshop_internal_dto_v1.ToggleHelpfulResponseDTO": {
-            /** @description số lượng vote mới nhất */
+        "dto.ToggleHelpfulResponseDTO": {
+            /** @description latest vote count */
             helpful_count?: number;
-            /** @description true: đã vote, false: đã hủy vote */
+            /** @description true: voted, false: vote removed */
             voted?: boolean;
         };
-        "goshop_internal_dto_v1.TopProductDTO": {
+        "dto.TopProductDTO": {
             category_name?: string;
             image_url?: string;
             name?: string;
@@ -10813,17 +10384,7 @@ export interface components {
             total_units_sold?: number;
             uuid?: string;
         };
-        "goshop_internal_dto_v1.TopReturnedProductDTO": {
-            image_url?: string;
-            name?: string;
-            price?: number;
-            return_case_count?: number;
-            returned_value?: number;
-            slug?: string;
-            units_returned?: number;
-            uuid?: string;
-        };
-        "goshop_internal_dto_v1.TrackingEventDTO": {
+        "dto.TrackingEventDTO": {
             created_at?: string;
             event_id?: number;
             note?: string;
@@ -10834,10 +10395,10 @@ export interface components {
             /** @description UI display status text: "Delivering",... */
             status_text?: string;
         };
-        "goshop_internal_dto_v1.UnreadCountDTO": {
+        "dto.UnreadCountDTO": {
             unread_count?: number;
         };
-        "goshop_internal_dto_v1.UpdateAddressInput": {
+        "dto.UpdateAddressInput": {
             address?: string;
             district_id?: number;
             district_name?: string;
@@ -10849,7 +10410,7 @@ export interface components {
             ward_code?: string;
             ward_name?: string;
         };
-        "goshop_internal_dto_v1.UpdateBannerRequest": {
+        "dto.UpdateBannerRequest": {
             end_at?: string;
             image_url?: string;
             is_active?: boolean;
@@ -10860,21 +10421,21 @@ export interface components {
             start_at?: string;
             title?: string;
         };
-        "goshop_internal_dto_v1.UpdateBannerStatusRequest": {
+        "dto.UpdateBannerStatusRequest": {
             is_active: boolean;
         };
-        "goshop_internal_dto_v1.UpdateCartItemQuantityInput": {
+        "dto.UpdateCartItemQuantityInput": {
             quantity: number;
         };
-        "goshop_internal_dto_v1.UpdateCategoryInput": {
+        "dto.UpdateCategoryInput": {
             category_name?: string;
             description?: string;
+            name?: string;
             /** @enum {integer} */
             status?: 1 | 2;
+            uuid?: string;
         };
-        "goshop_internal_dto_v1.UpdateCouponInput": {
-            clear_max_discount_amount?: boolean;
-            clear_usage_limit?: boolean;
+        "dto.UpdateCouponInput": {
             description?: string;
             discount_value?: number;
             end_date?: string;
@@ -10882,29 +10443,33 @@ export interface components {
             max_discount_amount?: number;
             min_order_amount?: number;
             name?: string;
+            start_date?: string;
+            type?: number;
             usage_limit?: number;
             user_usage_limit?: number;
         };
-        "goshop_internal_dto_v1.UpdateOrderPaymentStatusInput": {
+        "dto.UpdateOrderPaymentStatusInput": {
             note?: string;
             /** @enum {integer} */
             payment_status: 2 | 3 | 4;
             refund_amount?: number;
             transaction_ref?: string;
         };
-        "goshop_internal_dto_v1.UpdateOrderShippingInfoInput": {
+        "dto.UpdateOrderShippingInfoInput": {
             note?: string;
             shipping_address?: string;
             shipping_name?: string;
             shipping_phone?: string;
         };
-        "goshop_internal_dto_v1.UpdateOrderStatusInput": {
+        "dto.UpdateOrderStatusInput": {
             /** @enum {integer} */
             status: 1 | 2 | 3 | 4 | 5 | 6;
         };
-        "goshop_internal_dto_v1.UpdateProductRequest": {
+        "dto.UpdateProductInput": {
+            categoryUuid?: string;
             category_uuid?: string;
             description?: string;
+            imageUrl?: string;
             image_url?: string;
             name?: string;
             price?: number;
@@ -10912,30 +10477,31 @@ export interface components {
             /** @enum {integer} */
             status?: 1 | 2 | 3;
             stock?: number;
+            uuid?: string;
         };
-        "goshop_internal_dto_v1.UpdateProfileInput": {
+        "dto.UpdateProfileInput": {
             age?: number;
             name?: string;
             password?: string;
         };
-        "goshop_internal_dto_v1.UpdateReturnBankAccountInput": {
+        "dto.UpdateReturnBankAccountInput": {
             bank_account: string;
             bank_account_name: string;
             bank_name: string;
         };
-        "goshop_internal_dto_v1.UpdateReviewInput": {
+        "dto.UpdateReviewInput": {
             comment?: string;
             rating: number;
             title?: string;
         };
-        "goshop_internal_dto_v1.UpdateReviewStatusInput": {
+        "dto.UpdateReviewStatusInput": {
             /**
              * @description 1: Visible, 2: Hidden, 3: Reported
              * @enum {integer}
              */
             status: 1 | 2 | 3;
         };
-        "goshop_internal_dto_v1.UpdateUserInput": {
+        "dto.UpdateUserInput": {
             age?: number;
             /** @enum {integer} */
             level?: 1 | 2;
@@ -10944,13 +10510,7 @@ export interface components {
             /** @enum {integer} */
             status?: 1 | 2;
         };
-        "goshop_internal_dto_v1.UploadResponseDTO": {
-            file_name?: string;
-            media_type?: string;
-            size?: number;
-            url?: string;
-        };
-        "goshop_internal_dto_v1.UserDTO": {
+        "dto.UserDTO": {
             age?: number;
             created_at?: string;
             email?: string;
@@ -10959,7 +10519,11 @@ export interface components {
             status?: string;
             uuid?: string;
         };
-        "goshop_internal_dto_v1.WardDTO": {
+        "dto.VerifyRegisterOTPInput": {
+            email: string;
+            otp: string;
+        };
+        "dto.WardDTO": {
             district_id?: number;
             ward_code?: string;
             ward_name?: string;
@@ -10973,7 +10537,7 @@ export interface components {
             status?: string;
         };
         /** @enum {string} */
-        "goshop_internal_utils.ErrorCode": "BAD_REQUEST" | "NOT_FOUND" | "CONFLICT" | "INTERNAL_SERVER_ERROR" | "UNAUTHORIZED" | "TOO_MANY_REQUESTS" | "FORBIDDEN" | "BAD_GATEWAY" | "EXTERNAL_SERVICE_ERROR";
+        "goshop_internal_utils.ErrorCode": "BAD_REQUEST" | "NOT_FOUND" | "CONFLICT" | "INTERNAL_SERVER_ERROR" | "UNAUTHORIZED" | "TOO_MANY_REQUESTS" | "FORBIDDEN" | "BAD_GATEWAY" | "EXTERNAL_SERVICE_ERROR" | "SERVICE_UNAVAILABLE";
         "goshop_internal_utils.ErrorResponse": {
             /** @example BAD_REQUEST */
             code?: components["schemas"]["goshop_internal_utils.ErrorCode"];
@@ -10990,14 +10554,76 @@ export interface components {
             total_pages?: number;
             total_records?: number;
         };
+        "goshop_pkg_utils.APIResponse": {
+            data?: unknown;
+            /** @example Operation completed successfully */
+            message?: string;
+            pagination?: components["schemas"]["goshop_pkg_utils.Pagination"];
+            /** @example success */
+            status?: string;
+        };
+        /** @enum {string} */
+        "goshop_pkg_utils.ErrorCode": "BAD_REQUEST" | "NOT_FOUND" | "CONFLICT" | "INTERNAL_SERVER_ERROR" | "UNAUTHORIZED" | "TOO_MANY_REQUESTS" | "FORBIDDEN" | "BAD_GATEWAY" | "EXTERNAL_SERVICE_ERROR" | "SERVICE_UNAVAILABLE";
+        "goshop_pkg_utils.ErrorResponse": {
+            /** @example BAD_REQUEST */
+            code?: components["schemas"]["goshop_pkg_utils.ErrorCode"];
+            /** @example Detailed explanation */
+            detail?: string;
+            /** @example Invalid input format */
+            error?: string;
+        };
+        "goshop_pkg_utils.Pagination": {
+            has_next?: boolean;
+            has_prev?: boolean;
+            limit?: number;
+            page?: number;
+            total_pages?: number;
+            total_records?: number;
+        };
+        "goshop_services_payment_internal_dto.PaymentTransactionDTO": {
+            amount?: number;
+            created_at?: string;
+            currency?: string;
+            order_uuid?: string;
+            paid_at?: string;
+            provider?: string;
+            provider_txn_id?: string;
+            refund_amount?: number;
+            refund_of?: string;
+            status?: string;
+            uuid?: string;
+        };
+        "goshop_services_payment_internal_dto.RefundPaymentInput": {
+            amount: number;
+            idempotency_key?: string;
+            order_uuid: string;
+            reason: string;
+        };
+        "v1dto.UploadResponseDTO": {
+            file_name?: string;
+            media_type?: string;
+            size?: number;
+            url?: string;
+        };
+        "v1handler.PresignRequest": {
+            content_type?: string;
+            filename?: string;
+            folder?: string;
+        };
     };
     responses: never;
     parameters: never;
     requestBodies: {
         /** @description Refresh token */
-        "goshop_internal_dto_v1.RefreshTokenInput": {
+        "dto.RefreshTokenInput": {
             content: {
-                "application/json": components["schemas"]["goshop_internal_dto_v1.RefreshTokenInput"];
+                "application/json": components["schemas"]["dto.RefreshTokenInput"];
+            };
+        };
+        /** @description Presign request body */
+        "v1handler.PresignRequest": {
+            content: {
+                "application/json": components["schemas"]["v1handler.PresignRequest"];
             };
         };
     };

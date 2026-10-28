@@ -36,8 +36,7 @@ func (s *CouponGRPCServer) PreviewCoupon(ctx context.Context, req *couponv1.Prev
 		return nil, status.Errorf(codes.InvalidArgument, "failed to preview coupon: %v", err)
 	}
 
-	return &couponv1.PreviewCouponResponse{
-		CouponId:         result.CouponID,
+	return &couponv1.PreviewCouponResponse{		CouponId:         result.CouponID,
 		CouponUuid:       result.CouponUUID,
 		CouponCode:       result.CouponCode,
 		CouponName:       result.CouponName,

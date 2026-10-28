@@ -2,10 +2,10 @@ package service
 
 import (
 	"context"
-	"goshop/internal/db"
+	"goshop/pkg/cache"
+	"goshop/pkg/db"
 	v1dto "goshop/services/order/internal/dto"
 	"goshop/services/order/internal/repository"
-	"goshop/pkg/cache"
 
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"

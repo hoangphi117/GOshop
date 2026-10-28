@@ -2,7 +2,7 @@ package service
 
 import (
 	"context"
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	inventorycontract "goshop/services/inventory/contract"
 
 	"google.golang.org/grpc/codes"

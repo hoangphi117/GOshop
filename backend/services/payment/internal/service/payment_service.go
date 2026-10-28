@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"goshop/pkg/cache"
+	"goshop/pkg/db"
 	"goshop/pkg/logger"
 	"goshop/pkg/rabbitmq"
 	paymentsqlc "goshop/services/payment/internal/db/sqlc"
@@ -39,6 +40,7 @@ type paymentService struct {
 	rabbitmq       rabbitmq.RabbitMQService
 	returnURL      string
 	webhookBaseURL string
+	txManager      db.TxManager
 }
 
 func NewPaymentService(
@@ -53,6 +55,7 @@ func NewPaymentService(
 	webhookBaseURL string,
 ) PaymentService {
 	return &paymentService{
+		txManager:      db.NewTxManager(db.DBPool),
 		paymentRepo:    paymentRepo,
 		orderReader:    orderReader,
 		webhookRepo:    webhookRepo,
@@ -460,6 +463,13 @@ func (s *paymentService) publishPaymentEvent(ctx context.Context, routingKey str
 	}
 
 	// 2. RabbitMQ Topic Exchange & Direct Queue
+	s.publishRabbitEvent(ctx, routingKey, payload)
+}
+
+// publishRabbitEvent is the broker half of publishPaymentEvent. Settlements call
+// it directly AFTER their transaction commits; the outbox row written inside the
+// transaction already guarantees redelivery.
+func (s *paymentService) publishRabbitEvent(ctx context.Context, routingKey string, payload dto.PaymentEventPayload) {
 	if s.rabbitmq != nil {
 		if err := s.rabbitmq.PublishTopic(ctx, routingKey, payload); err != nil {
 			logger.Log.Error().Err(err).Str("routing_key", routingKey).Msg("Failed to publish event to RabbitMQ topic exchange")
@@ -554,10 +564,14 @@ func (s *paymentService) providerConfirmsPayment(ctx context.Context, txn paymen
 		return false
 	}
 
-	outcome, finalizeErr := s.finalizeTransaction(ctx, txn, true, 0, "", map[string]string{
-		"source": "reconciliation",
-		"status": string(status),
-	}, 0)
+	outcome, finalizeErr := s.settlePayment(ctx, settleRequest{
+		txn:     txn,
+		success: true,
+		metadata: map[string]string{
+			"source": "reconciliation",
+			"status": string(status),
+		},
+	})
 	if finalizeErr != nil {
 		logger.Log.Error().Err(finalizeErr).
 			Str("pt_uuid", txn.PtUuid.String()).

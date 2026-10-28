@@ -221,3 +221,4 @@ func (s *CartGRPCServer) RemovePurchasedItems(ctx context.Context, req *cartv1.R
 		Success: true,
 	}, nil
 }
+

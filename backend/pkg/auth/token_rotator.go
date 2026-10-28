@@ -7,7 +7,7 @@ import (
 	"encoding/hex"
 	"time"
 
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	"goshop/pkg/cache"
 
 	"github.com/google/uuid"

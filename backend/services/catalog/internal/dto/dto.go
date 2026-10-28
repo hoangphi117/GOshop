@@ -2,7 +2,7 @@ package dto
 
 import (
 	"encoding/json"
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	catalogsqlc "goshop/services/catalog/internal/db/sqlc"
 	"time"
 )

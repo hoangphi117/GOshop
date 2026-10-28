@@ -8,7 +8,7 @@ import (
 
 	"goshop/pkg/logger"
 	"goshop/pkg/utils"
-	"goshop/services/payment/internal/dto"
+	paymentdto "goshop/services/payment/internal/dto"
 	"goshop/services/payment/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -23,8 +23,21 @@ func NewPaymentHandler(service service.PaymentService) *PaymentHandler {
 	return &PaymentHandler{service: service}
 }
 
+// CreatePaymentIntent godoc
+// @Summary      Create payment intent
+// @Description  Initiate online payment checkout url with payment gateway
+// @Tags         Payments
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        body body paymentdto.CreatePaymentIntentInput true "Payment intent payload"
+// @Success      200 {object} utils.APIResponse{data=paymentdto.PaymentIntentDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /payments/create-intent [post]
 func (h *PaymentHandler) CreatePaymentIntent(ctx *gin.Context) {
-	var input dto.CreatePaymentIntentInput
+	var input paymentdto.CreatePaymentIntentInput
 	if err := ctx.ShouldBindJSON(&input); err != nil {
 		utils.ResponseError(ctx, utils.WrapError(utils.ErrCodeBadRequest, "Invalid payment intent input", err))
 		return
@@ -49,6 +62,18 @@ func (h *PaymentHandler) CreatePaymentIntent(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Payment intent created successfully", intent)
 }
 
+// GetPaymentHistory godoc
+// @Summary      Get payment history
+// @Description  Get transaction payment history by order UUID
+// @Tags         Payments
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        order_uuid path string true "Order UUID"
+// @Success      200 {object} utils.APIResponse{data=[]paymentdto.PaymentTransactionDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /payments/order/{order_uuid} [get]
 func (h *PaymentHandler) GetPaymentTransactions(ctx *gin.Context) {
 	orderUUIDStr := ctx.Param("order_uuid")
 	orderUUID, err := uuid.Parse(orderUUIDStr)
@@ -67,6 +92,14 @@ func (h *PaymentHandler) GetPaymentTransactions(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Payment transactions retrieved successfully", txns)
 }
 
+// HandleWebhook godoc
+// @Summary      Payment gateway webhook
+// @Description  Receive IPN / Webhook callbacks from payment gateways (MoMo, VNPay)
+// @Tags         Payments
+// @Param        provider path string true "Payment provider (e.g. momo, vnpay)"
+// @Success      200 {object} map[string]interface{}
+// @Failure      400 {object} utils.ErrorResponse
+// @Router       /webhooks/payment/{provider} [post]
 func (h *PaymentHandler) HandleWebhook(ctx *gin.Context) {
 	provider := ctx.Param("provider")
 	if provider == "" {
@@ -142,8 +175,21 @@ func vnpayRspCodeFor(err error) vnpayResponse {
 	}
 }
 
+// RefundPayment godoc
+// @Summary      Refund payment
+// @Description  Process payment refund transaction for an order (Admin/Moderator)
+// @Tags         Admin - Payments
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        body body paymentdto.RefundPaymentInput true "Refund payload"
+// @Success      200 {object} utils.APIResponse{data=paymentdto.PaymentTransactionDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/payments/refund [post]
 func (h *PaymentHandler) RefundPayment(ctx *gin.Context) {
-	var input dto.RefundPaymentInput
+	var input paymentdto.RefundPaymentInput
 	if err := ctx.ShouldBindJSON(&input); err != nil {
 		utils.ResponseError(ctx, utils.WrapError(utils.ErrCodeBadRequest, "invalid refund input", err))
 		return

@@ -3,7 +3,7 @@ package mail
 import (
 	"context"
 	"fmt"
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	"strconv"
 
 	mailtrapsdk "github.com/mailtrap/mailtrap-go"

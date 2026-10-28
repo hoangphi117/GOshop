@@ -145,3 +145,7 @@ func TestReturnCompletedConsumer_SurfacesFailure(t *testing.T) {
 
 	assert.ErrorContains(t, consumer.Apply(context.Background(), body), "deadlock detected")
 }
+
+func (f *fakeInventoryService) ListLowStockProducts(context.Context, int32, int32) ([]inventorydto.ItemStockDTO, int64, error) {
+	return nil, 0, nil
+}

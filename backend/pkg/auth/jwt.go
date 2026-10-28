@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 

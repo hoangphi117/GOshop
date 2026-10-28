@@ -385,3 +385,17 @@ func protoToAddressDTO(a *identityv1.AddressDTO) *AddressDTO {
 	}
 	return dto
 }
+
+// CountCustomersCreatedBetween counts registered customers (user_level 3, not
+// soft-deleted) created inside [fromTime, toTime]. Analytics uses it for the
+// new-customer KPI without touching the identity database.
+func (c *GRPCIdentityClient) CountCustomersCreatedBetween(ctx context.Context, fromTime, toTime time.Time) (int64, error) {
+	resp, err := c.client.CountCustomersCreatedBetween(ctx, &identityv1.CountCustomersCreatedBetweenRequest{
+		FromTime: fromTime.UTC().Format(time.RFC3339),
+		ToTime:   toTime.UTC().Format(time.RFC3339),
+	})
+	if err != nil {
+		return 0, fmt.Errorf("grpc CountCustomersCreatedBetween failed: %w", err)
+	}
+	return resp.CustomerCount, nil
+}

@@ -1,6 +1,7 @@
 package ws
 
 import (
+	"context"
 	"encoding/json"
 	"goshop/pkg/logger"
 	"sync"
@@ -12,6 +13,7 @@ import (
 type Hub interface {
 	Register(client *Client)
 	Unregister(client *Client)
+	SetPresenceStore(ps *PresenceStore)
 	BroadCastToAdmins(msg WSMessage)
 	BroadcastToUser(userID int32, msg WSMessage)
 	BroadcastToAll(msg WSMessage)
@@ -29,6 +31,10 @@ type hub struct {
 	adminClients        map[*Client]bool
 	conversationClients map[int32]map[*Client]bool // map[ConversationID]map[*Client]bool
 	mu                  sync.RWMutex
+
+	// presence, when set, mirrors connection lifecycle into the shared Redis
+	// ZSET so other services (chat) can read presence without owning sockets.
+	presence *PresenceStore
 }
 
 func NewHub() Hub {
@@ -38,6 +44,13 @@ func NewHub() Hub {
 		conversationClients: make(map[int32]map[*Client]bool),
 		mu:                  sync.RWMutex{},
 	}
+}
+
+// SetPresenceStore attaches a Redis presence store. Call before Register.
+func (h *hub) SetPresenceStore(ps *PresenceStore) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.presence = ps
 }
 
 func (h *hub) HasOnlineAdmin() bool {
@@ -85,6 +98,8 @@ func (h *hub) Register(client *Client) {
 		h.adminClients[client] = true
 	}
 
+	presence := h.presence
+
 	// If client joins a specific conversation room
 	if client.ConversationID != nil {
 		convID := *client.ConversationID
@@ -98,6 +113,10 @@ func (h *hub) Register(client *Client) {
 		Int32("user_id", client.UserID).
 		Int("active_connections_for_user", len(h.clients[client.UserID])).
 		Msg("WebSocket client registered")
+
+	if presence != nil {
+		go presence.Touch(context.Background(), client)
+	}
 }
 
 func (h *hub) Unregister(client *Client) {
@@ -115,6 +134,8 @@ func (h *hub) Unregister(client *Client) {
 		delete(h.adminClients, client)
 	}
 
+	presence := h.presence
+
 	if client.ConversationID != nil {
 		convID := *client.ConversationID
 		if convClients, ok := h.conversationClients[convID]; ok {
@@ -128,6 +149,10 @@ func (h *hub) Unregister(client *Client) {
 	logger.Log.Info().
 		Int32("user_id", client.UserID).
 		Msg("WebSocket client unregistered")
+
+	if presence != nil {
+		go presence.Remove(context.Background(), client)
+	}
 }
 
 func (h *hub) Shutdown() {

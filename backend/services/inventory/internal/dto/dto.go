@@ -3,21 +3,21 @@ package dto
 import "time"
 
 type StockMovementDTO struct {
-	MovementID      int64     `json:"movement_id,omitempty"`
-	MovementUUID    string    `json:"movement_uuid"`
-	ProductID       *int32    `json:"product_id,omitempty"`
-	ProductUUID     string    `json:"product_uuid"`
-	ChangeType      string    `json:"change_type"`
-	QuantityChange  int32     `json:"quantity_change"`
-	StockBefore     int32     `json:"stock_before"`
-	StockAfter      int32     `json:"stock_after"`
-	ReferenceID     *string   `json:"reference_id,omitempty"`
-	ReferenceType   *string   `json:"reference_type,omitempty"`
-	ActorID         *int32    `json:"actor_id,omitempty"`
-	ActorUUID       *string   `json:"actor_uuid,omitempty"`
-	ActorName       *string   `json:"actor_name,omitempty"`
-	Note            *string   `json:"note,omitempty"`
-	CreatedAt       time.Time `json:"created_at"`
+	MovementID     int64     `json:"movement_id,omitempty"`
+	MovementUUID   string    `json:"movement_uuid"`
+	ProductID      *int32    `json:"product_id,omitempty"`
+	ProductUUID    string    `json:"product_uuid"`
+	ChangeType     string    `json:"change_type"`
+	QuantityChange int32     `json:"quantity_change"`
+	StockBefore    int32     `json:"stock_before"`
+	StockAfter     int32     `json:"stock_after"`
+	ReferenceID    *string   `json:"reference_id,omitempty"`
+	ReferenceType  *string   `json:"reference_type,omitempty"`
+	ActorID        *int32    `json:"actor_id,omitempty"`
+	ActorUUID      *string   `json:"actor_uuid,omitempty"`
+	ActorName      *string   `json:"actor_name,omitempty"`
+	Note           *string   `json:"note,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
 }
 
 type GetStockMovementsParam struct {
@@ -34,8 +34,8 @@ type AdjustStockInput struct {
 	ProductUUID string `json:"product_uuid" binding:"required,uuid"`
 	// ProductID links the stock row back to the catalog's internal ID; it is
 	// only written when the stock row is first created.
-	ProductID      *int32 `json:"product_id" binding:"omitempty,min=1"`
-	QuantityChange int32  `json:"quantity_change" binding:"required"`
+	ProductID      *int32  `json:"product_id" binding:"omitempty,min=1"`
+	QuantityChange int32   `json:"quantity_change" binding:"required"`
 	ChangeType     string  `json:"change_type" binding:"required,oneof=RESTOCK MANUAL_ADJUSTMENT DAMAGED_DISCARD INITIAL_STOCK"`
 	Note           *string `json:"note" binding:"omitempty,max=500"`
 	// ReferenceID makes the adjustment idempotent: retrying with the same

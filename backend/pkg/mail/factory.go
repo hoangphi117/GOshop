@@ -2,7 +2,7 @@ package mail
 
 import (
 	"fmt"
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 )
 
 type ProviderType string

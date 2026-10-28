@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
@@ -94,6 +95,27 @@ func (s *Server) GetActiveAdminUserIDs(ctx context.Context, _ *identityv1.GetAct
 	return &identityv1.GetActiveAdminUserIDsResponse{
 		AdminUserIds: adminIDs,
 	}, nil
+}
+
+// CountCustomersCreatedBetween counts new customers (user_level 3, not
+// soft-deleted) registered in the given window. Consumed by the analytics
+// service for new-customer stats.
+func (s *Server) CountCustomersCreatedBetween(ctx context.Context, req *identityv1.CountCustomersCreatedBetweenRequest) (*identityv1.CountCustomersCreatedBetweenResponse, error) {
+	fromTime, err := time.Parse(time.RFC3339, req.FromTime)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid from_time: %v", err)
+	}
+	toTime, err := time.Parse(time.RFC3339, req.ToTime)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid to_time: %v", err)
+	}
+
+	count, err := s.userRepo.CountCustomersCreatedBetween(ctx, fromTime, toTime)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to count customers: %v", err)
+	}
+
+	return &identityv1.CountCustomersCreatedBetweenResponse{CustomerCount: count}, nil
 }
 
 // GetAddressByUUID retrieves a specific address by user ID and address UUID

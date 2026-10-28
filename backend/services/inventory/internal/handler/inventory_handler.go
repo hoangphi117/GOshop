@@ -3,10 +3,10 @@ package handler
 import (
 	"net/http"
 
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	"goshop/pkg/middleware"
 	"goshop/pkg/validation"
-	"goshop/services/inventory/internal/dto"
+	inventorydto "goshop/services/inventory/internal/dto"
 	"goshop/services/inventory/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -21,8 +21,21 @@ func NewInventoryHandler(svc service.InventoryService) *InventoryHandler {
 	return &InventoryHandler{svc: svc}
 }
 
+// GetStockMovements godoc
+// @Summary      Get stock movement history
+// @Description  Retrieve paginated stock movement audit trail with filters (Admin/Warehouse)
+// @Tags         Admin - Inventory
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        query query inventorydto.GetStockMovementsParam false "Filter params"
+// @Success      200 {object} utils.APIResponse{data=[]inventorydto.StockMovementDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/inventory/movements [get]
 func (h *InventoryHandler) GetStockMovements(ctx *gin.Context) {
-	var params dto.GetStockMovementsParam
+	var params inventorydto.GetStockMovementsParam
 	if err := ctx.ShouldBindQuery(&params); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return
@@ -47,13 +60,26 @@ func (h *InventoryHandler) GetStockMovements(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Stock movements retrieved", paginationResponse)
 }
 
+// AdjustStock godoc
+// @Summary      Adjust product stock
+// @Description  Manually add or deduct inventory with reason/audit note (Admin/Warehouse)
+// @Tags         Admin - Inventory
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        body body inventorydto.AdjustStockInput true "Stock adjustment payload"
+// @Success      200 {object} utils.APIResponse
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /admin/inventory/adjust [post]
 func (h *InventoryHandler) AdjustStock(ctx *gin.Context) {
 	var actorUUID *uuid.UUID
 	if userUUID, err := middleware.GetUserUUID(ctx); err == nil && userUUID != uuid.Nil {
 		actorUUID = &userUUID
 	}
 
-	var input dto.AdjustStockInput
+	var input inventorydto.AdjustStockInput
 	if err := ctx.ShouldBindJSON(&input); err != nil {
 		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
 		return

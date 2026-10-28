@@ -1,18 +1,24 @@
 import type { components } from '@goshop/api-client'
 
-export type OverviewStats = components['schemas']['goshop_internal_dto_v1.OverviewStatsDTO']
-export type RevenueChartPoint = components['schemas']['goshop_internal_dto_v1.RevenueChartPointDTO']
-export type RecentOrder = components['schemas']['goshop_internal_dto_v1.RecentOrderDTO']
-export type TopProduct = components['schemas']['goshop_internal_dto_v1.TopProductDTO']
+export type OverviewStats = components['schemas']['dto.OverviewStatsDTO']
+export type RevenueChartPoint =
+  components['schemas']['dto.RevenueChartPointDTO']
+export type RecentOrder = components['schemas']['dto.RecentOrderDTO']
+export type TopProduct = components['schemas']['dto.TopProductDTO']
 
-export type OrderStatusDistributionResponse = components['schemas']['goshop_internal_dto_v1.OrderStatusDistributionResponse']
-export type OrderStatusDistributionItem = components['schemas']['goshop_internal_dto_v1.OrderStatusDistributionItemDTO']
+export type OrderStatusDistributionResponse =
+  components['schemas']['dto.OrderStatusDistributionResponse']
+export type OrderStatusDistributionItem =
+  components['schemas']['dto.OrderStatusDistributionItemDTO']
 
-export type LowStockProductResponse = components['schemas']['goshop_internal_dto_v1.LowStockProductResponse']
-export type LowStockProduct = components['schemas']['goshop_internal_dto_v1.LowStockProductDTO']
+export type LowStockProductResponse =
+  components['schemas']['dto.LowStockProductResponse']
+export type LowStockProduct = components['schemas']['dto.LowStockProductDTO']
 
-export type PaymentMethodBreakdownResponse = components['schemas']['goshop_internal_dto_v1.PaymentMethodBreakdownResponse']
-export type PaymentMethodBreakdownItem = components['schemas']['goshop_internal_dto_v1.PaymentMethodBreakdownItemDTO']
+export type PaymentMethodBreakdownResponse =
+  components['schemas']['dto.PaymentMethodBreakdownResponse']
+export type PaymentMethodBreakdownItem =
+  components['schemas']['dto.PaymentMethodBreakdownItemDTO']
 
 export interface OverviewStatsQueryParams {
   days?: number
@@ -55,42 +61,3 @@ export interface PaymentMethodBreakdownQueryParams {
   from_date?: string
   to_date?: string
 }
-
-export type CartFunnelStats = components['schemas']['goshop_internal_dto_v1.CartFunnelDTO']
-
-export interface CartFunnelQueryParams {
-  days?: number
-  from_date?: string
-  to_date?: string
-}
-
-export type ReturnAnalyticsResponse = components['schemas']['goshop_internal_dto_v1.ReturnAnalyticsResponse']
-export type ReturnReasonBreakdown = components['schemas']['goshop_internal_dto_v1.ReturnReasonBreakdownDTO']
-export type TopReturnedProduct = components['schemas']['goshop_internal_dto_v1.TopReturnedProductDTO']
-
-export interface ReturnAnalyticsQueryParams {
-  days?: number
-  from_date?: string
-  to_date?: string
-}
-
-export type CategorySalesBreakdownResponse = components['schemas']['goshop_internal_dto_v1.CategorySalesBreakdownResponse']
-export type CategorySalesItem = components['schemas']['goshop_internal_dto_v1.CategorySalesItemDTO']
-
-export interface CategorySalesQueryParams {
-  days?: number
-  from_date?: string
-  to_date?: string
-}
-
-export type CouponPerformanceResponse = components['schemas']['goshop_internal_dto_v1.CouponPerformanceResponse']
-export type CouponCampaignItem = components['schemas']['goshop_internal_dto_v1.CouponCampaignItemDTO']
-
-export interface CouponPerformanceQueryParams {
-  days?: number
-  from_date?: string
-  to_date?: string
-  limit?: number
-}
-
-

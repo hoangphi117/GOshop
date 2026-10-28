@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"goshop/internal/config"
-	"goshop/internal/db"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
+	"goshop/pkg/db"
 	"goshop/pkg/discord"
 	"goshop/pkg/logger"
 	"goshop/pkg/mail"

@@ -24,5 +24,20 @@ WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'shopping_order')\gexe
 SELECT 'CREATE DATABASE shopping_payment'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'shopping_payment')\gexec
 
+SELECT 'CREATE DATABASE shopping_banner'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'shopping_banner')\gexec
+
+SELECT 'CREATE DATABASE shopping_review'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'shopping_review')\gexec
 
 
+
+
+SELECT 'CREATE DATABASE shopping_analytics'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'shopping_analytics')\gexec
+
+SELECT 'CREATE DATABASE shopping_chat'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'shopping_chat')\gexec
+
+SELECT 'CREATE DATABASE shopping_notification'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'shopping_notification')\gexec

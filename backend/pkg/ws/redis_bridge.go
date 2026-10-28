@@ -3,7 +3,6 @@ package ws
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"goshop/pkg/logger"
 	"sync"
 
@@ -26,7 +25,6 @@ type RedisNotificationEnvelope struct {
 
 type RedisBridge interface {
 	Publish(ctx context.Context, envelope RedisNotificationEnvelope) error
-	PublishToConversation(ctx context.Context, conversationID int32, msg WSMessage) error
 	StartSubscriber(ctx context.Context)
 	Stop()
 }
@@ -58,25 +56,6 @@ func (rb *redisBridge) Publish(ctx context.Context, envelope RedisNotificationEn
 	}
 
 	return rb.rdb.Publish(ctx, NotificationRedisChannel, data).Err()
-}
-
-func (rb *redisBridge) PublishToConversation(ctx context.Context, conversationID int32, msg WSMessage) error {
-	if rb.rdb == nil {
-		return nil // Redis not configured, fallback gracefully
-	}
-
-	envelope := RedisNotificationEnvelope{
-		ConversationID: &conversationID,
-		Message:        msg,
-	}
-
-	data, err := json.Marshal(envelope)
-	if err != nil {
-		return err
-	}
-
-	channel := fmt.Sprintf("%s%d", ChatRedisChannelPrefix, conversationID)
-	return rb.rdb.Publish(ctx, channel, data).Err()
 }
 
 func (rb *redisBridge) StartSubscriber(ctx context.Context) {

@@ -8,6 +8,7 @@ import (
 	paymentsqlc "goshop/services/payment/internal/db/sqlc"
 	"goshop/services/payment/internal/dto"
 	"goshop/services/payment/internal/provider"
+	"goshop/services/payment/internal/repository"
 	paymentservice "goshop/services/payment/internal/service"
 	"goshop/services/payment/money"
 
@@ -491,3 +492,60 @@ func TestPaymentService_RefundPayment_ReusesDeterministicIdempotencyKey(t *testi
 	assert.Equal(t, refundUUID.String(), result.UUID)
 	mockRepo.AssertExpectations(t)
 }
+
+// MockWebhookRepo records whether the audit row was ever written. A rejected
+// callback must not create one: the settlement transaction rolls back.
+type MockWebhookRepo struct {
+	mock.Mock
+}
+
+func (m *MockWebhookRepo) Insert(ctx context.Context, params paymentsqlc.InsertWebhookEventParams) (paymentsqlc.WebhookEvent, error) {
+	args := m.Called(ctx, params)
+	return args.Get(0).(paymentsqlc.WebhookEvent), args.Error(1)
+}
+
+func (m *MockWebhookRepo) MarkProcessed(ctx context.Context, eventID int32) error {
+	args := m.Called(ctx, eventID)
+	return args.Error(0)
+}
+
+var _ repository.WebhookEventRepository = (*MockWebhookRepo)(nil)
+
+// An underpaying callback settles nothing: no status change, no audit row, and
+// an error the handler maps to the provider's "invalid amount" code.
+func TestPaymentService_SettlePayment_UnderpaymentChangesNothing(t *testing.T) {
+	mockRepo := new(MockPaymentRepo)
+	mockWebhook := new(MockWebhookRepo)
+
+	txn := paymentsqlc.PaymentTransaction{
+		PtID:       1,
+		PtUuid:     uuid.New(),
+		PtProvider: "vnpay",
+		PtTxnRef:   strPtr("261028-34-TEST01"),
+		PtAmount:   dong(t, 150000),
+		PtCurrency: "VND",
+		PtStatus:   paymentservice.PaymentStatusPending,
+	}
+
+	svc := paymentservice.NewPaymentService(
+		mockRepo, nil, mockWebhook, nil, nil, nil, nil,
+		"http://localhost:3001/payment/result", "http://localhost:8083",
+	)
+
+	mockRepo.On("GetByTxnRef", mock.Anything, "vnpay", "261028-34-TEST01").Return(txn, nil)
+
+	err := svc.ProcessWebhook(context.Background(), dto.PaymentWebhookMessage{
+		Provider:    "vnpay",
+		OrderNumber: "261028-34-TEST01",
+		Amount:      1000, // 10 dong, far below the 150000 dong charged
+		Status:      string(provider.TxnStatusSuccess),
+	})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, paymentservice.ErrWebhookAmountMismatch)
+	// Rejection happens before any write: no status transition, no audit row.
+	mockRepo.AssertNotCalled(t, "UpdateStatusAtomically", mock.Anything, mock.Anything)
+	mockWebhook.AssertNotCalled(t, "Insert", mock.Anything, mock.Anything)
+}
+
+func strPtr(s string) *string { return &s }

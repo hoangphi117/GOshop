@@ -1272,7 +1272,8 @@ export function ChatWidget() {
           const uploaded = uploadResults[0];
           const isVideo = file.type.startsWith("video/");
           await sendMessage({
-            content: content || uploaded.name || file.name,
+            // Caption only — never leak the filename as message content.
+            content,
             content_type: isVideo ? "video" : "image",
             attachment_url: uploaded.url,
             attachment_name: uploaded.name,

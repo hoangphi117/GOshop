@@ -7,7 +7,7 @@ import (
 	"sort"
 	"time"
 
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	"goshop/pkg/logger"
 	"goshop/pkg/rabbitmq"
 	"goshop/services/inventory/internal/db/sqlc"
@@ -25,6 +25,7 @@ type InventoryService interface {
 	LockAndDeductStockWithRef(ctx context.Context, items []dto.DeductItem, refID string, refType string, actorID *int32, actorUUID *string, note *string) (map[string]dto.ItemStockDTO, error)
 	RestoreStockWithRef(ctx context.Context, items []dto.RestoreItem, refID string, refType string, actorID *int32, actorUUID *string, note *string) error
 	GetStock(ctx context.Context, productUUIDs []string, productIDs []int32) ([]dto.ItemStockDTO, error)
+	ListLowStockProducts(ctx context.Context, threshold, limit int32) ([]dto.ItemStockDTO, int64, error)
 	AdjustStock(ctx context.Context, actorUUID *uuid.UUID, actorName *string, input dto.AdjustStockInput) (*dto.StockMovementDTO, error)
 	ListStockMovements(ctx context.Context, params dto.GetStockMovementsParam) ([]dto.StockMovementDTO, int64, error)
 }
@@ -494,6 +495,39 @@ func (s *inventoryService) GetStock(ctx context.Context, productUUIDs []string, 
 	return result, nil
 }
 
+// ListLowStockProducts returns the products with the lowest available stock
+// (available = quantity - reserved) at or below the threshold, plus the total
+// number of products matching the threshold. Consumed by analytics alerts.
+func (s *inventoryService) ListLowStockProducts(ctx context.Context, threshold, limit int32) ([]dto.ItemStockDTO, int64, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	rows, err := s.repo.ListLowStockProducts(ctx, threshold, limit)
+	if err != nil {
+		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "Failed to list low stock products", err)
+	}
+	total, err := s.repo.CountLowStockProducts(ctx, threshold)
+	if err != nil {
+		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "Failed to count low stock products", err)
+	}
+
+	items := make([]dto.ItemStockDTO, 0, len(rows))
+	for _, r := range rows {
+		pID := int32(0)
+		if r.ProductID != nil {
+			pID = *r.ProductID
+		}
+		items = append(items, dto.ItemStockDTO{
+			ProductID:         pID,
+			ProductUUID:       r.ProductUuid.String(),
+			Quantity:          0,
+			ReservedQuantity:  0,
+			AvailableQuantity: r.AvailableQuantity,
+		})
+	}
+	return items, total, nil
+}
+
 func (s *inventoryService) AdjustStock(
 	ctx context.Context,
 	actorUUID *uuid.UUID,
@@ -654,7 +688,6 @@ func (s *inventoryService) recordAdjustment(
 	return s.movementToDTO(ctx, &movement), nil
 }
 
-
 // movementToDTO builds the response from a recorded movement. The movement row
 // is the whole contract: product name/SKU/image belong to the catalog.
 func (s *inventoryService) movementToDTO(_ context.Context, m *sqlc.StockMovement) *dto.StockMovementDTO {
@@ -740,21 +773,21 @@ func (s *inventoryService) ListStockMovements(ctx context.Context, params dto.Ge
 	dtos := make([]dto.StockMovementDTO, len(rows))
 	for i, r := range rows {
 		dtos[i] = dto.StockMovementDTO{
-			MovementID:      r.MovementID,
-			MovementUUID:    r.MovementUuid.String(),
-			ProductID:       r.ProductID,
-			ProductUUID:     r.ProductUuid.String(),
-			ChangeType:      r.ChangeType,
-			QuantityChange:  r.QuantityChange,
-			StockBefore:     r.StockBefore,
-			StockAfter:      r.StockAfter,
-			ReferenceID:     r.ReferenceID,
-			ReferenceType:   r.ReferenceType,
-			ActorID:         r.ActorID,
-			ActorUUID:       fromPgUUID(r.ActorUuid),
-			ActorName:       r.ActorName,
-			Note:            r.Note,
-			CreatedAt:       r.CreatedAt,
+			MovementID:     r.MovementID,
+			MovementUUID:   r.MovementUuid.String(),
+			ProductID:      r.ProductID,
+			ProductUUID:    r.ProductUuid.String(),
+			ChangeType:     r.ChangeType,
+			QuantityChange: r.QuantityChange,
+			StockBefore:    r.StockBefore,
+			StockAfter:     r.StockAfter,
+			ReferenceID:    r.ReferenceID,
+			ReferenceType:  r.ReferenceType,
+			ActorID:        r.ActorID,
+			ActorUUID:      fromPgUUID(r.ActorUuid),
+			ActorName:      r.ActorName,
+			Note:           r.Note,
+			CreatedAt:      r.CreatedAt,
 		}
 	}
 

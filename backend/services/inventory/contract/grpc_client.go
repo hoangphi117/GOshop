@@ -72,6 +72,9 @@ type InventoryClient interface {
 	ReleaseStock(ctx context.Context, input ReleaseStockInput) error
 	GetStock(ctx context.Context, productUUIDs []string, productIDs []int32) ([]StockItemInfo, error)
 	AdjustStock(ctx context.Context, input AdjustStockInput) (*AdjustStockResult, error)
+	// ListLowStockProducts serves analytics low-stock alerts: products whose
+	// available stock (quantity - reserved) is at or below threshold.
+	ListLowStockProducts(ctx context.Context, threshold, limit int32) ([]StockItemInfo, int64, error)
 	Close() error
 }
 
@@ -269,4 +272,23 @@ func (c *GRPCInventoryClient) AdjustStock(ctx context.Context, input AdjustStock
 		MovementUUID: resp.MovementUuid,
 		StockInfo:    stockInfo,
 	}, nil
+}
+
+func (c *GRPCInventoryClient) ListLowStockProducts(ctx context.Context, threshold, limit int32) ([]StockItemInfo, int64, error) {
+	resp, err := c.client.ListLowStockProducts(ctx, &inventoryv1.ListLowStockProductsRequest{
+		Threshold: threshold,
+		Limit:     limit,
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("grpc ListLowStockProducts failed: %w", err)
+	}
+	out := make([]StockItemInfo, len(resp.Items))
+	for i, it := range resp.Items {
+		out[i] = StockItemInfo{
+			ProductID:         it.ProductId,
+			ProductUUID:       it.ProductUuid,
+			AvailableQuantity: it.AvailableQuantity,
+		}
+	}
+	return out, resp.TotalCount, nil
 }

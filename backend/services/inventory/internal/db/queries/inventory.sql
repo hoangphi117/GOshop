@@ -156,3 +156,18 @@ WHERE (
     OR sm.product_uuid::TEXT ILIKE '%' || sqlc.narg(search)::TEXT || '%'
     OR sm.reference_id ILIKE '%' || sqlc.narg(search)::TEXT || '%'
 );
+
+-- name: ListLowStockProducts :many
+-- Lowest available stock first (available = quantity - reserved).
+SELECT
+    inventory_id, product_id, product_uuid,
+    (quantity - reserved_quantity)::int AS available_quantity
+FROM inventory_stocks
+WHERE (quantity - reserved_quantity) <= sqlc.arg(threshold)::int
+ORDER BY (quantity - reserved_quantity) ASC, product_id ASC
+LIMIT sqlc.arg(limit_count)::int;
+
+-- name: CountLowStockProducts :one
+SELECT count(*)::bigint
+FROM inventory_stocks
+WHERE (quantity - reserved_quantity) <= sqlc.arg(threshold)::int;

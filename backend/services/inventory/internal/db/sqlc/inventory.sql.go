@@ -40,6 +40,19 @@ func (q *Queries) AdjustStockByUUID(ctx context.Context, arg AdjustStockByUUIDPa
 	return i, err
 }
 
+const countLowStockProducts = `-- name: CountLowStockProducts :one
+SELECT count(*)::bigint
+FROM inventory_stocks
+WHERE (quantity - reserved_quantity) <= $1::int
+`
+
+func (q *Queries) CountLowStockProducts(ctx context.Context, threshold int32) (int64, error) {
+	row := q.db.QueryRow(ctx, countLowStockProducts, threshold)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countStockMovements = `-- name: CountStockMovements :one
 SELECT count(*)
 FROM stock_movements sm
@@ -375,6 +388,54 @@ func (q *Queries) GetStockByUUIDs(ctx context.Context, dollar_1 []uuid.UUID) ([]
 			&i.ReservedQuantity,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLowStockProducts = `-- name: ListLowStockProducts :many
+SELECT
+    inventory_id, product_id, product_uuid,
+    (quantity - reserved_quantity)::int AS available_quantity
+FROM inventory_stocks
+WHERE (quantity - reserved_quantity) <= $1::int
+ORDER BY (quantity - reserved_quantity) ASC, product_id ASC
+LIMIT $2::int
+`
+
+type ListLowStockProductsParams struct {
+	Threshold  int32 `json:"threshold"`
+	LimitCount int32 `json:"limit_count"`
+}
+
+type ListLowStockProductsRow struct {
+	InventoryID       int64     `json:"inventory_id"`
+	ProductID         *int32    `json:"product_id"`
+	ProductUuid       uuid.UUID `json:"product_uuid"`
+	AvailableQuantity int32     `json:"available_quantity"`
+}
+
+// Lowest available stock first (available = quantity - reserved).
+func (q *Queries) ListLowStockProducts(ctx context.Context, arg ListLowStockProductsParams) ([]ListLowStockProductsRow, error) {
+	rows, err := q.db.Query(ctx, listLowStockProducts, arg.Threshold, arg.LimitCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListLowStockProductsRow{}
+	for rows.Next() {
+		var i ListLowStockProductsRow
+		if err := rows.Scan(
+			&i.InventoryID,
+			&i.ProductID,
+			&i.ProductUuid,
+			&i.AvailableQuantity,
 		); err != nil {
 			return nil, err
 		}

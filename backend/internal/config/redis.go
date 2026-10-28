@@ -2,7 +2,7 @@ package config
 
 import (
 	"context"
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 	"goshop/pkg/logger"
 	"time"
 

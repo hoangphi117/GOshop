@@ -7,7 +7,7 @@ import (
 
 	"goshop/services/order/internal/db/sqlc"
 	v1dto "goshop/services/order/internal/dto"
-	"goshop/internal/utils"
+	"goshop/pkg/utils"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"

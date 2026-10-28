@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package chat.v1;
+
+option go_package = "goshop/proto/chat/v1;chatv1";
+
+// ChatService is the internal gRPC surface of the chat domain. The monolith
+// gateway owns the REST surface; the only consumer today is the WebSocket
+// gateway, which resolves conversation rooms over gRPC because chat data now
+// lives in the chat service's own database. Presence is shared out-of-band
+// through the ws:presence:conns Redis ZSET written by the WS gateway.
+service ChatService {
+  // ResolveConversation looks up a conversation by UUID (room join) or by ID
+  // (initial presence lookup). Exactly one selector must be set.
+  rpc ResolveConversation(ResolveConversationRequest) returns (ResolveConversationResponse);
+}
+
+message ResolveConversationRequest {
+  string conversation_uuid = 1;
+  int32 conversation_id = 2;
+}
+
+message ResolveConversationResponse {
+  int32 conversation_id = 1;
+  string conversation_uuid = 2;
+  int32 user_id = 3;
+  string status = 4;
+}

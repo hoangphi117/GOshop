@@ -30,6 +30,7 @@ import { toast } from "sonner";
 export interface MyReview {
   uuid: string;
   product_uuid: string;
+  order_uuid?: string;
   product_name: string;
   product_slug: string;
   product_image_url?: string;
@@ -200,10 +201,16 @@ export default function MyReviewsPage() {
     }
   }, [mounted, accessToken, currentPage, fetchMyReviews, fetchDeliveredOrders]);
 
-  // Filter out pending items that already have a review
+  // Filter out pending items that already have a review.
+  // Backend allows one review per (order, product) pair, so dedupe on the pair,
+  // not product alone — the same product can sit in two delivered orders.
   const unreviewedPendingItems = useMemo(() => {
-    const reviewedUuids = new Set(reviews.map((r) => r.product_uuid));
-    return pendingItems.filter((item) => !reviewedUuids.has(item.productUuid));
+    const reviewedKeys = new Set(
+      reviews.map((r) => `${r.order_uuid || ""}:${r.product_uuid}`),
+    );
+    return pendingItems.filter(
+      (item) => !reviewedKeys.has(`${item.orderUuid}:${item.productUuid}`),
+    );
   }, [pendingItems, reviews]);
 
   // Real Calculated Metrics

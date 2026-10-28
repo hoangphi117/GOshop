@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"goshop/services/identity/internal/db/sqlc"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -22,6 +23,7 @@ type UserRepository interface {
 	GetAll(ctx context.Context, search, orderBy, sort string, limit, offset int32) ([]sqlc.User, error)
 	GetAllV2(ctx context.Context, search, orderBy, sort string, limit, offset int32, deleted bool) ([]sqlc.User, error)
 	CountUsers(ctx context.Context, search string, deleted bool) (int64, error)
+	CountCustomersCreatedBetween(ctx context.Context, fromTime, toTime time.Time) (int64, error)
 	Create(ctx context.Context, input sqlc.CreateUserParams) (sqlc.User, error)
 	Update(ctx context.Context, input sqlc.UpdateUserParams) (sqlc.User, error)
 	SoftDelete(ctx context.Context, uuid uuid.UUID) (sqlc.User, error)

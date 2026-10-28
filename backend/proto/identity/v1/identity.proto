@@ -88,4 +88,16 @@ service IdentityService {
   rpc GetActiveAdminUserIDs(GetActiveAdminUserIDsRequest) returns (GetActiveAdminUserIDsResponse);
   rpc GetAddressByUUID(GetAddressByUUIDRequest) returns (GetAddressByUUIDResponse);
   rpc GetAddressesByUserID(GetAddressesByUserIDRequest) returns (GetAddressesByUserIDResponse);
+  // CountCustomersCreatedBetween feeds analytics new-customer stats without
+  // analytics reading the identity database directly.
+  rpc CountCustomersCreatedBetween(CountCustomersCreatedBetweenRequest) returns (CountCustomersCreatedBetweenResponse);
+}
+
+message CountCustomersCreatedBetweenRequest {
+  string from_time = 1; // RFC3339
+  string to_time = 2;   // RFC3339
+}
+
+message CountCustomersCreatedBetweenResponse {
+  int64 customer_count = 1;
 }

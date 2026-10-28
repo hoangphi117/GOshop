@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"goshop/internal/db"
+	"goshop/pkg/db"
 	"goshop/pkg/rabbitmq"
 	ordersqlc "goshop/services/order/internal/db/sqlc"
 

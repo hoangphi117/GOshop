@@ -45,6 +45,7 @@ type Querier interface {
 	TrashProduct(ctx context.Context, productUuid uuid.UUID) (Product, error)
 	UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (Category, error)
 	UpdateProduct(ctx context.Context, arg UpdateProductParams) (UpdateProductRow, error)
+	UpdateProductRating(ctx context.Context, arg UpdateProductRatingParams) error
 }
 
 var _ Querier = (*Queries)(nil)
