@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import {
   MessageSquare,
   X,
@@ -1308,10 +1309,23 @@ export function ChatWidget() {
         await sendMessage({ content: textToSend });
         setReplyingTo(null);
       }
-    } catch {
+    } catch (error) {
+      // Show what failed instead of silently resetting the composer: an
+      // upload rejection and a network drop both look identical otherwise.
       setInputValue(content);
       setPendingFiles(filesToSend);
       setIsUploading(false);
+      const detail =
+        error instanceof Error && error.message
+          ? ` (${error.message})`
+          : "";
+      toast.error(
+        filesToSend.length > 0
+          ? `Failed to upload ${filesToSend.length} attachment${
+              filesToSend.length > 1 ? "s" : ""
+            }${detail}. Your message was kept so you can retry.`
+          : `Failed to send message${detail}. Please try again.`
+      );
     }
   };
 

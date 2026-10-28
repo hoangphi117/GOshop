@@ -46,6 +46,18 @@ jobs:
         run: buf lint
         working-directory: backend
 
+      - name: Gofmt check
+        # Formatting is a hard gate: an unformatted file fails CI instead of
+        # drifting until a bulk reformat hides real changes in noise.
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "These files need gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
+        working-directory: backend
+
       - name: Buf breaking check
         # Both sides as git refs: identical file keying regardless of whether
         # develop has backend/buf.yaml yet. buf defaults to FILE breaking
@@ -79,11 +91,12 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: super@password
-          POSTGRES_DB: shopping
+          # Maintenance database: services own their own shopping_* databases.
+          POSTGRES_DB: postgres
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d shopping"
+          --health-cmd "pg_isready -U postgres -d postgres"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 12

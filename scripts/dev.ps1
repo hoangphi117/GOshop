@@ -1,8 +1,12 @@
 # =============================================================================
 # GOshop Single-Command Dev Orchestrator (Lightweight Hybrid Mode)
 # =============================================================================
-# 1. Starts Docker Infrastructure (Postgres, Redis, RabbitMQ, MinIO, Meilisearch)
-# 2. Runs core Go services on Host; domain services run in Docker Compose
+# 1. Docker Compose starts infrastructure (Postgres, Redis, RabbitMQ, MinIO,
+#    Meilisearch) plus the storage-heavy domain services (inventory, catalog,
+#    coupon, cart, banner).
+# 2. The gateway and the remaining services build and run on the host for fast
+#    rebuild loops: api, identity, notification, payment, worker, order,
+#    review, analytics, chat, media, ws-gateway.
 # =============================================================================
 
 Write-Host ">>> [1/3] Starting Infrastructure and Domain Services (Docker)..." -ForegroundColor Cyan
