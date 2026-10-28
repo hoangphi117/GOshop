@@ -87,6 +87,56 @@ function PaymentResultContent() {
   // record it. Surfaced to the user instead of silently showing "success".
   const [syncError, setSyncError] = useState<string | null>(null);
 
+  const resolveOrderUuid = React.useCallback(async (): Promise<string | null> => {
+    if (!displayOrderNumber) return null;
+    const baseUrl =
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+    try {
+      const res = await authFetch(`${baseUrl}/api/v1/orders`);
+      if (!res.ok) return null;
+      const json = await res.json().catch(() => null);
+      const orderList = Array.isArray(json?.data)
+        ? json.data
+        : Array.isArray(json?.data?.items)
+        ? json.data.items
+        : [];
+      const matched = orderList.find(
+        (o: { order_number?: string; uuid?: string }) =>
+          o.order_number === displayOrderNumber ||
+          o.uuid === displayOrderNumber
+      );
+      return matched?.uuid ?? null;
+    } catch {
+      return null;
+    }
+  }, [displayOrderNumber]);
+
+  // A failed confirmation may have settled anyway (provider retry or the
+  // reconciliation worker). Check the recorded transaction before alarming
+  // the user, so a already-healed payment never shows an error.
+  const checkPaymentSettled = React.useCallback(async (): Promise<boolean> => {
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+    const targetUuid = resolvedOrderUuid ?? (await resolveOrderUuid());
+    if (!targetUuid) return false;
+    try {
+      const res = await authFetch(
+        `${baseUrl}/api/v1/payments/transactions/${targetUuid}`
+      );
+      if (!res.ok) return false;
+      const json = await res.json().catch(() => null);
+      const items = Array.isArray(json?.data)
+        ? json.data
+        : Array.isArray(json?.data?.items)
+        ? json.data.items
+        : [];
+      return items.some(
+        (t: { status?: string }) => t.status?.toLowerCase() === "paid"
+      );
+    } catch {
+      return false;
+    }
+  }, [resolvedOrderUuid, resolveOrderUuid]);
+
   useEffect(() => {
     if (isSuccess) {
       removeSelectedItems();
@@ -108,6 +158,10 @@ function PaymentResultContent() {
           );
 
           if (!res.ok) {
+            // Give a retry or the reconciler a moment, then trust the stored
+            // transaction over the gateway's echoed response.
+            await new Promise((r) => setTimeout(r, 1500));
+            if (await checkPaymentSettled()) return;
             setSyncError(
               `Payment was accepted by ${providerName} but our server rejected the confirmation (HTTP ${res.status}). Our team can still reconcile it automatically.`
             );
@@ -118,6 +172,8 @@ function PaymentResultContent() {
           const body = await res.json().catch(() => null);
           const rspCode: string | undefined = body?.RspCode;
           if (rspCode && rspCode !== "00" && rspCode !== "02") {
+            await new Promise((r) => setTimeout(r, 1500));
+            if (await checkPaymentSettled()) return;
             setSyncError(
               `Payment was accepted by ${providerName} but our server could not record it (${rspCode}: ${
                 body?.Message ?? "unknown error"
