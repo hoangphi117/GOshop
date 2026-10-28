@@ -25,4 +25,3 @@ type RabbitMQService interface {
 	Close() error
 	IsHealthy() bool
 }
-

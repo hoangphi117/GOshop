@@ -48,4 +48,3 @@ type TokenService interface {
 	RevokeTokenFamily(familyID string) error
 	GetTokenFamilyID(rawToken string) (string, error)
 }
-

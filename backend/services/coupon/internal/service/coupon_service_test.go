@@ -506,4 +506,3 @@ func TestCouponService_ConcurrentReserve(t *testing.T) {
 	}
 	assert.Equal(t, 1, increments, "concurrent duplicates consume quota once")
 }
-

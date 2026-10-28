@@ -2,9 +2,9 @@ package config
 
 import (
 	"fmt"
-	"goshop/pkg/utils"
 	"goshop/pkg/logger"
 	"goshop/pkg/storage"
+	"goshop/pkg/utils"
 	"strconv"
 )
 

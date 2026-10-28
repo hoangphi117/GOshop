@@ -9,12 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"goshop/internal/testutils"
 	"goshop/services/order/internal/db/sqlc"
 	v1dto "goshop/services/order/internal/dto"
 	"goshop/services/order/internal/repository"
 	orderservice "goshop/services/order/internal/service"
-	"goshop/internal/testutils"
-	
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"

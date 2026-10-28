@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	ordersqlc "goshop/services/order/internal/db/sqlc"
 	"goshop/internal/testutils"
 	"goshop/pkg/rabbitmq"
+	ordersqlc "goshop/services/order/internal/db/sqlc"
 	"testing"
 	"time"
 

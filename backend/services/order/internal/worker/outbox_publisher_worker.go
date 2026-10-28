@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"goshop/services/order/internal/repository"
 	"goshop/pkg/rabbitmq"
+	"goshop/services/order/internal/repository"
 	"time"
 
 	"github.com/rs/zerolog"

@@ -20,13 +20,13 @@ import (
 )
 
 type mockCatalogService struct {
-	getProductByUUIDFn func(ctx context.Context, u uuid.UUID) (*dto.ProductDTO, error)
-	getProductByIDFn   func(ctx context.Context, id int32) (*dto.ProductDTO, error)
-	getProductBySlugFn func(ctx context.Context, slug string) (*dto.ProductDTO, error)
-	getProductsBatchFn func(ctx context.Context, uuids []string, ids []int32) ([]dto.ProductDTO, error)
-	validateProductsFn func(ctx context.Context, uuids []string) (bool, []string, error)
+	getProductByUUIDFn  func(ctx context.Context, u uuid.UUID) (*dto.ProductDTO, error)
+	getProductByIDFn    func(ctx context.Context, id int32) (*dto.ProductDTO, error)
+	getProductBySlugFn  func(ctx context.Context, slug string) (*dto.ProductDTO, error)
+	getProductsBatchFn  func(ctx context.Context, uuids []string, ids []int32) ([]dto.ProductDTO, error)
+	validateProductsFn  func(ctx context.Context, uuids []string) (bool, []string, error)
 	getCategoryByUUIDFn func(ctx context.Context, u uuid.UUID) (*dto.CategoryDTO, error)
-	listCategoriesFn   func(ctx context.Context, activeOnly *bool) ([]dto.CategoryDTO, error)
+	listCategoriesFn    func(ctx context.Context, activeOnly *bool) ([]dto.CategoryDTO, error)
 }
 
 func (m *mockCatalogService) CreateCategory(ctx context.Context, input dto.CreateCategoryInput) (*dto.CategoryDTO, error) {

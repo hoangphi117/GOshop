@@ -13,4 +13,3 @@ type RedisCacheService interface {
 	Expire(key string, ttl time.Duration) error
 	TTL(key string) (time.Duration, error)
 }
-

@@ -2,8 +2,8 @@ package config
 
 import (
 	"context"
-	"goshop/pkg/utils"
 	"goshop/pkg/logger"
+	"goshop/pkg/utils"
 	"time"
 
 	"github.com/redis/go-redis/v9"

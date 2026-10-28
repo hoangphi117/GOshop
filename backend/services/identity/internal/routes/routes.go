@@ -5,10 +5,10 @@ import (
 	"strings"
 
 	_ "goshop/docs"
-	"goshop/pkg/middleware"
-	"goshop/pkg/utils"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
+	"goshop/pkg/middleware"
+	"goshop/pkg/utils"
 	"goshop/services/identity/internal/handler"
 
 	"github.com/gin-contrib/gzip"

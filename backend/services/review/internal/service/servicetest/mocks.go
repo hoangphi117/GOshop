@@ -217,8 +217,8 @@ func (m *MockReviewRepository) Reply(ctx context.Context, reviewID int32, reply 
 
 // MockProductCatalog stubs the catalog gRPC port.
 type MockProductCatalog struct {
-	GetProductByUUIDFunc  func(ctx context.Context, u string) (*catalogcontract.ProductItemInfo, error)
-	GetProductsBatchFunc  func(ctx context.Context, uuids []string, ids []int32) ([]catalogcontract.ProductItemInfo, error)
+	GetProductByUUIDFunc func(ctx context.Context, u string) (*catalogcontract.ProductItemInfo, error)
+	GetProductsBatchFunc func(ctx context.Context, uuids []string, ids []int32) ([]catalogcontract.ProductItemInfo, error)
 }
 
 func (m *MockProductCatalog) GetProductByUUID(ctx context.Context, u string) (*catalogcontract.ProductItemInfo, error) {

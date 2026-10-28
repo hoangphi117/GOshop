@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"goshop/pkg/utils"
 	"goshop/pkg/logger"
 	"goshop/pkg/middleware"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/storage"
+	"goshop/pkg/utils"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"

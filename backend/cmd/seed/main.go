@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"goshop/pkg/utils"
 	"goshop/pkg/logger"
 	"goshop/pkg/search"
+	"goshop/pkg/utils"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/joho/godotenv"

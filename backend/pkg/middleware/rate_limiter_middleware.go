@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"goshop/pkg/utils"
 	"goshop/pkg/cache"
+	"goshop/pkg/utils"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"

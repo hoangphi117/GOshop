@@ -9,7 +9,7 @@ import (
 
 	v1dto "goshop/services/order/internal/dto"
 	orderservice "goshop/services/order/internal/service"
-	
+
 	"goshop/pkg/rabbitmq"
 
 	"github.com/google/uuid"

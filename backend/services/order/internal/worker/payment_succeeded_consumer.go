@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
+	"goshop/pkg/rabbitmq"
 	v1dto "goshop/services/order/internal/dto"
 	orderservice "goshop/services/order/internal/service"
-	"goshop/pkg/rabbitmq"
 
 	"github.com/google/uuid"
 	amqp "github.com/rabbitmq/amqp091-go"

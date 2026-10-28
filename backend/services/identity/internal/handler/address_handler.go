@@ -3,10 +3,10 @@ package handler
 import (
 	"net/http"
 
-	dto "goshop/services/identity/internal/dto"
 	"goshop/pkg/middleware"
 	"goshop/pkg/utils"
 	"goshop/pkg/validation"
+	dto "goshop/services/identity/internal/dto"
 	"goshop/services/identity/internal/service"
 
 	"github.com/gin-gonic/gin"

@@ -3,8 +3,8 @@ package mail
 import (
 	"context"
 	"goshop/internal/config"
-	"goshop/pkg/utils"
 	"goshop/pkg/logger"
+	"goshop/pkg/utils"
 	"time"
 
 	"github.com/rs/zerolog"

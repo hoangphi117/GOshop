@@ -23,7 +23,7 @@ func (r *PaymentRoutes) Register(rg *gin.RouterGroup) {
 		payments.GET("/order/:order_uuid", r.handler.GetPaymentTransactions)
 	}
 }
- 
+
 type PaymentWebhookRoutes struct {
 	handler *handler.PaymentHandler
 }

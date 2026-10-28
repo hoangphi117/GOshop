@@ -3,8 +3,8 @@ package worker
 import (
 	"context"
 	"encoding/json"
-	orderservice "goshop/services/order/internal/service"
 	"goshop/pkg/rabbitmq"
+	orderservice "goshop/services/order/internal/service"
 
 	"github.com/google/uuid"
 	amqp "github.com/rabbitmq/amqp091-go"

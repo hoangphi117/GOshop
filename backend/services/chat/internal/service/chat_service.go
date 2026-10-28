@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"goshop/pkg/utils"
 	"goshop/pkg/logger"
+	"goshop/pkg/utils"
 	ws "goshop/pkg/ws"
 	sqlc "goshop/services/chat/internal/db/sqlc"
 	chatdto "goshop/services/chat/internal/dto"

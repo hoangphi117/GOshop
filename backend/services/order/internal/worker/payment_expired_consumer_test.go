@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	
 	"goshop/pkg/rabbitmq"
 
 	"github.com/google/uuid"

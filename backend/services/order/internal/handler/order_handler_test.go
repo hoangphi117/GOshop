@@ -8,10 +8,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"goshop/pkg/utils"
 	v1dto "goshop/services/order/internal/dto"
 	orderhandler "goshop/services/order/internal/handler"
 	orderservice "goshop/services/order/internal/service"
-	"goshop/pkg/utils"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"

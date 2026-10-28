@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"goshop/pkg/middleware"
 	"goshop/internal/testutils"
+	"goshop/pkg/middleware"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"

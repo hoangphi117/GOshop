@@ -5,10 +5,10 @@ import (
 	"os"
 	"strings"
 
-	dto "goshop/services/identity/internal/dto"
+	"goshop/pkg/auth"
 	"goshop/pkg/utils"
 	"goshop/pkg/validation"
-	"goshop/pkg/auth"
+	dto "goshop/services/identity/internal/dto"
 	"goshop/services/identity/internal/service"
 
 	"github.com/gin-gonic/gin"

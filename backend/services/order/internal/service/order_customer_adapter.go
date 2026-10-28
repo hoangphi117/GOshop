@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 
-	ordersqlc "goshop/services/order/internal/db/sqlc"
 	identitycontract "goshop/services/identity/contract"
+	ordersqlc "goshop/services/order/internal/db/sqlc"
 
 	"github.com/google/uuid"
 )

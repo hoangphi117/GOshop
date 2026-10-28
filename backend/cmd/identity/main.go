@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 
 	"goshop/internal/config"
-	"goshop/pkg/utils"
 	"goshop/pkg/logger"
+	"goshop/pkg/utils"
 	identityapp "goshop/services/identity/app"
 
 	"github.com/joho/godotenv"

@@ -3,35 +3,35 @@ package dto
 import (
 	"time"
 
-	ordersqlc "goshop/services/order/internal/db/sqlc"
 	"goshop/pkg/utils"
+	ordersqlc "goshop/services/order/internal/db/sqlc"
 
 	"github.com/google/uuid"
 )
 
 type OrderDTO struct {
-	UUID            string         `json:"uuid"`
-	OrderNumber     string         `json:"order_number"`
-	UserUUID        string         `json:"user_uuid,omitempty"`
-	UserName        string         `json:"user_name,omitempty"`
-	ShippingName    string         `json:"shipping_name"`
-	ShippingPhone   string         `json:"shipping_phone"`
-	ShippingAddress string         `json:"shipping_address"`
-	CouponCode      *string        `json:"coupon_code,omitempty"`
-	SubtotalAmount  float64        `json:"subtotal_amount,omitempty"`
-	DiscountAmount  float64        `json:"discount_amount,omitempty"`
-	ShippingFee     float64        `json:"shipping_fee,omitempty"`
-	TotalAmount     float64        `json:"total_amount"`
-	RefundedAmount  float64        `json:"refunded_amount"`
-	PaymentMethod   string         `json:"payment_method"`
-	PaymentStatus   string         `json:"payment_status"`
-	Note            string         `json:"note,omitempty"`
-	Status          string         `json:"status"`
+	UUID             string         `json:"uuid"`
+	OrderNumber      string         `json:"order_number"`
+	UserUUID         string         `json:"user_uuid,omitempty"`
+	UserName         string         `json:"user_name,omitempty"`
+	ShippingName     string         `json:"shipping_name"`
+	ShippingPhone    string         `json:"shipping_phone"`
+	ShippingAddress  string         `json:"shipping_address"`
+	CouponCode       *string        `json:"coupon_code,omitempty"`
+	SubtotalAmount   float64        `json:"subtotal_amount,omitempty"`
+	DiscountAmount   float64        `json:"discount_amount,omitempty"`
+	ShippingFee      float64        `json:"shipping_fee,omitempty"`
+	TotalAmount      float64        `json:"total_amount"`
+	RefundedAmount   float64        `json:"refunded_amount"`
+	PaymentMethod    string         `json:"payment_method"`
+	PaymentStatus    string         `json:"payment_status"`
+	Note             string         `json:"note,omitempty"`
+	Status           string         `json:"status"`
 	ShippingProvider *string        `json:"shipping_provider,omitempty"`
 	ShippingCode     *string        `json:"shipping_code,omitempty"`
 	ExpectedDelivery *string        `json:"expected_delivery,omitempty"`
-	Items           []OrderItemDTO `json:"items"`
-	CreatedAt       string         `json:"created_at"`
+	Items            []OrderItemDTO `json:"items"`
+	CreatedAt        string         `json:"created_at"`
 }
 
 type OrderItemDTO struct {
@@ -61,20 +61,20 @@ type CreateOrderInput struct {
 }
 
 type OrderSummaryDTO struct {
-	UUID            string  `json:"uuid"`
-	OrderNumber     string  `json:"order_number"`
-	ShippingName    string  `json:"shipping_name"`
-	ShippingPhone   string  `json:"shipping_phone"`
-	ShippingAddress string  `json:"shipping_address"`
-	Note            *string `json:"note,omitempty"`
-	CouponCode      *string `json:"coupon_code,omitempty"`
-	SubtotalAmount  float64 `json:"subtotal_amount,omitempty"`
-	DiscountAmount  float64 `json:"discount_amount,omitempty"`
-	ShippingFee     float64 `json:"shipping_fee,omitempty"`
-	TotalAmount     float64 `json:"total_amount"`
-	RefundedAmount  float64 `json:"refunded_amount"`
-	PaymentMethod   string  `json:"payment_method"`
-	PaymentStatus   string  `json:"payment_status"`
+	UUID            string         `json:"uuid"`
+	OrderNumber     string         `json:"order_number"`
+	ShippingName    string         `json:"shipping_name"`
+	ShippingPhone   string         `json:"shipping_phone"`
+	ShippingAddress string         `json:"shipping_address"`
+	Note            *string        `json:"note,omitempty"`
+	CouponCode      *string        `json:"coupon_code,omitempty"`
+	SubtotalAmount  float64        `json:"subtotal_amount,omitempty"`
+	DiscountAmount  float64        `json:"discount_amount,omitempty"`
+	ShippingFee     float64        `json:"shipping_fee,omitempty"`
+	TotalAmount     float64        `json:"total_amount"`
+	RefundedAmount  float64        `json:"refunded_amount"`
+	PaymentMethod   string         `json:"payment_method"`
+	PaymentStatus   string         `json:"payment_status"`
 	Status          string         `json:"status"`
 	Items           []OrderItemDTO `json:"items,omitempty"`
 	CreatedAt       string         `json:"created_at"`
@@ -368,4 +368,3 @@ type RefundPaymentInput struct {
 	Amount    float64 `json:"amount" binding:"required,gt=0"`
 	Reason    string  `json:"reason" binding:"required,max=500"`
 }
-

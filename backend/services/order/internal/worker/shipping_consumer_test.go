@@ -8,7 +8,6 @@ import (
 	"time"
 
 	v1dto "goshop/services/order/internal/dto"
-	
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"

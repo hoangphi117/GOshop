@@ -5,9 +5,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"goshop/pkg/middleware"
 	"goshop/internal/testutils"
 	"goshop/pkg/auth"
+	"goshop/pkg/middleware"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"

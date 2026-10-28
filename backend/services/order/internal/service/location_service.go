@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	v1dto "goshop/services/order/internal/dto"
-	"goshop/pkg/utils"
 	"goshop/pkg/cache"
 	"goshop/pkg/shipping"
+	"goshop/pkg/utils"
+	v1dto "goshop/services/order/internal/dto"
 
 	"golang.org/x/sync/singleflight"
 )
@@ -203,4 +203,3 @@ func (s *locationService) GetWards(ctx context.Context, districtID int) ([]v1dto
 
 	return res.([]v1dto.WardDTO), nil
 }
-
