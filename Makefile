@@ -1,8 +1,7 @@
 include ./backend/.env
 export
 
-MIGRATION_CORE_DIR=backend/internal/db/migrations_core
-MIGRATION_IDENTITY_DIR=backend/internal/db/migrations_identity
+MIGRATION_IDENTITY_DIR=backend/services/identity/internal/migrations
 MIGRATION_COUPON_DIR=backend/services/coupon/internal/migrations
 MIGRATION_INVENTORY_DIR=backend/services/inventory/internal/migrations
 MIGRATION_CATALOG_DIR=backend/services/catalog/internal/migrations
@@ -134,15 +133,13 @@ swagger:
 	npx --yes swagger2openapi ./backend/docs/swagger.json -o ./backend/docs/openapi.json
 
 migrate-create:
-	migrate create -ext sql -dir ${MIGRATION_CORE_DIR} -seq ${NAME}
+	migrate create -ext sql -dir ${MIGRATION_IDENTITY_DIR} -seq ${NAME}
 
 migrate-identity-create:
 	migrate create -ext sql -dir ${MIGRATION_IDENTITY_DIR} -seq ${NAME}
 
-migrate-up: migrate-core-up migrate-identity-up migrate-coupon-up migrate-inventory-up migrate-catalog-up migrate-cart-up migrate-order-up
+migrate-up: migrate-identity-up migrate-coupon-up migrate-inventory-up migrate-catalog-up migrate-cart-up migrate-order-up
 
-migrate-core-up:
-	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" up
 
 migrate-identity-up:
 	migrate -path ${MIGRATION_IDENTITY_DIR} -database "${IDENTITY_CONNECTION_STRING}" up
@@ -166,10 +163,8 @@ migrate-chat-up:
 	migrate -path ${MIGRATION_CHAT_DIR} -database "${CHAT_CONNECTION_STRING}" up
 
 # Rollback the last migration
-migrate-down: migrate-core-down migrate-identity-down migrate-coupon-down migrate-inventory-down migrate-catalog-down migrate-cart-down migrate-order-down
+migrate-down: migrate-identity-down migrate-coupon-down migrate-inventory-down migrate-catalog-down migrate-cart-down migrate-order-down
 
-migrate-core-down:
-	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" down 1
 
 migrate-identity-down:
 	migrate -path ${MIGRATION_IDENTITY_DIR} -database "${IDENTITY_CONNECTION_STRING}" down 1
@@ -192,24 +187,12 @@ migrate-order-down:
 migrate-chat-down:
 	migrate -path ${MIGRATION_CHAT_DIR} -database "${CHAT_CONNECTION_STRING}" down 1
 
-# Rollback the last N migrations
-migrate-down-n:
-	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" down ${N}
 
-# Force the migration version to a specific version when the database is in a dirty state
-migrate-force:
-	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" force ${VERSION}
 
 migrate-identity-force:
 	migrate -path ${MIGRATION_IDENTITY_DIR} -database "${IDENTITY_CONNECTION_STRING}" force ${VERSION}
 
-# Drop all tables in the database
-migrate-drop:
-	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" drop 
 
-# Migrate to a specific version
-migrate-goto:
-	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" goto ${VERSION}
 
 # Build container for noapp
 noapp:
@@ -260,4 +243,4 @@ stresstest:
 spiketest:
 	docker run --rm -i --network=shopping_goshop-network -v "./loadtest:/loadtest" -e BASE_URL=http://goshop-nginx -e API_KEY=abcd-1234-1111 grafana/k6 run /loadtest/spike_test.js
 
-.PHONY: importdb exportdb server worker ws-gateway identity notification payment coupon inventory catalog order chat media build-identity build-notification build-payment build-coupon build-inventory build-catalog build-order build-chat build-media migrate-create migrate-up migrate-down migrate-force migrate-drop migrate-goto migrate-down-n sqlc build build-worker build-ws-gateway run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev dev-host swagger loadtest stresstest spiketest seed seed-docker
+.PHONY: importdb exportdb server worker ws-gateway identity notification payment coupon inventory catalog order chat media build-identity build-notification build-payment build-coupon build-inventory build-catalog build-order build-chat build-media migrate-create migrate-up migrate-down sqlc build build-worker build-ws-gateway run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev dev-host swagger loadtest stresstest spiketest seed seed-docker

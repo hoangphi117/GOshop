@@ -1,8 +1,7 @@
 include .env
 export
 
-MIGRATION_CORE_DIR=pkg/db/migrations_core
-MIGRATION_IDENTITY_DIR=pkg/db/migrations_identity
+MIGRATION_IDENTITY_DIR=services/identity/internal/migrations
 IDENTITY_DB_NAME?=shopping_identity
 
 CONNECTION_STRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=${DB_SSL_MODE}
@@ -59,46 +58,30 @@ swagger-chat:
 	npx --yes swagger2openapi ./services/chat/docs/swagger.json -o ./services/chat/docs/openapi.json
 
 migrate-create:
-	migrate create -ext sql -dir ${MIGRATION_CORE_DIR} -seq ${NAME}
+	migrate create -ext sql -dir ${MIGRATION_IDENTITY_DIR} -seq ${NAME}
 
 migrate-identity-create:
 	migrate create -ext sql -dir ${MIGRATION_IDENTITY_DIR} -seq ${NAME}
 
-migrate-up: migrate-core-up migrate-identity-up
+migrate-up: migrate-identity-up
 
-migrate-core-up:
-	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" up
 
 migrate-identity-up:
 	migrate -path ${MIGRATION_IDENTITY_DIR} -database "${IDENTITY_CONNECTION_STRING}" up
 
 # Rollback the last migration
-migrate-down: migrate-core-down migrate-identity-down
+migrate-down: migrate-identity-down
 
-migrate-core-down:
-	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" down 1
 
 migrate-identity-down:
 	migrate -path ${MIGRATION_IDENTITY_DIR} -database "${IDENTITY_CONNECTION_STRING}" down 1
 
-# Rollback the last N migrations
-migrate-down-n:
-	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" down ${N}
 
-# Force the migration version to a specific version when the database is in a dirty state
-migrate-force:
-	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" force ${VERSION}
 
 migrate-identity-force:
 	migrate -path ${MIGRATION_IDENTITY_DIR} -database "${IDENTITY_CONNECTION_STRING}" force ${VERSION}
 
-# Drop all tables in the database
-migrate-drop:
-	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" drop 
 
-# Migrate to a specific version
-migrate-goto:
-	migrate -path ${MIGRATION_CORE_DIR} -database "${CONNECTION_STRING}" goto ${VERSION}
 
 # Build container for noapp
 noapp:
@@ -135,4 +118,4 @@ logs-prod:
 bash:
 	docker exec -it goshop-api /bin/sh
 
-.PHONY: importdb exportdb server chat media migrate-create migrate-up migrate-down migrate-force migrate-drop migrate-goto migrate-down-n sqlc build build-chat build-media run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev swagger swagger-chat seed seed-docker
+.PHONY: importdb exportdb server chat media migrate-create migrate-up migrate-down sqlc build build-chat build-media run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev swagger swagger-chat seed seed-docker

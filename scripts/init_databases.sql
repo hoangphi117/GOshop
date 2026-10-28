@@ -38,3 +38,6 @@ WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'shopping_analytics')\
 
 SELECT 'CREATE DATABASE shopping_chat'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'shopping_chat')\gexec
+
+SELECT 'CREATE DATABASE shopping_notification'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'shopping_notification')\gexec

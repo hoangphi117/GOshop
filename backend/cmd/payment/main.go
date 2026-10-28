@@ -39,7 +39,7 @@ func main() {
 	}
 
 	cfg := config.NewConfig()
-	if paymentDBName := utils.GetEnv("PAYMENT_DB_NAME", utils.GetEnv("DB_PAYMENT_NAME", "")); paymentDBName != "" {
+	if paymentDBName := utils.GetEnv("PAYMENT_DB_NAME", utils.GetEnv("DB_PAYMENT_NAME", "shopping_payment")); paymentDBName != "" {
 		cfg.DB.DBName = paymentDBName
 	}
 	port := utils.GetEnv("PAYMENT_SERVER_PORT", "8083")
