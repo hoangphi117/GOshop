@@ -16,6 +16,7 @@ import (
 	"goshop/pkg/eventledger"
 	"goshop/pkg/logger"
 	"goshop/pkg/rabbitmq"
+	"goshop/pkg/telemetry"
 	"goshop/pkg/utils"
 	"goshop/pkg/validation"
 	couponv1 "goshop/proto/coupon/v1"
@@ -113,7 +114,7 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, fmt.Errorf("failed to listen on gRPC port %s: %w", grpcPort, err)
 	}
 
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(telemetry.ServerOptions()...)
 	couponv1.RegisterCouponServiceServer(grpcServer, coupongrpc.NewCouponGRPCServer(svc))
 
 	return &App{

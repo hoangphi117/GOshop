@@ -6,6 +6,7 @@ import (
 
 	"goshop/internal/config"
 	"goshop/pkg/logger"
+	"goshop/pkg/telemetry"
 	"goshop/pkg/utils"
 	chatapp "goshop/services/chat/app"
 
@@ -37,6 +38,12 @@ func main() {
 	} else {
 		logger.Log.Info().Msg("Loaded .env successfully in Chat Service!")
 	}
+
+	shutdownTracer, tracerErr := telemetry.InitTracer(context.Background(), "goshop-chat", "1.0.0")
+	if tracerErr != nil {
+		logger.Log.Warn().Err(tracerErr).Msg("Tracing disabled")
+	}
+	defer func() { _ = shutdownTracer(context.Background()) }()
 
 	cfg := config.NewConfig()
 	if chatDBName := utils.GetEnv("CHAT_DB_NAME", utils.GetEnv("DB_CHAT_NAME", "shopping_chat")); chatDBName != "" {

@@ -10,6 +10,7 @@ import (
 	"goshop/pkg/db"
 	"goshop/pkg/logger"
 	"goshop/pkg/rabbitmq"
+	"goshop/pkg/telemetry"
 	paymentsqlc "goshop/services/payment/internal/db/sqlc"
 	"goshop/services/payment/internal/dto"
 	"goshop/services/payment/internal/provider"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // WebhookOutcome reports what a webhook achieved so the HTTP handler can answer
@@ -123,6 +125,13 @@ type settleRequest struct {
 // commit, so a failed commit can never emit an event for a payment that did
 // not settle.
 func (s *paymentService) settlePayment(ctx context.Context, req settleRequest) (WebhookOutcome, error) {
+	ctx, span := telemetry.Tracer("goshop/payment").Start(ctx, "payment.settle")
+	span.SetAttributes(
+		attribute.String("payment.provider", req.txn.PtProvider),
+		attribute.String("payment.transaction_uuid", req.txn.PtUuid.String()),
+	)
+	defer span.End()
+
 	var (
 		outcome    WebhookOutcome
 		routingKey string

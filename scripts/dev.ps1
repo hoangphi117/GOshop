@@ -22,7 +22,7 @@ foreach ($container in $hostOwnedContainers) {
     docker rm -f $container 2>$null | Out-Null
 }
 
-docker compose -f docker-compose.dev.yml --env-file ./backend/.env up -d minio inventory catalog coupon cart banner
+docker compose -f docker-compose.dev.yml --env-file ./backend/.env up -d minio jaeger inventory catalog coupon cart banner
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Failed to start infrastructure containers!" -ForegroundColor Red
@@ -82,6 +82,11 @@ try {
 }
 
 Write-Host ">>> [3/3] Starting Go Services on Host" -ForegroundColor Green
+# Host services reach the dev collector on the published OTLP port. Without
+# this they still run; tracing just stays a no-op.
+if (-not $env:OTEL_EXPORTER_OTLP_ENDPOINT) {
+    $env:OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4318"
+}
 $exe = if ($IsWindows -or $env:OS -match "Windows") { ".exe" } else { "" }
 $binPrefix = if ($IsWindows -or $env:OS -match "Windows") { "bin\" } else { "./bin/" }
 npx -y concurrently `

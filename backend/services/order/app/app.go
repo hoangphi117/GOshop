@@ -20,6 +20,7 @@ import (
 	"goshop/pkg/middleware"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/shipping"
+	"goshop/pkg/telemetry"
 	"goshop/pkg/utils"
 	"goshop/pkg/validation"
 	orderv1 "goshop/proto/order/v1"
@@ -487,7 +488,7 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, fmt.Errorf("failed to listen on gRPC port %s: %w", grpcPort, err)
 	}
 
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(telemetry.ServerOptions()...)
 	orderv1.RegisterOrderServiceServer(grpcServer, ordergrpc.NewOrderGRPCServer(provider))
 
 	return &App{

@@ -20,6 +20,7 @@ import (
 	"goshop/pkg/logger"
 	"goshop/pkg/mail"
 	"goshop/pkg/rabbitmq"
+	"goshop/pkg/telemetry"
 	"goshop/pkg/utils"
 	"goshop/pkg/validation"
 	"goshop/pkg/ws"
@@ -156,7 +157,7 @@ func New(cfg *config.Config) (*App, error) {
 	if !strings.HasPrefix(grpcPort, ":") {
 		grpcPort = ":" + grpcPort
 	}
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(telemetry.ServerOptions()...)
 	identityGRPCServer := identitygrpc.NewServer(userRepo, addressRepo)
 	identityv1.RegisterIdentityServiceServer(grpcServer, identityGRPCServer)
 

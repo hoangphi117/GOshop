@@ -6,6 +6,7 @@ import (
 
 	"goshop/internal/config"
 	"goshop/pkg/logger"
+	"goshop/pkg/telemetry"
 	"goshop/pkg/utils"
 	bannerapp "goshop/services/banner/app"
 
@@ -37,6 +38,12 @@ func main() {
 	} else {
 		logger.Log.Info().Msg("Loaded .env successfully in Banner Service!")
 	}
+
+	shutdownTracer, tracerErr := telemetry.InitTracer(context.Background(), "goshop-banner", "1.0.0")
+	if tracerErr != nil {
+		logger.Log.Warn().Err(tracerErr).Msg("Tracing disabled")
+	}
+	defer func() { _ = shutdownTracer(context.Background()) }()
 
 	cfg := config.NewConfig()
 	if bannerDBName := utils.GetEnv("BANNER_DB_NAME", utils.GetEnv("DB_BANNER_NAME", "shopping_banner")); bannerDBName != "" {

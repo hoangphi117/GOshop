@@ -6,6 +6,7 @@ import (
 
 	"goshop/internal/config"
 	"goshop/pkg/logger"
+	"goshop/pkg/telemetry"
 	"goshop/pkg/utils"
 	orderapp "goshop/services/order/app"
 
@@ -37,6 +38,12 @@ func main() {
 	} else {
 		logger.Log.Info().Msg("Loaded .env successfully in Order Service!")
 	}
+
+	shutdownTracer, tracerErr := telemetry.InitTracer(context.Background(), "goshop-order", "1.0.0")
+	if tracerErr != nil {
+		logger.Log.Warn().Err(tracerErr).Msg("Tracing disabled")
+	}
+	defer func() { _ = shutdownTracer(context.Background()) }()
 
 	cfg := config.NewConfig()
 	if orderDBName := utils.GetEnv("ORDER_DB_NAME", utils.GetEnv("DB_ORDER_NAME", "shopping_order")); orderDBName != "" {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"goshop/pkg/logger"
+	"goshop/pkg/telemetry"
 	"goshop/pkg/utils"
 	"strconv"
 	"sync"
@@ -250,6 +251,14 @@ func (r *rabbitMQService) Publish(ctx context.Context, queue string, message any
 		return err
 	}
 
+	headers := amqp.Table{
+		"trace_id":      traceID,
+		"x-message-id":  messageID,
+		"x-retry-count": int32(0),
+		"x-max-retries": int32(utils.GetIntEnv("RABBITMQ_MAX_RETRIES", defaultMaxRetries)),
+	}
+	injectTraceContext(ctx, headers)
+
 	err = ch.PublishWithContext(ctx,
 		"",
 		queue,
@@ -262,13 +271,8 @@ func (r *rabbitMQService) Publish(ctx context.Context, queue string, message any
 			CorrelationId: traceID,
 			Timestamp:     time.Now(),
 			Expiration:    strconv.Itoa(ttlMs),
-			Headers: amqp.Table{
-				"trace_id":      traceID,
-				"x-message-id":  messageID,
-				"x-retry-count": int32(0),
-				"x-max-retries": int32(utils.GetIntEnv("RABBITMQ_MAX_RETRIES", defaultMaxRetries)),
-			},
-			Body: body,
+			Headers:       headers,
+			Body:          body,
 		})
 
 	if err != nil {
@@ -365,6 +369,15 @@ func (r *rabbitMQService) PublishToExchange(ctx context.Context, exchange, routi
 		return err
 	}
 
+	headers := amqp.Table{
+		"trace_id":      traceID,
+		"x-message-id":  messageID,
+		"x-routing-key": routingKey,
+		"x-retry-count": int32(0),
+		"x-max-retries": int32(utils.GetIntEnv("RABBITMQ_MAX_RETRIES", defaultMaxRetries)),
+	}
+	injectTraceContext(ctx, headers)
+
 	err = ch.PublishWithContext(ctx,
 		exchange,
 		routingKey,
@@ -377,14 +390,8 @@ func (r *rabbitMQService) PublishToExchange(ctx context.Context, exchange, routi
 			CorrelationId: traceID,
 			Timestamp:     time.Now(),
 			Expiration:    strconv.Itoa(ttlMs),
-			Headers: amqp.Table{
-				"trace_id":      traceID,
-				"x-message-id":  messageID,
-				"x-routing-key": routingKey,
-				"x-retry-count": int32(0),
-				"x-max-retries": int32(utils.GetIntEnv("RABBITMQ_MAX_RETRIES", defaultMaxRetries)),
-			},
-			Body: body,
+			Headers:       headers,
+			Body:          body,
 		})
 
 	if err != nil {
@@ -561,6 +568,11 @@ func (r *rabbitMQService) consumeLoop(ctx context.Context, queue string, msgs <-
 			}
 			if traceID == "" {
 				traceID = msg.MessageId
+			}
+			// Continue the publisher's distributed trace when the message
+			// carries W3C headers; the plain trace_id stays for log correlation.
+			if spanTraceID := telemetry.TraceIDFromContext(extractTraceContext(msg.Headers)); spanTraceID != "" {
+				traceID = spanTraceID
 			}
 			if headers == nil {
 				headers = amqp.Table{}

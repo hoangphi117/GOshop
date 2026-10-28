@@ -6,6 +6,7 @@ import (
 
 	"goshop/internal/config"
 	"goshop/pkg/logger"
+	"goshop/pkg/telemetry"
 	"goshop/pkg/utils"
 	cartapp "goshop/services/cart/app"
 
@@ -37,6 +38,12 @@ func main() {
 	} else {
 		logger.Log.Info().Msg("Loaded .env successfully in Cart Service!")
 	}
+
+	shutdownTracer, tracerErr := telemetry.InitTracer(context.Background(), "goshop-cart", "1.0.0")
+	if tracerErr != nil {
+		logger.Log.Warn().Err(tracerErr).Msg("Tracing disabled")
+	}
+	defer func() { _ = shutdownTracer(context.Background()) }()
 
 	cfg := config.NewConfig()
 	if cartDBName := utils.GetEnv("CART_DB_NAME", utils.GetEnv("DB_CART_NAME", "shopping_cart")); cartDBName != "" {

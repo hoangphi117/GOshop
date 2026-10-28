@@ -6,6 +6,7 @@ import (
 
 	"goshop/internal/config"
 	"goshop/pkg/logger"
+	"goshop/pkg/telemetry"
 	"goshop/pkg/utils"
 	inventoryapp "goshop/services/inventory/app"
 
@@ -37,6 +38,12 @@ func main() {
 	} else {
 		logger.Log.Info().Msg("Loaded .env successfully in Inventory Service!")
 	}
+
+	shutdownTracer, tracerErr := telemetry.InitTracer(context.Background(), "goshop-inventory", "1.0.0")
+	if tracerErr != nil {
+		logger.Log.Warn().Err(tracerErr).Msg("Tracing disabled")
+	}
+	defer func() { _ = shutdownTracer(context.Background()) }()
 
 	cfg := config.NewConfig()
 	if inventoryDBName := utils.GetEnv("INVENTORY_DB_NAME", utils.GetEnv("DB_INVENTORY_NAME", "shopping_inventory")); inventoryDBName != "" {

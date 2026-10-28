@@ -18,6 +18,7 @@ import (
 	"goshop/pkg/eventledger"
 	"goshop/pkg/logger"
 	"goshop/pkg/rabbitmq"
+	"goshop/pkg/telemetry"
 	"goshop/pkg/utils"
 	"goshop/pkg/validation"
 	cartv1 "goshop/proto/cart/v1"
@@ -156,7 +157,7 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, fmt.Errorf("failed to listen on grpc addr %s: %w", grpcAddr, err)
 	}
 
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(telemetry.ServerOptions()...)
 	cartv1.RegisterCartServiceServer(grpcServer, cartgrpc.NewCartGRPCServer(cartService))
 
 	return &App{

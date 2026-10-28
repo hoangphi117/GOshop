@@ -16,6 +16,7 @@ import (
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 	"goshop/pkg/middleware"
+	"goshop/pkg/telemetry"
 	"goshop/pkg/utils"
 	"goshop/pkg/ws"
 	chatcontract "goshop/services/chat/contract"
@@ -54,6 +55,13 @@ func main() {
 
 	// User lookups go through the identity service; the monolith users table is
 	// gone, so the gateway no longer opens the monolith database at all.
+
+	shutdownTracer, tracerErr := telemetry.InitTracer(context.Background(), "goshop-ws-gateway", "1.0.0")
+	if tracerErr != nil {
+		logger.Log.Warn().Err(tracerErr).Msg("Tracing disabled")
+	}
+	defer func() { _ = shutdownTracer(context.Background()) }()
+
 	cfg := config.NewConfig()
 	userResolver, err := identitycontract.NewGRPCIdentityClient(cfg.IdentityGRPCAddr, redisClient)
 	if err != nil {

@@ -10,6 +10,7 @@ import (
 	"goshop/pkg/mail"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/storage"
+	"goshop/pkg/telemetry"
 	"goshop/pkg/utils"
 	"goshop/pkg/ws"
 	catalogcontract "goshop/services/catalog/contract"
@@ -261,6 +262,12 @@ func main() {
 	} else {
 		logger.Log.Info().Msg("Loaded .env successfully in worker!")
 	}
+
+	shutdownTracer, tracerErr := telemetry.InitTracer(context.Background(), "goshop-worker", "1.0.0")
+	if tracerErr != nil {
+		logger.Log.Warn().Err(tracerErr).Msg("Tracing disabled")
+	}
+	defer func() { _ = shutdownTracer(context.Background()) }()
 
 	cfg := config.NewConfig()
 

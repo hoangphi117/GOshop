@@ -16,6 +16,7 @@ import (
 	"goshop/pkg/eventledger"
 	"goshop/pkg/logger"
 	"goshop/pkg/rabbitmq"
+	"goshop/pkg/telemetry"
 	"goshop/pkg/utils"
 	"goshop/pkg/validation"
 	inventoryv1 "goshop/proto/inventory/v1"
@@ -122,7 +123,7 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, fmt.Errorf("failed to listen on gRPC port %s: %w", grpcPort, err)
 	}
 
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(telemetry.ServerOptions()...)
 	inventoryv1.RegisterInventoryServiceServer(grpcServer, inventorygrpc.NewInventoryGRPCServer(svc))
 
 	return &App{

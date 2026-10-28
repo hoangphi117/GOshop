@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	app "goshop/cmd/api/app"
 	"goshop/internal/config"
 	"goshop/pkg/logger"
+	"goshop/pkg/telemetry"
 	"goshop/pkg/utils"
 	"path/filepath"
 
@@ -55,6 +57,12 @@ func main() {
 	} else {
 		logger.Log.Info().Msg("Loaded .env successfully in API!")
 	}
+
+	shutdownTracer, tracerErr := telemetry.InitTracer(context.Background(), "goshop-api", "1.0.0")
+	if tracerErr != nil {
+		logger.Log.Warn().Err(tracerErr).Msg("Tracing disabled")
+	}
+	defer func() { _ = shutdownTracer(context.Background()) }()
 
 	cfg := config.NewConfig()
 
