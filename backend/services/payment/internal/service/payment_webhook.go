@@ -173,6 +173,17 @@ func (s *paymentService) settleInTx(ctx context.Context, req settleRequest) (Web
 		return WebhookUnknown, "", nil, err
 	}
 
+	// The audit row is written before the transition (so a collision can be
+	// detected), which leaves we_processed = false. Mark it here, inside the
+	// same transaction: a settled delivery must be recorded as processed, and
+	// a failed settlement rolls the mark back with everything else. The
+	// already-finalized branch marks its own row before returning nil evt.
+	if evt != nil && webhookEventID != 0 && s.webhookRepo != nil {
+		if markErr := s.webhookRepo.MarkProcessed(ctx, webhookEventID); markErr != nil {
+			return WebhookUnknown, "", nil, fmt.Errorf("failed to mark webhook event as processed: %w", markErr)
+		}
+	}
+
 	if evt != nil && s.outboxRepo != nil {
 		bytes, marshalErr := json.Marshal(evt)
 		if marshalErr != nil {
