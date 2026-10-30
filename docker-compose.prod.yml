@@ -848,6 +848,23 @@ services:
     networks:
       - goshop-network
 
+  promtail:
+    # Ships container logs to Grafana Cloud Loki. No local Loki: the whole log
+    # stack is one ~40MB agent, which keeps a small VPS viable.
+    image: grafana/promtail:3.5.1
+    container_name: goshop-promtail
+    restart: unless-stopped
+    # env vars are referenced from promtail-config.yml via ${...}
+    command: -config.file=/etc/promtail/config.yml -config.expand-env=true
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./system/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      # Read-only socket: docker service discovery + container log tailing.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - goshop-network
+
 volumes:
   postgres-data:
     driver: local
