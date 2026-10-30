@@ -19,7 +19,11 @@ RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 COPY --from=builder /service /app/service
 
+# The binary is a shared /app/service in every image, so the log bucket cannot
+# be derived from the executable name — bake the service name in.
+ARG SERVICE
 ENV APP_ENV=production
+ENV SERVICE_NAME=${SERVICE}
 ENV GOMEMLIMIT=128MiB
 ENV GOMAXPROCS=1
 

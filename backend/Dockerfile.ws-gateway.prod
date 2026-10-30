@@ -16,6 +16,10 @@ RUN go build -o ws-gateway ./cmd/ws-gateway
 # ============= STAGE 2: BUILD RUNTIME CONTAINER =============
 FROM alpine:3.19
 
+# The binary is a shared /app/main in this image, so the log bucket cannot
+# be derived from the executable name - bake the service name in.
+ENV SERVICE_NAME=ws-gateway
+
 WORKDIR /app
 
 COPY --from=builder /app/ws-gateway .
