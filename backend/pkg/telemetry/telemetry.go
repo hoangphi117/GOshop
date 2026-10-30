@@ -42,10 +42,16 @@ func InitTracer(ctx context.Context, serviceName, version string) (func(context.
 		return func(context.Context) error { return nil }, nil
 	}
 
-	exporter, err := otlptracehttp.New(ctx,
-		otlptracehttp.WithEndpointURL(strings.TrimRight(endpoint, "/")+"/v1/traces"),
-		otlptracehttp.WithInsecure(),
-	)
+	// Dev collectors are plain http:// (jaeger:4318); Grafana Cloud Tempo is
+	// https:// and must keep TLS — WithInsecure on an https URL would send
+	// cleartext to port 443 and fail.
+	opts := []otlptracehttp.Option{
+		otlptracehttp.WithEndpointURL(strings.TrimRight(endpoint, "/") + "/v1/traces"),
+	}
+	if !strings.HasPrefix(endpoint, "https://") {
+		opts = append(opts, otlptracehttp.WithInsecure())
+	}
+	exporter, err := otlptracehttp.New(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create OTLP trace exporter: %w", err)
 	}

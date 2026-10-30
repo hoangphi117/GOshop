@@ -90,3 +90,17 @@ func TestInitTracerWithoutEndpointIsNoop(t *testing.T) {
 		t.Fatalf("no-op shutdown returned an error: %v", err)
 	}
 }
+
+// An https:// collector (Grafana Cloud) must keep TLS. Only http:// gets
+// WithInsecure — otherwise spans are sent in cleartext to port 443.
+func TestInitTracerAcceptsHTTPSEndpoint(t *testing.T) {
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://otlp-gateway-prod-xx.grafana.net/otlp")
+
+	shutdown, err := InitTracer(context.Background(), "goshop-test", "0.0.0")
+	if err != nil {
+		t.Fatalf("InitTracer must accept an https endpoint: %v", err)
+	}
+	if err := shutdown(context.Background()); err != nil {
+		t.Fatalf("shutdown returned an error: %v", err)
+	}
+}
