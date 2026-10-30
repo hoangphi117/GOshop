@@ -56,6 +56,13 @@ func RegisterRoutes(r *gin.Engine, deps IdentityRouteDeps) {
 	}
 	r.GET("/.well-known/jwks.json", jwksHandler)
 
+	// Liveness probe. The API gateway's health check probes this endpoint over
+	// HTTP instead of opening a pool; without it /healthz reports 503 and nginx
+	// disables the upstream after three misses.
+	r.GET("/healthz", func(ctx *gin.Context) {
+		ctx.JSON(http.StatusOK, gin.H{"service": "identity", "status": "ok"})
+	})
+
 	v1api := r.Group("/api/v1")
 	v1api.GET("/.well-known/jwks.json", jwksHandler)
 

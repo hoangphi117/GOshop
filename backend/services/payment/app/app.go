@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -166,7 +167,13 @@ func New(cfg *config.Config) (*App, error) {
 		logger.Log.Warn().Err(err).Msg("Failed to create VNPay provider factory")
 	}
 
-	returnURL := utils.GetEnv("PAYMENT_RETURN_URL", "http://localhost:3001/payment/result")
+	// Payment return URL follows the same single APP_ORIGIN switch as the rest
+	// of the browser-facing config; PAYMENT_RETURN_URL still overrides.
+	returnURLDefault := "http://localhost:3001/payment/result"
+	if origin := strings.TrimRight(utils.GetEnv("APP_ORIGIN", ""), "/"); origin != "" {
+		returnURLDefault = origin + "/payment/result"
+	}
+	returnURL := utils.GetEnv("PAYMENT_RETURN_URL", returnURLDefault)
 	webhookBaseURL := utils.GetEnv("PAYMENT_WEBHOOK_BASE_URL", "http://localhost:8083")
 
 	paymentService := paymentservice.NewPaymentService(

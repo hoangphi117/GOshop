@@ -1,6 +1,7 @@
 package ws
 
 import (
+	"context"
 	"encoding/json"
 	"goshop/pkg/logger"
 	"sync"
@@ -189,6 +190,13 @@ func (c *Client) WritePump() {
 			_ = c.Conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if err := c.Conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return
+			}
+			// Refresh the presence ZSET entry every ping: it only lives for
+			// PresenceTTL (75s) after Register, so without this the shared
+			// Redis presence expires under a healthy connection and every REST
+			// read reports the user offline while the socket is still up.
+			if ps := c.Hub.PresenceStore(); ps != nil {
+				go ps.Touch(context.Background(), c)
 			}
 		}
 	}

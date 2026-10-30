@@ -1,11 +1,38 @@
 import { createApiClient } from '@goshop/api-client'
 import { useAuthStore } from '@/stores/auth-store'
 
-export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/+$/, '')
+// Paths in the generated schema are inconsistent: some carry the /api/v1
+// prefix, most (e.g. /users/me, /admin/banners) do not. Sending bare paths to
+// the origin 404s, so the client base always ends in /api/v1 (openapi-fetch
+// joins baseUrl + path). VITE_API_BASE_URL may include the prefix already.
+// Default: same origin (relative URLs) — the edge nginx serves the SPA and
+// proxies /api, so no host is baked in and CORS never applies. Set
+// VITE_API_BASE_URL only when the API lives on a different origin.
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '')
+  .replace(/\/+$/, '')
+  .replace(/\/api\/v1$/, '')
+export const API_VERSIONED_BASE = `${API_BASE_URL}/api/v1`
 export const API_KEY = import.meta.env.VITE_API_KEY || ''
 
+// openapi-fetch hands us a Request; dedupe the doubled prefix for schema
+// paths that already include /api/v1. NOTE: `new Request(url, requestWithBody)`
+// turns the body into a ReadableStream (chunked upload) which Chrome refuses
+// with a bare "Failed to fetch" on this stack, so body-carrying requests are
+// rebuilt with the string body they were created with. Bodyless requests
+// (GET/DELETE) can safely use Request-as-init.
+const apiFetch: NonNullable<Parameters<typeof createApiClient>[0]['fetch']> = async (
+  input: Request,
+) => {
+  const url = input.url.replace('/api/v1/api/v1/', '/api/v1/')
+  if (url === input.url) return fetch(input)
+  if (!input.body) return fetch(new Request(url, input))
+  const body = await input.clone().text()
+  return fetch(url, { method: input.method, headers: input.headers, body })
+}
+
 export const api = createApiClient({
-  baseUrl: API_BASE_URL,
+  baseUrl: API_VERSIONED_BASE,
+  fetch: apiFetch,
   getToken: () => useAuthStore.getState().auth.accessToken,
   getRefreshToken: () => useAuthStore.getState().auth.refreshToken,
   getApiKey: () => API_KEY,

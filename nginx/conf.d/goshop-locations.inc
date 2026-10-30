@@ -78,6 +78,35 @@ location /uploads/ {
 }
 
 # -----------------------------------------------------------------------------
+# 2b. OBJECT STORAGE (MinIO) — public reads via edge, no published port
+# -----------------------------------------------------------------------------
+# S3_PUBLIC_BASE_URL points at this path (see backend/.env), so DB rows and
+# API responses carry edge-relative URLs and no host is baked into storage
+# config. Reached at http://<edge>/<bucket>/<key> — the URL path IS the MinIO
+# path, no rewrite. SigV4 presigned uploads sign the exact URI and Host, so a
+# rewrite or Host change would invalidate the signature.
+location ^~ /goshop-media/ {
+    # Dynamic variable: nginx keeps booting even if minio is not up yet
+    set $minio_target http://minio:9000;
+    # No URI on proxy_pass: original path+query are forwarded verbatim.
+    proxy_pass $minio_target;
+    # Presigned URLs are signed for the PUBLIC host (S3_PUBLIC_BASE_URL), and
+    # the SigV4 signature covers the Host header — it must reach MinIO intact.
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_http_version 1.1;
+    proxy_read_timeout 60s;
+    proxy_buffering off;
+    # Never echo Expires on uploads. Immutable cache only for reads.
+    set $minio_cache "";
+    if ($request_method = GET) { set $minio_cache "public, max-age=604800, immutable"; }
+    if ($request_method = HEAD) { set $minio_cache "public, max-age=604800, immutable"; }
+    add_header Cache-Control $minio_cache;
+}
+
+# -----------------------------------------------------------------------------
 # 3. WEBSOCKET REVERSE PROXY (/api/v1/ws) - PHẢI ĐỨNG TRƯỚC /api/v1/
 # -----------------------------------------------------------------------------
 # Lợi ích: Hỗ trợ kết nối thời gian thực hai chiều (Chat, Notifications, Redis Bridge).
@@ -313,10 +342,10 @@ location /api/v1/inventory {
 # -----------------------------------------------------------------------------
 # 4.4. CATALOG SERVICE REVERSE PROXY (/api/v1/products, /api/v1/categories)
 # -----------------------------------------------------------------------------
-# Product Reviews are served by Monolith Core Backend
+# Review product is served by the dedicated review service via the API
+# gateway's REVIEW_SERVICE_URL proxy.
 location ~ ^/api/v1/products/[^/]+/reviews {
-    set $core_backend_target http://core-backend:8080;
-    proxy_pass $core_backend_target;
+    proxy_pass http://goshop_backend;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
     proxy_set_header Host $host;
@@ -519,12 +548,12 @@ location /internal/ {
 }
 
 # -----------------------------------------------------------------------------
-# 5. CORE BACKEND REVERSE PROXY & LOAD BALANCER (/api/v1/)
+# 5. API GATEWAY REVERSE PROXY & LOAD BALANCER (/api/v1/)
 # -----------------------------------------------------------------------------
-# Điều hướng tất cả API còn lại tới core-backend:8080
+# Remaining API paths go to the API gateway, which fans out to the owning
+# services (catalog, cart, order, review, analytics, media, chat...).
 location /api/v1/ {
-    set $core_backend_target http://core-backend:8080;
-    proxy_pass $core_backend_target;
+    proxy_pass http://goshop_backend;
     proxy_http_version 1.1;
 
     # Xóa connection close để tận dụng keepalive pool
@@ -599,6 +628,24 @@ location /search-api/ {
     limit_except GET POST OPTIONS {
         deny all;
     }
+}
+
+# -----------------------------------------------------------------------------
+# 7.5 ADMIN DASHBOARD SPA (/admin/) — static Vite build mounted straight into
+#     the edge nginx (no dashboard container, no extra port-forward hop).
+#     Build with:  pnpm --filter dashboard build   (host or CI)
+#     Output:      frontend/apps/dashboard/dist  → mounted at /srv/dashboard
+#     SPA fallback: any unknown path under /admin/ serves index.html so the
+#     client-side router (TanStack) owns the route table.
+# -----------------------------------------------------------------------------
+location = /admin {
+    return 301 /admin/;
+}
+
+location ^~ /admin/ {
+    alias /srv/dashboard/;
+    index index.html;
+    try_files $uri $uri/ /admin/index.html;
 }
 
 # -----------------------------------------------------------------------------

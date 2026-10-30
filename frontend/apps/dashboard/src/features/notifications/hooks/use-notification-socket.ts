@@ -63,7 +63,7 @@ export function useNotificationSocket() {
 
       try {
         const rawBaseUrl =
-          import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+          import.meta.env.VITE_API_BASE_URL || window.location.origin
         const wsBaseUrl = rawBaseUrl.replace(/^http/, 'ws')
         const socketUrl = `${wsBaseUrl}/api/v1/ws?token=${encodeURIComponent(accessToken)}`
 

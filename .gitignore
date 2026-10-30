@@ -23,6 +23,12 @@ build.log
 **/.env
 **/.env.local
 **/.env*.local
+# Environment VARIANTS are committed on purpose (no secrets in .env.prod path
+# unless real secrets are added): switching dev<->prod is `make env-prod`.
+backend/.env.dev
+backend/.env.prod
+frontend/apps/storefront/.env.dev
+frontend/apps/storefront/.env.prod
 
 # Runtime data
 internal/logs/*.log

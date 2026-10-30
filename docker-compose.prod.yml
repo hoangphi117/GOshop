@@ -32,14 +32,14 @@ services:
       # Self-signed localhost cert (scripts/gen-cert.ps1). Recreate/regenerate
       # for a real domain instead of trusting this one.
       - ./nginx/certs:/etc/nginx/ssl:ro
+      # Admin dashboard SPA — static build from the host (or CI artifact).
+      # Rebuild with: pnpm --filter dashboard build
+      - ./frontend/apps/dashboard/dist:/srv/dashboard:ro
     depends_on:
       - api1
       - api2
       - identity
       - ws-gateway
-      # static proxy_pass resolves the hostname at config load; without this
-      # a fresh `up` would crash nginx if the dashboard container is missing.
-      - dashboard
     networks:
       - goshop-network
 
@@ -737,19 +737,9 @@ services:
     networks:
       - goshop-network
 
-  # Admin SPA. Built statically, served by the edge at /admin/; no host port.
-  dashboard:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile.dashboard
-      args:
-        # Baked into the bundle at build time; same origin as the edge.
-        - VITE_API_BASE_URL=http://localhost
-        - VITE_API_KEY=${API_KEY:?API_KEY must be set (dashboard bundles it)}
-    container_name: goshop-dashboard
-    restart: unless-stopped
-    networks:
-      - goshop-network
+  # Admin SPA is NOT a container: the edge nginx serves the static Vite build
+  # directly (volume ./frontend/apps/dashboard/dist → /srv/dashboard above).
+  # Build it with:  pnpm --filter dashboard build   (host or CI)
 
   postgres:
     image: postgres:16-alpine
@@ -768,7 +758,11 @@ services:
       - postgres-data:/var/lib/postgresql/data
       - ./scripts/init_databases.sql:/docker-entrypoint-initdb.d/init_databases.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_USER:-postgres}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${DB_USER:-postgres} -d ${DB_USER:-postgres}",
+        ]
       interval: 5s
       timeout: 5s
       retries: 5

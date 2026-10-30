@@ -2,10 +2,12 @@ package config
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
+
 	"goshop/pkg/logger"
 	"goshop/pkg/storage"
 	"goshop/pkg/utils"
-	"strconv"
 )
 
 type DatabaseConfig struct {
@@ -43,6 +45,12 @@ type Config struct {
 
 func NewConfig() *Config {
 
+	// Single source of truth for the browser-facing origin (the edge). Env
+	// files only switch this one value between dev/prod; everything derived
+	// (storefront links, payment return URL, media base) follows. Explicit
+	// per-var overrides still win when set.
+	appOrigin := strings.TrimRight(utils.GetEnv("APP_ORIGIN", ""), "/")
+
 	mailProviderConfig := make(map[string]any)
 
 	mailProviderType := utils.GetEnv("MAIL_PROVIDER_TYPE", "mailtrap")
@@ -65,6 +73,17 @@ func NewConfig() *Config {
 	usePathStyle, _ := strconv.ParseBool(utils.GetEnv("S3_USE_PATH_STYLE", "true"))
 	useSSL, _ := strconv.ParseBool(utils.GetEnv("S3_USE_SSL", "false"))
 
+	// Derived defaults: only fill when APP_ORIGIN is set and the specific var
+	// is absent, so an explicit value always wins.
+	s3PublicBaseDefault := ""
+	if appOrigin != "" {
+		s3PublicBaseDefault = appOrigin + "/goshop-media"
+	}
+	storefrontURLDefault := "http://localhost:3001"
+	if appOrigin != "" {
+		storefrontURLDefault = appOrigin
+	}
+
 	storageConfig := storage.StorageConfig{
 		Driver:        storage.StorageDriver(utils.GetEnv("STORAGE_DRIVER", "minio")),
 		PublicBaseURL: utils.GetEnv("STORAGE_PUBLIC_BASE_URL", ""),
@@ -74,7 +93,7 @@ func NewConfig() *Config {
 			Bucket:        utils.GetEnv("S3_BUCKET", "goshop-media"),
 			AccessKey:     utils.GetEnv("S3_ACCESS_KEY", ""),
 			SecretKey:     utils.GetEnv("S3_SECRET_KEY", ""),
-			PublicBaseURL: utils.GetEnv("S3_PUBLIC_BASE_URL", ""),
+			PublicBaseURL: utils.GetEnv("S3_PUBLIC_BASE_URL", s3PublicBaseDefault),
 			UsePathStyle:  usePathStyle,
 			ForceSSL:      useSSL,
 		},
@@ -105,7 +124,7 @@ func NewConfig() *Config {
 			IndexProducts: utils.GetEnv("MEILISEARCH_INDEX_PRODUCTS", "products"),
 		},
 		AppURL:             utils.GetEnv("APP_URL", "http://localhost:8080"),
-		StorefrontURL:      utils.GetEnv("STOREFRONT_URL", "http://localhost:3001"),
+		StorefrontURL:      utils.GetEnv("STOREFRONT_URL", storefrontURLDefault),
 		MailProviderType:   mailProviderType,
 		MailProviderConfig: mailProviderConfig,
 		Storage:            storageConfig,

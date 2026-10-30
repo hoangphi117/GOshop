@@ -87,6 +87,11 @@ Write-Host ">>> [3/3] Starting Go Services on Host" -ForegroundColor Green
 if (-not $env:OTEL_EXPORTER_OTLP_ENDPOINT) {
     $env:OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4318"
 }
+# Review runs in Docker (see step 1); the host-mode API gateway reaches it on
+# the published port. Unset, the gateway would fall back to 404 on reviews.
+if (-not $env:REVIEW_SERVICE_URL) {
+    $env:REVIEW_SERVICE_URL = "http://localhost:8091"
+}
 $exe = if ($IsWindows -or $env:OS -match "Windows") { ".exe" } else { "" }
 $binPrefix = if ($IsWindows -or $env:OS -match "Windows") { "bin\" } else { "./bin/" }
 npx -y concurrently `

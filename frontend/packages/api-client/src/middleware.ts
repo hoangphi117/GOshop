@@ -89,18 +89,19 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}): Middl
 
   return {
     async onRequest({ request, schemaPath, id }) {
-      const token = options.getToken?.()
-      if (token) {
-        request.headers.set('Authorization', `Bearer ${token}`)
-      }
       const apiKey = options.getApiKey?.()
       if (apiKey) {
         request.headers.set('X-API-KEY', apiKey)
       }
 
-      // Clone request if this is not an auth endpoint,
-      // so we can retry with unconsumed body if 401 occurs
+      // Auth endpoints carry credentials in the body; attaching a stale
+      // Authorization from a previous session is never wanted. Also skip the
+      // clone for them (their 401 must not trigger refresh, see onResponse).
       if (!isAuthEndpoint(request.url, schemaPath)) {
+        const token = options.getToken?.()
+        if (token) {
+          request.headers.set('Authorization', `Bearer ${token}`)
+        }
         try {
           requestClones.set(id, request.clone())
         } catch {
@@ -142,8 +143,14 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}): Middl
             const retryHeaders = new Headers(baseReq.headers)
             retryHeaders.set('Authorization', `Bearer ${newTokens.accessToken}`)
 
-            const retryRequest = new Request(baseReq, {
+            // Rebuild with a string body: passing a body-carrying Request as
+            // init turns the body into a ReadableStream, which some Chrome
+            // builds refuse with a bare "Failed to fetch".
+            const body = baseReq.body ? await baseReq.clone().text() : undefined
+            const retryRequest = new Request(baseReq.url, {
+              method: baseReq.method,
               headers: retryHeaders,
+              body,
               credentials: 'include',
             })
 

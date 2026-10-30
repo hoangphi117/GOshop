@@ -33,6 +33,9 @@ yarn-error.log*
 # env files
 .env*
 !.env.example
+# committed templates for the ignored variants
+!.env.prod.example
+!.env.dev.example
 
 # vercel
 .vercel

@@ -20,6 +20,5 @@ WORKDIR /app
 
 COPY --from=builder /app/worker .
 
-COPY .env .
 
 CMD ["./worker"]

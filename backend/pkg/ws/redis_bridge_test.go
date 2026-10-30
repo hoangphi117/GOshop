@@ -27,6 +27,7 @@ type mockHub struct {
 func (m *mockHub) Register(client *ws.Client)            {}
 func (m *mockHub) Unregister(client *ws.Client)          {}
 func (m *mockHub) SetPresenceStore(ps *ws.PresenceStore) {}
+func (m *mockHub) PresenceStore() *ws.PresenceStore      { return nil }
 func (m *mockHub) BroadcastToUser(userID int32, msg ws.WSMessage) {
 	m.broadcastToUserCalls = append(m.broadcastToUserCalls, struct {
 		UserID int32

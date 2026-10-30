@@ -36,6 +36,32 @@ type s3StorageService struct {
 	isR2          bool
 }
 
+// presignEndpointFor derives the browser-reachable endpoint to sign upload
+// URLs with so the browser connects to the PUBLIC host, not the compose-
+// internal endpoint (minio:9000 does not resolve outside Docker). The SigV4
+// signature covers Host + URI, so nothing downstream may rewrite them: the
+// public proxy must forward the path verbatim (no rewrite) and pass Host
+// through. The SDK appends /<bucket>/<key> itself (path-style), so for
+// MinIO/self-hosted behind an edge the endpoint is the public HOST only:
+// PublicBaseURL "http://host[/anything]" -> "http://host".
+// Cloudflare R2 presigning must go through its S3 API endpoint (the public
+// dev domain only serves anonymous reads), which equals cfg.Endpoint.
+func presignEndpointFor(cfg S3Config) string {
+	if cfg.PublicBaseURL == "" || cfg.Bucket == "" ||
+		strings.Contains(strings.ToLower(cfg.Endpoint), "r2.cloudflarestorage.com") {
+		return cfg.Endpoint
+	}
+	base := strings.TrimRight(cfg.PublicBaseURL, "/")
+	rest := base
+	if i := strings.Index(rest, "://"); i >= 0 {
+		rest = rest[i+3:]
+	}
+	if j := strings.Index(rest, "/"); j > 0 {
+		return base[:len(base)-(len(rest)-j)]
+	}
+	return base
+}
+
 // NewS3StorageService initializes an S3-compatible storage service client.
 func NewS3StorageService(ctx context.Context, cfg S3Config, logger *zerolog.Logger) (StorageService, error) {
 	if cfg.Region == "" {
@@ -69,7 +95,38 @@ func NewS3StorageService(ctx context.Context, cfg S3Config, logger *zerolog.Logg
 		o.UsePathStyle = cfg.UsePathStyle
 	})
 
-	presignClient := s3.NewPresignClient(client)
+	// Presigned URLs are consumed by the BROWSER, so they must be signed
+	// against a host the browser can reach. cfg.Endpoint is usually a
+	// compose-internal name (minio:9000) that does not resolve outside — the
+	// signature covers the Host header, so the URL cannot simply be
+	// rewritten client-side. When PublicBaseURL is set, derive an external
+	// endpoint from it (e.g. http://localhost/minio/goshop-media ->
+	// http://localhost/minio) and sign with that instead.
+	presignEndpoint := presignEndpointFor(cfg)
+	presignAWS := awsCfg
+	if presignEndpoint != cfg.Endpoint && presignEndpoint != "" {
+		pubResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) { //nolint:staticcheck // Required by current AWS SDK compatibility layer
+			return aws.Endpoint{ //nolint:staticcheck // Required by current AWS SDK compatibility layer
+				PartitionID:       "aws",
+				URL:               presignEndpoint,
+				SigningRegion:     cfg.Region,
+				HostnameImmutable: true,
+			}, nil
+		})
+		pubCfg, pubErr := awsconfig.LoadDefaultConfig(ctx,
+			awsconfig.WithRegion(cfg.Region),
+			awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(cfg.AccessKey, cfg.SecretKey, "")),
+			awsconfig.WithEndpointResolverWithOptions(pubResolver), //nolint:staticcheck // Required by current AWS SDK compatibility layer
+		)
+		if pubErr != nil {
+			return nil, fmt.Errorf("failed to load S3 SDK configuration for presigning: %w", pubErr)
+		}
+		presignAWS = pubCfg
+	}
+
+	presignClient := s3.NewPresignClient(s3.NewFromConfig(presignAWS, func(o *s3.Options) {
+		o.UsePathStyle = cfg.UsePathStyle
+	}))
 
 	// For MinIO or self-hosted S3 endpoints, auto-create the bucket if it does not exist yet
 	if cfg.Endpoint != "" && !isR2 && cfg.Bucket != "" {
