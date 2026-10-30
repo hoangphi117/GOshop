@@ -1,6 +1,14 @@
+import path from "path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Minimal container image: `next build` emits .next/standalone with only
+  // the traced runtime files (server.js + trimmed node_modules) — the runner
+  // stage runs `node apps/storefront/server.js` with no pnpm/full install.
+  output: "standalone",
+  // Monorepo: trace from the pnpm workspace root so @goshop/* packages in
+  // ../.. are bundled. Docs pattern: path.join(__dirname, "../../").
+  outputFileTracingRoot: path.join(__dirname, "../../"),
   images: {
     // DB/API carry absolute browser-facing media URLs
     // (S3_PUBLIC_BASE_URL=http://localhost/goshop-media). The internal image
