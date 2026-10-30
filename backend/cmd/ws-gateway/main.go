@@ -29,7 +29,7 @@ import (
 func main() {
 	rootDir := utils.MustGetwd()
 
-	logFile := filepath.Join(rootDir, "internal/logs/ws-gateway.log")
+	logFile := utils.RuntimeLogPath("ws-gateway", "ws-gateway.log")
 	logger.InitLogger(logger.LoggerConfig{
 		Level:      "info",
 		Filename:   logFile,
@@ -120,7 +120,7 @@ func main() {
 	}
 
 	go func() {
-		logger.Log.Info().Str("port", port).Msg("🚀 WebSocket Gateway listening")
+		logger.Log.Info().Str("port", port).Msg("ðŸš€ WebSocket Gateway listening")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Log.Fatal().Err(err).Msg("WebSocket Gateway failed to serve")
 		}

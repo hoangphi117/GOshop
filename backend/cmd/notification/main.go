@@ -22,7 +22,7 @@ import (
 func main() {
 	rootDir := utils.MustGetwd()
 
-	logFile := filepath.Join(rootDir, "internal/logs/notification.log")
+	logFile := utils.RuntimeLogPath("notification", "notification.log")
 	logger.InitLogger(logger.LoggerConfig{
 		Level:      "info",
 		Filename:   logFile,
@@ -34,7 +34,7 @@ func main() {
 	})
 
 	if err := godotenv.Load(filepath.Join(rootDir, ".env")); err != nil {
-		logger.Log.Warn().Msg("⚠️ No .env found")
+		logger.Log.Warn().Msg("âš ï¸ No .env found")
 	} else {
 		logger.Log.Info().Msg("Loaded .env successfully in Notification Service!")
 	}

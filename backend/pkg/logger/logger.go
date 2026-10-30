@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/natefinch/lumberjack"
@@ -48,7 +49,7 @@ func NewLogger(config LoggerConfig) *zerolog.Logger {
 
 	if config.IsDev == "development" {
 		writer = PrettyJSONWriter{Writer: os.Stdout}
-	} else {
+	} else if err := os.MkdirAll(filepath.Dir(config.Filename), 0o755); err == nil {
 		writer = &lumberjack.Logger{
 			Filename:   config.Filename,
 			MaxSize:    config.MaxSize, // megabytes
@@ -56,6 +57,10 @@ func NewLogger(config LoggerConfig) *zerolog.Logger {
 			MaxAge:     config.MaxAge,   //days
 			Compress:   config.Compress, // disabled by default
 		}
+	} else {
+		// Directory creation failed (read-only FS etc.): stdout is still
+		// collected by the container runtime / shipped to Loki by promtail.
+		writer = os.Stdout
 	}
 
 	logger := zerolog.New(writer).Level(lvl).With().Timestamp().Logger()

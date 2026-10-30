@@ -32,23 +32,49 @@ func GetIntEnv(key string, defaultValue int) int {
 	return defaultValue
 }
 
-func NewLoggerWithPath(fileName string, level string) *zerolog.Logger {
-
+// runtimeLogRoot walks up from cwd until it finds the backend module root
+// (the dir holding go.mod), so every caller — cmd/<svc>, tests run from a
+// package dir, the API — resolves the same .runtime/logs tree.
+func runtimeLogRoot() string {
 	cwd, err := os.Getwd()
 	if err != nil {
-		log.Fatal("⛔ Failed to get current working directory: " + err.Error())
+		log.Fatalf("⛔ Failed to get current working directory: %v", err)
 	}
-
-	logDir := filepath.Join(cwd, "internal", "logs")
-	if _, err := os.Stat(logDir); os.IsNotExist(err) {
-		logDir = filepath.Join(cwd, "..", "..", "internal", "logs")
+	for dir := cwd; ; dir = filepath.Dir(dir) {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return filepath.Join(dir, ".runtime", "logs")
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			// No go.mod above us (e.g. running a built binary elsewhere):
+			// fall back to cwd and let MkdirAll create the tree.
+			return filepath.Join(cwd, ".runtime", "logs")
+		}
 	}
+}
 
-	path := filepath.Join(logDir, fileName)
-
-	if err := os.MkdirAll(logDir, 0755); err != nil {
-		logger.Log.Fatal().Err(err).Msg("Failed to create log directory")
+// RuntimeLogDir returns (and creates) .runtime/logs/<service>.
+func RuntimeLogDir(service string) string {
+	dir := runtimeLogRoot()
+	if service != "" {
+		dir = filepath.Join(dir, service)
 	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		logger.Log.Fatal().Err(err).Str("dir", dir).Msg("Failed to create log directory")
+	}
+	return dir
+}
+
+// RuntimeLogPath returns .runtime/logs/<service>/<fileName>, creating the dir.
+func RuntimeLogPath(service, fileName string) string {
+	return filepath.Join(RuntimeLogDir(service), fileName)
+}
+
+// NewLoggerWithPath logs to .runtime/logs/<service>/<fileName>. Pass "" as
+// the service for shared root files. SERVICE_NAME names the bucket when the
+// container supplies it; a host run falls back to the binary name (cmd/<svc>).
+func NewLoggerWithPath(service, fileName string, level string) *zerolog.Logger {
+	path := RuntimeLogPath(service, fileName)
 
 	config := logger.LoggerConfig{
 		Level:      level,
@@ -60,6 +86,18 @@ func NewLoggerWithPath(fileName string, level string) *zerolog.Logger {
 		IsDev:      GetEnv("APP_ENV", "development"),
 	}
 	return logger.NewLogger(config)
+}
+
+// ServiceName is the log bucket for this process: SERVICE_NAME when the
+// container supplies it, else the binary name (go run / go build ./cmd/x).
+func ServiceName() string {
+	if svc := GetEnv("SERVICE_NAME", ""); svc != "" {
+		return svc
+	}
+	if exe, err := os.Executable(); err == nil {
+		return strings.TrimSuffix(filepath.Base(exe), filepath.Ext(exe))
+	}
+	return ""
 }
 
 func GenerateRandomString(length int) (string, error) {

@@ -31,10 +31,7 @@ frontend/apps/storefront/.env.dev
 frontend/apps/storefront/.env.prod
 
 # Runtime data
-internal/logs/*.log
-internal/logs/*.gz
-**/internal/logs/*.log
-**/internal/logs/*.gz
+.runtime/
 
 # Database dumps
 backupdb.sql

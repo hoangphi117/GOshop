@@ -17,9 +17,9 @@ func RegisterRoutes(
 	tokenService auth.TokenService,
 	cacheService cache.RedisCacheService,
 ) {
-	httpLogger := utils.NewLoggerWithPath("order_http.log", "info")
-	recoveryLogger := utils.NewLoggerWithPath("order_recovery.log", "warning")
-	rateLimiterLogger := utils.NewLoggerWithPath("order_rate_limiter.log", "warning")
+	httpLogger := utils.NewLoggerWithPath("order", "order_http.log", "info")
+	recoveryLogger := utils.NewLoggerWithPath("order", "order_recovery.log", "warning")
+	rateLimiterLogger := utils.NewLoggerWithPath("order", "order_rate_limiter.log", "warning")
 
 	r.Use(gzip.Gzip(gzip.DefaultCompression))
 	r.Use(

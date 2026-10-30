@@ -96,7 +96,7 @@ func New(cfg *config.Config) (*App, error) {
 	tokenService := auth.NewJWTService(cacheRedisService)
 
 	// RabbitMQ
-	rabbitmqLogger := utils.NewLoggerWithPath("notification_rabbitmq.log", "info")
+	rabbitmqLogger := utils.NewLoggerWithPath("notification", "notification_rabbitmq.log", "info")
 	rabbitmqURL := utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
 	rabbitmqService, err := rabbitmq.NewRabbitMQService(rabbitmqURL, rabbitmqLogger)
 	if err != nil {
@@ -108,7 +108,7 @@ func New(cfg *config.Config) (*App, error) {
 	redisBridge := ws.NewRedisBridge(redisClient, wsHub)
 
 	// Mail & Discord
-	mailLogger := utils.NewLoggerWithPath("notification_mail.log", "info")
+	mailLogger := utils.NewLoggerWithPath("notification", "notification_mail.log", "info")
 	factory, err := mail.NewProviderFactory(mail.ProviderMailtrap)
 	var mailService mail.EmailProviderService
 	if err == nil {
@@ -120,7 +120,7 @@ func New(cfg *config.Config) (*App, error) {
 		logger.Log.Warn().Err(err).Msg("Failed to initialize mail factory, email delivery disabled")
 	}
 
-	discordLogger := utils.NewLoggerWithPath("notification_discord.log", "info")
+	discordLogger := utils.NewLoggerWithPath("notification", "notification_discord.log", "info")
 	discordWebhookURL := utils.GetEnv("DISCORD_WEBHOOK_URL", "")
 	discordNotifier := discord.NewDiscordNotifier(discordWebhookURL, discordLogger)
 

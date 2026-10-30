@@ -88,7 +88,7 @@ func New(cfg *config.Config) (*App, error) {
 	couponroutes.RegisterRoutes(r, couponHandler)
 
 	// RabbitMQ + event consumer (branch F: coupon owns coupon release on order.cancelled)
-	couponRabbitLogger := utils.NewLoggerWithPath("coupon_rabbitmq.log", "info")
+	couponRabbitLogger := utils.NewLoggerWithPath("coupon", "coupon_rabbitmq.log", "info")
 	rabbitMQService, err := rabbitmq.NewRabbitMQService(
 		utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"), couponRabbitLogger,
 	)

@@ -112,7 +112,7 @@ func New(cfg *config.Config) (*App, error) {
 	tokenService := auth.NewJWTService(cacheRedisService)
 
 	// RabbitMQ + event consumer (branch F: cart owns cart cleanup on order.created)
-	cartRabbitLogger := utils.NewLoggerWithPath("cart_rabbitmq.log", "info")
+	cartRabbitLogger := utils.NewLoggerWithPath("cart", "cart_rabbitmq.log", "info")
 	rabbitMQService, err := rabbitmq.NewRabbitMQService(
 		utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"), cartRabbitLogger,
 	)

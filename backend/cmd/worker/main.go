@@ -42,7 +42,7 @@ type Worker struct {
 }
 
 func NewWorker(cfg *config.Config) *Worker {
-	log := utils.NewLoggerWithPath("worker.log", "info")
+	log := utils.NewLoggerWithPath("worker", "worker.log", "info")
 
 	rabbitMQ, err := rabbitmq.NewRabbitMQService(
 		utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"), log,
@@ -63,7 +63,7 @@ func NewWorker(cfg *config.Config) *Worker {
 	cacheService := cache.NewRedisCacheService(redisClient)
 
 	// Init MailService
-	mailLogger := utils.NewLoggerWithPath("mail.log", "info")
+	mailLogger := utils.NewLoggerWithPath("worker", "mail.log", "info")
 	factory, err := mail.NewProviderFactory(mail.ProviderMailtrap)
 	if err != nil {
 		mailLogger.Error().Err(err).Msg("Failed to create mail provider factory")
@@ -246,7 +246,7 @@ func (w *Worker) Shutdown(ctx context.Context) error {
 func main() {
 	rootDir := utils.MustGetwd()
 
-	logFile := filepath.Join(rootDir, "internal/logs/app.log")
+	logFile := utils.RuntimeLogPath("worker", "app.log")
 	logger.InitLogger(logger.LoggerConfig{
 		Level:      "info",
 		Filename:   logFile,

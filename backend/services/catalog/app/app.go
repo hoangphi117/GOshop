@@ -104,7 +104,7 @@ func New(cfg *config.Config) (*App, error) {
 	// Consume review rating updates from the Review service (reviews live in a separate DB).
 	ratingQuerier := catalogsqlc.New(dbPool)
 	ratingConsumer := ratingconsumer.NewRatingConsumer(ratingQuerier, cacheRedisService)
-	if rmq, err := rabbitmq.NewRabbitMQService(utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"), utils.NewLoggerWithPath("catalog_rabbitmq.log", "info")); err == nil {
+	if rmq, err := rabbitmq.NewRabbitMQService(utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"), utils.NewLoggerWithPath("catalog", "catalog_rabbitmq.log", "info")); err == nil {
 		go func() {
 			if err := rmq.Consume(context.Background(), rabbitmq.QueueReviewRatingUpdated, ratingConsumer.HandleEvent); err != nil {
 				logger.Log.Error().Err(err).Msg("Catalog review-rating consumer stopped")

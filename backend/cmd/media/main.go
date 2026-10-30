@@ -15,14 +15,14 @@ import (
 
 // @title           GOshop Media Service API
 // @version         1.0
-// @description     Dedicated Media microservice: file uploads (multipart fallback via the monolith and direct-to-storage presigned URLs) plus /uploads serving. Stateless — no database, backends are local disk, S3, MinIO or Cloudflare R2 through pkg/storage.
+// @description     Dedicated Media microservice: file uploads (multipart fallback via the monolith and direct-to-storage presigned URLs) plus /uploads serving. Stateless â€” no database, backends are local disk, S3, MinIO or Cloudflare R2 through pkg/storage.
 // @host            localhost:8094
 // @BasePath        /
 
 func main() {
 	rootDir := utils.MustGetwd()
 
-	logFile := filepath.Join(rootDir, "internal/logs/media.log")
+	logFile := utils.RuntimeLogPath("media", "media.log")
 	logger.InitLogger(logger.LoggerConfig{
 		Level:      "info",
 		Filename:   logFile,

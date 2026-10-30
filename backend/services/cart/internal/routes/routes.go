@@ -17,9 +17,9 @@ func RegisterRoutes(
 	tokenService auth.TokenService,
 	cacheService cache.RedisCacheService,
 ) {
-	httpLogger := utils.NewLoggerWithPath("cart_http.log", "info")
-	recoveryLogger := utils.NewLoggerWithPath("cart_recovery.log", "warning")
-	rateLimiterLogger := utils.NewLoggerWithPath("cart_rate_limiter.log", "warning")
+	httpLogger := utils.NewLoggerWithPath("cart", "cart_http.log", "info")
+	recoveryLogger := utils.NewLoggerWithPath("cart", "cart_recovery.log", "warning")
+	rateLimiterLogger := utils.NewLoggerWithPath("cart", "cart_rate_limiter.log", "warning")
 
 	r.Use(gzip.Gzip(gzip.DefaultCompression))
 	r.Use(

@@ -95,7 +95,7 @@ func New(cfg *config.Config) (*App, error) {
 	inventoryroutes.RegisterRoutes(r, h)
 
 	// RabbitMQ + event consumers (branch F: inventory owns stock release/restock)
-	inventoryRabbitLogger := utils.NewLoggerWithPath("inventory_rabbitmq.log", "info")
+	inventoryRabbitLogger := utils.NewLoggerWithPath("inventory", "inventory_rabbitmq.log", "info")
 	rabbitMQService, err := rabbitmq.NewRabbitMQService(
 		utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"), inventoryRabbitLogger,
 	)

@@ -99,7 +99,7 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, fmt.Errorf("identity gRPC client (%s): %w", cfg.IdentityGRPCAddr, err)
 	}
 
-	rabbitLogger := utils.NewLoggerWithPath("review_rabbitmq.log", "info")
+	rabbitLogger := utils.NewLoggerWithPath("review", "review_rabbitmq.log", "info")
 	rabbitMQ, err := rabbitmq.NewRabbitMQService(
 		utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"), rabbitLogger)
 	if err != nil {

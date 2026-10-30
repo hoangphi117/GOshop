@@ -110,7 +110,7 @@ func New(cfg *config.Config) (*App, error) {
 	tokenService := auth.NewJWTService(cacheRedisService)
 
 	// RabbitMQ
-	rabbitmqLogger := utils.NewLoggerWithPath("payment_rabbitmq.log", "info")
+	rabbitmqLogger := utils.NewLoggerWithPath("payment", "payment_rabbitmq.log", "info")
 	rabbitmqURL := utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
 	rabbitmqService, err := rabbitmq.NewRabbitMQService(rabbitmqURL, rabbitmqLogger)
 	if err != nil {

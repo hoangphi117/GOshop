@@ -28,9 +28,9 @@ type IdentityRouteDeps struct {
 
 // RegisterRoutes registers all HTTP endpoints for the Identity microservice
 func RegisterRoutes(r *gin.Engine, deps IdentityRouteDeps) {
-	httpLogger := utils.NewLoggerWithPath("identity_http.log", "info")
-	recoveryLogger := utils.NewLoggerWithPath("identity_recovery.log", "warning")
-	rateLimiterLogger := utils.NewLoggerWithPath("identity_rate_limiter.log", "warning")
+	httpLogger := utils.NewLoggerWithPath("identity", "identity_http.log", "info")
+	recoveryLogger := utils.NewLoggerWithPath("identity", "identity_recovery.log", "warning")
+	rateLimiterLogger := utils.NewLoggerWithPath("identity", "identity_rate_limiter.log", "warning")
 
 	r.Use(gzip.Gzip(gzip.DefaultCompression))
 	r.Use(

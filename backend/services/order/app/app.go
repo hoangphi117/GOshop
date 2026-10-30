@@ -355,7 +355,7 @@ func New(cfg *config.Config) (*App, error) {
 
 	// RabbitMQ & Workers
 	rabbitmqURL := utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
-	rabbitmqLogger := utils.NewLoggerWithPath("order_rabbitmq.log", "info")
+	rabbitmqLogger := utils.NewLoggerWithPath("order", "order_rabbitmq.log", "info")
 	rabbitMQ, err := rabbitmq.NewRabbitMQService(rabbitmqURL, rabbitmqLogger)
 	if err != nil {
 		logger.Log.Warn().Err(err).Msg("RabbitMQ not available on boot for order service, will retry in background")

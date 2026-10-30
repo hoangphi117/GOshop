@@ -58,13 +58,15 @@ func InitDBWithConfig(cfg *config.Config, serviceName ...string) error {
 	}
 
 	sqlLogFile := "sql.log"
+	svc := ""
 	if len(serviceName) > 0 && serviceName[0] != "" {
-		sqlLogFile = fmt.Sprintf("%s_sql.log", serviceName[0])
-	} else if svc := utils.GetEnv("SERVICE_NAME", ""); svc != "" {
+		svc = serviceName[0]
+		sqlLogFile = fmt.Sprintf("%s_sql.log", svc)
+	} else if svc = utils.ServiceName(); svc != "" {
 		sqlLogFile = fmt.Sprintf("%s_sql.log", svc)
 	}
 
-	sqlLogger := utils.NewLoggerWithPath(sqlLogFile, "info")
+	sqlLogger := utils.NewLoggerWithPath(svc, sqlLogFile, "info")
 
 	conf.ConnConfig.Tracer = &tracelog.TraceLog{
 		Logger: &pgx.PgxZerologTracer{

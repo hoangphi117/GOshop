@@ -23,9 +23,9 @@ type Route interface {
 
 func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService cache.RedisCacheService, normalRoutes []Route, adminRoutes []Route) {
 
-	httpLogger := utils.NewLoggerWithPath("http.log", "info")
-	recoveryLogger := utils.NewLoggerWithPath("recovery.log", "warning")
-	rateLimiterLogger := utils.NewLoggerWithPath("rate_limiter.log", "warning")
+	httpLogger := utils.NewLoggerWithPath("api", "http.log", "info")
+	recoveryLogger := utils.NewLoggerWithPath("api", "recovery.log", "warning")
+	rateLimiterLogger := utils.NewLoggerWithPath("api", "rate_limiter.log", "warning")
 
 	r.Use(gzip.Gzip(gzip.DefaultCompression))
 	r.Use(

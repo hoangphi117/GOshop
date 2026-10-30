@@ -22,9 +22,9 @@ func RegisterRoutes(
 	userRoutes []Route,
 	adminRoutes []Route,
 ) {
-	httpLogger := utils.NewLoggerWithPath("payment_http.log", "info")
-	recoveryLogger := utils.NewLoggerWithPath("payment_recovery.log", "warning")
-	rateLimiterLogger := utils.NewLoggerWithPath("payment_rate_limiter.log", "warning")
+	httpLogger := utils.NewLoggerWithPath("payment", "payment_http.log", "info")
+	recoveryLogger := utils.NewLoggerWithPath("payment", "payment_recovery.log", "warning")
+	rateLimiterLogger := utils.NewLoggerWithPath("payment", "payment_rate_limiter.log", "warning")
 
 	r.Use(gzip.Gzip(gzip.DefaultCompression))
 	r.Use(
