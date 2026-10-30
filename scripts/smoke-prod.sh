@@ -19,7 +19,8 @@ check() {
     local name="$1" url="$2" expect="${3:-200}"
     local code
     code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$url" || echo 000)"
-    if [[ "$code" == "$expect" ]]; then
+    # $expect accepts alternatives: "401|400" passes on either code.
+    if [[ "$code" =~ ^($expect)$ ]]; then
         printf '  ok    %-42s %s (%s)\n' "$name" "$code" "$url"
     else
         printf '  FAIL  %-42s got %s want %s (%s)\n' "$name" "$code" "$expect" "$url"
@@ -41,10 +42,11 @@ check "review route reaches gateway" "$BASE_URL/api/v1/products/00000000-0000-00
 
 # Service-owned paths nginx proxies directly.
 check "auth rejects anonymous" "$BASE_URL/api/v1/auth/does-not-exist" 404
-# These routes guard with X-API-KEY first (400 without one), then JWT (401).
-# Either code proves auth forwards correctly through the stack; 5xx or 200 fills.
-check "cart rejects anonymous" "$BASE_URL/api/v1/cart" 400
-check "orders rejects anonymous" "$BASE_URL/api/v1/orders" 400
+# These routes used to answer 400 (missing X-API-KEY) since the edge injected
+# it server-side; anonymous callers now clear the key gate and stop at JWT
+# (401). Either code proves auth forwards correctly through the stack.
+check "cart rejects anonymous" "$BASE_URL/api/v1/cart" "401|400"
+check "orders rejects anonymous" "$BASE_URL/api/v1/orders" "401|400"
 
 # Internal IPC must never be reachable from outside.
 check "internal endpoints blocked" "$BASE_URL/internal/health" 403

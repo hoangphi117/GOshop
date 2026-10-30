@@ -11,6 +11,7 @@
   - `frontend/apps/storefront`: Storefront (Next.js App Router).
 - **TypeScript:** Strict type checking. No `any` casting. Form schemas must match input and output types for seamless React Hook Form integration.
 - **Authentication:** JWT Access Token + Refresh Token with automatic silent refresh & retry mechanism in `@goshop/api-client`.
+- **API Key policy:** `API_KEY` is a server-side secret only. Never bake it into frontend bundles (`NEXT_PUBLIC_API_KEY`/`VITE_API_KEY` stay empty in prod via `.env.production`); the edge (nginx) injects `X-API-KEY` on `/api/v1/*` at request time (see `nginx/templates/00-api-key.conf.template`). Rotations: run `scripts/gen-local-secrets.ps1`, then recreate the containers.
 
 ## Output Style (ADHD-Friendly)
 The reader has ADHD. Shape every response so it can be acted on:

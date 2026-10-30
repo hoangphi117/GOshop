@@ -9,9 +9,9 @@ WORKDIR /app
 # NEXT_PUBLIC_* values are inlined at build time, so the API origin must be
 # supplied here rather than in docker-compose `environment` alone.
 ARG NEXT_PUBLIC_API_URL=http://localhost
-ARG NEXT_PUBLIC_API_KEY=
+# No API key here: the edge injects X-API-KEY server-side, so nothing is baked
+# into the image layer or the client bundle.
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_API_KEY=$NEXT_PUBLIC_API_KEY
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/ ./packages/
 COPY apps/storefront/ ./apps/storefront/

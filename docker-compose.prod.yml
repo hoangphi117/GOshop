@@ -23,10 +23,19 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    # API_KEY reaches nginx only through envsubst at container start (nginx
+    # cannot merge env into config natively). Rendered into /etc/nginx/secret-conf.
+    environment:
+      - API_KEY=${API_KEY:?API_KEY must be set (edge injects it server-side)}
+      - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx/secret-conf
     volumes:
+      # tmpfs: the rendered secret never touches any layer or volume.
+      - type: tmpfs
+        target: /etc/nginx/secret-conf
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./nginx/prod/goshop.conf:/etc/nginx/conf.d/goshop.conf:ro
+      - ./nginx/templates:/etc/nginx/templates:ro
       - certbot-etc:/etc/letsencrypt:ro
       - certbot-www:/var/www/certbot:ro
       # Self-signed localhost cert (scripts/gen-cert.ps1). Recreate/regenerate
@@ -723,7 +732,7 @@ services:
         # where nginx proxies /api/v1. NEVER a container-internal name here —
         # the browser must be able to use it directly.
         - NEXT_PUBLIC_API_URL=http://localhost
-        - NEXT_PUBLIC_API_KEY=${API_KEY:?API_KEY must be set (storefront bundles it)}
+        # No API key baked here: nginx injects X-API-KEY at the edge.
     container_name: goshop-storefront
     restart: unless-stopped
     environment:

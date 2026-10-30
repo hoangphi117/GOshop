@@ -74,6 +74,8 @@ location /uploads/ {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Request-ID $request_id;
+    # The key never ships to a browser: the edge injects it server-side.
+    proxy_set_header X-API-KEY $goshop_api_key;
     proxy_read_timeout 60s;
 }
 
@@ -128,6 +130,8 @@ location /api/v1/ws {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Request-ID $request_id;
+    # The key never ships to a browser: the edge injects it server-side.
+    proxy_set_header X-API-KEY $goshop_api_key;
 
     # Tối ưu timeout cho kết nối thời gian thực lâu dài
     proxy_read_timeout 3600s;
@@ -151,6 +155,8 @@ location /api/v1/auth {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Request-ID $request_id;
+    # The key never ships to a browser: the edge injects it server-side.
+    proxy_set_header X-API-KEY $goshop_api_key;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
@@ -169,6 +175,8 @@ location /api/v1/users {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Request-ID $request_id;
+    # The key never ships to a browser: the edge injects it server-side.
+    proxy_set_header X-API-KEY $goshop_api_key;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
@@ -188,6 +196,8 @@ location /api/v1/admin/users {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Request-ID $request_id;
+    # The key never ships to a browser: the edge injects it server-side.
+    proxy_set_header X-API-KEY $goshop_api_key;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
@@ -207,6 +217,8 @@ location /api/v1/addresses {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Request-ID $request_id;
+    # The key never ships to a browser: the edge injects it server-side.
+    proxy_set_header X-API-KEY $goshop_api_key;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
@@ -229,6 +241,8 @@ location /api/v1/coupons {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Request-ID $request_id;
+    # The key never ships to a browser: the edge injects it server-side.
+    proxy_set_header X-API-KEY $goshop_api_key;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
@@ -248,6 +262,8 @@ location /api/v1/admin/coupons {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Request-ID $request_id;
+    # The key never ships to a browser: the edge injects it server-side.
+    proxy_set_header X-API-KEY $goshop_api_key;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
@@ -272,6 +288,8 @@ location /api/v1/banners {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Request-ID $request_id;
+    # The key never ships to a browser: the edge injects it server-side.
+    proxy_set_header X-API-KEY $goshop_api_key;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
@@ -291,6 +309,8 @@ location /api/v1/admin/banners {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Request-ID $request_id;
+    # The key never ships to a browser: the edge injects it server-side.
+    proxy_set_header X-API-KEY $goshop_api_key;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
@@ -311,6 +331,8 @@ location /api/v1/admin/inventory {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Request-ID $request_id;
+    # The key never ships to a browser: the edge injects it server-side.
+    proxy_set_header X-API-KEY $goshop_api_key;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
@@ -330,6 +352,8 @@ location /api/v1/inventory {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Request-ID $request_id;
+    # The key never ships to a browser: the edge injects it server-side.
+    proxy_set_header X-API-KEY $goshop_api_key;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
@@ -353,6 +377,8 @@ location ~ ^/api/v1/products/[^/]+/reviews {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Request-ID $request_id;
+    # The key never ships to a browser: the edge injects it server-side.
+    proxy_set_header X-API-KEY $goshop_api_key;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
@@ -372,6 +398,8 @@ location /api/v1/products {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Request-ID $request_id;
+    # The key never ships to a browser: the edge injects it server-side.
+    proxy_set_header X-API-KEY $goshop_api_key;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
@@ -391,6 +419,8 @@ location /api/v1/admin/products {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Request-ID $request_id;
+    # The key never ships to a browser: the edge injects it server-side.
+    proxy_set_header X-API-KEY $goshop_api_key;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
@@ -410,6 +440,8 @@ location /api/v1/categories {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Request-ID $request_id;
+    # The key never ships to a browser: the edge injects it server-side.
+    proxy_set_header X-API-KEY $goshop_api_key;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
@@ -429,6 +461,8 @@ location /api/v1/admin/categories {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Request-ID $request_id;
+    # The key never ships to a browser: the edge injects it server-side.
+    proxy_set_header X-API-KEY $goshop_api_key;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
@@ -451,6 +485,8 @@ location /api/v1/cart {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Request-ID $request_id;
+    # The key never ships to a browser: the edge injects it server-side.
+    proxy_set_header X-API-KEY $goshop_api_key;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
@@ -473,6 +509,8 @@ location /api/v1/orders {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Request-ID $request_id;
+    # The key never ships to a browser: the edge injects it server-side.
+    proxy_set_header X-API-KEY $goshop_api_key;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
@@ -492,6 +530,8 @@ location /api/v1/admin/orders {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Request-ID $request_id;
+    # The key never ships to a browser: the edge injects it server-side.
+    proxy_set_header X-API-KEY $goshop_api_key;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
@@ -511,6 +551,8 @@ location /api/v1/admin/returns {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Request-ID $request_id;
+    # The key never ships to a browser: the edge injects it server-side.
+    proxy_set_header X-API-KEY $goshop_api_key;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
@@ -530,6 +572,8 @@ location /api/v1/shipping {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Request-ID $request_id;
+    # The key never ships to a browser: the edge injects it server-side.
+    proxy_set_header X-API-KEY $goshop_api_key;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
     proxy_connect_timeout 10s;
@@ -565,6 +609,8 @@ location /api/v1/ {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Request-ID $request_id;
+    # The key never ships to a browser: the edge injects it server-side.
+    proxy_set_header X-API-KEY $goshop_api_key;
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Port $server_port;
 
@@ -589,6 +635,8 @@ location /swagger/ {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Request-ID $request_id;
+    # The key never ships to a browser: the edge injects it server-side.
+    proxy_set_header X-API-KEY $goshop_api_key;
 }
 
 # -----------------------------------------------------------------------------
@@ -604,6 +652,8 @@ location /.well-known/ {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Request-ID $request_id;
+    # The key never ships to a browser: the edge injects it server-side.
+    proxy_set_header X-API-KEY $goshop_api_key;
 }
 
 # -----------------------------------------------------------------------------
@@ -623,6 +673,8 @@ location /search-api/ {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Request-ID $request_id;
+    # The key never ships to a browser: the edge injects it server-side.
+    proxy_set_header X-API-KEY $goshop_api_key;
 
     # Bảo vệ an toàn: Chỉ cho phép GET, POST, OPTIONS phục vụ tìm kiếm tài liệu
     limit_except GET POST OPTIONS {
@@ -666,6 +718,8 @@ location / {
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Request-ID $request_id;
+    # The key never ships to a browser: the edge injects it server-side.
+    proxy_set_header X-API-KEY $goshop_api_key;
 
     proxy_read_timeout 60s;
     proxy_connect_timeout 10s;

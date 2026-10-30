@@ -5,7 +5,8 @@
 
 param (
     [string]$BaseUrl = "http://localhost",
-    [string]$ApiKey  = "abcd-1234-1111"
+    # Optional: the edge injects X-API-KEY itself, so leave blank normally.
+    [string]$ApiKey  = $env:API_KEY
 )
 
 $ErrorActionPreference = "Stop"

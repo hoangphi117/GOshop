@@ -86,3 +86,5 @@ skills-lock.json
 
 # Cert
 certs/
+# Edge-injected API key (mirrored from backend/.env by scripts/gen-local-secrets.ps1)
+nginx/secrets/api_key
