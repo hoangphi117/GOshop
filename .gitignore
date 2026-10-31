@@ -8,11 +8,9 @@ bin/
 *.dylib
 *.test
 
-# Go workspace: backend/go.work and its sum are committed on purpose — CI, the
-# Dockerfiles and `make` all build through the workspace, not per module. Only
-# stray workspace files outside backend/ are ignored.
-/go.work
-/go.work.sum
+# Go workspace
+go.work
+go.work.sum
 
 # Air
 tmp/

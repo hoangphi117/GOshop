@@ -66,13 +66,12 @@ if ($occupiedPorts.Count -gt 0) {
     exit 1
 }
 
-Push-Location "$backendDir/gomod/cmd"
+Push-Location $backendDir
 try {
     foreach ($svc in $hostServices) {
         Write-Host "Compiling $svc..." -ForegroundColor DarkGray
         $out = if ($IsWindows -or $env:OS -match "Windows") { "bin/$svc.exe" } else { "bin/$svc" }
-        # Binaries land in backend/bin; gomod/cmd is two levels below it.
-        & go build -o "../../$out" "./$svc"
+        & go build -o $out "./cmd/$svc"
         if ($LASTEXITCODE -ne 0) {
             Write-Host "Build failed for $svc!" -ForegroundColor Red
             exit 1

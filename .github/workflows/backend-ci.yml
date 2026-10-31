@@ -1,4 +1,4 @@
-﻿name: Backend CI
+name: Backend CI
 
 on:
   push:
@@ -17,8 +17,6 @@ on:
     paths:
       - 'backend/**'
       - '.github/workflows/backend-ci.yml'
-  # Manual runs verify the image matrix without waiting for a push.
-  workflow_dispatch:
 
 jobs:
   test:
@@ -38,16 +36,11 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26.10'
-          cache-dependency-path: backend/gomod/*/go.sum
+          go-version: '1.26.5'
+          cache-dependency-path: backend/go.sum
 
       - name: Install buf
         uses: bufbuild/buf-setup-action@v1
-        with:
-          # Without a token the action resolves the download through the
-          # unauthenticated GitHub API, which rate-limits shared runner IPs and
-          # fails the job before buf ever runs.
-          github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Buf lint
         run: buf lint
@@ -69,41 +62,24 @@ jobs:
         # Both sides as git refs: identical file keying regardless of whether
         # develop has backend/buf.yaml yet. buf defaults to FILE breaking
         # rules here, matching backend/buf.yaml. Runs from the repo root
-        # (overrides the job's backend default) so buf finds .git directly;
-        # subdir points at the workspace, whose modules now live under gomod/.
+        # (overrides the job's backend default) so buf finds .git directly.
         working-directory: .
-        run: buf breaking ".git#ref=HEAD,subdir=backend" --against ".git#ref=origin/develop,subdir=backend"
+        run: buf breaking ".git#ref=HEAD" --against ".git#ref=origin/develop"
 
       - name: Go Vet
-        # The workspace root is not a module, so ./... has to run per module.
-        run: |
-          set -e
-          for module in shared contracts services cmd; do
-            (cd "gomod/$module" && go vet ./...)
-          done
+        run: go vet ./...
 
       - name: Run Tests with Race Detector
         # Coverage is printed but does not gate: the total stays visible in
         # the log so a drop is noticed without blocking unrelated work.
-        run: |
-          set -e
-          for module in shared contracts services cmd; do
-            (cd "gomod/$module" && go test -race -coverprofile=coverage.out ./...)
-          done
-          go tool cover -func=gomod/shared/coverage.out | tail -1
+        run: go test -race -v -coverprofile=coverage.out ./... && go tool cover -func=coverage.out | tail -1
 
       - name: Run golangci-lint
-        # The action runs one golangci-lint process against one directory, and
-        # backend/ is a workspace root with no module of its own, so lint runs
-        # per module the same way vet and tests do. Each module discovers
-        # backend/.golangci.yml by walking up, exactly like the local runs.
-        run: |
-          set -e
-          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh \
-            | sh -s -- -b "$(go env GOPATH)/bin" v2.15.0
-          for module in shared contracts services cmd; do
-            (cd "gomod/$module" && golangci-lint run --timeout=10m)
-          done
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.15.0
+          working-directory: backend
+          args: --timeout=5m
 
   compose:
     name: Compose config smoke check
@@ -124,81 +100,6 @@ jobs:
 
       - name: Validate dev compose
         run: docker compose -f docker-compose.dev.yml --env-file ./backend/.env config --quiet
-
-  images:
-    # Publish per-service images from the shared build/Dockerfile.service
-    # template on the long-lived branches; one OCI image per cmd/ service per
-    # commit is what makes them independently deployable later (Helm/ArgoCD).
-    # Feature branches skip the matrix: PRs already compile and test every
-    # service, and the template itself is exercised by every develop build.
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'))
-    name: Image (${{ matrix.service }})
-    runs-on: ubuntu-latest
-    needs: test
-    permissions:
-      contents: read
-      packages: write
-    strategy:
-      fail-fast: false
-      matrix:
-        service:
-          - analytics
-          - api
-          - banner
-          - cart
-          - catalog
-          - chat
-          - coupon
-          - identity
-          - inventory
-          - media
-          - notification
-          - order
-          - payment
-          - review
-          - worker
-          - ws-gateway
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Lowercase image repository
-        # GHCR image paths must be lowercase; github.repository keeps the
-        # original casing of the repo name.
-        id: repo
-        run: echo "name=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
-        if: github.event_name == 'push'
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./backend
-          file: ./backend/build/Dockerfile.service
-          build-args: SERVICE=${{ matrix.service }}
-          # Layer cache is scoped per service: the go mod download layer is
-          # shared by construction, while each service's final `go build` layer
-          # only reruns when the backend tree actually changed.
-          cache-from: type=gha,scope=image-${{ matrix.service }}
-          cache-to: type=gha,mode=max,scope=image-${{ matrix.service }}
-          # Only branch pushes publish; workflow_dispatch runs verify the
-          # template without touching the registry.
-          push: ${{ github.event_name == 'push' }}
-          tags: |
-            ghcr.io/${{ steps.repo.outputs.name }}/${{ matrix.service }}:${{ github.sha }}
-            ghcr.io/${{ steps.repo.outputs.name }}/${{ matrix.service }}:${{ github.ref_name }}
-          labels: |
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
 
   integration:
     name: Integration smoke tests
@@ -241,11 +142,11 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26.10'
-          cache-dependency-path: backend/gomod/*/go.sum
+          go-version: '1.26.5'
+          cache-dependency-path: backend/go.sum
 
       - name: Run integration smoke tests
-        run: go test -tags=integration -v ./gomod/cmd/integration
+        run: go test -tags=integration -v ./integration
 
       - name: Run payment settlement integration tests
-        run: go test -race -tags=integration -v ./gomod/services/payment/integrationtest
+        run: go test -race -tags=integration -v ./services/payment/integrationtest
