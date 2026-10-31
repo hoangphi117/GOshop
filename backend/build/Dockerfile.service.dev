@@ -1,16 +1,22 @@
 # Development image for every Go service: air hot reload on the source tree.
 #
-# `SERVICE` selects both the air config (build/air/${SERVICE}.toml) and the
-# exposed health port note below. Build:
+# `SERVICE` selects which cmd/ package air builds. Build:
 #   docker build -f build/Dockerfile.service.dev --build-arg SERVICE=order .
-FROM golang:1.26.6-alpine
+FROM golang:1.26.10-alpine
 
 RUN apk update && apk add --no-cache git curl ca-certificates tzdata
 RUN go install github.com/air-verse/air@latest
 
 WORKDIR /app
 
-COPY go.mod go.sum ./
+# Workspace manifests first so dependency download is cached independently of
+# source edits.
+COPY go.work ./
+COPY gomod/shared/go.mod gomod/shared/go.sum ./gomod/shared/
+COPY gomod/contracts/go.mod gomod/contracts/go.sum ./gomod/contracts/
+COPY gomod/services/go.mod gomod/services/go.sum ./gomod/services/
+COPY gomod/cmd/go.mod gomod/cmd/go.sum ./gomod/cmd/
+
 RUN go mod download
 
 # Source is bind-mounted at run time (compose volumes); copying keeps the image
