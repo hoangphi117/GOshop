@@ -77,7 +77,6 @@ services:
       ANALYTICS_SERVICE_URL: "http://analytics-service:8092"
       MEDIA_SERVICE_URL: "http://media-service:8094"
       CHAT_SERVICE_URL: "http://chat-service:8093"
-      S3_ENDPOINT: "http://minio:9000"
       CART_SERVICE_URL: "http://cart-service:8087"
       CART_GRPC_ADDR: "cart-service:50056"
       CATALOG_SERVICE_URL: "http://catalog-service:8086"
@@ -127,7 +126,6 @@ services:
       ANALYTICS_SERVICE_URL: "http://analytics-service:8092"
       MEDIA_SERVICE_URL: "http://media-service:8094"
       CHAT_SERVICE_URL: "http://chat-service:8093"
-      S3_ENDPOINT: "http://minio:9000"
       CART_SERVICE_URL: "http://cart-service:8087"
       CART_GRPC_ADDR: "cart-service:50056"
       CATALOG_SERVICE_URL: "http://catalog-service:8086"
@@ -558,16 +556,15 @@ services:
       MEDIA_SERVER_PORT: "8094"
       REDIS_ADDR: "redis:6379"
       RABBITMQ_URL: "amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/"
-      S3_ENDPOINT: "http://minio:9000"
       GOMEMLIMIT: "96MiB"
       GOMAXPROCS: "1"
     mem_limit: 128m
     cpus: 0.50
+    # no depends_on minio: with STORAGE_DRIVER=r2 MinIO may not exist at all;
+    # env_file carries whatever S3 endpoint the active env resolves to.
     depends_on:
       rabbitmq:
         condition: service_healthy
-      minio:
-        condition: service_started
     volumes: *jwt-certs
     networks:
       goshop-network:
@@ -747,7 +744,7 @@ services:
       - goshop-network
 
   # Admin SPA is NOT a container: the edge nginx serves the static Vite build
-  # directly (volume ./frontend/apps/dashboard/dist → /srv/dashboard above).
+  # directly (volume ./frontend/apps/dashboard/dist â†’ /srv/dashboard above).
   # Build it with:  pnpm --filter dashboard build   (host or CI)
 
   postgres:
@@ -842,6 +839,11 @@ services:
       - goshop-network
 
   minio:
+    # Object storage only runs when asked for (local/offline dev):
+    #   docker compose --profile minio ...
+    # Prod reads .env instead — with STORAGE_DRIVER=r2 no MinIO container
+    # is started at all (RAM + a volume saved).
+    profiles: ["minio"]
     image: cgr.dev/chainguard/minio:latest
     container_name: goshop-minio
     restart: unless-stopped
