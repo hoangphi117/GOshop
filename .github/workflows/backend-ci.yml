@@ -70,7 +70,9 @@ jobs:
         run: go vet ./...
 
       - name: Run Tests with Race Detector
-        run: go test -race -v ./...
+        # Coverage is printed but does not gate: the total stays visible in
+        # the log so a drop is noticed without blocking unrelated work.
+        run: go test -race -v -coverprofile=coverage.out ./... && go tool cover -func=coverage.out | tail -1
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v7
@@ -78,6 +80,26 @@ jobs:
           version: v2.15.0
           working-directory: backend
           args: --timeout=5m
+
+  compose:
+    name: Compose config smoke check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create build-only env placeholders
+        # `docker compose config` interpolates `${VAR:?}` guards. This job only
+        # validates file structure, so the committed example variant (no real
+        # secrets) proves interpolation works end to end.
+        run: cp backend/.env.prod.example backend/.env
+
+      - name: Validate prod compose
+        run: docker compose -f docker-compose.prod.yml --env-file ./backend/.env config --quiet
+
+      - name: Validate dev compose
+        run: docker compose -f docker-compose.dev.yml --env-file ./backend/.env config --quiet
 
   integration:
     name: Integration smoke tests
