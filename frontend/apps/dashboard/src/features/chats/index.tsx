@@ -184,7 +184,6 @@ function MediaGroupGrid({
     const it = items[0]
     if (it.type === 'video') {
       return (
-        // eslint-disable-next-line jsx-a11y/media-has-caption
         <video
           src={it.url}
           controls
@@ -649,7 +648,6 @@ function MediaLightbox({
           onClick={(e) => e.stopPropagation()}
         >
           {currentItem.type === 'video' ? (
-            // eslint-disable-next-line jsx-a11y/media-has-caption
             <video
               key={currentItem.url}
               src={currentItem.url}

@@ -94,13 +94,13 @@ export function SearchAutocomplete({
             if (meiliRes.ok) {
               const meiliJson = await meiliRes.json();
               const hits: ProductSuggestion[] = (meiliJson?.hits || []).map(
-                (hit: any) => ({
+                (hit: { id?: string; product_uuid?: string; product_id?: number | string; [key: string]: unknown }) => ({
                   uuid: hit.id || hit.product_uuid || String(hit.product_id),
-                  name: hit.product_name,
-                  slug: hit.product_slug,
-                  price: hit.product_price,
-                  image_url: hit.product_image_url,
-                  category_name: hit.category_name,
+                  name: hit.product_name as string,
+                  slug: hit.product_slug as string,
+                  price: hit.product_price as number,
+                  image_url: hit.product_image_url as string,
+                  category_name: hit.category_name as string,
                 }),
               );
               setSuggestions(hits);

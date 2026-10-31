@@ -1,13 +1,12 @@
-import React, { createContext, useContext } from 'react'
+import { createContext, useContext, type Dispatch, type SetStateAction } from 'react'
 
 export type SearchContextType = {
   open: boolean
-  setOpen: React.Dispatch<React.SetStateAction<boolean>>
+  setOpen: Dispatch<SetStateAction<boolean>>
 }
 
 export const SearchContext = createContext<SearchContextType | null>(null)
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const useSearch = () => {
   const searchContext = useContext(SearchContext)
 

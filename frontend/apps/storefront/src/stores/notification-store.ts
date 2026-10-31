@@ -6,7 +6,7 @@ export interface NotificationItem {
   type: string
   title: string
   body: string
-  data?: Record<string, any>
+  data?: Record<string, unknown>
   is_read: boolean
   read_at?: string
   created_at: string
