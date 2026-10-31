@@ -1,0 +1,98 @@
+syntax = "proto3";
+
+package cart.v1;
+
+option go_package = "goshop/proto/cart/v1;cartv1";
+
+message CartItemInfo {
+  string item_uuid = 1;
+  string product_uuid = 2;
+  int32 product_id = 3;
+  string product_name = 4;
+  string product_slug = 5;
+  string product_image_url = 6;
+  double price = 7;
+  int32 quantity = 8;
+  double subtotal = 9;
+  int32 stock_available = 10;
+  bool is_available = 11;
+}
+
+message CartInfo {
+  string cart_uuid = 1;
+  string user_uuid = 2;
+  int32 user_id = 3;
+  int32 total_items = 4;
+  double total_amount = 5;
+  repeated CartItemInfo items = 6;
+}
+
+message GetCartRequest {
+  string user_uuid = 1;
+  int32 user_id = 2;
+}
+
+message GetCartResponse {
+  CartInfo cart = 1;
+}
+
+message AddItemRequest {
+  string user_uuid = 1;
+  int32 user_id = 2;
+  string product_uuid = 3;
+  int32 quantity = 4;
+}
+
+message AddItemResponse {
+  CartInfo cart = 1;
+}
+
+message UpdateItemQuantityRequest {
+  string user_uuid = 1;
+  int32 user_id = 2;
+  string item_uuid = 3;
+  int32 quantity = 4;
+}
+
+message UpdateItemQuantityResponse {
+  CartInfo cart = 1;
+}
+
+message RemoveItemRequest {
+  string user_uuid = 1;
+  int32 user_id = 2;
+  string item_uuid = 3;
+}
+
+message RemoveItemResponse {
+  CartInfo cart = 1;
+}
+
+message ClearCartRequest {
+  string user_uuid = 1;
+  int32 user_id = 2;
+}
+
+message ClearCartResponse {
+  bool success = 1;
+}
+
+message RemovePurchasedItemsRequest {
+  string user_uuid = 1;
+  int32 user_id = 2;
+  repeated string product_uuids = 3;
+  repeated int32 product_ids = 4;
+}
+
+message RemovePurchasedItemsResponse {
+  bool success = 1;
+}
+
+service CartService {
+  rpc GetCart(GetCartRequest) returns (GetCartResponse);
+  rpc AddItem(AddItemRequest) returns (AddItemResponse);
+  rpc UpdateItemQuantity(UpdateItemQuantityRequest) returns (UpdateItemQuantityResponse);
+  rpc RemoveItem(RemoveItemRequest) returns (RemoveItemResponse);
+  rpc ClearCart(ClearCartRequest) returns (ClearCartResponse);
+  rpc RemovePurchasedItems(RemovePurchasedItemsRequest) returns (RemovePurchasedItemsResponse);
+}

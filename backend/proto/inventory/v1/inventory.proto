@@ -1,0 +1,99 @@
+syntax = "proto3";
+
+package inventory.v1;
+
+option go_package = "goshop/proto/inventory/v1;inventoryv1";
+
+message StockItem {
+  int32 product_id = 1;
+  string product_uuid = 2;
+  int32 quantity = 3;
+}
+
+message ItemStockInfo {
+  reserved 3, 4, 5;
+  int32 product_id = 1;
+  string product_uuid = 2;
+  int32 quantity = 6;
+  int32 reserved_quantity = 7;
+  int32 available_quantity = 8;
+}
+
+message ReserveStockRequest {
+  repeated StockItem items = 1;
+  string reference_id = 2;
+  string reference_type = 3;
+  int32 actor_id = 4;
+  string actor_uuid = 5;
+  string note = 6;
+}
+
+message ReserveStockResponse {
+  bool success = 1;
+  repeated ItemStockInfo items = 2;
+}
+
+message ReleaseStockRequest {
+  repeated StockItem items = 1;
+  string reference_id = 2;
+  string reference_type = 3;
+  int32 actor_id = 4;
+  string actor_uuid = 5;
+  string note = 6;
+}
+
+message ReleaseStockResponse {
+  bool success = 1;
+}
+
+message GetStockRequest {
+  repeated string product_uuids = 1;
+  repeated int32 product_ids = 2;
+}
+
+message GetStockResponse {
+  repeated ItemStockInfo items = 1;
+}
+
+message AdjustStockRequest {
+  string product_uuid = 1;
+  int32 product_id = 2;
+  int32 quantity_change = 3;
+  string change_type = 4;
+  string note = 5;
+  int32 actor_id = 6;
+  string actor_uuid = 7;
+  string actor_name = 8;
+  // Caller-supplied idempotency reference, honoured for INITIAL_STOCK.
+  string reference_id = 9;
+  // Absolute stock target; when set, quantity_change is ignored. Optional,
+  // because 0 is a meaningful target.
+  optional int32 target_quantity = 10;
+}
+
+message AdjustStockResponse {
+  bool success = 1;
+  int32 current_stock = 2;
+  string movement_uuid = 3;
+  ItemStockInfo stock_info = 4;
+}
+
+service InventoryService {
+  rpc ReserveStock(ReserveStockRequest) returns (ReserveStockResponse);
+  rpc ReleaseStock(ReleaseStockRequest) returns (ReleaseStockResponse);
+  rpc GetStock(GetStockRequest) returns (GetStockResponse);
+  rpc AdjustStock(AdjustStockRequest) returns (AdjustStockResponse);
+  // ListLowStockProducts feeds analytics low-stock alerts. Stock is
+  // inventory-owned; analytics never reads this database directly.
+  rpc ListLowStockProducts(ListLowStockProductsRequest) returns (ListLowStockProductsResponse);
+}
+
+message ListLowStockProductsRequest {
+  int32 threshold = 1; // available_quantity <= threshold
+  int32 limit = 2;
+}
+
+message ListLowStockProductsResponse {
+  repeated ItemStockInfo items = 1;
+  int64 total_count = 2;
+}

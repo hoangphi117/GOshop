@@ -1,0 +1,77 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  enable:
+    - depguard
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+  settings:
+    depguard:
+      rules:
+        order_domain_isolation:
+          list-mode: lax
+          files:
+            - "$/internal/service/v1/order*.go"
+            - "!$/internal/service/v1/order_*_adapter.go"
+            - "!$/**/*_test.go"
+          deny:
+            - pkg: "goshop/pkg/payment"
+              desc: "Order domain must not import concrete Payment package directly; use OrderPaymentRefundPort"
+            - pkg: "goshop/internal/repository/product_repository"
+              desc: "Order domain must not import concrete product repository directly; use CatalogPort"
+            - pkg: "goshop/internal/repository/coupons_repository"
+              desc: "Order domain must not import concrete coupons repository directly; use OrderCouponPort"
+            - pkg: "goshop/internal/repository/cart_repository"
+              desc: "Order domain must not import concrete cart repository directly; use CartService"
+            - pkg: "goshop/internal/repository/stock_movement_repository"
+              desc: "Order domain must not import stock movement repository directly; use OrderStockPort"
+            - pkg: "goshop/internal/repository/user_repository"
+              desc: "Order domain must not import User repository directly; use IdentityUserReader"
+        payment_domain_isolation:
+          list-mode: lax
+          files:
+            - "$/internal/service/v1/payment*.go"
+            - "!$/**/*_test.go"
+          deny:
+            - pkg: "goshop/internal/repository/order_repository"
+              desc: "Payment domain must not import Order repository directly; use PaymentOrderReaderPort"
+        inventory_domain_isolation:
+          list-mode: lax
+          files:
+            - "$/internal/service/v1/inventory*.go"
+            - "!$/**/*_test.go"
+          deny:
+            - pkg: "goshop/internal/repository/order_repository"
+              desc: "Inventory domain must not import Order repository directly"
+            - pkg: "goshop/internal/repository/coupons_repository"
+              desc: "Inventory domain must not import Coupon repository directly"
+        coupon_domain_isolation:
+          list-mode: lax
+          files:
+            - "$/internal/service/v1/coupon*.go"
+            - "!$/**/*_test.go"
+          deny:
+            - pkg: "goshop/internal/repository/order_repository"
+              desc: "Coupon domain must not import Order repository directly"
+            - pkg: "goshop/internal/repository/product_repository"
+              desc: "Coupon domain must not import Product repository directly"
+        monolith_core_isolation:
+          list-mode: lax
+          files:
+            - "$/services/**/*.go"
+            - "!$/**/*_test.go"
+          deny:
+            - pkg: "goshop/internal/repository"
+              desc: "Services own their data; the monolith repository package is deleted"
+            - pkg: "goshop/internal/db/sqlc"
+              desc: "Services generate their own sqlc package; the monolith sqlc package is deleted"
+            - pkg: "goshop/internal/app"
+              desc: "Services must not boot the monolith application"
+            - pkg: "goshop/internal/routes"
+              desc: "Services must not mount monolith routes"

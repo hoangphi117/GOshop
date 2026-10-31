@@ -1,0 +1,79 @@
+syntax = "proto3";
+
+package payment.v1;
+
+option go_package = "goshop/proto/payment/v1;paymentv1";
+
+message PaymentIntentDTO {
+  string payment_uuid = 1;
+  string order_uuid = 2;
+  string provider = 3;
+  // Integer minor units (xu): 1 dong = 100 xu. A double here is what let
+  // binary floating point leak into refund-limit checks.
+  int64 amount = 4;
+  string currency = 5;
+  string status = 6;
+  string payment_url = 7;
+  string created_at = 8;
+}
+
+message PaymentTransactionDTO {
+  string uuid = 1;
+  string order_uuid = 2;
+  string provider = 3;
+  optional string provider_txn_id = 4;
+  int64 amount = 5;
+  string currency = 6;
+  string status = 7;
+  optional string refund_of = 8;
+  optional int64 refund_amount = 9;
+  optional string paid_at = 10;
+  string created_at = 11;
+}
+
+message CreatePaymentIntentRequest {
+  int32 user_id = 1;
+  string client_ip = 2;
+  string idempotency_key = 3;
+  string order_uuid = 4;
+  string provider = 5;
+}
+
+message CreatePaymentIntentResponse {
+  PaymentIntentDTO intent = 1;
+}
+
+message GetPaymentTransactionsByOrderIDRequest {
+  int32 order_id = 1;
+}
+
+message GetPaymentTransactionsByOrderIDResponse {
+  repeated PaymentTransactionDTO transactions = 1;
+}
+
+message ConfirmCODPaymentRequest {
+  string order_uuid = 1;
+}
+
+message ConfirmCODPaymentResponse {
+  bool success = 1;
+}
+
+message RefundPaymentRequest {
+  string idempotency_key = 1;
+  string order_uuid = 2;
+  // Minor units (xu), see PaymentIntentDTO.amount.
+  int64 amount = 3;
+  string reason = 4;
+}
+
+message RefundPaymentResponse {
+  PaymentTransactionDTO transaction = 1;
+}
+
+service PaymentService {
+  rpc CreatePaymentIntent(CreatePaymentIntentRequest) returns (CreatePaymentIntentResponse);
+  rpc GetPaymentTransactionsByOrderID(GetPaymentTransactionsByOrderIDRequest) returns (GetPaymentTransactionsByOrderIDResponse);
+  rpc ConfirmCODPayment(ConfirmCODPaymentRequest) returns (ConfirmCODPaymentResponse);
+  rpc RefundPayment(RefundPaymentRequest) returns (RefundPaymentResponse);
+}

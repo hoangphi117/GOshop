@@ -1,0 +1,4 @@
+# Local env files must never enter a build context: prod values are injected
+# via compose env (runtime) or .env.production (build-time, tracked).
+.env
+**/.env

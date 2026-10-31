@@ -1,0 +1,12 @@
+.git
+.gitignore
+.gitnexus
+bin
+tmp
+logs
+uploads
+node_modules
+frontend
+**/*_test.go
+*.log
+.env

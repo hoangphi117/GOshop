@@ -1,0 +1,115 @@
+
+# =============================================================================
+# GOSHOP INFRASTRUCTURE ONLY (Postgres, Redis, RabbitMQ)
+# =============================================================================
+# DÃ nh cho mÃ´i trÆ°á»ng Local Development khi cháº¡y Go API vÃ  Storefront trá»±c tiáº¿p trÃªn Host.
+# =============================================================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: goshop-postgres
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_USER:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/init_databases.sql:/docker-entrypoint-initdb.d/init_databases.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - goshop-network
+
+  redis:
+    image: redis:alpine
+    container_name: goshop-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - goshop-network
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: goshop-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-goshop}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-goshop}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - goshop-network
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.12
+    container_name: goshop-meilisearch
+    restart: unless-stopped
+    ports:
+      - "7700:7700"
+    environment:
+      - MEILI_MASTER_KEY=${MEILISEARCH_MASTER_KEY:-masterKey123}
+      - MEILI_ENV=development
+      - MEILI_NO_ANALYTICS=true
+    volumes:
+      - meilisearch-data:/meili_data
+    networks:
+      - goshop-network
+
+  minio:
+    image: cgr.dev/chainguard/minio:latest
+    container_name: goshop-minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-goshop_admin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-goshop_secret_key}
+    volumes:
+      - minio-data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - goshop-network
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  rabbitmq-data:
+    driver: local
+  meilisearch-data:
+    driver: local
+  minio-data:
+    driver: local
+
+networks:
+  goshop-network:
+    driver: bridge
+
+

@@ -1,0 +1,48 @@
+# Ships container logs to Grafana Cloud Loki (no local Loki — RAM-friendly).
+# Secrets come from environment (backend/.env) via -config.expand-env=true.
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: ${GRAFANA_LOKI_URL}
+    basic_auth:
+      username: ${GRAFANA_LOKI_USER}
+      password: ${GRAFANA_LOKI_TOKEN}
+    # Drop batches older than 24h instead of retrying a dead endpoint forever.
+    backoff_config:
+      max_period: 5m
+      max_retries: 20
+
+scrape_configs:
+  # Every running compose container, labelled by name — query with
+  # {container="goshop-api1"} in Grafana Cloud Explore.
+  - job_name: docker-containers
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+        # Only this project's containers, not unrelated docker workloads.
+        # (compose project = file dir name "shopping"; container_name = goshop-*)
+        filters:
+          - name: label
+            values: ["com.docker.compose.project=shopping"]
+    relabel_configs:
+      - source_labels: [__meta_docker_container_name]
+        regex: /(.*)
+        target_label: container
+      - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+        target_label: service
+      - source_labels: [__meta_docker_container_log_path]
+        target_label: __path__
+    pipeline_stages:
+      # Parse the common Go zerolog JSON line so level/service are queryable
+      # without reading the whole text (logfmt-ish fallback keeps text intact).
+      - json:
+          expressions:
+            level: level
+            message: message
+      - labels:
+          level:

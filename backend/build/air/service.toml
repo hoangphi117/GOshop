@@ -1,0 +1,31 @@
+# One air config for every service: the service name arrives as the SERVICE
+# env var (set by docker-compose.dev.yml), so a new service adds no config file.
+# Run: air -c build/air/service.toml
+# Local usage: SERVICE=order air -c build/air/service.toml
+root = "."
+tmp_dir = "tmp"
+
+[build]
+    cmd = "go build -o ./tmp/${SERVICE} ./cmd/${SERVICE}"
+    bin = "tmp/${SERVICE}"
+    include_ext = ["go", "yaml", "yml", "env"]
+    exclude_dir = ["assets", "tmp", "vendor", "frontend/node_modules", "bin", ".git", "uploads", "build"]
+    exclude_file = []
+    exclude_regex = ["_test.go"]
+    delay = 1000
+    send_interrupt = true
+    kill_delay = 500
+    poll = true
+    poll_interval = 500
+
+[log]
+    time = true
+
+[color]
+    main = "blue"
+    watcher = "cyan"
+    build = "yellow"
+    runner = "green"
+
+[misc]
+    clean_on_exit = true

@@ -1,0 +1,152 @@
+name: Backend CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - 'refactor/**'
+      - 'feature/**'
+      - 'feat/**'
+      - 'fix/**'
+      - 'chore/**'
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+
+jobs:
+  test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # buf breaking compares against origin/develop, so full history.
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.5'
+          cache-dependency-path: backend/go.sum
+
+      - name: Install buf
+        uses: bufbuild/buf-setup-action@v1
+
+      - name: Buf lint
+        run: buf lint
+        working-directory: backend
+
+      - name: Gofmt check
+        # Formatting is a hard gate: an unformatted file fails CI instead of
+        # drifting until a bulk reformat hides real changes in noise.
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "These files need gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
+        working-directory: backend
+
+      - name: Buf breaking check
+        # Both sides as git refs: identical file keying regardless of whether
+        # develop has backend/buf.yaml yet. buf defaults to FILE breaking
+        # rules here, matching backend/buf.yaml. Runs from the repo root
+        # (overrides the job's backend default) so buf finds .git directly.
+        working-directory: .
+        run: buf breaking ".git#ref=HEAD" --against ".git#ref=origin/develop"
+
+      - name: Go Vet
+        run: go vet ./...
+
+      - name: Run Tests with Race Detector
+        # Coverage is printed but does not gate: the total stays visible in
+        # the log so a drop is noticed without blocking unrelated work.
+        run: go test -race -v -coverprofile=coverage.out ./... && go tool cover -func=coverage.out | tail -1
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.15.0
+          working-directory: backend
+          args: --timeout=5m
+
+  compose:
+    name: Compose config smoke check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create build-only env placeholders
+        # `docker compose config` interpolates `${VAR:?}` guards. This job only
+        # validates file structure, so the committed example variant (no real
+        # secrets) proves interpolation works end to end.
+        run: cp backend/.env.prod.example backend/.env
+
+      - name: Validate prod compose
+        run: docker compose -f docker-compose.prod.yml --env-file ./backend/.env config --quiet
+
+      - name: Validate dev compose
+        run: docker compose -f docker-compose.dev.yml --env-file ./backend/.env config --quiet
+
+  integration:
+    name: Integration smoke tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: super@password
+          # Maintenance database: services own their own shopping_* databases.
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+      rabbitmq:
+        image: rabbitmq:3-management-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: goshop
+          RABBITMQ_DEFAULT_PASS: goshop
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.5'
+          cache-dependency-path: backend/go.sum
+
+      - name: Run integration smoke tests
+        run: go test -tags=integration -v ./integration
+
+      - name: Run payment settlement integration tests
+        run: go test -race -tags=integration -v ./services/payment/integrationtest

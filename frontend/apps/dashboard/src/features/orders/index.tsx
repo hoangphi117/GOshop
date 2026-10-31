@@ -1,0 +1,467 @@
+import { useState } from 'react'
+import { useNavigate } from '@tanstack/react-router'
+import {
+  Search as SearchIcon,
+  Eye,
+  ShoppingBag,
+  Filter,
+  CreditCard,
+  FileDown,
+  Download,
+} from 'lucide-react'
+import { toast } from 'sonner'
+import { exportOrdersToCSV } from './export-csv'
+import { DashboardHeader } from '@/components/layout/dashboard-header'
+import { Main } from '@/components/layout/main'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Badge } from '@/components/ui/badge'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { DataTablePagination } from '@/components/data-table'
+import { Checkbox } from '@/components/ui/checkbox'
+import { BulkActionBar } from './components/bulk-action-bar'
+import { useBulkOrderActions } from './hooks/use-bulk-order-actions'
+import { useOrders, downloadOrderInvoice } from './hooks/use-orders'
+import {
+  formatCurrency,
+  formatDateTime,
+  renderOrderStatusBadge,
+} from './order-utils'
+import type { Order } from './types'
+
+export function Orders() {
+  const navigate = useNavigate()
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [activeSearch, setActiveSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [selectedOrderUuids, setSelectedOrderUuids] = useState<Set<string>>(new Set())
+
+  const parsedStatus =
+    statusFilter !== 'all' ? (Number(statusFilter) as 1 | 2 | 3 | 4 | 5 | 6) : undefined
+
+  const { data: ordersData, isLoading } = useOrders({
+    page,
+    limit: pageSize,
+    search: activeSearch || undefined,
+    status: parsedStatus,
+  })
+
+  const { bulkUpdateStatus, bulkCancelOrders, isProcessing } = useBulkOrderActions()
+
+  const orders = (ordersData?.data as unknown as Order[]) || []
+  const pagination = ordersData?.pagination
+
+  const isAllSelected = orders.length > 0 && orders.every((o) => selectedOrderUuids.has(o.uuid))
+  const isSomeSelected = orders.some((o) => selectedOrderUuids.has(o.uuid)) && !isAllSelected
+
+  const handleToggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedOrderUuids((prev) => {
+        const next = new Set(prev)
+        orders.forEach((o) => next.delete(o.uuid))
+        return next
+      })
+    } else {
+      setSelectedOrderUuids((prev) => {
+        const next = new Set(prev)
+        orders.forEach((o) => next.add(o.uuid))
+        return next
+      })
+    }
+  }
+
+  const handleToggleSelectRow = (uuid: string) => {
+    setSelectedOrderUuids((prev) => {
+      const next = new Set(prev)
+      if (next.has(uuid)) {
+        next.delete(uuid)
+      } else {
+        next.add(uuid)
+      }
+      return next
+    })
+  }
+
+  const handleClearSelection = () => {
+    setSelectedOrderUuids(new Set())
+  }
+
+  const handleBulkConfirm = () => {
+    bulkUpdateStatus.mutate(
+      {
+        order_uuids: Array.from(selectedOrderUuids),
+        status: 2,
+      },
+      {
+        onSuccess: () => handleClearSelection(),
+      }
+    )
+  }
+
+  const handleBulkChangeStatus = (status: 1 | 2 | 3 | 4 | 5 | 6) => {
+    bulkUpdateStatus.mutate(
+      {
+        order_uuids: Array.from(selectedOrderUuids),
+        status,
+      },
+      {
+        onSuccess: () => handleClearSelection(),
+      }
+    )
+  }
+
+  const handleBulkCancel = (reason?: string) => {
+    bulkCancelOrders.mutate(
+      {
+        order_uuids: Array.from(selectedOrderUuids),
+        reason,
+      },
+      {
+        onSuccess: () => handleClearSelection(),
+      }
+    )
+  }
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    setActiveSearch(searchTerm.trim())
+    setPage(1)
+  }
+
+  const handleStatusFilterChange = (val: string) => {
+    setStatusFilter(val)
+    setPage(1)
+  }
+
+  const handleResetFilters = () => {
+    setSearchTerm('')
+    setActiveSearch('')
+    setStatusFilter('all')
+    setPage(1)
+  }
+
+  const [downloadingUuid, setDownloadingUuid] = useState<string | null>(null)
+
+  const handleDownloadRowInvoice = async (uuid: string, orderNumber: string) => {
+    setDownloadingUuid(uuid)
+    try {
+      await downloadOrderInvoice(uuid, orderNumber)
+      toast.success('Invoice downloaded successfully')
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to download invoice'
+      )
+    } finally {
+      setDownloadingUuid(null)
+    }
+  }
+
+  const handleExportCSV = () => {
+    const targetOrders =
+      selectedOrderUuids.size > 0
+        ? orders.filter((o) => selectedOrderUuids.has(o.uuid))
+        : orders
+
+    if (targetOrders.length === 0) {
+      toast.error('No orders available to export')
+      return
+    }
+
+    exportOrdersToCSV(targetOrders)
+    toast.success(
+      `Exported ${targetOrders.length} ${targetOrders.length === 1 ? 'order' : 'orders'} to CSV`
+    )
+  }
+
+  const handleOpenDetails = (order: Order) => {
+    navigate({ to: '/orders/$uuid', params: { uuid: order.uuid } })
+  }
+
+  const renderPaymentBadge = (method?: string, paymentStatus?: string) => {
+    const ps = paymentStatus?.toLowerCase()
+    const isPaid = ps === 'paid'
+    const isUnpaid = ps === 'unpaid'
+
+    return (
+      <div className='flex flex-col gap-1 items-start'>
+        <span className='text-xs text-muted-foreground flex items-center gap-1 font-medium'>
+          <CreditCard className='size-3' /> {method || 'COD'}
+        </span>
+        {isPaid ? (
+          <Badge
+            variant='outline'
+            className='bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-[10px] px-1.5 py-0'
+          >
+            Paid
+          </Badge>
+        ) : isUnpaid ? (
+          <Badge
+            variant='outline'
+            className='bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 text-[10px] px-1.5 py-0'
+          >
+            Unpaid
+          </Badge>
+        ) : (
+          <Badge variant='outline' className='text-[10px] px-1.5 py-0'>
+            {paymentStatus || 'Pending'}
+          </Badge>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <DashboardHeader fixed />
+
+      <Main className='flex flex-1 flex-col gap-4 sm:gap-6'>
+        <div className='flex flex-wrap items-center justify-between gap-2'>
+          <div>
+            <h2 className='text-2xl font-bold tracking-tight'>Orders</h2>
+            <p className='text-muted-foreground'>
+              Track and manage customer purchases, delivery statuses, and payment records.
+            </p>
+          </div>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={handleExportCSV}
+            disabled={orders.length === 0}
+            className='gap-1.5'
+          >
+            <Download className='size-4' />
+            {selectedOrderUuids.size > 0
+              ? `Export (${selectedOrderUuids.size}) CSV`
+              : 'Export CSV'}
+          </Button>
+        </div>
+
+        {/* Filters Bar */}
+        <div className='flex flex-wrap items-center justify-between gap-3'>
+          <form
+            onSubmit={handleSearchSubmit}
+            className='flex items-center gap-2 max-w-sm flex-1'
+          >
+            <div className='relative flex-1'>
+              <SearchIcon className='absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground' />
+              <Input
+                placeholder='Search order #, recipient, or phone...'
+                className='pl-9'
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <Button type='submit' variant='secondary' size='sm'>
+              Search
+            </Button>
+          </form>
+
+          <div className='flex items-center gap-2'>
+            <div className='flex items-center gap-1.5'>
+              <Filter className='size-4 text-muted-foreground' />
+              <Select
+                value={statusFilter}
+                onValueChange={handleStatusFilterChange}
+              >
+                <SelectTrigger className='w-[150px] h-9 text-xs'>
+                  <SelectValue placeholder='All Statuses' />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='all'>All Statuses</SelectItem>
+                  <SelectItem value='1'>Pending</SelectItem>
+                  <SelectItem value='2'>Confirmed</SelectItem>
+                  <SelectItem value='3'>Shipped</SelectItem>
+                  <SelectItem value='4'>Delivered</SelectItem>
+                  <SelectItem value='5'>Cancelled</SelectItem>
+                  <SelectItem value='6'>Returned</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {(activeSearch || statusFilter !== 'all') && (
+              <Button
+                type='button'
+                variant='ghost'
+                size='sm'
+                onClick={handleResetFilters}
+              >
+                Reset
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Orders Table */}
+        <div className='rounded-md border bg-card'>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className='w-[40px] px-3'>
+                  <Checkbox
+                    checked={
+                      isAllSelected
+                        ? true
+                        : isSomeSelected
+                          ? 'indeterminate'
+                          : false
+                    }
+                    onCheckedChange={handleToggleSelectAll}
+                    aria-label='Select all on page'
+                  />
+                </TableHead>
+                <TableHead>Order #</TableHead>
+                <TableHead>Recipient</TableHead>
+                <TableHead>Total Amount</TableHead>
+                <TableHead>Items</TableHead>
+                <TableHead>Payment</TableHead>
+                <TableHead>Order Status</TableHead>
+                <TableHead>Created At</TableHead>
+                <TableHead className='text-right'>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={9} className='h-32 text-center text-muted-foreground'>
+                    Loading orders...
+                  </TableCell>
+                </TableRow>
+              ) : orders.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={9} className='h-32 text-center text-muted-foreground'>
+                    No orders found.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                orders.map((order) => {
+                  const isSelected = selectedOrderUuids.has(order.uuid)
+                  return (
+                    <TableRow
+                      key={order.uuid}
+                      data-state={isSelected ? 'selected' : undefined}
+                      className='cursor-pointer hover:bg-muted/50 transition-colors'
+                      onClick={() => handleOpenDetails(order)}
+                    >
+                      <TableCell
+                        className='w-[40px] px-3'
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => handleToggleSelectRow(order.uuid)}
+                          aria-label={`Select order #${order.order_number}`}
+                        />
+                      </TableCell>
+                      <TableCell className='font-mono font-medium text-xs'>
+                        #{order.order_number}
+                      </TableCell>
+                      <TableCell>
+                        <div className='font-medium text-xs sm:text-sm'>
+                          {order.shipping_name}
+                        </div>
+                        <div className='text-xs text-muted-foreground'>
+                          {order.shipping_phone}
+                        </div>
+                        {order.shipping_address && (
+                          <div
+                            className='text-[11px] text-muted-foreground truncate max-w-[200px]'
+                            title={order.shipping_address}
+                          >
+                            {order.shipping_address}
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className='font-semibold text-xs sm:text-sm'>
+                        {formatCurrency(order.total_amount)}
+                      </TableCell>
+                      <TableCell className='text-xs text-muted-foreground'>
+                        <span className='inline-flex items-center gap-1'>
+                          <ShoppingBag className='size-3.5' /> {order.items?.length || 1} items
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        {renderPaymentBadge(order.payment_method, order.payment_status)}
+                      </TableCell>
+                      <TableCell>{renderOrderStatusBadge(order.status)}</TableCell>
+                      <TableCell className='text-muted-foreground text-xs'>
+                        {formatDateTime(order.created_at)}
+                      </TableCell>
+                      <TableCell className='text-right'>
+                        <div className='flex items-center justify-end gap-1'>
+                          <Button
+                            variant='ghost'
+                            size='icon'
+                            className='size-8'
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDownloadRowInvoice(order.uuid, order.order_number)
+                            }}
+                            disabled={downloadingUuid === order.uuid}
+                            title='Download invoice'
+                          >
+                            <FileDown className='size-4' />
+                          </Button>
+                          <Button
+                            variant='ghost'
+                            size='icon'
+                            className='size-8'
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleOpenDetails(order)
+                            }}
+                            title='View details'
+                          >
+                            <Eye className='size-4' />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* Floating Bulk Action Bar */}
+        <BulkActionBar
+          selectedCount={selectedOrderUuids.size}
+          isProcessing={isProcessing}
+          onBulkConfirm={handleBulkConfirm}
+          onBulkChangeStatus={handleBulkChangeStatus}
+          onBulkCancel={handleBulkCancel}
+          onClearSelection={handleClearSelection}
+        />
+
+        {/* Pagination */}
+        <DataTablePagination
+          page={page}
+          pageSize={pageSize}
+          totalPages={pagination?.total_pages || 1}
+          onPageChange={setPage}
+          onPageSizeChange={(newSize) => {
+            setPageSize(newSize)
+            setPage(1)
+          }}
+          className='mt-auto'
+        />
+      </Main>
+    </>
+  )
+}

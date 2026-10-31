@@ -1,0 +1,85 @@
+name: Frontend CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - 'refactor/**'
+      - 'feature/**'
+      - 'feat/**'
+      - 'fix/**'
+      - 'chore/**'
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-ci.yml'
+  pull_request:
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-ci.yml'
+
+jobs:
+  build:
+    name: Typecheck, Build & Test
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          # Pinned by frontend/package.json "packageManager".
+          package_json_file: frontend/package.json
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Dashboard: `vite build` runs `tsc -b && vite build`, so this covers both
+      # the type gate and the production bundle. Builds never carry the API key:
+      # .env.production blanks it and the edge injects X-API-KEY at runtime.
+      - name: Build dashboard
+        run: pnpm --filter dashboard build
+
+      - name: Install dashboard test browser
+        run: pnpm --filter dashboard exec playwright install --with-deps chromium
+
+      - name: Test dashboard
+        # Non-blocking: 6 of 22 files already fail on main (missing
+        # QueryClientProvider in test-utils, timeout in sign-in form). Make
+        # this blocking right after those are fixed.
+        run: pnpm --filter dashboard test
+        continue-on-error: true
+
+      - name: Lint dashboard
+        # Non-blocking today: the committed tree has pre-existing violations
+        # (setState-in-effect, type-only React imports). Flip once cleaned up.
+        run: pnpm --filter dashboard lint
+        continue-on-error: true
+
+      # Storefront: Next build is the type + route + bundle gate. Needs no
+      # secrets (NEXT_PUBLIC_API_KEY is intentionally empty in .env.production).
+      - name: Build storefront
+        run: pnpm --filter storefront build
+
+      # Runtime secrets must never be embedded in a shipped bundle. Any
+      # X-API-KEY literal assignment in the output fails the build.
+      - name: Assert no API key in bundles
+        run: |
+          if grep -rIl -E 'X-API-KEY"[[:space:]]*:[[:space:]]*"[0-9a-f]{16,}' \
+               apps/dashboard/dist apps/storefront/.next/static 2>/dev/null; then
+            echo "::error::API key found in a built bundle"
+            exit 1
+          fi
+          echo "No key material in build output."

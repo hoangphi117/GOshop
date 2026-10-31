@@ -1,4 +1,6 @@
 # Binaries
+bin/
+**/bin/
 *.exe
 *.exe~
 *.dll
@@ -10,12 +12,29 @@
 go.work
 go.work.sum
 
+# Air
+tmp/
+**/tmp/
+build.log
+
 # Secrets / env
 .env
 .env.local
+# The root-level file is a stale copy kept only while migrating to backend/.env;
+# it must never be committed.
+.env.system-backup
+**/.env
+**/.env.local
+**/.env*.local
+# Environment VARIANTS are committed on purpose (no secrets in .env.prod path
+# unless real secrets are added): switching dev<->prod is `make env-prod`.
+backend/.env.dev
+backend/.env.prod
+frontend/apps/storefront/.env.dev
+frontend/apps/storefront/.env.prod
 
 # Runtime data
-internal/logs/*.log
+.runtime/
 
 # Database dumps
 backupdb.sql
@@ -31,3 +50,41 @@ Thumbs.db
 
 # CI
 coverage.out
+
+# User uploads
+uploads/
+**/uploads/
+
+# Frontend (Node / Next.js / Turbo)
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+.turbo/
+**/.turbo/
+dist/
+**/dist/
+out/
+**/out/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Unit test coverage
+*.out
+coverage.*
+
+# AI Agent local configs & secrets
+.agents/
+.codex/
+.gemini/
+.claude/
+skills-lock.json
+
+.gitnexus/
+
+# Cert
+certs/
+# Edge-injected API key (mirrored from backend/.env by scripts/gen-local-secrets.ps1)
+nginx/secrets/api_key
