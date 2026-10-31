@@ -270,13 +270,13 @@ bash:
 
 # Performance & Load Testing with Grafana k6 (Docker)
 loadtest:
-	docker run --rm -i --network=shopping_goshop-network -v "./loadtest:/loadtest" -e BASE_URL=http://goshop-nginx -e API_KEY=${API_KEY} grafana/k6 run /loadtest/load_test.js
+	docker run --rm -i --network=shopping_goshop-network -v "./scripts/loadtest:/loadtest" -e BASE_URL=http://goshop-nginx -e API_KEY=${API_KEY} grafana/k6 run /loadtest/load_test.js
 
 stresstest:
-	docker run --rm -i --network=shopping_goshop-network -v "./loadtest:/loadtest" -e BASE_URL=http://goshop-nginx -e API_KEY=${API_KEY} grafana/k6 run /loadtest/stress_test.js
+	docker run --rm -i --network=shopping_goshop-network -v "./scripts/loadtest:/loadtest" -e BASE_URL=http://goshop-nginx -e API_KEY=${API_KEY} grafana/k6 run /loadtest/stress_test.js
 
 spiketest:
-	docker run --rm -i --network=shopping_goshop-network -v "./loadtest:/loadtest" -e BASE_URL=http://goshop-nginx -e API_KEY=${API_KEY} grafana/k6 run /loadtest/spike_test.js
+	docker run --rm -i --network=shopping_goshop-network -v "./scripts/loadtest:/loadtest" -e BASE_URL=http://goshop-nginx -e API_KEY=${API_KEY} grafana/k6 run /loadtest/spike_test.js
 
 .PHONY: importdb exportdb server worker ws-gateway identity notification payment coupon inventory catalog order chat media build-identity build-notification build-payment build-coupon build-inventory build-catalog build-order build-chat build-media migrate-create migrate-up migrate-down sqlc build build-worker build-ws-gateway run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev dev-host swagger loadtest stresstest spiketest seed seed-docker env-dev env-prod
 

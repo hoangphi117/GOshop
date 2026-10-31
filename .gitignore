@@ -20,6 +20,9 @@ build.log
 # Secrets / env
 .env
 .env.local
+# The root-level file is a stale copy kept only while migrating to backend/.env;
+# it must never be committed.
+.env.system-backup
 **/.env
 **/.env.local
 **/.env*.local
