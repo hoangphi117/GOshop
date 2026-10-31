@@ -7,11 +7,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"google.golang.org/grpc"
 	"net"
-	"strings"
 
 	"goshop/internal/config"
 	"goshop/pkg/auth"
@@ -32,9 +34,6 @@ import (
 	identityroutes "goshop/services/identity/internal/routes"
 	identityservice "goshop/services/identity/internal/service"
 	identityworker "goshop/services/identity/worker"
-
-	"github.com/gin-gonic/gin"
-	"google.golang.org/grpc"
 )
 
 // App encapsulates the Identity microservice runtime

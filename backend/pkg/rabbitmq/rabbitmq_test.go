@@ -4,20 +4,22 @@ import (
 	"context"
 	"testing"
 
+	"goshop/contracts/events"
+
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestTopicConstantsAndPatterns(t *testing.T) {
 	assert.Equal(t, "goshop.events", DefaultTopicExchange)
-	assert.Equal(t, "order.created", RoutingKeyOrderCreated)
-	assert.Equal(t, "user.created", RoutingKeyUserCreated)
-	assert.Equal(t, "payment.succeeded", RoutingKeyPaymentSucceeded)
+	assert.Equal(t, "order.created", events.RoutingKeyOrderCreated)
+	assert.Equal(t, "user.created", events.RoutingKeyUserCreated)
+	assert.Equal(t, "payment.succeeded", events.RoutingKeyPaymentSucceeded)
 
-	assert.Equal(t, "order.*", PatternOrderAll)
-	assert.Equal(t, "payment.*", PatternPaymentAll)
-	assert.Equal(t, "user.*", PatternUserAll)
-	assert.Equal(t, "*.*", PatternAllEvents)
+	assert.Equal(t, "order.*", events.PatternOrderAll)
+	assert.Equal(t, "payment.*", events.PatternPaymentAll)
+	assert.Equal(t, "user.*", events.PatternUserAll)
+	assert.Equal(t, "*.*", events.PatternAllEvents)
 }
 
 func TestDeadLetterQueueName(t *testing.T) {
@@ -73,13 +75,13 @@ func (d *dummyRabbitMQService) SubscribeTopic(ctx context.Context, queueName str
 func TestDummyRabbitMQPubSubInterface(t *testing.T) {
 	dummy := &dummyRabbitMQService{}
 
-	err := dummy.PublishTopic(context.Background(), RoutingKeyOrderCreated, map[string]string{"order_id": "123"})
+	err := dummy.PublishTopic(context.Background(), events.RoutingKeyOrderCreated, map[string]string{"order_id": "123"})
 	assert.NoError(t, err)
 	assert.Len(t, dummy.publishedExchanges, 1)
 	assert.Equal(t, DefaultTopicExchange, dummy.publishedExchanges[0])
-	assert.Equal(t, RoutingKeyOrderCreated, dummy.publishedKeys[0])
+	assert.Equal(t, events.RoutingKeyOrderCreated, dummy.publishedKeys[0])
 
-	err = dummy.SubscribeTopic(context.Background(), "notification.orders", []string{PatternOrderAll}, nil)
+	err = dummy.SubscribeTopic(context.Background(), "notification.orders", []string{events.PatternOrderAll}, nil)
 	assert.NoError(t, err)
 	assert.Contains(t, dummy.subscribedQueues, "notification.orders")
 }

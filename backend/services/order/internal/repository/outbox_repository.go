@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 
-	"goshop/pkg/db"
-	"goshop/pkg/rabbitmq"
-	ordersqlc "goshop/services/order/internal/db/sqlc"
-
 	"github.com/jackc/pgx/v5"
+
+	"goshop/contracts/events"
+	"goshop/pkg/db"
+	ordersqlc "goshop/services/order/internal/db/sqlc"
 )
 
 type sqlOutboxRepository struct {
@@ -43,7 +43,7 @@ func (r *sqlOutboxRepository) Insert(ctx context.Context, tx pgx.Tx, aggregateTy
 			return ordersqlc.OutboxEvent{}, err
 		}
 	}
-	payloadBytes, err = rabbitmq.EnrichEventPayload(ctx, eventType, aggregateID, payloadBytes)
+	payloadBytes, err = events.EnrichEventPayload(ctx, eventType, aggregateID, payloadBytes)
 	if err != nil {
 		return ordersqlc.OutboxEvent{}, err
 	}
@@ -64,7 +64,7 @@ func (r *sqlOutboxRepository) Insert(ctx context.Context, tx pgx.Tx, aggregateTy
 }
 
 func (r *sqlOutboxRepository) Create(ctx context.Context, tx pgx.Tx, aggregateType, aggregateID, eventType string, payload []byte) (ordersqlc.OutboxEvent, error) {
-	enrichedPayload, err := rabbitmq.EnrichEventPayload(ctx, eventType, aggregateID, payload)
+	enrichedPayload, err := events.EnrichEventPayload(ctx, eventType, aggregateID, payload)
 	if err != nil {
 		return ordersqlc.OutboxEvent{}, err
 	}

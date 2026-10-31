@@ -4,13 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"google.golang.org/grpc"
+	"net"
 
 	"goshop/internal/config"
 	"goshop/pkg/auth"
@@ -31,12 +37,6 @@ import (
 	paymentrepo "goshop/services/payment/internal/repository"
 	paymentroutes "goshop/services/payment/internal/routes"
 	paymentservice "goshop/services/payment/internal/service"
-
-	"github.com/gin-gonic/gin"
-	"github.com/golang-migrate/migrate/v4"
-	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	"github.com/golang-migrate/migrate/v4/source/iofs"
-	"google.golang.org/grpc"
 )
 
 type App struct {

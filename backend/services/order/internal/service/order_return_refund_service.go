@@ -7,14 +7,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+
+	"goshop/contracts/events"
 	"goshop/pkg/db"
-	"goshop/pkg/rabbitmq"
 	"goshop/pkg/utils"
 	"goshop/services/order/internal/db/sqlc"
 	v1dto "goshop/services/order/internal/dto"
-
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 )
 
 // AdminUpdateReturnStatus handles Admin inspection, approval, rejection, and receiving of returned goods with automatic inventory restock.
@@ -120,7 +120,7 @@ func (s *orderReturnService) AdminUpdateReturnStatus(ctx context.Context, userUU
 		}
 
 		if s.outboxStore != nil {
-			event := rabbitmq.NewOrderReturnUpdatedEvent(
+			event := events.NewOrderReturnUpdatedEvent(
 				uuid.NewString(),
 				updatedReturn.ReturnUuid.String(),
 				order.OrderUuid.String(),
@@ -132,13 +132,13 @@ func (s *orderReturnService) AdminUpdateReturnStatus(ctx context.Context, userUU
 				noteStr,
 			)
 			if input.Status == OrderReturnStatusCompleted {
-				event.ChangeType = rabbitmq.ReturnChangeTypeGoodsReceived
+				event.ChangeType = events.ReturnChangeTypeGoodsReceived
 			}
-			if _, err := s.outboxStore.Insert(txCtx, tx, "order", order.OrderUuid.String(), rabbitmq.QueueOrderReturnUpdated, event); err != nil {
+			if _, err := s.outboxStore.Insert(txCtx, tx, "order", order.OrderUuid.String(), events.QueueOrderReturnUpdated, event); err != nil {
 				return err
 			}
 			if orderWasReturned {
-				statusEvent := rabbitmq.NewOrderStatusChangedEvent(
+				statusEvent := events.NewOrderStatusChangedEvent(
 					uuid.NewString(),
 					returnedOrder.OrderUuid.String(),
 					returnedOrder.OrderNumber,
@@ -150,7 +150,7 @@ func (s *orderReturnService) AdminUpdateReturnStatus(ctx context.Context, userUU
 					"",
 					returnedOrder.OrderPaymentStatus,
 				)
-				if _, err := s.outboxStore.Insert(txCtx, tx, "order", returnedOrder.OrderUuid.String(), rabbitmq.QueueOrderStatusChanged, statusEvent); err != nil {
+				if _, err := s.outboxStore.Insert(txCtx, tx, "order", returnedOrder.OrderUuid.String(), events.QueueOrderStatusChanged, statusEvent); err != nil {
 					return err
 				}
 			}
@@ -164,27 +164,27 @@ func (s *orderReturnService) AdminUpdateReturnStatus(ctx context.Context, userUU
 					return utils.NewError(utils.ErrCodeBadRequest, "Cannot complete return without order items to restock")
 				}
 
-				restockItems := make([]rabbitmq.ReturnRestockItem, len(orderItems))
+				restockItems := make([]events.ReturnRestockItem, len(orderItems))
 				for i, it := range orderItems {
 					productUUID := ""
 					if it.OrderItemProductUuid != uuid.Nil {
 						productUUID = it.OrderItemProductUuid.String()
 					}
-					restockItems[i] = rabbitmq.ReturnRestockItem{
+					restockItems[i] = events.ReturnRestockItem{
 						ProductID:   it.OrderItemProductID,
 						ProductUUID: productUUID,
 						Quantity:    it.OrderItemQuantity,
 						Restock:     true,
 					}
 				}
-				completedEvt := rabbitmq.NewOrderReturnCompletedEvent(
+				completedEvt := events.NewOrderReturnCompletedEvent(
 					uuid.NewString(),
 					updatedReturn.ReturnUuid.String(),
 					order.OrderUuid.String(),
 					order.OrderNumber,
 					restockItems,
 				)
-				if _, err := s.outboxStore.Insert(txCtx, tx, "order", order.OrderUuid.String(), rabbitmq.QueueOrderReturnCompleted, completedEvt); err != nil {
+				if _, err := s.outboxStore.Insert(txCtx, tx, "order", order.OrderUuid.String(), events.QueueOrderReturnCompleted, completedEvt); err != nil {
 					return err
 				}
 			}
@@ -380,7 +380,7 @@ func (s *orderReturnService) AdminProcessReturnRefund(ctx context.Context, userU
 		}
 
 		if s.outboxStore != nil {
-			event := rabbitmq.NewOrderReturnUpdatedEvent(
+			event := events.NewOrderReturnUpdatedEvent(
 				uuid.NewString(),
 				returnRequest.ReturnUuid.String(),
 				resolved.OrderUUID.String(),
@@ -391,12 +391,12 @@ func (s *orderReturnService) AdminProcessReturnRefund(ctx context.Context, userU
 				OrderReturnStatusCompleted,
 				fmt.Sprintf("Refund of %.0f VND processed", refundAmt),
 			)
-			event.ChangeType = rabbitmq.ReturnChangeTypeRefunded
-			if _, err := s.outboxStore.Insert(txCtx, tx, "order", resolved.OrderUUID.String(), rabbitmq.QueueOrderReturnUpdated, event); err != nil {
+			event.ChangeType = events.ReturnChangeTypeRefunded
+			if _, err := s.outboxStore.Insert(txCtx, tx, "order", resolved.OrderUUID.String(), events.QueueOrderReturnUpdated, event); err != nil {
 				return err
 			}
 			if totalRefunded >= orderTotalAmount && !orderWasReturned {
-				statusEvent := rabbitmq.NewOrderStatusChangedEvent(
+				statusEvent := events.NewOrderStatusChangedEvent(
 					uuid.NewString(),
 					returnedOrder.OrderUuid.String(),
 					returnedOrder.OrderNumber,
@@ -408,7 +408,7 @@ func (s *orderReturnService) AdminProcessReturnRefund(ctx context.Context, userU
 					"",
 					returnedOrder.OrderPaymentStatus,
 				)
-				if _, err := s.outboxStore.Insert(txCtx, tx, "order", returnedOrder.OrderUuid.String(), rabbitmq.QueueOrderStatusChanged, statusEvent); err != nil {
+				if _, err := s.outboxStore.Insert(txCtx, tx, "order", returnedOrder.OrderUuid.String(), events.QueueOrderStatusChanged, statusEvent); err != nil {
 					return err
 				}
 			}

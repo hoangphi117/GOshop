@@ -10,11 +10,18 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
+
+	"goshop/contracts/events"
 	"goshop/internal/config"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
 	"goshop/pkg/db"
 	"goshop/pkg/logger"
+	"goshop/pkg/messaging"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/utils"
 	"goshop/pkg/validation"
@@ -29,12 +36,6 @@ import (
 	identitycontract "goshop/services/identity/contract"
 	inventorycontract "goshop/services/inventory/contract"
 	ordercontract "goshop/services/order/contract"
-
-	"github.com/gin-gonic/gin"
-	"github.com/golang-migrate/migrate/v4"
-	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	"github.com/golang-migrate/migrate/v4/source/iofs"
-	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 // analyticsQueue is the topic queue this service owns. It replaced the
@@ -141,26 +142,26 @@ func New(cfg *config.Config) (*App, error) {
 	if rabbitMQ != nil {
 		consumer := analyticsworker.NewOrderProjectionConsumer(db.DBPool, orderClient, logger.Log)
 		dedup := withIdempotency(cacheRedisService, logger.Log)
-		handler := dedup(analyticsQueue, func(headers amqp.Table, body []byte) error {
-			rk, _ := headers["x-routing-key"].(string)
+		handler := dedup(analyticsQueue, func(headers messaging.Header, body []byte) error {
+			rk := headers.Get("x-routing-key")
 			switch rk {
-			case rabbitmq.RoutingKeyOrderCancelled:
+			case events.RoutingKeyOrderCancelled:
 				return consumer.HandleOrderCancelled(headers, body)
-			case rabbitmq.RoutingKeyOrderStatusChanged, rabbitmq.RoutingKeyOrderShipped, rabbitmq.RoutingKeyOrderDelivered:
+			case events.RoutingKeyOrderStatusChanged, events.RoutingKeyOrderShipped, events.RoutingKeyOrderDelivered:
 				return consumer.HandleOrderStatusChanged(headers, body)
-			case rabbitmq.RoutingKeyPaymentSucceeded:
+			case events.RoutingKeyPaymentSucceeded:
 				return consumer.HandlePaymentSucceeded(headers, body)
 			default:
 				return consumer.HandleOrderCreated(headers, body)
 			}
 		})
 		routingKeys := []string{
-			rabbitmq.RoutingKeyOrderCreated,
-			rabbitmq.RoutingKeyOrderCancelled,
-			rabbitmq.RoutingKeyOrderStatusChanged,
-			rabbitmq.RoutingKeyOrderShipped,
-			rabbitmq.RoutingKeyOrderDelivered,
-			rabbitmq.RoutingKeyPaymentSucceeded,
+			events.RoutingKeyOrderCreated,
+			events.RoutingKeyOrderCancelled,
+			events.RoutingKeyOrderStatusChanged,
+			events.RoutingKeyOrderShipped,
+			events.RoutingKeyOrderDelivered,
+			events.RoutingKeyPaymentSucceeded,
 		}
 		if err := rabbitMQ.SubscribeTopic(context.Background(), analyticsQueue, routingKeys, handler); err != nil {
 			logger.Log.Error().Err(err).Msg("Failed to subscribe analytics order events topic")

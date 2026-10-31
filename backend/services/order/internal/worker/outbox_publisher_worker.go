@@ -4,16 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"goshop/pkg/rabbitmq"
-	"goshop/services/order/internal/repository"
 	"time"
 
 	"github.com/rs/zerolog"
+
+	"goshop/pkg/messaging"
+	"goshop/services/order/internal/repository"
 )
 
 type OutboxPublisherWorker struct {
 	outboxRepo     repository.OutboxRepository
-	rabbitMQ       rabbitmq.RabbitMQService
+	rabbitMQ       messaging.Broker
 	interval       time.Duration
 	batchSize      int32
 	aggregateTypes []string
@@ -22,7 +23,7 @@ type OutboxPublisherWorker struct {
 
 func NewOutboxPublisherWorker(
 	outboxRepo repository.OutboxRepository,
-	rabbitMQ rabbitmq.RabbitMQService,
+	rabbitMQ messaging.Broker,
 	interval time.Duration,
 	batchSize int32,
 	logger *zerolog.Logger,
@@ -32,7 +33,7 @@ func NewOutboxPublisherWorker(
 
 func NewOutboxPublisherWorkerWithAggregates(
 	outboxRepo repository.OutboxRepository,
-	rabbitMQ rabbitmq.RabbitMQService,
+	rabbitMQ messaging.Broker,
 	interval time.Duration,
 	batchSize int32,
 	logger *zerolog.Logger,

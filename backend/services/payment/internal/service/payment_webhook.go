@@ -7,18 +7,18 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"go.opentelemetry.io/otel/attribute"
+
+	"goshop/contracts/events"
 	"goshop/pkg/db"
 	"goshop/pkg/logger"
-	"goshop/pkg/rabbitmq"
 	"goshop/pkg/telemetry"
 	paymentsqlc "goshop/services/payment/internal/db/sqlc"
 	"goshop/services/payment/internal/dto"
 	"goshop/services/payment/internal/provider"
 	"goshop/services/payment/money"
-
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // WebhookOutcome reports what a webhook achieved so the HTTP handler can answer
@@ -234,10 +234,10 @@ func (s *paymentService) finalizeSettlement(
 			return WebhookAmountMismatch, "", nil, fmt.Errorf("%w: %s does not cover %s", ErrWebhookAmountMismatch, req.amount, expected)
 		}
 		targetStatus = PaymentStatusPaid
-		routingKey = rabbitmq.RoutingKeyPaymentSucceeded
+		routingKey = events.RoutingKeyPaymentSucceeded
 	} else {
 		targetStatus = PaymentStatusFailed
-		routingKey = rabbitmq.RoutingKeyPaymentFailed
+		routingKey = events.RoutingKeyPaymentFailed
 	}
 
 	metadataBytes := []byte("{}")

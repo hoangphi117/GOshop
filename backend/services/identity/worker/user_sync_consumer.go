@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"goshop/pkg/logger"
-	"goshop/pkg/rabbitmq"
 
-	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/redis/go-redis/v9"
+
+	"goshop/contracts/events"
+	"goshop/pkg/logger"
+	"goshop/pkg/messaging"
 )
 
 // UserSyncConsumer handles user lifecycle events from the Identity Service:
@@ -26,8 +27,8 @@ func NewUserSyncConsumer(redisClient *redis.Client) *UserSyncConsumer {
 }
 
 // Handle processes incoming user sync events by invalidating the cached user profile.
-func (c *UserSyncConsumer) Handle(headers amqp.Table, body []byte) error {
-	var event rabbitmq.UserSyncEvent
+func (c *UserSyncConsumer) Handle(headers messaging.Header, body []byte) error {
+	var event events.UserSyncEvent
 	if err := json.Unmarshal(body, &event); err != nil {
 		logger.Log.Error().Err(err).Msg("Failed to unmarshal user sync event")
 		return err

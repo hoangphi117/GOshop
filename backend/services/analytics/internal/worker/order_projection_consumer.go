@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"time"
 
-	"goshop/pkg/rabbitmq"
-	"goshop/services/analytics/internal/service"
-
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
+
+	"goshop/contracts/events"
+	"goshop/pkg/messaging"
+	"goshop/services/analytics/internal/service"
 )
 
 // OrderProjectionConsumer consumes order lifecycle events from RabbitMQ and
@@ -34,8 +34,8 @@ func NewOrderProjectionConsumer(dbPool *pgxpool.Pool, orderReader service.OrderR
 }
 
 // HandleOrderCreated processes order.created event to upsert projection order and item rows.
-func (c *OrderProjectionConsumer) HandleOrderCreated(headers amqp.Table, body []byte) error {
-	var event rabbitmq.OrderCreatedEvent
+func (c *OrderProjectionConsumer) HandleOrderCreated(headers messaging.Header, body []byte) error {
+	var event events.OrderCreatedEvent
 	if err := json.Unmarshal(body, &event); err != nil {
 		if c.logger != nil {
 			c.logger.Error().Err(err).Msg("failed to unmarshal OrderCreatedEvent for projection")
@@ -155,7 +155,7 @@ func (c *OrderProjectionConsumer) HandleOrderCreated(headers amqp.Table, body []
 			if idx < len(event.PurchasedItemUUIDs) {
 				productUUID = event.PurchasedItemUUIDs[idx]
 			}
-			items = append(items, rabbitmq.OrderCreatedItem{
+			items = append(items, events.OrderCreatedItem{
 				ProductID:   productID,
 				ProductUUID: productUUID,
 				ProductName: "Product",
@@ -201,8 +201,8 @@ func (c *OrderProjectionConsumer) HandleOrderCreated(headers amqp.Table, body []
 }
 
 // HandleOrderStatusChanged updates order status, shipping code, and delivered_at in projection.
-func (c *OrderProjectionConsumer) HandleOrderStatusChanged(headers amqp.Table, body []byte) error {
-	var event rabbitmq.OrderStatusChangedEvent
+func (c *OrderProjectionConsumer) HandleOrderStatusChanged(headers messaging.Header, body []byte) error {
+	var event events.OrderStatusChangedEvent
 	if err := json.Unmarshal(body, &event); err != nil {
 		return err
 	}
@@ -234,8 +234,8 @@ func (c *OrderProjectionConsumer) HandleOrderStatusChanged(headers amqp.Table, b
 }
 
 // HandleOrderCancelled updates status to cancelled (5) and records cancellation time.
-func (c *OrderProjectionConsumer) HandleOrderCancelled(headers amqp.Table, body []byte) error {
-	var event rabbitmq.OrderCancelledEvent
+func (c *OrderProjectionConsumer) HandleOrderCancelled(headers messaging.Header, body []byte) error {
+	var event events.OrderCancelledEvent
 	if err := json.Unmarshal(body, &event); err != nil {
 		return err
 	}
@@ -265,8 +265,8 @@ func (c *OrderProjectionConsumer) HandleOrderCancelled(headers amqp.Table, body 
 }
 
 // HandlePaymentSucceeded updates payment status to paid (2) in projection.
-func (c *OrderProjectionConsumer) HandlePaymentSucceeded(headers amqp.Table, body []byte) error {
-	var event rabbitmq.PaymentSucceededEvent
+func (c *OrderProjectionConsumer) HandlePaymentSucceeded(headers messaging.Header, body []byte) error {
+	var event events.PaymentSucceededEvent
 	if err := json.Unmarshal(body, &event); err != nil {
 		return err
 	}

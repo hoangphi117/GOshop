@@ -3,31 +3,33 @@ package service
 import (
 	"context"
 	"crypto/rand"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"goshop/pkg/auth"
-	"goshop/pkg/cache"
-	"goshop/pkg/logger"
-	"goshop/pkg/mail"
-	"goshop/pkg/rabbitmq"
-	"goshop/pkg/utils"
-	"goshop/pkg/ws"
-	"goshop/services/identity/internal/db/sqlc"
-	dto "goshop/services/identity/internal/dto"
-	"goshop/services/identity/internal/repository"
 	"math/big"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	"database/sql"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
+
+	"goshop/contracts/events"
+	"goshop/pkg/auth"
+	"goshop/pkg/cache"
+	"goshop/pkg/logger"
+	"goshop/pkg/mail"
+	"goshop/pkg/messaging"
+	"goshop/pkg/utils"
+	"goshop/pkg/ws"
+	"goshop/services/identity/internal/db/sqlc"
+	dto "goshop/services/identity/internal/dto"
+	"goshop/services/identity/internal/repository"
 )
 
 const (
@@ -72,7 +74,7 @@ type authService struct {
 	tokenService  auth.TokenService
 	cacheService  cache.RedisCacheService
 	mailService   mail.EmailProviderService
-	rabbitmq      rabbitmq.RabbitMQService
+	rabbitmq      messaging.Broker
 	wsHub         ws.Hub
 	redisBridge   ws.RedisBridge
 	storefrontURL string
@@ -83,7 +85,7 @@ func NewAuthService(
 	tokenService auth.TokenService,
 	cacheService cache.RedisCacheService,
 	mailService mail.EmailProviderService,
-	rabbitmqService rabbitmq.RabbitMQService,
+	rabbitmqService messaging.Broker,
 	wsHub ws.Hub,
 	redisBridge ws.RedisBridge,
 	storefrontURL string,
@@ -372,8 +374,8 @@ func (as *authService) Register(ctx context.Context, input dto.RegisterInput) er
 	}
 
 	if as.rabbitmq != nil {
-		syncEvent := rabbitmq.NewUserSyncEvent(
-			rabbitmq.QueueUserCreated,
+		syncEvent := events.NewUserSyncEvent(
+			events.QueueUserCreated,
 			createdUser.UserID,
 			createdUser.UserUuid.String(),
 			createdUser.UserFullname,
@@ -383,7 +385,7 @@ func (as *authService) Register(ctx context.Context, input dto.RegisterInput) er
 			createdUser.UserStatus,
 			createdUser.UserLevel,
 		)
-		if err := as.rabbitmq.Publish(ctx, rabbitmq.QueueUserCreated, syncEvent); err != nil {
+		if err := as.rabbitmq.Publish(ctx, events.QueueUserCreated, syncEvent); err != nil {
 			logger.Log.Error().Err(err).Int32("user_id", createdUser.UserID).Msg("Failed to publish user.created event")
 		}
 	}
@@ -513,8 +515,8 @@ func (as *authService) VerifyRegisterOTP(ctx context.Context, input dto.VerifyRe
 	}
 
 	if as.rabbitmq != nil {
-		syncEvent := rabbitmq.NewUserSyncEvent(
-			rabbitmq.QueueUserCreated,
+		syncEvent := events.NewUserSyncEvent(
+			events.QueueUserCreated,
 			createdUser.UserID,
 			createdUser.UserUuid.String(),
 			createdUser.UserFullname,
@@ -524,7 +526,7 @@ func (as *authService) VerifyRegisterOTP(ctx context.Context, input dto.VerifyRe
 			createdUser.UserStatus,
 			createdUser.UserLevel,
 		)
-		if err := as.rabbitmq.Publish(ctx, rabbitmq.QueueUserCreated, syncEvent); err != nil {
+		if err := as.rabbitmq.Publish(ctx, events.QueueUserCreated, syncEvent); err != nil {
 			logger.Log.Error().Err(err).Int32("user_id", createdUser.UserID).Msg("Failed to publish user.created event")
 		}
 	}
@@ -705,8 +707,8 @@ func (as *authService) findOrCreateGoogleUser(ctx context.Context, payload *dto.
 	}
 
 	if as.rabbitmq != nil {
-		syncEvent := rabbitmq.NewUserSyncEvent(
-			rabbitmq.QueueUserCreated,
+		syncEvent := events.NewUserSyncEvent(
+			events.QueueUserCreated,
 			newUser.UserID,
 			newUser.UserUuid.String(),
 			newUser.UserFullname,
@@ -716,7 +718,7 @@ func (as *authService) findOrCreateGoogleUser(ctx context.Context, payload *dto.
 			newUser.UserStatus,
 			newUser.UserLevel,
 		)
-		if err := as.rabbitmq.Publish(ctx, rabbitmq.QueueUserCreated, syncEvent); err != nil {
+		if err := as.rabbitmq.Publish(ctx, events.QueueUserCreated, syncEvent); err != nil {
 			logger.Log.Error().Err(err).Int32("user_id", newUser.UserID).Msg("Failed to publish user.created event for oauth user")
 		}
 	}

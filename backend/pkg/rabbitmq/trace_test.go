@@ -4,12 +4,11 @@ import (
 	"context"
 	"testing"
 
+	amqp "github.com/rabbitmq/amqp091-go"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
-
-	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 func TestTraceContextRoundTripsThroughAMQPHeaders(t *testing.T) {

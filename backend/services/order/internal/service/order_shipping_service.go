@@ -8,20 +8,20 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/redis/go-redis/v9"
+
+	"goshop/contracts/events"
 	"goshop/pkg/cache"
 	"goshop/pkg/db"
 	"goshop/pkg/logger"
-	"goshop/pkg/rabbitmq"
+	"goshop/pkg/messaging"
 	"goshop/pkg/shipping"
 	"goshop/pkg/utils"
 	"goshop/services/order/internal/db/sqlc"
 	v1dto "goshop/services/order/internal/dto"
-
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
-	amqp "github.com/rabbitmq/amqp091-go"
-	"github.com/redis/go-redis/v9"
 )
 
 type orderShippingService struct {
@@ -33,7 +33,7 @@ type orderShippingService struct {
 	webhookRepo     ShippingWebhookPort
 	userRepo        OrderCustomerReader
 	cache           cache.RedisCacheService
-	rabbitmq        rabbitmq.RabbitMQService
+	rabbitmq        messaging.Broker
 	locationService LocationService
 }
 
@@ -48,7 +48,7 @@ type OrderShippingServiceDeps struct {
 	UserRepo        OrderCustomerReader
 	RedisClient     *redis.Client
 	CacheService    cache.RedisCacheService
-	RabbitMQ        rabbitmq.RabbitMQService
+	RabbitMQ        messaging.Broker
 }
 
 func NewOrderShippingService(deps OrderShippingServiceDeps) OrderShippingService {
@@ -147,7 +147,7 @@ func (s *orderShippingService) CreateShipping(ctx context.Context, orderUUID uui
 }
 
 // ProcessShippingOrderMessage adapts raw AMQP messages for backward compatibility.
-func (s *orderShippingService) ProcessShippingOrderMessage(headers amqp.Table, body []byte) error {
+func (s *orderShippingService) ProcessShippingOrderMessage(headers messaging.Header, body []byte) error {
 	var msg v1dto.CreateShippingQueueMessage
 	if err := json.Unmarshal(body, &msg); err != nil {
 		logger.Log.Error().Err(err).Msg("Failed to unmarshal shipping creation message")
@@ -281,7 +281,7 @@ func (s *orderShippingService) ProcessShippingOrder(ctx context.Context, msg v1d
 	logger.Log.Info().Str("order_uuid", msg.OrderUUID).Str("shipping_code", ghnResp.ShippingCode).Msg("Shipping order created successfully via RabbitMQ")
 
 	if s.rabbitmq != nil {
-		evt := rabbitmq.NewOrderStatusChangedEvent(
+		evt := events.NewOrderStatusChangedEvent(
 			uuid.New().String(),
 			orderUUID.String(),
 			order.OrderNumber,
@@ -292,8 +292,8 @@ func (s *orderShippingService) ProcessShippingOrder(ctx context.Context, msg v1d
 			OrderStatusShipped,
 			ghnResp.ShippingCode,
 		)
-		_ = s.rabbitmq.Publish(ctx, rabbitmq.QueueOrderStatusChanged, evt)
-		_ = s.rabbitmq.PublishTopic(ctx, rabbitmq.RoutingKeyOrderStatusChanged, evt)
+		_ = s.rabbitmq.Publish(ctx, events.QueueOrderStatusChanged, evt)
+		_ = s.rabbitmq.PublishTopic(ctx, events.RoutingKeyOrderStatusChanged, evt)
 	}
 
 	return nil
@@ -465,7 +465,7 @@ func (s *orderShippingService) ConfirmOrderDelivery(ctx context.Context, userUUI
 	}
 
 	if s.rabbitmq != nil {
-		evt := rabbitmq.NewOrderStatusChangedEvent(
+		evt := events.NewOrderStatusChangedEvent(
 			uuid.New().String(),
 			updatedOrder.OrderUuid.String(),
 			updatedOrder.OrderNumber,
@@ -477,10 +477,10 @@ func (s *orderShippingService) ConfirmOrderDelivery(ctx context.Context, userUUI
 			"",
 			updatedOrder.OrderPaymentStatus,
 		)
-		if err := s.rabbitmq.Publish(ctx, rabbitmq.QueueOrderStatusChanged, evt); err != nil {
+		if err := s.rabbitmq.Publish(ctx, events.QueueOrderStatusChanged, evt); err != nil {
 			return v1dto.ConfirmDeliveryResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to publish delivery status event", err)
 		}
-		if err := s.rabbitmq.PublishTopic(ctx, rabbitmq.RoutingKeyOrderStatusChanged, evt); err != nil {
+		if err := s.rabbitmq.PublishTopic(ctx, events.RoutingKeyOrderStatusChanged, evt); err != nil {
 			return v1dto.ConfirmDeliveryResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to publish delivery status topic", err)
 		}
 	}

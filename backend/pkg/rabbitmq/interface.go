@@ -3,7 +3,7 @@ package rabbitmq
 import (
 	"context"
 
-	amqp "github.com/rabbitmq/amqp091-go"
+	"goshop/pkg/messaging"
 )
 
 const (
@@ -11,16 +11,20 @@ const (
 	DefaultTopicExchange = "goshop.events"
 )
 
+// RabbitMQService is the transport contract of this adapter. Services depend on
+// messaging.Broker instead; this interface only exists so the concrete type
+// keeps a local compile-time contract. Handlers are broker-neutral:
+// amqp types must never leak to callers.
 type RabbitMQService interface {
 	// Point-to-Point (Work Queue)
 	Publish(ctx context.Context, queue string, message any) error
-	Consume(ctx context.Context, queue string, handler func(amqp.Table, []byte) error) error
+	Consume(ctx context.Context, queue string, handler messaging.Handler) error
 
 	// Pub/Sub (Topic Exchange)
 	PublishTopic(ctx context.Context, routingKey string, message any) error
 	PublishToExchange(ctx context.Context, exchange, routingKey string, message any) error
-	SubscribeTopic(ctx context.Context, queueName string, routingKeys []string, handler func(amqp.Table, []byte) error) error
-	SubscribeToExchange(ctx context.Context, exchange, queueName string, routingKeys []string, handler func(amqp.Table, []byte) error) error
+	SubscribeTopic(ctx context.Context, queueName string, routingKeys []string, handler messaging.Handler) error
+	SubscribeToExchange(ctx context.Context, exchange, queueName string, routingKeys []string, handler messaging.Handler) error
 
 	Close() error
 	IsHealthy() bool

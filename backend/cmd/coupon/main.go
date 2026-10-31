@@ -4,13 +4,13 @@ import (
 	"context"
 	"path/filepath"
 
+	"github.com/joho/godotenv"
+
 	"goshop/internal/config"
 	"goshop/pkg/logger"
 	"goshop/pkg/telemetry"
 	"goshop/pkg/utils"
 	couponapp "goshop/services/coupon/app"
-
-	"github.com/joho/godotenv"
 )
 
 // @title           GOshop Coupon Service API

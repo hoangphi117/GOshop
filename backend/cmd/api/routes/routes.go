@@ -1,11 +1,6 @@
 package routes
 
 import (
-	_ "goshop/docs"
-	"goshop/pkg/auth"
-	"goshop/pkg/cache"
-	"goshop/pkg/middleware"
-	"goshop/pkg/utils"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -15,6 +10,12 @@ import (
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
+
+	_ "goshop/docs"
+	"goshop/pkg/auth"
+	"goshop/pkg/cache"
+	"goshop/pkg/middleware"
+	"goshop/pkg/utils"
 )
 
 type Route interface {

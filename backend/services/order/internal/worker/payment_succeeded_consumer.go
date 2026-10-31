@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"strings"
 
-	"goshop/pkg/rabbitmq"
+	"github.com/google/uuid"
+	"github.com/rs/zerolog"
+
+	"goshop/contracts/events"
+	"goshop/pkg/messaging"
 	v1dto "goshop/services/order/internal/dto"
 	orderservice "goshop/services/order/internal/service"
-
-	"github.com/google/uuid"
-	amqp "github.com/rabbitmq/amqp091-go"
-	"github.com/rs/zerolog"
 )
 
 // PaymentSucceededConsumer consumes payment.succeeded events and triggers order payment status updates in the Order domain.
@@ -30,8 +30,8 @@ func NewPaymentSucceededConsumer(orderService orderservice.OrderService, logger 
 }
 
 // Handle processes a payment.succeeded event idempotently.
-func (c *PaymentSucceededConsumer) Handle(headers amqp.Table, body []byte) error {
-	var event rabbitmq.PaymentSucceededEvent
+func (c *PaymentSucceededConsumer) Handle(headers messaging.Header, body []byte) error {
+	var event events.PaymentSucceededEvent
 	if err := json.Unmarshal(body, &event); err != nil {
 		var rawStr string
 		if unquoteErr := json.Unmarshal(body, &rawStr); unquoteErr == nil {

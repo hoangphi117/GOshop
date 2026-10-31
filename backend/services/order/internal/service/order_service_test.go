@@ -6,20 +6,21 @@ import (
 	"testing"
 	"time"
 
-	"goshop/internal/testutils"
-	"goshop/pkg/db"
-	"goshop/pkg/rabbitmq"
-	"goshop/pkg/utils"
-	"goshop/services/order/internal/db/sqlc"
-	v1dto "goshop/services/order/internal/dto"
-	"goshop/services/order/internal/repository"
-	orderservice "goshop/services/order/internal/service"
-
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"goshop/contracts/events"
+	"goshop/internal/testutils"
+	"goshop/pkg/db"
+	"goshop/pkg/messaging"
+	"goshop/pkg/utils"
+	"goshop/services/order/internal/db/sqlc"
+	v1dto "goshop/services/order/internal/dto"
+	"goshop/services/order/internal/repository"
+	orderservice "goshop/services/order/internal/service"
 )
 
 type testOrderServiceDeps struct {
@@ -33,7 +34,7 @@ type testOrderServiceDeps struct {
 	couponPort     orderservice.OrderCouponPort
 	trackingRepo   repository.TrackingRepository
 	redisClient    *redis.Client
-	rabbitMQ       rabbitmq.RabbitMQService
+	rabbitMQ       messaging.Broker
 	outboxRepo     repository.OutboxRepository
 }
 
@@ -593,10 +594,10 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			},
 		}
 
-		var outboxEvent rabbitmq.OrderCreatedEvent
+		var outboxEvent events.OrderCreatedEvent
 		mockOutbox := &MockOutboxRepository{
 			InsertFunc: func(ctx context.Context, tx pgx.Tx, aggType, aggID, eventType string, payload any) (sqlc.OutboxEvent, error) {
-				if ev, ok := payload.(rabbitmq.OrderCreatedEvent); ok {
+				if ev, ok := payload.(events.OrderCreatedEvent); ok {
 					outboxEvent = ev
 				}
 				return sqlc.OutboxEvent{EventID: 1}, nil
@@ -646,12 +647,12 @@ func TestOrderService_CreateOrder(t *testing.T) {
 
 	t.Run("Event-driven: Success WITH Outbox - Publishes OrderCreatedEvent via Outbox", func(t *testing.T) {
 		var outboxQueue string
-		var outboxEvt rabbitmq.OrderCreatedEvent
+		var outboxEvt events.OrderCreatedEvent
 
 		mockOutbox := &MockOutboxRepository{
 			InsertFunc: func(ctx context.Context, tx pgx.Tx, aggType, aggID, eventType string, payload any) (sqlc.OutboxEvent, error) {
 				outboxQueue = eventType
-				if ev, ok := payload.(rabbitmq.OrderCreatedEvent); ok {
+				if ev, ok := payload.(events.OrderCreatedEvent); ok {
 					outboxEvt = ev
 				}
 				return sqlc.OutboxEvent{EventID: 100}, nil
@@ -719,7 +720,7 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.NotEmpty(t, orderDTO.UUID)
-		assert.Equal(t, rabbitmq.QueueOrderCreated, outboxQueue)
+		assert.Equal(t, events.QueueOrderCreated, outboxQueue)
 		assert.Equal(t, int32(601), outboxEvt.OrderID)
 		assert.Equal(t, baseUser.UserID, outboxEvt.UserID)
 		assert.Equal(t, []int32{101, 102}, outboxEvt.PurchasedItems)
@@ -812,7 +813,7 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		assert.NotEmpty(t, orderDTO.UUID)
 		assert.Equal(t, 1, outboxInsertCalls, "OrderCreated event must be enqueued to Outbox")
 		assert.Equal(t, "order", insertedAggregateType)
-		assert.Equal(t, rabbitmq.QueueOrderCreated, insertedEventType)
+		assert.Equal(t, events.QueueOrderCreated, insertedEventType)
 		assert.Equal(t, 0, publishedCount, "Direct RabbitMQ publish MUST be skipped to avoid duplicate notifications")
 	})
 
@@ -1342,10 +1343,10 @@ func TestOrderService_CancelOrder(t *testing.T) {
 			},
 		}
 
-		var outboxCancelledEvt rabbitmq.OrderCancelledEvent
+		var outboxCancelledEvt events.OrderCancelledEvent
 		mockOutbox := &MockOutboxRepository{
 			InsertFunc: func(ctx context.Context, tx pgx.Tx, aggType, aggID, eventType string, payload any) (sqlc.OutboxEvent, error) {
-				if ev, ok := payload.(rabbitmq.OrderCancelledEvent); ok {
+				if ev, ok := payload.(events.OrderCancelledEvent); ok {
 					outboxCancelledEvt = ev
 				}
 				return sqlc.OutboxEvent{EventID: 1}, nil
@@ -1399,7 +1400,7 @@ func TestOrderService_CancelOrder(t *testing.T) {
 		confirmedOrder.OrderStatus = orderservice.OrderStatusConfirmed
 
 		var trackingEvent sqlc.InsertTrackingEventParams
-		var outboxCancelledEvt rabbitmq.OrderCancelledEvent
+		var outboxCancelledEvt events.OrderCancelledEvent
 
 		mockUserRepo := &MockUserRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.User, error) {
@@ -1432,7 +1433,7 @@ func TestOrderService_CancelOrder(t *testing.T) {
 		}
 		mockOutbox := &MockOutboxRepository{
 			InsertFunc: func(ctx context.Context, tx pgx.Tx, aggType, aggID, eventType string, payload any) (sqlc.OutboxEvent, error) {
-				if ev, ok := payload.(rabbitmq.OrderCancelledEvent); ok {
+				if ev, ok := payload.(events.OrderCancelledEvent); ok {
 					outboxCancelledEvt = ev
 				}
 				return sqlc.OutboxEvent{EventID: 1}, nil
@@ -2038,10 +2039,10 @@ func TestOrderService_UpdateOrderStatus(t *testing.T) {
 			},
 		}
 
-		var outboxStatusEvt rabbitmq.OrderStatusChangedEvent
+		var outboxStatusEvt events.OrderStatusChangedEvent
 		mockOutbox := &MockOutboxRepository{
 			InsertFunc: func(ctx context.Context, tx pgx.Tx, aggType, aggID, eventType string, payload any) (sqlc.OutboxEvent, error) {
-				if ev, ok := payload.(rabbitmq.OrderStatusChangedEvent); ok {
+				if ev, ok := payload.(events.OrderStatusChangedEvent); ok {
 					outboxStatusEvt = ev
 				}
 				return sqlc.OutboxEvent{EventID: 1}, nil

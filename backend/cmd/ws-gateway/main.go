@@ -10,6 +10,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
+
 	v1handler "goshop/cmd/api/handler"
 	"goshop/internal/config"
 	"goshop/pkg/auth"
@@ -21,9 +24,6 @@ import (
 	"goshop/pkg/ws"
 	chatcontract "goshop/services/chat/contract"
 	identitycontract "goshop/services/identity/contract"
-
-	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
 )
 
 func main() {

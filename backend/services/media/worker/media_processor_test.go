@@ -4,22 +4,22 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"image"
-	"image/color"
-	"image/jpeg"
-	"image/png"
 	"io"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"goshop/pkg/rabbitmq"
-
-	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"image"
+	"image/color"
+	"image/jpeg"
+	"image/png"
+
+	"goshop/contracts/events"
+	"goshop/pkg/messaging"
 )
 
 func nopLogger() *zerolog.Logger {
@@ -27,7 +27,7 @@ func nopLogger() *zerolog.Logger {
 	return &l
 }
 
-func mustEvent(t *testing.T, evt rabbitmq.MediaUploadedEvent) []byte {
+func mustEvent(t *testing.T, evt events.MediaUploadedEvent) []byte {
 	t.Helper()
 	data, err := json.Marshal(evt)
 	require.NoError(t, err)
@@ -116,7 +116,7 @@ func TestMediaProcessor_ResizesAndReencodesLargeJPEG(t *testing.T) {
 	store := &fakeStorage{objects: map[string][]byte{"products/big.jpg": original}}
 	processor := NewMediaProcessor(store, nopLogger())
 
-	err := processor.Handle(amqp.Table{}, mustEvent(t, rabbitmq.MediaUploadedEvent{
+	err := processor.Handle(messaging.Header{}, mustEvent(t, events.MediaUploadedEvent{
 		FileKey: "products/big.jpg",
 		Size:    int64(len(original)),
 	}))
@@ -138,7 +138,7 @@ func TestMediaProcessor_SkipsSmallJPEG(t *testing.T) {
 	before := len(original)
 	processor := NewMediaProcessor(store, nopLogger())
 
-	require.NoError(t, processor.Handle(amqp.Table{}, mustEvent(t, rabbitmq.MediaUploadedEvent{
+	require.NoError(t, processor.Handle(messaging.Header{}, mustEvent(t, events.MediaUploadedEvent{
 		FileKey: "chat/tiny.jpg",
 		Size:    int64(before),
 	})))
@@ -150,8 +150,8 @@ func TestMediaProcessor_SkipsVideoAndWebP(t *testing.T) {
 	store := &fakeStorage{objects: map[string][]byte{}}
 	processor := NewMediaProcessor(store, nopLogger())
 
-	require.NoError(t, processor.Handle(amqp.Table{}, mustEvent(t, rabbitmq.MediaUploadedEvent{FileKey: "chat/clip.mp4"})))
-	require.NoError(t, processor.Handle(amqp.Table{}, mustEvent(t, rabbitmq.MediaUploadedEvent{FileKey: "chat/pic.webp"})))
+	require.NoError(t, processor.Handle(messaging.Header{}, mustEvent(t, events.MediaUploadedEvent{FileKey: "chat/clip.mp4"})))
+	require.NoError(t, processor.Handle(messaging.Header{}, mustEvent(t, events.MediaUploadedEvent{FileKey: "chat/pic.webp"})))
 	assert.Empty(t, store.objects)
 }
 
@@ -159,7 +159,7 @@ func TestMediaProcessor_SkipsCorruptImage(t *testing.T) {
 	store := &fakeStorage{objects: map[string][]byte{"reviews/broken.jpg": []byte("this is not an image")}}
 	processor := NewMediaProcessor(store, nopLogger())
 
-	require.NoError(t, processor.Handle(amqp.Table{}, mustEvent(t, rabbitmq.MediaUploadedEvent{FileKey: "reviews/broken.jpg"})))
+	require.NoError(t, processor.Handle(messaging.Header{}, mustEvent(t, events.MediaUploadedEvent{FileKey: "reviews/broken.jpg"})))
 	assert.Equal(t, "this is not an image", string(store.objects["reviews/broken.jpg"]), "corrupt file must be left alone")
 }
 
@@ -177,7 +177,7 @@ func TestMediaProcessor_PreservesTransparentPNG(t *testing.T) {
 	store := &fakeStorage{objects: map[string][]byte{"returns/shot.png": original}}
 	processor := NewMediaProcessor(store, nopLogger())
 
-	require.NoError(t, processor.Handle(amqp.Table{}, mustEvent(t, rabbitmq.MediaUploadedEvent{FileKey: "returns/shot.png", Size: int64(len(original))})))
+	require.NoError(t, processor.Handle(messaging.Header{}, mustEvent(t, events.MediaUploadedEvent{FileKey: "returns/shot.png", Size: int64(len(original))})))
 
 	processed := store.objects["returns/shot.png"]
 	require.NotNil(t, processed)

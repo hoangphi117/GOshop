@@ -4,17 +4,25 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"google.golang.org/grpc"
+	"net"
+
+	"goshop/contracts/events"
 	"goshop/internal/config"
 	"goshop/pkg/db"
 	"goshop/pkg/eventledger"
 	"goshop/pkg/logger"
+	"goshop/pkg/messaging"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/telemetry"
 	"goshop/pkg/utils"
@@ -28,13 +36,6 @@ import (
 	inventoryrepo "goshop/services/inventory/internal/repository"
 	inventoryroutes "goshop/services/inventory/internal/routes"
 	inventoryservice "goshop/services/inventory/internal/service"
-
-	"github.com/gin-gonic/gin"
-	"github.com/golang-migrate/migrate/v4"
-	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	"github.com/golang-migrate/migrate/v4/source/iofs"
-	amqp "github.com/rabbitmq/amqp091-go"
-	"google.golang.org/grpc"
 )
 
 type App struct {
@@ -51,7 +52,7 @@ type App struct {
 type topicSubscription struct {
 	queue      string
 	routingKey string
-	handler    func(amqp.Table, []byte) error
+	handler    messaging.Handler
 }
 
 func New(cfg *config.Config) (*App, error) {
@@ -135,14 +136,14 @@ func New(cfg *config.Config) (*App, error) {
 		rabbitMQ:         rabbitMQService,
 		topicSubscriptions: []topicSubscription{
 			{
-				queue:      rabbitmq.QueueInventoryOrderEvents,
-				routingKey: rabbitmq.RoutingKeyOrderCancelled,
+				queue:      events.QueueInventoryOrderEvents,
+				routingKey: events.RoutingKeyOrderCancelled,
 				handler: eventledger.Wrap(ledgerRepo, "inventory.order_cancelled",
 					inventoryconsumer.NewOrderCancelledConsumer(svc).Apply, ledgerLogger),
 			},
 			{
-				queue:      rabbitmq.QueueInventoryReturnEvents,
-				routingKey: rabbitmq.RoutingKeyOrderReturnCompleted,
+				queue:      events.QueueInventoryReturnEvents,
+				routingKey: events.RoutingKeyOrderReturnCompleted,
 				handler: eventledger.Wrap(ledgerRepo, "inventory.return_completed",
 					inventoryconsumer.NewReturnCompletedConsumer(svc).Apply, ledgerLogger),
 			},

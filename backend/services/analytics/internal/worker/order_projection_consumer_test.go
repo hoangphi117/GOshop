@@ -2,19 +2,20 @@ package worker
 
 import (
 	"encoding/json"
-	"goshop/pkg/rabbitmq"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
+
+	"goshop/contracts/events"
+	"goshop/pkg/messaging"
 )
 
 func TestOrderProjectionConsumer_HandleInvalidJSON(t *testing.T) {
 	consumer := NewOrderProjectionConsumer(nil, nil, nil)
 	badBody := []byte("{invalid-json}")
-	headers := amqp.Table{}
+	headers := messaging.Header{}
 
 	assert.Error(t, consumer.HandleOrderCreated(headers, badBody))
 	assert.Error(t, consumer.HandleOrderStatusChanged(headers, badBody))
@@ -24,10 +25,10 @@ func TestOrderProjectionConsumer_HandleInvalidJSON(t *testing.T) {
 
 func TestOrderProjectionConsumer_HandleNilDB(t *testing.T) {
 	consumer := NewOrderProjectionConsumer(nil, nil, nil)
-	headers := amqp.Table{}
+	headers := messaging.Header{}
 
 	// Order Created
-	createdEvt := rabbitmq.NewOrderCreatedEvent(
+	createdEvt := events.NewOrderCreatedEvent(
 		uuid.New().String(),
 		uuid.New().String(),
 		"ORD-TEST-001",
@@ -42,7 +43,7 @@ func TestOrderProjectionConsumer_HandleNilDB(t *testing.T) {
 	assert.NoError(t, consumer.HandleOrderCreated(headers, body))
 
 	// Order Status Changed
-	statusEvt := rabbitmq.NewOrderStatusChangedEvent(
+	statusEvt := events.NewOrderStatusChangedEvent(
 		uuid.New().String(),
 		uuid.New().String(),
 		"ORD-TEST-001",
@@ -58,7 +59,7 @@ func TestOrderProjectionConsumer_HandleNilDB(t *testing.T) {
 	assert.NoError(t, consumer.HandleOrderStatusChanged(headers, body))
 
 	// Order Cancelled
-	cancelEvt := rabbitmq.NewOrderCancelledEvent(
+	cancelEvt := events.NewOrderCancelledEvent(
 		uuid.New().String(),
 		uuid.New().String(),
 		"ORD-TEST-001",
@@ -72,7 +73,7 @@ func TestOrderProjectionConsumer_HandleNilDB(t *testing.T) {
 	assert.NoError(t, consumer.HandleOrderCancelled(headers, body))
 
 	// Payment Succeeded
-	payEvt := rabbitmq.NewPaymentSucceededEvent(
+	payEvt := events.NewPaymentSucceededEvent(
 		uuid.New().String(),
 		uuid.New().String(),
 		uuid.New().String(),
@@ -97,10 +98,10 @@ func TestOrderProjectionConsumer_StructConstruction(t *testing.T) {
 
 func TestOrderProjectionConsumer_TimestampFallback(t *testing.T) {
 	consumer := NewOrderProjectionConsumer(nil, nil, nil)
-	headers := amqp.Table{}
+	headers := messaging.Header{}
 
 	// Event with zero timestamp should fall back to time.Now()
-	createdEvt := rabbitmq.OrderCreatedEvent{
+	createdEvt := events.OrderCreatedEvent{
 		EventID:     uuid.New().String(),
 		OrderID:     1002,
 		OrderUUID:   uuid.New().String(),

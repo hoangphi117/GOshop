@@ -5,19 +5,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
+	"strings"
+
+	"github.com/rs/zerolog"
 	"image"
 	"image/color"
 	"image/jpeg"
 	"image/png"
-	"path/filepath"
-	"strings"
 
+	"goshop/contracts/events"
 	"goshop/pkg/logger"
-	"goshop/pkg/rabbitmq"
+	"goshop/pkg/messaging"
 	"goshop/pkg/storage"
-
-	amqp "github.com/rabbitmq/amqp091-go"
-	"github.com/rs/zerolog"
 )
 
 // jpegQuality trades ~30-50% size for imperceptible quality loss on photos.
@@ -37,8 +37,8 @@ func NewMediaProcessor(storageService storage.StorageService, log *zerolog.Logge
 // Handle decodes a JPEG/PNG object, downscales it to fit 1920px on the long
 // edge and re-encodes. Transparent PNGs stay PNG; anything else becomes JPEG.
 // Videos and WebP are out of scope for this processor.
-func (p *MediaProcessor) Handle(headers amqp.Table, body []byte) error {
-	var evt rabbitmq.MediaUploadedEvent
+func (p *MediaProcessor) Handle(headers messaging.Header, body []byte) error {
+	var evt events.MediaUploadedEvent
 	if err := json.Unmarshal(body, &evt); err != nil {
 		return fmt.Errorf("unmarshal media event: %w", err)
 	}
@@ -49,7 +49,7 @@ func (p *MediaProcessor) Handle(headers amqp.Table, body []byte) error {
 	}
 
 	ctx := context.Background()
-	if traceID, ok := headers["trace_id"].(string); ok {
+	if traceID, ok := headers["trace_id"]; ok {
 		ctx = logger.WithTraceID(ctx, traceID)
 	}
 

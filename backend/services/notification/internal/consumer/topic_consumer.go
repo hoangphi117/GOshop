@@ -2,28 +2,28 @@ package consumer
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"goshop/pkg/discord"
-	"goshop/pkg/mail"
-	"goshop/pkg/rabbitmq"
-	"goshop/services/notification/internal/dto"
-	"goshop/services/notification/internal/repository"
-	"goshop/services/notification/internal/service"
-
-	"crypto/sha256"
-	"encoding/hex"
 	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+
+	"goshop/contracts/events"
+	"goshop/pkg/discord"
+	"goshop/pkg/mail"
+	"goshop/pkg/messaging"
+	"goshop/services/notification/internal/dto"
+	"goshop/services/notification/internal/repository"
+	"goshop/services/notification/internal/service"
 )
 
 // consumerName identifies this consumer in the processed_events ledger.
@@ -86,11 +86,11 @@ func NewTopicConsumerWithLedger(
 // acknowledged without side effects. The ledger row is written only after all side
 // effects succeeded, so a failed side effect leaves the event retryable (the returned
 // error makes the broker redeliver it).
-func (c *TopicConsumer) HandleEvent(headers amqp.Table, body []byte) error {
-	routingKey, _ := headers["x-routing-key"].(string)
-	traceID, _ := headers["trace_id"].(string)
+func (c *TopicConsumer) HandleEvent(headers messaging.Header, body []byte) error {
+	routingKey := headers.Get("x-routing-key")
+	traceID := headers.Get("trace_id")
 	if traceID == "" {
-		traceID, _ = headers["x-message-id"].(string)
+		traceID = headers.Get("x-message-id")
 	}
 
 	eventID := extractEventID(body)
@@ -140,19 +140,19 @@ func (c *TopicConsumer) HandleEvent(headers amqp.Table, body []byte) error {
 
 func (c *TopicConsumer) dispatch(ctx context.Context, routingKey string, body []byte) error {
 	switch routingKey {
-	case rabbitmq.RoutingKeyOrderCreated:
+	case events.RoutingKeyOrderCreated:
 		return c.handleOrderCreated(ctx, body)
-	case rabbitmq.RoutingKeyOrderStatusChanged, rabbitmq.RoutingKeyOrderShipped, rabbitmq.RoutingKeyOrderDelivered:
+	case events.RoutingKeyOrderStatusChanged, events.RoutingKeyOrderShipped, events.RoutingKeyOrderDelivered:
 		return c.handleOrderStatusChanged(ctx, routingKey, body)
-	case rabbitmq.RoutingKeyPaymentSucceeded:
+	case events.RoutingKeyPaymentSucceeded:
 		return c.handlePaymentSucceeded(body)
-	case rabbitmq.RoutingKeyPaymentFailed:
+	case events.RoutingKeyPaymentFailed:
 		return c.handlePaymentFailed(body)
-	case rabbitmq.RoutingKeyInventoryStockLow:
+	case events.RoutingKeyInventoryStockLow:
 		return c.handleInventoryStockLow(ctx, body)
 	default:
 		// Fallback: check if body is generic NotificationEvent
-		var notifEvent rabbitmq.NotificationEvent
+		var notifEvent events.NotificationEvent
 		if err := json.Unmarshal(body, &notifEvent); err != nil {
 			c.logger.Debug().Str("routing_key", routingKey).Err(err).Msg("Ignored unhandled routing key")
 			return nil
@@ -383,7 +383,7 @@ func orderStatusIntToString(status int32) string {
 }
 
 func (c *TopicConsumer) handlePaymentSucceeded(body []byte) error {
-	var event rabbitmq.PaymentSucceededEvent
+	var event events.PaymentSucceededEvent
 	if err := decodeEventPayload(body, &event); err != nil {
 		return err
 	}
@@ -393,7 +393,7 @@ func (c *TopicConsumer) handlePaymentSucceeded(body []byte) error {
 }
 
 func (c *TopicConsumer) handlePaymentFailed(body []byte) error {
-	var event rabbitmq.PaymentFailedEvent
+	var event events.PaymentFailedEvent
 	if err := decodeEventPayload(body, &event); err != nil {
 		return err
 	}
@@ -420,7 +420,7 @@ func (c *TopicConsumer) handleInventoryStockLow(ctx context.Context, body []byte
 	})
 }
 
-func (c *TopicConsumer) handleGenericNotification(ctx context.Context, event rabbitmq.NotificationEvent) error {
+func (c *TopicConsumer) handleGenericNotification(ctx context.Context, event events.NotificationEvent) error {
 	if event.UserID != nil {
 		return c.notificationService.Send(ctx, dto.SendNotificationInput{
 			UserID: *event.UserID,

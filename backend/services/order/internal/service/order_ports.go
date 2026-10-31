@@ -2,11 +2,12 @@ package service
 
 import (
 	"context"
-	"goshop/services/order/internal/db/sqlc"
-	v1dto "goshop/services/order/internal/dto"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+
+	"goshop/services/order/internal/db/sqlc"
+	v1dto "goshop/services/order/internal/dto"
 )
 
 // ─── Consumer-driven Inbound Ports (Use-Case Interfaces) ──────────────────────

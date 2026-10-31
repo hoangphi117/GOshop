@@ -2,14 +2,15 @@ package main
 
 import (
 	"context"
+	"path/filepath"
+
+	"github.com/joho/godotenv"
+
 	app "goshop/cmd/api/app"
 	"goshop/internal/config"
 	"goshop/pkg/logger"
 	"goshop/pkg/telemetry"
 	"goshop/pkg/utils"
-	"path/filepath"
-
-	"github.com/joho/godotenv"
 )
 
 // @title           GOshop E-Commerce API

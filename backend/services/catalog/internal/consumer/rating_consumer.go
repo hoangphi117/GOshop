@@ -5,12 +5,11 @@ import (
 	"encoding/json"
 	"strconv"
 
+	"goshop/contracts/events"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
-	"goshop/pkg/rabbitmq"
+	"goshop/pkg/messaging"
 	catalogsqlc "goshop/services/catalog/internal/db/sqlc"
-
-	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 // RatingConsumer keeps the denormalized products.product_avg_rating /
@@ -26,8 +25,8 @@ func NewRatingConsumer(querier catalogsqlc.Querier, cache cache.RedisCacheServic
 }
 
 // HandleEvent decodes a ReviewRatingUpdatedEvent and applies it.
-func (c *RatingConsumer) HandleEvent(_ amqp.Table, body []byte) error {
-	var event rabbitmq.ReviewRatingUpdatedEvent
+func (c *RatingConsumer) HandleEvent(_ messaging.Header, body []byte) error {
+	var event events.ReviewRatingUpdatedEvent
 	if err := json.Unmarshal(body, &event); err != nil {
 		// Malformed payload will never succeed on retry; ack it so the queue drains.
 		logger.Log.Warn().Err(err).Msg("Dropping malformed review rating event")

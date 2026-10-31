@@ -7,16 +7,16 @@ import (
 	"strings"
 	"time"
 
-	"goshop/pkg/cache"
-	"goshop/pkg/db"
-	"goshop/pkg/rabbitmq"
-	"goshop/pkg/utils"
-	"goshop/services/order/internal/db/sqlc"
-	v1dto "goshop/services/order/internal/dto"
-
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/redis/go-redis/v9"
+
+	"goshop/contracts/events"
+	"goshop/pkg/cache"
+	"goshop/pkg/db"
+	"goshop/pkg/utils"
+	"goshop/services/order/internal/db/sqlc"
+	v1dto "goshop/services/order/internal/dto"
 )
 
 type orderReturnService struct {
@@ -178,7 +178,7 @@ func (s *orderReturnService) RequestOrderReturn(ctx context.Context, userUUID uu
 		}
 
 		if s.outboxStore != nil {
-			event := rabbitmq.NewOrderReturnRequestedEvent(
+			event := events.NewOrderReturnRequestedEvent(
 				uuid.NewString(),
 				createdReturn.ReturnUuid.String(),
 				order.OrderUuid.String(),
@@ -188,7 +188,7 @@ func (s *orderReturnService) RequestOrderReturn(ctx context.Context, userUUID uu
 				order.OrderUserID,
 				createdReturn.ReturnReason,
 			)
-			_, _ = s.outboxStore.Insert(ctx, tx, "order", order.OrderUuid.String(), rabbitmq.QueueOrderReturnRequested, event)
+			_, _ = s.outboxStore.Insert(ctx, tx, "order", order.OrderUuid.String(), events.QueueOrderReturnRequested, event)
 		}
 		return nil
 	})
@@ -470,7 +470,7 @@ func (s *orderReturnService) CancelOrderReturn(ctx context.Context, userUUID uui
 		}
 
 		if s.outboxStore != nil {
-			event := rabbitmq.NewOrderReturnUpdatedEvent(
+			event := events.NewOrderReturnUpdatedEvent(
 				uuid.NewString(),
 				updatedReturn.ReturnUuid.String(),
 				resolved.OrderUUID.String(),
@@ -481,7 +481,7 @@ func (s *orderReturnService) CancelOrderReturn(ctx context.Context, userUUID uui
 				updatedReturn.ReturnStatus,
 				"Return request cancelled by customer",
 			)
-			_, _ = s.outboxStore.Insert(ctx, tx, "order", resolved.OrderUUID.String(), rabbitmq.QueueOrderReturnUpdated, event)
+			_, _ = s.outboxStore.Insert(ctx, tx, "order", resolved.OrderUUID.String(), events.QueueOrderReturnUpdated, event)
 		}
 		return nil
 	})

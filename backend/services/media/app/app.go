@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
+
 	"goshop/internal/config"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
@@ -21,8 +23,6 @@ import (
 	"goshop/pkg/validation"
 	mediahandler "goshop/services/media/internal/handler"
 	mediaroutes "goshop/services/media/internal/routes"
-
-	"github.com/gin-gonic/gin"
 )
 
 // App owns the media service HTTP server. Media is stateless: no database, no

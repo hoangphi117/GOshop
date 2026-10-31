@@ -12,10 +12,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"goshop/pkg/auth"
-
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"goshop/pkg/auth"
 )
 
 type CheckoutRequestItem struct {

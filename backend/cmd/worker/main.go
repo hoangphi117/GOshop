@@ -4,10 +4,22 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os/signal"
+	"path/filepath"
+	"sync"
+	"syscall"
+	"time"
+
+	"github.com/joho/godotenv"
+	"github.com/redis/go-redis/v9"
+	"github.com/rs/zerolog"
+
+	"goshop/contracts/events"
 	"goshop/internal/config"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 	"goshop/pkg/mail"
+	"goshop/pkg/messaging"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/storage"
 	"goshop/pkg/telemetry"
@@ -16,16 +28,6 @@ import (
 	catalogcontract "goshop/services/catalog/contract"
 	identityworker "goshop/services/identity/worker"
 	mediaworker "goshop/services/media/worker"
-	"os/signal"
-	"path/filepath"
-	"sync"
-	"syscall"
-	"time"
-
-	"github.com/joho/godotenv"
-	amqp "github.com/rabbitmq/amqp091-go"
-	"github.com/redis/go-redis/v9"
-	"github.com/rs/zerolog"
 )
 
 type Worker struct {
@@ -118,11 +120,11 @@ func NewWorker(cfg *config.Config) *Worker {
 func (w *Worker) Start(ctx context.Context) error {
 	const emailQueueName = "auth_email_queue"
 
-	handler := func(headers amqp.Table, body []byte) error {
+	handler := func(headers messaging.Header, body []byte) error {
 		w.logger.Debug().Msgf("Received message: %s", string(body))
 
 		ctx := context.Background()
-		if traceID, ok := headers["trace_id"].(string); ok {
+		if traceID, ok := headers["trace_id"]; ok {
 			ctx = logger.WithTraceID(ctx, traceID)
 		}
 
@@ -155,7 +157,7 @@ func (w *Worker) Start(ctx context.Context) error {
 
 	// Consume User Sync Events (Cache invalidation & cross-service sync)
 	if w.userSyncConsumer != nil {
-		for _, queueName := range []string{rabbitmq.QueueUserCreated, rabbitmq.QueueUserUpdated, rabbitmq.QueueUserDeleted} {
+		for _, queueName := range []string{events.QueueUserCreated, events.QueueUserUpdated, events.QueueUserDeleted} {
 			syncHandler := w.withIdempotency(queueName, w.userSyncConsumer.Handle)
 			if err := w.rabbitMQ.Consume(ctx, queueName, syncHandler); err != nil {
 				w.logger.Error().Err(err).Str("queue", queueName).Msg("Failed to consume user sync queue")
@@ -167,11 +169,11 @@ func (w *Worker) Start(ctx context.Context) error {
 
 	// Consume Media Uploaded Events (image resize/re-encode)
 	if w.mediaProcessor != nil {
-		mediaHandler := w.withIdempotency(rabbitmq.QueueMediaUploaded, w.mediaProcessor.Handle)
-		if err := w.rabbitMQ.Consume(ctx, rabbitmq.QueueMediaUploaded, mediaHandler); err != nil {
-			w.logger.Error().Err(err).Str("queue", rabbitmq.QueueMediaUploaded).Msg("Failed to consume media queue")
+		mediaHandler := w.withIdempotency(events.QueueMediaUploaded, w.mediaProcessor.Handle)
+		if err := w.rabbitMQ.Consume(ctx, events.QueueMediaUploaded, mediaHandler); err != nil {
+			w.logger.Error().Err(err).Str("queue", events.QueueMediaUploaded).Msg("Failed to consume media queue")
 		} else {
-			w.logger.Info().Msgf("Worker consuming queue: %s", rabbitmq.QueueMediaUploaded)
+			w.logger.Info().Msgf("Worker consuming queue: %s", events.QueueMediaUploaded)
 		}
 	}
 
@@ -182,11 +184,11 @@ func (w *Worker) Start(ctx context.Context) error {
 	return ctx.Err()
 }
 
-func (w *Worker) withIdempotency(queue string, next func(amqp.Table, []byte) error) func(amqp.Table, []byte) error {
+func (w *Worker) withIdempotency(queue string, next messaging.Handler) messaging.Handler {
 	const dedupTTL = 24 * time.Hour
 
-	return func(headers amqp.Table, body []byte) error {
-		messageID, _ := headers["x-message-id"].(string)
+	return func(headers messaging.Header, body []byte) error {
+		messageID := headers.Get("x-message-id")
 		if messageID == "" {
 			return next(headers, body)
 		}

@@ -4,13 +4,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"google.golang.org/grpc"
+	"net"
+
+	"goshop/contracts/events"
 	"goshop/internal/config"
 	"goshop/pkg/cache"
 	"goshop/pkg/db"
@@ -30,12 +37,6 @@ import (
 	catalogroutes "goshop/services/catalog/internal/routes"
 	catalogservice "goshop/services/catalog/internal/service"
 	inventorycontract "goshop/services/inventory/contract"
-
-	"github.com/gin-gonic/gin"
-	"github.com/golang-migrate/migrate/v4"
-	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	"github.com/golang-migrate/migrate/v4/source/iofs"
-	"google.golang.org/grpc"
 )
 
 type App struct {
@@ -106,7 +107,7 @@ func New(cfg *config.Config) (*App, error) {
 	ratingConsumer := ratingconsumer.NewRatingConsumer(ratingQuerier, cacheRedisService)
 	if rmq, err := rabbitmq.NewRabbitMQService(utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"), utils.NewLoggerWithPath("catalog", "catalog_rabbitmq.log", "info")); err == nil {
 		go func() {
-			if err := rmq.Consume(context.Background(), rabbitmq.QueueReviewRatingUpdated, ratingConsumer.HandleEvent); err != nil {
+			if err := rmq.Consume(context.Background(), events.QueueReviewRatingUpdated, ratingConsumer.HandleEvent); err != nil {
 				logger.Log.Error().Err(err).Msg("Catalog review-rating consumer stopped")
 			}
 		}()

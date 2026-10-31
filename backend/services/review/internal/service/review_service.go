@@ -6,19 +6,20 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"goshop/contracts/events"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
+	"goshop/pkg/messaging"
 	pkgpgx "goshop/pkg/pgx"
-	"goshop/pkg/rabbitmq"
 	"goshop/pkg/utils"
 	catalogcontract "goshop/services/catalog/contract"
 	reviewsqlc "goshop/services/review/internal/db/sqlc"
 	reviewdto "goshop/services/review/internal/dto"
 	reviewrepo "goshop/services/review/internal/repository"
-
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // OrderPurchaseVerification is the trimmed purchase-check result used by the
@@ -60,7 +61,7 @@ type reviewService struct {
 	catalog     ProductCatalog
 	orderReader PurchaseVerifier
 	userReader  UserReader
-	rabbitMQ    rabbitmq.RabbitMQService
+	rabbitMQ    messaging.Broker
 	cache       cache.RedisCacheService
 	txManager   pkgpgx.TxManager
 }
@@ -70,7 +71,7 @@ func NewReviewService(
 	catalog ProductCatalog,
 	orderReader PurchaseVerifier,
 	userReader UserReader,
-	rabbitMQ rabbitmq.RabbitMQService,
+	rabbitMQ messaging.Broker,
 	redisClient cache.RedisCacheService,
 	txManager pkgpgx.TxManager,
 ) ReviewService {
@@ -174,8 +175,8 @@ func (rs *reviewService) publishRatingUpdate(productID int32, productUUID string
 			return
 		}
 
-		event := rabbitmq.NewReviewRatingUpdatedEvent(productID, productUUID, agg.AvgRating, agg.ReviewCount)
-		if err := rs.rabbitMQ.Publish(ctx, rabbitmq.QueueReviewRatingUpdated, event); err != nil {
+		event := events.NewReviewRatingUpdatedEvent(productID, productUUID, agg.AvgRating, agg.ReviewCount)
+		if err := rs.rabbitMQ.Publish(ctx, events.QueueReviewRatingUpdated, event); err != nil {
 			logger.Log.Warn().Err(err).Int32("product_id", productID).Msg("Failed to publish review rating update event")
 		}
 	}()
@@ -189,7 +190,7 @@ func (rs *reviewService) dispatchReplyNotification(review reviewsqlc.ProductRevi
 				replySnippet = replySnippet[:97] + "..."
 			}
 
-			event := rabbitmq.NewCustomerNotificationEvent(
+			event := events.NewCustomerNotificationEvent(
 				uuid.New().String(),
 				review.ReviewUserID,
 				"review_reply",
@@ -204,7 +205,7 @@ func (rs *reviewService) dispatchReplyNotification(review reviewsqlc.ProductRevi
 
 			// Must go through the topic exchange: the notification service binds
 			// its queue to goshop.events and never consumes notification_events directly.
-			if err := rs.rabbitMQ.PublishTopic(context.Background(), rabbitmq.RoutingKeyNotificationEvent, event); err != nil {
+			if err := rs.rabbitMQ.PublishTopic(context.Background(), events.RoutingKeyNotificationEvent, event); err != nil {
 				logger.Log.Warn().Err(err).Str("review_uuid", review.ReviewUuid.String()).Msg("Failed to publish review_reply notification event")
 			}
 		}()
@@ -401,7 +402,7 @@ func (rs *reviewService) CreateReview(ctx context.Context, userID int32, input r
 			}
 		}
 
-		event := rabbitmq.NewAdminNotificationEvent(
+		event := events.NewAdminNotificationEvent(
 			uuid.New().String(),
 			"review",
 			"created",
@@ -415,7 +416,7 @@ func (rs *reviewService) CreateReview(ctx context.Context, userID int32, input r
 		)
 		// Topic exchange — notification service consumes goshop.events with
 		// routing pattern "notification_events" (see notification app topicPatterns).
-		if err := rs.rabbitMQ.PublishTopic(ctx, rabbitmq.RoutingKeyNotificationEvent, event); err != nil {
+		if err := rs.rabbitMQ.PublishTopic(ctx, events.RoutingKeyNotificationEvent, event); err != nil {
 			logger.Log.Warn().Err(err).Msg("Failed to publish new review admin notification event")
 		}
 	}

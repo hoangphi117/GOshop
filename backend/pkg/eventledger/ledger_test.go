@@ -6,11 +6,11 @@ import (
 	"errors"
 	"testing"
 
-	"goshop/pkg/eventledger"
-
-	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"goshop/pkg/eventledger"
+	"goshop/pkg/messaging"
 )
 
 type fakeRepo struct {
@@ -60,8 +60,8 @@ func TestWrap_RedeliveryAppliesOnce(t *testing.T) {
 	}, &fakeLogger{})
 
 	body := envelope(t, "evt-1")
-	require.NoError(t, handler(amqp.Table{}, body))
-	require.NoError(t, handler(amqp.Table{}, body))
+	require.NoError(t, handler(messaging.Header{}, body))
+	require.NoError(t, handler(messaging.Header{}, body))
 
 	assert.Equal(t, 1, applied)
 	assert.Equal(t, 1, repo.marks)
@@ -82,11 +82,11 @@ func TestWrap_FailureStaysRetryable(t *testing.T) {
 	}, &log)
 
 	body := envelope(t, "evt-2")
-	assert.ErrorContains(t, handler(amqp.Table{}, body), "downstream down")
+	assert.ErrorContains(t, handler(messaging.Header{}, body), "downstream down")
 	assert.Equal(t, 0, repo.marks)
 	assert.Equal(t, 1, log.errors)
 
-	require.NoError(t, handler(amqp.Table{}, body))
+	require.NoError(t, handler(messaging.Header{}, body))
 	assert.Equal(t, 1, repo.marks)
 }
 
@@ -96,7 +96,7 @@ func TestWrap_MarkFailurePropagates(t *testing.T) {
 	repo.failMark = errors.New("ledger write failed")
 	handler := eventledger.Wrap(repo, "svc.consumer", func(context.Context, []byte) error { return nil }, &fakeLogger{})
 
-	assert.ErrorContains(t, handler(amqp.Table{}, envelope(t, "evt-3")), "ledger write failed")
+	assert.ErrorContains(t, handler(messaging.Header{}, envelope(t, "evt-3")), "ledger write failed")
 }
 
 // A ledger read failure must stop processing: without the check there is no
@@ -110,7 +110,7 @@ func TestWrap_LedgerReadFailurePropagates(t *testing.T) {
 		return nil
 	}, &fakeLogger{})
 
-	assert.ErrorContains(t, handler(amqp.Table{}, envelope(t, "evt-4")), "ledger unavailable")
+	assert.ErrorContains(t, handler(messaging.Header{}, envelope(t, "evt-4")), "ledger unavailable")
 	assert.False(t, applied)
 }
 

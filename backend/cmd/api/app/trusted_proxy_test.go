@@ -5,10 +5,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"goshop/internal/config"
-
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+
+	"goshop/internal/config"
 )
 
 // TestSetTrustedProxies verifies that Gin Engine accurately extracts the real client IP

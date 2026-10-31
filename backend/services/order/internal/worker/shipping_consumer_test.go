@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
-	v1dto "goshop/services/order/internal/dto"
-
-	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"goshop/pkg/messaging"
+	v1dto "goshop/services/order/internal/dto"
 )
 
 func TestShippingConsumer_Handle(t *testing.T) {
@@ -22,7 +22,7 @@ func TestShippingConsumer_Handle(t *testing.T) {
 		mockService := &MockOrderShippingService{}
 		consumer := NewShippingConsumer(mockService, &logger)
 
-		err := consumer.Handle(amqp.Table{}, []byte("invalid-json"))
+		err := consumer.Handle(messaging.Header{}, []byte("invalid-json"))
 		require.Error(t, err)
 	})
 
@@ -54,7 +54,7 @@ func TestShippingConsumer_Handle(t *testing.T) {
 		body, err := json.Marshal(msg)
 		require.NoError(t, err)
 
-		err = consumer.Handle(amqp.Table{"x-retry": int32(0)}, body)
+		err = consumer.Handle(messaging.Header{"x-retry": "0"}, body)
 		require.NoError(t, err)
 		assert.True(t, called)
 	})
@@ -74,7 +74,7 @@ func TestShippingConsumer_Handle(t *testing.T) {
 		body, err := json.Marshal(msg)
 		require.NoError(t, err)
 
-		err = consumer.Handle(amqp.Table{}, body)
+		err = consumer.Handle(messaging.Header{}, body)
 		require.Error(t, err)
 		assert.Equal(t, "upstream provider failed", err.Error())
 	})

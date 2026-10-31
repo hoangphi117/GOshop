@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"goshop/pkg/rabbitmq"
-	identitysqlc "goshop/services/identity/internal/db/sqlc"
 	"time"
 
 	"github.com/rs/zerolog"
+
+	"goshop/pkg/messaging"
+	identitysqlc "goshop/services/identity/internal/db/sqlc"
 )
 
 // outboxStore is the slice of the identity outbox repository this worker needs.
@@ -22,7 +23,7 @@ type outboxStore interface {
 
 type OutboxPublisherWorker struct {
 	outboxRepo     outboxStore
-	rabbitMQ       rabbitmq.RabbitMQService
+	rabbitMQ       messaging.Broker
 	interval       time.Duration
 	batchSize      int32
 	aggregateTypes []string
@@ -31,7 +32,7 @@ type OutboxPublisherWorker struct {
 
 func NewOutboxPublisherWorker(
 	outboxRepo outboxStore,
-	rabbitMQ rabbitmq.RabbitMQService,
+	rabbitMQ messaging.Broker,
 	interval time.Duration,
 	batchSize int32,
 	logger *zerolog.Logger,
@@ -41,7 +42,7 @@ func NewOutboxPublisherWorker(
 
 func NewOutboxPublisherWorkerWithAggregates(
 	outboxRepo outboxStore,
-	rabbitMQ rabbitmq.RabbitMQService,
+	rabbitMQ messaging.Broker,
 	interval time.Duration,
 	batchSize int32,
 	logger *zerolog.Logger,

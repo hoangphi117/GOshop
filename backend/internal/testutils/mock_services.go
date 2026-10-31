@@ -4,20 +4,19 @@ import (
 	"context"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
+
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
 	"goshop/pkg/mail"
-	"goshop/pkg/rabbitmq"
+	"goshop/pkg/messaging"
 	"goshop/pkg/shipping"
-
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
-	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 // Ensure mocks implement service interfaces at compile time
 var (
-	_ rabbitmq.RabbitMQService  = (*MockRabbitMQService)(nil)
+	_ messaging.Broker          = (*MockRabbitMQService)(nil)
 	_ shipping.ShippingProvider = (*MockShippingProvider)(nil)
 	_ auth.TokenService         = (*MockTokenService)(nil)
 	_ mail.EmailProviderService = (*MockEmailProviderService)(nil)
@@ -29,11 +28,11 @@ var (
 // =========================================================================
 type MockRabbitMQService struct {
 	PublishFunc             func(ctx context.Context, queue string, message any) error
-	ConsumeFunc             func(ctx context.Context, queue string, handler func(amqp.Table, []byte) error) error
+	ConsumeFunc             func(ctx context.Context, queue string, handler messaging.Handler) error
 	PublishTopicFunc        func(ctx context.Context, routingKey string, message any) error
 	PublishToExchangeFunc   func(ctx context.Context, exchange, routingKey string, message any) error
-	SubscribeTopicFunc      func(ctx context.Context, queueName string, routingKeys []string, handler func(amqp.Table, []byte) error) error
-	SubscribeToExchangeFunc func(ctx context.Context, exchange, queueName string, routingKeys []string, handler func(amqp.Table, []byte) error) error
+	SubscribeTopicFunc      func(ctx context.Context, queueName string, routingKeys []string, handler messaging.Handler) error
+	SubscribeToExchangeFunc func(ctx context.Context, exchange, queueName string, routingKeys []string, handler messaging.Handler) error
 	CloseFunc               func() error
 	IsHealthyFunc           func() bool
 }
@@ -45,7 +44,7 @@ func (m *MockRabbitMQService) Publish(ctx context.Context, queue string, message
 	return nil
 }
 
-func (m *MockRabbitMQService) Consume(ctx context.Context, queue string, handler func(amqp.Table, []byte) error) error {
+func (m *MockRabbitMQService) Consume(ctx context.Context, queue string, handler messaging.Handler) error {
 	if m.ConsumeFunc != nil {
 		return m.ConsumeFunc(ctx, queue, handler)
 	}
@@ -66,14 +65,14 @@ func (m *MockRabbitMQService) PublishToExchange(ctx context.Context, exchange, r
 	return nil
 }
 
-func (m *MockRabbitMQService) SubscribeTopic(ctx context.Context, queueName string, routingKeys []string, handler func(amqp.Table, []byte) error) error {
+func (m *MockRabbitMQService) SubscribeTopic(ctx context.Context, queueName string, routingKeys []string, handler messaging.Handler) error {
 	if m.SubscribeTopicFunc != nil {
 		return m.SubscribeTopicFunc(ctx, queueName, routingKeys, handler)
 	}
 	return nil
 }
 
-func (m *MockRabbitMQService) SubscribeToExchange(ctx context.Context, exchange, queueName string, routingKeys []string, handler func(amqp.Table, []byte) error) error {
+func (m *MockRabbitMQService) SubscribeToExchange(ctx context.Context, exchange, queueName string, routingKeys []string, handler messaging.Handler) error {
 	if m.SubscribeToExchangeFunc != nil {
 		return m.SubscribeToExchangeFunc(ctx, exchange, queueName, routingKeys, handler)
 	}

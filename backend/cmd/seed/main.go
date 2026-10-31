@@ -8,13 +8,13 @@ import (
 	"strings"
 	"time"
 
-	"goshop/pkg/logger"
-	"goshop/pkg/search"
-	"goshop/pkg/utils"
-
 	"github.com/jackc/pgx/v5"
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
+
+	"goshop/pkg/logger"
+	"goshop/pkg/search"
+	"goshop/pkg/utils"
 )
 
 // seedSection is one `-- DB: <name>` block of scripts/seed.sql. Each block runs

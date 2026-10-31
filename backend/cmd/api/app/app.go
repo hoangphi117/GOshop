@@ -3,6 +3,15 @@ package app
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"os"
+	"os/signal"
+	"strings"
+	"syscall"
+	"time"
+
+	"github.com/gin-gonic/gin"
+
 	"goshop/cmd/api/routes"
 	"goshop/internal/config"
 	"goshop/pkg/auth"
@@ -13,14 +22,6 @@ import (
 	"goshop/pkg/storage"
 	"goshop/pkg/utils"
 	"goshop/pkg/validation"
-	"net/http"
-	"os"
-	"os/signal"
-	"strings"
-	"syscall"
-	"time"
-
-	"github.com/gin-gonic/gin"
 )
 
 type Module interface {

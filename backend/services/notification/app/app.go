@@ -10,6 +10,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
+
+	"goshop/contracts/events"
 	"goshop/internal/config"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
@@ -29,11 +35,6 @@ import (
 	"goshop/services/notification/internal/repository"
 	notifroutes "goshop/services/notification/internal/routes"
 	"goshop/services/notification/internal/service"
-
-	"github.com/gin-gonic/gin"
-	"github.com/golang-migrate/migrate/v4"
-	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	"github.com/golang-migrate/migrate/v4/source/iofs"
 )
 
 // App encapsulates the Notification microservice runtime
@@ -155,12 +156,12 @@ func New(cfg *config.Config) (*App, error) {
 			dbPool,
 		)
 		topicPatterns := []string{
-			rabbitmq.PatternOrderAll,
-			rabbitmq.PatternOrderReturns,
-			rabbitmq.PatternPaymentAll,
-			rabbitmq.PatternUserAll,
-			rabbitmq.PatternInventoryAll,
-			rabbitmq.QueueNotificationEvents,
+			events.PatternOrderAll,
+			events.PatternOrderReturns,
+			events.PatternPaymentAll,
+			events.PatternUserAll,
+			events.PatternInventoryAll,
+			events.QueueNotificationEvents,
 		}
 		queueName := "notification_service_events_v3"
 		go func() {

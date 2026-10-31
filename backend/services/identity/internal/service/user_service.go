@@ -2,40 +2,42 @@ package service
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
-	"goshop/pkg/cache"
-	"goshop/pkg/logger"
-	"goshop/pkg/rabbitmq"
-	"goshop/pkg/utils"
-	"goshop/services/identity/internal/db/sqlc"
-	dto "goshop/services/identity/internal/dto"
-	"goshop/services/identity/internal/repository"
 	"strings"
 	"time"
 
+	"database/sql"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
+
+	"goshop/contracts/events"
+	"goshop/pkg/cache"
+	"goshop/pkg/logger"
+	"goshop/pkg/messaging"
+	"goshop/pkg/utils"
+	"goshop/services/identity/internal/db/sqlc"
+	dto "goshop/services/identity/internal/dto"
+	"goshop/services/identity/internal/repository"
 )
 
 type userService struct {
 	repo     repository.UserRepository
 	cache    cache.RedisCacheService
 	redis    *redis.Client
-	rabbitmq rabbitmq.RabbitMQService
+	rabbitmq messaging.Broker
 	outbox   repository.OutboxRepository
 }
 
-func NewUserService(repo repository.UserRepository, redisClient *redis.Client, rmq ...rabbitmq.RabbitMQService) UserService {
+func NewUserService(repo repository.UserRepository, redisClient *redis.Client, rmq ...messaging.Broker) UserService {
 	var cacheService cache.RedisCacheService
 	if redisClient != nil {
 		cacheService = cache.NewRedisCacheService(redisClient)
 	}
-	var rabbitMQ rabbitmq.RabbitMQService
+	var rabbitMQ messaging.Broker
 	if len(rmq) > 0 {
 		rabbitMQ = rmq[0]
 	}
@@ -47,7 +49,7 @@ func NewUserService(repo repository.UserRepository, redisClient *redis.Client, r
 	}
 }
 
-func NewUserServiceWithOutbox(repo repository.UserRepository, redisClient *redis.Client, rmq rabbitmq.RabbitMQService, outbox repository.OutboxRepository) UserService {
+func NewUserServiceWithOutbox(repo repository.UserRepository, redisClient *redis.Client, rmq messaging.Broker, outbox repository.OutboxRepository) UserService {
 	var cacheService cache.RedisCacheService
 	if redisClient != nil {
 		cacheService = cache.NewRedisCacheService(redisClient)
@@ -72,7 +74,7 @@ func (us *userService) publishUserSyncEvent(ctx context.Context, eventType strin
 		}
 	}
 
-	event := rabbitmq.NewUserSyncEvent(
+	event := events.NewUserSyncEvent(
 		eventType,
 		user.UserID,
 		user.UserUuid.String(),
@@ -86,12 +88,12 @@ func (us *userService) publishUserSyncEvent(ctx context.Context, eventType strin
 
 	var queueName string
 	switch eventType {
-	case rabbitmq.QueueUserCreated:
-		queueName = rabbitmq.QueueUserCreated
-	case rabbitmq.QueueUserDeleted:
-		queueName = rabbitmq.QueueUserDeleted
+	case events.QueueUserCreated:
+		queueName = events.QueueUserCreated
+	case events.QueueUserDeleted:
+		queueName = events.QueueUserDeleted
 	default:
-		queueName = rabbitmq.QueueUserUpdated
+		queueName = events.QueueUserUpdated
 	}
 
 	// 2. Transactional Outbox Pattern: Save event to outbox table first for guaranteed delivery
@@ -220,7 +222,7 @@ func (us *userService) CreateUsers(ctx context.Context, input dto.CreateUserInpu
 		}
 	}
 
-	us.publishUserSyncEvent(ctx, rabbitmq.QueueUserCreated, user)
+	us.publishUserSyncEvent(ctx, events.QueueUserCreated, user)
 
 	return mapIdentityUserToDTO(user), nil
 }
@@ -273,7 +275,7 @@ func (us *userService) UpdateUser(ctx context.Context, userUUID uuid.UUID, input
 		}
 	}
 
-	us.publishUserSyncEvent(ctx, rabbitmq.QueueUserUpdated, updatedUser)
+	us.publishUserSyncEvent(ctx, events.QueueUserUpdated, updatedUser)
 
 	return mapIdentityUserToDTO(updatedUser), nil
 }
@@ -324,7 +326,7 @@ func (us *userService) UpdateProfile(ctx context.Context, userUUID uuid.UUID, in
 		}
 	}
 
-	us.publishUserSyncEvent(ctx, rabbitmq.QueueUserUpdated, user)
+	us.publishUserSyncEvent(ctx, events.QueueUserUpdated, user)
 
 	return mapIdentityUserToDTO(user), nil
 }
@@ -391,7 +393,7 @@ func (us *userService) SoftDeleteUser(ctx context.Context, userUUID uuid.UUID) (
 		}
 	}
 
-	us.publishUserSyncEvent(ctx, rabbitmq.QueueUserDeleted, user)
+	us.publishUserSyncEvent(ctx, events.QueueUserDeleted, user)
 
 	return mapIdentityUserToDTO(user), nil
 }
@@ -411,7 +413,7 @@ func (us *userService) RestoreUser(ctx context.Context, userUUID uuid.UUID) (*dt
 		}
 	}
 
-	us.publishUserSyncEvent(ctx, rabbitmq.QueueUserUpdated, user)
+	us.publishUserSyncEvent(ctx, events.QueueUserUpdated, user)
 
 	return mapIdentityUserToDTO(user), nil
 }
@@ -432,7 +434,7 @@ func (us *userService) TrashUser(ctx context.Context, userUUID uuid.UUID) error 
 	}
 
 	if trashedUser.UserID > 0 {
-		us.publishUserSyncEvent(ctx, rabbitmq.QueueUserDeleted, trashedUser)
+		us.publishUserSyncEvent(ctx, events.QueueUserDeleted, trashedUser)
 	}
 
 	return nil

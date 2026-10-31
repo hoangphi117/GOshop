@@ -11,10 +11,11 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
 	"goshop/pkg/discord"
+	"goshop/pkg/messaging"
 )
 
 type MockRabbitMQ struct {
@@ -25,7 +26,7 @@ func (m *MockRabbitMQ) Publish(ctx context.Context, queue string, message any) e
 	return nil
 }
 
-func (m *MockRabbitMQ) Consume(ctx context.Context, queue string, handler func(amqp.Table, []byte) error) error {
+func (m *MockRabbitMQ) Consume(ctx context.Context, queue string, handler messaging.Handler) error {
 	return nil
 }
 
@@ -37,11 +38,11 @@ func (m *MockRabbitMQ) PublishToExchange(ctx context.Context, exchange, routingK
 	return nil
 }
 
-func (m *MockRabbitMQ) SubscribeTopic(ctx context.Context, queueName string, routingKeys []string, handler func(amqp.Table, []byte) error) error {
+func (m *MockRabbitMQ) SubscribeTopic(ctx context.Context, queueName string, routingKeys []string, handler messaging.Handler) error {
 	return nil
 }
 
-func (m *MockRabbitMQ) SubscribeToExchange(ctx context.Context, exchange, queueName string, routingKeys []string, handler func(amqp.Table, []byte) error) error {
+func (m *MockRabbitMQ) SubscribeToExchange(ctx context.Context, exchange, queueName string, routingKeys []string, handler messaging.Handler) error {
 	return nil
 }
 

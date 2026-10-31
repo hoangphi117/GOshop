@@ -10,6 +10,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
+
 	"goshop/internal/config"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
@@ -28,11 +33,6 @@ import (
 	reviewrepo "goshop/services/review/internal/repository"
 	reviewroutes "goshop/services/review/internal/routes"
 	reviewservice "goshop/services/review/internal/service"
-
-	"github.com/gin-gonic/gin"
-	"github.com/golang-migrate/migrate/v4"
-	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	"github.com/golang-migrate/migrate/v4/source/iofs"
 )
 
 type App struct {

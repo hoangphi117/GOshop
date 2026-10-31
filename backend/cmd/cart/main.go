@@ -4,13 +4,13 @@ import (
 	"context"
 	"path/filepath"
 
+	"github.com/joho/godotenv"
+
 	"goshop/internal/config"
 	"goshop/pkg/logger"
 	"goshop/pkg/telemetry"
 	"goshop/pkg/utils"
 	cartapp "goshop/services/cart/app"
-
-	"github.com/joho/godotenv"
 )
 
 // @title           GOshop Cart Service API

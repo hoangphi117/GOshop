@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -12,6 +11,16 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"google.golang.org/grpc"
+	"net"
+
+	"goshop/contracts/events"
 	"goshop/internal/config"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
@@ -41,14 +50,6 @@ import (
 	orderworker "goshop/services/order/internal/worker"
 	paymentcontract "goshop/services/payment/contract"
 	"goshop/services/payment/money"
-
-	"github.com/gin-gonic/gin"
-	"github.com/golang-migrate/migrate/v4"
-	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	"github.com/golang-migrate/migrate/v4/source/iofs"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"google.golang.org/grpc"
 )
 
 type App struct {
@@ -447,12 +448,12 @@ func New(cfg *config.Config) (*App, error) {
 		shippingConsumer := orderworker.NewShippingConsumer(shippingService, logger.Log)
 
 		go func() {
-			if err := rabbitMQ.Consume(context.Background(), rabbitmq.QueuePaymentSucceeded, paymentSucceededConsumer.Handle); err != nil {
+			if err := rabbitMQ.Consume(context.Background(), events.QueuePaymentSucceeded, paymentSucceededConsumer.Handle); err != nil {
 				logger.Log.Error().Err(err).Msg("Failed to start PaymentSucceeded consumer")
 			}
 		}()
 		go func() {
-			if err := rabbitMQ.Consume(context.Background(), rabbitmq.QueuePaymentExpired, paymentExpiredConsumer.Handle); err != nil {
+			if err := rabbitMQ.Consume(context.Background(), events.QueuePaymentExpired, paymentExpiredConsumer.Handle); err != nil {
 				logger.Log.Error().Err(err).Msg("Failed to start PaymentExpired consumer")
 			}
 		}()
