@@ -3,19 +3,34 @@
 # One template, one ARG: the caller passes `SERVICE` (the cmd/ subdirectory) so
 # adding a service never adds a Dockerfile. Build:
 #   docker build -f build/Dockerfile.service --build-arg SERVICE=order .
-FROM golang:1.26.6-alpine AS builder
+#
+# The backend is a Go workspace (back end/go.work): gomod/shared holds the
+# reusable packages, gomod/contracts the event payloads, gomod/services the
+# domains, gomod/cmd the binaries. Shared dependencies are downloaded once from
+# the shared module, so a change to one service does not invalidate the
+# dependency layer for the others.
+FROM golang:1.26.10-alpine AS builder
 
 RUN apk add --no-cache ca-certificates
 
 WORKDIR /app
 
-COPY go.mod go.sum ./
+# Workspace definition first: it is tiny and changes rarely.
+COPY go.work ./
+COPY gomod/shared/go.mod gomod/shared/go.sum ./gomod/shared/
+COPY gomod/contracts/go.mod gomod/contracts/go.sum ./gomod/contracts/
+COPY gomod/services/go.mod gomod/services/go.sum ./gomod/services/
+COPY gomod/cmd/go.mod gomod/cmd/go.sum ./gomod/cmd/
+
+# Workspace mode resolves every module's dependencies in one shot.
 RUN go mod download
 
 COPY . .
 
 ARG SERVICE
-RUN test -n "$SERVICE" && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /service ./cmd/${SERVICE}
+RUN test -n "$SERVICE" \
+    && cd gomod/cmd \
+    && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /service ./${SERVICE}
 
 FROM alpine:3.19
 

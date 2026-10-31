@@ -1,13 +1,13 @@
-include ./backend/.env
+﻿include ./backend/.env
 export
 
-MIGRATION_IDENTITY_DIR=backend/services/identity/internal/migrations
-MIGRATION_COUPON_DIR=backend/services/coupon/internal/migrations
-MIGRATION_INVENTORY_DIR=backend/services/inventory/internal/migrations
-MIGRATION_CATALOG_DIR=backend/services/catalog/internal/migrations
-MIGRATION_CART_DIR=backend/services/cart/internal/migrations
-MIGRATION_ORDER_DIR=backend/services/order/internal/migrations
-MIGRATION_CHAT_DIR=backend/services/chat/internal/migrations
+MIGRATION_IDENTITY_DIR=backend/gomod/services/identity/internal/migrations
+MIGRATION_COUPON_DIR=backend/gomod/services/coupon/internal/migrations
+MIGRATION_INVENTORY_DIR=backend/gomod/services/inventory/internal/migrations
+MIGRATION_CATALOG_DIR=backend/gomod/services/catalog/internal/migrations
+MIGRATION_CART_DIR=backend/gomod/services/cart/internal/migrations
+MIGRATION_ORDER_DIR=backend/gomod/services/order/internal/migrations
+MIGRATION_CHAT_DIR=backend/gomod/services/chat/internal/migrations
 IDENTITY_DB_NAME?=shopping_identity
 COUPON_DB_NAME?=shopping_coupon
 INVENTORY_DB_NAME?=shopping_inventory
@@ -34,7 +34,7 @@ ENV_FILE=./backend/.env
 # Switch environment: copy the variant over the active env files.
 # The real .env.dev/.env.prod are git-ignored (secrets); if they are missing
 # on a fresh clone, copy the committed .env.prod.example files and fill them.
-# NEXT_PUBLIC_* are baked at storefront build time — rebuild after switching.
+# NEXT_PUBLIC_* are baked at storefront build time â€” rebuild after switching.
 env-dev:
 	powershell -NoProfile -Command "if (!(Test-Path backend/.env.dev) -or !(Test-Path frontend/apps/storefront/.env.dev)) { Write-Host 'Missing dev variant: cp backend/.env.dev.example backend/.env.dev + cp frontend/apps/storefront/.env.dev.example frontend/apps/storefront/.env.dev (secrets: see backend/.env.example)' -ForegroundColor Red; exit 1 }; Copy-Item backend/.env.dev backend/.env; Copy-Item frontend/apps/storefront/.env.dev frontend/apps/storefront/.env; Copy-Item frontend/apps/storefront/.env.dev frontend/apps/storefront/.env.production; Write-Host 'dev env active'"
 env-prod:
@@ -47,88 +47,88 @@ exportdb:
 	docker exec -i goshop-postgres pg_dump -U ${DB_USER} -d ${DB_NAME} > ./backupdb.sql
 
 seed:
-	cd backend && go run ./cmd/seed
+	cd backend/gomod/cmd && go run ./seed
 
 seed-docker:
 	docker exec -i goshop-postgres psql -U ${DB_USER} -d ${DB_NAME} < ./scripts/seed.sql
 
 server:
-	cd backend && go run ./cmd/api
+	cd backend/gomod/cmd && go run ./api
 
 worker:
-	cd backend && go run ./cmd/worker
+	cd backend/gomod/cmd && go run ./worker
 
 ws-gateway:
-	cd backend && go run ./cmd/ws-gateway
+	cd backend/gomod/cmd && go run ./ws-gateway
 
 build:
-	cd backend && go build -o bin/goshop ./cmd/api
+	cd backend/gomod/cmd && go build -o bin/goshop ./api
 
 build-worker:
-	cd backend && go build -o bin/worker ./cmd/worker
+	cd backend/gomod/cmd && go build -o bin/worker ./worker
 
 build-ws-gateway:
-	cd backend && go build -o bin/ws-gateway ./cmd/ws-gateway
+	cd backend/gomod/cmd && go build -o bin/ws-gateway ./ws-gateway
 
 identity:
-	cd backend && go run ./cmd/identity
+	cd backend/gomod/cmd && go run ./identity
 
 build-identity:
-	cd backend && go build -o bin/identity ./cmd/identity
+	cd backend/gomod/cmd && go build -o bin/identity ./identity
 
 notification:
-	cd backend && go run ./cmd/notification
+	cd backend/gomod/cmd && go run ./notification
 
 build-notification:
-	cd backend && go build -o bin/notification ./cmd/notification
+	cd backend/gomod/cmd && go build -o bin/notification ./notification
 
 payment:
-	cd backend && go run ./cmd/payment
+	cd backend/gomod/cmd && go run ./payment
 
 build-payment:
-	cd backend && go build -o bin/payment ./cmd/payment
+	cd backend/gomod/cmd && go build -o bin/payment ./payment
 
 coupon:
-	cd backend && go run ./cmd/coupon
+	cd backend/gomod/cmd && go run ./coupon
 
 build-coupon:
-	cd backend && go build -o bin/coupon ./cmd/coupon
+	cd backend/gomod/cmd && go build -o bin/coupon ./coupon
 
 inventory:
-	cd backend && go run ./cmd/inventory
+	cd backend/gomod/cmd && go run ./inventory
 
 build-inventory:
-	cd backend && go build -o bin/inventory ./cmd/inventory
+	cd backend/gomod/cmd && go build -o bin/inventory ./inventory
 
 catalog:
-	cd backend && go run ./cmd/catalog
+	cd backend/gomod/cmd && go run ./catalog
 
 build-catalog:
-	cd backend && go build -o bin/catalog ./cmd/catalog
+	cd backend/gomod/cmd && go build -o bin/catalog ./catalog
 
 cart:
-	cd backend && go run ./cmd/cart
+	cd backend/gomod/cmd && go run ./cart
 
 build-cart:
-	cd backend && go build -o bin/cart ./cmd/cart
+	cd backend/gomod/cmd && go build -o bin/cart ./cart
 
 order:
-	cd backend && go run ./cmd/order
+	cd backend/gomod/cmd && go run ./order
 
 build-order:
-	cd backend && go build -o bin/order ./cmd/order
+	cd backend/gomod/cmd && go build -o bin/order ./order
 
 chat:
-	cd backend && go run ./cmd/chat
+	cd backend/gomod/cmd && go run ./chat
 
 build-chat:
-	cd backend && go build -o bin/chat ./cmd/chat
+	cd backend/gomod/cmd && go build -o bin/chat ./chat
 
 media:
-	cd backend && go run ./cmd/media
+	cd backend/gomod/cmd && go run ./media
 
 build-media:
-	cd backend && go build -o bin/media ./cmd/media
+	cd backend/gomod/cmd && go build -o bin/media ./media
 
 
 run-binary:
