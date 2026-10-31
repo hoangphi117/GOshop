@@ -41,7 +41,7 @@ func main() {
 	})
 
 	if err := godotenv.Load(filepath.Join(rootDir, ".env")); err != nil {
-		logger.Log.Warn().Msg("No .env found for ws-gateway")
+		logger.Log.Warn().Msg("WARNING: No .env found for ws-gateway")
 	} else {
 		logger.Log.Info().Msg("Loaded .env successfully for WS Gateway")
 	}

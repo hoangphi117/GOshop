@@ -260,7 +260,7 @@ func main() {
 	})
 
 	if err := godotenv.Load(filepath.Join(rootDir, ".env")); err != nil {
-		logger.Log.Warn().Msg("No .env found, continuing with environment variables")
+		logger.Log.Warn().Msg("WARNING: No .env found, continuing with environment variables")
 	} else {
 		logger.Log.Info().Msg("Loaded .env successfully in worker!")
 	}

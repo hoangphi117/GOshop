@@ -14,7 +14,7 @@ func TestAppOriginDerivesBrowserFacingURLs(t *testing.T) {
 	}
 	for _, k := range keys {
 		t.Setenv(k, "")
-		os.Unsetenv(k)
+		_ = os.Unsetenv(k)
 	}
 
 	t.Run("derived from APP_ORIGIN", func(t *testing.T) {

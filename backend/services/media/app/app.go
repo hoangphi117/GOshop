@@ -26,7 +26,7 @@ import (
 )
 
 // App owns the media service HTTP server. Media is stateless: no database, no
-// gRPC Ã¢â‚¬â€ it fronts pkg/storage (local disk / S3 / MinIO / R2) for uploads.
+// gRPC it fronts pkg/storage (local disk / S3 / MinIO / R2) for uploads.
 type App struct {
 	cfg    *config.Config
 	server *http.Server

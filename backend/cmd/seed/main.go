@@ -37,24 +37,24 @@ func main() {
 	_ = godotenv.Load(filepath.Join(rootDir, ".env"))
 	_ = godotenv.Load(filepath.Join(rootDir, "../.env"))
 
-	fmt.Println("ðŸš€ Starting GOshop Database Seeder...")
+	fmt.Println("Starting GOshop Database Seeder...")
 
 	seedPath := findSeedFile(rootDir)
 	if seedPath == "" {
-		fmt.Println("âŒ Could not find scripts/seed.sql in root or parent directories.")
+		fmt.Println("INFO: Could not find scripts/seed.sql in root or parent directories.")
 		os.Exit(1)
 	}
 
-	fmt.Printf("ðŸ“– Reading seed file from: %s\n", seedPath)
+	fmt.Printf("Reading seed file from: %s\n", seedPath)
 	content, err := os.ReadFile(seedPath)
 	if err != nil {
-		fmt.Printf("âŒ Error reading seed file: %v\n", err)
+		fmt.Printf("INFO: Error reading seed file: %v\n", err)
 		os.Exit(1)
 	}
 
 	sections := parseSections(string(content))
 	if len(sections) == 0 {
-		fmt.Println("âŒ No '-- DB: <name>' sections found in seed file.")
+		fmt.Println("INFO: No '-- DB: <name>' sections found in seed file.")
 		os.Exit(1)
 	}
 
@@ -77,18 +77,18 @@ func main() {
 			continue
 		}
 		if err := runSection(ctx, dsn, section); err != nil {
-			fmt.Printf("âŒ Seeding %s failed: %v\n", section.db, err)
+			fmt.Printf("INFO: Seeding %s failed: %v\n", section.db, err)
 			os.Exit(1)
 		}
-		fmt.Printf("âœ… Seeded database %s\n", section.db)
+		fmt.Printf("INFO: Seeded database %s\n", section.db)
 	}
 
-	fmt.Printf("âœ… Seeding completed successfully in %v!\n", time.Since(startTime))
-	fmt.Println("ðŸ“¦ Databases: shopping, shopping_identity, shopping_catalog, shopping_coupon, shopping_cart, shopping_inventory")
-	fmt.Println("ðŸ” Seeded logins: admin@goshop.com / manager@goshop.com / mod@goshop.com / admin@gmail.com â€” password: Password123!")
+	fmt.Printf("INFO: Seeding completed successfully in %v!\n", time.Since(startTime))
+	fmt.Println("Databases: shopping, shopping_identity, shopping_catalog, shopping_coupon, shopping_cart, shopping_inventory")
+	fmt.Println("Seeded logins: admin@goshop.com / manager@goshop.com / mod@goshop.com / admin@gmail.com - password: Password123!")
 
 	purgeSearchAndCache(ctx, dsn)
-	fmt.Println("ðŸ” Product search reindex queued (catalog outbox worker consumes the events) and stale search docs purged.")
+	fmt.Println("INFO: Product search reindex queued (catalog outbox worker consumes the events) and stale search docs purged.")
 }
 
 // purgeSearchAndCache makes re-seeded data visible: re-seeding regenerates
@@ -114,12 +114,12 @@ func purgeSearchAndCache(ctx context.Context, dsn string) {
 	for {
 		keys, next, err := rdb.Scan(scanCtx, cursor, "catalog:*", 200).Result()
 		if err != nil {
-			fmt.Printf("âš ï¸  Skipping redis cache purge: %v\n", err)
+			fmt.Printf("INFO: Skipping redis cache purge: %v\n", err)
 			break
 		}
 		if len(keys) > 0 {
 			if err := rdb.Del(scanCtx, keys...).Err(); err != nil {
-				fmt.Printf("âš ï¸  Skipping redis cache purge: %v\n", err)
+				fmt.Printf("INFO: Skipping redis cache purge: %v\n", err)
 				break
 			}
 			deleted += len(keys)
@@ -134,7 +134,7 @@ func purgeSearchAndCache(ctx context.Context, dsn string) {
 	// 2. Drop search documents that no longer match a seeded product.
 	live := map[string]bool{}
 	if err := forEachProductUUID(ctx, dsn, func(u string) { live[u] = true }); err != nil {
-		fmt.Printf("âš ï¸  Skipping search purge (cannot read product UUIDs): %v\n", err)
+		fmt.Printf("INFO: Skipping search purge (cannot read product UUIDs): %v\n", err)
 		return
 	}
 
@@ -144,12 +144,12 @@ func purgeSearchAndCache(ctx context.Context, dsn string) {
 		utils.GetEnv("MEILISEARCH_INDEX_PRODUCTS", "products"),
 	)
 	if err != nil {
-		fmt.Printf("âš ï¸  Skipping search purge: %v\n", err)
+		fmt.Printf("INFO: Skipping search purge: %v\n", err)
 		return
 	}
 
 	if err := purgeRemovedDocuments(ctx, searchClient, live); err != nil {
-		fmt.Printf("âš ï¸  Skipping search purge: %v\n", err)
+		fmt.Printf("INFO: Skipping search purge: %v\n", err)
 	}
 }
 

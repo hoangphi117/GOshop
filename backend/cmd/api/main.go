@@ -54,7 +54,7 @@ func main() {
 	})
 
 	if err := godotenv.Load(filepath.Join(rootDir, ".env")); err != nil {
-		logger.Log.Warn().Msg("âš ï¸ No .env found")
+		logger.Log.Warn().Msg("WARNING: No .env found")
 	} else {
 		logger.Log.Info().Msg("Loaded .env successfully in API!")
 	}
