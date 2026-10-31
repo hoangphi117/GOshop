@@ -4,12 +4,13 @@ import (
 	"context"
 	"path/filepath"
 
+	"github.com/joho/godotenv"
+
 	"goshop/internal/config"
 	"goshop/pkg/logger"
+	"goshop/pkg/telemetry"
 	"goshop/pkg/utils"
 	chatapp "goshop/services/chat/app"
-
-	"github.com/joho/godotenv"
 )
 
 // @title           GOshop Chat Service API
@@ -21,7 +22,7 @@ import (
 func main() {
 	rootDir := utils.MustGetwd()
 
-	logFile := filepath.Join(rootDir, "internal/logs/chat.log")
+	logFile := utils.RuntimeLogPath("chat", "chat.log")
 	logger.InitLogger(logger.LoggerConfig{
 		Level:      "info",
 		Filename:   logFile,
@@ -33,10 +34,16 @@ func main() {
 	})
 
 	if err := godotenv.Load(filepath.Join(rootDir, ".env")); err != nil {
-		logger.Log.Warn().Err(err).Msg("No .env found, using system environment variables")
+		logger.Log.Warn().Err(err).Msg("WARNING: No .env found, using system environment variables")
 	} else {
 		logger.Log.Info().Msg("Loaded .env successfully in Chat Service!")
 	}
+
+	shutdownTracer, tracerErr := telemetry.InitTracer(context.Background(), "goshop-chat", "1.0.0")
+	if tracerErr != nil {
+		logger.Log.Warn().Err(tracerErr).Msg("Tracing disabled")
+	}
+	defer func() { _ = shutdownTracer(context.Background()) }()
 
 	cfg := config.NewConfig()
 	if chatDBName := utils.GetEnv("CHAT_DB_NAME", utils.GetEnv("DB_CHAT_NAME", "shopping_chat")); chatDBName != "" {

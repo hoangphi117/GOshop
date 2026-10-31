@@ -31,6 +31,15 @@ DEV_COMPOSE=docker-compose.dev.yml
 
 ENV_FILE=./backend/.env
 
+# Switch environment: copy the variant over the active env files.
+# The real .env.dev/.env.prod are git-ignored (secrets); if they are missing
+# on a fresh clone, copy the committed .env.prod.example files and fill them.
+# NEXT_PUBLIC_* are baked at storefront build time — rebuild after switching.
+env-dev:
+	powershell -NoProfile -Command "if (!(Test-Path backend/.env.dev) -or !(Test-Path frontend/apps/storefront/.env.dev)) { Write-Host 'Missing dev variant: cp backend/.env.dev.example backend/.env.dev + cp frontend/apps/storefront/.env.dev.example frontend/apps/storefront/.env.dev (secrets: see backend/.env.example)' -ForegroundColor Red; exit 1 }; Copy-Item backend/.env.dev backend/.env; Copy-Item frontend/apps/storefront/.env.dev frontend/apps/storefront/.env; Copy-Item frontend/apps/storefront/.env.dev frontend/apps/storefront/.env.production; Write-Host 'dev env active'"
+env-prod:
+	powershell -NoProfile -Command "if (!(Test-Path backend/.env.prod) -or !(Test-Path frontend/apps/storefront/.env.prod)) { Write-Host 'Missing prod variant: cp backend/.env.prod.example backend/.env.prod + cp frontend/apps/storefront/.env.prod.example frontend/apps/storefront/.env.prod, then fill every CHANGE_ME' -ForegroundColor Red; exit 1 }; Copy-Item backend/.env.prod backend/.env; Copy-Item frontend/apps/storefront/.env.prod frontend/apps/storefront/.env; Copy-Item frontend/apps/storefront/.env.prod frontend/apps/storefront/.env.production; Write-Host 'prod env active - set APP_ORIGIN in backend/.env.prod first; rebuild storefront + payment + api1 + api2'"
+
 importdb:
 	docker exec -i goshop-postgres psql -U ${DB_USER} -d ${DB_NAME} < ./backupdb.sql
 
@@ -196,21 +205,21 @@ migrate-identity-force:
 
 # Build container for noapp
 noapp:
-	docker-compose -f ${NOAPP_COMPOSE} down
-	docker-compose -f ${NOAPP_COMPOSE} --env-file ${ENV_FILE} up -d --build
+	docker compose -f ${NOAPP_COMPOSE} down
+	docker compose -f ${NOAPP_COMPOSE} --env-file ${ENV_FILE} up -d --build
 
 # Stop noapp containers
 stop-noapp:
-	docker-compose -f ${NOAPP_COMPOSE} down
+	docker compose -f ${NOAPP_COMPOSE} down
 
 # Build container for dev
 dev:
-	docker-compose -f ${DEV_COMPOSE} down
-	docker-compose -f ${DEV_COMPOSE} --env-file ${ENV_FILE} up --build
+	docker compose -f ${DEV_COMPOSE} down
+	docker compose -f ${DEV_COMPOSE} --env-file ${ENV_FILE} up --build
 
 # Stop dev containers
 stop-dev:
-	docker-compose -f ${DEV_COMPOSE} down
+	docker compose -f ${DEV_COMPOSE} down
 
 # Run lightweight hybrid development (Infra in Docker, Go apps on Host)
 dev-host:
@@ -218,16 +227,42 @@ dev-host:
 
 # Build container for production
 prod:
-	docker-compose -f ${PROD_COMPOSE} down
-	docker-compose -f ${PROD_COMPOSE} --env-file ${ENV_FILE} up -d --build
+	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-prod.ps1
+	docker compose -f ${PROD_COMPOSE} --env-file ${ENV_FILE} build storefront
+	docker compose -f ${PROD_COMPOSE} --env-file ${ENV_FILE} up -d
+	powershell -NoProfile -Command "Start-Sleep -Seconds 30"
+	$(MAKE) reload-nginx
+	@echo ">>> done; now run: make smoke-prod"
+
+# Admin SPA only (after a dashboard code change).
+# Static build on the host: 1s via pnpm; nginx bind-mounts dist/ directly.
+build-dashboard:
+	cd frontend && pnpm --filter dashboard build
+
+# Fast path: images already built, just (re)start the stack.
+prod-fast:
+	docker compose -f ${PROD_COMPOSE} --env-file ${ENV_FILE} up -d
+	powershell -NoProfile -Command "Start-Sleep -Seconds 30"
+	$(MAKE) reload-nginx
+	@echo ">>> done; now run: make smoke-prod"
 
 # Stop production containers
 stop-prod:
-	docker-compose -f ${PROD_COMPOSE} down
+	docker compose -f ${PROD_COMPOSE} down
+
+# Post-deploy smoke check (8 HTTP probes + container states).
+smoke-prod:
+# On Windows the `bash` on PATH is the broken WSL relay, so route through
+# Git Bash explicitly. On Linux dev boxes edit this to plain `bash`.
+	powershell -NoProfile -Command "& 'C:\Program Files\Git\bin\bash.exe' scripts/smoke-prod.sh"
+
+# Reset nginx upstream failure state after backend recovery.
+reload-nginx:
+	docker exec goshop-nginx nginx -s reload
 
 # View production logs
 logs-prod:
-	docker-compose -f ${PROD_COMPOSE} logs -f --tail=100
+	docker compose -f ${PROD_COMPOSE} logs -f --tail=100
 
 # Enter bash shell in the API container
 bash:
@@ -235,12 +270,13 @@ bash:
 
 # Performance & Load Testing with Grafana k6 (Docker)
 loadtest:
-	docker run --rm -i --network=shopping_goshop-network -v "./loadtest:/loadtest" -e BASE_URL=http://goshop-nginx -e API_KEY=abcd-1234-1111 grafana/k6 run /loadtest/load_test.js
+	docker run --rm -i --network=shopping_goshop-network -v "./scripts/loadtest:/loadtest" -e BASE_URL=http://goshop-nginx -e API_KEY=${API_KEY} grafana/k6 run /loadtest/load_test.js
 
 stresstest:
-	docker run --rm -i --network=shopping_goshop-network -v "./loadtest:/loadtest" -e BASE_URL=http://goshop-nginx -e API_KEY=abcd-1234-1111 grafana/k6 run /loadtest/stress_test.js
+	docker run --rm -i --network=shopping_goshop-network -v "./scripts/loadtest:/loadtest" -e BASE_URL=http://goshop-nginx -e API_KEY=${API_KEY} grafana/k6 run /loadtest/stress_test.js
 
 spiketest:
-	docker run --rm -i --network=shopping_goshop-network -v "./loadtest:/loadtest" -e BASE_URL=http://goshop-nginx -e API_KEY=abcd-1234-1111 grafana/k6 run /loadtest/spike_test.js
+	docker run --rm -i --network=shopping_goshop-network -v "./scripts/loadtest:/loadtest" -e BASE_URL=http://goshop-nginx -e API_KEY=${API_KEY} grafana/k6 run /loadtest/spike_test.js
 
-.PHONY: importdb exportdb server worker ws-gateway identity notification payment coupon inventory catalog order chat media build-identity build-notification build-payment build-coupon build-inventory build-catalog build-order build-chat build-media migrate-create migrate-up migrate-down sqlc build build-worker build-ws-gateway run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev dev-host swagger loadtest stresstest spiketest seed seed-docker
+.PHONY: importdb exportdb server worker ws-gateway identity notification payment coupon inventory catalog order chat media build-identity build-notification build-payment build-coupon build-inventory build-catalog build-order build-chat build-media migrate-create migrate-up migrate-down sqlc build build-worker build-ws-gateway run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev dev-host swagger loadtest stresstest spiketest seed seed-docker env-dev env-prod
+

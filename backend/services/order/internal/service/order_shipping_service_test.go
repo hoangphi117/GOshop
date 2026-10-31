@@ -6,21 +6,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/redis/go-redis/v9"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"goshop/contracts/events"
 	"goshop/internal/testutils"
 	"goshop/pkg/db"
-	"goshop/pkg/rabbitmq"
+	"goshop/pkg/messaging"
 	"goshop/pkg/shipping"
 	"goshop/pkg/utils"
 	"goshop/services/order/internal/db/sqlc"
 	v1dto "goshop/services/order/internal/dto"
 	"goshop/services/order/internal/repository"
 	orderservice "goshop/services/order/internal/service"
-
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/redis/go-redis/v9"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type testShippingServiceDeps struct {
@@ -32,7 +33,7 @@ type testShippingServiceDeps struct {
 	webhookRepo     repository.WebhookEventRepository
 	userRepo        *MockUserRepository
 	redisClient     *redis.Client
-	rabbitmq        rabbitmq.RabbitMQService
+	rabbitmq        messaging.Broker
 }
 
 func newTestShippingService(deps testShippingServiceDeps) orderservice.OrderShippingService {
@@ -354,7 +355,7 @@ func TestOrderService_ProcessShippingOrderMessage(t *testing.T) {
 		var eventPublished bool
 		mockRabbitMQ := &testutils.MockRabbitMQService{
 			PublishFunc: func(ctx context.Context, queue string, message any) error {
-				if queue == rabbitmq.QueueOrderStatusChanged {
+				if queue == events.QueueOrderStatusChanged {
 					eventPublished = true
 				}
 				return nil
@@ -1022,12 +1023,12 @@ func TestOrderService_ConfirmOrderDelivery(t *testing.T) {
 		}
 
 		var eventPublished bool
-		var publishedEvent rabbitmq.OrderStatusChangedEvent
+		var publishedEvent events.OrderStatusChangedEvent
 		mockRabbitMQ := &testutils.MockRabbitMQService{
 			PublishFunc: func(ctx context.Context, queue string, message any) error {
-				if queue == rabbitmq.QueueOrderStatusChanged {
+				if queue == events.QueueOrderStatusChanged {
 					eventPublished = true
-					publishedEvent = message.(rabbitmq.OrderStatusChangedEvent)
+					publishedEvent = message.(events.OrderStatusChangedEvent)
 				}
 				return nil
 			},

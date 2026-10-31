@@ -5,9 +5,15 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+    environment:
+      - API_KEY=${API_KEY:?API_KEY must be set (edge injects it server-side)}
+      - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx/secret-conf
     volumes:
+      - type: tmpfs
+        target: /etc/nginx/secret-conf
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/templates:/etc/nginx/templates:ro
       - ./backend/uploads:/var/www/uploads:ro
     depends_on:
       - api
@@ -17,7 +23,9 @@ services:
   api:
     build:
       context: ./backend
-      dockerfile: Dockerfile.api.dev
+      dockerfile: build/Dockerfile.service.dev
+      args:
+        SERVICE: api
     container_name: goshop-api
     restart: unless-stopped
     ports:
@@ -30,6 +38,7 @@ services:
       - REDIS_ADDR=redis:6379
       - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
       - MEILISEARCH_HOST=http://meilisearch:7700
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
       - IDENTITY_SERVICE_URL=http://identity-service:8081
       - IDENTITY_GRPC_ADDR=identity-service:50051
       - NOTIFICATION_SERVICE_URL=http://notification-service:8082
@@ -44,6 +53,7 @@ services:
       - JWT_PRIVATE_KEY=
       - JWT_PUBLIC_KEY=/app/certs/jwt_public.pem
       - S3_ENDPOINT=http://minio:9000
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
     volumes:
       - ./backend:/app
       - ./backend/uploads:/app/uploads
@@ -65,7 +75,9 @@ services:
   identity:
     build:
       context: ./backend
-      dockerfile: Dockerfile.identity.dev
+      dockerfile: build/Dockerfile.service.dev
+      args:
+        SERVICE: identity
     container_name: goshop-identity
     restart: unless-stopped
     ports:
@@ -87,6 +99,7 @@ services:
       - JWT_SIGNING_ENABLED=true
       - JWT_PRIVATE_KEY=/app/certs/jwt_private.pem
       - JWT_PUBLIC_KEY=/app/certs/jwt_public.pem
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
     volumes:
       - ./backend:/app
       - ./backend/uploads:/app/uploads
@@ -105,7 +118,9 @@ services:
   notification:
     build:
       context: ./backend
-      dockerfile: Dockerfile.notification.dev
+      dockerfile: build/Dockerfile.service.dev
+      args:
+        SERVICE: notification
     container_name: goshop-notification
     restart: unless-stopped
     ports:
@@ -124,6 +139,7 @@ services:
       - JWT_SIGNING_ENABLED=false
       - JWT_PRIVATE_KEY=
       - JWT_PUBLIC_KEY=/app/certs/jwt_public.pem
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
     volumes:
       - ./backend:/app
     depends_on:
@@ -141,7 +157,9 @@ services:
   payment:
     build:
       context: ./backend
-      dockerfile: Dockerfile.payment.dev
+      dockerfile: build/Dockerfile.service.dev
+      args:
+        SERVICE: payment
     container_name: goshop-payment
     restart: unless-stopped
     ports:
@@ -163,6 +181,7 @@ services:
       - JWT_SIGNING_ENABLED=false
       - JWT_PRIVATE_KEY=
       - JWT_PUBLIC_KEY=/app/certs/jwt_public.pem
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
     volumes:
       - ./backend:/app
     depends_on:
@@ -180,7 +199,7 @@ services:
   catalog:
     build:
       context: ./backend
-      dockerfile: Dockerfile.microservice.dev
+      dockerfile: build/Dockerfile.service.dev
       args:
         SERVICE: catalog
     container_name: goshop-catalog
@@ -204,6 +223,7 @@ services:
       - MEILISEARCH_HOST=http://meilisearch:7700
       - GOMEMLIMIT=128MiB
       - GOMAXPROCS=1
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
     mem_limit: 160m
     cpus: 0.50
     depends_on:
@@ -225,7 +245,7 @@ services:
   inventory:
     build:
       context: ./backend
-      dockerfile: Dockerfile.microservice.dev
+      dockerfile: build/Dockerfile.service.dev
       args:
         SERVICE: inventory
     container_name: goshop-inventory
@@ -249,6 +269,7 @@ services:
       - JWT_PRIVATE_KEY=
       - GOMEMLIMIT=128MiB
       - GOMAXPROCS=1
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
     mem_limit: 160m
     cpus: 0.50
     depends_on:
@@ -266,7 +287,7 @@ services:
   coupon:
     build:
       context: ./backend
-      dockerfile: Dockerfile.microservice.dev
+      dockerfile: build/Dockerfile.service.dev
       args:
         SERVICE: coupon
     container_name: goshop-coupon
@@ -288,6 +309,7 @@ services:
       - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
       - GOMEMLIMIT=96MiB
       - GOMAXPROCS=1
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
     mem_limit: 128m
     cpus: 0.50
     depends_on:
@@ -305,7 +327,7 @@ services:
   cart:
     build:
       context: ./backend
-      dockerfile: Dockerfile.microservice.dev
+      dockerfile: build/Dockerfile.service.dev
       args:
         SERVICE: cart
     container_name: goshop-cart
@@ -327,6 +349,7 @@ services:
       - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
       - GOMEMLIMIT=128MiB
       - GOMAXPROCS=1
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
     mem_limit: 160m
     cpus: 0.50
     depends_on:
@@ -346,7 +369,7 @@ services:
   banner:
     build:
       context: ./backend
-      dockerfile: Dockerfile.microservice.dev
+      dockerfile: build/Dockerfile.service.dev
       args:
         SERVICE: banner
     container_name: goshop-banner
@@ -367,6 +390,7 @@ services:
       - REDIS_ADDR=redis:6379
       - GOMEMLIMIT=96MiB
       - GOMAXPROCS=1
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
     mem_limit: 128m
     cpus: 0.50
     depends_on:
@@ -384,7 +408,7 @@ services:
   review:
     build:
       context: ./backend
-      dockerfile: Dockerfile.microservice.dev
+      dockerfile: build/Dockerfile.service.dev
       args:
         SERVICE: review
     container_name: goshop-review
@@ -410,6 +434,7 @@ services:
       - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:-goshop-internal-secret-token}
       - GOMEMLIMIT=128MiB
       - GOMAXPROCS=1
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
     mem_limit: 192m
     cpus: 0.50
     depends_on:
@@ -427,7 +452,9 @@ services:
   order:
     build:
       context: ./backend
-      dockerfile: Dockerfile.order.dev
+      dockerfile: build/Dockerfile.service.dev
+      args:
+        SERVICE: order
     container_name: goshop-order
     restart: unless-stopped
     ports:
@@ -456,6 +483,7 @@ services:
       - JWT_SIGNING_ENABLED=false
       - JWT_PRIVATE_KEY=
       - JWT_PUBLIC_KEY=/app/certs/jwt_public.pem
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
     volumes:
       - ./backend:/app
     depends_on:
@@ -485,7 +513,9 @@ services:
   worker:
     build:
       context: ./backend
-      dockerfile: Dockerfile.worker.dev
+      dockerfile: build/Dockerfile.service.dev
+      args:
+        SERVICE: worker
     container_name: goshop-worker
     restart: unless-stopped
     env_file:
@@ -509,7 +539,9 @@ services:
   ws-gateway:
     build:
       context: ./backend
-      dockerfile: Dockerfile.ws-gateway.prod
+      dockerfile: build/Dockerfile.service
+      args:
+        SERVICE: ws-gateway
     container_name: goshop-ws-gateway
     restart: unless-stopped
     ports:
@@ -522,6 +554,7 @@ services:
       - APP_ENV=development
       - JWT_SIGNING_ENABLED=false
       - JWT_PRIVATE_KEY=
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
     depends_on:
       postgres:
         condition: service_healthy
@@ -616,8 +649,36 @@ services:
       - MEILI_MASTER_KEY=${MEILISEARCH_MASTER_KEY:-masterKey123}
       - MEILI_ENV=development
       - MEILI_NO_ANALYTICS=true
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
     volumes:
       - meilisearch-data:/meili_data
+    networks:
+      - goshop-network
+
+  jaeger:
+    # Dev-only tracing backend: receives OTLP and serves the trace UI.
+    image: jaegertracing/all-in-one:1.62.0
+    container_name: goshop-jaeger
+    restart: unless-stopped
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "4318:4318"    # OTLP HTTP (host-side services export here)
+    networks:
+      - goshop-network
+
+  promtail:
+    # Ships container logs to Grafana Cloud Loki (no local Loki).
+    image: grafana/promtail:3.5.1
+    container_name: goshop-promtail
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/config.yml -config.expand-env=true
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./system/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - goshop-network
 

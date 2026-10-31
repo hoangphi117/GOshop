@@ -5,20 +5,20 @@ import (
 	"testing"
 	"time"
 
-	"goshop/pkg/rabbitmq"
-	identityworker "goshop/services/identity/worker"
-
-	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
+
+	"goshop/contracts/events"
+	"goshop/pkg/messaging"
+	identityworker "goshop/services/identity/worker"
 )
 
 func TestUserSyncConsumer_Handle(t *testing.T) {
 	consumer := identityworker.NewUserSyncConsumer(nil)
 
 	t.Run("Valid user updated event", func(t *testing.T) {
-		event := rabbitmq.UserSyncEvent{
+		event := events.UserSyncEvent{
 			EventID:      "evt-123",
-			EventType:    rabbitmq.QueueUserUpdated,
+			EventType:    events.QueueUserUpdated,
 			UserID:       10,
 			UserUUID:     "29701be4-9c8e-43bb-b250-8e88d6754ffe",
 			UserFullname: "Updated Name",
@@ -31,13 +31,13 @@ func TestUserSyncConsumer_Handle(t *testing.T) {
 		body, err := json.Marshal(event)
 		assert.NoError(t, err)
 
-		err = consumer.Handle(amqp.Table{}, body)
+		err = consumer.Handle(messaging.Header{}, body)
 		assert.NoError(t, err)
 	})
 
 	t.Run("Invalid JSON payload returns error without swallowing", func(t *testing.T) {
 		invalidBody := []byte("{invalid-json}")
-		err := consumer.Handle(amqp.Table{}, invalidBody)
+		err := consumer.Handle(messaging.Header{}, invalidBody)
 		assert.Error(t, err)
 	})
 }

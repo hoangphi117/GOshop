@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -12,6 +11,16 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"google.golang.org/grpc"
+	"net"
+
+	"goshop/contracts/events"
 	"goshop/internal/config"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
@@ -20,6 +29,7 @@ import (
 	"goshop/pkg/middleware"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/shipping"
+	"goshop/pkg/telemetry"
 	"goshop/pkg/utils"
 	"goshop/pkg/validation"
 	orderv1 "goshop/proto/order/v1"
@@ -40,14 +50,6 @@ import (
 	orderworker "goshop/services/order/internal/worker"
 	paymentcontract "goshop/services/payment/contract"
 	"goshop/services/payment/money"
-
-	"github.com/gin-gonic/gin"
-	"github.com/golang-migrate/migrate/v4"
-	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	"github.com/golang-migrate/migrate/v4/source/iofs"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"google.golang.org/grpc"
 )
 
 type App struct {
@@ -354,7 +356,7 @@ func New(cfg *config.Config) (*App, error) {
 
 	// RabbitMQ & Workers
 	rabbitmqURL := utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
-	rabbitmqLogger := utils.NewLoggerWithPath("order_rabbitmq.log", "info")
+	rabbitmqLogger := utils.NewLoggerWithPath("order", "order_rabbitmq.log", "info")
 	rabbitMQ, err := rabbitmq.NewRabbitMQService(rabbitmqURL, rabbitmqLogger)
 	if err != nil {
 		logger.Log.Warn().Err(err).Msg("RabbitMQ not available on boot for order service, will retry in background")
@@ -446,12 +448,12 @@ func New(cfg *config.Config) (*App, error) {
 		shippingConsumer := orderworker.NewShippingConsumer(shippingService, logger.Log)
 
 		go func() {
-			if err := rabbitMQ.Consume(context.Background(), rabbitmq.QueuePaymentSucceeded, paymentSucceededConsumer.Handle); err != nil {
+			if err := rabbitMQ.Consume(context.Background(), events.QueuePaymentSucceeded, paymentSucceededConsumer.Handle); err != nil {
 				logger.Log.Error().Err(err).Msg("Failed to start PaymentSucceeded consumer")
 			}
 		}()
 		go func() {
-			if err := rabbitMQ.Consume(context.Background(), rabbitmq.QueuePaymentExpired, paymentExpiredConsumer.Handle); err != nil {
+			if err := rabbitMQ.Consume(context.Background(), events.QueuePaymentExpired, paymentExpiredConsumer.Handle); err != nil {
 				logger.Log.Error().Err(err).Msg("Failed to start PaymentExpired consumer")
 			}
 		}()
@@ -487,7 +489,7 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, fmt.Errorf("failed to listen on gRPC port %s: %w", grpcPort, err)
 	}
 
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(telemetry.ServerOptions()...)
 	orderv1.RegisterOrderServiceServer(grpcServer, ordergrpc.NewOrderGRPCServer(provider))
 
 	return &App{

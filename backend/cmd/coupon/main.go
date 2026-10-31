@@ -4,12 +4,13 @@ import (
 	"context"
 	"path/filepath"
 
+	"github.com/joho/godotenv"
+
 	"goshop/internal/config"
 	"goshop/pkg/logger"
+	"goshop/pkg/telemetry"
 	"goshop/pkg/utils"
 	couponapp "goshop/services/coupon/app"
-
-	"github.com/joho/godotenv"
 )
 
 // @title           GOshop Coupon Service API
@@ -21,7 +22,7 @@ import (
 func main() {
 	rootDir := utils.MustGetwd()
 
-	logFile := filepath.Join(rootDir, "internal/logs/coupon.log")
+	logFile := utils.RuntimeLogPath("coupon", "coupon.log")
 	logger.InitLogger(logger.LoggerConfig{
 		Level:      "info",
 		Filename:   logFile,
@@ -33,10 +34,16 @@ func main() {
 	})
 
 	if err := godotenv.Load(filepath.Join(rootDir, ".env")); err != nil {
-		logger.Log.Warn().Err(err).Msg("⚠️ No .env found, using system environment variables")
+		logger.Log.Warn().Err(err).Msg("WARNING: No .env found, using system environment variables")
 	} else {
 		logger.Log.Info().Msg("Loaded .env successfully in Coupon Service!")
 	}
+
+	shutdownTracer, tracerErr := telemetry.InitTracer(context.Background(), "goshop-coupon", "1.0.0")
+	if tracerErr != nil {
+		logger.Log.Warn().Err(tracerErr).Msg("Tracing disabled")
+	}
+	defer func() { _ = shutdownTracer(context.Background()) }()
 
 	cfg := config.NewConfig()
 	if couponDBName := utils.GetEnv("COUPON_DB_NAME", utils.GetEnv("DB_COUPON_NAME", "shopping_coupon")); couponDBName != "" {

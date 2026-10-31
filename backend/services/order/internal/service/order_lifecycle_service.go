@@ -2,21 +2,22 @@ package service
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
+
+	"database/sql"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"slices"
+
+	"goshop/contracts/events"
 	"goshop/pkg/cache"
 	"goshop/pkg/db"
 	"goshop/pkg/logger"
-	"goshop/pkg/rabbitmq"
 	"goshop/pkg/utils"
 	"goshop/services/order/internal/db/sqlc"
 	v1dto "goshop/services/order/internal/dto"
-	"slices"
-	"strings"
-
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 )
 
 type orderLifecycleService struct {
@@ -103,7 +104,7 @@ func (s *orderLifecycleService) UpdateOrderStatus(ctx context.Context, orderUUID
 		}
 
 		if s.outboxStore != nil {
-			evt := rabbitmq.NewOrderStatusChangedEvent(
+			evt := events.NewOrderStatusChangedEvent(
 				uuid.New().String(),
 				updatedOrder.OrderUuid.String(),
 				updatedOrder.OrderNumber,
@@ -114,7 +115,7 @@ func (s *orderLifecycleService) UpdateOrderStatus(ctx context.Context, orderUUID
 				updatedOrder.OrderStatus,
 				"",
 			)
-			if _, outboxErr := s.outboxStore.Insert(txCtx, tx, "order", updatedOrder.OrderUuid.String(), rabbitmq.QueueOrderStatusChanged, evt); outboxErr != nil {
+			if _, outboxErr := s.outboxStore.Insert(txCtx, tx, "order", updatedOrder.OrderUuid.String(), events.QueueOrderStatusChanged, evt); outboxErr != nil {
 				return utils.WrapError(utils.ErrCodeInternal, "failed to insert outbox event for order status change", outboxErr)
 			}
 		}
@@ -230,7 +231,7 @@ func (s *orderLifecycleService) CancelOrder(ctx context.Context, userUUID uuid.U
 			if reason != nil {
 				reasonStr = strings.TrimSpace(*reason)
 			}
-			evt := rabbitmq.NewOrderCancelledEventWithDetails(
+			evt := events.NewOrderCancelledEventWithDetails(
 				uuid.New().String(),
 				orderRow.OrderUuid.String(),
 				orderRow.OrderNumber,
@@ -241,7 +242,7 @@ func (s *orderLifecycleService) CancelOrder(ctx context.Context, userUUID uuid.U
 				orderRow.OrderCouponID,
 				toOrderCancelledItems(orderItems),
 			)
-			if _, err := s.outboxStore.Insert(txCtx, tx, "order", orderRow.OrderUuid.String(), rabbitmq.QueueOrderCancelled, evt); err != nil {
+			if _, err := s.outboxStore.Insert(txCtx, tx, "order", orderRow.OrderUuid.String(), events.QueueOrderCancelled, evt); err != nil {
 				return utils.WrapError(utils.ErrCodeInternal, "failed to insert order cancelled outbox event", err)
 			}
 		}
@@ -315,7 +316,7 @@ func (s *orderLifecycleService) CancelExpiredOrder(ctx context.Context, orderUUI
 
 		// 4. Dispatch OrderCancelled event via Outbox
 		if s.outboxStore != nil {
-			evt := rabbitmq.NewOrderCancelledEventWithDetails(
+			evt := events.NewOrderCancelledEventWithDetails(
 				uuid.New().String(),
 				orderRow.OrderUuid.String(),
 				orderRow.OrderNumber,
@@ -326,7 +327,7 @@ func (s *orderLifecycleService) CancelExpiredOrder(ctx context.Context, orderUUI
 				orderRow.OrderCouponID,
 				toOrderCancelledItems(orderItems),
 			)
-			if _, err := s.outboxStore.Insert(txCtx, tx, "order", orderRow.OrderUuid.String(), rabbitmq.QueueOrderCancelled, evt); err != nil {
+			if _, err := s.outboxStore.Insert(txCtx, tx, "order", orderRow.OrderUuid.String(), events.QueueOrderCancelled, evt); err != nil {
 				return utils.WrapError(utils.ErrCodeInternal, "failed to insert order cancelled outbox event", err)
 			}
 		}
@@ -368,10 +369,10 @@ func toRestoreItems(orderItems []sqlc.GetOrderItemsByOrderIDRow) []RestoreItem {
 	return items
 }
 
-func toOrderCancelledItems(orderItems []sqlc.GetOrderItemsByOrderIDRow) []rabbitmq.OrderCancelledItem {
-	items := make([]rabbitmq.OrderCancelledItem, len(orderItems))
+func toOrderCancelledItems(orderItems []sqlc.GetOrderItemsByOrderIDRow) []events.OrderCancelledItem {
+	items := make([]events.OrderCancelledItem, len(orderItems))
 	for i, item := range orderItems {
-		items[i] = rabbitmq.OrderCancelledItem{
+		items[i] = events.OrderCancelledItem{
 			ProductID:   item.OrderItemProductID,
 			ProductUUID: item.OrderItemProductUuid.String(),
 			Quantity:    item.OrderItemQuantity,
@@ -536,7 +537,7 @@ func (s *orderLifecycleService) UpdateOrderPaymentStatus(ctx context.Context, us
 	}
 
 	if s.outboxStore != nil && targetPaymentStatus == OrderPaymentStatusPaid {
-		event := rabbitmq.NewPaymentSucceededEvent(
+		event := events.NewPaymentSucceededEvent(
 			uuid.New().String(),
 			"",
 			updatedOrder.OrderUuid.String(),
@@ -551,7 +552,7 @@ func (s *orderLifecycleService) UpdateOrderPaymentStatus(ctx context.Context, us
 			nil,
 			"order",
 			updatedOrder.OrderUuid.String(),
-			rabbitmq.QueuePaymentSucceeded,
+			events.QueuePaymentSucceeded,
 			event,
 		); outboxErr != nil {
 			return nil, utils.WrapError(utils.ErrCodeInternal, "Failed to publish payment status update", outboxErr)

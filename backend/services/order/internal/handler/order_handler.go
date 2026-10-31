@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	v1dto "goshop/services/order/internal/dto"
 	"goshop/pkg/middleware"
-	orderservice "goshop/services/order/internal/service"
 	"goshop/pkg/utils"
 	"goshop/pkg/validation"
+	v1dto "goshop/services/order/internal/dto"
+	orderservice "goshop/services/order/internal/service"
 	"net/http"
 	"strings"
 
@@ -984,8 +984,6 @@ func (oh *OrderHandler) GetMyOrderReturns(ctx *gin.Context) {
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Return requests retrieved successfully", paginationResponse)
 }
-
-
 
 // AdminGetReturns godoc
 // @Summary      Get all return requests

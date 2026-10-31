@@ -4,12 +4,13 @@ import (
 	"context"
 	"path/filepath"
 
+	"github.com/joho/godotenv"
+
 	"goshop/internal/config"
 	"goshop/pkg/logger"
+	"goshop/pkg/telemetry"
 	"goshop/pkg/utils"
 	bannerapp "goshop/services/banner/app"
-
-	"github.com/joho/godotenv"
 )
 
 // @title           GOshop Banner Service API
@@ -21,7 +22,7 @@ import (
 func main() {
 	rootDir := utils.MustGetwd()
 
-	logFile := filepath.Join(rootDir, "internal/logs/banner.log")
+	logFile := utils.RuntimeLogPath("banner", "banner.log")
 	logger.InitLogger(logger.LoggerConfig{
 		Level:      "info",
 		Filename:   logFile,
@@ -33,10 +34,16 @@ func main() {
 	})
 
 	if err := godotenv.Load(filepath.Join(rootDir, ".env")); err != nil {
-		logger.Log.Warn().Err(err).Msg("No .env found, using system environment variables")
+		logger.Log.Warn().Err(err).Msg("WARNING: No .env found, using system environment variables")
 	} else {
 		logger.Log.Info().Msg("Loaded .env successfully in Banner Service!")
 	}
+
+	shutdownTracer, tracerErr := telemetry.InitTracer(context.Background(), "goshop-banner", "1.0.0")
+	if tracerErr != nil {
+		logger.Log.Warn().Err(tracerErr).Msg("Tracing disabled")
+	}
+	defer func() { _ = shutdownTracer(context.Background()) }()
 
 	cfg := config.NewConfig()
 	if bannerDBName := utils.GetEnv("BANNER_DB_NAME", utils.GetEnv("DB_BANNER_NAME", "shopping_banner")); bannerDBName != "" {

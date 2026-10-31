@@ -3,9 +3,9 @@ package service
 import (
 	"errors"
 	"fmt"
-	"goshop/pkg/utils"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
+	"goshop/pkg/utils"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"

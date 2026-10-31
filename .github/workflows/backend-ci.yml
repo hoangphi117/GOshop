@@ -46,6 +46,18 @@ jobs:
         run: buf lint
         working-directory: backend
 
+      - name: Gofmt check
+        # Formatting is a hard gate: an unformatted file fails CI instead of
+        # drifting until a bulk reformat hides real changes in noise.
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "These files need gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
+        working-directory: backend
+
       - name: Buf breaking check
         # Both sides as git refs: identical file keying regardless of whether
         # develop has backend/buf.yaml yet. buf defaults to FILE breaking
@@ -58,7 +70,9 @@ jobs:
         run: go vet ./...
 
       - name: Run Tests with Race Detector
-        run: go test -race -v ./...
+        # Coverage is printed but does not gate: the total stays visible in
+        # the log so a drop is noticed without blocking unrelated work.
+        run: go test -race -v -coverprofile=coverage.out ./... && go tool cover -func=coverage.out | tail -1
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v7
@@ -66,6 +80,26 @@ jobs:
           version: v2.15.0
           working-directory: backend
           args: --timeout=5m
+
+  compose:
+    name: Compose config smoke check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create build-only env placeholders
+        # `docker compose config` interpolates `${VAR:?}` guards. This job only
+        # validates file structure, so the committed example variant (no real
+        # secrets) proves interpolation works end to end.
+        run: cp backend/.env.prod.example backend/.env
+
+      - name: Validate prod compose
+        run: docker compose -f docker-compose.prod.yml --env-file ./backend/.env config --quiet
+
+      - name: Validate dev compose
+        run: docker compose -f docker-compose.dev.yml --env-file ./backend/.env config --quiet
 
   integration:
     name: Integration smoke tests
@@ -79,11 +113,12 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: super@password
-          POSTGRES_DB: shopping
+          # Maintenance database: services own their own shopping_* databases.
+          POSTGRES_DB: postgres
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d shopping"
+          --health-cmd "pg_isready -U postgres -d postgres"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 12
@@ -112,3 +147,6 @@ jobs:
 
       - name: Run integration smoke tests
         run: go test -tags=integration -v ./integration
+
+      - name: Run payment settlement integration tests
+        run: go test -race -tags=integration -v ./services/payment/integrationtest

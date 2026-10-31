@@ -162,8 +162,9 @@ export default function NotificationsPage() {
       markAsRead(item.uuid);
     }
 
-    if (item.data?.url) {
-      router.push(item.data.url);
+    const dataUrl = item.data?.url;
+    if (typeof dataUrl === "string") {
+      router.push(dataUrl);
       return;
     }
 

@@ -6,6 +6,12 @@ RUN corepack enable
 
 FROM base AS builder
 WORKDIR /app
+# NEXT_PUBLIC_* values are inlined at build time, so the API origin must be
+# supplied here rather than in docker-compose `environment` alone.
+ARG NEXT_PUBLIC_API_URL=http://localhost
+# No API key here: the edge injects X-API-KEY server-side, so nothing is baked
+# into the image layer or the client bundle.
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/ ./packages/
 COPY apps/storefront/ ./apps/storefront/
@@ -14,19 +20,20 @@ RUN pnpm install --frozen-lockfile
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm --filter storefront build
 
-FROM base AS runner
+# Runner: only the traced standalone bundle. No pnpm, no full node_modules —
+# outputFileTracingRoot puts the workspace root at /app, so the server entry
+# is /app/apps/storefront/server.js.
+FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
-ENV CI=true
+ENV HOSTNAME=0.0.0.0
 
-COPY --from=builder /app/package.json ./
-COPY --from=builder /app/pnpm-lock.yaml ./
-COPY --from=builder /app/pnpm-workspace.yaml ./
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/packages ./packages
-COPY --from=builder /app/apps/storefront ./apps/storefront
+COPY --from=builder /app/apps/storefront/.next/standalone ./
+COPY --from=builder /app/apps/storefront/.next/static ./apps/storefront/.next/static
+COPY --from=builder /app/apps/storefront/public ./apps/storefront/public
 
-WORKDIR /app/apps/storefront
 EXPOSE 3000
-CMD ["pnpm", "start", "--port", "3000"]
+CMD ["node", "apps/storefront/server.js"]
+

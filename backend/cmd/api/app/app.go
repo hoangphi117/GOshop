@@ -3,6 +3,15 @@ package app
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"os"
+	"os/signal"
+	"strings"
+	"syscall"
+	"time"
+
+	"github.com/gin-gonic/gin"
+
 	"goshop/cmd/api/routes"
 	"goshop/internal/config"
 	"goshop/pkg/auth"
@@ -13,14 +22,6 @@ import (
 	"goshop/pkg/storage"
 	"goshop/pkg/utils"
 	"goshop/pkg/validation"
-	"net/http"
-	"os"
-	"os/signal"
-	"strings"
-	"syscall"
-	"time"
-
-	"github.com/gin-gonic/gin"
 )
 
 type Module interface {
@@ -104,14 +105,14 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	cacheRedisService := cache.NewRedisCacheService(redisClient)
 	tokenService := auth.NewJWTService(cacheRedisService)
 
-	storageLogger := utils.NewLoggerWithPath("storage.log", "info")
+	storageLogger := utils.NewLoggerWithPath("api", "storage.log", "info")
 	storageService, err := storage.NewStorageService(context.Background(), cfg.Storage, storageLogger)
 	if err != nil {
 		logger.Log.Fatal().Err(err).Msg("Failed to initialize storage service")
 		return nil, err
 	}
 
-	rabbitmqLogger := utils.NewLoggerWithPath("worker.log", "info")
+	rabbitmqLogger := utils.NewLoggerWithPath("api", "worker.log", "info")
 	rabbitmqService, err := rabbitmq.NewRabbitMQService(utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"), rabbitmqLogger)
 	if err != nil {
 		logger.Log.Fatal().Err(err).Msg("Failed to create RabbitMQ service")

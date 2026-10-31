@@ -279,8 +279,8 @@ export function ProductReviewsSection({
 
   // Count reviews with comments from current reviews or calculate
   const withCommentCount = useMemo(() => {
-    if ((summary as any)?.with_comment_count !== undefined) {
-      return (summary as any).with_comment_count;
+    if (summary?.with_comment_count !== undefined) {
+      return summary.with_comment_count;
     }
     return totalReviewsCount;
   }, [summary, totalReviewsCount]);

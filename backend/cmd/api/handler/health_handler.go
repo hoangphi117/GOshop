@@ -3,16 +3,17 @@ package handler
 import (
 	"context"
 	"fmt"
-	"goshop/pkg/discord"
-	"goshop/pkg/rabbitmq"
-	"goshop/pkg/storage"
-	"goshop/pkg/utils"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
+
+	"goshop/pkg/discord"
+	"goshop/pkg/messaging"
+	"goshop/pkg/storage"
+	"goshop/pkg/utils"
 )
 
 var appStartTime = time.Now()
@@ -28,7 +29,7 @@ type HealthHandler struct {
 	// its connectivity check in.
 	dbPool          Pinger
 	redisClient     *redis.Client
-	rabbitmqService rabbitmq.RabbitMQService
+	rabbitmqService messaging.Broker
 	storageService  storage.StorageService
 	discordNotifier discord.Notifier
 	logger          *zerolog.Logger
@@ -37,7 +38,7 @@ type HealthHandler struct {
 func NewHealthHandler(
 	dbPool Pinger,
 	redisClient *redis.Client,
-	rabbitmqService rabbitmq.RabbitMQService,
+	rabbitmqService messaging.Broker,
 	storageService storage.StorageService,
 	discordNotifier discord.Notifier,
 	logger *zerolog.Logger,

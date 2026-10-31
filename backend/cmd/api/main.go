@@ -1,13 +1,16 @@
 package main
 
 import (
-	app "goshop/cmd/api/app"
-	"goshop/internal/config"
-	"goshop/pkg/logger"
-	"goshop/pkg/utils"
+	"context"
 	"path/filepath"
 
 	"github.com/joho/godotenv"
+
+	app "goshop/cmd/api/app"
+	"goshop/internal/config"
+	"goshop/pkg/logger"
+	"goshop/pkg/telemetry"
+	"goshop/pkg/utils"
 )
 
 // @title           GOshop E-Commerce API
@@ -39,7 +42,7 @@ func main() {
 
 	rootDir := utils.MustGetwd()
 
-	logFile := filepath.Join(rootDir, "internal/logs/app.log")
+	logFile := utils.RuntimeLogPath("api", "app.log")
 	logger.InitLogger(logger.LoggerConfig{
 		Level:      "info",
 		Filename:   logFile,
@@ -51,10 +54,16 @@ func main() {
 	})
 
 	if err := godotenv.Load(filepath.Join(rootDir, ".env")); err != nil {
-		logger.Log.Warn().Msg("⚠️ No .env found")
+		logger.Log.Warn().Msg("WARNING: No .env found")
 	} else {
 		logger.Log.Info().Msg("Loaded .env successfully in API!")
 	}
+
+	shutdownTracer, tracerErr := telemetry.InitTracer(context.Background(), "goshop-api", "1.0.0")
+	if tracerErr != nil {
+		logger.Log.Warn().Err(tracerErr).Msg("Tracing disabled")
+	}
+	defer func() { _ = shutdownTracer(context.Background()) }()
 
 	cfg := config.NewConfig()
 

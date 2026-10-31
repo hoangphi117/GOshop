@@ -7,19 +7,20 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"goshop/contracts/events"
 	"goshop/pkg/cache"
 	"goshop/pkg/db"
 	"goshop/pkg/logger"
-	"goshop/pkg/rabbitmq"
+	"goshop/pkg/messaging"
 	paymentsqlc "goshop/services/payment/internal/db/sqlc"
 	"goshop/services/payment/internal/dto"
 	"goshop/services/payment/internal/provider"
 	"goshop/services/payment/internal/repository"
 	"goshop/services/payment/money"
-
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const (
@@ -37,7 +38,7 @@ type paymentService struct {
 	outboxRepo     repository.OutboxRepository
 	providers      map[string]provider.PaymentProvider
 	cache          cache.RedisCacheService
-	rabbitmq       rabbitmq.RabbitMQService
+	rabbitmq       messaging.Broker
 	returnURL      string
 	webhookBaseURL string
 	txManager      db.TxManager
@@ -50,7 +51,7 @@ func NewPaymentService(
 	outboxRepo repository.OutboxRepository,
 	providers map[string]provider.PaymentProvider,
 	cache cache.RedisCacheService,
-	rabbitmq rabbitmq.RabbitMQService,
+	rabbitmq messaging.Broker,
 	returnURL string,
 	webhookBaseURL string,
 ) PaymentService {
@@ -282,7 +283,7 @@ func (s *paymentService) ConfirmCODPayment(ctx context.Context, orderUUID uuid.U
 		}
 	}
 
-	s.publishPaymentEvent(ctx, rabbitmq.RoutingKeyPaymentSucceeded, dto.PaymentEventPayload{
+	s.publishPaymentEvent(ctx, events.RoutingKeyPaymentSucceeded, dto.PaymentEventPayload{
 		PaymentUUID: updated.PtUuid.String(),
 		OrderUUID:   orderUUID.String(),
 		OrderNumber: orderNumberStr,
@@ -518,7 +519,7 @@ func (s *paymentService) ReconcilePendingPayments(ctx context.Context) error {
 			expiredAmount = money.FromMinorUnits(0)
 		}
 
-		s.publishPaymentEvent(ctx, rabbitmq.RoutingKeyPaymentExpired, dto.PaymentEventPayload{
+		s.publishPaymentEvent(ctx, events.RoutingKeyPaymentExpired, dto.PaymentEventPayload{
 			PaymentUUID: txn.PtUuid.String(),
 			OrderUUID:   orderUUIDStr,
 			Provider:    txn.PtProvider,

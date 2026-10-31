@@ -4,17 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"goshop/internal/config"
-	"goshop/pkg/cache"
-	"goshop/pkg/logger"
-	"goshop/pkg/mail"
-	"goshop/pkg/rabbitmq"
-	"goshop/pkg/storage"
-	"goshop/pkg/utils"
-	"goshop/pkg/ws"
-	catalogcontract "goshop/services/catalog/contract"
-	identityworker "goshop/services/identity/worker"
-	mediaworker "goshop/services/media/worker"
 	"os/signal"
 	"path/filepath"
 	"sync"
@@ -22,9 +11,23 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog"
+
+	"goshop/contracts/events"
+	"goshop/internal/config"
+	"goshop/pkg/cache"
+	"goshop/pkg/logger"
+	"goshop/pkg/mail"
+	"goshop/pkg/messaging"
+	"goshop/pkg/rabbitmq"
+	"goshop/pkg/storage"
+	"goshop/pkg/telemetry"
+	"goshop/pkg/utils"
+	"goshop/pkg/ws"
+	catalogcontract "goshop/services/catalog/contract"
+	identityworker "goshop/services/identity/worker"
+	mediaworker "goshop/services/media/worker"
 )
 
 type Worker struct {
@@ -41,7 +44,7 @@ type Worker struct {
 }
 
 func NewWorker(cfg *config.Config) *Worker {
-	log := utils.NewLoggerWithPath("worker.log", "info")
+	log := utils.NewLoggerWithPath("worker", "worker.log", "info")
 
 	rabbitMQ, err := rabbitmq.NewRabbitMQService(
 		utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"), log,
@@ -62,7 +65,7 @@ func NewWorker(cfg *config.Config) *Worker {
 	cacheService := cache.NewRedisCacheService(redisClient)
 
 	// Init MailService
-	mailLogger := utils.NewLoggerWithPath("mail.log", "info")
+	mailLogger := utils.NewLoggerWithPath("worker", "mail.log", "info")
 	factory, err := mail.NewProviderFactory(mail.ProviderMailtrap)
 	if err != nil {
 		mailLogger.Error().Err(err).Msg("Failed to create mail provider factory")
@@ -117,11 +120,11 @@ func NewWorker(cfg *config.Config) *Worker {
 func (w *Worker) Start(ctx context.Context) error {
 	const emailQueueName = "auth_email_queue"
 
-	handler := func(headers amqp.Table, body []byte) error {
+	handler := func(headers messaging.Header, body []byte) error {
 		w.logger.Debug().Msgf("Received message: %s", string(body))
 
 		ctx := context.Background()
-		if traceID, ok := headers["trace_id"].(string); ok {
+		if traceID, ok := headers["trace_id"]; ok {
 			ctx = logger.WithTraceID(ctx, traceID)
 		}
 
@@ -154,7 +157,7 @@ func (w *Worker) Start(ctx context.Context) error {
 
 	// Consume User Sync Events (Cache invalidation & cross-service sync)
 	if w.userSyncConsumer != nil {
-		for _, queueName := range []string{rabbitmq.QueueUserCreated, rabbitmq.QueueUserUpdated, rabbitmq.QueueUserDeleted} {
+		for _, queueName := range []string{events.QueueUserCreated, events.QueueUserUpdated, events.QueueUserDeleted} {
 			syncHandler := w.withIdempotency(queueName, w.userSyncConsumer.Handle)
 			if err := w.rabbitMQ.Consume(ctx, queueName, syncHandler); err != nil {
 				w.logger.Error().Err(err).Str("queue", queueName).Msg("Failed to consume user sync queue")
@@ -166,11 +169,11 @@ func (w *Worker) Start(ctx context.Context) error {
 
 	// Consume Media Uploaded Events (image resize/re-encode)
 	if w.mediaProcessor != nil {
-		mediaHandler := w.withIdempotency(rabbitmq.QueueMediaUploaded, w.mediaProcessor.Handle)
-		if err := w.rabbitMQ.Consume(ctx, rabbitmq.QueueMediaUploaded, mediaHandler); err != nil {
-			w.logger.Error().Err(err).Str("queue", rabbitmq.QueueMediaUploaded).Msg("Failed to consume media queue")
+		mediaHandler := w.withIdempotency(events.QueueMediaUploaded, w.mediaProcessor.Handle)
+		if err := w.rabbitMQ.Consume(ctx, events.QueueMediaUploaded, mediaHandler); err != nil {
+			w.logger.Error().Err(err).Str("queue", events.QueueMediaUploaded).Msg("Failed to consume media queue")
 		} else {
-			w.logger.Info().Msgf("Worker consuming queue: %s", rabbitmq.QueueMediaUploaded)
+			w.logger.Info().Msgf("Worker consuming queue: %s", events.QueueMediaUploaded)
 		}
 	}
 
@@ -181,11 +184,11 @@ func (w *Worker) Start(ctx context.Context) error {
 	return ctx.Err()
 }
 
-func (w *Worker) withIdempotency(queue string, next func(amqp.Table, []byte) error) func(amqp.Table, []byte) error {
+func (w *Worker) withIdempotency(queue string, next messaging.Handler) messaging.Handler {
 	const dedupTTL = 24 * time.Hour
 
-	return func(headers amqp.Table, body []byte) error {
-		messageID, _ := headers["x-message-id"].(string)
+	return func(headers messaging.Header, body []byte) error {
+		messageID := headers.Get("x-message-id")
 		if messageID == "" {
 			return next(headers, body)
 		}
@@ -245,7 +248,7 @@ func (w *Worker) Shutdown(ctx context.Context) error {
 func main() {
 	rootDir := utils.MustGetwd()
 
-	logFile := filepath.Join(rootDir, "internal/logs/app.log")
+	logFile := utils.RuntimeLogPath("worker", "app.log")
 	logger.InitLogger(logger.LoggerConfig{
 		Level:      "info",
 		Filename:   logFile,
@@ -257,10 +260,16 @@ func main() {
 	})
 
 	if err := godotenv.Load(filepath.Join(rootDir, ".env")); err != nil {
-		logger.Log.Warn().Msg("No .env found, continuing with environment variables")
+		logger.Log.Warn().Msg("WARNING: No .env found, continuing with environment variables")
 	} else {
 		logger.Log.Info().Msg("Loaded .env successfully in worker!")
 	}
+
+	shutdownTracer, tracerErr := telemetry.InitTracer(context.Background(), "goshop-worker", "1.0.0")
+	if tracerErr != nil {
+		logger.Log.Warn().Err(tracerErr).Msg("Tracing disabled")
+	}
+	defer func() { _ = shutdownTracer(context.Background()) }()
 
 	cfg := config.NewConfig()
 

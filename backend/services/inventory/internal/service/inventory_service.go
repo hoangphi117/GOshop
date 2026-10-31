@@ -7,18 +7,19 @@ import (
 	"sort"
 	"time"
 
-	"goshop/pkg/utils"
-	"goshop/pkg/logger"
-	"goshop/pkg/rabbitmq"
-	"goshop/services/inventory/internal/db/sqlc"
-	"goshop/services/inventory/internal/dto"
-	"goshop/services/inventory/internal/repository"
-
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"goshop/contracts/events"
+	"goshop/pkg/logger"
+	"goshop/pkg/messaging"
+	"goshop/pkg/utils"
+	"goshop/services/inventory/internal/db/sqlc"
+	"goshop/services/inventory/internal/dto"
+	"goshop/services/inventory/internal/repository"
 )
 
 type InventoryService interface {
@@ -33,11 +34,11 @@ type InventoryService interface {
 type inventoryService struct {
 	repo     repository.InventoryRepository
 	dbPool   *pgxpool.Pool
-	rabbitMQ rabbitmq.RabbitMQService
+	rabbitMQ messaging.Broker
 }
 
-func NewInventoryService(repo repository.InventoryRepository, dbPool *pgxpool.Pool, rmq ...rabbitmq.RabbitMQService) InventoryService {
-	var r rabbitmq.RabbitMQService
+func NewInventoryService(repo repository.InventoryRepository, dbPool *pgxpool.Pool, rmq ...messaging.Broker) InventoryService {
+	var r messaging.Broker
 	if len(rmq) > 0 {
 		r = rmq[0]
 	}
@@ -224,7 +225,7 @@ func (s *inventoryService) LockAndDeductStockWithRef(
 		// Low stock alert via RabbitMQ. The catalog owns the product name, so
 		// the alert carries identifiers and the notification resolves them.
 		if s.rabbitMQ != nil && updatedStockRow.Quantity <= 5 {
-			_ = s.rabbitMQ.PublishTopic(ctx, rabbitmq.RoutingKeyInventoryStockLow, map[string]any{
+			_ = s.rabbitMQ.PublishTopic(ctx, events.RoutingKeyInventoryStockLow, map[string]any{
 				"product_id":   pID,
 				"product_uuid": updatedStockRow.ProductUuid.String(),
 				"stock":        updatedStockRow.Quantity,
@@ -678,7 +679,7 @@ func (s *inventoryService) recordAdjustment(
 		if stockRow.ProductID != nil {
 			pID = *stockRow.ProductID
 		}
-		_ = s.rabbitMQ.PublishTopic(ctx, rabbitmq.RoutingKeyInventoryStockLow, map[string]any{
+		_ = s.rabbitMQ.PublishTopic(ctx, events.RoutingKeyInventoryStockLow, map[string]any{
 			"product_id":   pID,
 			"product_uuid": productUUID.String(),
 			"stock":        newStock,

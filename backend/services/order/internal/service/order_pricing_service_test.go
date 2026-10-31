@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	orderservice "goshop/services/order/internal/service"
 	"goshop/pkg/utils"
+	orderservice "goshop/services/order/internal/service"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

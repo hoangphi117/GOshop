@@ -164,4 +164,3 @@ func GetUserFromContext[T any](ctx *gin.Context, userRepo UserByUUIDFetcher[T]) 
 
 	return user, nil
 }
-

@@ -25,6 +25,14 @@ export default defineConfig(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
+      // React Compiler rules shipped with eslint-plugin-react-hooks v6. They
+      // flag pre-existing patterns (setState inside an effect, impure calls
+      // during render, manual memoization the compiler cannot preserve) whose
+      // fixes change when state updates — reported as warnings until those
+      // refactors land; everything else stays a hard error.
+      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/purity': 'warn',
+      'react-hooks/preserve-manual-memoization': 'warn',
       'react-refresh/only-export-components': [
         'warn',
         { allowConstantExport: true },

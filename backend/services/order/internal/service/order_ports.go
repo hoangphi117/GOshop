@@ -2,11 +2,12 @@ package service
 
 import (
 	"context"
-	"goshop/services/order/internal/db/sqlc"
-	v1dto "goshop/services/order/internal/dto"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+
+	"goshop/services/order/internal/db/sqlc"
+	v1dto "goshop/services/order/internal/dto"
 )
 
 // ─── Consumer-driven Inbound Ports (Use-Case Interfaces) ──────────────────────
@@ -36,12 +37,12 @@ type OrderLifecycleService interface {
 
 // OrderCustomer represents customer information needed within the order domain.
 type OrderCustomer struct {
-	UserID       int32     `json:"user_id"`
-	UserUUID     uuid.UUID `json:"user_uuid"`
-	FullName     string    `json:"full_name"`
-	Email        string    `json:"email"`
-	UserLevel    int32     `json:"user_level"`
-	Status       int32     `json:"status"`
+	UserID    int32     `json:"user_id"`
+	UserUUID  uuid.UUID `json:"user_uuid"`
+	FullName  string    `json:"full_name"`
+	Email     string    `json:"email"`
+	UserLevel int32     `json:"user_level"`
+	Status    int32     `json:"status"`
 
 	// Aliases for seamless migration
 	UserUuid     uuid.UUID `json:"-"`
@@ -226,4 +227,3 @@ type ShippingWebhookPort interface {
 type OrderPaymentRefundPort interface {
 	RefundPayment(ctx context.Context, idempotencyKey string, input v1dto.RefundPaymentInput) (v1dto.PaymentTransactionDTO, error)
 }
-

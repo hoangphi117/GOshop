@@ -5,10 +5,10 @@ import (
 	"strings"
 
 	_ "goshop/docs"
-	"goshop/pkg/middleware"
-	"goshop/pkg/utils"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
+	"goshop/pkg/middleware"
+	"goshop/pkg/utils"
 	"goshop/services/identity/internal/handler"
 
 	"github.com/gin-contrib/gzip"
@@ -28,9 +28,9 @@ type IdentityRouteDeps struct {
 
 // RegisterRoutes registers all HTTP endpoints for the Identity microservice
 func RegisterRoutes(r *gin.Engine, deps IdentityRouteDeps) {
-	httpLogger := utils.NewLoggerWithPath("identity_http.log", "info")
-	recoveryLogger := utils.NewLoggerWithPath("identity_recovery.log", "warning")
-	rateLimiterLogger := utils.NewLoggerWithPath("identity_rate_limiter.log", "warning")
+	httpLogger := utils.NewLoggerWithPath("identity", "identity_http.log", "info")
+	recoveryLogger := utils.NewLoggerWithPath("identity", "identity_recovery.log", "warning")
+	rateLimiterLogger := utils.NewLoggerWithPath("identity", "identity_rate_limiter.log", "warning")
 
 	r.Use(gzip.Gzip(gzip.DefaultCompression))
 	r.Use(
@@ -55,6 +55,13 @@ func RegisterRoutes(r *gin.Engine, deps IdentityRouteDeps) {
 		ctx.JSON(http.StatusOK, deps.TokenService.GetJWKS())
 	}
 	r.GET("/.well-known/jwks.json", jwksHandler)
+
+	// Liveness probe. The API gateway's health check probes this endpoint over
+	// HTTP instead of opening a pool; without it /healthz reports 503 and nginx
+	// disables the upstream after three misses.
+	r.GET("/healthz", func(ctx *gin.Context) {
+		ctx.JSON(http.StatusOK, gin.H{"service": "identity", "status": "ok"})
+	})
 
 	v1api := r.Group("/api/v1")
 	v1api.GET("/.well-known/jwks.json", jwksHandler)

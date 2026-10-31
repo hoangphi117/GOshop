@@ -10,6 +10,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
+
 	"goshop/internal/config"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
@@ -28,11 +33,6 @@ import (
 	reviewrepo "goshop/services/review/internal/repository"
 	reviewroutes "goshop/services/review/internal/routes"
 	reviewservice "goshop/services/review/internal/service"
-
-	"github.com/gin-gonic/gin"
-	"github.com/golang-migrate/migrate/v4"
-	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	"github.com/golang-migrate/migrate/v4/source/iofs"
 )
 
 type App struct {
@@ -99,7 +99,7 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, fmt.Errorf("identity gRPC client (%s): %w", cfg.IdentityGRPCAddr, err)
 	}
 
-	rabbitLogger := utils.NewLoggerWithPath("review_rabbitmq.log", "info")
+	rabbitLogger := utils.NewLoggerWithPath("review", "review_rabbitmq.log", "info")
 	rabbitMQ, err := rabbitmq.NewRabbitMQService(
 		utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"), rabbitLogger)
 	if err != nil {

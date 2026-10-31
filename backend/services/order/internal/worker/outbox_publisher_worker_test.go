@@ -4,15 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	ordersqlc "goshop/services/order/internal/db/sqlc"
-	"goshop/internal/testutils"
-	"goshop/pkg/rabbitmq"
 	"testing"
 	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"goshop/contracts/events"
+	"goshop/internal/testutils"
+	ordersqlc "goshop/services/order/internal/db/sqlc"
 )
 
 func TestOutboxPublisherWorker_ProcessBatch(t *testing.T) {
@@ -82,14 +83,14 @@ func TestOutboxPublisherWorker_ProcessBatch(t *testing.T) {
 						EventID:       1,
 						AggregateType: "order",
 						AggregateID:   "ord-uuid-1",
-						EventType:     rabbitmq.QueueOrderCreated,
+						EventType:     events.QueueOrderCreated,
 						Payload:       []byte(`{"order_id":1,"order_number":"ORD-001"}`),
 					},
 					{
 						EventID:       2,
 						AggregateType: "payment",
 						AggregateID:   "pt-uuid-2",
-						EventType:     rabbitmq.QueuePaymentSucceeded,
+						EventType:     events.QueuePaymentSucceeded,
 						Payload:       []byte(`{"pt_uuid":"pt-uuid-2","order_uuid":"ord-uuid-1"}`),
 					},
 				}, nil
@@ -104,7 +105,7 @@ func TestOutboxPublisherWorker_ProcessBatch(t *testing.T) {
 		count, err := w.ProcessBatch(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, 2, count)
-		assert.Equal(t, []string{rabbitmq.QueueOrderCreated, rabbitmq.QueuePaymentSucceeded}, publishedQueues)
+		assert.Equal(t, []string{events.QueueOrderCreated, events.QueuePaymentSucceeded}, publishedQueues)
 		assert.Equal(t, []int64{1, 2}, markedIDs)
 		assert.Equal(t, `{"order_id":1,"order_number":"ORD-001"}`, publishedPayloads[0])
 		assert.Equal(t, `{"pt_uuid":"pt-uuid-2","order_uuid":"ord-uuid-1"}`, publishedPayloads[1])
@@ -116,7 +117,7 @@ func TestOutboxPublisherWorker_ProcessBatch(t *testing.T) {
 
 		mockRabbitMQ := &testutils.MockRabbitMQService{
 			PublishFunc: func(ctx context.Context, queue string, message any) error {
-				if queue == rabbitmq.QueueOrderCreated {
+				if queue == events.QueueOrderCreated {
 					return errors.New("rabbitmq connection down")
 				}
 				return nil
@@ -130,14 +131,14 @@ func TestOutboxPublisherWorker_ProcessBatch(t *testing.T) {
 						EventID:       101,
 						AggregateType: "order",
 						AggregateID:   "ord-uuid-101",
-						EventType:     rabbitmq.QueueOrderCreated,
+						EventType:     events.QueueOrderCreated,
 						Payload:       []byte(`{"order_id":101}`),
 					},
 					{
 						EventID:       102,
 						AggregateType: "payment",
 						AggregateID:   "pt-uuid-102",
-						EventType:     rabbitmq.QueuePaymentSucceeded,
+						EventType:     events.QueuePaymentSucceeded,
 						Payload:       []byte(`{"pt_uuid":"pt-uuid-102"}`),
 					},
 				}, nil

@@ -9,22 +9,23 @@ import (
 	"strings"
 	"time"
 
-	"goshop/pkg/utils"
-	"goshop/pkg/logger"
-	"goshop/pkg/middleware"
-	"goshop/pkg/rabbitmq"
-	"goshop/pkg/storage"
-
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+
+	"goshop/contracts/events"
+	"goshop/pkg/logger"
+	"goshop/pkg/messaging"
+	"goshop/pkg/middleware"
+	"goshop/pkg/storage"
+	"goshop/pkg/utils"
 )
 
 type UploadHandler struct {
 	storage storage.StorageService
-	mq      rabbitmq.RabbitMQService
+	mq      messaging.Broker
 }
 
-func NewUploadHandler(storageService storage.StorageService, mq rabbitmq.RabbitMQService) *UploadHandler {
+func NewUploadHandler(storageService storage.StorageService, mq messaging.Broker) *UploadHandler {
 	return &UploadHandler{
 		storage: storageService,
 		mq:      mq,
@@ -37,8 +38,8 @@ func (uh *UploadHandler) publishMediaUploaded(ctx context.Context, fileKey strin
 	if uh.mq == nil {
 		return
 	}
-	evt := rabbitmq.MediaUploadedEvent{FileKey: fileKey, Size: size}
-	if err := uh.mq.Publish(ctx, rabbitmq.QueueMediaUploaded, evt); err != nil {
+	evt := events.MediaUploadedEvent{FileKey: fileKey, Size: size}
+	if err := uh.mq.Publish(ctx, events.QueueMediaUploaded, evt); err != nil {
 		logger.Log.Warn().Err(err).Str("file_key", fileKey).Msg("Failed to publish media.uploaded event")
 	}
 }

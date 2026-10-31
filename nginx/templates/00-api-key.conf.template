@@ -1,0 +1,14 @@
+# Edge API-key injection. Rendered by the official nginx entrypoint
+# (envsubst) at container start into /etc/nginx/secret-conf/, then included
+# from the http{} block. The rendered file never exists on disk in the repo,
+# so the key ships nowhere: not in bundles, images or this tree.
+#
+#   - Client already sent a key (dev, smoke tests, service-to-service):
+#     pass it through untouched.
+#   - Otherwise (browser bundles with no key): inject the server-side key.
+# An empty rendered value makes nginx drop the header, so proxy_set_header
+# X-API-KEY $goshop_api_key with $goshop_api_key="" sends nothing.
+map $http_x_api_key $goshop_api_key {
+    ~.+     $http_x_api_key;
+    default "${API_KEY}";
+}

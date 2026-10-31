@@ -16,7 +16,8 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	amqp "github.com/rabbitmq/amqp091-go"
+
+	"goshop/pkg/messaging"
 )
 
 // Repository persists which events a consumer already applied.
@@ -87,8 +88,8 @@ type ApplyFunc func(ctx context.Context, body []byte) error
 
 // Wrap builds a broker handler that applies each event at most once for the
 // named consumer. Event IDs are present on every log line.
-func Wrap(repository Repository, consumerName string, apply ApplyFunc, log Logger) func(amqp.Table, []byte) error {
-	return func(headers amqp.Table, body []byte) error {
+func Wrap(repository Repository, consumerName string, apply ApplyFunc, log Logger) messaging.Handler {
+	return func(headers messaging.Header, body []byte) error {
 		eventID := EventID(body)
 		ctx := context.Background()
 

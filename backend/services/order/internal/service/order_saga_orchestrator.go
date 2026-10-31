@@ -8,17 +8,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+
+	"goshop/contracts/events"
 	"goshop/pkg/cache"
 	"goshop/pkg/db"
 	"goshop/pkg/logger"
-	"goshop/pkg/rabbitmq"
 	"goshop/pkg/utils"
 	"goshop/services/order/internal/db/sqlc"
 	v1dto "goshop/services/order/internal/dto"
 	"goshop/services/order/internal/repository"
-
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 )
 
 // Saga Step Constants
@@ -486,7 +486,7 @@ func (s *orderSagaOrchestrator) ExecuteCheckoutSaga(
 
 		// Enqueue OrderCreated outbox event atomically (G6 FIX: includes PurchasedItemUUIDs)
 		if s.outboxStore != nil {
-			outboxPayload := rabbitmq.NewOrderCreatedEvent(
+			outboxPayload := events.NewOrderCreatedEvent(
 				uuid.New().String(),
 				orderUUID.String(),
 				order.OrderNumber,
@@ -496,9 +496,9 @@ func (s *orderSagaOrchestrator) ExecuteCheckoutSaga(
 				utils.NumericToFloat(order.OrderTotalAmount),
 				purchasedProductIDs,
 			).WithItemUUIDs(purchasedProductUUIDStrings)
-			items := make([]rabbitmq.OrderCreatedItem, 0, len(createdOrderItems))
+			items := make([]events.OrderCreatedItem, 0, len(createdOrderItems))
 			for _, item := range createdOrderItems {
-				items = append(items, rabbitmq.OrderCreatedItem{
+				items = append(items, events.OrderCreatedItem{
 					ItemUUID:    item.OrderItemUuid.String(),
 					ProductID:   item.OrderItemProductID,
 					ProductUUID: item.OrderItemProductUuid.String(),
@@ -514,7 +514,7 @@ func (s *orderSagaOrchestrator) ExecuteCheckoutSaga(
 				order.OrderCouponID,
 				order.OrderPaymentMethod,
 			)
-			_, err = s.outboxStore.Insert(txCtx, tx, "order", orderUUID.String(), rabbitmq.QueueOrderCreated, outboxPayload)
+			_, err = s.outboxStore.Insert(txCtx, tx, "order", orderUUID.String(), events.QueueOrderCreated, outboxPayload)
 			if err != nil {
 				return utils.WrapError(utils.ErrCodeInternal, "failed to record order outbox event", err)
 			}

@@ -3,11 +3,12 @@ package worker
 import (
 	"context"
 	"encoding/json"
+
+	"github.com/rs/zerolog"
+
+	"goshop/pkg/messaging"
 	v1dto "goshop/services/order/internal/dto"
 	orderservice "goshop/services/order/internal/service"
-
-	amqp "github.com/rabbitmq/amqp091-go"
-	"github.com/rs/zerolog"
 )
 
 type ShippingConsumer struct {
@@ -22,7 +23,7 @@ func NewShippingConsumer(shippingService orderservice.OrderShippingService, logg
 	}
 }
 
-func (sc *ShippingConsumer) Handle(headers amqp.Table, body []byte) error {
+func (sc *ShippingConsumer) Handle(headers messaging.Header, body []byte) error {
 	var msg v1dto.CreateShippingQueueMessage
 	if err := json.Unmarshal(body, &msg); err != nil {
 		if sc.logger != nil {

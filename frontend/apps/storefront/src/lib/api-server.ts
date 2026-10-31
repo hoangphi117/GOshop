@@ -94,7 +94,7 @@ export async function fetchServer<T>(
       },
       ...(isDev
         ? { cache: 'no-store' as RequestCache }
-        : ({ next: { revalidate } } as any)),
+        : ({ next: { revalidate } } as RequestInit & { next: { revalidate: number } })),
     })
 
     if (!res.ok) {
@@ -296,11 +296,20 @@ export async function getProductSuggestions(q: string, limit = 8): Promise<Produ
       })
       if (res.ok) {
         const data = await res.json()
-        return (data.hits || []).map((hit: any) => ({
+        type MeiliHit = {
+          product_id?: number | string
+          product_uuid?: string
+          product_name?: string
+          product_slug?: string
+          product_price?: number
+          product_image_url?: string
+          category_name?: string
+        }
+        return (data.hits as MeiliHit[] || []).map((hit) => ({
           uuid: hit.product_uuid || String(hit.product_id),
-          name: hit.product_name,
-          slug: hit.product_slug,
-          price: hit.product_price,
+          name: hit.product_name ?? '',
+          slug: hit.product_slug ?? '',
+          price: hit.product_price ?? 0,
           image_url: hit.product_image_url,
           category_name: hit.category_name,
         }))
@@ -340,6 +349,7 @@ export interface ReviewSummary {
   total_reviews: number
   avg_rating: number
   with_media_count: number
+  with_comment_count?: number
   five_star: number
   four_star: number
   three_star: number

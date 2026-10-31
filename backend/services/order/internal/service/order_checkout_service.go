@@ -5,19 +5,20 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"goshop/pkg/cache"
-	"goshop/pkg/db"
-	"goshop/pkg/logger"
-	"goshop/pkg/rabbitmq"
-	"goshop/pkg/utils"
-	"goshop/services/order/internal/db/sqlc"
-	v1dto "goshop/services/order/internal/dto"
 	"math/big"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+
+	"goshop/contracts/events"
+	"goshop/pkg/cache"
+	"goshop/pkg/db"
+	"goshop/pkg/logger"
+	"goshop/pkg/utils"
+	"goshop/services/order/internal/db/sqlc"
+	v1dto "goshop/services/order/internal/dto"
 )
 
 const base32Alphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
@@ -319,7 +320,7 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 
 		// Enqueue OrderCreated event to transactional outbox atomically
 		if s.outboxStore != nil {
-			outboxPayload := rabbitmq.NewOrderCreatedEvent(
+			outboxPayload := events.NewOrderCreatedEvent(
 				uuid.New().String(),
 				order.OrderUuid.String(),
 				order.OrderNumber,
@@ -329,9 +330,9 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 				utils.NumericToFloat(order.OrderTotalAmount),
 				purchasedProductIDs,
 			)
-			items := make([]rabbitmq.OrderCreatedItem, 0, len(createdOrderItems))
+			items := make([]events.OrderCreatedItem, 0, len(createdOrderItems))
 			for _, item := range createdOrderItems {
-				items = append(items, rabbitmq.OrderCreatedItem{
+				items = append(items, events.OrderCreatedItem{
 					ItemUUID:    item.OrderItemUuid.String(),
 					ProductID:   item.OrderItemProductID,
 					ProductUUID: item.OrderItemProductUuid.String(),
@@ -347,7 +348,7 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 				order.OrderCouponID,
 				order.OrderPaymentMethod,
 			)
-			_, err = s.outboxStore.Insert(txCtx, tx, "order", order.OrderUuid.String(), rabbitmq.QueueOrderCreated, outboxPayload)
+			_, err = s.outboxStore.Insert(txCtx, tx, "order", order.OrderUuid.String(), events.QueueOrderCreated, outboxPayload)
 			if err != nil {
 				return utils.WrapError(utils.ErrCodeInternal, "failed to record order outbox event", err)
 			}

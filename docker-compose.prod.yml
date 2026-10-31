@@ -1,3 +1,20 @@
+# =============================================================================
+# Shared JWT verifier config. Every service EXCEPT `identity` (the signer) must
+# validate RS256 access tokens with the shared public key. If a verifier misses
+# either the env vars or the certs mount, pkg/auth mints an EPHEMERAL key
+# (backend/pkg/auth/jwt.go loadOrGenerateRSAKeys) and every authenticated
+# request 401s. Use both entries together:
+#   environment: { <<: *jwt-verifier, <service-specific vars> }
+#   volumes: *jwt-certs
+# =============================================================================
+x-jwt-verifier: &jwt-verifier
+  JWT_SIGNING_ENABLED: "false"
+  JWT_PRIVATE_KEY: ""
+  JWT_PUBLIC_KEY: /app/certs/jwt_public.pem
+
+x-jwt-certs: &jwt-certs
+  - ./backend/certs:/app/certs:ro
+
 services:
   nginx:
     image: nginx:1.27-alpine
@@ -6,12 +23,27 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    # API_KEY reaches nginx only through envsubst at container start (nginx
+    # cannot merge env into config natively). Rendered into /etc/nginx/secret-conf.
+    environment:
+      - API_KEY=${API_KEY:?API_KEY must be set (edge injects it server-side)}
+      - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx/secret-conf
     volumes:
+      # tmpfs: the rendered secret never touches any layer or volume.
+      - type: tmpfs
+        target: /etc/nginx/secret-conf
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./nginx/prod/goshop.conf:/etc/nginx/conf.d/goshop.conf:ro
+      - ./nginx/templates:/etc/nginx/templates:ro
       - certbot-etc:/etc/letsencrypt:ro
       - certbot-www:/var/www/certbot:ro
+      # Self-signed localhost cert (scripts/gen-cert.ps1). Recreate/regenerate
+      # for a real domain instead of trusting this one.
+      - ./nginx/certs:/etc/nginx/ssl:ro
+      # Admin dashboard SPA — static build from the host (or CI artifact).
+      # Rebuild with: pnpm --filter dashboard build
+      - ./frontend/apps/dashboard/dist:/srv/dashboard:ro
     depends_on:
       - api1
       - api2
@@ -23,26 +55,40 @@ services:
   api1:
     build:
       context: ./backend
-      dockerfile: Dockerfile.api.prod
+      dockerfile: build/Dockerfile.service
+      args:
+        SERVICE: api
     container_name: goshop-api1
     restart: unless-stopped
     env_file:
       - ./backend/.env
     environment:
-      - REDIS_ADDR=redis:6379
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
-      - MEILISEARCH_HOST=http://meilisearch:7700
-      - IDENTITY_SERVICE_URL=http://identity-service:8081
-      - IDENTITY_GRPC_ADDR=identity-service:50051
-      - NOTIFICATION_SERVICE_URL=http://notification-service:8082
-      - PAYMENT_SERVICE_URL=http://payment-service:8083
-      - PAYMENT_GRPC_ADDR=payment-service:50052
-      - ORDER_SERVICE_URL=http://order-service:8088
-      - ORDER_GRPC_TARGET=order-service:50057
-      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:?INTERNAL_API_SECRET must be set in production}
-      - JWT_SIGNING_ENABLED=false
-      - JWT_PRIVATE_KEY=
-      - S3_ENDPOINT=${S3_ENDPOINT:-http://minio:9000}
+      <<: *jwt-verifier
+      REDIS_ADDR: "redis:6379"
+      RABBITMQ_URL: "amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/"
+      MEILISEARCH_HOST: "http://meilisearch:7700"
+      IDENTITY_SERVICE_URL: "http://identity-service:8081"
+      IDENTITY_GRPC_ADDR: "identity-service:50051"
+      NOTIFICATION_SERVICE_URL: "http://notification-service:8082"
+      PAYMENT_SERVICE_URL: "http://payment-service:8083"
+      PAYMENT_GRPC_ADDR: "payment-service:50052"
+      ORDER_SERVICE_URL: "http://order-service:8088"
+      ORDER_GRPC_TARGET: "order-service:50057"
+      INTERNAL_API_SECRET: "${INTERNAL_API_SECRET:?INTERNAL_API_SECRET must be set in production}"
+      REVIEW_SERVICE_URL: "http://review-service:8091"
+      ANALYTICS_SERVICE_URL: "http://analytics-service:8092"
+      MEDIA_SERVICE_URL: "http://media-service:8094"
+      CHAT_SERVICE_URL: "http://chat-service:8093"
+      CART_SERVICE_URL: "http://cart-service:8087"
+      CART_GRPC_ADDR: "cart-service:50056"
+      CATALOG_SERVICE_URL: "http://catalog-service:8086"
+      CATALOG_GRPC_TARGET: "catalog-service:50055"
+      COUPON_SERVICE_URL: "http://coupon-service:8084"
+      COUPON_GRPC_TARGET: "coupon-service:50053"
+      INVENTORY_SERVICE_URL: "http://inventory-service:8090"
+      INVENTORY_GRPC_ADDR: "inventory-service:50054"
+      BANNER_SERVICE_URL: "http://banner-service:8089"
+      CHAT_GRPC_TARGET: "chat-service:50058"
     depends_on:
       postgres:
         condition: service_healthy
@@ -50,6 +96,7 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    volumes: *jwt-certs
     networks:
       goshop-network:
         aliases:
@@ -59,26 +106,40 @@ services:
   api2:
     build:
       context: ./backend
-      dockerfile: Dockerfile.api.prod
+      dockerfile: build/Dockerfile.service
+      args:
+        SERVICE: api
     container_name: goshop-api2
     restart: unless-stopped
     env_file:
       - ./backend/.env
     environment:
-      - REDIS_ADDR=redis:6379
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
-      - MEILISEARCH_HOST=http://meilisearch:7700
-      - IDENTITY_SERVICE_URL=http://identity-service:8081
-      - IDENTITY_GRPC_ADDR=identity-service:50051
-      - NOTIFICATION_SERVICE_URL=http://notification-service:8082
-      - PAYMENT_SERVICE_URL=http://payment-service:8083
-      - PAYMENT_GRPC_ADDR=payment-service:50052
-      - ORDER_SERVICE_URL=http://order-service:8088
-      - ORDER_GRPC_TARGET=order-service:50057
-      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:?INTERNAL_API_SECRET must be set in production}
-      - JWT_SIGNING_ENABLED=false
-      - JWT_PRIVATE_KEY=
-      - S3_ENDPOINT=${S3_ENDPOINT:-http://minio:9000}
+      <<: *jwt-verifier
+      REDIS_ADDR: "redis:6379"
+      RABBITMQ_URL: "amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/"
+      MEILISEARCH_HOST: "http://meilisearch:7700"
+      IDENTITY_SERVICE_URL: "http://identity-service:8081"
+      IDENTITY_GRPC_ADDR: "identity-service:50051"
+      NOTIFICATION_SERVICE_URL: "http://notification-service:8082"
+      PAYMENT_SERVICE_URL: "http://payment-service:8083"
+      PAYMENT_GRPC_ADDR: "payment-service:50052"
+      ORDER_SERVICE_URL: "http://order-service:8088"
+      ORDER_GRPC_TARGET: "order-service:50057"
+      INTERNAL_API_SECRET: "${INTERNAL_API_SECRET:?INTERNAL_API_SECRET must be set in production}"
+      REVIEW_SERVICE_URL: "http://review-service:8091"
+      ANALYTICS_SERVICE_URL: "http://analytics-service:8092"
+      MEDIA_SERVICE_URL: "http://media-service:8094"
+      CHAT_SERVICE_URL: "http://chat-service:8093"
+      CART_SERVICE_URL: "http://cart-service:8087"
+      CART_GRPC_ADDR: "cart-service:50056"
+      CATALOG_SERVICE_URL: "http://catalog-service:8086"
+      CATALOG_GRPC_TARGET: "catalog-service:50055"
+      COUPON_SERVICE_URL: "http://coupon-service:8084"
+      COUPON_GRPC_TARGET: "coupon-service:50053"
+      INVENTORY_SERVICE_URL: "http://inventory-service:8090"
+      INVENTORY_GRPC_ADDR: "inventory-service:50054"
+      BANNER_SERVICE_URL: "http://banner-service:8089"
+      CHAT_GRPC_TARGET: "chat-service:50058"
     depends_on:
       postgres:
         condition: service_healthy
@@ -86,6 +147,7 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    volumes: *jwt-certs
     networks:
       goshop-network:
         aliases:
@@ -95,7 +157,9 @@ services:
   identity:
     build:
       context: ./backend
-      dockerfile: Dockerfile.identity.prod
+      dockerfile: build/Dockerfile.service
+      args:
+        SERVICE: identity
     container_name: goshop-identity
     restart: unless-stopped
     env_file:
@@ -111,7 +175,10 @@ services:
       - IDENTITY_GRPC_PORT=:50051
       - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:?INTERNAL_API_SECRET must be set in production}
       - JWT_SIGNING_ENABLED=true
-      - JWT_PRIVATE_KEY=${JWT_PRIVATE_KEY:?JWT_PRIVATE_KEY must be set in production}
+      # Value is either an inline PEM or a path (pkg/auth.loadKeyData accepts
+      # both). The path form keeps the key out of `docker inspect`.
+      - JWT_PRIVATE_KEY=/app/certs/jwt_private.pem
+      - JWT_PUBLIC_KEY=/app/certs/jwt_public.pem
     depends_on:
       postgres:
         condition: service_healthy
@@ -119,6 +186,7 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    volumes: *jwt-certs
     networks:
       goshop-network:
         aliases:
@@ -127,7 +195,9 @@ services:
   notification:
     build:
       context: ./backend
-      dockerfile: Dockerfile.notification.prod
+      dockerfile: build/Dockerfile.service
+      args:
+        SERVICE: notification
     container_name: goshop-notification
     restart: unless-stopped
     ports:
@@ -135,15 +205,14 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      - DB_HOST=postgres
-      - DB_NAME=shopping_notification
-      - REDIS_ADDR=redis:6379
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
-      - NOTIFICATION_SERVER_PORT=8082
-      - IDENTITY_GRPC_ADDR=identity-service:50051
-      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:?INTERNAL_API_SECRET must be set in production}
-      - JWT_SIGNING_ENABLED=false
-      - JWT_PRIVATE_KEY=
+      <<: *jwt-verifier
+      DB_HOST: "postgres"
+      DB_NAME: "shopping_notification"
+      REDIS_ADDR: "redis:6379"
+      RABBITMQ_URL: "amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/"
+      NOTIFICATION_SERVER_PORT: "8082"
+      IDENTITY_GRPC_ADDR: "identity-service:50051"
+      INTERNAL_API_SECRET: "${INTERNAL_API_SECRET:?INTERNAL_API_SECRET must be set in production}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -151,6 +220,7 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    volumes: *jwt-certs
     networks:
       goshop-network:
         aliases:
@@ -159,7 +229,9 @@ services:
   payment:
     build:
       context: ./backend
-      dockerfile: Dockerfile.payment.prod
+      dockerfile: build/Dockerfile.service
+      args:
+        SERVICE: payment
     container_name: goshop-payment
     restart: unless-stopped
     ports:
@@ -168,17 +240,16 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      - DB_HOST=postgres
-      - DB_NAME=shopping_payment
-      - PAYMENT_DB_NAME=shopping_payment
-      - REDIS_ADDR=redis:6379
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
-      - PAYMENT_SERVER_PORT=8083
-      - PAYMENT_GRPC_PORT=50052
-      - ORDER_GRPC_ADDR=order-service:50057
-      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:?INTERNAL_API_SECRET must be set in production}
-      - JWT_SIGNING_ENABLED=false
-      - JWT_PRIVATE_KEY=
+      <<: *jwt-verifier
+      DB_HOST: "postgres"
+      DB_NAME: "shopping_payment"
+      PAYMENT_DB_NAME: "shopping_payment"
+      REDIS_ADDR: "redis:6379"
+      RABBITMQ_URL: "amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/"
+      PAYMENT_SERVER_PORT: "8083"
+      PAYMENT_GRPC_PORT: "50052"
+      ORDER_GRPC_ADDR: "order-service:50057"
+      INTERNAL_API_SECRET: "${INTERNAL_API_SECRET:?INTERNAL_API_SECRET must be set in production}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -186,6 +257,7 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    volumes: *jwt-certs
     networks:
       goshop-network:
         aliases:
@@ -194,7 +266,7 @@ services:
   catalog:
     build:
       context: ./backend
-      dockerfile: Dockerfile.microservice.prod
+      dockerfile: build/Dockerfile.service
       args:
         SERVICE: catalog
     container_name: goshop-catalog
@@ -205,18 +277,18 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      - DB_HOST=postgres
-      - DB_NAME=shopping_catalog
-      - CATALOG_DB_NAME=shopping_catalog
-      - CATALOG_SERVER_PORT=8086
-      - CATALOG_GRPC_PORT=50055
-      - JWT_PRIVATE_KEY=
-      - INVENTORY_GRPC_ADDR=inventory-service:50054
-      - REDIS_ADDR=redis:6379
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
-      - MEILISEARCH_HOST=http://meilisearch:7700
-      - GOMEMLIMIT=128MiB
-      - GOMAXPROCS=1
+      <<: *jwt-verifier
+      DB_HOST: "postgres"
+      DB_NAME: "shopping_catalog"
+      CATALOG_DB_NAME: "shopping_catalog"
+      CATALOG_SERVER_PORT: "8086"
+      CATALOG_GRPC_PORT: "50055"
+      INVENTORY_GRPC_ADDR: "inventory-service:50054"
+      REDIS_ADDR: "redis:6379"
+      RABBITMQ_URL: "amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/"
+      MEILISEARCH_HOST: "http://meilisearch:7700"
+      GOMEMLIMIT: "128MiB"
+      GOMAXPROCS: "1"
     mem_limit: 160m
     cpus: 0.50
     depends_on:
@@ -230,6 +302,7 @@ services:
         condition: service_started
       inventory:
         condition: service_started
+    volumes: *jwt-certs
     networks:
       goshop-network:
         aliases:
@@ -238,7 +311,7 @@ services:
   inventory:
     build:
       context: ./backend
-      dockerfile: Dockerfile.microservice.prod
+      dockerfile: build/Dockerfile.service
       args:
         SERVICE: inventory
     container_name: goshop-inventory
@@ -249,18 +322,16 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      - DB_HOST=postgres
-      - DB_NAME=shopping_inventory
-      - INVENTORY_DB_NAME=shopping_inventory
-      - INVENTORY_SERVER_PORT=8090
-      - INVENTORY_GRPC_PORT=50054
-      - JWT_PRIVATE_KEY=
-      - REDIS_ADDR=redis:6379
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
-      - JWT_SIGNING_ENABLED=false
-      - JWT_PRIVATE_KEY=
-      - GOMEMLIMIT=128MiB
-      - GOMAXPROCS=1
+      <<: *jwt-verifier
+      DB_HOST: "postgres"
+      DB_NAME: "shopping_inventory"
+      INVENTORY_DB_NAME: "shopping_inventory"
+      INVENTORY_SERVER_PORT: "8090"
+      INVENTORY_GRPC_PORT: "50054"
+      REDIS_ADDR: "redis:6379"
+      RABBITMQ_URL: "amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/"
+      GOMEMLIMIT: "128MiB"
+      GOMAXPROCS: "1"
     mem_limit: 160m
     cpus: 0.50
     depends_on:
@@ -270,6 +341,7 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    volumes: *jwt-certs
     networks:
       goshop-network:
         aliases:
@@ -278,7 +350,7 @@ services:
   coupon:
     build:
       context: ./backend
-      dockerfile: Dockerfile.microservice.prod
+      dockerfile: build/Dockerfile.service
       args:
         SERVICE: coupon
     container_name: goshop-coupon
@@ -289,16 +361,16 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      - DB_HOST=postgres
-      - DB_NAME=shopping_coupon
-      - COUPON_DB_NAME=shopping_coupon
-      - COUPON_SERVER_PORT=8084
-      - COUPON_GRPC_PORT=50053
-      - JWT_PRIVATE_KEY=
-      - REDIS_ADDR=redis:6379
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
-      - GOMEMLIMIT=96MiB
-      - GOMAXPROCS=1
+      <<: *jwt-verifier
+      DB_HOST: "postgres"
+      DB_NAME: "shopping_coupon"
+      COUPON_DB_NAME: "shopping_coupon"
+      COUPON_SERVER_PORT: "8084"
+      COUPON_GRPC_PORT: "50053"
+      REDIS_ADDR: "redis:6379"
+      RABBITMQ_URL: "amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/"
+      GOMEMLIMIT: "96MiB"
+      GOMAXPROCS: "1"
     mem_limit: 128m
     cpus: 0.50
     depends_on:
@@ -308,6 +380,7 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    volumes: *jwt-certs
     networks:
       goshop-network:
         aliases:
@@ -316,7 +389,7 @@ services:
   cart:
     build:
       context: ./backend
-      dockerfile: Dockerfile.microservice.prod
+      dockerfile: build/Dockerfile.service
       args:
         SERVICE: cart
     container_name: goshop-cart
@@ -327,15 +400,17 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      - DB_NAME=shopping_cart
-      - CART_DB_NAME=shopping_cart
-      - CART_SERVER_PORT=8087
-      - CART_GRPC_PORT=50056
-      - CATALOG_GRPC_ADDR=catalog-service:50055
-      - REDIS_ADDR=redis:6379
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
-      - GOMEMLIMIT=128MiB
-      - GOMAXPROCS=1
+      <<: *jwt-verifier
+      DB_HOST: "postgres"
+      DB_NAME: "shopping_cart"
+      CART_DB_NAME: "shopping_cart"
+      CART_SERVER_PORT: "8087"
+      CART_GRPC_PORT: "50056"
+      CATALOG_GRPC_ADDR: "catalog-service:50055"
+      REDIS_ADDR: "redis:6379"
+      RABBITMQ_URL: "amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/"
+      GOMEMLIMIT: "128MiB"
+      GOMAXPROCS: "1"
     mem_limit: 160m
     cpus: 0.50
     depends_on:
@@ -347,6 +422,7 @@ services:
         condition: service_healthy
       catalog:
         condition: service_started
+    volumes: *jwt-certs
     networks:
       goshop-network:
         aliases:
@@ -355,7 +431,7 @@ services:
   banner:
     build:
       context: ./backend
-      dockerfile: Dockerfile.microservice.prod
+      dockerfile: build/Dockerfile.service
       args:
         SERVICE: banner
     container_name: goshop-banner
@@ -365,15 +441,14 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      - DB_NAME=shopping_banner
-      - BANNER_DB_NAME=shopping_banner
-      - BANNER_SERVER_PORT=8089
-      - JWT_SIGNING_ENABLED=false
-      - JWT_PRIVATE_KEY=
-      - JWT_PUBLIC_KEY=/app/certs/jwt_public.pem
-      - REDIS_ADDR=redis:6379
-      - GOMEMLIMIT=96MiB
-      - GOMAXPROCS=1
+      <<: *jwt-verifier
+      DB_HOST: "postgres"
+      DB_NAME: "shopping_banner"
+      BANNER_DB_NAME: "shopping_banner"
+      BANNER_SERVER_PORT: "8089"
+      REDIS_ADDR: "redis:6379"
+      GOMEMLIMIT: "96MiB"
+      GOMAXPROCS: "1"
     mem_limit: 128m
     cpus: 0.50
     depends_on:
@@ -381,17 +456,184 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
-      - ./backend/certs:/app/certs:ro
+    volumes: *jwt-certs
     networks:
       goshop-network:
         aliases:
           - banner-service
 
+  review:
+    build:
+      context: ./backend
+      dockerfile: build/Dockerfile.service
+      args:
+        SERVICE: review
+    container_name: goshop-review
+    restart: unless-stopped
+    ports:
+      - "8091:8091"
+    env_file:
+      - ./backend/.env
+    environment:
+      <<: *jwt-verifier
+      DB_HOST: "postgres"
+      DB_NAME: "shopping_review"
+      REVIEW_DB_NAME: "shopping_review"
+      REVIEW_SERVER_PORT: "8091"
+      REDIS_ADDR: "redis:6379"
+      RABBITMQ_URL: "amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/"
+      IDENTITY_GRPC_ADDR: "identity-service:50051"
+      CATALOG_GRPC_TARGET: "catalog-service:50055"
+      ORDER_GRPC_TARGET: "order-service:50057"
+      GOMEMLIMIT: "96MiB"
+      GOMAXPROCS: "1"
+    mem_limit: 128m
+    cpus: 0.50
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      catalog:
+        condition: service_started
+      order:
+        condition: service_started
+    volumes: *jwt-certs
+    networks:
+      goshop-network:
+        aliases:
+          - review-service
+
+  chat:
+    build:
+      context: ./backend
+      dockerfile: build/Dockerfile.service
+      args:
+        SERVICE: chat
+    container_name: goshop-chat
+    restart: unless-stopped
+    ports:
+      - "8093:8093"
+      - "50058:50058"
+    env_file:
+      - ./backend/.env
+    environment:
+      <<: *jwt-verifier
+      DB_HOST: "postgres"
+      DB_NAME: "shopping_chat"
+      CHAT_DB_NAME: "shopping_chat"
+      CHAT_SERVER_PORT: "8093"
+      CHAT_GRPC_PORT: "50058"
+      REDIS_ADDR: "redis:6379"
+      RABBITMQ_URL: "amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/"
+      IDENTITY_GRPC_ADDR: "identity-service:50051"
+      ORDER_GRPC_TARGET: "order-service:50057"
+      GOMEMLIMIT: "128MiB"
+      GOMAXPROCS: "1"
+    mem_limit: 160m
+    cpus: 0.50
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      order:
+        condition: service_started
+    volumes: *jwt-certs
+    networks:
+      goshop-network:
+        aliases:
+          - chat-service
+
+  media:
+    build:
+      context: ./backend
+      dockerfile: build/Dockerfile.service
+      args:
+        SERVICE: media
+    container_name: goshop-media
+    restart: unless-stopped
+    ports:
+      - "8094:8094"
+    env_file:
+      - ./backend/.env
+    environment:
+      <<: *jwt-verifier
+      MEDIA_SERVER_PORT: "8094"
+      REDIS_ADDR: "redis:6379"
+      RABBITMQ_URL: "amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/"
+      GOMEMLIMIT: "96MiB"
+      GOMAXPROCS: "1"
+    mem_limit: 128m
+    cpus: 0.50
+    # no depends_on minio: with STORAGE_DRIVER=r2 MinIO may not exist at all;
+    # env_file carries whatever S3 endpoint the active env resolves to.
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes: *jwt-certs
+    networks:
+      goshop-network:
+        aliases:
+          - media-service
+
+  analytics:
+    build:
+      context: ./backend
+      dockerfile: build/Dockerfile.service
+      args:
+        SERVICE: analytics
+    container_name: goshop-analytics
+    restart: unless-stopped
+    ports:
+      - "8092:8092"
+    env_file:
+      - ./backend/.env
+    environment:
+      <<: *jwt-verifier
+      DB_HOST: "postgres"
+      DB_NAME: "shopping_analytics"
+      ANALYTICS_DB_NAME: "shopping_analytics"
+      ANALYTICS_SERVER_PORT: "8092"
+      REDIS_ADDR: "redis:6379"
+      RABBITMQ_URL: "amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/"
+      IDENTITY_GRPC_ADDR: "identity-service:50051"
+      ORDER_GRPC_TARGET: "order-service:50057"
+      CATALOG_GRPC_TARGET: "catalog-service:50055"
+      INVENTORY_GRPC_ADDR: "inventory-service:50054"
+      GOMEMLIMIT: "96MiB"
+      GOMAXPROCS: "1"
+    mem_limit: 128m
+    cpus: 0.50
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      order:
+        condition: service_started
+      catalog:
+        condition: service_started
+      inventory:
+        condition: service_started
+    volumes: *jwt-certs
+    networks:
+      goshop-network:
+        aliases:
+          - analytics-service
+
   order:
     build:
       context: ./backend
-      dockerfile: Dockerfile.order.prod
+      dockerfile: build/Dockerfile.service
+      args:
+        SERVICE: order
     container_name: goshop-order
     restart: unless-stopped
     ports:
@@ -400,21 +642,21 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      - DB_HOST=postgres
-      - DB_NAME=shopping_order
-      - ORDER_DB_NAME=shopping_order
-      - REDIS_ADDR=redis:6379
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
-      - ORDER_SERVER_PORT=8088
-      - ORDER_GRPC_PORT=50057
-      - CATALOG_GRPC_ADDR=${CATALOG_GRPC_ADDR:-catalog-service:50055}
-      - INVENTORY_GRPC_ADDR=${INVENTORY_GRPC_ADDR:-inventory-service:50054}
-      - COUPON_GRPC_ADDR=${COUPON_GRPC_ADDR:-coupon-service:50053}
-      - CART_GRPC_ADDR=${CART_GRPC_ADDR:-cart-service:50056}
-      - IDENTITY_GRPC_ADDR=identity-service:50051
-      - PAYMENT_GRPC_ADDR=payment-service:50052
-      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:?INTERNAL_API_SECRET must be set in production}
-      - JWT_SIGNING_ENABLED=false
+      <<: *jwt-verifier
+      DB_HOST: "postgres"
+      DB_NAME: "shopping_order"
+      ORDER_DB_NAME: "shopping_order"
+      REDIS_ADDR: "redis:6379"
+      RABBITMQ_URL: "amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/"
+      ORDER_SERVER_PORT: "8088"
+      ORDER_GRPC_PORT: "50057"
+      CATALOG_GRPC_ADDR: "${CATALOG_GRPC_ADDR:-catalog-service:50055}"
+      INVENTORY_GRPC_ADDR: "${INVENTORY_GRPC_ADDR:-inventory-service:50054}"
+      COUPON_GRPC_ADDR: "${COUPON_GRPC_ADDR:-coupon-service:50053}"
+      CART_GRPC_ADDR: "${CART_GRPC_ADDR:-cart-service:50056}"
+      IDENTITY_GRPC_ADDR: "identity-service:50051"
+      PAYMENT_GRPC_ADDR: "payment-service:50052"
+      INTERNAL_API_SECRET: "${INTERNAL_API_SECRET:?INTERNAL_API_SECRET must be set in production}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -434,6 +676,7 @@ services:
         condition: service_started
       payment:
         condition: service_started
+    volumes: *jwt-certs
     networks:
       goshop-network:
         aliases:
@@ -442,15 +685,18 @@ services:
   worker:
     build:
       context: ./backend
-      dockerfile: Dockerfile.worker.prod
+      dockerfile: build/Dockerfile.service
+      args:
+        SERVICE: worker
     container_name: goshop-worker
     restart: unless-stopped
     env_file:
       - ./backend/.env
     environment:
-      - REDIS_ADDR=redis:6379
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
-      - MEILISEARCH_HOST=http://meilisearch:7700
+      <<: *jwt-verifier
+      REDIS_ADDR: "redis:6379"
+      RABBITMQ_URL: "amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/"
+      MEILISEARCH_HOST: "http://meilisearch:7700"
     depends_on:
       postgres:
         condition: service_healthy
@@ -458,27 +704,35 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    volumes: *jwt-certs
     networks:
       - goshop-network
 
   ws-gateway:
     build:
       context: ./backend
-      dockerfile: Dockerfile.ws-gateway.prod
+      dockerfile: build/Dockerfile.service
+      args:
+        SERVICE: ws-gateway
     container_name: goshop-ws-gateway
     restart: unless-stopped
     env_file:
       - ./backend/.env
     environment:
-      - REDIS_ADDR=redis:6379
-      - WS_GATEWAY_PORT=8085
-      - APP_ENV=production
-      - JWT_SIGNING_ENABLED=false
+      <<: *jwt-verifier
+      REDIS_ADDR: "redis:6379"
+      WS_GATEWAY_PORT: "8085"
+      APP_ENV: "production"
+      IDENTITY_GRPC_ADDR: "identity-service:50051"
+      CHAT_GRPC_TARGET: "chat-service:50058"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      chat:
+        condition: service_started
+    volumes: *jwt-certs
     networks:
       - goshop-network
 
@@ -486,13 +740,28 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile.storefront
+      args:
+        # Baked into the client bundle: same-origin absolute URL on port 80,
+        # where nginx proxies /api/v1. NEVER a container-internal name here —
+        # the browser must be able to use it directly.
+        - NEXT_PUBLIC_API_URL=http://localhost
+        # No API key baked here: nginx injects X-API-KEY at the edge.
     container_name: goshop-storefront
     restart: unless-stopped
     environment:
       - NODE_ENV=production
       - PORT=3000
+      # Server components read INTERNAL_API_URL at runtime (api-server.ts
+      # prefers it over NEXT_PUBLIC_API_URL). Reach the edge over the compose
+      # network; the browser bundle is unaffected.
+      - INTERNAL_API_URL=http://nginx
+      - NEXT_PUBLIC_API_URL=http://nginx
     networks:
       - goshop-network
+
+  # Admin SPA is NOT a container: the edge nginx serves the static Vite build
+  # directly (volume ./frontend/apps/dashboard/dist â†’ /srv/dashboard above).
+  # Build it with:  pnpm --filter dashboard build   (host or CI)
 
   postgres:
     image: postgres:16-alpine
@@ -511,7 +780,11 @@ services:
       - postgres-data:/var/lib/postgresql/data
       - ./scripts/init_databases.sql:/docker-entrypoint-initdb.d/init_databases.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_USER:-postgres}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${DB_USER:-postgres} -d ${DB_USER:-postgres}",
+        ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -573,7 +846,7 @@ services:
     ports:
       - "7700:7700"
     environment:
-      - MEILI_MASTER_KEY=${MEILISEARCH_MASTER_KEY:-masterKey123}
+      - MEILI_MASTER_KEY=${MEILISEARCH_MASTER_KEY:-goshop-dev-master-key-32-chars-len}
       - MEILI_ENV=production
       - MEILI_NO_ANALYTICS=true
     volumes:
@@ -582,6 +855,11 @@ services:
       - goshop-network
 
   minio:
+    # Object storage only runs when asked for (local/offline dev):
+    #   docker compose --profile minio ...
+    # Prod reads .env instead — with STORAGE_DRIVER=r2 no MinIO container
+    # is started at all (RAM + a volume saved).
+    profiles: ["minio"]
     image: cgr.dev/chainguard/minio:latest
     container_name: goshop-minio
     restart: unless-stopped
@@ -594,6 +872,23 @@ services:
     volumes:
       - minio-data:/data
     command: server /data --console-address ":9001"
+    networks:
+      - goshop-network
+
+  promtail:
+    # Ships container logs to Grafana Cloud Loki. No local Loki: the whole log
+    # stack is one ~40MB agent, which keeps a small VPS viable.
+    image: grafana/promtail:3.5.1
+    container_name: goshop-promtail
+    restart: unless-stopped
+    # env vars are referenced from promtail-config.yml via ${...}
+    command: -config.file=/etc/promtail/config.yml -config.expand-env=true
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./system/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      # Read-only socket: docker service discovery + container log tailing.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - goshop-network
 

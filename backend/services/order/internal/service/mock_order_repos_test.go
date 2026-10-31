@@ -2,21 +2,21 @@ package service_test
 
 import (
 	"context"
-	"time"
-	v1dto "goshop/services/order/internal/dto"
-	"goshop/services/order/internal/db/sqlc"
-	"goshop/services/order/internal/repository"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"goshop/services/order/internal/db/sqlc"
+	v1dto "goshop/services/order/internal/dto"
+	"goshop/services/order/internal/repository"
 	orderservice "goshop/services/order/internal/service"
+	"time"
 )
 
 var (
-	_ repository.OrderRepository = (*MockOrderRepository)(nil)
-	_ repository.OrderItemRepository = (*MockOrderItemRepository)(nil)
-	_ repository.TrackingRepository = (*MockTrackingRepository)(nil)
+	_ repository.OrderRepository        = (*MockOrderRepository)(nil)
+	_ repository.OrderItemRepository    = (*MockOrderItemRepository)(nil)
+	_ repository.TrackingRepository     = (*MockTrackingRepository)(nil)
 	_ repository.OrderReturnsRepository = (*MockOrderReturnsRepository)(nil)
-	_ repository.SagaRepository = (*MockSagaRepository)(nil)
+	_ repository.SagaRepository         = (*MockSagaRepository)(nil)
 )
 
 type MockOrderRepository struct {
@@ -452,8 +452,8 @@ type MockOutboxRepository struct {
 	CreateFunc                     func(ctx context.Context, tx pgx.Tx, aggregateType, aggregateID, eventType string, payload []byte) (sqlc.OutboxEvent, error)
 	GetPendingFunc                 func(ctx context.Context, limit int32) ([]sqlc.OutboxEvent, error)
 	GetPendingByAggregateTypesFunc func(ctx context.Context, limit int32, aggregateTypes []string) ([]sqlc.OutboxEvent, error)
-	MarkProcessedFunc             func(ctx context.Context, eventIDs []int64) error
-	MarkFailedFunc                func(ctx context.Context, eventID int64, lastErr string) error
+	MarkProcessedFunc              func(ctx context.Context, eventIDs []int64) error
+	MarkFailedFunc                 func(ctx context.Context, eventID int64, lastErr string) error
 }
 
 func (m *MockOutboxRepository) Insert(ctx context.Context, tx pgx.Tx, aggregateType, aggregateID, eventType string, payload any) (sqlc.OutboxEvent, error) {
@@ -516,15 +516,6 @@ func (m *MockWebhookEventRepository) MarkProcessed(ctx context.Context, tx pgx.T
 	}
 	return nil
 }
-
-
-
-
-
-
-
-
-
 
 // Additional mocks for order service domain ports
 
@@ -653,4 +644,3 @@ func (m *MockOrderService) GetAllOrders(ctx context.Context, input v1dto.GetOrde
 	}
 	return nil, 0, nil
 }
-

@@ -18,7 +18,7 @@ func TestInfrastructureDependencies(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	databaseURL := envOrDefault("INTEGRATION_DATABASE_URL", "postgres://postgres:super%40password@localhost:5432/shopping?sslmode=disable")
+	databaseURL := envOrDefault("INTEGRATION_DATABASE_URL", "postgres://postgres:super%40password@localhost:5432/postgres?sslmode=disable")
 	conn, err := pgx.Connect(ctx, databaseURL)
 	require.NoError(t, err)
 	defer conn.Close(ctx)

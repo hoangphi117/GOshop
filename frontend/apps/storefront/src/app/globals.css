@@ -20,8 +20,8 @@
   --color-text-secondary: #64748b;
   --color-border-subtle: #e2e8f0;
 
-  --font-heading: var(--font-heading), 'Rubik', sans-serif;
-  --font-body: var(--font-body), 'Nunito Sans', sans-serif;
+  --font-heading: "Rubik", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Nunito Sans", ui-sans-serif, system-ui, sans-serif;
 }
 
 :root {

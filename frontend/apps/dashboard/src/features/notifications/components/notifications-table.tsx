@@ -193,7 +193,7 @@ export function NotificationsTable({
                 const visual = getVisual(item.type)
                 const Icon = visual.icon
 
-                let dateFormatted = ''
+                let dateFormatted: string
                 let timeAgo = ''
                 try {
                   const d = new Date(item.created_at)

@@ -7,16 +7,18 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"go.opentelemetry.io/otel/attribute"
+
+	"goshop/contracts/events"
 	"goshop/pkg/db"
 	"goshop/pkg/logger"
-	"goshop/pkg/rabbitmq"
+	"goshop/pkg/telemetry"
 	paymentsqlc "goshop/services/payment/internal/db/sqlc"
 	"goshop/services/payment/internal/dto"
 	"goshop/services/payment/internal/provider"
 	"goshop/services/payment/money"
-
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 )
 
 // WebhookOutcome reports what a webhook achieved so the HTTP handler can answer
@@ -123,6 +125,13 @@ type settleRequest struct {
 // commit, so a failed commit can never emit an event for a payment that did
 // not settle.
 func (s *paymentService) settlePayment(ctx context.Context, req settleRequest) (WebhookOutcome, error) {
+	ctx, span := telemetry.Tracer("goshop/payment").Start(ctx, "payment.settle")
+	span.SetAttributes(
+		attribute.String("payment.provider", req.txn.PtProvider),
+		attribute.String("payment.transaction_uuid", req.txn.PtUuid.String()),
+	)
+	defer span.End()
+
 	var (
 		outcome    WebhookOutcome
 		routingKey string
@@ -173,6 +182,17 @@ func (s *paymentService) settleInTx(ctx context.Context, req settleRequest) (Web
 		return WebhookUnknown, "", nil, err
 	}
 
+	// The audit row is written before the transition (so a collision can be
+	// detected), which leaves we_processed = false. Mark it here, inside the
+	// same transaction: a settled delivery must be recorded as processed, and
+	// a failed settlement rolls the mark back with everything else. The
+	// already-finalized branch marks its own row before returning nil evt.
+	if evt != nil && webhookEventID != 0 && s.webhookRepo != nil {
+		if markErr := s.webhookRepo.MarkProcessed(ctx, webhookEventID); markErr != nil {
+			return WebhookUnknown, "", nil, fmt.Errorf("failed to mark webhook event as processed: %w", markErr)
+		}
+	}
+
 	if evt != nil && s.outboxRepo != nil {
 		bytes, marshalErr := json.Marshal(evt)
 		if marshalErr != nil {
@@ -214,10 +234,10 @@ func (s *paymentService) finalizeSettlement(
 			return WebhookAmountMismatch, "", nil, fmt.Errorf("%w: %s does not cover %s", ErrWebhookAmountMismatch, req.amount, expected)
 		}
 		targetStatus = PaymentStatusPaid
-		routingKey = rabbitmq.RoutingKeyPaymentSucceeded
+		routingKey = events.RoutingKeyPaymentSucceeded
 	} else {
 		targetStatus = PaymentStatusFailed
-		routingKey = rabbitmq.RoutingKeyPaymentFailed
+		routingKey = events.RoutingKeyPaymentFailed
 	}
 
 	metadataBytes := []byte("{}")

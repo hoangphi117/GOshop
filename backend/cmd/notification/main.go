@@ -4,12 +4,13 @@ import (
 	"context"
 	"path/filepath"
 
+	"github.com/joho/godotenv"
+
 	"goshop/internal/config"
 	"goshop/pkg/logger"
+	"goshop/pkg/telemetry"
 	"goshop/pkg/utils"
 	notificationapp "goshop/services/notification/app"
-
-	"github.com/joho/godotenv"
 )
 
 // @title           GOshop Notification Service API
@@ -21,7 +22,7 @@ import (
 func main() {
 	rootDir := utils.MustGetwd()
 
-	logFile := filepath.Join(rootDir, "internal/logs/notification.log")
+	logFile := utils.RuntimeLogPath("notification", "notification.log")
 	logger.InitLogger(logger.LoggerConfig{
 		Level:      "info",
 		Filename:   logFile,
@@ -33,10 +34,16 @@ func main() {
 	})
 
 	if err := godotenv.Load(filepath.Join(rootDir, ".env")); err != nil {
-		logger.Log.Warn().Msg("⚠️ No .env found")
+		logger.Log.Warn().Msg("WARNING: No .env found")
 	} else {
 		logger.Log.Info().Msg("Loaded .env successfully in Notification Service!")
 	}
+
+	shutdownTracer, tracerErr := telemetry.InitTracer(context.Background(), "goshop-notification", "1.0.0")
+	if tracerErr != nil {
+		logger.Log.Warn().Err(tracerErr).Msg("Tracing disabled")
+	}
+	defer func() { _ = shutdownTracer(context.Background()) }()
 
 	cfg := config.NewConfig()
 	if notifDBName := utils.GetEnv("NOTIFICATION_DB_NAME", utils.GetEnv("DB_NOTIFICATION_NAME", "shopping_notification")); notifDBName != "" {

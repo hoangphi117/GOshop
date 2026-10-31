@@ -16,6 +16,14 @@ const eslintConfig = defineConfig([
   {
     rules: {
       "@next/next/no-img-element": "off",
+      // React Compiler rules shipped with Next 16. These flag pre-existing
+      // patterns across ~20 files (setState inside an effect to mirror props,
+      // reading impure values during render, stale manual memoization). Each
+      // fix changes when state updates, so they are reported as warnings until
+      // the refactors land; everything else stays a hard error.
+      "react-hooks/set-state-in-effect": "warn",
+      "react-hooks/purity": "warn",
+      "react-hooks/preserve-manual-memoization": "warn",
     },
   },
 ]);

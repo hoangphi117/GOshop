@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"goshop/pkg/telemetry"
+
 	"github.com/sony/gobreaker/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -36,7 +38,7 @@ func NewClient(target string, opts ...grpc.DialOption) (*grpc.ClientConn, error)
 	}
 	breaker := gobreaker.NewCircuitBreaker[any](settings)
 
-	opts = append(opts, grpc.WithChainUnaryInterceptor(unaryInterceptor(breaker)))
+	opts = append(opts, grpc.WithChainUnaryInterceptor(telemetry.UnaryClientInterceptor(), unaryInterceptor(breaker)))
 	return grpc.NewClient(target, opts...)
 }
 

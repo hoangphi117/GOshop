@@ -114,11 +114,13 @@ export function Navbar() {
       .then((res) => (res.ok ? res.json() : null))
       .then((json) => {
         if (json?.data && Array.isArray(json.data)) {
-          const cats = json.data.slice(0, 5).map((c: any, idx: number) => ({
-            name: c.category_name || c.name || `Category ${idx}`,
-            href: `/products?category=${c.slug || c.uuid || idx}`,
-            badge: idx === 0 ? "Popular" : undefined,
-          }));
+          const cats = json.data.slice(0, 5).map(
+            (c: { category_name?: string; name?: string; slug?: string; uuid?: string }, idx: number) => ({
+              name: c.category_name || c.name || `Category ${idx}`,
+              href: `/products?category=${c.slug || c.uuid || idx}`,
+              badge: idx === 0 ? "Popular" : undefined,
+            }),
+          );
           setApiCategories(cats);
         }
       })

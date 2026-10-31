@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
+
 	"goshop/internal/config"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
@@ -21,12 +23,10 @@ import (
 	"goshop/pkg/validation"
 	mediahandler "goshop/services/media/internal/handler"
 	mediaroutes "goshop/services/media/internal/routes"
-
-	"github.com/gin-gonic/gin"
 )
 
 // App owns the media service HTTP server. Media is stateless: no database, no
-// gRPC — it fronts pkg/storage (local disk / S3 / MinIO / R2) for uploads.
+// gRPC it fronts pkg/storage (local disk / S3 / MinIO / R2) for uploads.
 type App struct {
 	cfg    *config.Config
 	server *http.Server
@@ -76,7 +76,7 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, fmt.Errorf("storage init failed: %w", err)
 	}
 
-	rabbitLogger := utils.NewLoggerWithPath("media_rabbit.log", "info")
+	rabbitLogger := utils.NewLoggerWithPath("media", "media_rabbit.log", "info")
 	rabbitService, err := rabbitmq.NewRabbitMQService(utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"), rabbitLogger)
 	if err != nil {
 		logger.Log.Warn().Err(err).Msg("RabbitMQ unavailable, media post-processing disabled")

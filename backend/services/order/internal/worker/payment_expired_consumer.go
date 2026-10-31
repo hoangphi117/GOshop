@@ -3,12 +3,13 @@ package worker
 import (
 	"context"
 	"encoding/json"
-	orderservice "goshop/services/order/internal/service"
-	"goshop/pkg/rabbitmq"
 
 	"github.com/google/uuid"
-	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
+
+	"goshop/contracts/events"
+	"goshop/pkg/messaging"
+	orderservice "goshop/services/order/internal/service"
 )
 
 // PaymentExpiredConsumer consumes payment.expired events and triggers order cancellation in the Order domain.
@@ -24,8 +25,8 @@ func NewPaymentExpiredConsumer(orderService orderservice.OrderService, logger *z
 	}
 }
 
-func (c *PaymentExpiredConsumer) Handle(headers amqp.Table, body []byte) error {
-	var event rabbitmq.PaymentExpiredEvent
+func (c *PaymentExpiredConsumer) Handle(headers messaging.Header, body []byte) error {
+	var event events.PaymentExpiredEvent
 	if err := json.Unmarshal(body, &event); err != nil {
 		if c.logger != nil {
 			c.logger.Error().Err(err).Msg("Failed to unmarshal payment expired event")

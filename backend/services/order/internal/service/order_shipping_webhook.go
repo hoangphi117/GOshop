@@ -6,15 +6,15 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+
+	"goshop/contracts/events"
 	"goshop/pkg/db"
 	"goshop/pkg/logger"
-	"goshop/pkg/rabbitmq"
 	"goshop/pkg/utils"
 	"goshop/services/order/internal/db/sqlc"
 	v1dto "goshop/services/order/internal/dto"
-
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 )
 
 // HandleShippingWebhook processes incoming status updates from GHN shipping gateway.
@@ -108,7 +108,7 @@ func (s *orderShippingService) HandleShippingWebhook(ctx context.Context, rawBod
 		logger.Log.Info().Str("order_number", order.OrderNumber).Str("code", payload.OrderCode).Msg("Order marked as DELIVERED via GHN Webhook")
 
 		if s.rabbitmq != nil {
-			evt := rabbitmq.NewOrderStatusChangedEvent(
+			evt := events.NewOrderStatusChangedEvent(
 				uuid.New().String(),
 				updatedOrder.OrderUuid.String(),
 				order.OrderNumber,
@@ -119,8 +119,8 @@ func (s *orderShippingService) HandleShippingWebhook(ctx context.Context, rawBod
 				OrderStatusDelivered,
 				payload.OrderCode,
 			)
-			_ = s.rabbitmq.Publish(context.Background(), rabbitmq.QueueOrderStatusChanged, evt)
-			_ = s.rabbitmq.PublishTopic(context.Background(), rabbitmq.RoutingKeyOrderStatusChanged, evt)
+			_ = s.rabbitmq.Publish(context.Background(), events.QueueOrderStatusChanged, evt)
+			_ = s.rabbitmq.PublishTopic(context.Background(), events.RoutingKeyOrderStatusChanged, evt)
 		}
 
 	case "delivering":

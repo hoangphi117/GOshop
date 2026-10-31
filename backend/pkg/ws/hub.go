@@ -14,6 +14,7 @@ type Hub interface {
 	Register(client *Client)
 	Unregister(client *Client)
 	SetPresenceStore(ps *PresenceStore)
+	PresenceStore() *PresenceStore
 	BroadCastToAdmins(msg WSMessage)
 	BroadcastToUser(userID int32, msg WSMessage)
 	BroadcastToAll(msg WSMessage)
@@ -51,6 +52,15 @@ func (h *hub) SetPresenceStore(ps *PresenceStore) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.presence = ps
+}
+
+// PresenceStore exposes the attached presence store so the per-connection
+// write pump can refresh presence on every ping. Returns nil when presence
+// is not mirrored to Redis.
+func (h *hub) PresenceStore() *PresenceStore {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.presence
 }
 
 func (h *hub) HasOnlineAdmin() bool {

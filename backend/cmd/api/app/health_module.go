@@ -1,15 +1,14 @@
 package app
 
 import (
+	"github.com/redis/go-redis/v9"
+	"github.com/rs/zerolog"
+
 	handler "goshop/cmd/api/handler"
 	"goshop/cmd/api/routes"
-
 	"goshop/pkg/discord"
 	"goshop/pkg/rabbitmq"
 	"goshop/pkg/storage"
-
-	"github.com/redis/go-redis/v9"
-	"github.com/rs/zerolog"
 )
 
 type HealthModule struct {

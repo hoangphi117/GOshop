@@ -4,18 +4,27 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"google.golang.org/grpc"
+	"net"
+
+	"goshop/contracts/events"
 	"goshop/internal/config"
 	"goshop/pkg/db"
 	"goshop/pkg/eventledger"
 	"goshop/pkg/logger"
+	"goshop/pkg/messaging"
 	"goshop/pkg/rabbitmq"
+	"goshop/pkg/telemetry"
 	"goshop/pkg/utils"
 	"goshop/pkg/validation"
 	couponv1 "goshop/proto/coupon/v1"
@@ -27,13 +36,6 @@ import (
 	couponrepo "goshop/services/coupon/internal/repository"
 	couponroutes "goshop/services/coupon/internal/routes"
 	couponservice "goshop/services/coupon/internal/service"
-
-	"github.com/gin-gonic/gin"
-	"github.com/golang-migrate/migrate/v4"
-	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	"github.com/golang-migrate/migrate/v4/source/iofs"
-	amqp "github.com/rabbitmq/amqp091-go"
-	"google.golang.org/grpc"
 )
 
 type App struct {
@@ -43,7 +45,7 @@ type App struct {
 	grpcListener   net.Listener
 	couponService  couponservice.CouponService
 	rabbitMQ       rabbitmq.RabbitMQService
-	eventConsumers []func(amqp.Table, []byte) error
+	eventConsumers []messaging.Handler
 }
 
 func New(cfg *config.Config) (*App, error) {
@@ -87,7 +89,7 @@ func New(cfg *config.Config) (*App, error) {
 	couponroutes.RegisterRoutes(r, couponHandler)
 
 	// RabbitMQ + event consumer (branch F: coupon owns coupon release on order.cancelled)
-	couponRabbitLogger := utils.NewLoggerWithPath("coupon_rabbitmq.log", "info")
+	couponRabbitLogger := utils.NewLoggerWithPath("coupon", "coupon_rabbitmq.log", "info")
 	rabbitMQService, err := rabbitmq.NewRabbitMQService(
 		utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"), couponRabbitLogger,
 	)
@@ -113,7 +115,7 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, fmt.Errorf("failed to listen on gRPC port %s: %w", grpcPort, err)
 	}
 
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(telemetry.ServerOptions()...)
 	couponv1.RegisterCouponServiceServer(grpcServer, coupongrpc.NewCouponGRPCServer(svc))
 
 	return &App{
@@ -123,7 +125,7 @@ func New(cfg *config.Config) (*App, error) {
 		grpcListener:  grpcLis,
 		couponService: svc,
 		rabbitMQ:      rabbitMQService,
-		eventConsumers: []func(amqp.Table, []byte) error{
+		eventConsumers: []messaging.Handler{
 			eventledger.Wrap(
 				eventledger.NewRepository(dbPool),
 				"coupon.order_cancelled",
@@ -154,10 +156,10 @@ func (a *App) Run(ctx context.Context) error {
 	// Topic consumer: coupon release on order.cancelled (branch F ownership move)
 	go func() {
 		for _, consumerFn := range a.eventConsumers {
-			if err := a.rabbitMQ.SubscribeTopic(ctx, rabbitmq.QueueCouponOrderEvents, []string{rabbitmq.RoutingKeyOrderCancelled}, consumerFn); err != nil {
-				logger.Log.Error().Err(err).Str("queue", rabbitmq.QueueCouponOrderEvents).Msg("Coupon event consumer stopped")
+			if err := a.rabbitMQ.SubscribeTopic(ctx, events.QueueCouponOrderEvents, []string{events.RoutingKeyOrderCancelled}, consumerFn); err != nil {
+				logger.Log.Error().Err(err).Str("queue", events.QueueCouponOrderEvents).Msg("Coupon event consumer stopped")
 			} else {
-				logger.Log.Info().Str("queue", rabbitmq.QueueCouponOrderEvents).Str("routing_key", rabbitmq.RoutingKeyOrderCancelled).Msg("Coupon consuming order.cancelled events")
+				logger.Log.Info().Str("queue", events.QueueCouponOrderEvents).Str("routing_key", events.RoutingKeyOrderCancelled).Msg("Coupon consuming order.cancelled events")
 			}
 		}
 	}()

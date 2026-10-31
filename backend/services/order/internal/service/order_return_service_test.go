@@ -5,20 +5,20 @@ import (
 	"testing"
 	"time"
 
-	"goshop/internal/testutils"
-	"goshop/pkg/db"
-	"goshop/pkg/rabbitmq"
-	"goshop/pkg/utils"
-	"goshop/services/order/internal/db/sqlc"
-	v1dto "goshop/services/order/internal/dto"
-	"goshop/services/order/internal/repository"
-	orderservice "goshop/services/order/internal/service"
-
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"goshop/contracts/events"
+	"goshop/internal/testutils"
+	"goshop/pkg/db"
+	"goshop/pkg/utils"
+	"goshop/services/order/internal/db/sqlc"
+	v1dto "goshop/services/order/internal/dto"
+	"goshop/services/order/internal/repository"
+	orderservice "goshop/services/order/internal/service"
 )
 
 type testReturnServiceDeps struct {
@@ -355,7 +355,7 @@ func TestOrderService_RequestOrderReturn(t *testing.T) {
 			InsertFunc: func(ctx context.Context, tx pgx.Tx, aggregateType, aggregateID, eventType string, payload any) (sqlc.OutboxEvent, error) {
 				outboxInserted = true
 				assert.Equal(t, "order", aggregateType)
-				assert.Equal(t, rabbitmq.QueueOrderReturnRequested, eventType)
+				assert.Equal(t, events.QueueOrderReturnRequested, eventType)
 				return sqlc.OutboxEvent{}, nil
 			},
 		}
@@ -840,8 +840,8 @@ func TestOrderService_AdminUpdateReturnStatus(t *testing.T) {
 				outboxInserted = true
 				assert.Equal(t, "order", aggregateType)
 				assert.Contains(t, []string{
-					rabbitmq.QueueOrderReturnUpdated,
-					rabbitmq.QueueOrderStatusChanged,
+					events.QueueOrderReturnUpdated,
+					events.QueueOrderStatusChanged,
 				}, eventType)
 				return sqlc.OutboxEvent{}, nil
 			},
@@ -1326,11 +1326,11 @@ func TestOrderService_AdminProcessReturnRefund(t *testing.T) {
 				outboxInserted = true
 				assert.Equal(t, "order", aggregateType)
 				assert.Contains(t, []string{
-					rabbitmq.QueueOrderReturnUpdated,
-					rabbitmq.QueueOrderStatusChanged,
+					events.QueueOrderReturnUpdated,
+					events.QueueOrderStatusChanged,
 				}, eventType)
-				if eventType == rabbitmq.QueueOrderReturnUpdated {
-					event, ok := payload.(rabbitmq.OrderReturnUpdatedEvent)
+				if eventType == events.QueueOrderReturnUpdated {
+					event, ok := payload.(events.OrderReturnUpdatedEvent)
 					require.True(t, ok)
 					refundEventChangeType = event.ChangeType
 				}
@@ -1356,7 +1356,7 @@ func TestOrderService_AdminProcessReturnRefund(t *testing.T) {
 		assert.False(t, refundCalled)
 		assert.True(t, trackingInserted)
 		assert.True(t, outboxInserted)
-		assert.Equal(t, rabbitmq.ReturnChangeTypeRefunded, refundEventChangeType)
+		assert.Equal(t, events.ReturnChangeTypeRefunded, refundEventChangeType)
 		assert.Equal(t, 300000.0, res.RefundAmount)
 		assert.Equal(t, "MB123456789", res.RefundTxnID)
 	})

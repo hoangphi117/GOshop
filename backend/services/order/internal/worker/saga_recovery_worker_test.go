@@ -1,7 +1,6 @@
 package worker
 
 import (
-	
 	"context"
 	"errors"
 	"sync"
@@ -11,7 +10,6 @@ import (
 	"goshop/services/order/internal/db/sqlc"
 	v1dto "goshop/services/order/internal/dto"
 	orderservice "goshop/services/order/internal/service"
-	
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"

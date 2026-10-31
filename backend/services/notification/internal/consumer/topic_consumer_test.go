@@ -6,15 +6,15 @@ import (
 	"errors"
 	"testing"
 
-	"goshop/pkg/logger"
-	"goshop/pkg/rabbitmq"
-	"goshop/services/notification/internal/consumer"
-	"goshop/services/notification/internal/dto"
-
 	"github.com/google/uuid"
-	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
+	"goshop/contracts/events"
+	"goshop/pkg/logger"
+	"goshop/pkg/messaging"
+	"goshop/services/notification/internal/consumer"
+	"goshop/services/notification/internal/dto"
 )
 
 type mockNotificationService struct {
@@ -91,8 +91,8 @@ func TestTopicConsumer_OrderCreated(t *testing.T) {
 	}
 	body, _ := json.Marshal(payload)
 
-	headers := amqp.Table{
-		"x-routing-key": rabbitmq.RoutingKeyOrderCreated,
+	headers := messaging.Header{
+		"x-routing-key": events.RoutingKeyOrderCreated,
 		"trace_id":      "trace-test-123",
 	}
 
@@ -123,8 +123,8 @@ func TestTopicConsumer_OrderStatusChanged_NumericStatus(t *testing.T) {
 	}
 	body, _ := json.Marshal(payload)
 
-	headers := amqp.Table{
-		"x-routing-key": rabbitmq.RoutingKeyOrderStatusChanged,
+	headers := messaging.Header{
+		"x-routing-key": events.RoutingKeyOrderStatusChanged,
 		"x-message-id":  "msg-trace-456", // fallback when trace_id header is missing
 	}
 
@@ -153,8 +153,8 @@ func TestTopicConsumer_OrderStatusChanged_Shipped(t *testing.T) {
 	}
 	body, _ := json.Marshal(payload)
 
-	headers := amqp.Table{
-		"x-routing-key": rabbitmq.RoutingKeyOrderStatusChanged,
+	headers := messaging.Header{
+		"x-routing-key": events.RoutingKeyOrderStatusChanged,
 		"trace_id":      "trace-shipped-789",
 	}
 
@@ -208,8 +208,8 @@ func orderCreatedBody(t *testing.T, eventID string) []byte {
 	return body
 }
 
-func orderCreatedHeaders() amqp.Table {
-	return amqp.Table{"x-routing-key": rabbitmq.RoutingKeyOrderCreated, "trace_id": "trace-redelivery"}
+func orderCreatedHeaders() messaging.Header {
+	return messaging.Header{"x-routing-key": events.RoutingKeyOrderCreated, "trace_id": "trace-redelivery"}
 }
 
 // A redelivered event must produce exactly one logical notification.

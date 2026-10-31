@@ -215,7 +215,7 @@ export function NotificationPopover({
       markAsRead(item.uuid);
     }
     const actionUrl =
-      item.data?.action_url ||
+      (item.data?.action_url as string | undefined) ||
       (item.data?.order_uuid ? `/account/orders` : undefined);
     if (actionUrl) {
       setIsOpen(false);

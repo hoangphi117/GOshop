@@ -10,25 +10,26 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
+
 	v1handler "goshop/cmd/api/handler"
 	"goshop/internal/config"
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
 	"goshop/pkg/logger"
 	"goshop/pkg/middleware"
+	"goshop/pkg/telemetry"
 	"goshop/pkg/utils"
 	"goshop/pkg/ws"
 	chatcontract "goshop/services/chat/contract"
 	identitycontract "goshop/services/identity/contract"
-
-	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
 )
 
 func main() {
 	rootDir := utils.MustGetwd()
 
-	logFile := filepath.Join(rootDir, "internal/logs/ws-gateway.log")
+	logFile := utils.RuntimeLogPath("ws-gateway", "ws-gateway.log")
 	logger.InitLogger(logger.LoggerConfig{
 		Level:      "info",
 		Filename:   logFile,
@@ -40,7 +41,7 @@ func main() {
 	})
 
 	if err := godotenv.Load(filepath.Join(rootDir, ".env")); err != nil {
-		logger.Log.Warn().Msg("No .env found for ws-gateway")
+		logger.Log.Warn().Msg("WARNING: No .env found for ws-gateway")
 	} else {
 		logger.Log.Info().Msg("Loaded .env successfully for WS Gateway")
 	}
@@ -54,6 +55,13 @@ func main() {
 
 	// User lookups go through the identity service; the monolith users table is
 	// gone, so the gateway no longer opens the monolith database at all.
+
+	shutdownTracer, tracerErr := telemetry.InitTracer(context.Background(), "goshop-ws-gateway", "1.0.0")
+	if tracerErr != nil {
+		logger.Log.Warn().Err(tracerErr).Msg("Tracing disabled")
+	}
+	defer func() { _ = shutdownTracer(context.Background()) }()
+
 	cfg := config.NewConfig()
 	userResolver, err := identitycontract.NewGRPCIdentityClient(cfg.IdentityGRPCAddr, redisClient)
 	if err != nil {
@@ -112,7 +120,7 @@ func main() {
 	}
 
 	go func() {
-		logger.Log.Info().Str("port", port).Msg("🚀 WebSocket Gateway listening")
+		logger.Log.Info().Str("port", port).Msg("ðŸš€ WebSocket Gateway listening")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Log.Fatal().Err(err).Msg("WebSocket Gateway failed to serve")
 		}

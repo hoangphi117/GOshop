@@ -17,6 +17,7 @@ import (
 	"goshop/pkg/db"
 	"goshop/pkg/logger"
 	pkgpgx "goshop/pkg/pgx"
+	"goshop/pkg/telemetry"
 	"goshop/pkg/utils"
 	"goshop/pkg/validation"
 	ws "goshop/pkg/ws"
@@ -126,7 +127,7 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, fmt.Errorf("failed to listen on grpc addr %s: %w", grpcAddr, err)
 	}
 
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(telemetry.ServerOptions()...)
 	chatv1.RegisterChatServiceServer(grpcServer, chatgrpc.NewChatGRPCServer(chatRepo))
 
 	app := &App{

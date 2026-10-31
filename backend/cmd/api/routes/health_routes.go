@@ -1,9 +1,9 @@
 package routes
 
 import (
-	handler "goshop/cmd/api/handler"
-
 	"github.com/gin-gonic/gin"
+
+	handler "goshop/cmd/api/handler"
 )
 
 type HealthRoutes struct {

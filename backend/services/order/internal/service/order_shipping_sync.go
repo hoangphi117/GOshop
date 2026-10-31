@@ -6,14 +6,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
+	"goshop/contracts/events"
 	"goshop/pkg/db"
 	"goshop/pkg/logger"
-	"goshop/pkg/rabbitmq"
 	"goshop/pkg/utils"
 	"goshop/services/order/internal/db/sqlc"
 	v1dto "goshop/services/order/internal/dto"
-
-	"github.com/google/uuid"
 )
 
 func (s *orderShippingService) SyncOrderTracking(ctx context.Context, userUUID uuid.UUID, orderUUID uuid.UUID) (v1dto.SyncTrackingResponseDTO, error) {
@@ -94,7 +94,7 @@ func (s *orderShippingService) SyncOrderTracking(ctx context.Context, userUUID u
 			}
 
 			if s.rabbitmq != nil {
-				evt := rabbitmq.NewOrderStatusChangedEvent(
+				evt := events.NewOrderStatusChangedEvent(
 					uuid.New().String(),
 					orderUUID.String(),
 					order.OrderNumber,
@@ -105,8 +105,8 @@ func (s *orderShippingService) SyncOrderTracking(ctx context.Context, userUUID u
 					OrderStatusDelivered,
 					shippingCode,
 				)
-				_ = s.rabbitmq.Publish(context.Background(), rabbitmq.QueueOrderStatusChanged, evt)
-				_ = s.rabbitmq.PublishTopic(context.Background(), rabbitmq.RoutingKeyOrderStatusChanged, evt)
+				_ = s.rabbitmq.Publish(context.Background(), events.QueueOrderStatusChanged, evt)
+				_ = s.rabbitmq.PublishTopic(context.Background(), events.RoutingKeyOrderStatusChanged, evt)
 			}
 		}
 	} else {
@@ -259,7 +259,7 @@ func (s *orderShippingService) SyncActiveShippingOrders(ctx context.Context) (v1
 			}
 
 			if s.rabbitmq != nil {
-				evt := rabbitmq.NewOrderStatusChangedEvent(
+				evt := events.NewOrderStatusChangedEvent(
 					uuid.New().String(),
 					order.OrderUuid.String(),
 					order.OrderNumber,
@@ -270,8 +270,8 @@ func (s *orderShippingService) SyncActiveShippingOrders(ctx context.Context) (v1
 					OrderStatusDelivered,
 					shippingCode,
 				)
-				_ = s.rabbitmq.Publish(context.Background(), rabbitmq.QueueOrderStatusChanged, evt)
-				_ = s.rabbitmq.PublishTopic(context.Background(), rabbitmq.RoutingKeyOrderStatusChanged, evt)
+				_ = s.rabbitmq.Publish(context.Background(), events.QueueOrderStatusChanged, evt)
+				_ = s.rabbitmq.PublishTopic(context.Background(), events.RoutingKeyOrderStatusChanged, evt)
 			}
 
 			logger.Log.Info().

@@ -12,10 +12,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"goshop/pkg/auth"
-
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"goshop/pkg/auth"
 )
 
 type CheckoutRequestItem struct {
@@ -175,7 +175,7 @@ func main() {
 
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Authorization", "Bearer "+token)
-			req.Header.Set("x-Api-Key", "abcd-1234-1111")
+			req.Header.Set("x-Api-Key", os.Getenv("API_KEY"))
 			req.Header.Set("X-Idempotency-Key", key)
 
 			resp, err := client.Do(req)

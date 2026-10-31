@@ -4,20 +4,20 @@ import (
 	"fmt"
 	"time"
 
-	"goshop/pkg/cache"
-
-	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
+
+	"goshop/pkg/cache"
+	"goshop/pkg/messaging"
 )
 
 // withIdempotency marks a message id as processed for 24h in Redis so redelivered
 // order events do not double-apply to the read model.
-func withIdempotency(cacheService cache.RedisCacheService, logger *zerolog.Logger) func(string, func(amqp.Table, []byte) error) func(amqp.Table, []byte) error {
+func withIdempotency(cacheService cache.RedisCacheService, logger *zerolog.Logger) func(string, messaging.Handler) messaging.Handler {
 	const dedupTTL = 24 * time.Hour
 
-	return func(queue string, next func(amqp.Table, []byte) error) func(amqp.Table, []byte) error {
-		return func(headers amqp.Table, body []byte) error {
-			messageID, _ := headers["x-message-id"].(string)
+	return func(queue string, next messaging.Handler) messaging.Handler {
+		return func(headers messaging.Header, body []byte) error {
+			messageID := headers.Get("x-message-id")
 			if messageID == "" {
 				return next(headers, body)
 			}

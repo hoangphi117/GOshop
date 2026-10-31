@@ -15,10 +15,7 @@ export function getImageUrl(url?: string | null): string {
   ) {
     return url
   }
-  const baseUrl = (
-    import.meta.env.VITE_API_BASE_URL ||
-    'http://localhost:8080'
-  ).replace(/\/$/, '')
+  const baseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
   const cleanPath = url.startsWith('/') ? url : `/${url}`
   return `${baseUrl}${cleanPath}`
 }

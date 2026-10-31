@@ -2,10 +2,16 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"strings"
+
+	"database/sql"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"goshop/pkg/auth"
 	"goshop/pkg/cache"
@@ -14,12 +20,6 @@ import (
 	ws "goshop/pkg/ws"
 	chatcontract "goshop/services/chat/contract"
 	identitycontract "goshop/services/identity/contract"
-
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 const (

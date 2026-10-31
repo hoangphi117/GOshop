@@ -4,14 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"goshop/pkg/utils"
-	"goshop/pkg/logger"
 	"strconv"
 	"sync"
 	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
+
+	"goshop/pkg/logger"
+	"goshop/pkg/messaging"
+	"goshop/pkg/telemetry"
+	"goshop/pkg/utils"
 )
 
 const (
@@ -250,6 +253,14 @@ func (r *rabbitMQService) Publish(ctx context.Context, queue string, message any
 		return err
 	}
 
+	headers := amqp.Table{
+		"trace_id":      traceID,
+		"x-message-id":  messageID,
+		"x-retry-count": int32(0),
+		"x-max-retries": int32(utils.GetIntEnv("RABBITMQ_MAX_RETRIES", defaultMaxRetries)),
+	}
+	injectTraceContext(ctx, headers)
+
 	err = ch.PublishWithContext(ctx,
 		"",
 		queue,
@@ -262,13 +273,8 @@ func (r *rabbitMQService) Publish(ctx context.Context, queue string, message any
 			CorrelationId: traceID,
 			Timestamp:     time.Now(),
 			Expiration:    strconv.Itoa(ttlMs),
-			Headers: amqp.Table{
-				"trace_id":      traceID,
-				"x-message-id":  messageID,
-				"x-retry-count": int32(0),
-				"x-max-retries": int32(utils.GetIntEnv("RABBITMQ_MAX_RETRIES", defaultMaxRetries)),
-			},
-			Body: body,
+			Headers:       headers,
+			Body:          body,
 		})
 
 	if err != nil {
@@ -365,6 +371,15 @@ func (r *rabbitMQService) PublishToExchange(ctx context.Context, exchange, routi
 		return err
 	}
 
+	headers := amqp.Table{
+		"trace_id":      traceID,
+		"x-message-id":  messageID,
+		"x-routing-key": routingKey,
+		"x-retry-count": int32(0),
+		"x-max-retries": int32(utils.GetIntEnv("RABBITMQ_MAX_RETRIES", defaultMaxRetries)),
+	}
+	injectTraceContext(ctx, headers)
+
 	err = ch.PublishWithContext(ctx,
 		exchange,
 		routingKey,
@@ -377,14 +392,8 @@ func (r *rabbitMQService) PublishToExchange(ctx context.Context, exchange, routi
 			CorrelationId: traceID,
 			Timestamp:     time.Now(),
 			Expiration:    strconv.Itoa(ttlMs),
-			Headers: amqp.Table{
-				"trace_id":      traceID,
-				"x-message-id":  messageID,
-				"x-routing-key": routingKey,
-				"x-retry-count": int32(0),
-				"x-max-retries": int32(utils.GetIntEnv("RABBITMQ_MAX_RETRIES", defaultMaxRetries)),
-			},
-			Body: body,
+			Headers:       headers,
+			Body:          body,
 		})
 
 	if err != nil {
@@ -443,7 +452,7 @@ func (r *rabbitMQService) republish(ctx context.Context, queue string, body []by
 	return nil
 }
 
-func (r *rabbitMQService) Consume(ctx context.Context, queue string, handler func(amqp.Table, []byte) error) error {
+func (r *rabbitMQService) Consume(ctx context.Context, queue string, handler messaging.Handler) error {
 	if err := r.ensureQueues(queue); err != nil {
 		return err
 	}
@@ -471,7 +480,7 @@ func (r *rabbitMQService) Consume(ctx context.Context, queue string, handler fun
 	return nil
 }
 
-func (r *rabbitMQService) SubscribeToExchange(ctx context.Context, exchange, queue string, routingKeys []string, handler func(amqp.Table, []byte) error) error {
+func (r *rabbitMQService) SubscribeToExchange(ctx context.Context, exchange, queue string, routingKeys []string, handler messaging.Handler) error {
 	if err := r.ensureTopicQueue(exchange, queue, routingKeys); err != nil {
 		return err
 	}
@@ -499,12 +508,12 @@ func (r *rabbitMQService) SubscribeToExchange(ctx context.Context, exchange, que
 	return nil
 }
 
-func (r *rabbitMQService) SubscribeTopic(ctx context.Context, queue string, routingKeys []string, handler func(amqp.Table, []byte) error) error {
+func (r *rabbitMQService) SubscribeTopic(ctx context.Context, queue string, routingKeys []string, handler messaging.Handler) error {
 	exchange := utils.GetEnv("RABBITMQ_TOPIC_EXCHANGE", DefaultTopicExchange)
 	return r.SubscribeToExchange(ctx, exchange, queue, routingKeys, handler)
 }
 
-func (r *rabbitMQService) startConsumer(ctx context.Context, queue, consumerTag string, msgs <-chan amqp.Delivery, handler func(amqp.Table, []byte) error) {
+func (r *rabbitMQService) startConsumer(ctx context.Context, queue, consumerTag string, msgs <-chan amqp.Delivery, handler messaging.Handler) {
 	currentMsgs := msgs
 
 	for {
@@ -546,7 +555,7 @@ func (r *rabbitMQService) startConsumer(ctx context.Context, queue, consumerTag 
 
 // consumeLoop xử lý message tới khi channel msgs đóng (trả về false, do mất
 // kết nối) hoặc ctx bị hủy (trả về true, dừng hẳn theo yêu cầu người gọi).
-func (r *rabbitMQService) consumeLoop(ctx context.Context, queue string, msgs <-chan amqp.Delivery, handler func(amqp.Table, []byte) error) (stoppedByContext bool) {
+func (r *rabbitMQService) consumeLoop(ctx context.Context, queue string, msgs <-chan amqp.Delivery, handler messaging.Handler) (stoppedByContext bool) {
 	for {
 		select {
 		case msg, ok := <-msgs:
@@ -562,6 +571,11 @@ func (r *rabbitMQService) consumeLoop(ctx context.Context, queue string, msgs <-
 			if traceID == "" {
 				traceID = msg.MessageId
 			}
+			// Continue the publisher's distributed trace when the message
+			// carries W3C headers; the plain trace_id stays for log correlation.
+			if spanTraceID := telemetry.TraceIDFromContext(extractTraceContext(msg.Headers)); spanTraceID != "" {
+				traceID = spanTraceID
+			}
 			if headers == nil {
 				headers = amqp.Table{}
 			}
@@ -570,7 +584,7 @@ func (r *rabbitMQService) consumeLoop(ctx context.Context, queue string, msgs <-
 				headers["x-routing-key"] = msg.RoutingKey
 			}
 
-			if err := handler(headers, msg.Body); err != nil {
+			if err := handler(toNeutralHeaders(headers), msg.Body); err != nil {
 				retryCount := getRetryCount(headers)
 				maxRetries := getMaxRetries(headers)
 
@@ -644,6 +658,20 @@ func (r *rabbitMQService) Close() error {
 
 func deadLetterQueueName(queue string) string {
 	return queue + ".dlq"
+}
+
+// toNeutralHeaders converts wire headers (AMQP allows arbitrary value types,
+// e.g. int32 retry counters) into the broker-neutral string map handlers see.
+func toNeutralHeaders(src amqp.Table) messaging.Header {
+	dst := make(messaging.Header, len(src))
+	for k, v := range src {
+		s, ok := v.(string)
+		if !ok {
+			s = fmt.Sprintf("%v", v)
+		}
+		dst[k] = s
+	}
+	return dst
 }
 
 func getRetryCount(headers amqp.Table) int {

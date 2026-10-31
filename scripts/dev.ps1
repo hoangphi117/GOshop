@@ -1,8 +1,12 @@
 # =============================================================================
 # GOshop Single-Command Dev Orchestrator (Lightweight Hybrid Mode)
 # =============================================================================
-# 1. Starts Docker Infrastructure (Postgres, Redis, RabbitMQ, MinIO, Meilisearch)
-# 2. Runs core Go services on Host; domain services run in Docker Compose
+# 1. Docker Compose starts infrastructure (Postgres, Redis, RabbitMQ, MinIO,
+#    Meilisearch) plus the storage-heavy domain services (inventory, catalog,
+#    coupon, cart, banner).
+# 2. The gateway and the remaining services build and run on the host for fast
+#    rebuild loops: api, identity, notification, payment, worker, order,
+#    review, analytics, chat, media, ws-gateway.
 # =============================================================================
 
 Write-Host ">>> [1/3] Starting Infrastructure and Domain Services (Docker)..." -ForegroundColor Cyan
@@ -18,7 +22,7 @@ foreach ($container in $hostOwnedContainers) {
     docker rm -f $container 2>$null | Out-Null
 }
 
-docker compose -f docker-compose.dev.yml --env-file ./backend/.env up -d minio inventory catalog coupon cart banner
+docker compose -f docker-compose.dev.yml --env-file ./backend/.env up -d minio jaeger inventory catalog coupon cart banner
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Failed to start infrastructure containers!" -ForegroundColor Red
@@ -78,6 +82,16 @@ try {
 }
 
 Write-Host ">>> [3/3] Starting Go Services on Host" -ForegroundColor Green
+# Host services reach the dev collector on the published OTLP port. Without
+# this they still run; tracing just stays a no-op.
+if (-not $env:OTEL_EXPORTER_OTLP_ENDPOINT) {
+    $env:OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4318"
+}
+# Review runs in Docker (see step 1); the host-mode API gateway reaches it on
+# the published port. Unset, the gateway would fall back to 404 on reviews.
+if (-not $env:REVIEW_SERVICE_URL) {
+    $env:REVIEW_SERVICE_URL = "http://localhost:8091"
+}
 $exe = if ($IsWindows -or $env:OS -match "Windows") { ".exe" } else { "" }
 $binPrefix = if ($IsWindows -or $env:OS -match "Windows") { "bin\" } else { "./bin/" }
 npx -y concurrently `

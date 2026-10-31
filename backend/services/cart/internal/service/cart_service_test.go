@@ -290,4 +290,3 @@ func TestCartService_RemovePurchasedItems(t *testing.T) {
 	assert.NoError(t, err)
 	mockRepo.AssertExpectations(t)
 }
-

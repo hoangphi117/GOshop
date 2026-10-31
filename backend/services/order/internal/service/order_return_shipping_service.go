@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/uuid"
+
+	"goshop/contracts/events"
 	"goshop/pkg/db"
-	"goshop/pkg/rabbitmq"
 	"goshop/pkg/utils"
 	"goshop/services/order/internal/db/sqlc"
 	v1dto "goshop/services/order/internal/dto"
-
-	"github.com/google/uuid"
 )
 
 // SubmitReturnShipping submits customer shipping courier and tracking code for an approved return.
@@ -87,7 +87,7 @@ func (s *orderReturnService) SubmitReturnShipping(ctx context.Context, userUUID 
 		}
 
 		if s.outboxStore != nil {
-			event := rabbitmq.NewOrderReturnUpdatedEvent(
+			event := events.NewOrderReturnUpdatedEvent(
 				uuid.NewString(),
 				updatedReturn.ReturnUuid.String(),
 				resolved.OrderUUID.String(),
@@ -98,8 +98,8 @@ func (s *orderReturnService) SubmitReturnShipping(ctx context.Context, userUUID 
 				updatedReturn.ReturnStatus,
 				fmt.Sprintf("Return shipping submitted: %s (%s)", shippingCode, provider),
 			)
-			event.ChangeType = rabbitmq.ReturnChangeTypeShippingSent
-			_, _ = s.outboxStore.Insert(ctx, tx, "order", resolved.OrderUUID.String(), rabbitmq.QueueOrderReturnUpdated, event)
+			event.ChangeType = events.ReturnChangeTypeShippingSent
+			_, _ = s.outboxStore.Insert(ctx, tx, "order", resolved.OrderUUID.String(), events.QueueOrderReturnUpdated, event)
 		}
 		return nil
 	})

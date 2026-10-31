@@ -7,11 +7,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"google.golang.org/grpc"
 	"net"
-	"strings"
 
 	"goshop/internal/config"
 	"goshop/pkg/auth"
@@ -20,6 +22,7 @@ import (
 	"goshop/pkg/logger"
 	"goshop/pkg/mail"
 	"goshop/pkg/rabbitmq"
+	"goshop/pkg/telemetry"
 	"goshop/pkg/utils"
 	"goshop/pkg/validation"
 	"goshop/pkg/ws"
@@ -31,9 +34,6 @@ import (
 	identityroutes "goshop/services/identity/internal/routes"
 	identityservice "goshop/services/identity/internal/service"
 	identityworker "goshop/services/identity/worker"
-
-	"github.com/gin-gonic/gin"
-	"google.golang.org/grpc"
 )
 
 // App encapsulates the Identity microservice runtime
@@ -75,7 +75,7 @@ func New(cfg *config.Config) (*App, error) {
 	cacheRedisService := cache.NewRedisCacheService(redisClient)
 	tokenService := auth.NewJWTService(cacheRedisService)
 
-	mailLogger := utils.NewLoggerWithPath("identity_mail.log", "info")
+	mailLogger := utils.NewLoggerWithPath("identity", "identity_mail.log", "info")
 	factory, err := mail.NewProviderFactory(mail.ProviderMailtrap)
 	if err != nil {
 		mailLogger.Error().Err(err).Msg("Failed to create mail provider factory")
@@ -88,7 +88,7 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, err
 	}
 
-	rabbitmqLogger := utils.NewLoggerWithPath("identity_rabbitmq.log", "info")
+	rabbitmqLogger := utils.NewLoggerWithPath("identity", "identity_rabbitmq.log", "info")
 	rabbitmqService, err := rabbitmq.NewRabbitMQService(utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"), rabbitmqLogger)
 	if err != nil {
 		logger.Log.Fatal().Err(err).Msg("Failed to create RabbitMQ service")
@@ -156,7 +156,7 @@ func New(cfg *config.Config) (*App, error) {
 	if !strings.HasPrefix(grpcPort, ":") {
 		grpcPort = ":" + grpcPort
 	}
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(telemetry.ServerOptions()...)
 	identityGRPCServer := identitygrpc.NewServer(userRepo, addressRepo)
 	identityv1.RegisterIdentityServiceServer(grpcServer, identityGRPCServer)
 

@@ -7,14 +7,13 @@ import (
 	"testing"
 	"time"
 
-	
-	"goshop/pkg/rabbitmq"
-
 	"github.com/google/uuid"
-	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"goshop/contracts/events"
+	"goshop/pkg/messaging"
 )
 
 func TestPaymentExpiredConsumer_Handle(t *testing.T) {
@@ -24,7 +23,7 @@ func TestPaymentExpiredConsumer_Handle(t *testing.T) {
 		mockService := &MockOrderService{}
 		consumer := NewPaymentExpiredConsumer(mockService, &logger)
 
-		err := consumer.Handle(amqp.Table{}, []byte("invalid-json"))
+		err := consumer.Handle(messaging.Header{}, []byte("invalid-json"))
 		require.Error(t, err)
 	})
 
@@ -32,14 +31,14 @@ func TestPaymentExpiredConsumer_Handle(t *testing.T) {
 		mockService := &MockOrderService{}
 		consumer := NewPaymentExpiredConsumer(mockService, &logger)
 
-		event := rabbitmq.PaymentExpiredEvent{
+		event := events.PaymentExpiredEvent{
 			EventID:   uuid.New().String(),
 			OrderUUID: "not-a-valid-uuid",
 			Timestamp: time.Now().UTC(),
 		}
 		body, _ := json.Marshal(event)
 
-		err := consumer.Handle(amqp.Table{}, body)
+		err := consumer.Handle(messaging.Header{}, body)
 		require.Error(t, err)
 	})
 
@@ -55,7 +54,7 @@ func TestPaymentExpiredConsumer_Handle(t *testing.T) {
 		}
 
 		consumer := NewPaymentExpiredConsumer(mockService, &logger)
-		event := rabbitmq.NewPaymentExpiredEvent(
+		event := events.NewPaymentExpiredEvent(
 			uuid.New().String(),
 			uuid.New().String(),
 			targetOrderUUID.String(),
@@ -66,7 +65,7 @@ func TestPaymentExpiredConsumer_Handle(t *testing.T) {
 		body, err := json.Marshal(event)
 		require.NoError(t, err)
 
-		err = consumer.Handle(amqp.Table{}, body)
+		err = consumer.Handle(messaging.Header{}, body)
 		require.NoError(t, err)
 		assert.True(t, called)
 	})
@@ -80,7 +79,7 @@ func TestPaymentExpiredConsumer_Handle(t *testing.T) {
 		}
 
 		consumer := NewPaymentExpiredConsumer(mockService, &logger)
-		event := rabbitmq.NewPaymentExpiredEvent(
+		event := events.NewPaymentExpiredEvent(
 			uuid.New().String(),
 			uuid.New().String(),
 			targetOrderUUID.String(),
@@ -91,7 +90,7 @@ func TestPaymentExpiredConsumer_Handle(t *testing.T) {
 		body, err := json.Marshal(event)
 		require.NoError(t, err)
 
-		err = consumer.Handle(amqp.Table{}, body)
+		err = consumer.Handle(messaging.Header{}, body)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "db connection failure")
 	})

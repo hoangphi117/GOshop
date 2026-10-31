@@ -4,12 +4,13 @@ import (
 	"context"
 	"path/filepath"
 
-	"goshop/internal/config"
-	"goshop/pkg/utils"
-	"goshop/pkg/logger"
-	identityapp "goshop/services/identity/app"
-
 	"github.com/joho/godotenv"
+
+	"goshop/internal/config"
+	"goshop/pkg/logger"
+	"goshop/pkg/telemetry"
+	"goshop/pkg/utils"
+	identityapp "goshop/services/identity/app"
 )
 
 // @title           GOshop Identity Service API
@@ -21,7 +22,7 @@ import (
 func main() {
 	rootDir := utils.MustGetwd()
 
-	logFile := filepath.Join(rootDir, "internal/logs/identity.log")
+	logFile := utils.RuntimeLogPath("identity", "identity.log")
 	logger.InitLogger(logger.LoggerConfig{
 		Level:      "info",
 		Filename:   logFile,
@@ -33,10 +34,16 @@ func main() {
 	})
 
 	if err := godotenv.Load(filepath.Join(rootDir, ".env")); err != nil {
-		logger.Log.Warn().Msg("⚠️ No .env found")
+		logger.Log.Warn().Msg("WARNING: No .env found")
 	} else {
 		logger.Log.Info().Msg("Loaded .env successfully in Identity Service!")
 	}
+
+	shutdownTracer, tracerErr := telemetry.InitTracer(context.Background(), "goshop-identity", "1.0.0")
+	if tracerErr != nil {
+		logger.Log.Warn().Err(tracerErr).Msg("Tracing disabled")
+	}
+	defer func() { _ = shutdownTracer(context.Background()) }()
 
 	cfg := config.NewConfig()
 	if identityDBName := utils.GetEnv("IDENTITY_DB_NAME", utils.GetEnv("DB_IDENTITY_NAME", "shopping_identity")); identityDBName != "" {

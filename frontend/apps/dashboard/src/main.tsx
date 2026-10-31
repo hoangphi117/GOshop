@@ -75,6 +75,9 @@ const queryClient = new QueryClient({
 // Create a new router instance
 const router = createRouter({
   routeTree,
+  // The SPA is served and routed under /admin/ (vite base + prod edge).
+  // Without it, /admin/ renders the default NotFound page.
+  basepath: '/admin',
   context: { queryClient },
   defaultPreload: 'intent',
   defaultPreloadStaleTime: 0,

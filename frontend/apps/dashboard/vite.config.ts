@@ -7,7 +7,10 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import { playwright } from '@vitest/browser-playwright'
 
 // https://vite.dev/config/
+// Served under /admin/ behind the prod edge (nginx strips the prefix);
+// dev URL becomes http://localhost:5173/admin/.
 export default defineConfig({
+  base: '/admin/',
   plugins: [
     tanstackRouter({
       target: 'react',
@@ -23,6 +26,15 @@ export default defineConfig({
   },
   server: {
     proxy: {
+      // dev-host runs the Go api gateway on :8080 (nginx edge is stopped).
+      // ws: true keeps the /api/v1/ws upgrade working. Prod is unaffected:
+      // this block only exists for the dev server, the built dist is served
+      // by the edge under /admin/.
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        ws: true,
+      },
       '/uploads': {
         target: 'http://localhost:8080',
         changeOrigin: true,

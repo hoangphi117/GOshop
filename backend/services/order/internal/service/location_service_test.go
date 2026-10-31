@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	v1dto "goshop/services/order/internal/dto"
-	orderservice "goshop/services/order/internal/service"
 	"goshop/internal/testutils"
 	"goshop/pkg/shipping"
+	v1dto "goshop/services/order/internal/dto"
+	orderservice "goshop/services/order/internal/service"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

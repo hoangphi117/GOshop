@@ -21,9 +21,9 @@ func RegisterRoutes(
 	userRoutes []Route,
 	adminRoutes []Route,
 ) {
-	httpLogger := utils.NewLoggerWithPath("notification_http.log", "info")
-	recoveryLogger := utils.NewLoggerWithPath("notification_recovery.log", "warning")
-	rateLimiterLogger := utils.NewLoggerWithPath("notification_rate_limiter.log", "warning")
+	httpLogger := utils.NewLoggerWithPath("notification", "notification_http.log", "info")
+	recoveryLogger := utils.NewLoggerWithPath("notification", "notification_recovery.log", "warning")
+	rateLimiterLogger := utils.NewLoggerWithPath("notification", "notification_rate_limiter.log", "warning")
 
 	r.Use(gzip.Gzip(gzip.DefaultCompression))
 	r.Use(
