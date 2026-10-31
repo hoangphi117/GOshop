@@ -1,6 +1,6 @@
 version: v2
 modules:
-  - path: proto
+  - path: gomod/shared/proto
 lint:
   # STANDARD is buf's default rule set: package/field naming, versioned
   # packages, no unused imports, RPC request/response naming.

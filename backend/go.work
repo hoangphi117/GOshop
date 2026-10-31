@@ -1,0 +1,8 @@
+go 1.26.10
+
+use (
+	./gomod/cmd
+	./gomod/contracts
+	./gomod/services
+	./gomod/shared
+)
