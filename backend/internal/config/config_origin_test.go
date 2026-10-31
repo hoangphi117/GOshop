@@ -63,9 +63,9 @@ func TestPaymentReturnURLDerivation(t *testing.T) {
 		return origin + "/payment/result"
 	}
 	cases := map[string]string{
-		"":                        "http://localhost:3001/payment/result",
+		"":                         "http://localhost:3001/payment/result",
 		"https://shop.example.com": "https://shop.example.com/payment/result",
-		"http://localhost":        "http://localhost/payment/result",
+		"http://localhost":         "http://localhost/payment/result",
 	}
 	for origin, want := range cases {
 		if got := returnURLDefault(origin); got != want {
