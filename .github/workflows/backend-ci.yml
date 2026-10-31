@@ -1,4 +1,4 @@
-name: Backend CI
+﻿name: Backend CI
 
 on:
   push:
@@ -38,8 +38,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26.5'
-          cache-dependency-path: backend/go.sum
+          go-version: '1.26.10'
+          cache-dependency-path: backend/gomod/*/go.sum
 
       - name: Install buf
         uses: bufbuild/buf-setup-action@v1
@@ -64,17 +64,28 @@ jobs:
         # Both sides as git refs: identical file keying regardless of whether
         # develop has backend/buf.yaml yet. buf defaults to FILE breaking
         # rules here, matching backend/buf.yaml. Runs from the repo root
-        # (overrides the job's backend default) so buf finds .git directly.
+        # (overrides the job's backend default) so buf finds .git directly;
+        # subdir points at the workspace, whose modules now live under gomod/.
         working-directory: .
-        run: buf breaking ".git#ref=HEAD" --against ".git#ref=origin/develop"
+        run: buf breaking ".git#ref=HEAD,subdir=backend" --against ".git#ref=origin/develop,subdir=backend"
 
       - name: Go Vet
-        run: go vet ./...
+        # The workspace root is not a module, so ./... has to run per module.
+        run: |
+          set -e
+          for module in shared contracts services cmd; do
+            (cd "gomod/$module" && go vet ./...)
+          done
 
       - name: Run Tests with Race Detector
         # Coverage is printed but does not gate: the total stays visible in
         # the log so a drop is noticed without blocking unrelated work.
-        run: go test -race -v -coverprofile=coverage.out ./... && go tool cover -func=coverage.out | tail -1
+        run: |
+          set -e
+          for module in shared contracts services cmd; do
+            (cd "gomod/$module" && go test -race -coverprofile=coverage.out ./...)
+          done
+          go tool cover -func=gomod/shared/coverage.out | tail -1
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v7
@@ -219,11 +230,11 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26.5'
-          cache-dependency-path: backend/go.sum
+          go-version: '1.26.10'
+          cache-dependency-path: backend/gomod/*/go.sum
 
       - name: Run integration smoke tests
-        run: go test -tags=integration -v ./integration
+        run: go test -tags=integration -v ./cmd/integration
 
       - name: Run payment settlement integration tests
-        run: go test -race -tags=integration -v ./services/payment/integrationtest
+        run: go test -race -tags=integration -v ./gomod/services/payment/integrationtest
