@@ -17,6 +17,8 @@ on:
     paths:
       - 'backend/**'
       - '.github/workflows/backend-ci.yml'
+  # Manual runs verify the image matrix without waiting for a push.
+  workflow_dispatch:
 
 jobs:
   test:
@@ -100,6 +102,81 @@ jobs:
 
       - name: Validate dev compose
         run: docker compose -f docker-compose.dev.yml --env-file ./backend/.env config --quiet
+
+  images:
+    # Publish per-service images from the shared build/Dockerfile.service
+    # template on the long-lived branches; one OCI image per cmd/ service per
+    # commit is what makes them independently deployable later (Helm/ArgoCD).
+    # Feature branches skip the matrix: PRs already compile and test every
+    # service, and the template itself is exercised by every develop build.
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'))
+    name: Image (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    needs: test
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - analytics
+          - api
+          - banner
+          - cart
+          - catalog
+          - chat
+          - coupon
+          - identity
+          - inventory
+          - media
+          - notification
+          - order
+          - payment
+          - review
+          - worker
+          - ws-gateway
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Lowercase image repository
+        # GHCR image paths must be lowercase; github.repository keeps the
+        # original casing of the repo name.
+        id: repo
+        run: echo "name=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/build/Dockerfile.service
+          build-args: SERVICE=${{ matrix.service }}
+          # Layer cache is scoped per service: the go mod download layer is
+          # shared by construction, while each service's final `go build` layer
+          # only reruns when the backend tree actually changed.
+          cache-from: type=gha,scope=image-${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=image-${{ matrix.service }}
+          # Only branch pushes publish; workflow_dispatch runs verify the
+          # template without touching the registry.
+          push: ${{ github.event_name == 'push' }}
+          tags: |
+            ghcr.io/${{ steps.repo.outputs.name }}/${{ matrix.service }}:${{ github.sha }}
+            ghcr.io/${{ steps.repo.outputs.name }}/${{ matrix.service }}:${{ github.ref_name }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
 
   integration:
     name: Integration smoke tests
