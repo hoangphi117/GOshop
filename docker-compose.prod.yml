@@ -55,7 +55,9 @@ services:
   api1:
     build:
       context: ./backend
-      dockerfile: Dockerfile.api.prod
+      dockerfile: build/Dockerfile.service
+      args:
+        SERVICE: api
     container_name: goshop-api1
     restart: unless-stopped
     env_file:
@@ -104,7 +106,9 @@ services:
   api2:
     build:
       context: ./backend
-      dockerfile: Dockerfile.api.prod
+      dockerfile: build/Dockerfile.service
+      args:
+        SERVICE: api
     container_name: goshop-api2
     restart: unless-stopped
     env_file:
@@ -153,7 +157,9 @@ services:
   identity:
     build:
       context: ./backend
-      dockerfile: Dockerfile.identity.prod
+      dockerfile: build/Dockerfile.service
+      args:
+        SERVICE: identity
     container_name: goshop-identity
     restart: unless-stopped
     env_file:
@@ -189,7 +195,9 @@ services:
   notification:
     build:
       context: ./backend
-      dockerfile: Dockerfile.notification.prod
+      dockerfile: build/Dockerfile.service
+      args:
+        SERVICE: notification
     container_name: goshop-notification
     restart: unless-stopped
     ports:
@@ -221,7 +229,9 @@ services:
   payment:
     build:
       context: ./backend
-      dockerfile: Dockerfile.payment.prod
+      dockerfile: build/Dockerfile.service
+      args:
+        SERVICE: payment
     container_name: goshop-payment
     restart: unless-stopped
     ports:
@@ -256,7 +266,7 @@ services:
   catalog:
     build:
       context: ./backend
-      dockerfile: Dockerfile.microservice.prod
+      dockerfile: build/Dockerfile.service
       args:
         SERVICE: catalog
     container_name: goshop-catalog
@@ -301,7 +311,7 @@ services:
   inventory:
     build:
       context: ./backend
-      dockerfile: Dockerfile.microservice.prod
+      dockerfile: build/Dockerfile.service
       args:
         SERVICE: inventory
     container_name: goshop-inventory
@@ -340,7 +350,7 @@ services:
   coupon:
     build:
       context: ./backend
-      dockerfile: Dockerfile.microservice.prod
+      dockerfile: build/Dockerfile.service
       args:
         SERVICE: coupon
     container_name: goshop-coupon
@@ -379,7 +389,7 @@ services:
   cart:
     build:
       context: ./backend
-      dockerfile: Dockerfile.microservice.prod
+      dockerfile: build/Dockerfile.service
       args:
         SERVICE: cart
     container_name: goshop-cart
@@ -421,7 +431,7 @@ services:
   banner:
     build:
       context: ./backend
-      dockerfile: Dockerfile.microservice.prod
+      dockerfile: build/Dockerfile.service
       args:
         SERVICE: banner
     container_name: goshop-banner
@@ -455,7 +465,7 @@ services:
   review:
     build:
       context: ./backend
-      dockerfile: Dockerfile.microservice.prod
+      dockerfile: build/Dockerfile.service
       args:
         SERVICE: review
     container_name: goshop-review
@@ -499,7 +509,7 @@ services:
   chat:
     build:
       context: ./backend
-      dockerfile: Dockerfile.microservice.prod
+      dockerfile: build/Dockerfile.service
       args:
         SERVICE: chat
     container_name: goshop-chat
@@ -542,7 +552,7 @@ services:
   media:
     build:
       context: ./backend
-      dockerfile: Dockerfile.microservice.prod
+      dockerfile: build/Dockerfile.service
       args:
         SERVICE: media
     container_name: goshop-media
@@ -574,7 +584,7 @@ services:
   analytics:
     build:
       context: ./backend
-      dockerfile: Dockerfile.microservice.prod
+      dockerfile: build/Dockerfile.service
       args:
         SERVICE: analytics
     container_name: goshop-analytics
@@ -621,7 +631,9 @@ services:
   order:
     build:
       context: ./backend
-      dockerfile: Dockerfile.order.prod
+      dockerfile: build/Dockerfile.service
+      args:
+        SERVICE: order
     container_name: goshop-order
     restart: unless-stopped
     ports:
@@ -673,7 +685,9 @@ services:
   worker:
     build:
       context: ./backend
-      dockerfile: Dockerfile.worker.prod
+      dockerfile: build/Dockerfile.service
+      args:
+        SERVICE: worker
     container_name: goshop-worker
     restart: unless-stopped
     env_file:
@@ -697,7 +711,9 @@ services:
   ws-gateway:
     build:
       context: ./backend
-      dockerfile: Dockerfile.ws-gateway.prod
+      dockerfile: build/Dockerfile.service
+      args:
+        SERVICE: ws-gateway
     container_name: goshop-ws-gateway
     restart: unless-stopped
     env_file:

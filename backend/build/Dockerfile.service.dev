@@ -1,0 +1,29 @@
+# Development image for every Go service: air hot reload on the source tree.
+#
+# `SERVICE` selects both the air config (build/air/${SERVICE}.toml) and the
+# exposed health port note below. Build:
+#   docker build -f build/Dockerfile.service.dev --build-arg SERVICE=order .
+FROM golang:1.26.6-alpine
+
+RUN apk update && apk add --no-cache git curl ca-certificates tzdata
+RUN go install github.com/air-verse/air@latest
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Source is bind-mounted at run time (compose volumes); copying keeps the image
+# usable standalone for a plain `docker run`.
+COPY . .
+
+ARG SERVICE
+RUN test -n "$SERVICE"
+# air's cmd string expands ${SERVICE} at RUN time, so the name must live in the
+# image env, not only in build args.
+ENV SERVICE=${SERVICE}
+ENV SERVICE_NAME=${SERVICE}
+
+# Ports are declared per service in docker-compose.dev.yml; a shared EXPOSE list
+# would have to grow with every new service.
+CMD ["sh", "-c", "air -c build/air/service.toml"]
