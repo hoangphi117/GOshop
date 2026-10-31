@@ -1,24 +1,10 @@
 import type { Metadata } from "next";
-import { Rubik, Nunito_Sans } from "next/font/google";
 import "./globals.css";
+import "./fonts.css";
 import NextTopLoader from "nextjs-toploader";
 import { QueryProvider } from "@/providers/query-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { Toaster } from "sonner";
-
-const rubik = Rubik({
-  variable: "--font-heading",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-  display: "swap",
-});
-
-const nunitoSans = Nunito_Sans({
-  variable: "--font-body",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "GOshop — Official Gaming Merch, Boss Plushies, Tees & Collectibles",
@@ -34,7 +20,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${rubik.variable} ${nunitoSans.variable} h-full antialiased`}
+      className="h-full antialiased"
     >
       <body className="min-h-full flex flex-col bg-[#F8FAFC] text-[#0F172A] font-body selection:bg-emerald-100 selection:text-emerald-900">
         <NextTopLoader
