@@ -1,6 +1,8 @@
-import { Outlet } from '@tanstack/react-router'
+import { useEffect } from 'react'
+import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import { getCookie } from '@/lib/cookies'
 import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth-store'
 import { LayoutProvider } from '@/context/layout-provider'
 import { SearchProvider } from '@/context/search-provider'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
@@ -13,6 +15,20 @@ type AuthenticatedLayoutProps = {
 
 export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
   const defaultOpen = getCookie('sidebar_state') !== 'false'
+  const accessToken = useAuthStore((s) => s.auth.accessToken)
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  // The route guard's beforeLoad only runs on navigation, but the session can
+  // die while this layout is already mounted (token expired mid-use, refresh
+  // failed -> the API client calls auth.reset()). React to that and send the
+  // user to sign-in instead of leaving them staring at failing queries.
+  useEffect(() => {
+    if (!accessToken) {
+      navigate({ to: '/sign-in', search: { redirect: location.href }, replace: true })
+    }
+  }, [accessToken, navigate, location.href])
+
   return (
     <SearchProvider>
       <LayoutProvider>
