@@ -793,7 +793,7 @@ function OrderPickerModal({
         </div>
 
         {/* Scrollable Orders List with Fixed Container Height */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-2.5 space-y-2">
+        <div className="flex-1 min-h-0 min-w-0 overflow-x-hidden overflow-y-auto p-2.5 space-y-2">
           {isLoading ? (
             <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-2 py-8">
               <Loader2 className="w-5 h-5 animate-spin text-slate-500" />
@@ -986,7 +986,7 @@ function ProductPickerModal({
         </div>
 
         {/* Scrollable Products List */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-2.5 space-y-2">
+        <div className="flex-1 min-h-0 min-w-0 overflow-x-hidden overflow-y-auto p-2.5 space-y-2">
           {isLoading ? (
             <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-2 py-8">
               <Loader2 className="w-5 h-5 animate-spin text-slate-500" />
@@ -1378,7 +1378,7 @@ export function ChatWidget() {
   return (
     <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
       {isOpen && (
-        <div className="relative mb-3 flex flex-col w-[360px] sm:w-[390px] h-[520px] bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden text-slate-900">
+        <div className="relative mb-3 flex flex-col w-[calc(100vw-2rem)] max-w-[390px] h-[520px] bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden text-slate-900">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 bg-slate-900 text-white">
             <div className="flex items-center gap-2.5">
@@ -1411,7 +1411,7 @@ export function ChatWidget() {
           </div>
 
           {/* Body */}
-          <div className="flex-1 p-4 overflow-y-auto bg-slate-50 space-y-3">
+          <div className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto bg-slate-50 p-4 space-y-3">
             {!isAuthenticated ? (
               <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-3">
                 <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center text-slate-600">
@@ -1789,7 +1789,7 @@ export function ChatWidget() {
 
               {/* Pending files preview strip */}
               {pendingFiles.length > 0 && (
-                <div className="flex items-center gap-2 p-2.5 pb-1 overflow-x-auto border-b border-slate-100 bg-slate-50/50">
+                <div className="flex items-center gap-2 p-2.5 pb-1 overflow-x-auto overflow-y-hidden border-b border-slate-100 bg-slate-50/50">
                   {pendingFiles.map((file, idx) => {
                     const isImg = file.type.startsWith("image/");
                     const isVid = file.type.startsWith("video/");
