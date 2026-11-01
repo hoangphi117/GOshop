@@ -87,7 +87,11 @@ func NewTopicConsumerWithLedger(
 // effects succeeded, so a failed side effect leaves the event retryable (the returned
 // error makes the broker redeliver it).
 func (c *TopicConsumer) HandleEvent(headers messaging.Header, body []byte) error {
-	routingKey := headers.Get("x-routing-key")
+	// Kafka adapter sets event_type; old RabbitMQ path used x-routing-key.
+	routingKey := headers.Get("event_type")
+	if routingKey == "" {
+		routingKey = headers.Get("x-routing-key")
+	}
 	traceID := headers.Get("trace_id")
 	if traceID == "" {
 		traceID = headers.Get("x-message-id")

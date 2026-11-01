@@ -29,9 +29,9 @@ import (
 	"goshop/shared/config"
 	"goshop/shared/pkg/db"
 	"goshop/shared/pkg/eventledger"
+	"goshop/shared/pkg/kafka"
 	"goshop/shared/pkg/logger"
 	"goshop/shared/pkg/messaging"
-	"goshop/shared/pkg/rabbitmq"
 	"goshop/shared/pkg/telemetry"
 	"goshop/shared/pkg/utils"
 	"goshop/shared/pkg/validation"
@@ -44,7 +44,7 @@ type App struct {
 	grpcServer         *grpc.Server
 	grpcListener       net.Listener
 	inventoryService   inventoryservice.InventoryService
-	rabbitMQ           rabbitmq.RabbitMQService
+	broker             messaging.Broker
 	topicSubscriptions []topicSubscription
 }
 
@@ -95,21 +95,21 @@ func New(cfg *config.Config) (*App, error) {
 
 	inventoryroutes.RegisterRoutes(r, h)
 
-	// RabbitMQ + event consumers (branch F: inventory owns stock release/restock)
-	inventoryRabbitLogger := utils.NewLoggerWithPath("inventory", "inventory_rabbitmq.log", "info")
-	rabbitMQService, err := rabbitmq.NewRabbitMQService(
-		utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"), inventoryRabbitLogger,
+	// Kafka + event consumers (branch F: inventory owns stock release/restock)
+	inventoryBrokerLogger := utils.NewLoggerWithPath("inventory", "inventory_kafka.log", "info")
+	brokerService, err := kafka.NewKafkaBroker(utils.GetEnv("KAFKA_BROKERS", ""),
+		inventoryBrokerLogger,
 	)
 	if err != nil {
-		logger.Log.Error().Err(err).Msg("Failed to connect RabbitMQ for inventory service event consumers")
-		return nil, fmt.Errorf("rabbitmq connect failed: %w", err)
+		logger.Log.Error().Err(err).Msg("Failed to connect Kafka for inventory service event consumers")
+		return nil, fmt.Errorf("kafka connect failed: %w", err)
 	}
 	if err := eventledger.Migrate(connStr, "event_ledger_migrations_inventory"); err != nil {
 		logger.Log.Error().Err(err).Msg("Failed to migrate event ledger for inventory service")
 		return nil, err
 	}
 	ledgerRepo := eventledger.NewRepository(dbPool)
-	ledgerLogger := eventledger.NewZerologLogger(inventoryRabbitLogger)
+	ledgerLogger := eventledger.NewZerologLogger(inventoryBrokerLogger)
 
 	port := utils.GetEnv("INVENTORY_SERVER_PORT", "8085")
 	server := &http.Server{
@@ -133,7 +133,7 @@ func New(cfg *config.Config) (*App, error) {
 		grpcServer:       grpcServer,
 		grpcListener:     grpcLis,
 		inventoryService: svc,
-		rabbitMQ:         rabbitMQService,
+		broker:           brokerService,
 		topicSubscriptions: []topicSubscription{
 			{
 				queue:      events.QueueInventoryOrderEvents,
@@ -172,7 +172,7 @@ func (a *App) Run(ctx context.Context) error {
 	// order_return.completed (branch F ownership move).
 	go func() {
 		for _, sub := range a.topicSubscriptions {
-			if err := a.rabbitMQ.SubscribeTopic(ctx, sub.queue, []string{sub.routingKey}, sub.handler); err != nil {
+			if err := a.broker.SubscribeTopic(ctx, sub.queue, []string{sub.routingKey}, sub.handler); err != nil {
 				logger.Log.Error().Err(err).Str("queue", sub.queue).Str("routing_key", sub.routingKey).Msg("Inventory event consumer stopped")
 			} else {
 				logger.Log.Info().Str("queue", sub.queue).Str("routing_key", sub.routingKey).Msg("Inventory consuming topic events")
@@ -199,8 +199,8 @@ func (a *App) Run(ctx context.Context) error {
 		logger.Log.Error().Err(err).Msg("Inventory HTTP server forced to shutdown")
 	}
 
-	if err := a.rabbitMQ.Close(); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to close Inventory RabbitMQ connection cleanly")
+	if err := a.broker.Close(); err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to close Inventory Kafka connection cleanly")
 	}
 
 	a.grpcServer.GracefulStop()

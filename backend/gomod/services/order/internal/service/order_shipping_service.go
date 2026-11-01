@@ -33,7 +33,7 @@ type orderShippingService struct {
 	webhookRepo     ShippingWebhookPort
 	userRepo        OrderCustomerReader
 	cache           cache.RedisCacheService
-	rabbitmq        messaging.Broker
+	broker          messaging.Broker
 	locationService LocationService
 }
 
@@ -48,7 +48,7 @@ type OrderShippingServiceDeps struct {
 	UserRepo        OrderCustomerReader
 	RedisClient     *redis.Client
 	CacheService    cache.RedisCacheService
-	RabbitMQ        messaging.Broker
+	Broker          messaging.Broker
 }
 
 func NewOrderShippingService(deps OrderShippingServiceDeps) OrderShippingService {
@@ -65,7 +65,7 @@ func NewOrderShippingService(deps OrderShippingServiceDeps) OrderShippingService
 		webhookRepo:     deps.WebhookRepo,
 		userRepo:        deps.UserRepo,
 		cache:           cacheService,
-		rabbitmq:        deps.RabbitMQ,
+		broker:          deps.Broker,
 		locationService: NewLocationService(deps.ShippingFactory, cacheService),
 	}
 }
@@ -120,8 +120,8 @@ func (s *orderShippingService) CreateShipping(ctx context.Context, orderUUID uui
 		EnqueuedAt: time.Now(),
 	}
 
-	if s.rabbitmq != nil {
-		if err := s.rabbitmq.Publish(ctx, QueueShippingCreate, msg); err != nil {
+	if s.broker != nil {
+		if err := s.broker.Publish(ctx, QueueShippingCreate, msg); err != nil {
 			logger.Log.Error().Err(err).Str("order_uuid", orderUUID.String()).Msg("Failed to enqueue shipping creation")
 			return v1dto.AsyncShippingResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to enqueue shipping creation", err)
 		}
@@ -133,7 +133,7 @@ func (s *orderShippingService) CreateShipping(ctx context.Context, orderUUID uui
 		}, nil
 	}
 
-	// Fallback to synchronous shipping processing if RabbitMQ is unavailable
+	// Fallback to synchronous shipping processing if Kafka is unavailable
 	if err := s.ProcessShippingOrder(ctx, msg); err != nil {
 		logger.Log.Error().Err(err).Str("order_uuid", orderUUID.String()).Msg("Failed to process shipping creation synchronously")
 		return v1dto.AsyncShippingResponseDTO{}, err
@@ -278,9 +278,9 @@ func (s *orderShippingService) ProcessShippingOrder(ctx context.Context, msg v1d
 	if s.cache != nil {
 		_ = s.cache.Clear(fmt.Sprintf("order:%s", orderUUID.String()))
 	}
-	logger.Log.Info().Str("order_uuid", msg.OrderUUID).Str("shipping_code", ghnResp.ShippingCode).Msg("Shipping order created successfully via RabbitMQ")
+	logger.Log.Info().Str("order_uuid", msg.OrderUUID).Str("shipping_code", ghnResp.ShippingCode).Msg("Shipping order created successfully via Kafka")
 
-	if s.rabbitmq != nil {
+	if s.broker != nil {
 		evt := events.NewOrderStatusChangedEvent(
 			uuid.New().String(),
 			orderUUID.String(),
@@ -292,8 +292,9 @@ func (s *orderShippingService) ProcessShippingOrder(ctx context.Context, msg v1d
 			OrderStatusShipped,
 			ghnResp.ShippingCode,
 		)
-		_ = s.rabbitmq.Publish(ctx, events.QueueOrderStatusChanged, evt)
-		_ = s.rabbitmq.PublishTopic(ctx, events.RoutingKeyOrderStatusChanged, evt)
+		if err := s.broker.Publish(ctx, events.RoutingKeyOrderStatusChanged, evt); err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to publish order status change event")
+		}
 	}
 
 	return nil
@@ -464,7 +465,7 @@ func (s *orderShippingService) ConfirmOrderDelivery(ctx context.Context, userUUI
 		_ = s.cache.Clear("orders:*")
 	}
 
-	if s.rabbitmq != nil {
+	if s.broker != nil {
 		evt := events.NewOrderStatusChangedEvent(
 			uuid.New().String(),
 			updatedOrder.OrderUuid.String(),
@@ -477,10 +478,10 @@ func (s *orderShippingService) ConfirmOrderDelivery(ctx context.Context, userUUI
 			"",
 			updatedOrder.OrderPaymentStatus,
 		)
-		if err := s.rabbitmq.Publish(ctx, events.QueueOrderStatusChanged, evt); err != nil {
+		if err := s.broker.Publish(ctx, events.QueueOrderStatusChanged, evt); err != nil {
 			return v1dto.ConfirmDeliveryResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to publish delivery status event", err)
 		}
-		if err := s.rabbitmq.PublishTopic(ctx, events.RoutingKeyOrderStatusChanged, evt); err != nil {
+		if err := s.broker.PublishTopic(ctx, events.RoutingKeyOrderStatusChanged, evt); err != nil {
 			return v1dto.ConfirmDeliveryResponseDTO{}, utils.WrapError(utils.ErrCodeInternal, "Failed to publish delivery status topic", err)
 		}
 	}

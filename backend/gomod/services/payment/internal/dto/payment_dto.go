@@ -164,7 +164,7 @@ func MapPaymentTxnStatusToString(status int32) string {
 	}
 }
 
-// PaymentEventPayload represents event payload for RabbitMQ topic
+// PaymentEventPayload represents event payload for broker topic
 type PaymentEventPayload struct {
 	PaymentUUID   string          `json:"payment_uuid"`
 	OrderUUID     string          `json:"order_uuid"`

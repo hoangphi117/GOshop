@@ -33,7 +33,7 @@ type testShippingServiceDeps struct {
 	webhookRepo     repository.WebhookEventRepository
 	userRepo        *MockUserRepository
 	redisClient     *redis.Client
-	rabbitmq        messaging.Broker
+	broker          messaging.Broker
 }
 
 func newTestShippingService(deps testShippingServiceDeps) orderservice.OrderShippingService {
@@ -74,7 +74,7 @@ func newTestShippingService(deps testShippingServiceDeps) orderservice.OrderShip
 		WebhookRepo:     webhookRepo,
 		UserRepo:        customerReader,
 		RedisClient:     deps.redisClient,
-		RabbitMQ:        deps.rabbitmq,
+		Broker:          deps.broker,
 	})
 }
 
@@ -167,7 +167,7 @@ func TestOrderService_CreateShipping(t *testing.T) {
 		assert.Empty(t, res.OrderUUID)
 	})
 
-	t.Run("Case 4: RabbitMQ Publish Error - Returns Error", func(t *testing.T) {
+	t.Run("Case 4: Broker Publish Error - Returns Error", func(t *testing.T) {
 		mockOrderRepo := &MockOrderRepository{
 			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (sqlc.GetOrderByUUIDRow, error) {
 				return sqlc.GetOrderByUUIDRow{
@@ -178,15 +178,15 @@ func TestOrderService_CreateShipping(t *testing.T) {
 			},
 		}
 
-		mockRabbitMQ := &testutils.MockRabbitMQService{
+		mockBroker := &testutils.MockBrokerService{
 			PublishFunc: func(ctx context.Context, queue string, message any) error {
-				return errors.New("rabbitmq connection down")
+				return errors.New("broker connection down")
 			},
 		}
 
 		svc := newTestShippingService(testShippingServiceDeps{
 			orderRepo: mockOrderRepo,
-			rabbitmq:  mockRabbitMQ,
+			broker:    mockBroker,
 		})
 
 		res, err := svc.CreateShipping(ctx, orderUUID, baseInput)
@@ -210,7 +210,7 @@ func TestOrderService_CreateShipping(t *testing.T) {
 			},
 		}
 
-		mockRabbitMQ := &testutils.MockRabbitMQService{
+		mockBroker := &testutils.MockBrokerService{
 			PublishFunc: func(ctx context.Context, queue string, message any) error {
 				publishedQueue = queue
 				publishedMsg = message
@@ -220,7 +220,7 @@ func TestOrderService_CreateShipping(t *testing.T) {
 
 		svc := newTestShippingService(testShippingServiceDeps{
 			orderRepo: mockOrderRepo,
-			rabbitmq:  mockRabbitMQ,
+			broker:    mockBroker,
 		})
 
 		res, err := svc.CreateShipping(ctx, orderUUID, baseInput)
@@ -353,7 +353,7 @@ func TestOrderService_ProcessShippingOrderMessage(t *testing.T) {
 		}
 
 		var eventPublished bool
-		mockRabbitMQ := &testutils.MockRabbitMQService{
+		mockBroker := &testutils.MockBrokerService{
 			PublishFunc: func(ctx context.Context, queue string, message any) error {
 				if queue == events.QueueOrderStatusChanged {
 					eventPublished = true
@@ -378,7 +378,7 @@ func TestOrderService_ProcessShippingOrderMessage(t *testing.T) {
 			orderItemRepo:   mockOrderItemRepo,
 			trackingRepo:    mockTrackingRepo,
 			shippingFactory: factory,
-			rabbitmq:        mockRabbitMQ,
+			broker:          mockBroker,
 		})
 
 		err := svc.ProcessShippingOrder(context.Background(), msg)
@@ -1024,7 +1024,7 @@ func TestOrderService_ConfirmOrderDelivery(t *testing.T) {
 
 		var eventPublished bool
 		var publishedEvent events.OrderStatusChangedEvent
-		mockRabbitMQ := &testutils.MockRabbitMQService{
+		mockBroker := &testutils.MockBrokerService{
 			PublishFunc: func(ctx context.Context, queue string, message any) error {
 				if queue == events.QueueOrderStatusChanged {
 					eventPublished = true
@@ -1038,7 +1038,7 @@ func TestOrderService_ConfirmOrderDelivery(t *testing.T) {
 			orderRepo:    mockOrderRepo,
 			trackingRepo: mockTrackingRepo,
 			userRepo:     mockUserRepo,
-			rabbitmq:     mockRabbitMQ,
+			broker:       mockBroker,
 		})
 
 		res, err := svc.ConfirmOrderDelivery(ctx, userUUID, orderUUID)

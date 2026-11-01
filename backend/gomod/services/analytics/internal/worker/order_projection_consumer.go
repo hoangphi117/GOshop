@@ -15,7 +15,7 @@ import (
 	"goshop/shared/pkg/messaging"
 )
 
-// OrderProjectionConsumer consumes order lifecycle events from RabbitMQ and
+// OrderProjectionConsumer consumes order lifecycle events from the message broker and
 // maintains the reporting read model (analytics_orders_projection,
 // analytics_order_items_projection) inside the analytics database.
 type OrderProjectionConsumer struct {

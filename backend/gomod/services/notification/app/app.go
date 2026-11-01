@@ -29,9 +29,10 @@ import (
 	"goshop/shared/pkg/cache"
 	"goshop/shared/pkg/db"
 	"goshop/shared/pkg/discord"
+	"goshop/shared/pkg/kafka"
 	"goshop/shared/pkg/logger"
 	"goshop/shared/pkg/mail"
-	"goshop/shared/pkg/rabbitmq"
+	"goshop/shared/pkg/messaging"
 	"goshop/shared/pkg/utils"
 	"goshop/shared/pkg/validation"
 	"goshop/shared/pkg/ws"
@@ -41,7 +42,7 @@ import (
 type App struct {
 	cfg                 *config.Config
 	server              *http.Server
-	rabbitMQ            rabbitmq.RabbitMQService
+	broker              messaging.Broker
 	notificationService service.NotificationService
 }
 
@@ -96,12 +97,13 @@ func New(cfg *config.Config) (*App, error) {
 	cacheRedisService := cache.NewRedisCacheService(redisClient)
 	tokenService := auth.NewJWTService(cacheRedisService)
 
-	// RabbitMQ
-	rabbitmqLogger := utils.NewLoggerWithPath("notification", "notification_rabbitmq.log", "info")
-	rabbitmqURL := utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
-	rabbitmqService, err := rabbitmq.NewRabbitMQService(rabbitmqURL, rabbitmqLogger)
+	// Kafka
+	brokerLogger := utils.NewLoggerWithPath("notification", "notification_kafka.log", "info")
+	broker, err := kafka.NewKafkaBroker(utils.GetEnv("KAFKA_BROKERS", ""),
+		brokerLogger,
+	)
 	if err != nil {
-		logger.Log.Warn().Err(err).Msg("RabbitMQ not available on boot, will retry in background")
+		logger.Log.Warn().Err(err).Msg("Kafka not available on boot, will retry in background")
 	}
 
 	// Redis Bridge for live WebSocket broadcast
@@ -145,13 +147,13 @@ func New(cfg *config.Config) (*App, error) {
 		redisBridge,
 	)
 
-	// Subscribe to RabbitMQ Topic Exchange (Event-Driven)
-	if rabbitmqService != nil {
+	// Subscribe to Kafka Topic Exchange (Event-Driven)
+	if broker != nil {
 		topicConsumer := consumer.NewTopicConsumerWithLedger(
 			notificationService,
 			mailService,
 			discordNotifier,
-			rabbitmqLogger,
+			brokerLogger,
 			eventLedger,
 			dbPool,
 		)
@@ -165,8 +167,8 @@ func New(cfg *config.Config) (*App, error) {
 		}
 		queueName := "notification_service_events_v3"
 		go func() {
-			if err := rabbitmqService.SubscribeTopic(context.Background(), queueName, topicPatterns, topicConsumer.HandleEvent); err != nil {
-				logger.Log.Error().Err(err).Msg("Failed to subscribe to RabbitMQ topic events")
+			if err := broker.SubscribeTopic(context.Background(), queueName, topicPatterns, topicConsumer.HandleEvent); err != nil {
+				logger.Log.Error().Err(err).Msg("Failed to subscribe to Kafka topic events")
 			} else {
 				logger.Log.Info().Str("queue", queueName).Msg("Notification Service successfully subscribed to topic events")
 			}
@@ -191,7 +193,7 @@ func New(cfg *config.Config) (*App, error) {
 	return &App{
 		cfg:                 cfg,
 		server:              server,
-		rabbitMQ:            rabbitmqService,
+		broker:              broker,
 		notificationService: notificationService,
 	}, nil
 }
@@ -242,9 +244,9 @@ func (a *App) Run(ctx context.Context) error {
 		shutdownCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
 
-		if a.rabbitMQ != nil {
-			if err := a.rabbitMQ.Close(); err != nil {
-				logger.Log.Warn().Err(err).Msg("Failed to close RabbitMQ connection cleanly")
+		if a.broker != nil {
+			if err := a.broker.Close(); err != nil {
+				logger.Log.Warn().Err(err).Msg("Failed to close Kafka connection cleanly")
 			}
 		}
 

@@ -20,10 +20,10 @@ import (
 	mediaworker "goshop/services/media/worker"
 	"goshop/shared/config"
 	"goshop/shared/pkg/cache"
+	"goshop/shared/pkg/kafka"
 	"goshop/shared/pkg/logger"
 	"goshop/shared/pkg/mail"
 	"goshop/shared/pkg/messaging"
-	"goshop/shared/pkg/rabbitmq"
 	"goshop/shared/pkg/storage"
 	"goshop/shared/pkg/telemetry"
 	"goshop/shared/pkg/utils"
@@ -31,7 +31,7 @@ import (
 )
 
 type Worker struct {
-	rabbitMQ          rabbitmq.RabbitMQService
+	broker            messaging.Broker
 	mailService       mail.EmailProviderService
 	cache             cache.RedisCacheService
 	redisClient       *redis.Client
@@ -46,11 +46,11 @@ type Worker struct {
 func NewWorker(cfg *config.Config) *Worker {
 	log := utils.NewLoggerWithPath("worker", "worker.log", "info")
 
-	rabbitMQ, err := rabbitmq.NewRabbitMQService(
-		utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"), log,
+	broker, err := kafka.NewKafkaBroker(utils.GetEnv("KAFKA_BROKERS", ""),
+		log,
 	)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to create RabbitMQ service")
+		log.Fatal().Err(err).Msg("Failed to create Kafka service")
 	}
 
 	redisClient := redis.NewClient(&redis.Options{
@@ -104,7 +104,7 @@ func NewWorker(cfg *config.Config) *Worker {
 	}
 
 	return &Worker{
-		rabbitMQ:          rabbitMQ,
+		broker:            broker,
 		mailService:       mailService,
 		cache:             cacheService,
 		redisClient:       redisClient,
@@ -145,7 +145,7 @@ func (w *Worker) Start(ctx context.Context) error {
 
 	deduped := w.withIdempotency(emailQueueName, handler)
 
-	if err := w.rabbitMQ.Consume(ctx, emailQueueName, deduped); err != nil {
+	if err := w.broker.Consume(ctx, emailQueueName, deduped); err != nil {
 		w.logger.Error().Err(err).Msg("Failed to consume email queue")
 		return err
 	}
@@ -159,7 +159,7 @@ func (w *Worker) Start(ctx context.Context) error {
 	if w.userSyncConsumer != nil {
 		for _, queueName := range []string{events.QueueUserCreated, events.QueueUserUpdated, events.QueueUserDeleted} {
 			syncHandler := w.withIdempotency(queueName, w.userSyncConsumer.Handle)
-			if err := w.rabbitMQ.Consume(ctx, queueName, syncHandler); err != nil {
+			if err := w.broker.Consume(ctx, queueName, syncHandler); err != nil {
 				w.logger.Error().Err(err).Str("queue", queueName).Msg("Failed to consume user sync queue")
 				return err
 			}
@@ -170,7 +170,7 @@ func (w *Worker) Start(ctx context.Context) error {
 	// Consume Media Uploaded Events (image resize/re-encode)
 	if w.mediaProcessor != nil {
 		mediaHandler := w.withIdempotency(events.QueueMediaUploaded, w.mediaProcessor.Handle)
-		if err := w.rabbitMQ.Consume(ctx, events.QueueMediaUploaded, mediaHandler); err != nil {
+		if err := w.broker.Consume(ctx, events.QueueMediaUploaded, mediaHandler); err != nil {
 			w.logger.Error().Err(err).Str("queue", events.QueueMediaUploaded).Msg("Failed to consume media queue")
 		} else {
 			w.logger.Info().Msgf("Worker consuming queue: %s", events.QueueMediaUploaded)
@@ -225,12 +225,12 @@ func (w *Worker) Shutdown(ctx context.Context) error {
 		}
 	}
 
-	if err := w.rabbitMQ.Close(); err != nil {
-		w.logger.Error().Err(err).Msg("Failed to close RabbitMQ connection")
+	if err := w.broker.Close(); err != nil {
+		w.logger.Error().Err(err).Msg("Failed to close Kafka connection")
 		return err
 	}
 
-	w.logger.Info().Msg("RabbitMQ shutdown completed")
+	w.logger.Info().Msg("Kafka shutdown completed")
 
 	select {
 	case <-ctx.Done():

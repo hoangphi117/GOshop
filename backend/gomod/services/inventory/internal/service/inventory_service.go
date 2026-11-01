@@ -32,9 +32,9 @@ type InventoryService interface {
 }
 
 type inventoryService struct {
-	repo     repository.InventoryRepository
-	dbPool   *pgxpool.Pool
-	rabbitMQ messaging.Broker
+	repo   repository.InventoryRepository
+	dbPool *pgxpool.Pool
+	broker messaging.Broker
 }
 
 func NewInventoryService(repo repository.InventoryRepository, dbPool *pgxpool.Pool, rmq ...messaging.Broker) InventoryService {
@@ -43,9 +43,9 @@ func NewInventoryService(repo repository.InventoryRepository, dbPool *pgxpool.Po
 		r = rmq[0]
 	}
 	return &inventoryService{
-		repo:     repo,
-		dbPool:   dbPool,
-		rabbitMQ: r,
+		repo:   repo,
+		dbPool: dbPool,
+		broker: r,
 	}
 }
 
@@ -222,14 +222,16 @@ func (s *inventoryService) LockAndDeductStockWithRef(
 			AvailableQuantity: updatedStockRow.Quantity - updatedStockRow.ReservedQuantity,
 		}
 
-		// Low stock alert via RabbitMQ. The catalog owns the product name, so
+		// Low stock alert via broker. The catalog owns the product name, so
 		// the alert carries identifiers and the notification resolves them.
-		if s.rabbitMQ != nil && updatedStockRow.Quantity <= 5 {
-			_ = s.rabbitMQ.PublishTopic(ctx, events.RoutingKeyInventoryStockLow, map[string]any{
+		if s.broker != nil && updatedStockRow.Quantity <= 5 {
+			if err := s.broker.PublishTopic(ctx, events.RoutingKeyInventoryStockLow, map[string]any{
 				"product_id":   pID,
 				"product_uuid": updatedStockRow.ProductUuid.String(),
 				"stock":        updatedStockRow.Quantity,
-			})
+			}); err != nil {
+				logger.Log.Warn().Err(err).Msg("Failed to publish stock low event")
+			}
 		}
 	}
 
@@ -674,16 +676,18 @@ func (s *inventoryService) recordAdjustment(
 
 	// Trigger low stock alert if inventory drops to or below threshold.
 	// The catalog owns the product name; the alert carries identifiers.
-	if s.rabbitMQ != nil && newStock <= 5 {
+	if s.broker != nil && newStock <= 5 {
 		pID := int32(0)
 		if stockRow.ProductID != nil {
 			pID = *stockRow.ProductID
 		}
-		_ = s.rabbitMQ.PublishTopic(ctx, events.RoutingKeyInventoryStockLow, map[string]any{
+		if err := s.broker.PublishTopic(ctx, events.RoutingKeyInventoryStockLow, map[string]any{
 			"product_id":   pID,
 			"product_uuid": productUUID.String(),
 			"stock":        newStock,
-		})
+		}); err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to publish stock low event")
+		}
 	}
 
 	return s.movementToDTO(ctx, &movement), nil

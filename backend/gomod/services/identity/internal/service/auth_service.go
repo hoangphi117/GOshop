@@ -74,7 +74,7 @@ type authService struct {
 	tokenService  auth.TokenService
 	cacheService  cache.RedisCacheService
 	mailService   mail.EmailProviderService
-	rabbitmq      messaging.Broker
+	broker        messaging.Broker
 	wsHub         ws.Hub
 	redisBridge   ws.RedisBridge
 	storefrontURL string
@@ -85,7 +85,7 @@ func NewAuthService(
 	tokenService auth.TokenService,
 	cacheService cache.RedisCacheService,
 	mailService mail.EmailProviderService,
-	rabbitmqService messaging.Broker,
+	broker messaging.Broker,
 	wsHub ws.Hub,
 	redisBridge ws.RedisBridge,
 	storefrontURL string,
@@ -95,7 +95,7 @@ func NewAuthService(
 		tokenService:  tokenService,
 		cacheService:  cacheService,
 		mailService:   mailService,
-		rabbitmq:      rabbitmqService,
+		broker:        broker,
 		wsHub:         wsHub,
 		redisBridge:   redisBridge,
 		storefrontURL: strings.TrimRight(storefrontURL, "/"),
@@ -298,8 +298,8 @@ func (as *authService) RequestForgotPassword(ctx context.Context, email string) 
 		Category: "password-reset",
 	}
 
-	if as.rabbitmq != nil {
-		if err := as.rabbitmq.Publish(ctx, "auth_email_queue", mailContent); err != nil {
+	if as.broker != nil {
+		if err := as.broker.Publish(ctx, "auth_email_queue", mailContent); err != nil {
 			return utils.NewError(utils.ErrCodeInternal, "Failed to publish reset password email to queue")
 		}
 	}
@@ -373,7 +373,7 @@ func (as *authService) Register(ctx context.Context, input dto.RegisterInput) er
 		return utils.WrapError(utils.ErrCodeInternal, "failed to register user", err)
 	}
 
-	if as.rabbitmq != nil {
+	if as.broker != nil {
 		syncEvent := events.NewUserSyncEvent(
 			events.QueueUserCreated,
 			createdUser.UserID,
@@ -385,7 +385,7 @@ func (as *authService) Register(ctx context.Context, input dto.RegisterInput) er
 			createdUser.UserStatus,
 			createdUser.UserLevel,
 		)
-		if err := as.rabbitmq.Publish(ctx, events.QueueUserCreated, syncEvent); err != nil {
+		if err := as.broker.Publish(ctx, events.QueueUserCreated, syncEvent); err != nil {
 			logger.Log.Error().Err(err).Int32("user_id", createdUser.UserID).Msg("Failed to publish user.created event")
 		}
 	}
@@ -440,7 +440,7 @@ func (as *authService) SendRegisterOTP(ctx context.Context, input dto.SendRegist
 		_ = as.cacheService.Set(cooldownKey, "1", registerOTPResendTTL)
 	}
 
-	// 6. Send OTP Email via RabbitMQ queue
+	// 6. Send OTP Email via broker queue
 	htmlBody, textBody, err := mail.RegisterOTPTemplate(input.Name, otp, registerOTPTTL, time.Now().Year())
 	if err != nil {
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to render verification email", err)
@@ -454,8 +454,10 @@ func (as *authService) SendRegisterOTP(ctx context.Context, input dto.SendRegist
 		Category: "register-otp",
 	}
 
-	if as.rabbitmq != nil {
-		_ = as.rabbitmq.Publish(ctx, "auth_email_queue", mailContent)
+	if as.broker != nil {
+		if perr := as.broker.Publish(ctx, "auth_email_queue", mailContent); perr != nil {
+			logger.Log.Warn().Err(perr).Msg("Failed to publish auth email event")
+		}
 	} else if as.mailService != nil {
 		_ = as.mailService.SendEmail(ctx, mailContent)
 	}
@@ -514,7 +516,7 @@ func (as *authService) VerifyRegisterOTP(ctx context.Context, input dto.VerifyRe
 		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "failed to register user", err)
 	}
 
-	if as.rabbitmq != nil {
+	if as.broker != nil {
 		syncEvent := events.NewUserSyncEvent(
 			events.QueueUserCreated,
 			createdUser.UserID,
@@ -526,7 +528,7 @@ func (as *authService) VerifyRegisterOTP(ctx context.Context, input dto.VerifyRe
 			createdUser.UserStatus,
 			createdUser.UserLevel,
 		)
-		if err := as.rabbitmq.Publish(ctx, events.QueueUserCreated, syncEvent); err != nil {
+		if err := as.broker.Publish(ctx, events.QueueUserCreated, syncEvent); err != nil {
 			logger.Log.Error().Err(err).Int32("user_id", createdUser.UserID).Msg("Failed to publish user.created event")
 		}
 	}
@@ -613,8 +615,10 @@ func (as *authService) ResendRegisterOTP(ctx context.Context, input dto.ResendRe
 		Category: "register-otp",
 	}
 
-	if as.rabbitmq != nil {
-		_ = as.rabbitmq.Publish(ctx, "auth_email_queue", mailContent)
+	if as.broker != nil {
+		if perr := as.broker.Publish(ctx, "auth_email_queue", mailContent); perr != nil {
+			logger.Log.Warn().Err(perr).Msg("Failed to publish auth email event")
+		}
 	} else if as.mailService != nil {
 		_ = as.mailService.SendEmail(ctx, mailContent)
 	}
@@ -706,7 +710,7 @@ func (as *authService) findOrCreateGoogleUser(ctx context.Context, payload *dto.
 		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to create new OAuth user", err)
 	}
 
-	if as.rabbitmq != nil {
+	if as.broker != nil {
 		syncEvent := events.NewUserSyncEvent(
 			events.QueueUserCreated,
 			newUser.UserID,
@@ -718,7 +722,7 @@ func (as *authService) findOrCreateGoogleUser(ctx context.Context, payload *dto.
 			newUser.UserStatus,
 			newUser.UserLevel,
 		)
-		if err := as.rabbitmq.Publish(ctx, events.QueueUserCreated, syncEvent); err != nil {
+		if err := as.broker.Publish(ctx, events.QueueUserCreated, syncEvent); err != nil {
 			logger.Log.Error().Err(err).Int32("user_id", newUser.UserID).Msg("Failed to publish user.created event for oauth user")
 		}
 	}

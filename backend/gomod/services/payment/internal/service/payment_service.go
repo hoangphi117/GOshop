@@ -38,7 +38,7 @@ type paymentService struct {
 	outboxRepo     repository.OutboxRepository
 	providers      map[string]provider.PaymentProvider
 	cache          cache.RedisCacheService
-	rabbitmq       messaging.Broker
+	broker         messaging.Broker
 	returnURL      string
 	webhookBaseURL string
 	txManager      db.TxManager
@@ -51,7 +51,7 @@ func NewPaymentService(
 	outboxRepo repository.OutboxRepository,
 	providers map[string]provider.PaymentProvider,
 	cache cache.RedisCacheService,
-	rabbitmq messaging.Broker,
+	broker messaging.Broker,
 	returnURL string,
 	webhookBaseURL string,
 ) PaymentService {
@@ -63,7 +63,7 @@ func NewPaymentService(
 		outboxRepo:     outboxRepo,
 		providers:      providers,
 		cache:          cache,
-		rabbitmq:       rabbitmq,
+		broker:         broker,
 		returnURL:      returnURL,
 		webhookBaseURL: webhookBaseURL,
 	}
@@ -463,20 +463,17 @@ func (s *paymentService) publishPaymentEvent(ctx context.Context, routingKey str
 		}
 	}
 
-	// 2. RabbitMQ Topic Exchange & Direct Queue
-	s.publishRabbitEvent(ctx, routingKey, payload)
+	// 2. Broker direct publish (Kafka domain topic, single publish).
+	s.publishBrokerEvent(ctx, routingKey, payload)
 }
 
-// publishRabbitEvent is the broker half of publishPaymentEvent. Settlements call
+// publishBrokerEvent is the broker half of publishPaymentEvent. Settlements call
 // it directly AFTER their transaction commits; the outbox row written inside the
 // transaction already guarantees redelivery.
-func (s *paymentService) publishRabbitEvent(ctx context.Context, routingKey string, payload dto.PaymentEventPayload) {
-	if s.rabbitmq != nil {
-		if err := s.rabbitmq.PublishTopic(ctx, routingKey, payload); err != nil {
-			logger.Log.Error().Err(err).Str("routing_key", routingKey).Msg("Failed to publish event to RabbitMQ topic exchange")
-		}
-		if err := s.rabbitmq.Publish(ctx, routingKey, payload); err != nil {
-			logger.Log.Error().Err(err).Str("queue", routingKey).Msg("Failed to publish event to RabbitMQ direct queue")
+func (s *paymentService) publishBrokerEvent(ctx context.Context, routingKey string, payload dto.PaymentEventPayload) {
+	if s.broker != nil {
+		if err := s.broker.Publish(ctx, routingKey, payload); err != nil {
+			logger.Log.Error().Err(err).Str("routing_key", routingKey).Msg("Failed to publish event to broker")
 		}
 	}
 }

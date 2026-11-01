@@ -29,9 +29,9 @@ import (
 	"goshop/shared/config"
 	"goshop/shared/pkg/db"
 	"goshop/shared/pkg/eventledger"
+	"goshop/shared/pkg/kafka"
 	"goshop/shared/pkg/logger"
 	"goshop/shared/pkg/messaging"
-	"goshop/shared/pkg/rabbitmq"
 	"goshop/shared/pkg/telemetry"
 	"goshop/shared/pkg/utils"
 	"goshop/shared/pkg/validation"
@@ -44,7 +44,7 @@ type App struct {
 	grpcServer     *grpc.Server
 	grpcListener   net.Listener
 	couponService  couponservice.CouponService
-	rabbitMQ       rabbitmq.RabbitMQService
+	broker         messaging.Broker
 	eventConsumers []messaging.Handler
 }
 
@@ -88,14 +88,14 @@ func New(cfg *config.Config) (*App, error) {
 
 	couponroutes.RegisterRoutes(r, couponHandler)
 
-	// RabbitMQ + event consumer (branch F: coupon owns coupon release on order.cancelled)
-	couponRabbitLogger := utils.NewLoggerWithPath("coupon", "coupon_rabbitmq.log", "info")
-	rabbitMQService, err := rabbitmq.NewRabbitMQService(
-		utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"), couponRabbitLogger,
+	// Kafka + event consumer (branch F: coupon owns coupon release on order.cancelled)
+	couponBrokerLogger := utils.NewLoggerWithPath("coupon", "coupon_kafka.log", "info")
+	brokerService, err := kafka.NewKafkaBroker(utils.GetEnv("KAFKA_BROKERS", ""),
+		couponBrokerLogger,
 	)
 	if err != nil {
-		logger.Log.Error().Err(err).Msg("Failed to connect RabbitMQ for coupon service event consumer")
-		return nil, fmt.Errorf("rabbitmq connect failed: %w", err)
+		logger.Log.Error().Err(err).Msg("Failed to connect Kafka for coupon service event consumer")
+		return nil, fmt.Errorf("kafka connect failed: %w", err)
 	}
 	if err := eventledger.Migrate(connStr, "event_ledger_migrations_coupon"); err != nil {
 		logger.Log.Error().Err(err).Msg("Failed to migrate event ledger for coupon service")
@@ -124,13 +124,13 @@ func New(cfg *config.Config) (*App, error) {
 		grpcServer:    grpcServer,
 		grpcListener:  grpcLis,
 		couponService: svc,
-		rabbitMQ:      rabbitMQService,
+		broker:        brokerService,
 		eventConsumers: []messaging.Handler{
 			eventledger.Wrap(
 				eventledger.NewRepository(dbPool),
 				"coupon.order_cancelled",
 				couponconsumer.NewOrderCancelledConsumer(svc).Apply,
-				eventledger.NewZerologLogger(couponRabbitLogger),
+				eventledger.NewZerologLogger(couponBrokerLogger),
 			),
 		},
 	}, nil
@@ -156,7 +156,7 @@ func (a *App) Run(ctx context.Context) error {
 	// Topic consumer: coupon release on order.cancelled (branch F ownership move)
 	go func() {
 		for _, consumerFn := range a.eventConsumers {
-			if err := a.rabbitMQ.SubscribeTopic(ctx, events.QueueCouponOrderEvents, []string{events.RoutingKeyOrderCancelled}, consumerFn); err != nil {
+			if err := a.broker.SubscribeTopic(ctx, events.QueueCouponOrderEvents, []string{events.RoutingKeyOrderCancelled}, consumerFn); err != nil {
 				logger.Log.Error().Err(err).Str("queue", events.QueueCouponOrderEvents).Msg("Coupon event consumer stopped")
 			} else {
 				logger.Log.Info().Str("queue", events.QueueCouponOrderEvents).Str("routing_key", events.RoutingKeyOrderCancelled).Msg("Coupon consuming order.cancelled events")
@@ -183,8 +183,8 @@ func (a *App) Run(ctx context.Context) error {
 		logger.Log.Error().Err(err).Msg("Coupon HTTP server forced to shutdown")
 	}
 
-	if err := a.rabbitMQ.Close(); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to close Coupon RabbitMQ connection cleanly")
+	if err := a.broker.Close(); err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to close Coupon Kafka connection cleanly")
 	}
 
 	a.grpcServer.GracefulStop()

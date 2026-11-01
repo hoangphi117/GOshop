@@ -16,7 +16,7 @@ import (
 
 // Ensure mocks implement service interfaces at compile time
 var (
-	_ messaging.Broker          = (*MockRabbitMQService)(nil)
+	_ messaging.Broker          = (*MockBrokerService)(nil)
 	_ shipping.ShippingProvider = (*MockShippingProvider)(nil)
 	_ auth.TokenService         = (*MockTokenService)(nil)
 	_ mail.EmailProviderService = (*MockEmailProviderService)(nil)
@@ -24,9 +24,9 @@ var (
 )
 
 // =========================================================================
-// MockRabbitMQService
+// MockBrokerService is the in-memory messaging.Broker used by unit tests.
 // =========================================================================
-type MockRabbitMQService struct {
+type MockBrokerService struct {
 	PublishFunc             func(ctx context.Context, queue string, message any) error
 	ConsumeFunc             func(ctx context.Context, queue string, handler messaging.Handler) error
 	PublishTopicFunc        func(ctx context.Context, routingKey string, message any) error
@@ -37,56 +37,56 @@ type MockRabbitMQService struct {
 	IsHealthyFunc           func() bool
 }
 
-func (m *MockRabbitMQService) Publish(ctx context.Context, queue string, message any) error {
+func (m *MockBrokerService) Publish(ctx context.Context, queue string, message any) error {
 	if m.PublishFunc != nil {
 		return m.PublishFunc(ctx, queue, message)
 	}
 	return nil
 }
 
-func (m *MockRabbitMQService) Consume(ctx context.Context, queue string, handler messaging.Handler) error {
+func (m *MockBrokerService) Consume(ctx context.Context, queue string, handler messaging.Handler) error {
 	if m.ConsumeFunc != nil {
 		return m.ConsumeFunc(ctx, queue, handler)
 	}
 	return nil
 }
 
-func (m *MockRabbitMQService) PublishTopic(ctx context.Context, routingKey string, message any) error {
+func (m *MockBrokerService) PublishTopic(ctx context.Context, routingKey string, message any) error {
 	if m.PublishTopicFunc != nil {
 		return m.PublishTopicFunc(ctx, routingKey, message)
 	}
 	return nil
 }
 
-func (m *MockRabbitMQService) PublishToExchange(ctx context.Context, exchange, routingKey string, message any) error {
+func (m *MockBrokerService) PublishToExchange(ctx context.Context, exchange, routingKey string, message any) error {
 	if m.PublishToExchangeFunc != nil {
 		return m.PublishToExchangeFunc(ctx, exchange, routingKey, message)
 	}
 	return nil
 }
 
-func (m *MockRabbitMQService) SubscribeTopic(ctx context.Context, queueName string, routingKeys []string, handler messaging.Handler) error {
+func (m *MockBrokerService) SubscribeTopic(ctx context.Context, queueName string, routingKeys []string, handler messaging.Handler) error {
 	if m.SubscribeTopicFunc != nil {
 		return m.SubscribeTopicFunc(ctx, queueName, routingKeys, handler)
 	}
 	return nil
 }
 
-func (m *MockRabbitMQService) SubscribeToExchange(ctx context.Context, exchange, queueName string, routingKeys []string, handler messaging.Handler) error {
+func (m *MockBrokerService) SubscribeToExchange(ctx context.Context, exchange, queueName string, routingKeys []string, handler messaging.Handler) error {
 	if m.SubscribeToExchangeFunc != nil {
 		return m.SubscribeToExchangeFunc(ctx, exchange, queueName, routingKeys, handler)
 	}
 	return nil
 }
 
-func (m *MockRabbitMQService) Close() error {
+func (m *MockBrokerService) Close() error {
 	if m.CloseFunc != nil {
 		return m.CloseFunc()
 	}
 	return nil
 }
 
-func (m *MockRabbitMQService) IsHealthy() bool {
+func (m *MockBrokerService) IsHealthy() bool {
 	if m.IsHealthyFunc != nil {
 		return m.IsHealthyFunc()
 	}

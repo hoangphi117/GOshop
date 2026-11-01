@@ -17,8 +17,8 @@ import (
 	"goshop/shared/pkg/auth"
 	"goshop/shared/pkg/cache"
 	"goshop/shared/pkg/discord"
+	"goshop/shared/pkg/kafka"
 	"goshop/shared/pkg/logger"
-	"goshop/shared/pkg/rabbitmq"
 	"goshop/shared/pkg/storage"
 	"goshop/shared/pkg/utils"
 	"goshop/shared/pkg/validation"
@@ -112,15 +112,17 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		return nil, err
 	}
 
-	rabbitmqLogger := utils.NewLoggerWithPath("api", "worker.log", "info")
-	rabbitmqService, err := rabbitmq.NewRabbitMQService(utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"), rabbitmqLogger)
+	brokerLogger := utils.NewLoggerWithPath("api", "api_kafka.log", "info")
+	broker, err := kafka.NewKafkaBroker(utils.GetEnv("KAFKA_BROKERS", ""),
+		brokerLogger,
+	)
 	if err != nil {
-		logger.Log.Fatal().Err(err).Msg("Failed to create RabbitMQ service")
+		logger.Log.Fatal().Err(err).Msg("Failed to create Kafka service")
 		return nil, err
 	}
 
 	modules := []Module{
-		NewHealthModule(identityHealthPinger{}, redisClient, rabbitmqService, storageService, discord.NewDiscordNotifier(utils.GetEnv("DISCORD_WEBHOOK_URL", ""), logger.Log), logger.Log),
+		NewHealthModule(identityHealthPinger{}, redisClient, broker, storageService, discord.NewDiscordNotifier(utils.GetEnv("DISCORD_WEBHOOK_URL", ""), logger.Log), logger.Log),
 	}
 
 	routes.RegisterRoutes(r, tokenService, cacheRedisService, getModuleRoutes(modules), getAdminModuleRoutes(modules))

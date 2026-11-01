@@ -31,9 +31,9 @@ import (
 	"goshop/shared/pkg/auth"
 	"goshop/shared/pkg/cache"
 	"goshop/shared/pkg/db"
+	"goshop/shared/pkg/kafka"
 	"goshop/shared/pkg/logger"
 	"goshop/shared/pkg/messaging"
-	"goshop/shared/pkg/rabbitmq"
 	"goshop/shared/pkg/utils"
 	"goshop/shared/pkg/validation"
 )
@@ -45,7 +45,7 @@ const analyticsQueue = "analytics.order_events"
 type App struct {
 	cfg     *config.Config
 	server  *http.Server
-	rabbit  rabbitmq.RabbitMQService
+	broker  messaging.Broker
 	closers []func() error
 }
 
@@ -120,12 +120,13 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, fmt.Errorf("inventory gRPC client (%s): %w", inventoryTarget, err)
 	}
 
-	rabbitLogger := utils.NewLoggerWithPath("analytics", "analytics_rabbitmq.log", "info")
-	rabbitMQ, err := rabbitmq.NewRabbitMQService(
-		utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"), rabbitLogger)
+	brokerLogger := utils.NewLoggerWithPath("analytics", "analytics_kafka.log", "info")
+	broker, err := kafka.NewKafkaBroker(utils.GetEnv("KAFKA_BROKERS", ""),
+		brokerLogger,
+	)
 	if err != nil {
-		logger.Log.Warn().Err(err).Msg("RabbitMQ unavailable on boot, analytics projections will not update")
-		rabbitMQ = nil
+		logger.Log.Warn().Err(err).Msg("Kafka unavailable on boot, analytics projections will not update")
+		broker = nil
 	}
 
 	repo := analyticsrepo.NewSqlAnalyticsRepository(analyticsqlc.New(db.DBPool))
@@ -139,11 +140,15 @@ func New(cfg *config.Config) (*App, error) {
 	analyticsroutes.RegisterRoutes(r, analyticshandler.NewAnalyticsHandler(svc), tokenService, cacheRedisService)
 
 	// Order projection consumer: keeps the analytics read model current.
-	if rabbitMQ != nil {
+	if broker != nil {
 		consumer := analyticsworker.NewOrderProjectionConsumer(db.DBPool, orderClient, logger.Log)
 		dedup := withIdempotency(cacheRedisService, logger.Log)
 		handler := dedup(analyticsQueue, func(headers messaging.Header, body []byte) error {
-			rk := headers.Get("x-routing-key")
+			// Kafka adapter sets event_type; old RabbitMQ path used x-routing-key.
+			rk := headers.Get("event_type")
+			if rk == "" {
+				rk = headers.Get("x-routing-key")
+			}
 			switch rk {
 			case events.RoutingKeyOrderCancelled:
 				return consumer.HandleOrderCancelled(headers, body)
@@ -163,7 +168,7 @@ func New(cfg *config.Config) (*App, error) {
 			events.RoutingKeyOrderDelivered,
 			events.RoutingKeyPaymentSucceeded,
 		}
-		if err := rabbitMQ.SubscribeTopic(context.Background(), analyticsQueue, routingKeys, handler); err != nil {
+		if err := broker.SubscribeTopic(context.Background(), analyticsQueue, routingKeys, handler); err != nil {
 			logger.Log.Error().Err(err).Msg("Failed to subscribe analytics order events topic")
 		} else {
 			logger.Log.Info().Msgf("Analytics subscribed topic queue: %s", analyticsQueue)
@@ -172,7 +177,7 @@ func New(cfg *config.Config) (*App, error) {
 
 	app := &App{
 		cfg:    cfg,
-		rabbit: rabbitMQ,
+		broker: broker,
 		server: &http.Server{
 			Addr:           ":" + utils.GetEnv("ANALYTICS_SERVER_PORT", "8092"),
 			Handler:        r,
@@ -214,8 +219,8 @@ func (a *App) Run(ctx context.Context) error {
 	if err := a.server.Shutdown(shutdownCtx); err != nil {
 		logger.Log.Warn().Err(err).Msg("Analytics HTTP server forced shutdown")
 	}
-	if a.rabbit != nil {
-		_ = a.rabbit.Close()
+	if a.broker != nil {
+		_ = a.broker.Close()
 	}
 	for _, closeFn := range a.closers {
 		_ = closeFn()

@@ -25,11 +25,11 @@ import (
 )
 
 type userService struct {
-	repo     repository.UserRepository
-	cache    cache.RedisCacheService
-	redis    *redis.Client
-	rabbitmq messaging.Broker
-	outbox   repository.OutboxRepository
+	repo   repository.UserRepository
+	cache  cache.RedisCacheService
+	redis  *redis.Client
+	broker messaging.Broker
+	outbox repository.OutboxRepository
 }
 
 func NewUserService(repo repository.UserRepository, redisClient *redis.Client, rmq ...messaging.Broker) UserService {
@@ -37,15 +37,15 @@ func NewUserService(repo repository.UserRepository, redisClient *redis.Client, r
 	if redisClient != nil {
 		cacheService = cache.NewRedisCacheService(redisClient)
 	}
-	var rabbitMQ messaging.Broker
+	var broker messaging.Broker
 	if len(rmq) > 0 {
-		rabbitMQ = rmq[0]
+		broker = rmq[0]
 	}
 	return &userService{
-		repo:     repo,
-		cache:    cacheService,
-		redis:    redisClient,
-		rabbitmq: rabbitMQ,
+		repo:   repo,
+		cache:  cacheService,
+		redis:  redisClient,
+		broker: broker,
 	}
 }
 
@@ -55,11 +55,11 @@ func NewUserServiceWithOutbox(repo repository.UserRepository, redisClient *redis
 		cacheService = cache.NewRedisCacheService(redisClient)
 	}
 	return &userService{
-		repo:     repo,
-		cache:    cacheService,
-		redis:    redisClient,
-		rabbitmq: rmq,
-		outbox:   outbox,
+		repo:   repo,
+		cache:  cacheService,
+		redis:  redisClient,
+		broker: rmq,
+		outbox: outbox,
 	}
 }
 
@@ -107,12 +107,12 @@ func (us *userService) publishUserSyncEvent(ctx context.Context, eventType strin
 		}
 	}
 
-	// 3. Fast-path publish to RabbitMQ if available
-	if us.rabbitmq != nil {
-		if err := us.rabbitmq.Publish(ctx, queueName, event); err != nil {
-			logger.Log.Warn().Err(err).Str("queue", queueName).Int32("user_id", user.UserID).Msg("Fast-path RabbitMQ publish failed, will be retried by Outbox Worker")
+	// 3. Fast-path publish to broker if available
+	if us.broker != nil {
+		if err := us.broker.Publish(ctx, queueName, event); err != nil {
+			logger.Log.Warn().Err(err).Str("queue", queueName).Int32("user_id", user.UserID).Msg("Fast-path broker publish failed, will be retried by Outbox Worker")
 		} else {
-			logger.Log.Info().Str("queue", queueName).Int32("user_id", user.UserID).Msg("Published user sync event to RabbitMQ")
+			logger.Log.Info().Str("queue", queueName).Int32("user_id", user.UserID).Msg("Published user sync event to broker")
 			if us.outbox != nil && outboxEventID > 0 {
 				_ = us.outbox.MarkProcessed(ctx, []int64{outboxEventID})
 			}

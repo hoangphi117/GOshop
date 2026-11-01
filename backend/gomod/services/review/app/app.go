@@ -28,9 +28,10 @@ import (
 	"goshop/shared/pkg/auth"
 	"goshop/shared/pkg/cache"
 	"goshop/shared/pkg/db"
+	"goshop/shared/pkg/kafka"
 	"goshop/shared/pkg/logger"
+	"goshop/shared/pkg/messaging"
 	pkgpgx "goshop/shared/pkg/pgx"
-	"goshop/shared/pkg/rabbitmq"
 	"goshop/shared/pkg/utils"
 	"goshop/shared/pkg/validation"
 )
@@ -38,7 +39,7 @@ import (
 type App struct {
 	cfg     *config.Config
 	server  *http.Server
-	rabbit  rabbitmq.RabbitMQService
+	broker  messaging.Broker
 	closers []func() error
 }
 
@@ -99,12 +100,13 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, fmt.Errorf("identity gRPC client (%s): %w", cfg.IdentityGRPCAddr, err)
 	}
 
-	rabbitLogger := utils.NewLoggerWithPath("review", "review_rabbitmq.log", "info")
-	rabbitMQ, err := rabbitmq.NewRabbitMQService(
-		utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"), rabbitLogger)
+	brokerLogger := utils.NewLoggerWithPath("review", "review_kafka.log", "info")
+	broker, err := kafka.NewKafkaBroker(utils.GetEnv("KAFKA_BROKERS", ""),
+		brokerLogger,
+	)
 	if err != nil {
-		logger.Log.Warn().Err(err).Msg("RabbitMQ unavailable on boot, review events disabled")
-		rabbitMQ = nil
+		logger.Log.Warn().Err(err).Msg("Kafka unavailable on boot, review events disabled")
+		broker = nil
 	}
 
 	reviewRepo := reviewrepo.NewSqlReviewRepository(reviewsqlc.New(db.DBPool), db.DBPool)
@@ -113,7 +115,7 @@ func New(cfg *config.Config) (*App, error) {
 		catalogClient,
 		orderClient,
 		identityClient,
-		rabbitMQ,
+		broker,
 		cacheRedisService,
 		pkgpgx.NewTxManager(db.DBPool),
 	)
@@ -122,7 +124,7 @@ func New(cfg *config.Config) (*App, error) {
 
 	app := &App{
 		cfg:    cfg,
-		rabbit: rabbitMQ,
+		broker: broker,
 		server: &http.Server{
 			Addr:           ":" + utils.GetEnv("REVIEW_SERVER_PORT", "8091"),
 			Handler:        r,
@@ -160,8 +162,8 @@ func (a *App) Run(ctx context.Context) error {
 	if err := a.server.Shutdown(shutdownCtx); err != nil {
 		logger.Log.Warn().Err(err).Msg("Review HTTP server forced shutdown")
 	}
-	if a.rabbit != nil {
-		_ = a.rabbit.Close()
+	if a.broker != nil {
+		_ = a.broker.Close()
 	}
 	for _, closeFn := range a.closers {
 		_ = closeFn()

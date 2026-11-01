@@ -18,8 +18,8 @@ import (
 	"goshop/shared/config"
 	"goshop/shared/pkg/auth"
 	"goshop/shared/pkg/cache"
+	"goshop/shared/pkg/kafka"
 	"goshop/shared/pkg/logger"
-	"goshop/shared/pkg/rabbitmq"
 	"goshop/shared/pkg/storage"
 	"goshop/shared/pkg/utils"
 	"goshop/shared/pkg/validation"
@@ -76,18 +76,20 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, fmt.Errorf("storage init failed: %w", err)
 	}
 
-	rabbitLogger := utils.NewLoggerWithPath("media", "media_rabbit.log", "info")
-	rabbitService, err := rabbitmq.NewRabbitMQService(utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"), rabbitLogger)
+	brokerLogger := utils.NewLoggerWithPath("media", "media_kafka.log", "info")
+	broker, err := kafka.NewKafkaBroker(utils.GetEnv("KAFKA_BROKERS", ""),
+		brokerLogger,
+	)
 	if err != nil {
-		logger.Log.Warn().Err(err).Msg("RabbitMQ unavailable, media post-processing disabled")
-		rabbitService = nil
+		logger.Log.Warn().Err(err).Msg("Kafka unavailable, media post-processing disabled")
+		broker = nil
 	}
 
 	redisClient := config.NewRedisClient()
 	cacheRedisService := cache.NewRedisCacheService(redisClient)
 	tokenService := auth.NewJWTService(cacheRedisService)
 
-	mediaroutes.RegisterRoutes(r, mediahandler.NewUploadHandler(storageService, rabbitService), tokenService, cacheRedisService)
+	mediaroutes.RegisterRoutes(r, mediahandler.NewUploadHandler(storageService, broker), tokenService, cacheRedisService)
 
 	server := &http.Server{
 		Addr:           ":" + utils.GetEnv("MEDIA_SERVER_PORT", "8094"),
