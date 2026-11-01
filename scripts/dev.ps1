@@ -1,7 +1,7 @@
 # =============================================================================
 # GOshop Single-Command Dev Orchestrator (Lightweight Hybrid Mode)
 # =============================================================================
-# 1. Docker Compose starts infrastructure (Postgres, Redis, RabbitMQ, MinIO,
+# 1. Docker Compose starts infrastructure (Postgres, Redis, Kafka, MinIO,
 #    Meilisearch) plus the storage-heavy domain services (inventory, catalog,
 #    coupon, cart, banner).
 # 2. The gateway and the remaining services build and run on the host for fast
@@ -16,18 +16,49 @@ Write-Host ">>> [1/3] Starting Infrastructure and Domain Services (Docker)..." -
 # only works for services of the current project and silently skips strays.
 $hostOwnedContainers = @(
     "goshop-api", "goshop-identity", "goshop-notification", "goshop-order", "goshop-payment",
-    "goshop-worker", "goshop-ws-gateway", "goshop-review", "goshop-analytics", "goshop-chat", "goshop-nginx"
+    "goshop-worker", "goshop-ws-gateway", "goshop-review", "goshop-analytics", "goshop-chat", "goshop-nginx",
+    "goshop-media"
 )
 foreach ($container in $hostOwnedContainers) {
     docker rm -f $container 2>$null | Out-Null
 }
 
-docker compose -f docker-compose.dev.yml --env-file ./backend/.env up -d minio jaeger inventory catalog coupon cart banner
+# Rebuild domain images so container services pick up fresh host code.
+# Sequential (not parallel) to avoid OOM during go build on low-RAM hosts.
+foreach ($svc in @("inventory", "catalog", "coupon", "cart", "banner")) {
+    Write-Host "Building image $svc..." -ForegroundColor DarkGray
+    docker compose -f docker-compose.dev.yml --env-file ./backend/.env build $svc
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Build failed for image $svc!" -ForegroundColor Red
+        exit 1
+    }
+}
+
+docker compose -f docker-compose.dev.yml --env-file ./backend/.env up -d --force-recreate minio jaeger postgres redis kafka kafka-init inventory catalog coupon cart banner
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Failed to start infrastructure containers!" -ForegroundColor Red
     exit 1
 }
+
+# Preflight: wait for infra to be healthy before building/running host
+# services. Without this, host services boot while Kafka/Postgres is still
+# starting and exit immediately, triggering kill-others-on-fail.
+$infraDeadline = (Get-Date).AddSeconds(90)
+do {
+    $states = docker inspect goshop-postgres goshop-redis goshop-kafka --format "{{.Name}} {{.State.Health.Status}}" 2>$null
+    $unhealthy = @($states | Where-Object { $_ -notmatch "healthy" })
+    if ($unhealthy.Count -eq 0) { break }
+    Start-Sleep -Seconds 3
+} while ((Get-Date) -lt $infraDeadline)
+
+if ($unhealthy.Count -gt 0) {
+    Write-Host "Infra not healthy after 90s:" -ForegroundColor Red
+    $unhealthy | ForEach-Object { Write-Host "  $_" -ForegroundColor Red }
+    Write-Host "Check: docker logs goshop-kafka --tail 20" -ForegroundColor Red
+    exit 1
+}
+Write-Host "Infra healthy: postgres, redis, kafka." -ForegroundColor Green
 
 Write-Host ">>> [2/3] Building Go Binaries (Sequential)..." -ForegroundColor Yellow
 $binDir = Join-Path $PSScriptRoot "..\backend\bin"
@@ -95,10 +126,15 @@ if (-not $env:REVIEW_SERVICE_URL) {
 }
 $exe = if ($IsWindows -or $env:OS -match "Windows") { ".exe" } else { "" }
 $binPrefix = if ($IsWindows -or $env:OS -match "Windows") { "bin\" } else { "./bin/" }
+# --kill-others would mask which service failed, so run with restart-on-fail:
+# a single crash no longer kills the other 10. Max 15 concurrent OS
+# processes (11 host + 4 infra-adjacent) keeps host RAM under ~6GB.
 npx -y concurrently `
+  -k `
+  --restart-tries 3 `
+  --restart-after 3000 `
   -n "api,identity,notif,payment,worker,order,review,analytics,chat,media,wsgw" `
   -c "cyan,green,magenta,blue,yellow,orange,white,gray,red,cyan,darkyellow" `
-  --kill-others-on-fail `
   "cd backend && ${binPrefix}api$exe" `
   "cd backend && ${binPrefix}identity$exe" `
   "cd backend && ${binPrefix}notification$exe" `

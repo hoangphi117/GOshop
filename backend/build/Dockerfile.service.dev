@@ -1,13 +1,11 @@
-# Development image for every Go service: air hot reload on the source tree.
-#
-# `SERVICE` selects which cmd/ package air builds. Build:
+# Development image for every Go service: prebuilt binary, no air.
+# `SERVICE` selects which cmd/ package to bake. Build:
 #   docker build -f build/Dockerfile.service.dev --build-arg SERVICE=order .
-FROM golang:1.26.10-alpine
+FROM golang:1.26.10-alpine AS builder
 
-RUN apk update && apk add --no-cache git curl ca-certificates tzdata
-RUN go install github.com/air-verse/air@latest
+RUN apk update && apk add --no-cache git ca-certificates tzdata
 
-WORKDIR /app
+WORKDIR /src
 
 # Workspace manifests first so dependency download is cached independently of
 # source edits.
@@ -19,17 +17,19 @@ COPY gomod/cmd/go.mod gomod/cmd/go.sum ./gomod/cmd/
 
 RUN go mod download
 
-# Source is bind-mounted at run time (compose volumes); copying keeps the image
-# usable standalone for a plain `docker run`.
 COPY . .
 
 ARG SERVICE
 RUN test -n "$SERVICE"
-# air's cmd string expands ${SERVICE} at RUN time, so the name must live in the
-# image env, not only in build args.
-ENV SERVICE=${SERVICE}
+RUN CGO_ENABLED=0 go build -o /svc ./gomod/cmd/${SERVICE}
+
+FROM alpine:3.21
+
+RUN apk add --no-cache ca-certificates tzdata
+
+COPY --from=builder /svc /svc
+# Source is bind-mounted at run time (compose volumes) for debugging;
+# the binary runs from the image, not from the mount.
 ENV SERVICE_NAME=${SERVICE}
 
-# Ports are declared per service in docker-compose.dev.yml; a shared EXPOSE list
-# would have to grow with every new service.
-CMD ["sh", "-c", "air -c build/air/service.toml"]
+CMD ["/svc"]

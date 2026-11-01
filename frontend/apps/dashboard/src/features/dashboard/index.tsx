@@ -79,12 +79,10 @@ export function Dashboard() {
   const [lastUpdated, setLastUpdated] = useState<string>('Just now')
 
   const handleRefresh = async () => {
-    await queryClient.invalidateQueries({
-      predicate: (query) =>
-        Array.isArray(query.queryKey) &&
-        typeof query.queryKey[0] === 'string' &&
-        query.queryKey[0].startsWith('analytics'),
-    })
+    // Invalidate everything on this page: react-query analytics keys plus
+    // the standalone fetches inside Overview/OrderStatus/Payment/LowStock
+    // charts (they do not share the analytics* query keys).
+    await queryClient.invalidateQueries()
     const now = new Date()
     setLastUpdated(
       now.toLocaleTimeString('en-US', {

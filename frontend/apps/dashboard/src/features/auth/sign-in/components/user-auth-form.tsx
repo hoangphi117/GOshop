@@ -56,7 +56,19 @@ export function UserAuthForm({
     try {
       await login({ email: data.email, password: data.password })
       toast.success('Signed in successfully!')
-      const targetPath = redirectTo || '/'
+      // Guard stores a full URL in `redirect`; navigate() only accepts paths,
+      // so strip the origin. Sign-in itself is never a valid target.
+      let targetPath = '/'
+      if (redirectTo) {
+        try {
+          const url = new URL(redirectTo, window.location.origin)
+          if (url.pathname !== '/sign-in' && url.pathname !== '/admin/sign-in') {
+            targetPath = `${url.pathname}${url.search}${url.hash}`
+          }
+        } catch {
+          if (redirectTo.startsWith('/')) targetPath = redirectTo
+        }
+      }
       navigate({ to: targetPath, replace: true })
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Sign in failed'

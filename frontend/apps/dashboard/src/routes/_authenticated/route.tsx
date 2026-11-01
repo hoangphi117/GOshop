@@ -7,10 +7,13 @@ export const Route = createFileRoute('/_authenticated')({
   beforeLoad: ({ location }) => {
     const { accessToken, user } = useAuthStore.getState().auth
     if (!accessToken) {
+      // Store a path, not a full URL: sign-in's navigate() only accepts paths.
+      const redirect =
+        location.pathname + (location.searchStr ? `?${location.searchStr}` : '')
       throw redirect({
         to: '/sign-in',
         search: {
-          redirect: location.href,
+          redirect,
         },
       })
     }
