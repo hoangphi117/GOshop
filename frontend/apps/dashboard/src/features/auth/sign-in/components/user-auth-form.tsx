@@ -6,6 +6,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { Loader2, LogIn } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/features/auth/hooks/use-auth'
+import { sanitizeRedirectTarget } from '@/lib/auth-redirect'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -56,19 +57,11 @@ export function UserAuthForm({
     try {
       await login({ email: data.email, password: data.password })
       toast.success('Signed in successfully!')
-      // Guard stores a full URL in `redirect`; navigate() only accepts paths,
-      // so strip the origin. Sign-in itself is never a valid target.
+      // Guard sites sanitize before navigating here, but sanitize once more:
+      // stale bookmarks may carry nested ?redirect=/sign-in?redirect=... values.
       let targetPath = '/'
-      if (redirectTo) {
-        try {
-          const url = new URL(redirectTo, window.location.origin)
-          if (url.pathname !== '/sign-in' && url.pathname !== '/admin/sign-in') {
-            targetPath = `${url.pathname}${url.search}${url.hash}`
-          }
-        } catch {
-          if (redirectTo.startsWith('/')) targetPath = redirectTo
-        }
-      }
+      const clean = sanitizeRedirectTarget(redirectTo)
+      if (clean) targetPath = clean
       navigate({ to: targetPath, replace: true })
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Sign in failed'

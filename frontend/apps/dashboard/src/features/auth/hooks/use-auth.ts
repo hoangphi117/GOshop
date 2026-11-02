@@ -95,6 +95,11 @@ export function useAuth() {
     },
   })
 
+  // Sign-in page itself: if a redirect target carries a nested sign-in value,
+  // drop it so re-mounts never re-wrap ?redirect=/sign-in?redirect=... .
+  // The API middleware already attempts a silent refresh on 401 before
+  // calling onUnauthorized, so reaching the guards with no token means the
+  // refresh token is gone or invalid and sign-in is the correct destination.
   return {
     user: auth.user,
     isAuthenticated: Boolean(auth.accessToken),

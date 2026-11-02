@@ -1,5 +1,6 @@
 import { useNavigate, useLocation } from '@tanstack/react-router'
 import { useAuthStore } from '@/stores/auth-store'
+import { sanitizeRedirectTarget } from '@/lib/auth-redirect'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 
 interface SignOutDialogProps {
@@ -24,10 +25,10 @@ export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
       // ignore
     } finally {
       auth.reset()
-      const currentPath = location.href
+      const target = sanitizeRedirectTarget(location.href)
       navigate({
         to: '/sign-in',
-        search: { redirect: currentPath },
+        search: target ? { redirect: target } : undefined,
         replace: true,
       })
     }

@@ -44,6 +44,48 @@ export const api = createApiClient({
   },
 })
 
+// Single-flight silent refresh for route guards: when the access token is
+// gone but a refresh token survives, try to restore the session before
+// sending the user to sign-in. Returns true when a usable access token exists.
+let refreshInflight: Promise<boolean> | null = null
+
+export function tryRefreshSession(): Promise<boolean> {
+  if (refreshInflight) return refreshInflight
+  refreshInflight = (async () => {
+    const { auth } = useAuthStore.getState()
+    if (auth.accessToken) return true
+    if (!auth.refreshToken) return false
+    try {
+      const res = await fetch(`${API_VERSIONED_BASE}/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(API_KEY ? { 'X-API-KEY': API_KEY } : {}),
+        },
+        body: JSON.stringify({ refresh_token: auth.refreshToken }),
+      })
+      if (!res.ok) {
+        auth.reset()
+        return false
+      }
+      const json = await res.json()
+      const tokenData = json?.data
+      if (!tokenData?.access_token) {
+        auth.reset()
+        return false
+      }
+      auth.setTokens(tokenData.access_token, tokenData.refresh_token)
+      return true
+    } catch {
+      auth.reset()
+      return false
+    } finally {
+      refreshInflight = null
+    }
+  })()
+  return refreshInflight
+}
+
 export type ApiInstance = typeof api
 
 export async function fetchWithAuth(path: string, options: RequestInit = {}): Promise<Response> {
