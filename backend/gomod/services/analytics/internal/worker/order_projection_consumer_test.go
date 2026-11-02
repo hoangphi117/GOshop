@@ -21,6 +21,39 @@ func TestOrderProjectionConsumer_HandleInvalidJSON(t *testing.T) {
 	assert.Error(t, consumer.HandleOrderStatusChanged(headers, badBody))
 	assert.Error(t, consumer.HandleOrderCancelled(headers, badBody))
 	assert.Error(t, consumer.HandlePaymentSucceeded(headers, badBody))
+	assert.Error(t, consumer.HandleOrderReturnUpdated(headers, badBody))
+}
+
+func TestOrderProjectionConsumer_HandleReturnUpdatedNoDB(t *testing.T) {
+	consumer := NewOrderProjectionConsumer(nil, nil, nil)
+	headers := messaging.Header{}
+
+	refundEvt := events.NewOrderReturnUpdatedEvent(
+		uuid.New().String(),
+		uuid.New().String(),
+		uuid.New().String(),
+		"ORD-TEST-001",
+		7, 1001, 501, 4,
+		"Refund of 250000 VND processed",
+	)
+	refundEvt.ChangeType = events.ReturnChangeTypeRefunded
+	refundEvt.RefundAmount = 250000.0
+	body, err := json.Marshal(refundEvt)
+	assert.NoError(t, err)
+	assert.NoError(t, consumer.HandleOrderReturnUpdated(headers, body))
+
+	// Non-refund change types are no-ops.
+	approveEvt := events.NewOrderReturnUpdatedEvent(
+		uuid.New().String(),
+		uuid.New().String(),
+		uuid.New().String(),
+		"ORD-TEST-001",
+		7, 1001, 501, 2,
+		"Return request approved by admin",
+	)
+	body, err = json.Marshal(approveEvt)
+	assert.NoError(t, err)
+	assert.NoError(t, consumer.HandleOrderReturnUpdated(headers, body))
 }
 
 func TestOrderProjectionConsumer_HandleNilDB(t *testing.T) {

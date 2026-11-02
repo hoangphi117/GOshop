@@ -1,4 +1,4 @@
-package main
+﻿package main
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 
 // @title           GOshop Notification Service API
 // @version         1.0
-// @description     Dedicated Notification microservice handling In-App notifications, Email, Discord and RabbitMQ topic events.
+// @description     Dedicated Notification microservice handling In-App notifications, Email, Discord and Kafka topic events.
 // @host            localhost:8082
 // @BasePath        /
 

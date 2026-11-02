@@ -47,6 +47,47 @@ type kafkaBroker struct {
 	quit     chan struct{}
 	closeMu  sync.Mutex
 	closed   bool
+
+	// lagMu guards reader stats for /health/messaging (R3). Readers
+	// register themselves here; LagStats snapshots Reader.Stats() for
+	// every live consumer group.
+	lagMu   sync.Mutex
+	readers map[*kafka.Reader]string
+}
+
+// registerReader tracks a consumer group reader for lag reporting.
+func (b *kafkaBroker) registerReader(reader *kafka.Reader, group string) {
+	b.lagMu.Lock()
+	defer b.lagMu.Unlock()
+	if b.readers == nil {
+		b.readers = make(map[*kafka.Reader]string)
+	}
+	b.readers[reader] = group
+}
+
+// unregisterReader drops a closed reader from lag reporting.
+func (b *kafkaBroker) unregisterReader(reader *kafka.Reader) {
+	b.lagMu.Lock()
+	defer b.lagMu.Unlock()
+	delete(b.readers, reader)
+}
+
+// LagInfo returns one lag number per live consumer group. It is the
+// health-handler surface for R3 (lagReporter); LagStats is the full
+// kafka.ReaderStats detail for debugging.
+func (b *kafkaBroker) LagStats() map[string]kafka.ReaderStats {
+	b.lagMu.Lock()
+	copies := make(map[*kafka.Reader]string, len(b.readers))
+	for r, g := range b.readers {
+		copies[r] = g
+	}
+	b.lagMu.Unlock()
+
+	out := make(map[string]kafka.ReaderStats, len(copies))
+	for r, g := range copies {
+		out[g] = r.Stats()
+	}
+	return out
 }
 
 // NewKafkaBroker connects to the Kafka cluster and returns a messaging.Broker.
@@ -196,7 +237,9 @@ func (b *kafkaBroker) newGroupReader(group string, topics []string) *kafka.Reade
 // loop is sequential per instance so partition order is preserved in-process;
 // scale comes from more instances, not more goroutines sharing one reader.
 func (b *kafkaBroker) startGroupConsumer(ctx context.Context, group string, reader *kafka.Reader, rr *retryRunner, handler messaging.Handler) {
+	b.registerReader(reader, group)
 	go func() {
+		defer b.unregisterReader(reader)
 		defer reader.Close()
 		for {
 			select {
@@ -359,4 +402,15 @@ func sanitize(name string) string {
 		}
 		return '-'
 	}, strings.TrimSpace(name))
+}
+
+// LagInfo returns one lag number per live consumer group. It is the
+// health-handler surface for R3 (lagReporter); LagStats is the full
+// kafka.ReaderStats detail for debugging.
+func (b *kafkaBroker) LagInfo() map[string]int64 {
+	out := make(map[string]int64)
+	for group, stats := range b.LagStats() {
+		out[group] = stats.Lag
+	}
+	return out
 }

@@ -1,4 +1,4 @@
-package handler
+﻿package handler
 
 import (
 	"context"
@@ -29,16 +29,23 @@ type HealthHandler struct {
 	// its connectivity check in.
 	dbPool          Pinger
 	redisClient     *redis.Client
-	rabbitmqService messaging.Broker
+	broker          messaging.Broker
 	storageService  storage.StorageService
 	discordNotifier discord.Notifier
 	logger          *zerolog.Logger
 }
 
+// lagReporter is the optional Kafka lag surface (R3). The concrete kafka
+// adapter implements LagInfo; other Broker impls (mocks, tests) do not,
+// so probe it with a type assertion, never a hard interface requirement.
+type lagReporter interface {
+	LagInfo() map[string]int64
+}
+
 func NewHealthHandler(
 	dbPool Pinger,
 	redisClient *redis.Client,
-	rabbitmqService messaging.Broker,
+	broker messaging.Broker,
 	storageService storage.StorageService,
 	discordNotifier discord.Notifier,
 	logger *zerolog.Logger,
@@ -46,7 +53,7 @@ func NewHealthHandler(
 	return &HealthHandler{
 		dbPool:          dbPool,
 		redisClient:     redisClient,
-		rabbitmqService: rabbitmqService,
+		broker:          broker,
 		storageService:  storageService,
 		discordNotifier: discordNotifier,
 		logger:          logger,
@@ -55,7 +62,7 @@ func NewHealthHandler(
 
 // HealthCheck godoc
 // @Summary      Comprehensive System Healthcheck
-// @Description  Validates connectivity of Database, Redis, RabbitMQ, and Object Storage. Sends Discord alerts on degradation.
+// @Description  Validates connectivity of Database, Redis, Kafka, and Object Storage. Sends Discord alerts on degradation.
 // @Tags         Health
 // @Produce      json
 // @Success      200 {object} map[string]any
@@ -99,17 +106,17 @@ func (h *HealthHandler) checkDependencies(c *gin.Context, alertOnFailure bool) {
 		services["redis"] = "unconfigured"
 	}
 
-	// 3. Check RabbitMQ Broker
-	if h.rabbitmqService != nil {
-		if !h.rabbitmqService.IsHealthy() {
-			services["rabbitmq"] = "down"
+	// 3. Check Kafka messaging broker.
+	if h.broker != nil {
+		if !h.broker.IsHealthy() {
+			services["messaging"] = "down"
 			isHealthy = false
-			errorDetails = append(errorDetails, "RabbitMQ: connection closed")
+			errorDetails = append(errorDetails, "Messaging: connection closed")
 		} else {
-			services["rabbitmq"] = "up"
+			services["messaging"] = "up"
 		}
 	} else {
-		services["rabbitmq"] = "unconfigured"
+		services["messaging"] = "unconfigured"
 	}
 
 	// 4. Check Storage Provider (S3 / Cloudflare R2 / MinIO / Local)
@@ -133,6 +140,14 @@ func (h *HealthHandler) checkDependencies(c *gin.Context, alertOnFailure bool) {
 		"uptime":         uptime,
 		"uptime_seconds": int64(time.Since(appStartTime).Seconds()),
 		"services":       services,
+	}
+	// R3: consumer-group lag from the Kafka adapter, when available.
+	if h.broker != nil {
+		if lagger, ok := h.broker.(lagReporter); ok {
+			if lag := lagger.LagInfo(); len(lag) > 0 {
+				response["messaging_lag"] = lag
+			}
+		}
 	}
 
 	if !isHealthy {

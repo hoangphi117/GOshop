@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 	"golang.org/x/text/cases"
@@ -154,6 +153,12 @@ func (c *TopicConsumer) dispatch(ctx context.Context, routingKey string, body []
 		return c.handlePaymentFailed(body)
 	case events.RoutingKeyInventoryStockLow:
 		return c.handleInventoryStockLow(ctx, body)
+	case events.RoutingKeyOrderReturnRequested:
+		return c.handleOrderReturnRequested(ctx, body)
+	case events.RoutingKeyOrderReturnUpdated:
+		return c.handleOrderReturnUpdated(ctx, body)
+	case events.RoutingKeyOrderReturnCompleted:
+		return c.handleOrderReturnCompleted(ctx, body)
 	default:
 		// Fallback: check if body is generic NotificationEvent
 		var notifEvent events.NotificationEvent
@@ -268,6 +273,37 @@ type orderRecipient struct {
 	OrderNumber string
 }
 
+func (c *TopicConsumer) resolveOrderCustomerUUID(ctx context.Context, recipient orderRecipient) (uuid.UUID, error) {
+	if recipient.UserUUID != "" {
+		if userUUID, err := uuid.Parse(recipient.UserUUID); err == nil && userUUID != uuid.Nil {
+			return userUUID, nil
+		}
+	}
+	if recipient.UserID != nil && *recipient.UserID > 0 {
+		if userUUID := orderUserUUIDFromContext(ctx, *recipient.UserID); userUUID != uuid.Nil {
+			return userUUID, nil
+		}
+	}
+	return uuid.Nil, errors.New("return event carries no resolvable customer identity")
+}
+
+func orderUserUUIDFromContext(ctx context.Context, userID int32) uuid.UUID {
+	if ctx == nil || userID <= 0 {
+		return uuid.Nil
+	}
+	if userUUID, ok := ctx.Value(orderCustomerUUIDKey{}).(uuid.UUID); ok && userUUID != uuid.Nil {
+		return userUUID
+	}
+	if s, ok := ctx.Value(orderCustomerUUIDKey{}).(string); ok {
+		if userUUID, err := uuid.Parse(s); err == nil && userUUID != uuid.Nil {
+			return userUUID
+		}
+	}
+	return uuid.Nil
+}
+
+type orderCustomerUUIDKey struct{}
+
 // notifyOrderCustomer creates the customer-facing in-app notification. It resolves
 // the recipient in order of reliability (numeric user id, user UUID, order lookup)
 // and returns every failure instead of dropping the notification silently.
@@ -307,30 +343,13 @@ func (c *TopicConsumer) notifyOrderCustomer(
 		return nil
 	}
 
-	if c.db == nil || recipient.OrderNumber == "" {
+	userUUID, err := c.resolveOrderCustomerUUID(ctx, recipient)
+	if err != nil {
 		c.logger.Warn().
 			Str("order_number", recipient.OrderNumber).
 			Str("type", notifType).
 			Msg("Order event has no resolvable recipient; no customer notification created")
 		return nil
-	}
-
-	var userUUID uuid.UUID
-	err := c.db.QueryRow(ctx,
-		"SELECT order_user_uuid FROM orders WHERE order_number = $1 LIMIT 1",
-		recipient.OrderNumber).Scan(&userUUID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		c.logger.Warn().
-			Str("order_number", recipient.OrderNumber).
-			Str("type", notifType).
-			Msg("Order not found; no customer notification created")
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("lookup recipient for order %s: %w", recipient.OrderNumber, err)
-	}
-	if userUUID == uuid.Nil {
-		return fmt.Errorf("order %s has no customer uuid", recipient.OrderNumber)
 	}
 
 	_, err = c.notificationService.CreateNotification(ctx, dto.CreateNotificationInput{
@@ -422,6 +441,152 @@ func (c *TopicConsumer) handleInventoryStockLow(ctx context.Context, body []byte
 		Body:  fmt.Sprintf("Product %s (ID %d) stock is low: %d remaining", payload.ProductUUID, payload.ProductID, payload.Stock),
 		Data:  map[string]any{"product_id": payload.ProductID, "product_uuid": payload.ProductUUID, "stock": payload.Stock},
 	})
+}
+
+func (c *TopicConsumer) handleOrderReturnRequested(ctx context.Context, body []byte) error {
+	var event events.OrderReturnRequestedEvent
+	if err := decodeEventPayload(body, &event); err != nil {
+		return err
+	}
+
+	c.logger.Info().Str("event_id", event.EventID).Str("order_number", event.OrderNumber).Msg("Return request received, notifying customer and admins")
+
+	data := map[string]any{
+		"order_number":  event.OrderNumber,
+		"return_uuid":   event.ReturnUUID,
+		"return_reason": event.ReturnReason,
+	}
+
+	userID := event.UserID
+	if err := c.notifyOrderCustomer(ctx, orderRecipient{UserID: &userID, OrderNumber: event.OrderNumber},
+		"return", "Return Request Submitted",
+		fmt.Sprintf("We received your return request for order #%s. Reason: %s", event.OrderNumber, event.ReturnReason),
+		data); err != nil {
+		return err
+	}
+
+	return c.notificationService.NotifyAdmins(ctx, dto.AdminNotifyInput{
+		Type:  "return",
+		Title: "New Return Request",
+		Body:  fmt.Sprintf("Order #%s requested a return: %s", event.OrderNumber, event.ReturnReason),
+		Data:  data,
+	})
+}
+
+func (c *TopicConsumer) handleOrderReturnUpdated(ctx context.Context, body []byte) error {
+	var event events.OrderReturnUpdatedEvent
+	if err := decodeEventPayload(body, &event); err != nil {
+		return err
+	}
+
+	statusStr := mapReturnStatus(event.ReturnStatus)
+	c.logger.Info().Str("event_id", event.EventID).Str("order_number", event.OrderNumber).Str("status", statusStr).Str("change_type", event.ChangeType).Msg("Return request updated")
+
+	data := map[string]any{
+		"order_number":  event.OrderNumber,
+		"return_uuid":   event.ReturnUUID,
+		"return_status": statusStr,
+		"change_type":   event.ChangeType,
+	}
+
+	// Customer-submitted shipping details only notify admins.
+	if event.ChangeType == events.ReturnChangeTypeShippingSent {
+		note := event.AdminNote
+		if note == "" {
+			note = "no shipping details in payload"
+		}
+		return c.notificationService.NotifyAdmins(ctx, dto.AdminNotifyInput{
+			Type:  "return",
+			Title: "Return Shipping Submitted",
+			Body:  fmt.Sprintf("Order #%s: %s", event.OrderNumber, note),
+			Data:  data,
+		})
+	}
+
+	// Warehouse received the goods: only notify the customer.
+	if event.ChangeType == events.ReturnChangeTypeGoodsReceived || event.ReturnStatus == 4 {
+		msgBody := fmt.Sprintf("Your return for order #%s has been completed.", event.OrderNumber)
+		if event.AdminNote != "" {
+			msgBody += fmt.Sprintf(" Note: %s", event.AdminNote)
+		}
+		userID := event.UserID
+		return c.notifyOrderCustomer(ctx, orderRecipient{
+			UserID:      &userID,
+			OrderNumber: event.OrderNumber,
+		}, "return", "Return Completed", msgBody, data)
+	}
+
+	// Admin decision (approve/reject/cancel): only notify the customer.
+	var title, msgBody string
+	switch event.ReturnStatus {
+	case 2:
+		title = "Return Request Approved"
+		msgBody = fmt.Sprintf("Your return request for order #%s has been approved.", event.OrderNumber)
+	case 3:
+		title = "Return Request Rejected"
+		msgBody = fmt.Sprintf("Your return request for order #%s was rejected.", event.OrderNumber)
+	case 5:
+		title = "Return Request Cancelled"
+		msgBody = fmt.Sprintf("Your return request for order #%s has been cancelled.", event.OrderNumber)
+	default:
+		title = "Return Request Updated"
+		msgBody = fmt.Sprintf("Your return request for order #%s is now %s.", event.OrderNumber, statusStr)
+	}
+	if event.AdminNote != "" {
+		msgBody += fmt.Sprintf(" Note: %s", event.AdminNote)
+	}
+
+	userID := event.UserID
+	return c.notifyOrderCustomer(ctx, orderRecipient{
+		UserID:      &userID,
+		OrderNumber: event.OrderNumber,
+	}, "return", title, msgBody, data)
+}
+
+func (c *TopicConsumer) handleOrderReturnCompleted(ctx context.Context, body []byte) error {
+	var event events.OrderReturnCompletedEvent
+	if err := decodeEventPayload(body, &event); err != nil {
+		return err
+	}
+
+	c.logger.Info().Str("event_id", event.EventID).Str("order_number", event.OrderNumber).Msg("Return completed, notifying customer")
+
+	restocked := 0
+	for _, item := range event.Items {
+		if item.Restock {
+			restocked += int(item.Quantity)
+		}
+	}
+	msgBody := fmt.Sprintf("Your return for order #%s is complete. The refund is being processed.", event.OrderNumber)
+	if restocked > 0 {
+		msgBody = fmt.Sprintf("Your return for order #%s is complete (%d item(s) restocked). The refund is being processed.", event.OrderNumber, restocked)
+	}
+
+	userID := event.UserID
+	return c.notifyOrderCustomer(ctx, orderRecipient{
+		UserID:      &userID,
+		OrderNumber: event.OrderNumber,
+	}, "return", "Return Completed", msgBody, map[string]any{
+		"order_number": event.OrderNumber,
+		"return_uuid":  event.ReturnUUID,
+	})
+}
+
+func mapReturnStatus(status int16) string {
+	switch status {
+	case 1:
+		return "Pending"
+	case 2:
+		return "Approved"
+	case 3:
+		return "Rejected"
+	case 4:
+		return "Completed"
+	case 5:
+		return "Cancelled"
+	default:
+		return "Unknown"
+	}
 }
 
 func (c *TopicConsumer) handleGenericNotification(ctx context.Context, event events.NotificationEvent) error {

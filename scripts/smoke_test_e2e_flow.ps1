@@ -58,8 +58,8 @@ try {
     Report-Step -Name "Dang ky tai khoan" -Success $false -Detail $_.Exception.Message
 }
 
-# Cho 1.5s de RabbitMQ Consumer dong bo user sang Core DB (Projection)
-Write-Host "    -> Cho 1.5s de RabbitMQ Consumer dong bo User Projection vao Core DB..." -ForegroundColor DarkGray
+# Cho 1.5s de Kafka Consumer dong bo user sang Core DB (Projection)
+Write-Host "    -> Cho 1.5s de Kafka Consumer dong bo User Projection vao Core DB..." -ForegroundColor DarkGray
 Start-Sleep -Milliseconds 1500
 
 # -----------------------------------------------------------------------------
@@ -183,7 +183,7 @@ if ($createdOrderUUID) {
 # -----------------------------------------------------------------------------
 Write-Host "`n[*] Buoc 7: Kiem tra danh sach thong bao (/api/v1/notifications/me)..." -ForegroundColor Yellow
 try {
-    # Cho 1.5s de OrderConsumer gui thong bao qua RabbitMQ
+    # Cho 1.5s de Kafka Consumer gui thong bao
     Start-Sleep -Milliseconds 1500
     $notifRes = Invoke-RestMethod -Uri "$BaseUrl/api/v1/notifications/me" -Method Get -Headers $authHeaders
     Report-Step -Name "Doc danh sach thong bao cua user" -Success $true -Detail "Ket qua: $($notifRes.status)"

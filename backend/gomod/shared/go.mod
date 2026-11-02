@@ -2,8 +2,6 @@ module goshop/shared
 
 go 1.26.10
 
-require goshop/contracts v0.0.0
-
 replace goshop/contracts => ../contracts
 
 require (
@@ -22,9 +20,9 @@ require (
 	github.com/mailtrap/mailtrap-go v0.5.0
 	github.com/meilisearch/meilisearch-go v0.36.3
 	github.com/natefinch/lumberjack v2.0.0+incompatible
-	github.com/rabbitmq/amqp091-go v1.16.0
 	github.com/redis/go-redis/v9 v9.23.0
 	github.com/rs/zerolog v1.35.1
+	github.com/segmentio/kafka-go v0.4.51
 	github.com/sony/gobreaker/v2 v2.4.0
 	github.com/stretchr/testify v1.12.1
 	github.com/swaggo/swag v1.16.6
@@ -98,7 +96,6 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.16 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.59.0 // indirect
-	github.com/segmentio/kafka-go v0.4.51 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.3.1 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.5.0 // indirect

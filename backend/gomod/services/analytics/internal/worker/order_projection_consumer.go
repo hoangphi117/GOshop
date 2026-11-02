@@ -264,6 +264,55 @@ func (c *OrderProjectionConsumer) HandleOrderCancelled(headers messaging.Header,
 	return err
 }
 
+// HandleOrderReturnUpdated applies return-driven financial changes to the projection.
+// A refund lowers net revenue and flips the payment status so the order leaves the
+// paid bucket once fully refunded.
+func (c *OrderProjectionConsumer) HandleOrderReturnUpdated(headers messaging.Header, body []byte) error {
+	var event events.OrderReturnUpdatedEvent
+	if err := json.Unmarshal(body, &event); err != nil {
+		return err
+	}
+
+	if c.dbPool == nil {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	parsedOrderUUID, _ := uuid.Parse(event.OrderUUID)
+
+	// Only a processed refund moves money; status changes stay in the order service.
+	if event.ChangeType != events.ReturnChangeTypeRefunded {
+		return nil
+	}
+
+	refundAmount := event.RefundAmount
+	if refundAmount <= 0 {
+		if c.logger != nil {
+			c.logger.Warn().Str("order_uuid", event.OrderUUID).Msg("return refund event carries no amount; projection left unchanged")
+		}
+		return nil
+	}
+
+	query := `
+		UPDATE analytics_orders_projection
+		SET order_refunded_amount = order_refunded_amount + $1,
+		    order_payment_status = CASE
+		        WHEN order_refunded_amount + $1 >= order_total_amount THEN 4
+		        ELSE 3
+		    END,
+		    order_updated_at = NOW()
+		WHERE order_uuid = $2 OR order_id = $3;
+	`
+
+	_, err := c.dbPool.Exec(ctx, query, refundAmount, parsedOrderUUID, event.OrderID)
+	if err != nil && c.logger != nil {
+		c.logger.Error().Err(err).Str("order_uuid", event.OrderUUID).Msg("failed to record refund in analytics_orders_projection")
+	}
+	return err
+}
+
 // HandlePaymentSucceeded updates payment status to paid (2) in projection.
 func (c *OrderProjectionConsumer) HandlePaymentSucceeded(headers messaging.Header, body []byte) error {
 	var event events.PaymentSucceededEvent

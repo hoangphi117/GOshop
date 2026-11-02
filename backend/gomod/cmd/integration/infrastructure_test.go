@@ -6,16 +6,18 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/segmentio/kafka-go"
 	"github.com/stretchr/testify/require"
 )
 
 func TestInfrastructureDependencies(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
 	databaseURL := envOrDefault("INTEGRATION_DATABASE_URL", "postgres://postgres:super%40password@localhost:5432/postgres?sslmode=disable")
@@ -27,31 +29,30 @@ func TestInfrastructureDependencies(t *testing.T) {
 	require.NoError(t, conn.QueryRow(ctx, "SELECT 1").Scan(&result))
 	require.Equal(t, 1, result)
 
-	rabbitURL := envOrDefault("INTEGRATION_RABBITMQ_URL", "amqp://goshop:goshop@localhost:5672/")
-	rabbitConn, err := amqp.Dial(rabbitURL)
-	require.NoError(t, err)
-	defer rabbitConn.Close()
+	brokers := strings.Split(envOrDefault("INTEGRATION_KAFKA_BROKERS", "localhost:9092"), ",")
 
-	channel, err := rabbitConn.Channel()
-	require.NoError(t, err)
-	defer channel.Close()
+	// Consume BEFORE producing: the group would otherwise start at the latest
+	// offset and miss the record written by this test.
+	topic := fmt.Sprintf("goshop.integration.%d", time.Now().UnixNano())
+	group := "goshop.integration-" + uuid.NewString()
 
-	queueName := fmt.Sprintf("goshop.integration.%d", time.Now().UnixNano())
-	queue, err := channel.QueueDeclare(queueName, false, true, true, false, nil)
-	require.NoError(t, err)
+	reader := kafka.NewReader(kafka.ReaderConfig{
+		Brokers:  brokers,
+		GroupID:  group,
+		Topic:    topic,
+		MaxBytes: 1 << 20,
+	})
+	defer reader.Close()
 
-	message := []byte("integration-check")
-	require.NoError(t, channel.PublishWithContext(ctx, "", queue.Name, false, false, amqp.Publishing{Body: message}))
+	writer := &kafka.Writer{Addr: kafka.TCP(brokers...), Topic: topic, RequiredAcks: kafka.RequireAll}
+	defer writer.Close()
 
-	messages, err := channel.Consume(queue.Name, "", true, true, false, false, nil)
-	require.NoError(t, err)
+	payload := []byte("integration-check")
+	require.NoError(t, writer.WriteMessages(ctx, kafka.Message{Value: payload}))
 
-	select {
-	case received := <-messages:
-		require.Equal(t, message, received.Body)
-	case <-ctx.Done():
-		t.Fatal("timed out waiting for RabbitMQ message")
-	}
+	msg, err := reader.ReadMessage(ctx)
+	require.NoError(t, err, "timed out waiting for Kafka round-trip")
+	require.Equal(t, payload, msg.Value)
 }
 
 func envOrDefault(name, fallback string) string {

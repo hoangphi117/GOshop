@@ -8,7 +8,7 @@ import (
 )
 
 // kafkaCarrier adapts Kafka record headers to the OpenTelemetry
-// TextMapCarrier interface, mirroring rabbitmq/trace.go behavior.
+// TextMapCarrier interface, mirroring the old RabbitMQ adapter behavior.
 type kafkaCarrier []kafka.Header
 
 func (c kafkaCarrier) Get(key string) string {

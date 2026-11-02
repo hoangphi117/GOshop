@@ -2,6 +2,7 @@ package kafka
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"sync"
 	"testing"
@@ -125,6 +126,35 @@ func TestApply_ExhaustedRetriesGoToDLQ(t *testing.T) {
 	assert.Len(t, c.committed, 1, "poison message must not block the partition")
 }
 
+func TestApply_PoisonPayloadGoesToDLQAfterMaxRetries(t *testing.T) {
+	rr, w := newTestRunner(t)
+	c := &fakeCommitter{}
+	poison := []byte(`{not valid json`)
+	msg := kafka.Message{
+		Topic: "goshop.order.v1",
+		Value: poison,
+		// already at max (2) so a corrupt payload goes straight to DLQ
+		Headers: []kafka.Header{{Key: headerRetryCount, Value: []byte("2")}, {Key: headerMaxRetries, Value: []byte("2")}},
+	}
+
+	err := rr.apply(context.Background(), "g", c, msg, func(_ messaging.Header, payload []byte) error {
+		var v struct {
+			EventID string `json:"event_id"`
+		}
+		if jerr := json.Unmarshal(payload, &v); jerr != nil {
+			return jerr
+		}
+		return nil
+	})
+	require.NoError(t, err)
+
+	sent := w.messages()
+	require.Len(t, sent, 1)
+	assert.Equal(t, "goshop.order.v1.dlq", sent[0].Topic)
+	assert.Equal(t, poison, sent[0].Value, "DLQ keeps the original payload for inspection")
+	assert.Len(t, c.committed, 1, "poison message must not block the partition")
+}
+
 func TestApply_RepublishFailureDoesNotCommit(t *testing.T) {
 	rr, w := newTestRunner(t)
 	w.err = errors.New("broker down")
@@ -208,6 +238,15 @@ func TestTopicForEvent_KnownAndFallback(t *testing.T) {
 
 	_, _, err = TopicForEvent("  ")
 	require.ErrorIs(t, err, errNameEmpty, "blank names fail fast instead of resolving to junk")
+}
+
+func TestTopicForEvent_ShippingCreateVariants(t *testing.T) {
+	for _, name := range []string{"shipping.create", "shipping.order.create"} {
+		topic, key, err := TopicForEvent(name)
+		require.NoError(t, err)
+		assert.Equal(t, "goshop.shipping.v1", topic, "%q must resolve to the pre-created topic", name)
+		assert.Equal(t, "order_uuid", key)
+	}
 }
 
 func TestMatchPattern(t *testing.T) {

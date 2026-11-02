@@ -221,17 +221,26 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 12
-      rabbitmq:
-        image: rabbitmq:3-management-alpine
+      kafka:
+        image: apache/kafka:3.9.0
         env:
-          RABBITMQ_DEFAULT_USER: goshop
-          RABBITMQ_DEFAULT_PASS: goshop
+          KAFKA_NODE_ID: 1
+          KAFKA_PROCESS_ROLES: broker,controller
+          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+          KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,HOST://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,HOST://localhost:9092
+          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,HOST:PLAINTEXT
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+          KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+          KAFKA_HEAP_OPTS: "-Xmx512m -Xms256m"
+          CLUSTER_ID: goshop-ci-kafka-0000000001
         ports:
-          - 5672:5672
+          - 9092:9092
         options: >-
-          --health-cmd "rabbitmq-diagnostics -q ping"
-          --health-interval 5s
-          --health-timeout 5s
+          --health-cmd "kafka-broker-api-versions --bootstrap-server localhost:9092"
+          --health-interval 10s
+          --health-timeout 10s
           --health-retries 12
 
     steps:

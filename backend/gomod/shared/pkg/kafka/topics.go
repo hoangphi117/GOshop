@@ -76,6 +76,8 @@ var domainTopics = map[string]topicSpec{
 	"auth_email_queue": {topic: "goshop.email.v1", keyField: "user_uuid"},
 	"media.uploaded":   {topic: "goshop.media.v1", keyField: "file_key"},
 	"shipping.create":  {topic: "goshop.shipping.v1", keyField: "order_uuid"},
+	// order service constant (services/order QueueShippingCreate); same topic.
+	"shipping.order.create": {topic: "goshop.shipping.v1", keyField: "order_uuid"},
 }
 
 // fallbackTopics maps names the publishers use that are NOT routing keys
@@ -86,6 +88,7 @@ var fallbackTopics = map[string]topicSpec{
 	"auth_email_queue":      {topic: "goshop.email.v1", keyField: "user_uuid"},
 	"media.uploaded":        {topic: "goshop.media.v1", keyField: "file_key"},
 	"shipping.create":       {topic: "goshop.shipping.v1", keyField: "order_uuid"},
+	"shipping.order.create": {topic: "goshop.shipping.v1", keyField: "order_uuid"},
 	"review.rating_updated": {topic: "goshop.review.v1", keyField: "product_id"},
 }
 

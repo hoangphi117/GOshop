@@ -118,7 +118,7 @@ func TestOutboxPublisherWorker_ProcessBatch(t *testing.T) {
 		mockBroker := &testutils.MockBrokerService{
 			PublishFunc: func(ctx context.Context, queue string, message any) error {
 				if queue == events.QueueOrderCreated {
-					return errors.New("rabbitmq connection down")
+					return errors.New("kafka connection down")
 				}
 				return nil
 			},

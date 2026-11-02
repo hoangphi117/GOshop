@@ -1,4 +1,4 @@
-package handler
+﻿package handler
 
 import (
 	"bytes"
@@ -18,39 +18,39 @@ import (
 	"goshop/shared/pkg/messaging"
 )
 
-type MockRabbitMQ struct {
+type MockBroker struct {
 	mock.Mock
 }
 
-func (m *MockRabbitMQ) Publish(ctx context.Context, queue string, message any) error {
+func (m *MockBroker) Publish(ctx context.Context, queue string, message any) error {
 	return nil
 }
 
-func (m *MockRabbitMQ) Consume(ctx context.Context, queue string, handler messaging.Handler) error {
+func (m *MockBroker) Consume(ctx context.Context, queue string, handler messaging.Handler) error {
 	return nil
 }
 
-func (m *MockRabbitMQ) PublishTopic(ctx context.Context, routingKey string, message any) error {
+func (m *MockBroker) PublishTopic(ctx context.Context, routingKey string, message any) error {
 	return nil
 }
 
-func (m *MockRabbitMQ) PublishToExchange(ctx context.Context, exchange, routingKey string, message any) error {
+func (m *MockBroker) PublishToExchange(ctx context.Context, exchange, routingKey string, message any) error {
 	return nil
 }
 
-func (m *MockRabbitMQ) SubscribeTopic(ctx context.Context, queueName string, routingKeys []string, handler messaging.Handler) error {
+func (m *MockBroker) SubscribeTopic(ctx context.Context, queueName string, routingKeys []string, handler messaging.Handler) error {
 	return nil
 }
 
-func (m *MockRabbitMQ) SubscribeToExchange(ctx context.Context, exchange, queueName string, routingKeys []string, handler messaging.Handler) error {
+func (m *MockBroker) SubscribeToExchange(ctx context.Context, exchange, queueName string, routingKeys []string, handler messaging.Handler) error {
 	return nil
 }
 
-func (m *MockRabbitMQ) Close() error {
+func (m *MockBroker) Close() error {
 	return nil
 }
 
-func (m *MockRabbitMQ) IsHealthy() bool {
+func (m *MockBroker) IsHealthy() bool {
 	args := m.Called()
 	return args.Bool(0)
 }
@@ -114,13 +114,13 @@ func TestHealthHandler_HealthCheck_AllHealthy(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
-	mockRabbit := new(MockRabbitMQ)
-	mockRabbit.On("IsHealthy").Return(true)
+	mockBroker := new(MockBroker)
+	mockBroker.On("IsHealthy").Return(true)
 
 	mockStore := new(MockStorage)
 	mockStore.On("IsHealthy", mock.Anything).Return(true)
 
-	handler := NewHealthHandler(nil, nil, mockRabbit, mockStore, discord.NewDiscordNotifier("", nil), nil)
+	handler := NewHealthHandler(nil, nil, mockBroker, mockStore, discord.NewDiscordNotifier("", nil), nil)
 	r.GET("/healthz", handler.HealthCheck)
 
 	req, _ := http.NewRequest(http.MethodGet, "/healthz", nil)
@@ -134,7 +134,7 @@ func TestHealthHandler_HealthCheck_AllHealthy(t *testing.T) {
 	assert.Equal(t, "healthy", resp["status"])
 
 	services := resp["services"].(map[string]any)
-	assert.Equal(t, "up", services["rabbitmq"])
+	assert.Equal(t, "up", services["messaging"])
 	assert.Equal(t, "up", services["storage"])
 }
 
@@ -142,13 +142,13 @@ func TestHealthHandler_HealthCheck_Degraded(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
-	mockRabbit := new(MockRabbitMQ)
-	mockRabbit.On("IsHealthy").Return(false) // Down
+	mockBroker := new(MockBroker)
+	mockBroker.On("IsHealthy").Return(false) // Down
 
 	mockStore := new(MockStorage)
 	mockStore.On("IsHealthy", mock.Anything).Return(true)
 
-	handler := NewHealthHandler(nil, nil, mockRabbit, mockStore, discord.NewDiscordNotifier("", nil), nil)
+	handler := NewHealthHandler(nil, nil, mockBroker, mockStore, discord.NewDiscordNotifier("", nil), nil)
 	r.GET("/healthz", handler.HealthCheck)
 
 	req, _ := http.NewRequest(http.MethodGet, "/healthz", nil)
@@ -162,19 +162,19 @@ func TestHealthHandler_HealthCheck_Degraded(t *testing.T) {
 	assert.Equal(t, "degraded", resp["status"])
 
 	services := resp["services"].(map[string]any)
-	assert.Equal(t, "down", services["rabbitmq"])
+	assert.Equal(t, "down", services["messaging"])
 }
 
 func TestHealthHandler_ReadinessCheck_DoesNotSendAlert(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
-	mockRabbit := new(MockRabbitMQ)
-	mockRabbit.On("IsHealthy").Return(false)
+	mockBroker := new(MockBroker)
+	mockBroker.On("IsHealthy").Return(false)
 	mockStore := new(MockStorage)
 	mockStore.On("IsHealthy", mock.Anything).Return(true)
 
-	handler := NewHealthHandler(nil, nil, mockRabbit, mockStore, nil, nil)
+	handler := NewHealthHandler(nil, nil, mockBroker, mockStore, nil, nil)
 	r.GET("/healthz/ready", handler.ReadinessCheck)
 
 	req, _ := http.NewRequest(http.MethodGet, "/healthz/ready", nil)
@@ -182,6 +182,6 @@ func TestHealthHandler_ReadinessCheck_DoesNotSendAlert(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
-	mockRabbit.AssertExpectations(t)
+	mockBroker.AssertExpectations(t)
 	mockStore.AssertExpectations(t)
 }
