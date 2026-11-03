@@ -10,6 +10,10 @@ CREATE TABLE IF NOT EXISTS chat_conversations (
     user_email        VARCHAR(255) NOT NULL DEFAULT '',
     user_avatar       TEXT NOT NULL DEFAULT '',
     status            VARCHAR(20) NOT NULL DEFAULT 'open',
+    -- Staff (admin/moderator) who opened their own chat as a customer must not
+    -- appear in the admin conversation list. Identity lives in another service
+    -- so SQL cannot join it; stamp the role at creation and filter on it.
+    owner_is_staff    BOOLEAN NOT NULL DEFAULT FALSE,
     last_message_at   TIMESTAMPTZ,
     created_at        TIMESTAMPTZ DEFAULT now() NOT NULL,
     updated_at        TIMESTAMPTZ DEFAULT now() NOT NULL
@@ -31,6 +35,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     created_at        TIMESTAMPTZ DEFAULT now() NOT NULL
 );
 
+CREATE INDEX IF NOT EXISTS idx_chat_conv_staff_list ON chat_conversations(owner_is_staff, status, last_message_at DESC);
 CREATE INDEX IF NOT EXISTS idx_chat_conv_admin ON chat_conversations(admin_id, status, last_message_at DESC);
 CREATE INDEX IF NOT EXISTS idx_chat_conv_user ON chat_conversations(user_id, last_message_at DESC);
 CREATE INDEX IF NOT EXISTS idx_chat_conversations_user_id ON chat_conversations(user_id);

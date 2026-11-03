@@ -124,6 +124,7 @@ func (s *chatService) GetOrCreateConversation(ctx context.Context, userUUID uuid
 		UserEmail:    user.UserEmail,
 		UserFullname: user.UserFullname,
 		UserAvatar:   user.UserAvatar,
+		OwnerIsStaff: s.determineSenderRole(user) == "admin",
 	})
 	if err != nil {
 		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to create conversation", err)
@@ -433,8 +434,8 @@ func (s *chatService) ListConversations(
 		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "failed to count conversations", err)
 	}
 
-	res := make([]chatdto.ConversationResponse, len(rows))
-	for i, r := range rows {
+	res := make([]chatdto.ConversationResponse, 0, len(rows))
+	for _, r := range rows {
 		var lastMsgAt *time.Time
 		if r.LastMessageAt.Valid {
 			lastMsgAt = &r.LastMessageAt.Time
@@ -469,7 +470,7 @@ func (s *chatService) ListConversations(
 		isCustomerOnline := s.presence.IsUserOnline(ctx, r.UserID)
 		isShopOnline := s.presence.HasOnlineAdmin(ctx)
 
-		res[i] = chatdto.ConversationResponse{
+		res = append(res, chatdto.ConversationResponse{
 			ConversationID:     r.ConversationID,
 			UUID:               r.ConversationUuid,
 			Status:             r.Status,
@@ -485,7 +486,7 @@ func (s *chatService) ListConversations(
 			UpdatedAt:          r.UpdatedAt,
 			IsOnline:           isCustomerOnline,
 			IsShopOnline:       isShopOnline,
-		}
+		})
 	}
 
 	return res, total, nil

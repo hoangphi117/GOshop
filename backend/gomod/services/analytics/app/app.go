@@ -158,6 +158,8 @@ func New(cfg *config.Config) (*App, error) {
 				return consumer.HandlePaymentSucceeded(headers, body)
 			case events.RoutingKeyOrderReturnUpdated:
 				return consumer.HandleOrderReturnUpdated(headers, body)
+			case "payment.refunded":
+				return consumer.HandlePaymentRefunded(headers, body)
 			default:
 				return consumer.HandleOrderCreated(headers, body)
 			}
@@ -170,6 +172,7 @@ func New(cfg *config.Config) (*App, error) {
 			events.RoutingKeyOrderDelivered,
 			events.RoutingKeyPaymentSucceeded,
 			events.RoutingKeyOrderReturnUpdated,
+			"payment.refunded",
 		}
 		if err := broker.SubscribeTopic(context.Background(), analyticsQueue, routingKeys, handler); err != nil {
 			logger.Log.Error().Err(err).Msg("Failed to subscribe analytics order events topic")

@@ -62,6 +62,7 @@ var domainTopics = map[string]topicSpec{
 	"payment.expired":   {topic: "goshop.payment.v1", keyField: "order_uuid"},
 	"payment.succeeded": {topic: "goshop.payment.v1", keyField: "order_uuid"},
 	"payment.failed":    {topic: "goshop.payment.v1", keyField: "order_uuid"},
+	"payment.refunded":  {topic: "goshop.payment.v1", keyField: "order_uuid"},
 	// user.*
 	"user.created": {topic: "goshop.user.v1", keyField: "user_uuid"},
 	"user.updated": {topic: "goshop.user.v1", keyField: "user_uuid"},

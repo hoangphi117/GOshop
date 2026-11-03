@@ -905,8 +905,28 @@ func (s *catalogService) SuggestProducts(ctx context.Context, q string, limit in
 	}
 
 	docs, _, err := s.search.SearchDocuments(ctx, q, "product_status = 1", nil, int64(limit), 0)
-	if err != nil {
-		return []dto.ProductSuggestionDTO{}, nil
+	if err != nil || len(docs) == 0 {
+		// Meili may miss (broken filter settings, lagging index): fall back to
+		// the DB path so suggestions never go blank while search works.
+		list, _, dbErr := s.GetAllProducts(ctx, q, "", 0, 0, 0, 1, "product_name", "asc", 1, limit, false)
+		if dbErr != nil {
+			if err != nil {
+				return []dto.ProductSuggestionDTO{}, nil
+			}
+			return []dto.ProductSuggestionDTO{}, nil
+		}
+		suggestions := make([]dto.ProductSuggestionDTO, 0, len(list))
+		for _, item := range list {
+			suggestions = append(suggestions, dto.ProductSuggestionDTO{
+				UUID:         item.UUID,
+				Name:         item.Name,
+				Slug:         item.Slug,
+				Price:        item.Price,
+				ImageURL:     item.ImageURL,
+				CategoryName: item.CategoryName,
+			})
+		}
+		return suggestions, nil
 	}
 
 	suggestions := make([]dto.ProductSuggestionDTO, 0, len(docs))

@@ -12,3 +12,15 @@ map $http_x_api_key $goshop_api_key {
     ~.+     $http_x_api_key;
     default "${API_KEY}";
 }
+
+# Meilisearch server-side bearer: injected only on /search-api/ so the storefront
+# bundle never carries any key. MEILISEARCH_MASTER_KEY mirrors the catalog
+# service's master key (compose injects it from .env).
+#
+# A constant-key map, not $http_*: envsubst lowercases nginx variables such as
+# $http_authorization, which the entrypoint then fails to resolve. The fixed
+# key "edge" always matches, so the edge value wins over any stale baked-in
+# browser key. `set` is illegal at http{} scope, hence the map.
+map edge $goshop_meili_key {
+    default "${MEILISEARCH_MASTER_KEY}";
+}

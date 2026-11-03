@@ -147,7 +147,10 @@ export function useAdminMessages(conversationUUID?: string) {
       return [...items].reverse()
     },
     enabled: Boolean(conversationUUID),
-    refetchInterval: 3000,
+    // No polling: the active-room WebSocket pushes chat.message and inserts it
+    // straight into this cache. Polling every 3s duplicated every message and
+    // masked a dead socket. Refetch only when the tab regains focus.
+    refetchOnWindowFocus: true,
   })
 }
 
@@ -375,7 +378,6 @@ export function useAdminChatRoom(conversationUUID?: string | null) {
   const queryClient = useQueryClient()
   const accessToken = useAuthStore((state) => state.auth.accessToken)
   const isAuthenticated = Boolean(useAuthStore((state) => state.auth.user))
-
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -392,13 +394,18 @@ export function useAdminChatRoom(conversationUUID?: string | null) {
 
     const connect = () => {
       if (isCleanedUp) return
+      // Read the token fresh on every (re)connect: the auto-refresh may have
+      // rotated it while this effect holds an old closure value, and the old
+      // token makes the gateway drop the socket silently.
+      const token = useAuthStore.getState().auth.accessToken
+      if (!token) return
 
       try {
         const rawBaseUrl =
           import.meta.env.VITE_API_BASE_URL || window.location.origin
         const wsBaseUrl = rawBaseUrl.replace(/^http/, 'ws')
         const socketUrl = `${wsBaseUrl}/api/v1/ws?token=${encodeURIComponent(
-          accessToken
+          token
         )}&conversation_uuid=${encodeURIComponent(conversationUUID)}`
 
         const ws = new WebSocket(socketUrl)

@@ -220,13 +220,18 @@ func (b *kafkaBroker) PublishToExchange(ctx context.Context, exchange, routingKe
 	return b.Publish(ctx, routingKey, message)
 }
 
-// newGroupReader opens a consumer-group reader over topics with manual
+// newGroupReader opens a consumer-group reader over one topic with manual
 // offset commits (at-least-once: eventledger dedupes replays).
-func (b *kafkaBroker) newGroupReader(group string, topics []string) *kafka.Reader {
+//
+// Topic, not GroupTopics: kafka-go's GroupTopics path never joins the classic
+// consumer-group protocol, so the broker assigns no partitions and lag stays
+// N/A (seen Nov 2026). One reader per topic, all sharing GroupID, is the
+// supported way to consume several topics in one group.
+func (b *kafkaBroker) newGroupReader(group, topic string) *kafka.Reader {
 	return kafka.NewReader(kafka.ReaderConfig{
 		Brokers:        b.brokers,
 		GroupID:        group,
-		GroupTopics:    topics,
+		Topic:          topic,
 		MinBytes:       1,
 		MaxBytes:       1 << 20,
 		CommitInterval: 0, // manual CommitMessages only
@@ -304,7 +309,7 @@ func (b *kafkaBroker) Consume(ctx context.Context, queue string, handler messagi
 
 	rr := newRetryRunner(b)
 	for i := 0; i < consumerCount; i++ {
-		reader := b.newGroupReader(group, []string{topic})
+		reader := b.newGroupReader(group, topic)
 		handler2 := filterEventsByPatterns([]string{queue}, handler)
 		b.startGroupConsumer(ctx, group, reader, rr, handler2)
 	}
@@ -349,9 +354,13 @@ func (b *kafkaBroker) SubscribeToExchange(ctx context.Context, exchange, queue s
 
 	filtered := filterEventsByPatterns(patterns, handler)
 	rr := newRetryRunner(b)
-	for i := 0; i < consumerCount; i++ {
-		reader := b.newGroupReader(group, topics)
-		b.startGroupConsumer(ctx, group, reader, rr, filtered)
+	// One reader per topic sharing GroupID: see newGroupReader. Multi-topic
+	// groups fan out here; consumption stays exactly-once per group.
+	for _, t := range topics {
+		for i := 0; i < consumerCount; i++ {
+			reader := b.newGroupReader(group, t)
+			b.startGroupConsumer(ctx, group, reader, rr, filtered)
+		}
 	}
 
 	b.logger.Info().Str("group", group).Strs("topics", topics).Msg("Kafka topic consumer registered")

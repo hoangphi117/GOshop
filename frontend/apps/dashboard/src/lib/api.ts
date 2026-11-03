@@ -45,15 +45,31 @@ export const api = createApiClient({
 })
 
 // Single-flight silent refresh for route guards: when the access token is
-// gone but a refresh token survives, try to restore the session before
-// sending the user to sign-in. Returns true when a usable access token exists.
+// gone or expired but a refresh token survives, try to restore the session
+// before sending the user to sign-in. Returns true when a usable access token
+// exists. Access tokens live ~15m; treat tokens expiring within 60s as gone
+// so navigation triggers a refresh instead of bouncing to sign-in.
+const REFRESH_SKEW_MS = 60 * 1000
 let refreshInflight: Promise<boolean> | null = null
+
+function isTokenFresh(token: string): boolean {
+  if (!token) return false
+  const parts = token.split('.')
+  if (parts.length !== 3) return true
+  try {
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))
+    if (typeof payload.exp !== 'number') return true
+    return payload.exp * 1000 - Date.now() > REFRESH_SKEW_MS
+  } catch {
+    return true
+  }
+}
 
 export function tryRefreshSession(): Promise<boolean> {
   if (refreshInflight) return refreshInflight
   refreshInflight = (async () => {
     const { auth } = useAuthStore.getState()
-    if (auth.accessToken) return true
+    if (isTokenFresh(auth.accessToken)) return true
     if (!auth.refreshToken) return false
     try {
       const res = await fetch(`${API_VERSIONED_BASE}/auth/refresh`, {

@@ -3,21 +3,16 @@ import { AuthenticatedLayout } from '@/components/layout/authenticated-layout'
 import { tryRefreshSession } from '@/lib/api'
 import { isStaffOrAdmin } from '@/lib/auth-utils'
 import { sanitizeRedirectTarget } from '@/lib/auth-redirect'
-import { getCookie } from '@/lib/cookies'
 import { useAuthStore } from '@/stores/auth-store'
 
 export const Route = createFileRoute('/_authenticated')({
   beforeLoad: async ({ location, search }) => {
     const store = useAuthStore.getState().auth
-    // Tokens that only live in cookies (SSR/edge context) may not be hydrated
-    // into this module instance yet. Read the raw cookie as source of truth.
-    // If the access token expired mid-session, the API middleware already
-    // tried a silent refresh on the failing query; try once more here so a
-    // soft-expired admin session does not bounce to sign-in.
-    let hasToken = Boolean(store.accessToken || getCookie('goshop_access_token'))
-    if (!hasToken) {
-      hasToken = await tryRefreshSession()
-    }
+    // Always attempt the refresh path: isTokenFresh inside tryRefreshSession
+    // returns fast when the token is usable, and restores soft-expired
+    // sessions (access token dead, refresh token alive) before route render,
+    // so an expired access token no longer bounces to sign-in.
+    const hasToken = await tryRefreshSession()
     if (!hasToken) {
       // Store a path, not a full URL: sign-in's navigate() only accepts paths.
       // Not named `redirect`: that would shadow the router helper below.

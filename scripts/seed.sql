@@ -1,70 +1,57 @@
 -- ==============================================================================
 -- GOSHOP DEVELOPMENT SEED DATA (multi-database)
 --
--- Master data is seeded into the monolith database first, then copied 1:1
--- (same IDs AND UUIDs) into the extracted-service databases via dblink, so
--- cross-service references stay valid:
---   shopping           -> users, categories, products, addresses, coupons
---   shopping_identity  -> users, user_addresses   (copy of shopping)
---   shopping_catalog   -> categories, products    (copy of shopping)
---   shopping_coupon    -> coupons                 (remapped to service schema)
+-- Master data is seeded straight into each extracted-service database.
+-- The monolith `shopping` database no longer exists, so nothing is copied
+-- across databases (inventory still reads product UUIDs from
+-- shopping_catalog via dblink, which is seeded just before it):
+--   shopping_identity  -> users, user_addresses
+--   shopping_catalog   -> categories, products + product upsert outbox rows
+--   shopping_coupon    -> coupons                 (service schema)
 --   shopping_cart      -> cleaned
 --   shopping_inventory -> stock rows + movement history from catalog products
 --
 -- Password for all seeded users: Password123!
 -- Run with psql (it understands \connect):
---   docker exec -i goshop-postgres psql -U postgres -d shopping < scripts/seed.sql
+--   docker exec -i goshop-postgres psql -U postgres -d shopping_identity < scripts/seed.sql
 -- Or via the Go seeder (parses the "-- DB:" markers, ignores \connect):
---   cd backend && go run ./cmd/seed
+--   cd backend && go run ./gomod/cmd/seed
 -- ==============================================================================
 
 -- ##############################################################################
--- DB: shopping
+-- DB: shopping_identity
+-- Identity-owned users and addresses (single source of truth).
 -- ##############################################################################
 
+\connect shopping_identity
+
 -- Clean existing data safely (preserving schema)
-TRUNCATE TABLE
-    outbox_events,
-    chat_messages,
-    chat_conversations,
-    notifications,
-    stock_movements,
-    product_review_reports,
-    product_review_helpful_votes,
-    product_reviews,
-    coupon_usages,
-    coupons,
-    cart_items,
-    carts,
-    user_addresses,
-    banners,
-    products,
-    categories,
-    users
-RESTART IDENTITY CASCADE;
+TRUNCATE TABLE outbox_events, user_addresses, users RESTART IDENTITY CASCADE;
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- Default password hash for 'Password123!' (bcrypt cost 10)
-DO $$
-DECLARE
-    v_pwd VARCHAR(90) := '$2a$10$fjiFPJondn6AcV/GOEFjk.oIkOhMlqMHn.qeOlxoVQ6NTXMhV4BMC';
-BEGIN
+
+
+    -- v_pwd was: VARCHAR(90) := '$2a$10$fjiFPJondn6AcV/GOEFjk.oIkOhMlqMHn.qeOlxoVQ6NTXMhV4BMC';
+
 
 -- ==============================================================================
 -- 1. USERS (Admin, Moderator, Customers)
 -- ==============================================================================
 INSERT INTO users (user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_avatar, user_created_at, user_updated_at)
 OVERRIDING SYSTEM VALUE VALUES
-(1, gen_random_uuid(), 'System Admin', 'admin@goshop.com', v_pwd, 30, 1, 1, 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150', now() - interval '90 days', now()),
-(2, gen_random_uuid(), 'Store Manager', 'manager@goshop.com', v_pwd, 28, 1, 2, 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150', now() - interval '85 days', now()),
-(3, gen_random_uuid(), 'Support Moderator', 'mod@goshop.com', v_pwd, 26, 1, 2, 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150', now() - interval '80 days', now()),
-(4, gen_random_uuid(), 'Nguyen Van An', 'user1@goshop.com', v_pwd, 25, 1, 3, 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150', now() - interval '70 days', now()),
-(5, gen_random_uuid(), 'Tran Thi Binh', 'user2@goshop.com', v_pwd, 24, 1, 3, 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150', now() - interval '65 days', now()),
-(6, gen_random_uuid(), 'Le Hoang Cuong', 'user3@goshop.com', v_pwd, 32, 1, 3, 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150', now() - interval '60 days', now()),
-(7, gen_random_uuid(), 'Pham Minh Duc', 'user4@goshop.com', v_pwd, 29, 1, 3, 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150', now() - interval '55 days', now()),
-(8, gen_random_uuid(), 'Hoang Thu Giang', 'user5@goshop.com', v_pwd, 22, 1, 3, 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150', now() - interval '50 days', now()),
-(9, gen_random_uuid(), 'Vu Dinh Hai', 'user6@goshop.com', v_pwd, 35, 1, 3, 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150', now() - interval '45 days', now()),
-(10, gen_random_uuid(), 'Do Thi Huong', 'user7@goshop.com', v_pwd, 27, 1, 3, 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150', now() - interval '40 days', now()),
-(11, gen_random_uuid(), 'Local Admin', 'admin@gmail.com', v_pwd, 30, 1, 1, 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150', now() - interval '90 days', now());
+(1, gen_random_uuid(), 'System Admin', 'admin@goshop.com', '$2a$10$fjiFPJondn6AcV/GOEFjk.oIkOhMlqMHn.qeOlxoVQ6NTXMhV4BMC', 30, 1, 1, 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150', now() - interval '90 days', now()),
+(2, gen_random_uuid(), 'Store Manager', 'manager@goshop.com', '$2a$10$fjiFPJondn6AcV/GOEFjk.oIkOhMlqMHn.qeOlxoVQ6NTXMhV4BMC', 28, 1, 2, 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150', now() - interval '85 days', now()),
+(3, gen_random_uuid(), 'Support Moderator', 'mod@goshop.com', '$2a$10$fjiFPJondn6AcV/GOEFjk.oIkOhMlqMHn.qeOlxoVQ6NTXMhV4BMC', 26, 1, 2, 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150', now() - interval '80 days', now()),
+(4, gen_random_uuid(), 'Nguyen Van An', 'user1@goshop.com', '$2a$10$fjiFPJondn6AcV/GOEFjk.oIkOhMlqMHn.qeOlxoVQ6NTXMhV4BMC', 25, 1, 3, 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150', now() - interval '70 days', now()),
+(5, gen_random_uuid(), 'Tran Thi Binh', 'user2@goshop.com', '$2a$10$fjiFPJondn6AcV/GOEFjk.oIkOhMlqMHn.qeOlxoVQ6NTXMhV4BMC', 24, 1, 3, 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150', now() - interval '65 days', now()),
+(6, gen_random_uuid(), 'Le Hoang Cuong', 'user3@goshop.com', '$2a$10$fjiFPJondn6AcV/GOEFjk.oIkOhMlqMHn.qeOlxoVQ6NTXMhV4BMC', 32, 1, 3, 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150', now() - interval '60 days', now()),
+(7, gen_random_uuid(), 'Pham Minh Duc', 'user4@goshop.com', '$2a$10$fjiFPJondn6AcV/GOEFjk.oIkOhMlqMHn.qeOlxoVQ6NTXMhV4BMC', 29, 1, 3, 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150', now() - interval '55 days', now()),
+(8, gen_random_uuid(), 'Hoang Thu Giang', 'user5@goshop.com', '$2a$10$fjiFPJondn6AcV/GOEFjk.oIkOhMlqMHn.qeOlxoVQ6NTXMhV4BMC', 22, 1, 3, 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150', now() - interval '50 days', now()),
+(9, gen_random_uuid(), 'Vu Dinh Hai', 'user6@goshop.com', '$2a$10$fjiFPJondn6AcV/GOEFjk.oIkOhMlqMHn.qeOlxoVQ6NTXMhV4BMC', 35, 1, 3, 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150', now() - interval '45 days', now()),
+(10, gen_random_uuid(), 'Do Thi Huong', 'user7@goshop.com', '$2a$10$fjiFPJondn6AcV/GOEFjk.oIkOhMlqMHn.qeOlxoVQ6NTXMhV4BMC', 27, 1, 3, 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150', now() - interval '40 days', now()),
+(11, gen_random_uuid(), 'Local Admin', 'admin@gmail.com', '$2a$10$fjiFPJondn6AcV/GOEFjk.oIkOhMlqMHn.qeOlxoVQ6NTXMhV4BMC', 30, 1, 1, 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150', now() - interval '90 days', now());
 
 -- Generate 40 additional realistic customers (IDs 12..51)
 INSERT INTO users (user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_avatar, user_created_at, user_updated_at)
@@ -76,7 +63,7 @@ SELECT
     (ARRAY['Van', 'Thi', 'Duc', 'Quoc', 'Thanh', 'Ngoc', 'Minh', 'Huu', 'Gia', 'Hai'])[1 + ((i * 3) % 10)] || ' ' ||
     (ARRAY['Anh', 'Binh', 'Chau', 'Dung', 'Em', 'Giang', 'Huy', 'Khoa', 'Linh', 'Mai', 'Nam', 'Phong', 'Quan', 'Son', 'Tuan', 'Vy'])[1 + ((i * 7) % 16)],
     'customer' || i || '@testmail.com',
-    v_pwd,
+    '$2a$10$fjiFPJondn6AcV/GOEFjk.oIkOhMlqMHn.qeOlxoVQ6NTXMhV4BMC',
     20 + (i % 35),
     1,
     3,
@@ -85,10 +72,65 @@ SELECT
     now()
 FROM generate_series(12, 51) AS i;
 
-PERFORM setval('users_user_id_seq', (SELECT MAX(user_id) FROM users), true);
+SELECT setval('users_user_id_seq', (SELECT MAX(user_id) FROM users), true);
 
 -- ==============================================================================
--- 2. CATEGORIES
+-- setval users_user_id_seq done above, (SELECT MAX(user_id) FROM users), true);
+
+-- 2. USER ADDRESSES (Realistic Vietnamese addresses for customers)
+-- ==============================================================================
+INSERT INTO user_addresses (ua_id, ua_uuid, ua_user_id, ua_label, ua_name, ua_phone, ua_address, ua_is_default, ua_province_id, ua_province_name, ua_district_id, ua_district_name, ua_ward_code, ua_ward_name, ua_created_at, ua_updated_at)
+OVERRIDING SYSTEM VALUE VALUES
+(1, gen_random_uuid(), 4, 'Home', 'Nguyen Van An', '0912345678', 'Số 18, Ngõ 45, Đường Trần Duy Hưng, Cầu Giấy, Hà Nội', TRUE, 201, 'Hà Nội', 1488, 'Quận Cầu Giấy', '1A0101', 'Phường Trung Hòa', now() - interval '60 days', now()),
+(2, gen_random_uuid(), 4, 'Office', 'Nguyen Van An', '0912345678', 'Tầng 12, Tòa nhà Landmark 72, Đường Phạm Hùng, Nam Từ Liêm, Hà Nội', FALSE, 201, 'Hà Nội', 1490, 'Quận Nam Từ Liêm', '1A0202', 'Phường Mễ Trì', now() - interval '40 days', now()),
+(3, gen_random_uuid(), 5, 'Home', 'Tran Thi Binh', '0987654321', '245/12 Lê Văn Sỹ, Phường 14, Quận 3, TP. Hồ Chí Minh', TRUE, 202, 'TP. Hồ Chí Minh', 1442, 'Quận 3', '2B0301', 'Phường 14', now() - interval '58 days', now()),
+(4, gen_random_uuid(), 6, 'Home', 'Le Hoang Cuong', '0903112233', '102 Nguyễn Văn Linh, Phường Nam Dương, Quận Hải Châu, Đà Nẵng', TRUE, 203, 'Đà Nẵng', 1520, 'Quận Hải Châu', '3C0101', 'Phường Nam Dương', now() - interval '55 days', now()),
+(5, gen_random_uuid(), 7, 'Home', 'Pham Minh Duc', '0934556677', '56 Đường 30 Tháng 4, Phường An Phú, Quận Ninh Kiều, Cần Thơ', TRUE, 204, 'Cần Thơ', 1550, 'Quận Ninh Kiều', '4D0101', 'Phường An Phú', now() - interval '50 days', now()),
+(6, gen_random_uuid(), 8, 'Home', 'Hoang Thu Giang', '0978990011', '88 Lạch Tray, Quận Ngô Quyền, Hải Phòng', TRUE, 205, 'Hải Phòng', 1580, 'Quận Ngô Quyền', '5E0101', 'Phường Lạch Tray', now() - interval '45 days', now());
+
+-- Generate addresses for users 9 to 51
+INSERT INTO user_addresses (ua_id, ua_uuid, ua_user_id, ua_label, ua_name, ua_phone, ua_address, ua_is_default, ua_province_id, ua_province_name, ua_district_id, ua_district_name, ua_ward_code, ua_ward_name, ua_created_at, ua_updated_at)
+OVERRIDING SYSTEM VALUE
+SELECT
+    (u.user_id - 2),
+    gen_random_uuid(),
+    u.user_id,
+    'Home',
+    u.user_fullname,
+    '09' || lpad((10000000 + u.user_id * 179)::text, 8, '0'),
+    'Số ' || (u.user_id * 3 + 10) || ' Phố ' || (ARRAY['Nguyễn Huệ', 'Lê Lợi', 'Hoàng Hoa Thám', 'Võ Văn Kiệt', 'Hai Bà Trưng', 'Điện Biên Phủ'])[1 + (u.user_id % 6)] || ', TP. HCM',
+    TRUE,
+    202,
+    'TP. Hồ Chí Minh',
+    1440 + (u.user_id % 10),
+    'Quận ' || (1 + (u.user_id % 10)),
+    '2B00' || (u.user_id % 20),
+    'Phường ' || (1 + (u.user_id % 15)),
+    now() - (u.user_id || ' days')::interval,
+    now()
+FROM users u
+WHERE u.user_id BETWEEN 9 AND 51;
+
+SELECT setval('user_addresses_ua_id_seq', (SELECT MAX(ua_id) FROM user_addresses), true);
+
+-- ==============================================================================
+-- 
+
+ANALYZE users;
+ANALYZE user_addresses;
+
+-- ##############################################################################
+-- DB: shopping_catalog
+-- Categories and products seed directly (no monolith copy).
+-- ##############################################################################
+
+\connect shopping_catalog
+
+TRUNCATE TABLE outbox_events, products, categories RESTART IDENTITY CASCADE;
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- 1. CATEGORIES
 -- ==============================================================================
 INSERT INTO categories (category_id, category_uuid, category_name, category_slug, category_description, category_status, category_created_at, category_updated_at)
 OVERRIDING SYSTEM VALUE VALUES
@@ -101,11 +143,17 @@ OVERRIDING SYSTEM VALUE VALUES
 (7, gen_random_uuid(), 'Smart Home & Appliances', 'smart-home-appliances', 'Robot vacuums, smart air purifiers, intelligent lighting, and home automation.', 1, now() - interval '90 days', now()),
 (8, gen_random_uuid(), 'Accessories & Cables', 'accessories-cables', 'Fast chargers, GaN power adapters, braided cables, power banks, and hubs.', 1, now() - interval '90 days', now());
 
-PERFORM setval('categories_category_id_seq', (SELECT MAX(category_id) FROM categories), true);
+SELECT setval('categories_category_id_seq', (SELECT MAX(category_id) FROM categories), true);
 
 -- ==============================================================================
--- 3. PRODUCTS (32 realistic products with high quality specs & images)
+-- 2. PRODUCTS (5000 generated products across 8 categories)
 -- ==============================================================================
+-- 32 curated rows keep hand-written flavor for the storefront homepage, then
+-- generate_series fills to 5000 so pagination, loadtest and search behave like
+-- a large store. Name pattern Brand + Line + Model + Variant guarantees unique
+-- (product_name, category) and unique slug/sku without collisions.
+-- ==============================================================================
+
 INSERT INTO products (product_id, product_uuid, product_name, product_slug, product_description, product_price, product_sku, product_category_id, product_image_url, product_status, product_avg_rating, product_review_count, product_created_at, product_updated_at)
 OVERRIDING SYSTEM VALUE VALUES
 -- Category 1: Smartphones
@@ -156,123 +204,76 @@ OVERRIDING SYSTEM VALUE VALUES
 (31, gen_random_uuid(), 'Belkin BoostCharge Pro 3-in-1 MagSafe Wireless Charger', 'belkin-boostcharge-pro-3-in-1-magsafe', 'Official 15W MagSafe fast charging for iPhone, fast charge module for Apple Watch Ultra, dedicated Qi pad for AirPods.', 3890000.00, 'BELKIN-WIZ017-BLK', 8, 'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?w=800', 1, 4.7, 11, now() - interval '48 days', now()),
 (32, gen_random_uuid(), 'UGREEN Nexode 300W GaN 5-Port Desktop Charger', 'ugreen-nexode-300w-gan-5port', 'World first 300W 5-port GaN fast charger with PD 3.1 140W single port power, thermal guard safety protection system.', 2790000.00, 'UGREEN-CD333-300W', 8, 'https://images.unsplash.com/photo-1544717305-2782549b5136?w=800', 1, 4.8, 14, now() - interval '44 days', now());
 
-PERFORM setval('products_product_id_seq', (SELECT MAX(product_id) FROM products), true);
+-- Generated catalogue: ids 33..5000 (4,968 rows).
+-- Each category gets its own brand/line vocabulary so search results look
+-- plausible instead of 5,000 copies of the same label.
+INSERT INTO products (product_id, product_uuid, product_name, product_slug, product_description, product_price, product_sku, product_category_id, product_image_url, product_status, product_avg_rating, product_review_count, product_created_at, product_updated_at)
+OVERRIDING SYSTEM VALUE
+WITH vocab AS (
+    SELECT * FROM (VALUES
+        (1, ARRAY['Samsung','Xiaomi','OPPO','vivo','Google','OnePlus','Honor','Realme','Nokia','Sony','ZTE','Motorola'],
+               ARRAY['Galaxy','Redmi','Find','X','Pixel','Nord','Magic','GT','G','Xperia','Axon','Edge'],
+               ARRAY['128GB','256GB','512GB','1TB','Lite','Pro','Ultra','Plus']),
+        (2, ARRAY['ASUS','Lenovo','HP','Acer','MSI','Dell','Apple','Razer','Huawei','LG'],
+               ARRAY['Vivobook','IdeaPad','Pavilion','Aspire','Raider','XPS','MacBook','Blade','MateBook','Gram'],
+               ARRAY['14 Core i5','14 Core i7','15 Ryzen 5','15 Ryzen 7','16 RTX 4060','16 RTX 4070','13 Ultra 5']),
+        (3, ARRAY['Sony','JBL','Bose','Sennheiser','Marshall','Anker','Edifier','Beats','Shure','Audio-Technica'],
+               ARRAY['WH','Charge','QuietComfort','Momentum','Emberton','Soundcore','R','Studio','AONIC','ATH'],
+               ARRAY['ANC','Wireless','Sport','Studio','Portable','Bass']),
+        (4, ARRAY['Apple','Garmin','Samsung','Huawei','Amazfit','Fitbit','Suunto','Polar'],
+               ARRAY['Watch','Fenix','Galaxy Watch','Watch GT','GTS','Versa','Spartan','Vantage'],
+               ARRAY['41mm','43mm','45mm','47mm','GPS','Solar','Titanium']),
+        (5, ARRAY['Logitech','Razer','SteelSeries','Corsair','HyperX','ASUS ROG','MSI','Sony','Microsoft','Nintendo'],
+               ARRAY['G','BlackWidow','Apex','K70','Cloud','Strix','MAG','DualSense','Xbox','Switch'],
+               ARRAY['Keyboard','Mouse','Headset','Controller','Console','Pad']),
+        (6, ARRAY['Canon','Nikon','Sony','Fujifilm','Panasonic','GoPro','DJI','Insta360','Olympus','Leica'],
+               ARRAY['EOS','Z','Alpha','X-T','Lumix','HERO','Osmo','X','OM','Q'],
+               ARRAY['Body','Kit 18-55mm','4K Video','Action Cam','Travel Kit']),
+        (7, ARRAY['Xiaomi','Roborock','Dyson','Philips','Ecovacs','Dreame','Panasonic','LG','Sharp','TCL'],
+               ARRAY['Mi','S','V','Hue','Deebot','Bot','Air','ThinQ','Spot','P'],
+               ARRAY['Robot Vacuum','Air Purifier','Smart Bulb Kit','Smart Plug','Humidifier']),
+        (8, ARRAY['Anker','UGREEN','Belkin','Baseus','Apple','Samsung','Spigen','JBL','Logitech','Sandisk'],
+               ARRAY['PowerCore','Nexode','BoostCharge','GaN','MagSafe','Travel','Armor','Flip','MX','Extreme'],
+               ARRAY['65W Charger','100W Charger','USB-C 2m','Power Bank 20000mAh','Hub 7-in-1','SSD 1TB'])
+    ) AS v(cat_id, brands, lines, variants)
+)
+SELECT
+    32 + n,
+    gen_random_uuid(),
+    v.brands[1 + (n % array_length(v.brands, 1))] || ' ' ||
+        v.lines[1 + ((n / 5) % array_length(v.lines, 1))] || ' ' ||
+        v.variants[1 + ((n / 11) % array_length(v.variants, 1))] || ' ' ||
+        model.model_label || ' #' || n::text,
+    lower(regexp_replace(
+        v.brands[1 + (n % array_length(v.brands, 1))] || '-' ||
+        v.lines[1 + ((n / 5) % array_length(v.lines, 1))] || '-' ||
+        v.variants[1 + ((n / 11) % array_length(v.variants, 1))] || '-' ||
+        model.model_label || '-' || (32 + n)::text, '[^a-zA-Z0-9]+', '-', 'g')),
+    v.brands[1 + (n % array_length(v.brands, 1))] || ' ' ||
+        v.lines[1 + ((n / 5) % array_length(v.lines, 1))] ||
+        ': everyday device for daily use, warranty 24 months, fulfilled by GOshop.',
+    (400000 + ((n * 7919) % 640)) * 5000,
+    upper(left(regexp_replace(v.brands[1 + (n % array_length(v.brands, 1))], '[^a-zA-Z0-9]+', '', 'g'), 3)) ||
+        (32 + n)::text || '-' || lpad(n::text, 4, '0'),
+    v.cat_id,
+    'https://picsum.photos/seed/goshop-' || (32 + n) || '/800/800',
+    1,
+    round((3.5 + ((n * 37) % 15)::numeric / 10)::numeric, 1),
+    (n * 13) % 240,
+    now() - ((n % 400) || ' days')::interval,
+    now()
+FROM generate_series(1, 4968) AS n
+JOIN vocab v ON v.cat_id = 1 + (n % 8)
+CROSS JOIN LATERAL (
+    SELECT
+        (ARRAY['S24','SE','SE2','SE3','Plus','Prime','Max','Air','Neo','Eco','Lite','Turbo'])[1 + (n % 12)] ||
+        ' ' || (100 + (n % 900)) AS model_label
+) AS model;
+
+SELECT setval('products_product_id_seq', (SELECT MAX(product_id) FROM products), true);
 
 -- Legacy monolith stock column mirrors the inventory quantities seeded below
 -- (inventory is the source of truth; this only keeps old search docs accurate).
-UPDATE products SET product_stock = 20 + (product_id * 13) % 100;
-
--- ==============================================================================
--- 4. USER ADDRESSES (Realistic Vietnamese addresses for customers)
--- ==============================================================================
-INSERT INTO user_addresses (ua_id, ua_uuid, ua_user_id, ua_label, ua_name, ua_phone, ua_address, ua_is_default, ua_province_id, ua_province_name, ua_district_id, ua_district_name, ua_ward_code, ua_ward_name, ua_created_at, ua_updated_at)
-OVERRIDING SYSTEM VALUE VALUES
-(1, gen_random_uuid(), 4, 'Home', 'Nguyen Van An', '0912345678', 'Số 18, Ngõ 45, Đường Trần Duy Hưng, Cầu Giấy, Hà Nội', TRUE, 201, 'Hà Nội', 1488, 'Quận Cầu Giấy', '1A0101', 'Phường Trung Hòa', now() - interval '60 days', now()),
-(2, gen_random_uuid(), 4, 'Office', 'Nguyen Van An', '0912345678', 'Tầng 12, Tòa nhà Landmark 72, Đường Phạm Hùng, Nam Từ Liêm, Hà Nội', FALSE, 201, 'Hà Nội', 1490, 'Quận Nam Từ Liêm', '1A0202', 'Phường Mễ Trì', now() - interval '40 days', now()),
-(3, gen_random_uuid(), 5, 'Home', 'Tran Thi Binh', '0987654321', '245/12 Lê Văn Sỹ, Phường 14, Quận 3, TP. Hồ Chí Minh', TRUE, 202, 'TP. Hồ Chí Minh', 1442, 'Quận 3', '2B0301', 'Phường 14', now() - interval '58 days', now()),
-(4, gen_random_uuid(), 6, 'Home', 'Le Hoang Cuong', '0903112233', '102 Nguyễn Văn Linh, Phường Nam Dương, Quận Hải Châu, Đà Nẵng', TRUE, 203, 'Đà Nẵng', 1520, 'Quận Hải Châu', '3C0101', 'Phường Nam Dương', now() - interval '55 days', now()),
-(5, gen_random_uuid(), 7, 'Home', 'Pham Minh Duc', '0934556677', '56 Đường 30 Tháng 4, Phường An Phú, Quận Ninh Kiều, Cần Thơ', TRUE, 204, 'Cần Thơ', 1550, 'Quận Ninh Kiều', '4D0101', 'Phường An Phú', now() - interval '50 days', now()),
-(6, gen_random_uuid(), 8, 'Home', 'Hoang Thu Giang', '0978990011', '88 Lạch Tray, Quận Ngô Quyền, Hải Phòng', TRUE, 205, 'Hải Phòng', 1580, 'Quận Ngô Quyền', '5E0101', 'Phường Lạch Tray', now() - interval '45 days', now());
-
--- Generate addresses for users 9 to 51
-INSERT INTO user_addresses (ua_id, ua_uuid, ua_user_id, ua_label, ua_name, ua_phone, ua_address, ua_is_default, ua_province_id, ua_province_name, ua_district_id, ua_district_name, ua_ward_code, ua_ward_name, ua_created_at, ua_updated_at)
-OVERRIDING SYSTEM VALUE
-SELECT
-    (u.user_id - 2),
-    gen_random_uuid(),
-    u.user_id,
-    'Home',
-    u.user_fullname,
-    '09' || lpad((10000000 + u.user_id * 179)::text, 8, '0'),
-    'Số ' || (u.user_id * 3 + 10) || ' Phố ' || (ARRAY['Nguyễn Huệ', 'Lê Lợi', 'Hoàng Hoa Thám', 'Võ Văn Kiệt', 'Hai Bà Trưng', 'Điện Biên Phủ'])[1 + (u.user_id % 6)] || ', TP. HCM',
-    TRUE,
-    202,
-    'TP. Hồ Chí Minh',
-    1440 + (u.user_id % 10),
-    'Quận ' || (1 + (u.user_id % 10)),
-    '2B00' || (u.user_id % 20),
-    'Phường ' || (1 + (u.user_id % 15)),
-    now() - (u.user_id || ' days')::interval,
-    now()
-FROM users u
-WHERE u.user_id BETWEEN 9 AND 51;
-
-PERFORM setval('user_addresses_ua_id_seq', (SELECT MAX(ua_id) FROM user_addresses), true);
-
--- ==============================================================================
--- 5. COUPONS (monolith schema)
--- ==============================================================================
-INSERT INTO coupons (coupon_id, coupon_uuid, coupon_code, coupon_name, coupon_description, coupon_type, coupon_discount_value, coupon_min_order_value, coupon_max_discount, coupon_usage_limit, coupon_used_count, coupon_start_date, coupon_end_date, coupon_status, coupon_created_at, coupon_updated_at)
-OVERRIDING SYSTEM VALUE VALUES
-(1, gen_random_uuid(), 'WELCOME10', 'Welcome New Shopper 10%', 'Enjoy 10% discount on your first tech gadget purchase.', 1, 10.00, 1000000.00, 500000.00, 1000, 24, now() - interval '60 days', now() + interval '180 days', 1, now() - interval '60 days', now()),
-(2, gen_random_uuid(), 'GOSHOP500K', 'Super Mega 500K Off', 'Direct 500,000 VND discount for orders over 15,000,000 VND.', 2, 500000.00, 15000000.00, 500000.00, 500, 48, now() - interval '45 days', now() + interval '120 days', 1, now() - interval '45 days', now()),
-(3, gen_random_uuid(), 'TECHVIP15', 'VIP Tech Enthusiast 15%', 'Exclusive 15% discount capped at 2,000,000 VND.', 1, 15.00, 5000000.00, 2000000.00, 200, 15, now() - interval '30 days', now() + interval '90 days', 1, now() - interval '30 days', now()),
-(4, gen_random_uuid(), 'FLASH100K', 'Flash Sale 100K Voucher', 'Direct 100,000 VND discount on accessories.', 2, 100000.00, 1000000.00, 100000.00, 2000, 85, now() - interval '15 days', now() + interval '45 days', 1, now() - interval '15 days', now()),
-(5, gen_random_uuid(), 'BLACKFRIDAY', 'Black Friday Ultra 20%', 'Black Friday 20% discount on all flagship laptops.', 1, 20.00, 10000000.00, 3000000.00, 100, 100, now() - interval '100 days', now() - interval '70 days', 2, now() - interval '105 days', now());
-
-PERFORM setval('coupons_coupon_id_seq', (SELECT MAX(coupon_id) FROM coupons), true);
-
-END $$;
-
-ANALYZE users;
-ANALYZE categories;
-ANALYZE products;
-ANALYZE user_addresses;
-ANALYZE coupons;
-ANALYZE stock_movements;
-
--- ##############################################################################
--- DB: shopping_identity
--- 1:1 copy of users and addresses (same IDs and UUIDs as the master data).
---###############################################################################
-
-\connect shopping_identity
-
-TRUNCATE TABLE outbox_events, user_addresses, users RESTART IDENTITY CASCADE;
-CREATE EXTENSION IF NOT EXISTS dblink;
-
-INSERT INTO users (user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_avatar, user_created_at, user_updated_at)
-OVERRIDING SYSTEM VALUE
-SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_avatar, user_created_at, user_updated_at
-FROM dblink('dbname=shopping', 'SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_avatar, user_created_at, user_updated_at FROM users WHERE user_deleted_at IS NULL')
-AS t(user_id int, user_uuid uuid, user_fullname varchar, user_email varchar, user_password varchar, user_age int, user_status int, user_level int, user_avatar text, user_created_at timestamptz, user_updated_at timestamptz);
-
-SELECT setval('users_user_id_seq', (SELECT MAX(user_id) FROM users), true);
-
-INSERT INTO user_addresses (ua_id, ua_uuid, ua_user_id, ua_label, ua_name, ua_phone, ua_address, ua_is_default, ua_province_id, ua_province_name, ua_district_id, ua_district_name, ua_ward_code, ua_ward_name, ua_created_at, ua_updated_at)
-OVERRIDING SYSTEM VALUE
-SELECT ua_id, ua_uuid, ua_user_id, ua_label, ua_name, ua_phone, ua_address, ua_is_default, ua_province_id, ua_province_name, ua_district_id, ua_district_name, ua_ward_code, ua_ward_name, ua_created_at, ua_updated_at
-FROM dblink('dbname=shopping', 'SELECT ua_id, ua_uuid, ua_user_id, ua_label, ua_name, ua_phone, ua_address, ua_is_default, ua_province_id, ua_province_name, ua_district_id, ua_district_name, ua_ward_code, ua_ward_name, ua_created_at, ua_updated_at FROM user_addresses')
-AS t(ua_id int, ua_uuid uuid, ua_user_id int, ua_label varchar, ua_name varchar, ua_phone varchar, ua_address text, ua_is_default boolean, ua_province_id int, ua_province_name varchar, ua_district_id int, ua_district_name varchar, ua_ward_code varchar, ua_ward_name varchar, ua_created_at timestamptz, ua_updated_at timestamptz);
-
-SELECT setval('user_addresses_ua_id_seq', (SELECT MAX(ua_id) FROM user_addresses), true);
-
-ANALYZE users;
-ANALYZE user_addresses;
-
--- ##############################################################################
--- DB: shopping_catalog
--- 1:1 copy of categories and products (same IDs and UUIDs).
--- ##############################################################################
-
-\connect shopping_catalog
-
-TRUNCATE TABLE outbox_events, products, categories RESTART IDENTITY CASCADE;
-CREATE EXTENSION IF NOT EXISTS dblink;
-
-INSERT INTO categories (category_id, category_uuid, category_name, category_slug, category_description, category_status, category_created_at, category_updated_at)
-OVERRIDING SYSTEM VALUE
-SELECT category_id, category_uuid, category_name, category_slug, category_description, category_status, category_created_at, category_updated_at
-FROM dblink('dbname=shopping', 'SELECT category_id, category_uuid, category_name, category_slug, category_description, category_status, category_created_at, category_updated_at FROM categories WHERE category_deleted_at IS NULL')
-AS t(category_id int, category_uuid uuid, category_name varchar, category_slug varchar, category_description text, category_status int, category_created_at timestamptz, category_updated_at timestamptz);
-
-SELECT setval('categories_category_id_seq', (SELECT MAX(category_id) FROM categories), true);
-
-INSERT INTO products (product_id, product_uuid, product_name, product_slug, product_description, product_price, product_sku, product_category_id, product_image_url, product_status, product_avg_rating, product_review_count, product_created_at, product_updated_at)
-OVERRIDING SYSTEM VALUE
-SELECT product_id, product_uuid, product_name, product_slug, product_description, product_price, product_sku, product_category_id, product_image_url, product_status, product_avg_rating, product_review_count, product_created_at, product_updated_at
-FROM dblink('dbname=shopping', 'SELECT product_id, product_uuid, product_name, product_slug, product_description, product_price, product_sku, product_category_id, product_image_url, product_status, product_avg_rating, product_review_count, product_created_at, product_updated_at FROM products WHERE product_deleted_at IS NULL')
-AS t(product_id int, product_uuid uuid, product_name varchar, product_slug varchar, product_description text, product_price numeric, product_sku varchar, product_category_id int, product_image_url text, product_status int, product_avg_rating numeric, product_review_count int, product_created_at timestamptz, product_updated_at timestamptz);
 
 SELECT setval('products_product_id_seq', (SELECT MAX(product_id) FROM products), true);
 
@@ -291,19 +292,22 @@ ANALYZE products;
 
 -- ##############################################################################
 -- DB: shopping_coupon
--- Coupons remapped to the coupon-service schema.
+-- Coupons use the coupon-service schema directly.
 -- ##############################################################################
 
 \connect shopping_coupon
 
 TRUNCATE TABLE coupon_usages, coupons RESTART IDENTITY CASCADE;
-CREATE EXTENSION IF NOT EXISTS dblink;
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 INSERT INTO coupons (coupon_id, coupon_uuid, coupon_code, coupon_name, coupon_description, coupon_type, coupon_discount_value, coupon_max_discount_amount, coupon_min_order_amount, coupon_usage_limit, coupon_used_count, coupon_start_date, coupon_end_date, coupon_is_active, coupon_created_at, coupon_updated_at)
-OVERRIDING SYSTEM VALUE
-SELECT coupon_id, coupon_uuid, coupon_code, coupon_name, coupon_description, coupon_type, coupon_discount_value, coupon_max_discount, coupon_min_order_value, coupon_usage_limit, coupon_used_count, coupon_start_date, coupon_end_date, coupon_status = 1, coupon_created_at, coupon_updated_at
-FROM dblink('dbname=shopping', 'SELECT coupon_id, coupon_uuid, coupon_code, coupon_name, coupon_description, coupon_type, coupon_discount_value, coupon_max_discount, coupon_min_order_value, coupon_usage_limit, coupon_used_count, coupon_start_date, coupon_end_date, coupon_status, coupon_created_at, coupon_updated_at FROM coupons')
-AS t(coupon_id int, coupon_uuid uuid, coupon_code varchar, coupon_name varchar, coupon_description text, coupon_type int, coupon_discount_value numeric, coupon_max_discount numeric, coupon_min_order_value numeric, coupon_usage_limit int, coupon_used_count int, coupon_start_date timestamptz, coupon_end_date timestamptz, coupon_status int, coupon_created_at timestamptz, coupon_updated_at timestamptz);
+OVERRIDING SYSTEM VALUE VALUES
+(1, gen_random_uuid(), 'WELCOME10', 'Welcome New Shopper 10%', 'Enjoy 10% discount on your first tech gadget purchase.', 1, 10.00, 500000.00, 1000000.00, 1000, 24, now() - interval '60 days', now() + interval '180 days', TRUE, now() - interval '60 days', now()),
+(2, gen_random_uuid(), 'GOSHOP500K', 'Super Mega 500K Off', 'Direct 500,000 VND discount for orders over 15,000,000 VND.', 2, 500000.00, 500000.00, 15000000.00, 500, 48, now() - interval '45 days', now() + interval '120 days', TRUE, now() - interval '45 days', now()),
+(3, gen_random_uuid(), 'TECHVIP15', 'VIP Tech Enthusiast 15%', 'Exclusive 15% discount capped at 2,000,000 VND.', 1, 15.00, 2000000.00, 5000000.00, 200, 15, now() - interval '30 days', now() + interval '90 days', TRUE, now() - interval '30 days', now()),
+(4, gen_random_uuid(), 'FLASH100K', 'Flash Sale 100K Voucher', 'Direct 100,000 VND discount on accessories.', 2, 100000.00, 100000.00, 1000000.00, 2000, 85, now() - interval '15 days', now() + interval '45 days', TRUE, now() - interval '15 days', now()),
+(5, gen_random_uuid(), 'BLACKFRIDAY', 'Black Friday Ultra 20%', 'Black Friday 20% discount on all flagship laptops.', 1, 20.00, 3000000.00, 10000000.00, 100, 100, now() - interval '100 days', now() - interval '70 days', FALSE, now() - interval '105 days', now());
 
 SELECT setval('coupons_coupon_id_seq', (SELECT MAX(coupon_id) FROM coupons), true);
 

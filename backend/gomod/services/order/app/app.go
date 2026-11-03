@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
 	"os/signal"
@@ -77,10 +78,10 @@ type paymentRefundAdapter struct {
 
 // RefundPayment forwards the refund in the payment service's native unit.
 // The order side keeps whole dong in float64 (its own ledger); convert once
-// here, and convert the returned minor units back once, so neither side does
-// arithmetic on the float.
+// here (dong → xu), and convert the returned minor units back once, so neither
+// side does arithmetic on the float.
 func (a paymentRefundAdapter) RefundPayment(ctx context.Context, idempotencyKey string, input v1dto.RefundPaymentInput) (v1dto.PaymentTransactionDTO, error) {
-	amount, err := money.FromFloat(input.Amount)
+	amount, err := money.FromWholeDong(int64(math.Round(input.Amount)))
 	if err != nil {
 		return v1dto.PaymentTransactionDTO{}, fmt.Errorf("refund amount %v cannot be sent exactly: %w", input.Amount, err)
 	}

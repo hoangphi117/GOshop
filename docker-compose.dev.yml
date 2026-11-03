@@ -7,6 +7,7 @@
       - "80:80"
     environment:
       - API_KEY=${API_KEY:?API_KEY must be set (edge injects it server-side)}
+      - MEILISEARCH_MASTER_KEY=${MEILISEARCH_MASTER_KEY:?MEILISEARCH_MASTER_KEY must be set (edge injects it for /search-api)}
       - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx/secret-conf
     volumes:
       - type: tmpfs
@@ -15,6 +16,8 @@
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./nginx/templates:/etc/nginx/templates:ro
       - ./backend/uploads:/var/www/uploads:ro
+      # Admin dashboard SPA — static build from the host (or CI artifact).
+      - ./frontend/apps/dashboard/dist:/srv/dashboard:ro
     depends_on:
       - api
     networks:
@@ -48,6 +51,13 @@
       - ORDER_GRPC_TARGET=order-service:50057
       - BANNER_SERVICE_URL=http://banner-service:8089
       - REVIEW_SERVICE_URL=http://review-service:8091
+      - ANALYTICS_SERVICE_URL=http://analytics:8092
+      - CHAT_SERVICE_URL=http://chat:8093
+      - CATALOG_SERVICE_URL=http://catalog:8086
+      - CART_SERVICE_URL=http://cart:8087
+      - COUPON_SERVICE_URL=http://coupon:8084
+      - INVENTORY_SERVICE_URL=http://inventory:8090
+      - MEDIA_SERVICE_URL=http://media:8094
       - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:-goshop-internal-secret-token}
       - JWT_SIGNING_ENABLED=false
       - JWT_PRIVATE_KEY=
@@ -627,7 +637,10 @@
     ports:
       - "9092:9092"
     volumes:
-      - kafka-data:/var/lib/kafka/data
+      # apache/kafka:3.9.0 writes to /tmp/kafka-logs by default (log in
+      # Nov 2026 showed LogLoader loading from there); the old mount on
+      # /var/lib/kafka/data saved nothing, so every restart wiped topics.
+      - kafka-data:/tmp/kafka-logs
     healthcheck:
       test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092"]
       interval: 10s
@@ -659,6 +672,22 @@
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic goshop.media.v1 --partitions 1 --replication-factor 1
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic goshop.shipping.v1 --partitions 1 --replication-factor 1
         echo "kafka topics ready"
+    networks:
+      - goshop-network
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.2
+    container_name: goshop-kafka-ui
+    restart: unless-stopped
+    ports:
+      # 8086 is the catalog service; 8096 keeps the UI out of its way.
+      - "8096:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: goshop
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+    depends_on:
+      kafka:
+        condition: service_healthy
     networks:
       - goshop-network
 
