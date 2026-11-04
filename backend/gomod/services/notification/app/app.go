@@ -182,6 +182,9 @@ func New(cfg *config.Config) (*App, error) {
 
 	notifroutes.RegisterRoutes(r, tokenService, cacheRedisService, userRoutes, adminRoutes)
 
+	// Phase-1 observability: /healthz reports this process's consumer lag.
+	kafka.RegisterHealthz(r, "notification", broker, dbPool.Ping)
+
 	server := &http.Server{
 		Addr:           cfg.ServerAddress,
 		Handler:        r,

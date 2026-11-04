@@ -141,6 +141,9 @@ func New(cfg *config.Config) (*App, error) {
 	cartHandler := carthandler.NewCartHandler(cartService)
 	cartroutes.RegisterRoutes(r, cartHandler, tokenService, cacheRedisService)
 
+	// Phase-1 observability: /healthz reports this process's consumer lag.
+	kafka.RegisterHealthz(r, "cart", brokerService, dbPool.Ping)
+
 	port := utils.GetEnv("CART_SERVER_PORT", "8087")
 	httpServer := &http.Server{
 		Addr:           ":" + port,

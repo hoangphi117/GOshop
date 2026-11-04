@@ -634,6 +634,10 @@
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
       KAFKA_HEAP_OPTS: "-Xmx512m -Xms256m"
+      # Pin the same cluster id as prod: dev and prod share the physical
+      # kafka-data volume on a single-host setup, and a mismatched id makes
+      # the broker refuse to start ("Invalid cluster.id in meta.properties").
+      CLUSTER_ID: goshop-prod-kafka-000000001
     ports:
       - "9092:9092"
     volumes:

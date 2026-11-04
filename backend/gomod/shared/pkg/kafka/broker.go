@@ -202,8 +202,10 @@ func (b *kafkaBroker) Publish(ctx context.Context, queue string, message any) er
 		return err
 	}
 	if err := b.writer1().WriteMessages(ctx, rec); err != nil {
+		publishErrors.Add(rec.Topic, 1)
 		return fmt.Errorf("kafka: failed to publish to %s: %w", rec.Topic, err)
 	}
+	publishOK.Add(rec.Topic, 1)
 	return nil
 }
 
@@ -266,6 +268,7 @@ func (b *kafkaBroker) startGroupConsumer(ctx context.Context, group string, read
 			}
 
 			if err := rr.apply(ctx, group, reader, msg, handler); err != nil {
+				consumeErrors.Add(group, 1)
 				b.logger.Error().Err(err).Str("group", group).Msg("Failed to apply message")
 			}
 		}

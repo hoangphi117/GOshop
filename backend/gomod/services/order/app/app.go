@@ -380,6 +380,13 @@ func New(cfg *config.Config) (*App, error) {
 		c.JSON(http.StatusOK, gin.H{"status": "ready", "service": "order"})
 	})
 
+	// Phase-1 observability: the order service owns the Kafka consumer groups
+	// (payment.succeeded, payment.expired, shipping.order.create), so consumer
+	// lag is only visible here — the api process consumes nothing and its own
+	// LagInfo is always empty.
+	ping := func(ctx context.Context) error { return dbPool.Ping(ctx) }
+	kafka.RegisterHealthz(r, "order", broker, ping)
+
 	shippingService := orderservice.NewOrderShippingService(orderservice.OrderShippingServiceDeps{
 		TxManager:       txManager,
 		OrderRepo:       orderRepo,

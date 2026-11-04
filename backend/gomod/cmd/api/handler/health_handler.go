@@ -1,4 +1,4 @@
-﻿package handler
+package handler
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"goshop/shared/pkg/discord"
+	"goshop/shared/pkg/kafka"
 	"goshop/shared/pkg/messaging"
 	"goshop/shared/pkg/storage"
 	"goshop/shared/pkg/utils"
@@ -142,10 +143,18 @@ func (h *HealthHandler) checkDependencies(c *gin.Context, alertOnFailure bool) {
 		"services":       services,
 	}
 	// R3: consumer-group lag from the Kafka adapter, when available.
+	// Phase 1: lag above threshold degrades the check so alerts fire.
+	// Threshold lives in the kafka package so services cannot drift apart.
 	if h.broker != nil {
 		if lagger, ok := h.broker.(lagReporter); ok {
 			if lag := lagger.LagInfo(); len(lag) > 0 {
 				response["messaging_lag"] = lag
+				for group, n := range lag {
+					if n > kafka.LagAlertThreshold {
+						isHealthy = false
+						errorDetails = append(errorDetails, fmt.Sprintf("Kafka lag %s=%d exceeds %d", group, n, kafka.LagAlertThreshold))
+					}
+				}
 			}
 		}
 	}

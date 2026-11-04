@@ -77,6 +77,7 @@ func (r *retryRunner) apply(ctx context.Context, group string, reader committerL
 				// redeliver bản gốc, không mất message (song song với logic
 				// Nack(requeue) của adapter cũ).
 				r.broker.logger.Error().Err(wErr).Str("trace_id", traceID).Msg("Failed to republish retry record, message will be redelivered")
+				publishErrors.Add(msg.Topic, 1)
 				return wErr
 			}
 
@@ -89,6 +90,7 @@ func (r *retryRunner) apply(ctx context.Context, group string, reader committerL
 		dlqMsg.Topic = DLQName(msg.Topic)
 		if wErr := r.broker.writer1().WriteMessages(ctx, dlqMsg); wErr != nil {
 			r.broker.logger.Error().Err(wErr).Str("trace_id", traceID).Msg("Failed to publish DLQ record, message will be redelivered")
+			publishErrors.Add(msg.Topic, 1)
 			return wErr
 		}
 		r.broker.logger.Error().
@@ -96,6 +98,7 @@ func (r *retryRunner) apply(ctx context.Context, group string, reader committerL
 			Str("dlq", dlqMsg.Topic).
 			Int64("offset", msg.Offset).
 			Msg("Message exceeded max retries, moved to DLQ")
+		dlqMoved.Add(msg.Topic, 1)
 		return reader.CommitMessages(ctx, msg)
 	}
 

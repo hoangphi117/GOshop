@@ -139,6 +139,9 @@ func New(cfg *config.Config) (*App, error) {
 
 	analyticsroutes.RegisterRoutes(r, analyticshandler.NewAnalyticsHandler(svc), tokenService, cacheRedisService)
 
+	// Phase-1 observability: /healthz reports this process's consumer lag.
+	kafka.RegisterHealthz(r, "analytics", broker, db.DBPool.Ping)
+
 	// Order projection consumer: keeps the analytics read model current.
 	if broker != nil {
 		consumer := analyticsworker.NewOrderProjectionConsumer(db.DBPool, orderClient, logger.Log)

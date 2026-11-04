@@ -111,6 +111,9 @@ func New(cfg *config.Config) (*App, error) {
 	ledgerRepo := eventledger.NewRepository(dbPool)
 	ledgerLogger := eventledger.NewZerologLogger(inventoryBrokerLogger)
 
+	// Phase-1 observability: /healthz reports this process's consumer lag.
+	kafka.RegisterHealthz(r, "inventory", brokerService, dbPool.Ping)
+
 	port := utils.GetEnv("INVENTORY_SERVER_PORT", "8085")
 	server := &http.Server{
 		Addr:    ":" + port,

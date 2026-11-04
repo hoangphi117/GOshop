@@ -936,6 +936,24 @@ services:
     networks:
       - goshop-network
 
+  kafka-exporter:
+    # Phase 1 observability: broker-side lag/throughput/under-replicated
+    # metrics on :9308/metrics. Prometheus (or Grafana Cloud) scrapes it;
+    # the adapter's own counters ride /healthz as messaging_lag + counters.
+    image: danielqsj/kafka-exporter:v1.9.0
+    container_name: goshop-kafka-exporter
+    restart: unless-stopped
+    command:
+      - --kafka.server=kafka:29092
+      - --web.listen-address=:9308
+    ports:
+      - "9308:9308"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - goshop-network
+
   promtail:
     # Ships container logs to Grafana Cloud Loki. No local Loki: the whole log
     # stack is one ~40MB agent, which keeps a small VPS viable.

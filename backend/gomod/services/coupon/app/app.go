@@ -118,6 +118,9 @@ func New(cfg *config.Config) (*App, error) {
 	grpcServer := grpc.NewServer(telemetry.ServerOptions()...)
 	couponv1.RegisterCouponServiceServer(grpcServer, coupongrpc.NewCouponGRPCServer(svc))
 
+	// Phase-1 observability: /healthz reports this process's consumer lag.
+	kafka.RegisterHealthz(r, "coupon", brokerService, dbPool.Ping)
+
 	return &App{
 		cfg:           cfg,
 		server:        server,
