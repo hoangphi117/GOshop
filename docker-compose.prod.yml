@@ -883,6 +883,10 @@ services:
         $$K --bootstrap-server $$B --create --if-not-exists --topic goshop.shipping.v1 --partitions 1 --replication-factor 1
         for d in order order-return payment user email inventory review notification media shipping; do
           $$K --bootstrap-server $$B --create --if-not-exists --topic goshop.$$d.v1.dlq --partitions 1 --replication-factor 1
+          # Phase 3: a dead letter is only useful if it is still there when an
+          # operator investigates, so DLQ topics keep records forever. Domain
+          # topics keep the broker default.
+          /opt/kafka/bin/kafka-configs.sh --bootstrap-server $$B --alter --entity-type topics --entity-name goshop.$$d.v1.dlq --add-config retention.ms=-1 || true
         done
         echo "kafka topics ready"
     networks:

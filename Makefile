@@ -217,9 +217,12 @@ dev:
 	docker compose -f ${DEV_COMPOSE} down
 	docker compose -f ${DEV_COMPOSE} --env-file ${ENV_FILE} up --build
 
-# Stop dev containers
+# Stop dev containers AND the host processes dev-host started. Without the
+# second line a stopped stack leaves api.exe/analytics.exe etc. holding their
+# ports, so the next dev-host dies with "bind: address already in use".
 stop-dev:
 	docker compose -f ${DEV_COMPOSE} down
+	powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/stop-dev.ps1
 
 # Run lightweight hybrid development (Infra in Docker, Go apps on Host)
 dev-host:
