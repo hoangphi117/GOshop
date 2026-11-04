@@ -203,8 +203,8 @@ export function useImportProductsCSV() {
 
   return useMutation({
     mutationFn: async (file: File) => {
-      const { accessToken, refreshToken } = useAuthStore.getState().auth
-      if (!accessToken && !refreshToken) {
+      const { accessToken } = useAuthStore.getState().auth
+      if (!accessToken) {
         throw new Error('Authentication required. Please sign in to import products.')
       }
 

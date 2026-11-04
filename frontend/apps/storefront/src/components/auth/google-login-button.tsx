@@ -69,6 +69,7 @@ export function GoogleLoginButton({
           headers: {
             'Content-Type': 'application/json',
             'X-API-KEY': API_KEY,
+            'X-Client-App': 'storefront',
           },
           credentials: 'include',
           body: JSON.stringify({ id_token: idToken }),
@@ -81,8 +82,8 @@ export function GoogleLoginButton({
         }
 
         const accessToken = data.data?.access_token || data.data?.accessToken || ''
-        const refreshToken = data.data?.refresh_token || data.data?.refreshToken || ''
-        setTokens(accessToken, refreshToken)
+        // Refresh token arrives as an HttpOnly cookie; never stored client-side.
+        setTokens(accessToken)
 
         // Fetch user profile
         try {

@@ -18,6 +18,7 @@ type AuthenticatedLayoutProps = {
 export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
   const defaultOpen = getCookie('sidebar_state') !== 'false'
   const accessToken = useAuthStore((s) => s.auth.accessToken)
+  const user = useAuthStore((s) => s.auth.user)
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -29,7 +30,7 @@ export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
   // the admin to sign-in on every expiry.
   const refreshing = useRef(false)
   useEffect(() => {
-    if (accessToken || refreshing.current) return
+    if (accessToken || user || refreshing.current) return
     refreshing.current = true
     void tryRefreshSession().then((ok) => {
       refreshing.current = false
@@ -42,7 +43,7 @@ export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
         })
       }
     })
-  }, [accessToken, navigate, location.href])
+  }, [accessToken, user, navigate, location.href])
 
   return (
     <SearchProvider>

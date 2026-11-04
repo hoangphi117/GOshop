@@ -145,8 +145,9 @@ const getInitialCartState = (): {
     if (authRaw) {
       const parsedAuth = JSON.parse(authRaw)
       const user = parsedAuth?.state?.user
-      const token = parsedAuth?.state?.accessToken
-      if (user && token) {
+      // Access token is memory-only now; the persisted profile is enough to
+      // pick the right cart bucket. Auth itself is restored separately.
+      if (user) {
         const userKey = user.uuid || user.accountNo || user.email
         if (userKey) {
           const loaded = loadPersistedUserCart(userKey)
@@ -537,17 +538,17 @@ export const useCartStore = create<CartState>((set, get) => ({
   },
 }))
 
-// Auto-sync cart with auth store subscription
+// Auto-sync cart with auth store subscription. Keyed on the user only: the
+// access token is memory-only and flips on every reload/refresh, which must
+// not reset the cart bucket.
 if (typeof window !== 'undefined') {
   useAuthStore.subscribe((state, prevState) => {
-    const currentKey =
-      state.user && state.accessToken
-        ? state.user.uuid || state.user.accountNo || state.user.email
-        : null
-    const prevKey =
-      prevState?.user && prevState?.accessToken
-        ? prevState.user.uuid || prevState.user.accountNo || prevState.user.email
-        : null
+    const currentKey = state.user
+      ? state.user.uuid || state.user.accountNo || state.user.email
+      : null
+    const prevKey = prevState?.user
+      ? prevState.user.uuid || prevState.user.accountNo || prevState.user.email
+      : null
     if (currentKey !== prevKey) {
       useCartStore.getState().initUserCart(currentKey)
     }

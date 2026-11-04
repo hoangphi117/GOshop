@@ -706,6 +706,17 @@ location ^~ /admin/ {
     # tmpfs symlink at boot: /srv/root/admin -> /srv/dashboard.
     root /srv/root;
     try_files $uri $uri/ /admin/index.html;
+
+    # Vite SPA: module scripts and injected CSS both need inline allowances
+    # ('unsafe-inline' for Vite's inline style tags, 'unsafe-eval' is not
+    # needed). Google Fonts is the only third-party origin.
+    # nginx add_header does not inherit once declared in a location, so the
+    # four server-level headers are restated here.
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header X-Request-ID $request_id always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'" always;
 }
 
 # -----------------------------------------------------------------------------
@@ -731,4 +742,16 @@ location / {
 
     proxy_read_timeout 60s;
     proxy_connect_timeout 10s;
+
+    # Next.js App Router inlines the RSC payload and the theme bootstrap as
+    # inline scripts, so script-src must allow inline. Google Identity renders
+    # its button in an iframe. connect-src allows /search-api (same origin) and
+    # the API (same origin through this edge), so 'self' suffices.
+    # nginx add_header does not inherit once declared in a location, so the
+    # four server-level headers are restated here.
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header X-Request-ID $request_id always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://accounts.google.com; frame-src 'self' https://accounts.google.com https://content.googleapis.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'" always;
 }

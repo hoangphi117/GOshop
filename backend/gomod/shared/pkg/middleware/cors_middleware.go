@@ -44,7 +44,7 @@ func CORSMiddleware() gin.HandlerFunc {
 		}
 
 		ctx.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		ctx.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, x-api-key, X-API-KEY, X-Idempotency-Key, x-idempotency-key, Idempotency-Key, X-Trace-Id")
+		ctx.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, x-api-key, X-API-KEY, X-Idempotency-Key, x-idempotency-key, Idempotency-Key, X-Trace-Id, X-Client-App, x-client-app")
 		ctx.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 		ctx.Writer.Header().Set("Access-Control-Max-Age", "86400")
 
