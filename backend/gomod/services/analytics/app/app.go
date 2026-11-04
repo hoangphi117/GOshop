@@ -31,6 +31,7 @@ import (
 	"goshop/shared/pkg/auth"
 	"goshop/shared/pkg/cache"
 	"goshop/shared/pkg/db"
+	"goshop/shared/pkg/eventledger"
 	"goshop/shared/pkg/kafka"
 	"goshop/shared/pkg/logger"
 	"goshop/shared/pkg/messaging"
@@ -47,6 +48,31 @@ type App struct {
 	server  *http.Server
 	broker  messaging.Broker
 	closers []func() error
+}
+
+// dispatchAnalyticsEvent routes one Kafka record to the right projection
+// handler by event_type. Kept outside New so eventledger.Wrap can call it
+// with the captured headers and body for at-most-once application.
+func dispatchAnalyticsEvent(consumer *analyticsworker.OrderProjectionConsumer, headers messaging.Header, body []byte) error {
+	// Kafka adapter sets event_type; old RabbitMQ path used x-routing-key.
+	rk := headers.Get("event_type")
+	if rk == "" {
+		rk = headers.Get("x-routing-key")
+	}
+	switch rk {
+	case events.RoutingKeyOrderCancelled:
+		return consumer.HandleOrderCancelled(headers, body)
+	case events.RoutingKeyOrderStatusChanged, events.RoutingKeyOrderShipped, events.RoutingKeyOrderDelivered:
+		return consumer.HandleOrderStatusChanged(headers, body)
+	case events.RoutingKeyPaymentSucceeded:
+		return consumer.HandlePaymentSucceeded(headers, body)
+	case events.RoutingKeyOrderReturnUpdated:
+		return consumer.HandleOrderReturnUpdated(headers, body)
+	case "payment.refunded":
+		return consumer.HandlePaymentRefunded(headers, body)
+	default:
+		return consumer.HandleOrderCreated(headers, body)
+	}
 }
 
 func New(cfg *config.Config) (*App, error) {
@@ -143,30 +169,22 @@ func New(cfg *config.Config) (*App, error) {
 	kafka.RegisterHealthz(r, "analytics", broker, db.DBPool.Ping)
 
 	// Order projection consumer: keeps the analytics read model current.
+	// Phase-2 idempotency: processed_events in Postgres survives restarts,
+	// replacing the old 24h Redis TTL that double-applied after a flush.
 	if broker != nil {
+		if err := eventledger.Migrate(connStr, "event_ledger_migrations_analytics"); err != nil {
+			return nil, fmt.Errorf("event ledger migration failed: %w", err)
+		}
+		ledgerRepo := eventledger.NewRepository(db.DBPool)
+		ledgerLog := eventledger.NewZerologLogger(brokerLogger)
 		consumer := analyticsworker.NewOrderProjectionConsumer(db.DBPool, orderClient, logger.Log)
-		dedup := withIdempotency(cacheRedisService, logger.Log)
-		handler := dedup(analyticsQueue, func(headers messaging.Header, body []byte) error {
-			// Kafka adapter sets event_type; old RabbitMQ path used x-routing-key.
-			rk := headers.Get("event_type")
-			if rk == "" {
-				rk = headers.Get("x-routing-key")
-			}
-			switch rk {
-			case events.RoutingKeyOrderCancelled:
-				return consumer.HandleOrderCancelled(headers, body)
-			case events.RoutingKeyOrderStatusChanged, events.RoutingKeyOrderShipped, events.RoutingKeyOrderDelivered:
-				return consumer.HandleOrderStatusChanged(headers, body)
-			case events.RoutingKeyPaymentSucceeded:
-				return consumer.HandlePaymentSucceeded(headers, body)
-			case events.RoutingKeyOrderReturnUpdated:
-				return consumer.HandleOrderReturnUpdated(headers, body)
-			case "payment.refunded":
-				return consumer.HandlePaymentRefunded(headers, body)
-			default:
-				return consumer.HandleOrderCreated(headers, body)
-			}
-		})
+		handler := func(headers messaging.Header, body []byte) error {
+			h, b := headers, body
+			inner := eventledger.Wrap(ledgerRepo, "analytics.order_events", func(_ context.Context, _ []byte) error {
+				return dispatchAnalyticsEvent(consumer, h, b)
+			}, ledgerLog)
+			return inner(headers, body)
+		}
 		routingKeys := []string{
 			events.RoutingKeyOrderCreated,
 			events.RoutingKeyOrderCancelled,
