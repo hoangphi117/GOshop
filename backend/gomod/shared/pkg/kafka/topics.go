@@ -34,6 +34,23 @@ func DLQName(topic string) string {
 	return topic + dlqSuffix
 }
 
+// KnownDLQTopics lists the DLQ sibling for every configured domain topic.
+// Used by the replay CLI and by kafka-init checks so a new domain cannot ship
+// without its dead-letter topic.
+func KnownDLQTopics() []string {
+	seen := make(map[string]struct{}, len(domainTopics))
+	out := make([]string, 0, len(domainTopics))
+	for _, spec := range domainTopics {
+		name := DLQName(spec.topic)
+		if _, dup := seen[name]; dup {
+			continue
+		}
+		seen[name] = struct{}{}
+		out = append(out, name)
+	}
+	return out
+}
+
 // topicSpec maps one routing key to its Kafka home: domain topic plus the
 // aggregate field used as partition key. One topic per aggregate (never one
 // topic per event): mở kafka-ui nhìn là hiểu, thêm domain là thêm 1 dòng.

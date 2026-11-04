@@ -83,25 +83,51 @@ func TestApply_SuccessCommits(t *testing.T) {
 	assert.Empty(t, w.messages(), "success must not republish")
 }
 
-func TestApply_FailureRepublishesWithIncrementedRetryCount(t *testing.T) {
+func TestApply_FailureRetriesLocallyThenGoesToDLQ(t *testing.T) {
 	rr, w := newTestRunner(t)
 	c := &fakeCommitter{}
 	msg := kafka.Message{
 		Topic:   "goshop.order.v1",
 		Value:   []byte(`{}`),
-		Headers: []kafka.Header{{Key: headerRetryCount, Value: []byte("0")}},
+		Headers: []kafka.Header{{Key: headerMaxRetries, Value: []byte("2")}},
 	}
 
+	attempts := 0
 	err := rr.apply(context.Background(), "g", c, msg, func(messaging.Header, []byte) error {
+		attempts++
 		return errors.New("boom")
 	})
 	require.NoError(t, err, "retry path is not an infrastructure failure")
 
+	assert.Equal(t, 3, attempts, "one initial attempt plus maxRetries(2) retries, all in-process")
 	sent := w.messages()
-	require.Len(t, sent, 1)
-	assert.Equal(t, "goshop.order.v1", sent[0].Topic)
-	assert.Equal(t, "1", headerValue(sent[0].Headers, headerRetryCount), "retry count must increment")
-	assert.Len(t, c.committed, 1, "original is committed only after the retry landed")
+	require.Len(t, sent, 1, "the topic must never receive a retry copy: sibling groups would multiply it")
+	assert.Equal(t, "goshop.order.v1.dlq", sent[0].Topic)
+	assert.Len(t, c.committed, 1, "committed exactly once after the attempts are exhausted")
+}
+
+func TestApply_RetrySucceedsWithoutCuttingShort(t *testing.T) {
+	rr, w := newTestRunner(t)
+	c := &fakeCommitter{}
+	msg := kafka.Message{
+		Topic:   "goshop.order.v1",
+		Value:   []byte(`{}`),
+		Headers: []kafka.Header{{Key: headerMaxRetries, Value: []byte("3")}},
+	}
+
+	attempts := 0
+	err := rr.apply(context.Background(), "g", c, msg, func(messaging.Header, []byte) error {
+		attempts++
+		if attempts < 3 {
+			return errors.New("transient")
+		}
+		return nil
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, 3, attempts)
+	assert.Empty(t, w.messages(), "a transient failure resolved in-process never reaches the DLQ")
+	assert.Len(t, c.committed, 1)
 }
 
 func TestApply_ExhaustedRetriesGoToDLQ(t *testing.T) {
@@ -155,17 +181,17 @@ func TestApply_PoisonPayloadGoesToDLQAfterMaxRetries(t *testing.T) {
 	assert.Len(t, c.committed, 1, "poison message must not block the partition")
 }
 
-func TestApply_RepublishFailureDoesNotCommit(t *testing.T) {
+func TestApply_DLQPublishFailureDoesNotCommit(t *testing.T) {
 	rr, w := newTestRunner(t)
 	w.err = errors.New("broker down")
 	c := &fakeCommitter{}
-	msg := kafka.Message{Topic: "goshop.order.v1", Value: []byte(`{}`), Headers: []kafka.Header{{Key: headerRetryCount, Value: []byte("0")}}}
+	msg := kafka.Message{Topic: "goshop.order.v1", Value: []byte(`{}`), Headers: []kafka.Header{{Key: headerMaxRetries, Value: []byte("0")}}}
 
 	err := rr.apply(context.Background(), "g", c, msg, func(messaging.Header, []byte) error {
 		return errors.New("boom")
 	})
-	require.Error(t, err, "failed republish surfaces so the record is redelivered")
-	assert.Empty(t, c.committed, "must never commit when the retry copy was not persisted")
+	require.Error(t, err, "failed DLQ publish surfaces so the record is redelivered")
+	assert.Empty(t, c.committed, "must never commit when the dead letter was not persisted")
 }
 
 func TestApply_ContextCancelledDuringBackoff(t *testing.T) {
@@ -304,21 +330,6 @@ func TestFilterEventsByPatterns(t *testing.T) {
 
 func TestSanitize(t *testing.T) {
 	assert.Equal(t, "notification_service_events-v3", sanitize("notification_service_events v3"))
-}
-
-func TestCloneRecord_PreservesPayloadAndTopic(t *testing.T) {
-	in := kafka.Message{Topic: "t", Key: []byte("k"), Value: []byte("v"), Headers: []kafka.Header{
-		{Key: headerRetryCount, Value: []byte("1")},
-		{Key: headerMaxRetries, Value: []byte("9")},
-	}}
-	out := cloneRecord(in, 2, 5)
-
-	assert.Equal(t, in.Topic, out.Topic)
-	assert.Equal(t, in.Key, out.Key)
-	assert.Equal(t, in.Value, out.Value)
-	assert.Equal(t, "2", headerValue(out.Headers, headerRetryCount))
-	assert.Equal(t, "5", headerValue(out.Headers, headerMaxRetries))
-	assert.Equal(t, "1", headerValue(in.Headers, headerRetryCount), "input is never mutated")
 }
 
 func TestNewKafkaBroker_RejectsEmptyAddress(t *testing.T) {

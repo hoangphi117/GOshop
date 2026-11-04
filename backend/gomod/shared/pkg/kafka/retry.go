@@ -35,8 +35,16 @@ type committerLike interface {
 	CommitMessages(ctx context.Context, msgs ...kafka.Message) error
 }
 
-// apply xử lý đúng 1 record: success → commit; handler lỗi → retry
-// (republish với retry_count+1 rồi commit bản gốc); hết lượt → DLQ + commit.
+// apply xử lý đúng 1 record: success → commit; handler lỗi → thử lại tại chỗ
+// với backoff; hết lượt → DLQ + commit.
+//
+// Retry stays in-process on purpose. Republishing the record onto its own topic
+// looks cheaper but is wrong: every consumer group subscribed to that topic
+// re-reads the retry copy, so N groups multiply the retry budget (3 groups ×
+// 3 retries produced 27 DLQ copies of one record, Nov 2026). Retrying locally
+// keeps the budget per group, and the record is committed exactly once at the
+// end of the attempt chain.
+//
 // Chỉ trả lỗi khi bản thân commit/publish hạ tầng thất bại (khi đó coordinator
 // sẽ redeliver và eventledger chặn trùng).
 func (r *retryRunner) apply(ctx context.Context, group string, reader committerLike, msg kafka.Message, handler messaging.Handler) error {
@@ -47,22 +55,12 @@ func (r *retryRunner) apply(ctx context.Context, group string, reader committerL
 		traceID = string(msg.Key)
 	}
 
-	if err := handler(headers, msg.Value); err != nil {
-		retryCount := headerInt(headers, headerRetryCount)
-		maxRetries := headerIntOr(headers, headerMaxRetries, utils.GetIntEnv("KAFKA_MAX_RETRIES", defaultMaxRetries))
+	maxRetries := headerIntOr(headers, headerMaxRetries, utils.GetIntEnv("KAFKA_MAX_RETRIES", defaultMaxRetries))
 
-		r.broker.logger.Warn().
-			Err(err).
-			Str("trace_id", traceID).
-			Int("retry_count", retryCount).
-			Int("max_retries", maxRetries).
-			Str("group", group).
-			Str("topic", msg.Topic).
-			Int64("offset", msg.Offset).
-			Msg("Message handler failed")
-
-		if retryCount < maxRetries {
-			backoff := retryBackoff(retryCount)
+	var lastErr error
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			backoff := retryBackoff(attempt - 1)
 			t := time.NewTimer(backoff)
 			select {
 			case <-ctx.Done():
@@ -70,38 +68,39 @@ func (r *retryRunner) apply(ctx context.Context, group string, reader committerL
 				return ctx.Err()
 			case <-t.C:
 			}
+		}
 
-			retryMsg := cloneRecord(msg, retryCount+1, maxRetries)
-			if wErr := r.broker.writer1().WriteMessages(ctx, retryMsg); wErr != nil {
-				// Republish retry thất bại → KHÔNG commit: coordinator sẽ
-				// redeliver bản gốc, không mất message (song song với logic
-				// Nack(requeue) của adapter cũ).
-				r.broker.logger.Error().Err(wErr).Str("trace_id", traceID).Msg("Failed to republish retry record, message will be redelivered")
-				publishErrors.Add(msg.Topic, 1)
-				return wErr
-			}
-
-			// Chỉ commit bản gốc sau khi bản retry đã được broker chấp nhận.
+		lastErr = handler(headers, msg.Value)
+		if lastErr == nil {
 			return reader.CommitMessages(ctx, msg)
 		}
 
-		// Hết lượt retry → DLQ sibling, commit, đi tiếp (không block partition).
-		dlqMsg := msg
-		dlqMsg.Topic = DLQName(msg.Topic)
-		if wErr := r.broker.writer1().WriteMessages(ctx, dlqMsg); wErr != nil {
-			r.broker.logger.Error().Err(wErr).Str("trace_id", traceID).Msg("Failed to publish DLQ record, message will be redelivered")
-			publishErrors.Add(msg.Topic, 1)
-			return wErr
-		}
-		r.broker.logger.Error().
+		r.broker.logger.Warn().
+			Err(lastErr).
 			Str("trace_id", traceID).
-			Str("dlq", dlqMsg.Topic).
+			Int("attempt", attempt).
+			Int("max_retries", maxRetries).
+			Str("group", group).
+			Str("topic", msg.Topic).
 			Int64("offset", msg.Offset).
-			Msg("Message exceeded max retries, moved to DLQ")
-		dlqMoved.Add(msg.Topic, 1)
-		return reader.CommitMessages(ctx, msg)
+			Msg("Message handler failed")
 	}
 
+	// Hết lượt retry → DLQ sibling, commit, đi tiếp (không block partition).
+	// The DLQ copy carries the cause, the group and the origin offset so an
+	// operator can triage it without grepping logs.
+	dlqMsg := stampDLQ(msg, group, lastErr)
+	if wErr := r.broker.writer1().WriteMessages(ctx, dlqMsg); wErr != nil {
+		r.broker.logger.Error().Err(wErr).Str("trace_id", traceID).Msg("Failed to publish DLQ record, message will be redelivered")
+		publishErrors.Add(msg.Topic, 1)
+		return wErr
+	}
+	r.broker.logger.Error().
+		Str("trace_id", traceID).
+		Str("dlq", dlqMsg.Topic).
+		Int64("offset", msg.Offset).
+		Msg("Message exceeded max retries, moved to DLQ")
+	dlqMoved.Add(msg.Topic, 1)
 	return reader.CommitMessages(ctx, msg)
 }
 
@@ -116,34 +115,6 @@ func retryBackoff(retryCount int) time.Duration {
 		retryCount = 10
 	}
 	return base * time.Duration(1<<uint(retryCount))
-}
-
-// cloneRecord copies a record back onto its own topic with an incremented
-// retry counter (no read-modify hazard: new slice, key/value shared).
-func cloneRecord(msg kafka.Message, retryCount, maxRetries int) kafka.Message {
-	out := kafka.Message{
-		Topic: msg.Topic,
-		Key:   msg.Key,
-		Value: msg.Value,
-	}
-	out.Headers = make([]kafka.Header, 0, len(msg.Headers)+1)
-	seen := false
-	for _, h := range msg.Headers {
-		if h.Key == headerRetryCount {
-			out.Headers = append(out.Headers, kafka.Header{Key: h.Key, Value: []byte(strconv.Itoa(retryCount))})
-			seen = true
-			continue
-		}
-		if h.Key == headerMaxRetries {
-			out.Headers = append(out.Headers, kafka.Header{Key: h.Key, Value: []byte(strconv.Itoa(maxRetries))})
-			continue
-		}
-		out.Headers = append(out.Headers, h)
-	}
-	if !seen {
-		out.Headers = append(out.Headers, kafka.Header{Key: headerRetryCount, Value: []byte(strconv.Itoa(retryCount))})
-	}
-	return out
 }
 
 // toNeutralHeaders converts Kafka record headers into the broker-neutral

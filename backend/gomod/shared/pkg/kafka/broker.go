@@ -23,9 +23,8 @@ import (
 )
 
 const (
-	defaultMaxRetries    = 3
-	defaultConsumerCount = 3
-	defaultRetryBackoff  = 1000 // ms, nhân đôi mỗi lần retry (1s, 2s, 4s...)
+	defaultMaxRetries   = 3
+	defaultRetryBackoff = 1000 // ms, nhân đôi mỗi lần retry (1s, 2s, 4s...)
 )
 
 // writerLike is the subset of kafka.Writer tests and alternate transports
@@ -305,17 +304,16 @@ func (b *kafkaBroker) Consume(ctx context.Context, queue string, handler messagi
 	}
 	group := "goshop." + sanitize(queue)
 
-	consumerCount := utils.GetIntEnv("KAFKA_CONSUMER_COUNT", defaultConsumerCount)
-	if consumerCount < 1 {
-		consumerCount = 1
-	}
-
+	// One reader per topic, period. Opening N readers on the same GroupID and
+	// topic makes kafka-go run N group members that fight over the same
+	// partitions: every rebalance makes a member refetch from its own last
+	// committed offset, so one record is redelivered N times (observed: 15
+	// redundant retry chains, Nov 2026). Kafka scales through partitions, not
+	// through extra readers, so KAFKA_CONSUMER_COUNT is deliberately ignored.
 	rr := newRetryRunner(b)
-	for i := 0; i < consumerCount; i++ {
-		reader := b.newGroupReader(group, topic)
-		handler2 := filterEventsByPatterns([]string{queue}, handler)
-		b.startGroupConsumer(ctx, group, reader, rr, handler2)
-	}
+	reader := b.newGroupReader(group, topic)
+	handler2 := filterEventsByPatterns([]string{queue}, handler)
+	b.startGroupConsumer(ctx, group, reader, rr, handler2)
 
 	b.logger.Info().Str("group", group).Str("topic", topic).Msg("Kafka consumer registered")
 	return nil
@@ -350,20 +348,15 @@ func (b *kafkaBroker) SubscribeToExchange(ctx context.Context, exchange, queue s
 	}
 
 	group := "goshop." + sanitize(queue)
-	consumerCount := utils.GetIntEnv("KAFKA_CONSUMER_COUNT", defaultConsumerCount)
-	if consumerCount < 1 {
-		consumerCount = 1
-	}
 
 	filtered := filterEventsByPatterns(patterns, handler)
 	rr := newRetryRunner(b)
-	// One reader per topic sharing GroupID: see newGroupReader. Multi-topic
-	// groups fan out here; consumption stays exactly-once per group.
+	// Exactly one reader per topic. Multiple readers on the same GroupID+Topic
+	// rebalance against each other and each refetch from its own last committed
+	// offset, multiplying redeliveries; see Consume for the full note.
 	for _, t := range topics {
-		for i := 0; i < consumerCount; i++ {
-			reader := b.newGroupReader(group, t)
-			b.startGroupConsumer(ctx, group, reader, rr, filtered)
-		}
+		reader := b.newGroupReader(group, t)
+		b.startGroupConsumer(ctx, group, reader, rr, filtered)
 	}
 
 	b.logger.Info().Str("group", group).Strs("topics", topics).Msg("Kafka topic consumer registered")
