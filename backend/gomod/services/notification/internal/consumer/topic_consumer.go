@@ -259,11 +259,24 @@ func (c *TopicConsumer) handleOrderStatusChanged(ctx context.Context, routingKey
 		msgBody = fmt.Sprintf("Your order #%s status is now: %s", payload.OrderNumber, statusStr)
 	}
 
-	return c.notifyOrderCustomer(ctx, orderRecipient{
+	if err := c.notifyOrderCustomer(ctx, orderRecipient{
 		UserID:      payload.UserID,
 		UserUUID:    payload.UserUUID,
 		OrderNumber: payload.OrderNumber,
-	}, "order_status", title, msgBody, map[string]any{"order_number": payload.OrderNumber, "status": statusStr})
+	}, "order_status", title, msgBody, map[string]any{"order_number": payload.OrderNumber, "status": statusStr}); err != nil {
+		return err
+	}
+
+	// Admins track fulfilment, so a delivery confirmation matters to them too.
+	if statusStr == "Delivered" {
+		return c.notificationService.NotifyAdmins(ctx, dto.AdminNotifyInput{
+			Type:  "order_status",
+			Title: "Order Delivered",
+			Body:  fmt.Sprintf("Order #%s delivery was confirmed, no further action needed.", payload.OrderNumber),
+			Data:  map[string]any{"order_number": payload.OrderNumber, "status": statusStr},
+		})
+	}
+	return nil
 }
 
 // orderRecipient carries the ways an order event identifies its customer.
