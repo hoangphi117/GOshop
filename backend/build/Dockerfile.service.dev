@@ -3,6 +3,10 @@
 #   docker build -f build/Dockerfile.service.dev --build-arg SERVICE=order .
 FROM golang:1.26.10-alpine AS builder
 
+# GOTOOLCHAIN=local: never try to download a newer toolchain than the image's.
+ENV GOTOOLCHAIN=local \
+    CGO_ENABLED=0
+
 RUN apk update && apk add --no-cache git ca-certificates tzdata
 
 WORKDIR /src
@@ -15,21 +19,29 @@ COPY gomod/contracts/go.mod gomod/contracts/go.sum ./gomod/contracts/
 COPY gomod/services/go.mod gomod/services/go.sum ./gomod/services/
 COPY gomod/cmd/go.mod gomod/cmd/go.sum ./gomod/cmd/
 
-RUN go mod download
-
 COPY . .
 
+#
+# The module cache is a BuildKit cache mount, so a retry after a dropped
+# download resumes instead of starting from zero, and rebuilding a service does
+# not re-download its dependencies.
 ARG SERVICE
 RUN test -n "$SERVICE"
-RUN CGO_ENABLED=0 go build -o /svc ./gomod/cmd/${SERVICE}
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go build -o /svc ./gomod/cmd/${SERVICE}
 
 FROM alpine:3.21
+
+# Re-declare: an ARG from the builder stage is not visible here, so the ENV
+# below would expand to an empty string without this line.
+ARG SERVICE
+ENV SERVICE_NAME=${SERVICE}
 
 RUN apk add --no-cache ca-certificates tzdata
 
 COPY --from=builder /svc /svc
 # Source is bind-mounted at run time (compose volumes) for debugging;
 # the binary runs from the image, not from the mount.
-ENV SERVICE_NAME=${SERVICE}
 
 CMD ["/svc"]
