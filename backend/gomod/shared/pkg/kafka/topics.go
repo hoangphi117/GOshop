@@ -133,7 +133,7 @@ func TopicForEvent(name string) (topic string, keyField string, err error) {
 // topic exchange wildcard Kafka does not have.
 func matchPattern(pattern, key string) bool {
 	p, k := strings.Split(pattern, "."), strings.Split(key, ".")
-	if len(p) != len(k) && !(len(p) > 0 && p[len(p)-1] == "#") {
+	if len(p) != len(k) && (len(p) == 0 || p[len(p)-1] != "#") {
 		return false
 	}
 	for i := 0; i < len(p) && i < len(k); i++ {

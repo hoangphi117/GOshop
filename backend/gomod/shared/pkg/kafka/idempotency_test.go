@@ -38,11 +38,6 @@ func (m *memLedger) MarkEventProcessed(_ context.Context, eventID, consumer stri
 	return nil
 }
 
-type nopLedgerLog struct{}
-
-func (nopLedgerLog) Info(string, map[string]any)         {}
-func (nopLedgerLog) Error(error, string, map[string]any) {}
-
 // Redelivery of the same record (same event_id) through apply must apply
 // side effects once: first delivery runs, second is skipped by the ledger.
 func TestApply_RedeliveryAppliesOnceViaLedger(t *testing.T) {

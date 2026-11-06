@@ -289,7 +289,11 @@ func (b *kafkaBroker) startGroupConsumer(ctx context.Context, group string, read
 	b.registerReader(reader, group)
 	go func() {
 		defer b.unregisterReader(reader)
-		defer reader.Close()
+		defer func() {
+			if err := reader.Close(); err != nil {
+				b.logger.Warn().Err(err).Str("group", group).Msg("Failed to close Kafka reader")
+			}
+		}()
 		for {
 			select {
 			case <-ctx.Done():

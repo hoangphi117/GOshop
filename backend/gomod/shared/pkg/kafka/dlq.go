@@ -94,7 +94,11 @@ func ReplayTopic(ctx context.Context, brokers, dlqTopic string, log *zerolog.Log
 		MaxBytes:       10 << 20,
 		CommitInterval: 0,
 	})
-	defer reader.Close()
+	defer func() {
+		if err := reader.Close(); err != nil && log != nil {
+			log.Warn().Err(err).Str("dlq", dlqTopic).Msg("Failed to close DLQ replay reader")
+		}
+	}()
 
 	writer := &kafkago.Writer{
 		Addr:         kafkago.TCP(addrs...),
@@ -103,7 +107,11 @@ func ReplayTopic(ctx context.Context, brokers, dlqTopic string, log *zerolog.Log
 		MaxAttempts:  3,
 		Async:        false,
 	}
-	defer writer.Close()
+	defer func() {
+		if err := writer.Close(); err != nil && log != nil {
+			log.Warn().Err(err).Str("dlq", dlqTopic).Msg("Failed to close DLQ replay writer")
+		}
+	}()
 
 	// Bounded drain: FetchMessage blocks until a record arrives, so stop on
 	// idle instead of hanging forever once the DLQ is empty.

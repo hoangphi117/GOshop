@@ -131,12 +131,6 @@ func toNeutralHeaders(src []kafka.Header) messaging.Header {
 	return dst
 }
 
-// headerInt parses a numeric string header, 0 when absent or corrupt.
-func headerInt(h messaging.Header, key string) int {
-	n, _ := strconv.Atoi(h.Get(key))
-	return n
-}
-
 // headerIntOr parses a numeric string header, falling back to def.
 func headerIntOr(h messaging.Header, key string, def int) int {
 	v := h.Get(key)

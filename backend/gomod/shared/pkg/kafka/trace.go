@@ -47,13 +47,3 @@ func injectTraceContext(ctx context.Context, headers []kafka.Header) []kafka.Hea
 	otel.GetTextMapPropagator().Inject(ctx, carrier)
 	return []kafka.Header(carrier)
 }
-
-// extractTraceContext recovers a record's publish-time trace context. The
-// returned context carries the span; handlers that accept a context can
-// continue the same trace across the broker hop.
-func extractTraceContext(headers []kafka.Header) context.Context {
-	if len(headers) == 0 {
-		return context.Background()
-	}
-	return otel.GetTextMapPropagator().Extract(context.Background(), kafkaCarrier(headers))
-}

@@ -421,21 +421,6 @@ func (s *paymentService) RefundPayment(ctx context.Context, input dto.RefundPaym
 	return dto.MapToPaymentTransactionDTO(refundTxn, orderUUID)
 }
 
-// refundTransactionDate is unused while refunds are simulated in-ledger
-// (VNPay sandbox restricts the refund API). Kept for the real-gateway path.
-func refundTransactionDate(paidTxn *paymentsqlc.PaymentTransaction) string {
-	gmt7 := time.FixedZone("Asia/Ho_Chi_Minh", 7*3600)
-	if len(paidTxn.PtMetadata) > 0 {
-		var meta map[string]string
-		if err := json.Unmarshal(paidTxn.PtMetadata, &meta); err == nil {
-			if payDate := meta["vnp_PayDate"]; payDate != "" {
-				return payDate
-			}
-		}
-	}
-	return paidTxn.PtCreatedAt.In(gmt7).Format("20060102150405")
-}
-
 func (s *paymentService) publishPaymentEvent(ctx context.Context, routingKey string, payload dto.PaymentEventPayload) {
 	bytes, err := json.Marshal(payload)
 	if err != nil {
