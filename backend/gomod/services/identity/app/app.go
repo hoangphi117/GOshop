@@ -26,9 +26,9 @@ import (
 	"goshop/shared/pkg/auth"
 	"goshop/shared/pkg/cache"
 	"goshop/shared/pkg/db"
+	"goshop/shared/pkg/kafka"
 	"goshop/shared/pkg/logger"
 	"goshop/shared/pkg/mail"
-	"goshop/shared/pkg/rabbitmq"
 	"goshop/shared/pkg/telemetry"
 	"goshop/shared/pkg/utils"
 	"goshop/shared/pkg/validation"
@@ -88,10 +88,12 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, err
 	}
 
-	rabbitmqLogger := utils.NewLoggerWithPath("identity", "identity_rabbitmq.log", "info")
-	rabbitmqService, err := rabbitmq.NewRabbitMQService(utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"), rabbitmqLogger)
+	brokerLogger := utils.NewLoggerWithPath("identity", "identity_kafka.log", "info")
+	broker, err := kafka.NewKafkaBroker(utils.GetEnv("KAFKA_BROKERS", ""),
+		brokerLogger,
+	)
 	if err != nil {
-		logger.Log.Fatal().Err(err).Msg("Failed to create RabbitMQ service")
+		logger.Log.Fatal().Err(err).Msg("Failed to create Kafka service")
 		return nil, err
 	}
 
@@ -111,8 +113,8 @@ func New(cfg *config.Config) (*App, error) {
 	outboxRepo := identityrepo.NewSqlOutboxRepository(identitySqlc)
 
 	// Business Services
-	authService := identityservice.NewAuthService(userRepo, tokenService, cacheRedisService, mailService, rabbitmqService, wsHub, redisBridge, cfg.StorefrontURL)
-	userService := identityservice.NewUserServiceWithOutbox(userRepo, redisClient, rabbitmqService, outboxRepo)
+	authService := identityservice.NewAuthService(userRepo, tokenService, cacheRedisService, mailService, broker, wsHub, redisBridge, cfg.StorefrontURL)
+	userService := identityservice.NewUserServiceWithOutbox(userRepo, redisClient, broker, outboxRepo)
 	addressService := identityservice.NewAddressService(addressRepo, userRepo)
 
 	// Handlers
@@ -130,10 +132,10 @@ func New(cfg *config.Config) (*App, error) {
 	})
 
 	// Transactional Outbox Publisher for Identity Service (Guaranteed At-Least-Once Delivery)
-	if rabbitmqService != nil {
+	if broker != nil {
 		identityOutboxWorker := identityworker.NewOutboxPublisherWorkerWithAggregates(
 			outboxRepo,
-			rabbitmqService,
+			broker,
 			1*time.Second,
 			50,
 			logger.Log,

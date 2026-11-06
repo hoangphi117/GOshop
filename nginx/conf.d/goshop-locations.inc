@@ -56,7 +56,7 @@ location = /_hp_catalog {
     access_log off;
     proxy_connect_timeout 1s;
     proxy_read_timeout 1s;
-    set $hp_catalog_target http://catalog-service:8086;
+    set $hp_catalog_target http://catalog:8086;
     proxy_pass $hp_catalog_target/health;
 }
 
@@ -66,7 +66,7 @@ location = /_hp_catalog {
 # Lợi ích: Stateless storage routing. Chuyển tiếp tới backend để redirect 301 sang
 # Cloudflare R2 / S3 / MinIO CDN URL, loại bỏ hoàn toàn phụ thuộc vào local disk volume.
 location /uploads/ {
-    limit_req zone=api burst=100 nodelay;
+    limit_req zone=api_read burst=200 nodelay;
     proxy_pass http://goshop_backend;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
@@ -143,10 +143,10 @@ location /api/v1/ws {
 # -----------------------------------------------------------------------------
 # 4. IDENTITY SERVICE REVERSE PROXY (/api/v1/auth, /api/v1/users, /api/v1/addresses)
 # -----------------------------------------------------------------------------
-# Điều hướng các API định danh sang identity-service:8081
+# Điều hướng các API định danh sang identity:8081
 location /api/v1/auth {
     limit_req zone=auth burst=10 nodelay;
-    set $identity_target http://identity-service:8081;
+    set $identity_target http://identity:8081;
     proxy_pass $identity_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -166,7 +166,7 @@ location /api/v1/auth {
 }
 
 location /api/v1/users {
-    set $identity_target http://identity-service:8081;
+    set $identity_target http://identity:8081;
     proxy_pass $identity_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -183,11 +183,11 @@ location /api/v1/users {
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
-    limit_req zone=api burst=100 nodelay;
+    limit_req zone=api_read burst=200 nodelay;
 }
 
 location /api/v1/admin/users {
-    set $identity_target http://identity-service:8081;
+    set $identity_target http://identity:8081;
     proxy_pass $identity_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -204,11 +204,11 @@ location /api/v1/admin/users {
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
-    limit_req zone=api burst=100 nodelay;
+    limit_req zone=api_read burst=200 nodelay;
 }
 
 location /api/v1/addresses {
-    set $identity_target http://identity-service:8081;
+    set $identity_target http://identity:8081;
     proxy_pass $identity_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -225,14 +225,14 @@ location /api/v1/addresses {
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
-    limit_req zone=api burst=100 nodelay;
+    limit_req zone=api_read burst=200 nodelay;
 }
 
 # -----------------------------------------------------------------------------
 # 4.2. COUPON SERVICE REVERSE PROXY (/api/v1/coupons, /api/v1/admin/coupons)
 # -----------------------------------------------------------------------------
 location /api/v1/coupons {
-    set $coupon_target http://coupon-service:8084;
+    set $coupon_target http://coupon:8084;
     proxy_pass $coupon_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -249,11 +249,11 @@ location /api/v1/coupons {
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
-    limit_req zone=api burst=100 nodelay;
+    limit_req zone=api_read burst=200 nodelay;
 }
 
 location /api/v1/admin/coupons {
-    set $coupon_target http://coupon-service:8084;
+    set $coupon_target http://coupon:8084;
     proxy_pass $coupon_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -270,7 +270,7 @@ location /api/v1/admin/coupons {
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
-    limit_req zone=api burst=100 nodelay;
+    limit_req zone=api_read burst=200 nodelay;
 }
 
 # -----------------------------------------------------------------------------
@@ -279,7 +279,7 @@ location /api/v1/admin/coupons {
 # 4.2.5. BANNER SERVICE REVERSE PROXY (/api/v1/banners, /api/v1/admin/banners)
 # -----------------------------------------------------------------------------
 location /api/v1/banners {
-    set $banner_target http://banner-service:8089;
+    set $banner_target http://banner:8089;
     proxy_pass $banner_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -296,11 +296,11 @@ location /api/v1/banners {
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
-    limit_req zone=api burst=100 nodelay;
+    limit_req zone=api_read burst=200 nodelay;
 }
 
 location /api/v1/admin/banners {
-    set $banner_target http://banner-service:8089;
+    set $banner_target http://banner:8089;
     proxy_pass $banner_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -317,12 +317,12 @@ location /api/v1/admin/banners {
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
-    limit_req zone=api burst=100 nodelay;
+    limit_req zone=api_read burst=200 nodelay;
 }
 # 4.3. INVENTORY SERVICE REVERSE PROXY (/api/v1/admin/inventory, /api/v1/inventory)
 # -----------------------------------------------------------------------------
 location /api/v1/admin/inventory {
-    set $inventory_target http://inventory-service:8090;
+    set $inventory_target http://inventory:8090;
     proxy_pass $inventory_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -339,11 +339,11 @@ location /api/v1/admin/inventory {
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
-    limit_req zone=api burst=100 nodelay;
+    limit_req zone=api_read burst=200 nodelay;
 }
 
 location /api/v1/inventory {
-    set $inventory_target http://inventory-service:8090;
+    set $inventory_target http://inventory:8090;
     proxy_pass $inventory_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -360,7 +360,7 @@ location /api/v1/inventory {
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
-    limit_req zone=api burst=100 nodelay;
+    limit_req zone=api_read burst=200 nodelay;
 }
 
 # -----------------------------------------------------------------------------
@@ -385,11 +385,11 @@ location ~ ^/api/v1/products/[^/]+/reviews {
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
-    limit_req zone=api burst=100 nodelay;
+    limit_req zone=api_read burst=200 nodelay;
 }
 
 location /api/v1/products {
-    set $catalog_target http://catalog-service:8086;
+    set $catalog_target http://catalog:8086;
     proxy_pass $catalog_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -406,11 +406,11 @@ location /api/v1/products {
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
-    limit_req zone=api burst=100 nodelay;
+    limit_req zone=api_read burst=200 nodelay;
 }
 
 location /api/v1/admin/products {
-    set $catalog_target http://catalog-service:8086;
+    set $catalog_target http://catalog:8086;
     proxy_pass $catalog_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -427,11 +427,11 @@ location /api/v1/admin/products {
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
-    limit_req zone=api burst=100 nodelay;
+    limit_req zone=api_read burst=200 nodelay;
 }
 
 location /api/v1/categories {
-    set $catalog_target http://catalog-service:8086;
+    set $catalog_target http://catalog:8086;
     proxy_pass $catalog_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -448,11 +448,11 @@ location /api/v1/categories {
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
-    limit_req zone=api burst=100 nodelay;
+    limit_req zone=api_read burst=200 nodelay;
 }
 
 location /api/v1/admin/categories {
-    set $catalog_target http://catalog-service:8086;
+    set $catalog_target http://catalog:8086;
     proxy_pass $catalog_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -469,14 +469,14 @@ location /api/v1/admin/categories {
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
-    limit_req zone=api burst=100 nodelay;
+    limit_req zone=api_read burst=200 nodelay;
 }
 
 # -----------------------------------------------------------------------------
 # 4.5. CART SERVICE REVERSE PROXY (/api/v1/cart)
 # -----------------------------------------------------------------------------
 location /api/v1/cart {
-    set $cart_target http://cart-service:8087;
+    set $cart_target http://cart:8087;
     proxy_pass $cart_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -493,14 +493,14 @@ location /api/v1/cart {
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
-    limit_req zone=api burst=100 nodelay;
+    limit_req zone=api_read burst=200 nodelay;
 }
 
 # -----------------------------------------------------------------------------
 # 4.6. ORDER SERVICE REVERSE PROXY (/api/v1/orders, /api/v1/admin/orders)
 # -----------------------------------------------------------------------------
 location /api/v1/orders {
-    set $order_target http://order-service:8088;
+    set $order_target http://order:8088;
     proxy_pass $order_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -517,11 +517,11 @@ location /api/v1/orders {
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
-    limit_req zone=api burst=100 nodelay;
+    limit_req zone=api_read burst=200 nodelay;
 }
 
 location /api/v1/admin/orders {
-    set $order_target http://order-service:8088;
+    set $order_target http://order:8088;
     proxy_pass $order_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -538,11 +538,11 @@ location /api/v1/admin/orders {
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
-    limit_req zone=api burst=100 nodelay;
+    limit_req zone=api_read burst=200 nodelay;
 }
 
 location /api/v1/admin/returns {
-    set $order_target http://order-service:8088;
+    set $order_target http://order:8088;
     proxy_pass $order_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -559,11 +559,11 @@ location /api/v1/admin/returns {
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
-    limit_req zone=api burst=100 nodelay;
+    limit_req zone=api_read burst=200 nodelay;
 }
 
 location /api/v1/shipping {
-    set $order_target http://order-service:8088;
+    set $order_target http://order:8088;
     proxy_pass $order_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -580,7 +580,7 @@ location /api/v1/shipping {
     proxy_read_timeout 60s;
     proxy_send_timeout 60s;
     proxy_request_buffering off;
-    limit_req zone=api burst=100 nodelay;
+    limit_req zone=api_read burst=200 nodelay;
 }
 
 # -----------------------------------------------------------------------------
@@ -621,7 +621,7 @@ location /api/v1/ {
 
     # Không buffer request lớn vào disk để tăng tốc độ upload
     proxy_request_buffering off;
-    limit_req zone=api burst=100 nodelay;
+    limit_req zone=api_read burst=200 nodelay;
 }
 
 # -----------------------------------------------------------------------------
@@ -662,7 +662,7 @@ location /.well-known/ {
 # Chuyển tiếp trực tiếp truy vấn tìm kiếm sang Meilisearch cluster,
 # giải phóng 100% tải đọc tìm kiếm ra khỏi PostgreSQL Master và Backend API.
 location /search-api/ {
-    limit_req zone=api burst=100 nodelay;
+    limit_req zone=api_read burst=200 nodelay;
     # Dùng biến động để Nginx không bị crash nếu container meilisearch chưa khởi động
     set $meili_target http://meilisearch:7700;
     rewrite ^/search-api/(.*)$ /$1 break;
@@ -675,6 +675,11 @@ location /search-api/ {
     proxy_set_header X-Request-ID $request_id;
     # The key never ships to a browser: the edge injects it server-side.
     proxy_set_header X-API-KEY $goshop_api_key;
+    # Meilisearch only honours the bearer header; a browser-side search key
+    # would have to be baked into the bundle, so the edge injects the master
+    # key here and /search-api/ stays read-only (limit_except below).
+    # Client callers keep X-API-KEY per contract; meili never checks it.
+    proxy_set_header Authorization "Bearer $goshop_meili_key";
 
     # Bảo vệ an toàn: Chỉ cho phép GET, POST, OPTIONS phục vụ tìm kiếm tài liệu
     limit_except GET POST OPTIONS {
@@ -695,9 +700,25 @@ location = /admin {
 }
 
 location ^~ /admin/ {
-    alias /srv/dashboard/;
     index index.html;
+    # SPA fallback: unknown routes serve the app shell. `root` (not `alias`)
+    # needs the URI path to exist on disk, so the nginx service creates a
+    # tmpfs symlink at boot: /srv/root/admin -> /srv/dashboard.
+    root /srv/root;
     try_files $uri $uri/ /admin/index.html;
+
+    # Vite SPA: module scripts and injected CSS both need inline allowances
+    # ('unsafe-inline' for Vite's inline style tags, 'unsafe-eval' is not
+    # needed). Google Fonts is the only third-party origin.
+    # nginx add_header does not inherit once declared in a location, so the
+    # four server-level headers are restated here.
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header X-Request-ID $request_id always;
+    # connect-src must allow the storage origin, same as the storefront: the
+    # dashboard's admin uploads PUT straight to the bucket too.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' $goshop_storage_origin; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'" always;
 }
 
 # -----------------------------------------------------------------------------
@@ -723,4 +744,20 @@ location / {
 
     proxy_read_timeout 60s;
     proxy_connect_timeout 10s;
+
+    # Next.js App Router inlines the RSC payload and the theme bootstrap as
+    # inline scripts, so script-src must allow inline. Google Identity renders
+    # its button in an iframe. connect-src allows /search-api (same origin) and
+    # the API (same origin through this edge), so 'self' suffices.
+    # nginx add_header does not inherit once declared in a location, so the
+    # four server-level headers are restated here.
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header X-Request-ID $request_id always;
+    # connect-src must allow the storage origin: browser uploads PUT the bytes
+    # straight to the bucket (packages/api-client/src/upload.ts), not through
+    # this edge, so 'self' is not enough. $goshop_storage_origin is rendered
+    # from S3_PUBLIC_ORIGIN at start; empty in a local-disk deployment.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://accounts.google.com $goshop_storage_origin; frame-src 'self' https://accounts.google.com https://content.googleapis.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'" always;
 }

@@ -14,6 +14,10 @@ export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '')
 export const API_VERSIONED_BASE = `${API_BASE_URL}/api/v1`
 export const API_KEY = import.meta.env.VITE_API_KEY || ''
 
+// Both apps share one origin, so the refresh cookie name must be per-client or
+// logging into one app silently adopts the other app's session.
+export const CLIENT_HEADERS: Record<string, string> = { 'X-Client-App': 'dashboard' }
+
 // openapi-fetch hands us a Request; dedupe the doubled prefix for schema
 // paths that already include /api/v1. NOTE: `new Request(url, requestWithBody)`
 // turns the body into a ReadableStream (chunked upload) which Chrome refuses
@@ -24,25 +28,101 @@ const apiFetch: NonNullable<Parameters<typeof createApiClient>[0]['fetch']> = as
   input: Request,
 ) => {
   const url = input.url.replace('/api/v1/api/v1/', '/api/v1/')
-  if (url === input.url) return fetch(input)
-  if (!input.body) return fetch(new Request(url, input))
+  // The refresh token is an HttpOnly cookie, so every API call must carry
+  // cookies: without them a silent refresh after reload has nothing to send.
+  if (url === input.url) {
+    input.headers.set('X-Client-App', 'dashboard')
+    return fetch(new Request(input, { credentials: 'include' }))
+  }
+  if (!input.body) {
+    input.headers.set('X-Client-App', 'dashboard')
+    return fetch(new Request(url, input), { credentials: 'include' })
+  }
   const body = await input.clone().text()
-  return fetch(url, { method: input.method, headers: input.headers, body })
+  const headers = new Headers(input.headers)
+  headers.set('X-Client-App', 'dashboard')
+  return fetch(url, {
+    method: input.method,
+    headers,
+    body,
+    credentials: 'include',
+  })
 }
 
 export const api = createApiClient({
   baseUrl: API_VERSIONED_BASE,
   fetch: apiFetch,
   getToken: () => useAuthStore.getState().auth.accessToken,
-  getRefreshToken: () => useAuthStore.getState().auth.refreshToken,
+  // Refresh token lives in the HttpOnly cookie; the client never needs it.
+  getRefreshToken: () => '',
   getApiKey: () => API_KEY,
   onTokenRefreshed: (tokens) => {
-    useAuthStore.getState().auth.setTokens(tokens.accessToken, tokens.refreshToken)
+    useAuthStore.getState().auth.setTokens(tokens.accessToken)
   },
   onUnauthorized: () => {
-    useAuthStore.getState().auth.reset()
+    useAuthStore.getState().auth.resetAccessToken()
   },
 })
+
+// Single-flight silent refresh for route guards: when the access token is
+// gone or expired but a refresh token survives, try to restore the session
+// before sending the user to sign-in. Returns true when a usable access token
+// exists. Access tokens live ~15m; treat tokens expiring within 60s as gone
+// so navigation triggers a refresh instead of bouncing to sign-in.
+const REFRESH_SKEW_MS = 60 * 1000
+let refreshInflight: Promise<boolean> | null = null
+
+function isTokenFresh(token: string): boolean {
+  if (!token) return false
+  const parts = token.split('.')
+  if (parts.length !== 3) return true
+  try {
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))
+    if (typeof payload.exp !== 'number') return true
+    return payload.exp * 1000 - Date.now() > REFRESH_SKEW_MS
+  } catch {
+    return true
+  }
+}
+
+export function tryRefreshSession(): Promise<boolean> {
+  if (refreshInflight) return refreshInflight
+  refreshInflight = (async () => {
+    const { auth } = useAuthStore.getState()
+    if (isTokenFresh(auth.accessToken)) return true
+    // The refresh token is an HttpOnly cookie, so no pre-check on it: just try.
+    try {
+      const res = await fetch(`${API_VERSIONED_BASE}/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(API_KEY ? { 'X-API-KEY': API_KEY } : {}),
+          'X-Client-App': 'dashboard',
+        },
+        credentials: 'include',
+        body: JSON.stringify({}),
+      })
+      if (!res.ok) {
+        auth.reset()
+        return false
+      }
+      const json = await res.json()
+      const tokenData = json?.data
+      if (!tokenData?.access_token) {
+        auth.reset()
+        return false
+      }
+      auth.setTokens(tokenData.access_token)
+      return true
+    } catch {
+      auth.reset()
+      return false
+    } finally {
+      refreshInflight = null
+    }
+  })()
+  return refreshInflight
+}
 
 export type ApiInstance = typeof api
 
@@ -59,6 +139,10 @@ export async function fetchWithAuth(path: string, options: RequestInit = {}): Pr
     if (apiKey) {
       headers.set('X-API-KEY', apiKey)
     }
+    // Keeps the dashboard's refresh cookie separate from the storefront's.
+    if (!headers.has('X-Client-App')) {
+      headers.set('X-Client-App', 'dashboard')
+    }
     return headers
   }
 
@@ -71,35 +155,34 @@ export async function fetchWithAuth(path: string, options: RequestInit = {}): Pr
 
   // If 401 Unauthorized (token expired), attempt silent refresh and retry
   if (res.status === 401) {
-    const refreshToken = useAuthStore.getState().auth.refreshToken
-    if (refreshToken) {
-      try {
-        const refreshRes = await fetch(`${baseUrl}/api/v1/auth/refresh`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-KEY': apiKey,
-          },
-          body: JSON.stringify({ refresh_token: refreshToken }),
-        })
+    try {
+      const refreshRes = await fetch(`${baseUrl}/api/v1/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-KEY': apiKey,
+          'X-Client-App': 'dashboard',
+        },
+        credentials: 'include',
+        body: JSON.stringify({}),
+      })
 
-        if (refreshRes.ok) {
-          const refreshJson = await refreshRes.json()
-          const tokenData = refreshJson?.data
-          if (tokenData?.access_token) {
-            useAuthStore.getState().auth.setTokens(tokenData.access_token, tokenData.refresh_token)
-            token = tokenData.access_token
-            res = await fetch(url, {
-              ...options,
-              headers: getHeaders(token),
-            })
-          }
-        } else {
-          useAuthStore.getState().auth.reset()
+      if (refreshRes.ok) {
+        const refreshJson = await refreshRes.json()
+        const tokenData = refreshJson?.data
+        if (tokenData?.access_token) {
+          useAuthStore.getState().auth.setTokens(tokenData.access_token)
+          token = tokenData.access_token
+          res = await fetch(url, {
+            ...options,
+            headers: getHeaders(token),
+          })
         }
-      } catch {
-        useAuthStore.getState().auth.reset()
+      } else {
+        useAuthStore.getState().auth.resetAccessToken()
       }
+    } catch {
+      useAuthStore.getState().auth.resetAccessToken()
     }
   }
 

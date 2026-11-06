@@ -355,6 +355,7 @@ type OrderReturnUpdatedEvent struct {
 	ReturnStatus int16     `json:"return_status"`
 	ChangeType   string    `json:"change_type,omitempty"`
 	AdminNote    string    `json:"admin_note,omitempty"`
+	RefundAmount float64   `json:"refund_amount,omitempty"`
 	Timestamp    time.Time `json:"timestamp"`
 }
 
@@ -394,6 +395,7 @@ type OrderReturnCompletedEvent struct {
 	ReturnUUID  string              `json:"return_uuid"`
 	OrderUUID   string              `json:"order_uuid"`
 	OrderNumber string              `json:"order_number"`
+	UserID      int32               `json:"user_id"`
 	Items       []ReturnRestockItem `json:"items"`
 	Timestamp   time.Time           `json:"timestamp"`
 }
@@ -401,6 +403,7 @@ type OrderReturnCompletedEvent struct {
 // NewOrderReturnCompletedEvent constructs a new OrderReturnCompletedEvent.
 func NewOrderReturnCompletedEvent(
 	eventID, returnUUID, orderUUID, orderNumber string,
+	userID int32,
 	items []ReturnRestockItem,
 ) OrderReturnCompletedEvent {
 	return OrderReturnCompletedEvent{
@@ -408,6 +411,7 @@ func NewOrderReturnCompletedEvent(
 		ReturnUUID:  returnUUID,
 		OrderUUID:   orderUUID,
 		OrderNumber: orderNumber,
+		UserID:      userID,
 		Items:       items,
 		Timestamp:   time.Now().UTC(),
 	}

@@ -153,18 +153,29 @@ func TestPaymentService_CreateCODPaymentIntent(t *testing.T) {
 	assert.Equal(t, int64(15_000_000), intent.Amount)
 }
 
-// A total a float cannot represent exactly must be refused, not rounded into
-// the payment request.
-func TestPaymentService_CreatePaymentIntent_RejectsUnexactTotal(t *testing.T) {
+// Whole dong below 1 xu of precision is fine (100.004 rounds to 100 dong);
+// only totals beyond float64's exact integer range are refused.
+func TestPaymentService_CreatePaymentIntent_RoundsSubXuTotal(t *testing.T) {
 	mockRepo := new(MockPaymentRepo)
 	mockOrderReader := new(MockOrderReader)
 	orderUUID := uuid.New()
+	ptUUID := uuid.New()
 
 	mockOrderReader.On("GetByUUID", mock.Anything, orderUUID).Return(&dto.PaymentOrderSummary{
 		OrderID:     10,
 		OrderUUID:   orderUUID,
 		OrderNumber: "ORD-1",
-		TotalAmount: 100000.005,
+		TotalAmount: 100000.004,
+	}, nil)
+
+	mockRepo.On("Create", mock.Anything, mock.Anything).Return(paymentsqlc.PaymentTransaction{
+		PtID:       1,
+		PtUuid:     ptUUID,
+		PtOrderID:  10,
+		PtProvider: "cod",
+		PtAmount:   dong(t, 100000),
+		PtCurrency: "VND",
+		PtStatus:   1,
 	}, nil)
 
 	svc := paymentservice.NewPaymentService(
@@ -172,14 +183,14 @@ func TestPaymentService_CreatePaymentIntent_RejectsUnexactTotal(t *testing.T) {
 		"http://localhost:3001/payment/result", "http://localhost:8083",
 	)
 
-	_, err := svc.CreatePaymentIntent(context.Background(), dto.CreatePaymentIntentInput{
+	intent, err := svc.CreatePaymentIntent(context.Background(), dto.CreatePaymentIntentInput{
 		OrderUUID: orderUUID,
 		Provider:  "cod",
 	})
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "cannot be charged exactly")
-	mockRepo.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
+	require.NoError(t, err)
+	assert.Equal(t, ptUUID.String(), intent.PaymentUUID)
+	mockRepo.AssertCalled(t, "Create", mock.Anything, mock.Anything)
 }
 
 func TestPaymentService_ConfirmCODPayment_NoPendingTransaction(t *testing.T) {

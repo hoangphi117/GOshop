@@ -34,7 +34,7 @@ type testOrderServiceDeps struct {
 	couponPort     orderservice.OrderCouponPort
 	trackingRepo   repository.TrackingRepository
 	redisClient    *redis.Client
-	rabbitMQ       messaging.Broker
+	broker         messaging.Broker
 	outboxRepo     repository.OutboxRepository
 }
 
@@ -727,13 +727,13 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		assert.Equal(t, 1280000.0, outboxEvt.TotalAmount)
 	})
 
-	t.Run("Transactional Outbox: Success WITH Outbox and RabbitMQ - Inserts to Outbox and SKIPS direct publish", func(t *testing.T) {
+	t.Run("Transactional Outbox: Success WITH Outbox and broker - Inserts to Outbox and SKIPS direct publish", func(t *testing.T) {
 		var publishedCount int
 		var outboxInsertCalls int
 		var insertedAggregateType string
 		var insertedEventType string
 
-		mockRabbitMQ := &testutils.MockRabbitMQService{
+		mockBroker := &testutils.MockBrokerService{
 			PublishFunc: func(ctx context.Context, queue string, message any) error {
 				publishedCount++
 				return nil
@@ -803,7 +803,7 @@ func TestOrderService_CreateOrder(t *testing.T) {
 			orderItemRepo:  mockOrderItemRepo,
 			userRepo:       mockUserRepo,
 			trackingRepo:   mockTrackingRepo,
-			rabbitMQ:       mockRabbitMQ,
+			broker:         mockBroker,
 			outboxRepo:     mockOutbox,
 		})
 
@@ -814,7 +814,7 @@ func TestOrderService_CreateOrder(t *testing.T) {
 		assert.Equal(t, 1, outboxInsertCalls, "OrderCreated event must be enqueued to Outbox")
 		assert.Equal(t, "order", insertedAggregateType)
 		assert.Equal(t, events.QueueOrderCreated, insertedEventType)
-		assert.Equal(t, 0, publishedCount, "Direct RabbitMQ publish MUST be skipped to avoid duplicate notifications")
+		assert.Equal(t, 0, publishedCount, "Direct broker publish MUST be skipped to avoid duplicate notifications")
 	})
 
 	t.Run("Case 13: Success WITH Applied Coupon - Increments Coupon and Records User Usage", func(t *testing.T) {

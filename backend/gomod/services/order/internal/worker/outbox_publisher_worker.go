@@ -14,7 +14,7 @@ import (
 
 type OutboxPublisherWorker struct {
 	outboxRepo     repository.OutboxRepository
-	rabbitMQ       messaging.Broker
+	broker         messaging.Broker
 	interval       time.Duration
 	batchSize      int32
 	aggregateTypes []string
@@ -23,17 +23,17 @@ type OutboxPublisherWorker struct {
 
 func NewOutboxPublisherWorker(
 	outboxRepo repository.OutboxRepository,
-	rabbitMQ messaging.Broker,
+	broker messaging.Broker,
 	interval time.Duration,
 	batchSize int32,
 	logger *zerolog.Logger,
 ) *OutboxPublisherWorker {
-	return NewOutboxPublisherWorkerWithAggregates(outboxRepo, rabbitMQ, interval, batchSize, logger, []string{"order", "payment"})
+	return NewOutboxPublisherWorkerWithAggregates(outboxRepo, broker, interval, batchSize, logger, []string{"order", "payment"})
 }
 
 func NewOutboxPublisherWorkerWithAggregates(
 	outboxRepo repository.OutboxRepository,
-	rabbitMQ messaging.Broker,
+	broker messaging.Broker,
 	interval time.Duration,
 	batchSize int32,
 	logger *zerolog.Logger,
@@ -47,7 +47,7 @@ func NewOutboxPublisherWorkerWithAggregates(
 	}
 	return &OutboxPublisherWorker{
 		outboxRepo:     outboxRepo,
-		rabbitMQ:       rabbitMQ,
+		broker:         broker,
 		interval:       interval,
 		batchSize:      batchSize,
 		aggregateTypes: aggregateTypes,
@@ -56,9 +56,9 @@ func NewOutboxPublisherWorkerWithAggregates(
 }
 
 // ProcessBatch fetches pending outbox events for configured aggregate types,
-// publishes each to RabbitMQ using the event type as queue/topic, and marks them processed.
+// publishes each to the broker using the event type as queue/topic, and marks them processed.
 func (w *OutboxPublisherWorker) ProcessBatch(ctx context.Context) (int, error) {
-	if w.rabbitMQ == nil || w.outboxRepo == nil {
+	if w.broker == nil || w.outboxRepo == nil {
 		return 0, nil
 	}
 
@@ -87,14 +87,14 @@ func (w *OutboxPublisherWorker) ProcessBatch(ctx context.Context) (int, error) {
 		}
 
 		rawPayload := json.RawMessage(ev.Payload)
-		if err := w.rabbitMQ.Publish(ctx, queue, rawPayload); err != nil {
+		if err := w.broker.Publish(ctx, queue, rawPayload); err != nil {
 			w.logger.Error().
 				Err(err).
 				Int64("event_id", ev.EventID).
 				Str("queue", queue).
 				Str("aggregate_type", ev.AggregateType).
 				Str("aggregate_id", ev.AggregateID).
-				Msg("Failed to publish outbox event to RabbitMQ")
+				Msg("Failed to publish outbox event to message broker")
 
 			errMsg := err.Error()
 			if markErr := w.outboxRepo.MarkFailed(ctx, ev.EventID, errMsg); markErr != nil {
@@ -112,11 +112,8 @@ func (w *OutboxPublisherWorker) ProcessBatch(ctx context.Context) (int, error) {
 			continue
 		}
 
-		// Also broadcast to topic exchange for decoupled microservices (e.g. notification service)
-		if topicErr := w.rabbitMQ.PublishTopic(ctx, queue, rawPayload); topicErr != nil {
-			w.logger.Warn().Err(topicErr).Str("topic", queue).Msg("Failed to broadcast outbox event to topic exchange")
-		}
-
+		// Kafka unifies queue + topic publish into one domain-topic publish,
+		// so the old AMQP topic-exchange rebroadcast dies here.
 		processedIDs = append(processedIDs, ev.EventID)
 	}
 
@@ -131,8 +128,8 @@ func (w *OutboxPublisherWorker) ProcessBatch(ctx context.Context) (int, error) {
 }
 
 func (w *OutboxPublisherWorker) Start(ctx context.Context) {
-	if w.rabbitMQ == nil || w.outboxRepo == nil {
-		w.logger.Info().Msg("RabbitMQ or Outbox repo not configured, outbox publisher worker skipped")
+	if w.broker == nil || w.outboxRepo == nil {
+		w.logger.Info().Msg("Broker or Outbox repo not configured, outbox publisher worker skipped")
 		return
 	}
 
@@ -154,7 +151,7 @@ func (w *OutboxPublisherWorker) Start(ctx context.Context) {
 			if err != nil {
 				w.logger.Error().Err(err).Msg("Error processing outbox events batch")
 			} else if count > 0 {
-				w.logger.Debug().Int("count", count).Msg("Published outbox events to RabbitMQ")
+				w.logger.Debug().Int("count", count).Msg("Published outbox events to broker")
 			}
 		}
 	}

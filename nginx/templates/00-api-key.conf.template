@@ -12,3 +12,25 @@ map $http_x_api_key $goshop_api_key {
     ~.+     $http_x_api_key;
     default "${API_KEY}";
 }
+
+# Meilisearch server-side bearer: injected only on /search-api/ so the storefront
+# bundle never carries any key. MEILISEARCH_MASTER_KEY mirrors the catalog
+# service's master key (compose injects it from .env).
+#
+# A constant-key map, not $http_*: envsubst lowercases nginx variables such as
+# $http_authorization, which the entrypoint then fails to resolve. The fixed
+# key "edge" always matches, so the edge value wins over any stale baked-in
+# browser key. `set` is illegal at http{} scope, hence the map.
+map edge $goshop_meili_key {
+    default "${MEILISEARCH_MASTER_KEY}";
+}
+
+# Browser uploads PUT straight to storage (packages/api-client/src/upload.ts),
+# so connect-src must name the bucket origin or CSP blocks the request.
+# The AWS SDK signs against the virtual-hosted form <bucket>.<endpoint> when
+# UsePathStyle is false (R2/S3), so the CSP origin needs the bucket prefix —
+# `https://goshop-media.<account>.r2.cloudflarestorage.com`. MinIO uses path
+# style, where S3_ENDPOINT is already the origin. Empty keeps CSP storage-free.
+map edge $goshop_storage_origin {
+    default "${S3_PUBLIC_ORIGIN}";
+}

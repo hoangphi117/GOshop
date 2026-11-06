@@ -636,26 +636,43 @@ export default async function ProductsPage({
                     </span>
                   )}
 
-                  {/* Page Numbers */}
-                  {Array.from({
-                    length: Math.min(5, pagination.total_pages),
-                  }).map((_, i) => {
-                    const pNum = i + 1;
-                    const isCurr = pNum === pagination.page;
-                    return (
-                      <Link
-                        key={pNum}
-                        href={buildUrl({ page: pNum.toString() })}
-                        className={`w-8 h-8 flex items-center justify-center rounded-xs text-xs font-bold ${
-                          isCurr
-                            ? "bg-[#007D9C] text-white"
-                            : "border border-slate-200 hover:bg-slate-50 text-slate-700"
-                        }`}
-                      >
-                        {pNum}
-                      </Link>
+                  {/* Page Numbers: 1 ... window ... total */}
+                  {(() => {
+                    const total = pagination.total_pages;
+                    const cur = pagination.page;
+                    const items: (number | "…")[] = [];
+                    if (total <= 7) {
+                      for (let i = 1; i <= total; i++) items.push(i);
+                    } else if (cur <= 4) {
+                      items.push(1, 2, 3, 4, 5, "…", total);
+                    } else if (cur >= total - 3) {
+                      items.push(1, "…", total - 4, total - 3, total - 2, total - 1, total);
+                    } else {
+                      items.push(1, "…", cur - 1, cur, cur + 1, "…", total);
+                    }
+                    return items.map((pNum, idx) =>
+                      pNum === "…" ? (
+                        <span
+                          key={`gap-${idx}`}
+                          className="w-8 h-8 flex items-center justify-center text-xs text-slate-400"
+                        >
+                          …
+                        </span>
+                      ) : (
+                        <Link
+                          key={pNum}
+                          href={buildUrl({ page: pNum.toString() })}
+                          className={`w-8 h-8 flex items-center justify-center rounded-xs text-xs font-bold ${
+                            pNum === cur
+                              ? "bg-[#007D9C] text-white"
+                              : "border border-slate-200 hover:bg-slate-50 text-slate-700"
+                          }`}
+                        >
+                          {pNum}
+                        </Link>
+                      ),
                     );
-                  })}
+                  })()}
 
                   {pagination.has_next ? (
                     <Link

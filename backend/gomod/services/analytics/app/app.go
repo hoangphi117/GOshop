@@ -31,9 +31,10 @@ import (
 	"goshop/shared/pkg/auth"
 	"goshop/shared/pkg/cache"
 	"goshop/shared/pkg/db"
+	"goshop/shared/pkg/eventledger"
+	"goshop/shared/pkg/kafka"
 	"goshop/shared/pkg/logger"
 	"goshop/shared/pkg/messaging"
-	"goshop/shared/pkg/rabbitmq"
 	"goshop/shared/pkg/utils"
 	"goshop/shared/pkg/validation"
 )
@@ -45,8 +46,33 @@ const analyticsQueue = "analytics.order_events"
 type App struct {
 	cfg     *config.Config
 	server  *http.Server
-	rabbit  rabbitmq.RabbitMQService
+	broker  messaging.Broker
 	closers []func() error
+}
+
+// dispatchAnalyticsEvent routes one Kafka record to the right projection
+// handler by event_type. Kept outside New so eventledger.Wrap can call it
+// with the captured headers and body for at-most-once application.
+func dispatchAnalyticsEvent(consumer *analyticsworker.OrderProjectionConsumer, headers messaging.Header, body []byte) error {
+	// Kafka adapter sets event_type; old RabbitMQ path used x-routing-key.
+	rk := headers.Get("event_type")
+	if rk == "" {
+		rk = headers.Get("x-routing-key")
+	}
+	switch rk {
+	case events.RoutingKeyOrderCancelled:
+		return consumer.HandleOrderCancelled(headers, body)
+	case events.RoutingKeyOrderStatusChanged, events.RoutingKeyOrderShipped, events.RoutingKeyOrderDelivered:
+		return consumer.HandleOrderStatusChanged(headers, body)
+	case events.RoutingKeyPaymentSucceeded:
+		return consumer.HandlePaymentSucceeded(headers, body)
+	case events.RoutingKeyOrderReturnUpdated:
+		return consumer.HandleOrderReturnUpdated(headers, body)
+	case "payment.refunded":
+		return consumer.HandlePaymentRefunded(headers, body)
+	default:
+		return consumer.HandleOrderCreated(headers, body)
+	}
 }
 
 func New(cfg *config.Config) (*App, error) {
@@ -120,12 +146,13 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, fmt.Errorf("inventory gRPC client (%s): %w", inventoryTarget, err)
 	}
 
-	rabbitLogger := utils.NewLoggerWithPath("analytics", "analytics_rabbitmq.log", "info")
-	rabbitMQ, err := rabbitmq.NewRabbitMQService(
-		utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"), rabbitLogger)
+	brokerLogger := utils.NewLoggerWithPath("analytics", "analytics_kafka.log", "info")
+	broker, err := kafka.NewKafkaBroker(utils.GetEnv("KAFKA_BROKERS", ""),
+		brokerLogger,
+	)
 	if err != nil {
-		logger.Log.Warn().Err(err).Msg("RabbitMQ unavailable on boot, analytics projections will not update")
-		rabbitMQ = nil
+		logger.Log.Warn().Err(err).Msg("Kafka unavailable on boot, analytics projections will not update")
+		broker = nil
 	}
 
 	repo := analyticsrepo.NewSqlAnalyticsRepository(analyticsqlc.New(db.DBPool))
@@ -138,23 +165,26 @@ func New(cfg *config.Config) (*App, error) {
 
 	analyticsroutes.RegisterRoutes(r, analyticshandler.NewAnalyticsHandler(svc), tokenService, cacheRedisService)
 
+	// Phase-1 observability: /healthz reports this process's consumer lag.
+	kafka.RegisterHealthz(r, "analytics", broker, db.DBPool.Ping)
+
 	// Order projection consumer: keeps the analytics read model current.
-	if rabbitMQ != nil {
+	// Phase-2 idempotency: processed_events in Postgres survives restarts,
+	// replacing the old 24h Redis TTL that double-applied after a flush.
+	if broker != nil {
+		if err := eventledger.Migrate(connStr, "event_ledger_migrations_analytics"); err != nil {
+			return nil, fmt.Errorf("event ledger migration failed: %w", err)
+		}
+		ledgerRepo := eventledger.NewRepository(db.DBPool)
+		ledgerLog := eventledger.NewZerologLogger(brokerLogger)
 		consumer := analyticsworker.NewOrderProjectionConsumer(db.DBPool, orderClient, logger.Log)
-		dedup := withIdempotency(cacheRedisService, logger.Log)
-		handler := dedup(analyticsQueue, func(headers messaging.Header, body []byte) error {
-			rk := headers.Get("x-routing-key")
-			switch rk {
-			case events.RoutingKeyOrderCancelled:
-				return consumer.HandleOrderCancelled(headers, body)
-			case events.RoutingKeyOrderStatusChanged, events.RoutingKeyOrderShipped, events.RoutingKeyOrderDelivered:
-				return consumer.HandleOrderStatusChanged(headers, body)
-			case events.RoutingKeyPaymentSucceeded:
-				return consumer.HandlePaymentSucceeded(headers, body)
-			default:
-				return consumer.HandleOrderCreated(headers, body)
-			}
-		})
+		handler := func(headers messaging.Header, body []byte) error {
+			h, b := headers, body
+			inner := eventledger.Wrap(ledgerRepo, "analytics.order_events", func(_ context.Context, _ []byte) error {
+				return dispatchAnalyticsEvent(consumer, h, b)
+			}, ledgerLog)
+			return inner(headers, body)
+		}
 		routingKeys := []string{
 			events.RoutingKeyOrderCreated,
 			events.RoutingKeyOrderCancelled,
@@ -162,8 +192,10 @@ func New(cfg *config.Config) (*App, error) {
 			events.RoutingKeyOrderShipped,
 			events.RoutingKeyOrderDelivered,
 			events.RoutingKeyPaymentSucceeded,
+			events.RoutingKeyOrderReturnUpdated,
+			"payment.refunded",
 		}
-		if err := rabbitMQ.SubscribeTopic(context.Background(), analyticsQueue, routingKeys, handler); err != nil {
+		if err := broker.SubscribeTopic(context.Background(), analyticsQueue, routingKeys, handler); err != nil {
 			logger.Log.Error().Err(err).Msg("Failed to subscribe analytics order events topic")
 		} else {
 			logger.Log.Info().Msgf("Analytics subscribed topic queue: %s", analyticsQueue)
@@ -172,7 +204,7 @@ func New(cfg *config.Config) (*App, error) {
 
 	app := &App{
 		cfg:    cfg,
-		rabbit: rabbitMQ,
+		broker: broker,
 		server: &http.Server{
 			Addr:           ":" + utils.GetEnv("ANALYTICS_SERVER_PORT", "8092"),
 			Handler:        r,
@@ -214,8 +246,8 @@ func (a *App) Run(ctx context.Context) error {
 	if err := a.server.Shutdown(shutdownCtx); err != nil {
 		logger.Log.Warn().Err(err).Msg("Analytics HTTP server forced shutdown")
 	}
-	if a.rabbit != nil {
-		_ = a.rabbit.Close()
+	if a.broker != nil {
+		_ = a.broker.Close()
 	}
 	for _, closeFn := range a.closers {
 		_ = closeFn()

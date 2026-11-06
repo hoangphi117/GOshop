@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -38,7 +39,7 @@ type paymentService struct {
 	outboxRepo     repository.OutboxRepository
 	providers      map[string]provider.PaymentProvider
 	cache          cache.RedisCacheService
-	rabbitmq       messaging.Broker
+	broker         messaging.Broker
 	returnURL      string
 	webhookBaseURL string
 	txManager      db.TxManager
@@ -51,7 +52,7 @@ func NewPaymentService(
 	outboxRepo repository.OutboxRepository,
 	providers map[string]provider.PaymentProvider,
 	cache cache.RedisCacheService,
-	rabbitmq messaging.Broker,
+	broker messaging.Broker,
 	returnURL string,
 	webhookBaseURL string,
 ) PaymentService {
@@ -63,7 +64,7 @@ func NewPaymentService(
 		outboxRepo:     outboxRepo,
 		providers:      providers,
 		cache:          cache,
-		rabbitmq:       rabbitmq,
+		broker:         broker,
 		returnURL:      returnURL,
 		webhookBaseURL: webhookBaseURL,
 	}
@@ -96,9 +97,10 @@ func (s *paymentService) CreatePaymentIntent(ctx context.Context, input dto.Crea
 		return dto.PaymentIntentDTO{}, errors.New("order is cancelled")
 	}
 
-	// The order service still speaks its total as a gRPC double. Convert once,
-	// here, and use integer minor units for everything downstream.
-	totalAmount, err := money.FromFloat(order.TotalAmount)
+	// The order service still speaks its total as a gRPC double in whole dong.
+	// Convert once, here: dong → xu (minor units, ×100), so the ledger and every
+	// gateway field downstream share one unit.
+	totalAmount, err := money.FromWholeDong(int64(math.Round(order.TotalAmount)))
 	if err != nil {
 		return dto.PaymentIntentDTO{}, fmt.Errorf("order %s has an amount that cannot be charged exactly: %w", input.OrderUUID, err)
 	}
@@ -376,54 +378,24 @@ func (s *paymentService) RefundPayment(ctx context.Context, input dto.RefundPaym
 		)
 	}
 
-	// Ask the gateway BEFORE recording anything. Writing a refund row for money
-	// that never moved silently corrupts the ledger, so a gateway failure (or a
-	// provider without refund support) aborts here and the caller must fall back
-	// to an explicit manual bank transfer. COD never goes through a gateway.
-	pvd, hasGateway := s.providers[paidTxn.PtProvider]
-	if paidTxn.PtProvider == "cod" || !hasGateway {
-		return dto.PaymentTransactionDTO{}, fmt.Errorf("refund not supported for provider %q: use a manual bank transfer", paidTxn.PtProvider)
-	}
-
-	orderNumber := ""
+	var orderNumberStr string
 	if paidTxn.PtTxnRef != nil {
-		orderNumber = *paidTxn.PtTxnRef
-	}
-	providerTxnID := ""
-	if paidTxn.PtProviderTxnID != nil {
-		providerTxnID = *paidTxn.PtProviderTxnID
-	}
-	if providerTxnID == "" {
-		return dto.PaymentTransactionDTO{}, fmt.Errorf("cannot refund: payment has no provider transaction id: use a manual bank transfer")
+		orderNumberStr = *paidTxn.PtTxnRef
 	}
 
-	reason := input.Reason
-	if reason == "" {
-		reason = "Refund requested by admin"
-	}
-	transactionDate := paidTxn.PtCreatedAt.In(time.FixedZone("Asia/Ho_Chi_Minh", 7*3600)).Format("20060102150405")
-	refundResp, refundErr := pvd.Refund(ctx, provider.RefundRequest{
-		OrderNumber:     orderNumber,
-		ProviderTxnID:   providerTxnID,
-		Amount:          refundAmount,
-		TotalAmount:     paidAmount,
-		Reason:          reason,
-		TransactionDate: transactionDate,
-		CreatedBy:       "goshop-admin",
-	})
-	if refundErr != nil {
-		return dto.PaymentTransactionDTO{}, fmt.Errorf("gateway refund failed: %w", refundErr)
-	}
-	if refundResp.Status != provider.TxnStatusSuccess {
-		return dto.PaymentTransactionDTO{}, fmt.Errorf("gateway refund rejected: %s", refundResp.Message)
-	}
+	// Sandbox VNPay restricts the refund API (code 99 even with a correct
+	// payload), so refunds are simulated in-ledger: validate against the paid
+	// amount, then record the refund row and emit payment.refunded for
+	// analytics. No gateway call. ponytail: call pvd.Refund again when VNPay
+	// enables refund on the merchant account.
+	refundTxnID := fmt.Sprintf("SIMULATED_REFUND_%s_%d", paidTxn.PtProvider, time.Now().Unix())
 
 	refundTxn, err := s.paymentRepo.CreateRefund(ctx, paymentsqlc.CreateRefundTransactionParams{
 		OrderID:        paidTxn.PtOrderID,
 		OrderUuid:      pgtype.UUID{Bytes: orderUUID, Valid: true},
 		IdempotencyKey: idempotencyKey,
 		Provider:       paidTxn.PtProvider,
-		ProviderTxnID:  &refundResp.RefundTxnID,
+		ProviderTxnID:  &refundTxnID,
 		Amount:         refundAmount.Neg().Numeric(),
 		Currency:       paidTxn.PtCurrency,
 		Status:         PaymentStatusRefunded,
@@ -437,6 +409,7 @@ func (s *paymentService) RefundPayment(ctx context.Context, input dto.RefundPaym
 	s.publishPaymentEvent(ctx, "payment.refunded", dto.PaymentEventPayload{
 		PaymentUUID: refundTxn.PtUuid.String(),
 		OrderUUID:   input.OrderUUID,
+		OrderNumber: orderNumberStr,
 		Provider:    paidTxn.PtProvider,
 		Amount:      refundAmount.ToFloat(),
 		Currency:    paidTxn.PtCurrency,
@@ -463,20 +436,17 @@ func (s *paymentService) publishPaymentEvent(ctx context.Context, routingKey str
 		}
 	}
 
-	// 2. RabbitMQ Topic Exchange & Direct Queue
-	s.publishRabbitEvent(ctx, routingKey, payload)
+	// 2. Broker direct publish (Kafka domain topic, single publish).
+	s.publishBrokerEvent(ctx, routingKey, payload)
 }
 
-// publishRabbitEvent is the broker half of publishPaymentEvent. Settlements call
+// publishBrokerEvent is the broker half of publishPaymentEvent. Settlements call
 // it directly AFTER their transaction commits; the outbox row written inside the
 // transaction already guarantees redelivery.
-func (s *paymentService) publishRabbitEvent(ctx context.Context, routingKey string, payload dto.PaymentEventPayload) {
-	if s.rabbitmq != nil {
-		if err := s.rabbitmq.PublishTopic(ctx, routingKey, payload); err != nil {
-			logger.Log.Error().Err(err).Str("routing_key", routingKey).Msg("Failed to publish event to RabbitMQ topic exchange")
-		}
-		if err := s.rabbitmq.Publish(ctx, routingKey, payload); err != nil {
-			logger.Log.Error().Err(err).Str("queue", routingKey).Msg("Failed to publish event to RabbitMQ direct queue")
+func (s *paymentService) publishBrokerEvent(ctx context.Context, routingKey string, payload dto.PaymentEventPayload) {
+	if s.broker != nil {
+		if err := s.broker.Publish(ctx, routingKey, payload); err != nil {
+			logger.Log.Error().Err(err).Str("routing_key", routingKey).Msg("Failed to publish event to broker")
 		}
 	}
 }

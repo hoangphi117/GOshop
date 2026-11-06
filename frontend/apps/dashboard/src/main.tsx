@@ -54,8 +54,26 @@ const queryClient = new QueryClient({
         if (error.response?.status === 401) {
           toast.error('Session expired!')
           useAuthStore.getState().auth.reset()
-          const redirect = `${router.history.location.href}`
-          router.navigate({ to: '/sign-in', search: { redirect } })
+          // Sanitize: the current href may already contain ?redirect=/sign-in?...,
+          // re-wrapping it raw stacks the param exponentially. The middleware
+          // already attempted a silent refresh before this reset, so reaching
+          // here means the refresh token is gone or invalid.
+          const href = router.history.location.href
+          let redirect: string | undefined
+          try {
+            const url = new URL(href, window.location.origin)
+            const nested = url.searchParams.get('redirect')
+            const basePath = url.pathname + (url.search ? `?${url.search}` : '')
+            redirect = nested ? nested : basePath
+            if (redirect.includes('/sign-in')) redirect = undefined
+            if (redirect && !redirect.startsWith('/')) redirect = undefined
+          } catch {
+            redirect = undefined
+          }
+          router.navigate({
+            to: '/sign-in',
+            search: redirect ? { redirect } : undefined,
+          })
         }
         if (error.response?.status === 500) {
           toast.error('Internal Server Error!')

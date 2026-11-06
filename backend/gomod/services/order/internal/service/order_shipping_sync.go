@@ -93,7 +93,7 @@ func (s *orderShippingService) SyncOrderTracking(ctx context.Context, userUUID u
 				_ = s.cache.Clear("orders:*")
 			}
 
-			if s.rabbitmq != nil {
+			if s.broker != nil {
 				evt := events.NewOrderStatusChangedEvent(
 					uuid.New().String(),
 					orderUUID.String(),
@@ -105,8 +105,9 @@ func (s *orderShippingService) SyncOrderTracking(ctx context.Context, userUUID u
 					OrderStatusDelivered,
 					shippingCode,
 				)
-				_ = s.rabbitmq.Publish(context.Background(), events.QueueOrderStatusChanged, evt)
-				_ = s.rabbitmq.PublishTopic(context.Background(), events.RoutingKeyOrderStatusChanged, evt)
+				if err := s.broker.Publish(context.Background(), events.RoutingKeyOrderStatusChanged, evt); err != nil {
+					logger.Log.Warn().Err(err).Msg("Failed to publish order status change event")
+				}
 			}
 		}
 	} else {
@@ -258,7 +259,7 @@ func (s *orderShippingService) SyncActiveShippingOrders(ctx context.Context) (v1
 				_ = s.cache.Clear("orders:*")
 			}
 
-			if s.rabbitmq != nil {
+			if s.broker != nil {
 				evt := events.NewOrderStatusChangedEvent(
 					uuid.New().String(),
 					order.OrderUuid.String(),
@@ -270,8 +271,9 @@ func (s *orderShippingService) SyncActiveShippingOrders(ctx context.Context) (v1
 					OrderStatusDelivered,
 					shippingCode,
 				)
-				_ = s.rabbitmq.Publish(context.Background(), events.QueueOrderStatusChanged, evt)
-				_ = s.rabbitmq.PublishTopic(context.Background(), events.RoutingKeyOrderStatusChanged, evt)
+				if err := s.broker.Publish(context.Background(), events.RoutingKeyOrderStatusChanged, evt); err != nil {
+					logger.Log.Warn().Err(err).Msg("Failed to publish order status change event")
+				}
 			}
 
 			logger.Log.Info().

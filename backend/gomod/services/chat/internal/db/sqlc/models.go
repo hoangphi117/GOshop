@@ -23,6 +23,7 @@ type ChatConversation struct {
 	LastMessageAt    pgtype.Timestamptz `json:"last_message_at"`
 	CreatedAt        time.Time          `json:"created_at"`
 	UpdatedAt        time.Time          `json:"updated_at"`
+	OwnerIsStaff     bool               `json:"owner_is_staff"`
 }
 
 type ChatMessage struct {

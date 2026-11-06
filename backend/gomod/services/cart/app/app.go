@@ -32,9 +32,9 @@ import (
 	"goshop/shared/pkg/cache"
 	"goshop/shared/pkg/db"
 	"goshop/shared/pkg/eventledger"
+	"goshop/shared/pkg/kafka"
 	"goshop/shared/pkg/logger"
 	"goshop/shared/pkg/messaging"
-	"goshop/shared/pkg/rabbitmq"
 	"goshop/shared/pkg/telemetry"
 	"goshop/shared/pkg/utils"
 	"goshop/shared/pkg/validation"
@@ -48,7 +48,7 @@ type App struct {
 	grpcListener  net.Listener
 	cartService   cartservice.CartService
 	catalogClient catalogcontract.CatalogClient
-	rabbitMQ      rabbitmq.RabbitMQService
+	broker        messaging.Broker
 	eventConsumer messaging.Handler
 }
 
@@ -112,14 +112,14 @@ func New(cfg *config.Config) (*App, error) {
 	cacheRedisService := cache.NewRedisCacheService(redisClient)
 	tokenService := auth.NewJWTService(cacheRedisService)
 
-	// RabbitMQ + event consumer (branch F: cart owns cart cleanup on order.created)
-	cartRabbitLogger := utils.NewLoggerWithPath("cart", "cart_rabbitmq.log", "info")
-	rabbitMQService, err := rabbitmq.NewRabbitMQService(
-		utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"), cartRabbitLogger,
+	// Kafka + event consumer (branch F: cart owns cart cleanup on order.created)
+	cartBrokerLogger := utils.NewLoggerWithPath("cart", "cart_kafka.log", "info")
+	brokerService, err := kafka.NewKafkaBroker(utils.GetEnv("KAFKA_BROKERS", ""),
+		cartBrokerLogger,
 	)
 	if err != nil {
-		logger.Log.Error().Err(err).Msg("Failed to connect RabbitMQ for cart service event consumer")
-		return nil, fmt.Errorf("rabbitmq connect failed: %w", err)
+		logger.Log.Error().Err(err).Msg("Failed to connect Kafka for cart service event consumer")
+		return nil, fmt.Errorf("kafka connect failed: %w", err)
 	}
 	if err := eventledger.Migrate(connStr, "event_ledger_migrations_cart"); err != nil {
 		logger.Log.Error().Err(err).Msg("Failed to migrate event ledger for cart service")
@@ -140,6 +140,9 @@ func New(cfg *config.Config) (*App, error) {
 
 	cartHandler := carthandler.NewCartHandler(cartService)
 	cartroutes.RegisterRoutes(r, cartHandler, tokenService, cacheRedisService)
+
+	// Phase-1 observability: /healthz reports this process's consumer lag.
+	kafka.RegisterHealthz(r, "cart", brokerService, dbPool.Ping)
 
 	port := utils.GetEnv("CART_SERVER_PORT", "8087")
 	httpServer := &http.Server{
@@ -168,12 +171,12 @@ func New(cfg *config.Config) (*App, error) {
 		grpcListener:  grpcListener,
 		cartService:   cartService,
 		catalogClient: catalogClient,
-		rabbitMQ:      rabbitMQService,
+		broker:        brokerService,
 		eventConsumer: eventledger.Wrap(
 			eventledger.NewRepository(dbPool),
 			"cart.order_created",
 			cartconsumer.NewOrderCreatedConsumer(cartService).Apply,
-			eventledger.NewZerologLogger(cartRabbitLogger),
+			eventledger.NewZerologLogger(cartBrokerLogger),
 		),
 	}, nil
 }
@@ -200,7 +203,7 @@ func (a *App) Run(ctx context.Context) error {
 
 	// 3. Start event consumer (cart owns cart cleanup on order.created)
 	go func() {
-		if err := a.rabbitMQ.Consume(ctx, events.QueueOrderCreated, a.eventConsumer); err != nil {
+		if err := a.broker.Consume(ctx, events.QueueOrderCreated, a.eventConsumer); err != nil {
 			logger.Log.Error().Err(err).Str("queue", events.QueueOrderCreated).Msg("Cart event consumer stopped")
 		} else {
 			logger.Log.Info().Str("queue", events.QueueOrderCreated).Msg("Cart consuming order.created events")
@@ -229,8 +232,8 @@ func (a *App) Run(ctx context.Context) error {
 		a.grpcServer.GracefulStop()
 	}
 
-	if err := a.rabbitMQ.Close(); err != nil {
-		logger.Log.Warn().Err(err).Msg("Failed to close Cart RabbitMQ connection cleanly")
+	if err := a.broker.Close(); err != nil {
+		logger.Log.Warn().Err(err).Msg("Failed to close Cart Kafka connection cleanly")
 	}
 
 	if a.catalogClient != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
 	"os/signal"
@@ -42,9 +43,10 @@ import (
 	"goshop/shared/pkg/auth"
 	"goshop/shared/pkg/cache"
 	"goshop/shared/pkg/db"
+	"goshop/shared/pkg/kafka"
 	"goshop/shared/pkg/logger"
+	"goshop/shared/pkg/messaging"
 	"goshop/shared/pkg/middleware"
-	"goshop/shared/pkg/rabbitmq"
 	"goshop/shared/pkg/shipping"
 	"goshop/shared/pkg/telemetry"
 	"goshop/shared/pkg/utils"
@@ -64,7 +66,7 @@ type App struct {
 	locationService  orderservice.LocationService
 	returnService    orderservice.OrderReturnService
 	adminService     orderservice.OrderAdminService
-	rabbitMQ         rabbitmq.RabbitMQService
+	broker           messaging.Broker
 	outboxWorker     *orderworker.OutboxPublisherWorker
 	sagaWorker       *orderworker.SagaRecoveryWorker
 	paymentClient    *paymentcontract.GRPCPaymentClient
@@ -76,10 +78,10 @@ type paymentRefundAdapter struct {
 
 // RefundPayment forwards the refund in the payment service's native unit.
 // The order side keeps whole dong in float64 (its own ledger); convert once
-// here, and convert the returned minor units back once, so neither side does
-// arithmetic on the float.
+// here (dong → xu), and convert the returned minor units back once, so neither
+// side does arithmetic on the float.
 func (a paymentRefundAdapter) RefundPayment(ctx context.Context, idempotencyKey string, input v1dto.RefundPaymentInput) (v1dto.PaymentTransactionDTO, error) {
-	amount, err := money.FromFloat(input.Amount)
+	amount, err := money.FromWholeDong(int64(math.Round(input.Amount)))
 	if err != nil {
 		return v1dto.PaymentTransactionDTO{}, fmt.Errorf("refund amount %v cannot be sent exactly: %w", input.Amount, err)
 	}
@@ -354,12 +356,13 @@ func New(cfg *config.Config) (*App, error) {
 		outboxRepo,
 	)
 
-	// RabbitMQ & Workers
-	rabbitmqURL := utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
-	rabbitmqLogger := utils.NewLoggerWithPath("order", "order_rabbitmq.log", "info")
-	rabbitMQ, err := rabbitmq.NewRabbitMQService(rabbitmqURL, rabbitmqLogger)
+	// Kafka & Workers
+	brokerLogger := utils.NewLoggerWithPath("order", "order_kafka.log", "info")
+	broker, err := kafka.NewKafkaBroker(utils.GetEnv("KAFKA_BROKERS", ""),
+		brokerLogger,
+	)
 	if err != nil {
-		logger.Log.Warn().Err(err).Msg("RabbitMQ not available on boot for order service, will retry in background")
+		logger.Log.Warn().Err(err).Msg("Kafka not available on boot for order service, will retry in background")
 	}
 	r.GET("/healthz/ready", func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
@@ -369,13 +372,20 @@ func New(cfg *config.Config) (*App, error) {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not_ready", "service": "order"})
 			return
 		}
-		if rabbitMQ == nil || !rabbitMQ.IsHealthy() {
-			logger.Log.Warn().Str("trace_id", c.GetString("trace_id")).Msg("Order readiness RabbitMQ check failed")
+		if broker == nil || !broker.IsHealthy() {
+			logger.Log.Warn().Str("trace_id", c.GetString("trace_id")).Msg("Order readiness Kafka check failed")
 			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not_ready", "service": "order"})
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"status": "ready", "service": "order"})
 	})
+
+	// Phase-1 observability: the order service owns the Kafka consumer groups
+	// (payment.succeeded, payment.expired, shipping.order.create), so consumer
+	// lag is only visible here — the api process consumes nothing and its own
+	// LagInfo is always empty.
+	ping := func(ctx context.Context) error { return dbPool.Ping(ctx) }
+	kafka.RegisterHealthz(r, "order", broker, ping)
 
 	shippingService := orderservice.NewOrderShippingService(orderservice.OrderShippingServiceDeps{
 		TxManager:       txManager,
@@ -387,7 +397,7 @@ func New(cfg *config.Config) (*App, error) {
 		UserRepo:        customerReader,
 		RedisClient:     redisClient,
 		CacheService:    cacheService,
-		RabbitMQ:        rabbitMQ,
+		Broker:          broker,
 	})
 	locationService := orderservice.NewLocationService(shippingFactory, cacheService)
 	var paymentClient *paymentcontract.GRPCPaymentClient
@@ -433,10 +443,10 @@ func New(cfg *config.Config) (*App, error) {
 	orderroutes.RegisterRoutes(r, orderHandler, tokenService, cacheService)
 
 	var outboxWorker *orderworker.OutboxPublisherWorker
-	if rabbitMQ != nil {
+	if broker != nil {
 		outboxWorker = orderworker.NewOutboxPublisherWorkerWithAggregates(
 			outboxRepo,
-			rabbitMQ,
+			broker,
 			1*time.Second,
 			50,
 			logger.Log,
@@ -448,17 +458,17 @@ func New(cfg *config.Config) (*App, error) {
 		shippingConsumer := orderworker.NewShippingConsumer(shippingService, logger.Log)
 
 		go func() {
-			if err := rabbitMQ.Consume(context.Background(), events.QueuePaymentSucceeded, paymentSucceededConsumer.Handle); err != nil {
+			if err := broker.Consume(context.Background(), events.QueuePaymentSucceeded, paymentSucceededConsumer.Handle); err != nil {
 				logger.Log.Error().Err(err).Msg("Failed to start PaymentSucceeded consumer")
 			}
 		}()
 		go func() {
-			if err := rabbitMQ.Consume(context.Background(), events.QueuePaymentExpired, paymentExpiredConsumer.Handle); err != nil {
+			if err := broker.Consume(context.Background(), events.QueuePaymentExpired, paymentExpiredConsumer.Handle); err != nil {
 				logger.Log.Error().Err(err).Msg("Failed to start PaymentExpired consumer")
 			}
 		}()
 		go func() {
-			if err := rabbitMQ.Consume(context.Background(), orderservice.QueueShippingCreate, shippingConsumer.Handle); err != nil {
+			if err := broker.Consume(context.Background(), orderservice.QueueShippingCreate, shippingConsumer.Handle); err != nil {
 				logger.Log.Error().Err(err).Msg("Failed to start Shipping consumer")
 			}
 		}()
@@ -504,7 +514,7 @@ func New(cfg *config.Config) (*App, error) {
 		locationService:  locationService,
 		returnService:    returnService,
 		adminService:     adminService,
-		rabbitMQ:         rabbitMQ,
+		broker:           broker,
 		outboxWorker:     outboxWorker,
 		sagaWorker:       sagaWorker,
 		paymentClient:    paymentClient,
@@ -559,8 +569,8 @@ func (a *App) Run(ctx context.Context) error {
 
 	a.grpcServer.GracefulStop()
 
-	if a.rabbitMQ != nil {
-		_ = a.rabbitMQ.Close()
+	if a.broker != nil {
+		_ = a.broker.Close()
 	}
 
 	logger.Log.Info().Msg("Order service stopped cleanly")

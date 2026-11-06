@@ -1,4 +1,4 @@
-# Order Service
+﻿# Order Service
 
 Order Service owns order lifecycle and return workflow.
 
@@ -21,7 +21,7 @@ Order Service owns order lifecycle and return workflow.
 - User identity and credentials.
 - Analytics read models.
 
-Other services use gRPC contracts or versioned RabbitMQ events. They must not read or write Order tables.
+Other services use gRPC contracts or versioned Kafka events. They must not read or write Order tables.
 
 ## Interfaces
 
@@ -33,7 +33,7 @@ Other services use gRPC contracts or versioned RabbitMQ events. They must not re
 - Readiness: `GET /healthz/ready`.
 - Compatibility health endpoint: `GET /health`.
 
-Readiness checks the Order PostgreSQL pool and RabbitMQ with a two-second timeout. Liveness does not call dependencies.
+Readiness checks the Order PostgreSQL pool and Kafka with a two-second timeout. Liveness does not call dependencies.
 
 ### gRPC
 
@@ -76,7 +76,7 @@ Side-effect owners:
 | --- | --- | --- |
 | PostgreSQL | Order database | `DB_HOST`, `DB_PORT` |
 | Redis | Cache and saga support | `REDIS_ADDR` |
-| RabbitMQ | Outbox publication and consumers | `RABBITMQ_URL` |
+| Kafka | Outbox publication and consumers | `KAFKA_BROKERS` |
 | Catalog | Checkout product snapshot | `CATALOG_GRPC_ADDR` |
 | Inventory | Reserve and restore stock | `INVENTORY_GRPC_ADDR` |
 | Coupon | Validate and apply discounts | `COUPON_GRPC_ADDR` |
@@ -154,14 +154,14 @@ go test -tags=integration ./integration
 docker compose -f docker-compose.integration.yml down -v
 ```
 
-CI runs the same PostgreSQL and RabbitMQ smoke test on Ubuntu.
+CI runs the same PostgreSQL and Kafka smoke test on Ubuntu.
 
-The gRPC contract tests use `bufconn`. Outbox, saga, return, redelivery, and failure paths use deterministic mocks. Postgres/RabbitMQ integration checks require the Compose stack and are manual by design for this learning project.
+The gRPC contract tests use `bufconn`. Outbox, saga, return, redelivery, and failure paths use deterministic mocks. Postgres/Kafka integration checks require the Compose stack and are manual by design for this learning project.
 
 ## Failure modes
 
 - PostgreSQL unavailable: readiness returns `503`; requests needing Order data fail explicitly.
-- RabbitMQ unavailable: outbox rows remain pending or failed and are retried.
+- Kafka unavailable: outbox rows remain pending or failed and are retried.
 - Payment or Inventory unavailable: bounded gRPC timeout and circuit breaker prevent indefinite request blocking.
 - Duplicate return event: Inventory business keys prevent duplicate restock.
 - Duplicate refund request: Payment idempotency key prevents a second refund.

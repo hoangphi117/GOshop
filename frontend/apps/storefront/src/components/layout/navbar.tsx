@@ -89,11 +89,11 @@ export function Navbar() {
 
   const handleLogout = async () => {
     try {
-      const refreshToken = useAuthStore.getState().refreshToken;
+      // Refresh token is an HttpOnly cookie; logout reads it server-side.
       await authFetch("/api/v1/auth/logout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(refreshToken ? { refresh_token: refreshToken } : {}),
+        body: JSON.stringify({}),
       });
     } catch {
       // Ignore network errors on logout

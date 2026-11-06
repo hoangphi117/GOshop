@@ -12,10 +12,20 @@ on:
       - 'chore/**'
     paths:
       - 'backend/**'
+      - 'scripts/kafka-acls.sh'
+      - 'scripts/kafka-acl-verify.sh'
+      - 'scripts/kafka-acl-ci.sh'
+      - 'scripts/kafka-tls-certs-ci.sh'
+      - 'docker-compose.prod.yml'
       - '.github/workflows/backend-ci.yml'
   pull_request:
     paths:
       - 'backend/**'
+      - 'scripts/kafka-acls.sh'
+      - 'scripts/kafka-acl-verify.sh'
+      - 'scripts/kafka-acl-ci.sh'
+      - 'scripts/kafka-tls-certs-ci.sh'
+      - 'docker-compose.prod.yml'
       - '.github/workflows/backend-ci.yml'
   # Manual runs verify the image matrix without waiting for a push.
   workflow_dispatch:
@@ -200,6 +210,28 @@ jobs:
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
 
+  acl:
+    # The prod broker denies by default (KAFKA_ALLOW_EVERYONE_IF_NO_ACL_FOUND
+    # false), so a mapping mistake - a service pointed at the plain SSL listener
+    # that has no SASL, an ACL missing for a new topic - only shows up when
+    # services fail to start after deploy. This job stands the broker up with
+    # the prod listener layout and runs the same two scripts ops runs.
+    #
+    # GitHub `services:` cannot bind-mount the JKS keystore and JAAS file the
+    # Kafka image needs, so the broker is a plain docker run inside the step.
+    name: Kafka ACL enforcement
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Provision TLS material
+        # CI has no PowerShell, so the bash equivalent; nothing is committed.
+        run: bash scripts/kafka-tls-certs-ci.sh
+
+      - name: Verify ACLs are enforced
+        run: bash scripts/kafka-acl-ci.sh
+
   integration:
     name: Integration smoke tests
     runs-on: ubuntu-latest
@@ -221,17 +253,26 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 12
-      rabbitmq:
-        image: rabbitmq:3-management-alpine
+      kafka:
+        image: apache/kafka:3.9.0
         env:
-          RABBITMQ_DEFAULT_USER: goshop
-          RABBITMQ_DEFAULT_PASS: goshop
+          KAFKA_NODE_ID: 1
+          KAFKA_PROCESS_ROLES: broker,controller
+          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+          KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,HOST://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,HOST://localhost:9092,CONTROLLER://kafka:9093
+          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,HOST:PLAINTEXT
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+          KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+          KAFKA_HEAP_OPTS: "-Xmx512m -Xms256m"
+          CLUSTER_ID: goshop-ci-kafka-0000000001
         ports:
-          - 5672:5672
+          - 9092:9092
         options: >-
-          --health-cmd "rabbitmq-diagnostics -q ping"
-          --health-interval 5s
-          --health-timeout 5s
+          --health-cmd "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092"
+          --health-interval 10s
+          --health-timeout 10s
           --health-retries 12
 
     steps:

@@ -7,11 +7,16 @@ const navigate = vi.fn()
 const reset = vi.fn()
 
 const MOCK_HREF = 'https://app.test/dashboard?tab=1'
+const MOCK_SANITIZED = '/dashboard?tab=1'
 
 vi.mock('@/stores/auth-store', () => ({
   useAuthStore: () => ({
     auth: { reset },
   }),
+}))
+
+vi.mock('@/lib/auth-redirect', () => ({
+  sanitizeRedirectTarget: () => MOCK_SANITIZED,
 }))
 
 vi.mock('@tanstack/react-router', async (importOriginal) => {
@@ -38,7 +43,7 @@ describe('SignOutDialog', () => {
     expect(reset).toHaveBeenCalledOnce()
     expect(navigate).toHaveBeenCalledWith({
       to: '/sign-in',
-      search: { redirect: MOCK_HREF },
+      search: { redirect: MOCK_SANITIZED },
       replace: true,
     })
   })

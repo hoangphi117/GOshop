@@ -1045,7 +1045,8 @@ export function Chats() {
             content: content || `${filesToSend.length} attachments`,
             content_type: 'media_group',
             attachment_url: JSON.stringify(uploadedItems),
-          })        }
+          })
+        }
         setIsUploading(false)
       } else if (content) {
         let textToSend = content

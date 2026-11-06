@@ -30,8 +30,8 @@ import (
 	"goshop/shared/config"
 	"goshop/shared/pkg/cache"
 	"goshop/shared/pkg/db"
+	"goshop/shared/pkg/kafka"
 	"goshop/shared/pkg/logger"
-	"goshop/shared/pkg/rabbitmq"
 	"goshop/shared/pkg/search"
 	"goshop/shared/pkg/telemetry"
 	"goshop/shared/pkg/utils"
@@ -105,14 +105,14 @@ func New(cfg *config.Config) (*App, error) {
 	// Consume review rating updates from the Review service (reviews live in a separate DB).
 	ratingQuerier := catalogsqlc.New(dbPool)
 	ratingConsumer := ratingconsumer.NewRatingConsumer(ratingQuerier, cacheRedisService)
-	if rmq, err := rabbitmq.NewRabbitMQService(utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"), utils.NewLoggerWithPath("catalog", "catalog_rabbitmq.log", "info")); err == nil {
+	if rmq, err := kafka.NewKafkaBroker(utils.GetEnv("KAFKA_BROKERS", ""), utils.NewLoggerWithPath("catalog", "catalog_kafka.log", "info")); err == nil {
 		go func() {
 			if err := rmq.Consume(context.Background(), events.QueueReviewRatingUpdated, ratingConsumer.HandleEvent); err != nil {
 				logger.Log.Error().Err(err).Msg("Catalog review-rating consumer stopped")
 			}
 		}()
 	} else {
-		logger.Log.Warn().Err(err).Msg("RabbitMQ unavailable, review rating updates disabled")
+		logger.Log.Warn().Err(err).Msg("Kafka unavailable, review rating updates disabled")
 	}
 
 	port := utils.GetEnv("CATALOG_SERVER_PORT", "8086")

@@ -7219,7 +7219,7 @@ const docTemplate = `{
         },
         "/healthz": {
             "get": {
-                "description": "Validates connectivity of Database, Redis, RabbitMQ, and Object Storage. Sends Discord alerts on degradation.",
+                "description": "Validates connectivity of Database, Redis, broker, and Object Storage. Sends Discord alerts on degradation.",
                 "produces": [
                     "application/json"
                 ],

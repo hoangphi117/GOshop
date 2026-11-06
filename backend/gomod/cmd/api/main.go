@@ -15,7 +15,7 @@ import (
 
 // @title           GOshop E-Commerce API
 // @version         1.0
-// @description     High-performance E-Commerce platform API built with Go, Gin, PostgreSQL, Redis, RabbitMQ, GHN, and VNPay.
+// @description     High-performance E-Commerce platform API built with Go, Gin, PostgreSQL, Redis, Kafka, GHN, and VNPay.
 // @termsOfService  http://swagger.io/terms/
 
 // @contact.name   GOshop API Support

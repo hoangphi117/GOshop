@@ -16,7 +16,7 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/ ./packages/
 COPY apps/storefront/ ./apps/storefront/
 
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --fetch-timeout 600000 --fetch-retries 5 --network-concurrency 8
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm --filter storefront build
 

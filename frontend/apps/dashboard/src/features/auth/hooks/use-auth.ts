@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api } from '@/lib/api'
+import { api, API_KEY, API_VERSIONED_BASE, CLIENT_HEADERS } from '@/lib/api'
 import { isStaffOrAdmin } from '@/lib/auth-utils'
 import { useAuthStore, type AuthUser } from '@/stores/auth-store'
 
@@ -17,7 +17,6 @@ export function useAuth() {
       }
       const u = data.data
       if (!isStaffOrAdmin(u.level)) {
-        auth.reset()
         throw new Error('Access denied. Administrator privileges required.')
       }
       const userProfile: AuthUser = {
@@ -39,7 +38,6 @@ export function useAuth() {
       const { data, error } = await api.POST('/api/v1/auth/login', {
         body: { email, password },
       })
-
       if (error || !data?.data) {
         const errorMsg =
           (error as { detail?: string; error?: string })?.detail ||
@@ -49,7 +47,7 @@ export function useAuth() {
       }
 
       const loginData = data.data
-      auth.setTokens(loginData.access_token || '', loginData.refresh_token || '')
+      auth.setTokens(loginData.access_token || '')
 
       // Fetch user profile immediately & verify role permissions
       const { data: profileRes, error: profileErr } = await api.GET('/users/me')
@@ -60,7 +58,6 @@ export function useAuth() {
 
       const u = profileRes.data
       if (!isStaffOrAdmin(u.level)) {
-        auth.reset()
         throw new Error('Access denied. This dashboard is restricted to administrators and staff members.')
       }
 
@@ -81,11 +78,17 @@ export function useAuth() {
   const logoutMutation = useMutation({
     mutationFn: async () => {
       try {
-        if (auth.refreshToken) {
-          await api.POST('/api/v1/auth/logout', {
-            body: { refresh_token: auth.refreshToken },
-          })
-        }
+        // Refresh token is an HttpOnly cookie; logout reads it server-side.
+        await fetch(`${API_VERSIONED_BASE}/auth/logout`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(API_KEY ? { 'X-API-KEY': API_KEY } : {}),
+            ...CLIENT_HEADERS,
+          },
+          credentials: 'include',
+          body: JSON.stringify({}),
+        })
       } catch {
         // Ignore logout error on server
       } finally {
@@ -95,6 +98,11 @@ export function useAuth() {
     },
   })
 
+  // Sign-in page itself: if a redirect target carries a nested sign-in value,
+  // drop it so re-mounts never re-wrap ?redirect=/sign-in?redirect=... .
+  // The API middleware already attempts a silent refresh on 401 before
+  // calling onUnauthorized, so reaching the guards with no token means the
+  // refresh token is gone or invalid and sign-in is the correct destination.
   return {
     user: auth.user,
     isAuthenticated: Boolean(auth.accessToken),

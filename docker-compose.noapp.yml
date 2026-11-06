@@ -1,6 +1,6 @@
 
 # =============================================================================
-# GOSHOP INFRASTRUCTURE ONLY (Postgres, Redis, RabbitMQ)
+# GOSHOP INFRASTRUCTURE ONLY (Postgres, Redis, Kafka)
 # =============================================================================
 # DÃ nh cho mÃ´i trÆ°á»ng Local Development khi cháº¡y Go API vÃ  Storefront trá»±c tiáº¿p trÃªn Host.
 # =============================================================================
@@ -45,23 +45,31 @@ services:
     networks:
       - goshop-network
 
-  rabbitmq:
-    image: rabbitmq:3-management-alpine
-    container_name: goshop-rabbitmq
+  kafka:
+    image: apache/kafka:3.9.0
+    container_name: goshop-kafka
     restart: unless-stopped
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-goshop}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-goshop}
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,HOST://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,HOST://localhost:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,HOST:PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_HEAP_OPTS: "-Xmx512m -Xms256m"
+      CLUSTER_ID: goshop-local-kafka-000000001
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "9092:9092"
     volumes:
-      - rabbitmq-data:/var/lib/rabbitmq
+      - kafka-data:/var/lib/kafka/data
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
       interval: 10s
-      timeout: 5s
-      retries: 5
+      timeout: 10s
+      retries: 12
     networks:
       - goshop-network
 
@@ -101,7 +109,7 @@ volumes:
     driver: local
   redis-data:
     driver: local
-  rabbitmq-data:
+  kafka-data:
     driver: local
   meilisearch-data:
     driver: local

@@ -1,4 +1,4 @@
-# Order Service Architecture Decisions
+﻿# Order Service Architecture Decisions
 
 ## Status
 
@@ -27,7 +27,7 @@ Other services must not query these tables directly. Shared PostgreSQL infrastru
 
 Synchronous reads and commands use versioned gRPC contracts under `proto/order/v1`.
 
-Asynchronous lifecycle changes use RabbitMQ events. Order persists events in its outbox within the same transaction as the business change. Publication can retry without losing the original event metadata.
+Asynchronous lifecycle changes use Kafka events. Order persists events in its outbox within the same transaction as the business change. Publication can retry without losing the original event metadata.
 
 Consumers must tolerate unknown fields and use `event_id` plus a business key for side-effect deduplication.
 
@@ -70,7 +70,7 @@ The project does not add a full retry framework or circuit-breaker service. Muta
 Order exposes:
 
 - `/healthz/live` for process liveness.
-- `/healthz/ready` for PostgreSQL and RabbitMQ readiness.
+- `/healthz/ready` for PostgreSQL and Kafka readiness.
 
 Liveness never checks dependencies. Readiness uses a short timeout and returns `503` when Order cannot access its database or event broker.
 

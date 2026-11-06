@@ -31,8 +31,9 @@ import (
 	"goshop/shared/pkg/auth"
 	"goshop/shared/pkg/cache"
 	"goshop/shared/pkg/db"
+	"goshop/shared/pkg/kafka"
 	"goshop/shared/pkg/logger"
-	"goshop/shared/pkg/rabbitmq"
+	"goshop/shared/pkg/messaging"
 	"goshop/shared/pkg/telemetry"
 	"goshop/shared/pkg/utils"
 	"goshop/shared/pkg/validation"
@@ -44,7 +45,7 @@ type App struct {
 	server         *http.Server
 	grpcServer     *grpc.Server
 	grpcListener   net.Listener
-	rabbitMQ       rabbitmq.RabbitMQService
+	broker         messaging.Broker
 	paymentService paymentservice.PaymentService
 	orderClient    ordercontract.OrderClient
 }
@@ -109,12 +110,13 @@ func New(cfg *config.Config) (*App, error) {
 	cacheRedisService := cache.NewRedisCacheService(redisClient)
 	tokenService := auth.NewJWTService(cacheRedisService)
 
-	// RabbitMQ
-	rabbitmqLogger := utils.NewLoggerWithPath("payment", "payment_rabbitmq.log", "info")
-	rabbitmqURL := utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
-	rabbitmqService, err := rabbitmq.NewRabbitMQService(rabbitmqURL, rabbitmqLogger)
+	// Kafka
+	brokerLogger := utils.NewLoggerWithPath("payment", "payment_kafka.log", "info")
+	broker, err := kafka.NewKafkaBroker(utils.GetEnv("KAFKA_BROKERS", ""),
+		brokerLogger,
+	)
 	if err != nil {
-		logger.Log.Warn().Err(err).Msg("RabbitMQ not available on boot for payment service, will retry in background")
+		logger.Log.Warn().Err(err).Msg("Kafka not available on boot for payment service, will retry in background")
 	}
 
 	// Repositories & Order Reader
@@ -183,7 +185,7 @@ func New(cfg *config.Config) (*App, error) {
 		outboxRepo,
 		providers,
 		cacheRedisService,
-		rabbitmqService,
+		broker,
 		returnURL,
 		webhookBaseURL,
 	)
@@ -220,7 +222,7 @@ func New(cfg *config.Config) (*App, error) {
 		server:         httpServer,
 		grpcServer:     grpcServer,
 		grpcListener:   grpcListener,
-		rabbitMQ:       rabbitmqService,
+		broker:         broker,
 		paymentService: paymentService,
 		orderClient:    orderClient,
 	}, nil
@@ -284,9 +286,9 @@ func (a *App) Run(ctx context.Context) error {
 		shutdownCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
 
-		if a.rabbitMQ != nil {
-			if err := a.rabbitMQ.Close(); err != nil {
-				logger.Log.Warn().Err(err).Msg("Failed to close RabbitMQ connection cleanly")
+		if a.broker != nil {
+			if err := a.broker.Close(); err != nil {
+				logger.Log.Warn().Err(err).Msg("Failed to close Kafka connection cleanly")
 			}
 		}
 		if a.orderClient != nil {

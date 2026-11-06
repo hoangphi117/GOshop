@@ -264,6 +264,7 @@ export default function RegisterPage() {
           headers: {
             "Content-Type": "application/json",
             "X-API-KEY": API_KEY,
+            "X-Client-App": "storefront",
           },
           body: JSON.stringify({
             email: email.trim(),
@@ -282,11 +283,10 @@ export default function RegisterPage() {
 
       const accessToken =
         data.data?.accessToken || data.data?.access_token || "";
-      const refreshToken =
-        data.data?.refreshToken || data.data?.refresh_token || "";
 
       if (accessToken) {
-        setTokens(accessToken, refreshToken);
+        // Refresh token arrives as an HttpOnly cookie; never stored client-side.
+        setTokens(accessToken);
         setUser({
           email: email.trim(),
           fullName: fullName.trim(),

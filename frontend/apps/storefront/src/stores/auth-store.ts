@@ -13,30 +13,27 @@ export interface AuthUser {
 
 interface AuthState {
   user: AuthUser | null
+  // Access token lives in memory only: it dies on reload and is restored by
+  // tryRefreshSession() from the HttpOnly refresh cookie. An XSS can at most
+  // steal a token that expires in minutes, never one persisted on disk.
   accessToken: string
-  refreshToken: string
   setUser: (user: AuthUser | null) => void
-  setTokens: (accessToken: string, refreshToken?: string) => void
+  setTokens: (accessToken: string) => void
   reset: () => void
 }
 
+// Only the display profile is persisted; tokens never touch storage.
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       user: null,
       accessToken: '',
-      refreshToken: '',
       setUser: (user) => set({ user }),
-      setTokens: (accessToken, refreshToken) =>
-        set((state) => ({
-          accessToken,
-          refreshToken: refreshToken || state.refreshToken,
-        })),
+      setTokens: (accessToken) => set({ accessToken }),
       reset: () =>
         set({
           user: null,
           accessToken: '',
-          refreshToken: '',
         }),
     }),
     {
@@ -46,6 +43,7 @@ export const useAuthStore = create<AuthState>()(
         setItem: () => {},
         removeItem: () => {},
       })),
+      partialize: (state) => ({ user: state.user }) as AuthState,
     }
   )
 )

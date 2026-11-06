@@ -15,10 +15,12 @@ export const MEILISEARCH_SEARCH_KEY =
 export const api = createApiClient({
   baseUrl: API_BASE_URL,
   getToken: () => useAuthStore.getState().accessToken,
-  getRefreshToken: () => useAuthStore.getState().refreshToken,
+  // Refresh token lives in an HttpOnly cookie; the API client only needs the
+  // access token. A 401 falls through to refreshAccessToken below.
+  getRefreshToken: () => '',
   getApiKey: () => API_KEY,
   onTokenRefreshed: (tokens) => {
-    useAuthStore.getState().setTokens(tokens.accessToken, tokens.refreshToken)
+    useAuthStore.getState().setTokens(tokens.accessToken)
   },
   onUnauthorized: () => {
     useAuthStore.getState().reset()
@@ -29,39 +31,58 @@ export type ApiInstance = typeof api
 
 let refreshPromise: Promise<string | null> | null = null
 
+function needsAuth(init?: RequestInit): boolean {
+  // GET/HEAD are public for most storefront endpoints; the 401 retry below
+  // still recovers those, so only restore eagerly for mutating calls.
+  const method = (init?.method ?? 'GET').toUpperCase()
+  return method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS'
+}
+
 async function refreshAccessToken(): Promise<string | null> {
-  const refreshToken = useAuthStore.getState().refreshToken
+  if (refreshPromise) return refreshPromise
+  refreshPromise = (async () => {
+    try {
+      const apiKey = API_KEY
+      const res = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-KEY': apiKey,
+          'X-Client-App': 'storefront',
+        },
+        // The refresh token is an HttpOnly cookie; the body stays empty.
+        credentials: 'include',
+        body: JSON.stringify({}),
+      })
 
-  try {
-    const apiKey = API_KEY
-    const res = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-KEY': apiKey,
-      },
-      credentials: 'include',
-      body: JSON.stringify(refreshToken ? { refresh_token: refreshToken } : {}),
-    })
+      if (!res.ok) {
+        useAuthStore.getState().reset()
+        return null
+      }
 
-    if (!res.ok) {
+      const json = await res.json()
+      const tokenData = json?.data
+      if (!tokenData?.access_token) {
+        useAuthStore.getState().reset()
+        return null
+      }
+
+      useAuthStore.getState().setTokens(tokenData.access_token)
+      return tokenData.access_token
+    } catch {
       useAuthStore.getState().reset()
       return null
+    } finally {
+      refreshPromise = null
     }
+  })()
+  return refreshPromise
+}
 
-    const json = await res.json()
-    const tokenData = json?.data
-    if (!tokenData?.access_token) {
-      useAuthStore.getState().reset()
-      return null
-    }
-
-    useAuthStore.getState().setTokens(tokenData.access_token, tokenData.refresh_token)
-    return tokenData.access_token
-  } catch {
-    useAuthStore.getState().reset()
-    return null
-  }
+export async function restoreSession(): Promise<string | null> {
+  const token = useAuthStore.getState().accessToken
+  if (token) return token
+  return refreshAccessToken()
 }
 
 export async function authFetch(
@@ -69,7 +90,13 @@ export async function authFetch(
   init?: RequestInit
 ): Promise<Response> {
   const apiKey = API_KEY
-  const token = useAuthStore.getState().accessToken
+  let token = useAuthStore.getState().accessToken
+
+  // Access token is memory-only, so after a reload it is empty even with a
+  // live refresh cookie. Restore it before the first authenticated call.
+  if (!token && needsAuth(init)) {
+    token = (await refreshAccessToken()) ?? ''
+  }
 
   let targetUrl = input
   if (typeof input === 'string' && input.startsWith('/')) {
@@ -84,6 +111,10 @@ export async function authFetch(
     if (!headers.has('X-API-KEY') && !headers.has('x-api-key')) {
       headers.set('X-API-KEY', apiKey)
     }
+    // Keeps the storefront's refresh cookie separate from the dashboard's.
+    if (!headers.has('X-Client-App')) {
+      headers.set('X-Client-App', 'storefront')
+    }
     return headers
   }
 
@@ -94,13 +125,7 @@ export async function authFetch(
   })
 
   if (res.status === 401) {
-    if (!refreshPromise) {
-      refreshPromise = refreshAccessToken().finally(() => {
-        refreshPromise = null
-      })
-    }
-
-    const newToken = await refreshPromise
+    const newToken = await refreshAccessToken()
     if (newToken) {
       res = await fetch(targetUrl, {
         ...init,

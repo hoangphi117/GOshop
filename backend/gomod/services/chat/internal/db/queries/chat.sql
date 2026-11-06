@@ -1,6 +1,6 @@
 -- name: CreateConversation :one
-INSERT INTO chat_conversations (user_id, user_email, user_fullname, user_avatar)
-VALUES (@user_id, @user_email, @user_fullname, @user_avatar)
+INSERT INTO chat_conversations (user_id, user_email, user_fullname, user_avatar, owner_is_staff)
+VALUES (@user_id, @user_email, @user_fullname, @user_avatar, @owner_is_staff)
 RETURNING *;
 
 -- name: GetConversationByUUID :one
@@ -70,6 +70,7 @@ SELECT
     ), '')::text AS last_message_content
 FROM chat_conversations c
 WHERE (@status::text = '' OR c.status = @status)
+  AND c.owner_is_staff = FALSE
   AND (
       @search::text = ''
       OR c.user_fullname ILIKE '%' || @search || '%'
@@ -82,6 +83,7 @@ LIMIT @limit_count OFFSET @offset_count;
 SELECT COUNT(*)
 FROM chat_conversations c
 WHERE (@status::text = '' OR c.status = @status)
+  AND c.owner_is_staff = FALSE
   AND (
       @search::text = ''
       OR c.user_fullname ILIKE '%' || @search || '%'
