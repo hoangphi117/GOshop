@@ -12,10 +12,20 @@ on:
       - 'chore/**'
     paths:
       - 'backend/**'
+      - 'scripts/kafka-acls.sh'
+      - 'scripts/kafka-acl-verify.sh'
+      - 'scripts/kafka-acl-ci.sh'
+      - 'scripts/kafka-tls-certs-ci.sh'
+      - 'docker-compose.prod.yml'
       - '.github/workflows/backend-ci.yml'
   pull_request:
     paths:
       - 'backend/**'
+      - 'scripts/kafka-acls.sh'
+      - 'scripts/kafka-acl-verify.sh'
+      - 'scripts/kafka-acl-ci.sh'
+      - 'scripts/kafka-tls-certs-ci.sh'
+      - 'docker-compose.prod.yml'
       - '.github/workflows/backend-ci.yml'
   # Manual runs verify the image matrix without waiting for a push.
   workflow_dispatch:
@@ -199,6 +209,28 @@ jobs:
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
+
+  acl:
+    # The prod broker denies by default (KAFKA_ALLOW_EVERYONE_IF_NO_ACL_FOUND
+    # false), so a mapping mistake - a service pointed at the plain SSL listener
+    # that has no SASL, an ACL missing for a new topic - only shows up when
+    # services fail to start after deploy. This job stands the broker up with
+    # the prod listener layout and runs the same two scripts ops runs.
+    #
+    # GitHub `services:` cannot bind-mount the JKS keystore and JAAS file the
+    # Kafka image needs, so the broker is a plain docker run inside the step.
+    name: Kafka ACL enforcement
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Provision TLS material
+        # CI has no PowerShell, so the bash equivalent; nothing is committed.
+        run: bash scripts/kafka-tls-certs-ci.sh
+
+      - name: Verify ACLs are enforced
+        run: bash scripts/kafka-acl-ci.sh
 
   integration:
     name: Integration smoke tests
