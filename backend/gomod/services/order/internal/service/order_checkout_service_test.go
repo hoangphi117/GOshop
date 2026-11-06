@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"goshop/contracts/events"
 	"goshop/services/order/internal/db/sqlc"
 	v1dto "goshop/services/order/internal/dto"
 	orderservice "goshop/services/order/internal/service"
@@ -247,9 +248,11 @@ func TestOrderCheckoutService_CreateOrder(t *testing.T) {
 		}
 
 		outboxInserted := false
+		var outboxPayload any
 		mockOutbox := &MockOutboxRepository{
 			InsertFunc: func(ctx context.Context, tx pgx.Tx, aggType, aggID, evtType string, payload any) (sqlc.OutboxEvent, error) {
 				outboxInserted = true
+				outboxPayload = payload
 				return sqlc.OutboxEvent{
 					EventID:       1,
 					AggregateType: aggType,
@@ -297,6 +300,14 @@ func TestOrderCheckoutService_CreateOrder(t *testing.T) {
 		assert.Equal(t, createdOrderUUID.String(), res.UUID)
 		assert.Equal(t, float64(430000), res.TotalAmount)
 		assert.True(t, outboxInserted, "Transactional outbox event must be inserted")
+
+		// The cart consumer drops purchased lines by product uuid and falls back
+		// to the numeric id. Both checkout and the saga publish order.created, so
+		// both must carry the uuids; otherwise one path can only match by id and
+		// removes the wrong line when a product is re-created under the same id.
+		created, ok := outboxPayload.(events.OrderCreatedEvent)
+		require.True(t, ok, "outbox payload must be events.OrderCreatedEvent, got %T", outboxPayload)
+		assert.Equal(t, []string{prodUUID1, prodUUID2}, created.PurchasedItemUUIDs)
 	})
 
 	t.Run("Optimized checkout using user claims from context and memory items", func(t *testing.T) {
