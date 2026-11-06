@@ -1,4 +1,4 @@
-﻿include ./backend/.env
+include ./backend/.env
 export
 
 MIGRATION_IDENTITY_DIR=backend/gomod/services/identity/internal/migrations
@@ -38,7 +38,7 @@ ENV_FILE=./backend/.env
 env-dev:
 	powershell -NoProfile -Command "if (!(Test-Path backend/.env.dev) -or !(Test-Path frontend/apps/storefront/.env.dev)) { Write-Host 'Missing dev variant: cp backend/.env.dev.example backend/.env.dev + cp frontend/apps/storefront/.env.dev.example frontend/apps/storefront/.env.dev (secrets: see backend/.env.example)' -ForegroundColor Red; exit 1 }; Copy-Item backend/.env.dev backend/.env; Copy-Item frontend/apps/storefront/.env.dev frontend/apps/storefront/.env; Copy-Item frontend/apps/storefront/.env.dev frontend/apps/storefront/.env.production; Write-Host 'dev env active'"
 env-prod:
-	powershell -NoProfile -Command "if (!(Test-Path backend/.env.prod) -or !(Test-Path frontend/apps/storefront/.env.prod)) { Write-Host 'Missing prod variant: cp backend/.env.prod.example backend/.env.prod + cp frontend/apps/storefront/.env.prod.example frontend/apps/storefront/.env.prod, then fill every CHANGE_ME' -ForegroundColor Red; exit 1 }; Copy-Item backend/.env.prod backend/.env; Copy-Item frontend/apps/storefront/.env.prod frontend/apps/storefront/.env; Copy-Item frontend/apps/storefront/.env.prod frontend/apps/storefront/.env.production; Write-Host 'prod env active - set APP_ORIGIN in backend/.env.prod first; rebuild storefront + payment + api1 + api2'"
+	powershell -NoProfile -Command "if (!(Test-Path backend/.env.prod) -or !(Test-Path frontend/apps/storefront/.env.prod)) { Write-Host 'Missing prod variant: cp backend/.env.prod.example backend/.env.prod + cp frontend/apps/storefront/.env.prod.example frontend/apps/storefront/.env.prod, then fill every CHANGE_ME' -ForegroundColor Red; exit 1 }; Copy-Item backend/.env.prod backend/.env; Copy-Item frontend/apps/storefront/.env.prod frontend/apps/storefront/.env; Copy-Item frontend/apps/storefront/.env.prod frontend/apps/storefront/.env.production; Write-Host 'prod env active - set APP_ORIGIN in backend/.env.prod first; rebuild storefront + payment + api1 + api2; then run make kafka-env (this copy has no Kafka SASL/TLS values)'"
 
 importdb:
 	docker exec -i goshop-postgres psql -U ${DB_USER} -d ${DB_NAME} < ./backupdb.sql
@@ -251,7 +251,7 @@ prod-fast:
 
 # Stop production containers
 stop-prod:
-	docker compose -f ${PROD_COMPOSE} down
+	docker compose -f ${PROD_COMPOSE} --env-file ${ENV_FILE} down
 
 # Post-deploy smoke check (8 HTTP probes + container states).
 smoke-prod:
@@ -265,7 +265,7 @@ reload-nginx:
 
 # View production logs
 logs-prod:
-	docker compose -f ${PROD_COMPOSE} logs -f --tail=100
+	docker compose -f ${PROD_COMPOSE} --env-file ${ENV_FILE} logs -f --tail=100
 
 # Enter bash shell in the API container
 bash:
@@ -281,5 +281,77 @@ stresstest:
 spiketest:
 	docker run --rm -i --network=shopping_goshop-network -v "./scripts/loadtest:/loadtest" -e BASE_URL=http://goshop-nginx -e API_KEY=${API_KEY} grafana/k6 run /loadtest/spike_test.js
 
-.PHONY: importdb exportdb server worker ws-gateway identity notification payment coupon inventory catalog order chat media build-identity build-notification build-payment build-coupon build-inventory build-catalog build-order build-chat build-media migrate-create migrate-up migrate-down sqlc build build-worker build-ws-gateway run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev dev-host swagger loadtest stresstest spiketest seed seed-docker env-dev env-prod
+# Kafka integration suite against a real broker in Testcontainers.
+# Needs Docker running; first run pulls apache/kafka:3.9.0 (~400MB).
+test-kafka-integration:
+	cd backend/gomod/shared && go test -tags=integration ./pkg/kafka/ -v -count=1 -timeout 20m
+
+# Adds every Kafka secret to backend/.env, the single source of truth: one
+# SCRAM password per client plus the broker TLS settings.
+#
+#   make kafka-env                 # add any missing value, keep existing
+#   make kafka-env ROTATE=1        # regenerate every Kafka password
+#
+# Compose reads the file for ${VAR} interpolation via --env-file ${ENV_FILE}.
+# Re-run after `make env-prod`/`make env-dev`: those replace the file.
+kafka-env:
+	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/gen-kafka-env.ps1 $(if $(ROTATE),-Rotate,)
+
+# Phase 6 item 2: creates one SCRAM user per service on the running broker.
+# Run once on a fresh kafka-data volume, BEFORE starting the services: with
+# SASL on and no credentials yet, nothing can log in - including this script.
+# Idempotent, so re-run it after rotating a password in the deployment env.
+kafka-sasl-users:
+	docker compose -f ${PROD_COMPOSE} --env-file ${ENV_FILE} exec -T kafka \
+		sh /tmp/kafka-sasl-users.sh kafka:29093
+
+# Phase 6 item 4: grants each service the topics and consumer groups it uses.
+# Run AFTER kafka-sasl-users, and BEFORE starting the services: the broker is
+# configured to deny by default (KAFKA_ALLOW_EVERYONE_IF_NO_ACL_FOUND=false), so
+# an ungranted client fails at startup. Idempotent.
+kafka-acls:
+	docker compose -f ${PROD_COMPOSE} --env-file ${ENV_FILE} exec -T kafka \
+		sh /tmp/kafka-acls.sh kafka:29093
+
+# Proves the ACLs are enforced, not merely present: each identity must reach the
+# topics it owns AND be refused another service's. Passwords come from the
+# broker's own environment, so no secrets are passed on the command line.
+kafka-acl-verify:
+	docker compose -f ${PROD_COMPOSE} --env-file ${ENV_FILE} exec -T kafka \
+		sh /tmp/kafka-acl-verify.sh kafka:29093 kafka:29096
+
+# Phase 6 item 3: broker TLS material (CA + broker cert + JKS keystore).
+# Writes backend/kafka/tls/; only ca.crt is committed. Run kafka-env after.
+kafka-tls-certs:
+	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/gen-kafka-tls-certs.ps1
+
+# Every dead-letter topic should be empty in steady state. A non-zero lag means
+# records exhausted their retries and wait for `dlqreplay`.
+check-dlq:
+	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check-dlq.ps1
+
+# Truncates every DLQ topic to offset 0 without dropping the topic (and its ACLs).
+# Destroys the dead letters: inspect them before running this.
+clear-dlq:
+	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/clear-dlq.ps1
+
+# Health of the six Kafka consumer services, straight through the edge.
+kafka-health:
+	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check-kafka-health.ps1
+
+# Rewinds one consumer group's offsets. Debug only: replaying side-effecting
+# consumers duplicates notifications and emails.
+#   make kafka-reset-group GROUP=goshop.notification_service_events_v3 MODE=Latest
+kafka-reset-group:
+	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/kafka-reset-group.ps1 -Group "$(GROUP)" -Mode "$(or $(MODE),Latest)" $(if $(DATETIME),-DateTime "$(DATETIME)",)
+
+# Ad-hoc Grafana Cloud Loki query (needs GRAFANA_LOKI_READ_TOKEN in backend/.env).
+#   make logq Q='{container="goshop-order"}' HOURS=6
+# Make strips bare double quotes, so $-escape them in the query when passing
+# one through a shell: Q='{container=$\"goshop-order$\"}'. Simpler queries
+# without quotes work directly.
+logq:
+	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/logq.ps1 '$(Q)' -Hours $(or $(HOURS),2) -Limit $(or $(LIMIT),10)
+
+.PHONY: importdb exportdb server worker ws-gateway identity notification payment coupon inventory catalog order chat media build-identity build-notification build-payment build-coupon build-inventory build-catalog build-order build-chat build-media migrate-create migrate-up migrate-down sqlc build build-worker build-ws-gateway run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev dev-host swagger loadtest stresstest spiketest test-kafka-integration kafka-env kafka-sasl-users kafka-acls kafka-acl-verify kafka-tls-certs check-dlq clear-dlq kafka-health kafka-reset-group logq seed seed-docker env-dev env-prod
 
