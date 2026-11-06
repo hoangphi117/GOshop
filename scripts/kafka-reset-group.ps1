@@ -1,11 +1,11 @@
-#Requires -Version 7.0
 # =============================================================================
-# GOshop Kafka consumer-group reset (R5 recovery tool)
-# Resets a group offset to latest (skip poison backlog) or to a datetime.
-# Usage:
-#   scripts/kafka-reset-group.ps1 -Group goshop.notification.order-events -Mode Latest
-#   scripts/kafka-reset-group.ps1 -Group goshop.notification.order-events -Mode DateTime -DateTime "2026-11-01T00:00:00"
-# Requires the dev kafka container (goshop-kafka) to be running.
+# GOshop Kafka consumer-group reset (recovery tool).
+# Resets a group's offsets to latest (skip a poison backlog), earliest, or a
+# timestamp. The group must have no active members: stop the owning service
+# first, otherwise the broker refuses the reset.
+#
+#   make kafka-reset-group GROUP=goshop.notification_service_events_v3
+#   make kafka-reset-group GROUP=... MODE=DateTime DATETIME=2026-11-01T00:00:00
 # =============================================================================
 
 param(
@@ -24,10 +24,15 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# BIN=/opt/kafka/bin: the binary is not on PATH inside apache/kafka images.
+# 29093 is the plaintext BOOTSTRAP listener, so no SASL credentials are needed.
+$BIN = "/opt/kafka/bin"
+$Bootstrap = "localhost:29093"
+
 function Invoke-KafkaGroups {
     param([string[]]$KafkaArgs)
-    $joined = $KafkaArgs -join " "
-    docker exec $Container bash -c "kafka-consumer-groups.sh --bootstrap-server localhost:9092 $joined" 2>&1
+    $joined = ($KafkaArgs | ForEach-Object { if ($_ -match '\s') { "'$_'" } else { $_ } }) -join " "
+    docker exec $Container sh -c "$BIN/kafka-consumer-groups.sh --bootstrap-server $Bootstrap $joined" 2>&1
 }
 
 Write-Host "Groups:" -ForegroundColor Cyan
