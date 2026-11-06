@@ -56,7 +56,7 @@ location = /_hp_catalog {
     access_log off;
     proxy_connect_timeout 1s;
     proxy_read_timeout 1s;
-    set $hp_catalog_target http://catalog-service:8086;
+    set $hp_catalog_target http://catalog:8086;
     proxy_pass $hp_catalog_target/health;
 }
 
@@ -143,10 +143,10 @@ location /api/v1/ws {
 # -----------------------------------------------------------------------------
 # 4. IDENTITY SERVICE REVERSE PROXY (/api/v1/auth, /api/v1/users, /api/v1/addresses)
 # -----------------------------------------------------------------------------
-# Điều hướng các API định danh sang identity-service:8081
+# Điều hướng các API định danh sang identity:8081
 location /api/v1/auth {
     limit_req zone=auth burst=10 nodelay;
-    set $identity_target http://identity-service:8081;
+    set $identity_target http://identity:8081;
     proxy_pass $identity_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -166,7 +166,7 @@ location /api/v1/auth {
 }
 
 location /api/v1/users {
-    set $identity_target http://identity-service:8081;
+    set $identity_target http://identity:8081;
     proxy_pass $identity_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -187,7 +187,7 @@ location /api/v1/users {
 }
 
 location /api/v1/admin/users {
-    set $identity_target http://identity-service:8081;
+    set $identity_target http://identity:8081;
     proxy_pass $identity_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -208,7 +208,7 @@ location /api/v1/admin/users {
 }
 
 location /api/v1/addresses {
-    set $identity_target http://identity-service:8081;
+    set $identity_target http://identity:8081;
     proxy_pass $identity_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -232,7 +232,7 @@ location /api/v1/addresses {
 # 4.2. COUPON SERVICE REVERSE PROXY (/api/v1/coupons, /api/v1/admin/coupons)
 # -----------------------------------------------------------------------------
 location /api/v1/coupons {
-    set $coupon_target http://coupon-service:8084;
+    set $coupon_target http://coupon:8084;
     proxy_pass $coupon_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -253,7 +253,7 @@ location /api/v1/coupons {
 }
 
 location /api/v1/admin/coupons {
-    set $coupon_target http://coupon-service:8084;
+    set $coupon_target http://coupon:8084;
     proxy_pass $coupon_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -279,7 +279,7 @@ location /api/v1/admin/coupons {
 # 4.2.5. BANNER SERVICE REVERSE PROXY (/api/v1/banners, /api/v1/admin/banners)
 # -----------------------------------------------------------------------------
 location /api/v1/banners {
-    set $banner_target http://banner-service:8089;
+    set $banner_target http://banner:8089;
     proxy_pass $banner_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -300,7 +300,7 @@ location /api/v1/banners {
 }
 
 location /api/v1/admin/banners {
-    set $banner_target http://banner-service:8089;
+    set $banner_target http://banner:8089;
     proxy_pass $banner_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -322,7 +322,7 @@ location /api/v1/admin/banners {
 # 4.3. INVENTORY SERVICE REVERSE PROXY (/api/v1/admin/inventory, /api/v1/inventory)
 # -----------------------------------------------------------------------------
 location /api/v1/admin/inventory {
-    set $inventory_target http://inventory-service:8090;
+    set $inventory_target http://inventory:8090;
     proxy_pass $inventory_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -343,7 +343,7 @@ location /api/v1/admin/inventory {
 }
 
 location /api/v1/inventory {
-    set $inventory_target http://inventory-service:8090;
+    set $inventory_target http://inventory:8090;
     proxy_pass $inventory_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -389,7 +389,7 @@ location ~ ^/api/v1/products/[^/]+/reviews {
 }
 
 location /api/v1/products {
-    set $catalog_target http://catalog-service:8086;
+    set $catalog_target http://catalog:8086;
     proxy_pass $catalog_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -410,7 +410,7 @@ location /api/v1/products {
 }
 
 location /api/v1/admin/products {
-    set $catalog_target http://catalog-service:8086;
+    set $catalog_target http://catalog:8086;
     proxy_pass $catalog_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -431,7 +431,7 @@ location /api/v1/admin/products {
 }
 
 location /api/v1/categories {
-    set $catalog_target http://catalog-service:8086;
+    set $catalog_target http://catalog:8086;
     proxy_pass $catalog_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -452,7 +452,7 @@ location /api/v1/categories {
 }
 
 location /api/v1/admin/categories {
-    set $catalog_target http://catalog-service:8086;
+    set $catalog_target http://catalog:8086;
     proxy_pass $catalog_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -476,7 +476,7 @@ location /api/v1/admin/categories {
 # 4.5. CART SERVICE REVERSE PROXY (/api/v1/cart)
 # -----------------------------------------------------------------------------
 location /api/v1/cart {
-    set $cart_target http://cart-service:8087;
+    set $cart_target http://cart:8087;
     proxy_pass $cart_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -500,7 +500,7 @@ location /api/v1/cart {
 # 4.6. ORDER SERVICE REVERSE PROXY (/api/v1/orders, /api/v1/admin/orders)
 # -----------------------------------------------------------------------------
 location /api/v1/orders {
-    set $order_target http://order-service:8088;
+    set $order_target http://order:8088;
     proxy_pass $order_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -521,7 +521,7 @@ location /api/v1/orders {
 }
 
 location /api/v1/admin/orders {
-    set $order_target http://order-service:8088;
+    set $order_target http://order:8088;
     proxy_pass $order_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -542,7 +542,7 @@ location /api/v1/admin/orders {
 }
 
 location /api/v1/admin/returns {
-    set $order_target http://order-service:8088;
+    set $order_target http://order:8088;
     proxy_pass $order_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -563,7 +563,7 @@ location /api/v1/admin/returns {
 }
 
 location /api/v1/shipping {
-    set $order_target http://order-service:8088;
+    set $order_target http://order:8088;
     proxy_pass $order_target;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
@@ -716,7 +716,9 @@ location ^~ /admin/ {
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header X-Request-ID $request_id always;
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'" always;
+    # connect-src must allow the storage origin, same as the storefront: the
+    # dashboard's admin uploads PUT straight to the bucket too.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' $goshop_storage_origin; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'" always;
 }
 
 # -----------------------------------------------------------------------------
@@ -753,5 +755,9 @@ location / {
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header X-Request-ID $request_id always;
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://accounts.google.com; frame-src 'self' https://accounts.google.com https://content.googleapis.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'" always;
+    # connect-src must allow the storage origin: browser uploads PUT the bytes
+    # straight to the bucket (packages/api-client/src/upload.ts), not through
+    # this edge, so 'self' is not enough. $goshop_storage_origin is rendered
+    # from S3_PUBLIC_ORIGIN at start; empty in a local-disk deployment.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://accounts.google.com $goshop_storage_origin; frame-src 'self' https://accounts.google.com https://content.googleapis.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'" always;
 }

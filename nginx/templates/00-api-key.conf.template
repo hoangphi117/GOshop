@@ -24,3 +24,13 @@ map $http_x_api_key $goshop_api_key {
 map edge $goshop_meili_key {
     default "${MEILISEARCH_MASTER_KEY}";
 }
+
+# Browser uploads PUT straight to storage (packages/api-client/src/upload.ts),
+# so connect-src must name the bucket origin or CSP blocks the request.
+# The AWS SDK signs against the virtual-hosted form <bucket>.<endpoint> when
+# UsePathStyle is false (R2/S3), so the CSP origin needs the bucket prefix —
+# `https://goshop-media.<account>.r2.cloudflarestorage.com`. MinIO uses path
+# style, where S3_ENDPOINT is already the origin. Empty keeps CSP storage-free.
+map edge $goshop_storage_origin {
+    default "${S3_PUBLIC_ORIGIN}";
+}
