@@ -252,7 +252,10 @@ SELECT
     v.brands[1 + (n % array_length(v.brands, 1))] || ' ' ||
         v.lines[1 + ((n / 5) % array_length(v.lines, 1))] ||
         ': everyday device for daily use, warranty 24 months, fulfilled by GOshop.',
-    (400000 + ((n * 7919) % 640)) * 5000,
+    -- Generated price band, 2.0-3.6 million VND. Keep the modulo multiplied
+    -- before the base is added: scaling the sum instead lands every item at
+    -- 2 billion, which exceeds GHN's 50M COD cap and silently breaks shipping.
+    (2000000 + ((n * 7919) % 320) * 5000),
     upper(left(regexp_replace(v.brands[1 + (n % array_length(v.brands, 1))], '[^a-zA-Z0-9]+', '', 'g'), 3)) ||
         (32 + n)::text || '-' || lpad(n::text, 4, '0'),
     v.cat_id,
