@@ -676,10 +676,10 @@
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic goshop.media.v1 --partitions 1 --replication-factor 1
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic goshop.shipping.v1 --partitions 1 --replication-factor 1
         for d in order order-return payment user email inventory review notification media shipping; do
-          /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic goshop.$$d.v1.dlq --partitions 1 --replication-factor 1
+          /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic "goshop.$${d}.v1.dlq" --partitions 1 --replication-factor 1
           # Phase 3: DLQ records are the forensic record of a failure, so they
           # never expire. Domain topics keep the broker default.
-          /opt/kafka/bin/kafka-configs.sh --bootstrap-server kafka:29092 --alter --entity-type topics --entity-name goshop.$$d.v1.dlq --add-config retention.ms=-1
+          /opt/kafka/bin/kafka-configs.sh --bootstrap-server kafka:29092 --alter --entity-type topics --entity-name "goshop.$${d}.v1.dlq" --add-config retention.ms=-1
         done
         echo "kafka topics ready"
     networks:
