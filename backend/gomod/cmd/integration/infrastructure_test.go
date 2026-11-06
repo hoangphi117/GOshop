@@ -31,11 +31,11 @@ func TestInfrastructureDependencies(t *testing.T) {
 
 	brokers := strings.Split(envOrDefault("INTEGRATION_KAFKA_BROKERS", "localhost:9092"), ",")
 
-	// Consume BEFORE producing: the group would otherwise start at the latest
-	// offset and miss the record written by this test.
 	topic := fmt.Sprintf("goshop.integration.%d", time.Now().UnixNano())
 	group := "goshop.integration-" + uuid.NewString()
 
+	// Consume BEFORE producing: the group would otherwise start at the latest
+	// offset and miss the record written by this test.
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:  brokers,
 		GroupID:  group,
@@ -44,11 +44,27 @@ func TestInfrastructureDependencies(t *testing.T) {
 	})
 	defer reader.Close()
 
-	writer := &kafka.Writer{Addr: kafka.TCP(brokers...), Topic: topic, RequiredAcks: kafka.RequireAll}
+	writer := &kafka.Writer{
+		Addr:                   kafka.TCP(brokers...),
+		Topic:                  topic,
+		RequiredAcks:           kafka.RequireAll,
+		AllowAutoTopicCreation: true,
+	}
 	defer writer.Close()
 
+	// The first write may land on a broker that is still creating the topic and
+	// answer UNKNOWN_TOPIC_OR_PARTITION; retry it rather than fail the whole
+	// check on a race the broker settles on its own.
 	payload := []byte("integration-check")
-	require.NoError(t, writer.WriteMessages(ctx, kafka.Message{Value: payload}))
+	var writeErr error
+	for attempt := 0; attempt < 10; attempt++ {
+		writeErr = writer.WriteMessages(ctx, kafka.Message{Value: payload})
+		if writeErr == nil {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	require.NoError(t, writeErr)
 
 	msg, err := reader.ReadMessage(ctx)
 	require.NoError(t, err, "timed out waiting for Kafka round-trip")

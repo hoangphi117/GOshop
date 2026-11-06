@@ -70,14 +70,21 @@ consume() {
         --consumer.config "$1" --topic "$2" --from-beginning \
         --max-messages 1 --timeout-ms 8000 --partition 0 2>&1)"
     case "$out" in
+        # A missing topic is NOT a denial. Reported as such the assertion goes
+        # green on a topic nobody can read because it does not exist there.
+        *UNKNOWN_TOPIC_OR_PARTITION*) echo missing ;;
         *AUTHORIZATION*|*"Not authorized"*|*SaslAuthenticationException*) echo deny ;;
         *) echo ok ;;
     esac
 }
 
 # Topics must exist: auto-create is off, so a missing topic fails on existence
-# and would look like a denial.
-for t in goshop.order.v1 goshop.user.v1 goshop.payment.v1 goshop.email.v1; do
+# and would look like a denial. Every topic a check touches is listed here,
+# dead letters included: the DLQ probes below assert on read/write grants, and
+# against a missing topic the broker answers UNKNOWN_TOPIC_OR_PARTITION, which
+# the classifier read as "allowed".
+for t in goshop.order.v1 goshop.user.v1 goshop.payment.v1 goshop.email.v1 \
+         goshop.order.v1.dlq goshop.payment.v1.dlq; do
     $K/kafka-topics.sh --bootstrap-server "$B" --create --if-not-exists \
         --topic "$t" --partitions 1 --replication-factor 1 >/dev/null 2>&1 || true
 done
