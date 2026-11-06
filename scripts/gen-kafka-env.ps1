@@ -54,7 +54,13 @@ $added = 0
 function Set-Key([string]$key, [string]$value) {
   $i = Find-Key $key
   if ($i -ge 0) {
-    if ($Rotate) { $lines[$i] = "$key=$value" }
+    # A key copied from the example template still holds its placeholder, and
+    # an empty value means "unset" to compose's ${VAR:?} guard, so neither
+    # counts as configured. Replace it; leave a real value alone.
+    $current = ($lines[$i] -split "=", 2)[1]
+    if ($Rotate -or [string]::IsNullOrWhiteSpace($current) -or $current -eq "CHANGE_ME") {
+      $lines[$i] = "$key=$value"
+    }
     return
   }
   $script:added++
