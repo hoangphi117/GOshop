@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"strings"
 	"sync"
 	"time"
@@ -25,6 +26,10 @@ import (
 const (
 	defaultMaxRetries   = 3
 	defaultRetryBackoff = 1000 // ms, nhân đôi mỗi lần retry (1s, 2s, 4s...)
+
+	// dialTimeout bounds TCP connect plus TLS handshake plus SASL negotiation.
+	// The kafka-go default is 5s, too tight for a SCRAM handshake over TLS.
+	dialTimeout = 15 * time.Second
 )
 
 // writerLike is the subset of kafka.Writer tests and alternate transports
@@ -40,6 +45,9 @@ type writerLike interface {
 type kafkaBroker struct {
 	brokers []string
 	logger  *zerolog.Logger
+	// dialer is nil on a plaintext broker; every connection (writer and
+	// readers) must use it when auth is configured.
+	dialer *kafka.Dialer
 
 	writerMu sync.Mutex
 	writer   writerLike
@@ -96,9 +104,15 @@ func NewKafkaBroker(brokers string, log *zerolog.Logger) (messaging.Broker, erro
 		return nil, fmt.Errorf("kafka: KAFKA_BROKERS is empty, refusing default")
 	}
 
+	d, err := loadAuthConfig().dialer()
+	if err != nil {
+		return nil, err
+	}
+
 	b := &kafkaBroker{
 		brokers: strings.Split(strings.ReplaceAll(brokers, " ", ""), ","),
 		logger:  log,
+		dialer:  d,
 		quit:    make(chan struct{}),
 	}
 	return b, nil
@@ -119,6 +133,7 @@ func (b *kafkaBroker) writer1() writerLike {
 		MaxAttempts:  3,
 		BatchTimeout: 10 * time.Millisecond,
 		Async:        false,
+		Transport:    b.transport(),
 	}
 	return b.writer
 }
@@ -231,12 +246,40 @@ func (b *kafkaBroker) PublishToExchange(ctx context.Context, exchange, routingKe
 func (b *kafkaBroker) newGroupReader(group, topic string) *kafka.Reader {
 	return kafka.NewReader(kafka.ReaderConfig{
 		Brokers:        b.brokers,
+		Dialer:         b.dialer,
 		GroupID:        group,
 		Topic:          topic,
 		MinBytes:       1,
 		MaxBytes:       1 << 20,
 		CommitInterval: 0, // manual CommitMessages only
+		// Without a GroupBalancer the reader falls back to RangeGroupBalancer,
+		// which kafka-go only supports for the legacy (non-KIP-848) assignment
+		// path. Stating it explicitly keeps group joins deterministic across
+		// kafka-go versions and brokers that advertise the new protocol.
+		GroupBalancers: []kafka.GroupBalancer{kafka.RangeGroupBalancer{}},
 	})
+}
+
+// transport hands the Writer the same credentials readers use.
+//
+// kafka-go has two ways to authenticate a producer: the deprecated
+// Writer.Dialer field, and kafka.Transport. Only the latter enables SASL, so
+// the writer gets a Transport.
+//
+// Dial must be a *plain* TCP dial: Transport performs the TLS handshake and the
+// SASL exchange itself (Transport.SASL / Transport.TLS). Reusing
+// Dialer.DialContext here would run both twice and fail.
+func (b *kafkaBroker) transport() kafka.RoundTripper {
+	if b.dialer == nil {
+		return nil // DefaultTransport: plaintext, same as before phase 6
+	}
+	netDialer := &net.Dialer{Timeout: dialTimeout}
+	return &kafka.Transport{
+		Dial:        netDialer.DialContext,
+		DialTimeout: dialTimeout,
+		SASL:        b.dialer.SASLMechanism,
+		TLS:         b.dialer.TLS,
+	}
 }
 
 // startGroupConsumer runs consumerCount FetchMessage loops on reader. Each

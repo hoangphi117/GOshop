@@ -107,9 +107,16 @@ func ReplayTopic(ctx context.Context, brokers, dlqTopic string, log *zerolog.Log
 
 	// Bounded drain: FetchMessage blocks until a record arrives, so stop on
 	// idle instead of hanging forever once the DLQ is empty.
+	//
+	// The first fetch gets a longer budget: the idle timer must not start
+	// before the consumer group has joined and been assigned the partition,
+	// which takes a few seconds on a fresh group. Without that, an empty-looking
+	// scan looks drained and the run silently replays nothing.
+	const joinBudget = 30 * time.Second
 	idle := 5 * time.Second
+	wait := joinBudget
 	for {
-		fetchCtx, cancel := context.WithTimeout(ctx, idle)
+		fetchCtx, cancel := context.WithTimeout(ctx, wait)
 		msg, err := reader.FetchMessage(fetchCtx)
 		cancel()
 		if err != nil {
@@ -118,6 +125,7 @@ func ReplayTopic(ctx context.Context, brokers, dlqTopic string, log *zerolog.Log
 			}
 			return res, fmt.Errorf("read dlq %s: %w", dlqTopic, err)
 		}
+		wait = idle // joined: from here on, silence means drained
 		res.Scanned++
 
 		target := headerValue(msg.Headers, headerDLQTopic)
