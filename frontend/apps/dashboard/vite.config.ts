@@ -26,17 +26,25 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      // dev-host runs the Go api gateway on :8080 (nginx edge is stopped).
-      // ws: true keeps the /api/v1/ws upgrade working. Prod is unaffected:
-      // this block only exists for the dev server, the built dist is served
-      // by the edge under /admin/.
+      // Route dev traffic through the nginx edge (:80), not the gateway (:8080).
+      //
+      // The gateway rejects key-less requests with 400 "missing API Key" on the
+      // authenticated routes (/users/me, /admin/*), and nginx is the only layer
+      // that injects X-API-KEY server-side (map $http_x_api_key in
+      // nginx/templates/00-api-key.conf.template). Proxying straight to :8080
+      // skipped that injection, so every authenticated screen failed to load.
+      // Going through :80 also reuses the edge's CORS + preflight handling, so
+      // dev and prod take the same path.
+      //
+      // ws: true keeps the /api/v1/ws upgrade working (nginx forwards it to
+      // ws-gateway:8085).
       '/api': {
-        target: 'http://localhost:8080',
+        target: 'http://localhost:80',
         changeOrigin: true,
         ws: true,
       },
       '/uploads': {
-        target: 'http://localhost:8080',
+        target: 'http://localhost:80',
         changeOrigin: true,
       },
     },

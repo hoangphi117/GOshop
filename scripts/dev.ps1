@@ -11,6 +11,15 @@
 
 Write-Host ">>> [1/3] Starting Infrastructure and Domain Services (Docker)..." -ForegroundColor Cyan
 
+# Static check first: it needs no running container, and it catches the class of
+# bug where the gateway proxies to a service the dev compose never starts
+# (502 at request time, no build-time symptom).
+& python "$PSScriptRoot\check-compose-parity.py"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Compose parity check failed (see above). Fix before starting." -ForegroundColor Red
+    exit 1
+}
+
 # Services that must run on the host: remove any container holding their name or
 # their host ports, regardless of which compose project started it. `compose stop`
 # only works for services of the current project and silently skips strays.
@@ -124,6 +133,33 @@ if (-not $env:OTEL_EXPORTER_OTLP_ENDPOINT) {
 if (-not $env:REVIEW_SERVICE_URL) {
     $env:REVIEW_SERVICE_URL = "http://localhost:8091"
 }
+
+Write-Host ">>> Smoke testing gateway routes..." -ForegroundColor Cyan
+# dev-host has no edge nginx (it is in hostOwnedContainers above), so every
+# gateway-proxied route is probed directly on :8080 rather than through :80.
+# Bounded wait: the binaries are still booting, and a 502 on the first probe
+# would be a false alarm. 60s covers a cold Kafka consumer group join.
+$apiPort = 8080
+$smokeDeadline = (Get-Date).AddSeconds(60)
+do {
+    $probe = & curl.exe -s -o NUL -m 3 -w "%{http_code}" "http://localhost:$apiPort/api/v1/categories" 2>$null
+    if ($probe -and $probe.Trim() -ne "000" -and $probe.Trim() -ne "502") { break }
+    Start-Sleep -Seconds 3
+} while ((Get-Date) -lt $smokeDeadline)
+
+if (-not $probe -or $probe.Trim() -eq "000") {
+    Write-Host "Gateway never answered on :$apiPort; skipping smoke test." -ForegroundColor Yellow
+} else {
+    $smokeArgs = @("-ExecutionPolicy", "Bypass", "-File", (Join-Path $PSScriptRoot "smoke-dev.ps1"),
+                   "-BaseUrl", "http://localhost:$apiPort")
+    # Advisory, not fatal: services keep restarting under concurrently, and a
+    # missing upstream is worth printing but must not kill the dev loop.
+    & powershell -NoProfile @smokeArgs
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Smoke test reported failing routes (see above). Dev stack keeps running." -ForegroundColor Yellow
+    }
+}
+
 $exe = if ($IsWindows -or $env:OS -match "Windows") { ".exe" } else { "" }
 $binPrefix = if ($IsWindows -or $env:OS -match "Windows") { "bin\" } else { "./bin/" }
 # --kill-others would mask which service failed, so run with restart-on-fail:

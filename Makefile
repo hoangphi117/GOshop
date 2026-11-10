@@ -228,6 +228,18 @@ stop-dev:
 dev-host:
 	powershell -ExecutionPolicy Bypass -File ./scripts/dev.ps1
 
+# Verify every gateway-proxied route answers (fails on 502). Run after `make dev`
+# or `make dev-host`: a service added to prod compose but not to dev compose has
+# no build-time symptom, only a bare 502 once a page asks for it.
+smoke-dev:
+	powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/smoke-dev.ps1
+
+# Static twin of smoke-dev: proves each gateway proxy target resolves to a
+# service in the dev compose file. Needs no running stack, so it can gate
+# `make dev` instead of reporting after the fact.
+check-parity:
+	python ./scripts/check-compose-parity.py
+
 # Build container for production
 prod:
 	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-prod.ps1
@@ -353,5 +365,5 @@ kafka-reset-group:
 logq:
 	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/logq.ps1 '$(Q)' -Hours $(or $(HOURS),2) -Limit $(or $(LIMIT),10)
 
-.PHONY: importdb exportdb server worker ws-gateway identity notification payment coupon inventory catalog order chat media build-identity build-notification build-payment build-coupon build-inventory build-catalog build-order build-chat build-media migrate-create migrate-up migrate-down sqlc build build-worker build-ws-gateway run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev dev-host swagger loadtest stresstest spiketest test-kafka-integration kafka-env kafka-sasl-users kafka-acls kafka-acl-verify kafka-tls-certs check-dlq clear-dlq kafka-health kafka-reset-group logq seed seed-docker env-dev env-prod
+.PHONY: importdb exportdb server worker ws-gateway identity notification payment coupon inventory catalog order chat media build-identity build-notification build-payment build-coupon build-inventory build-catalog build-order build-chat build-media migrate-create migrate-up migrate-down sqlc build build-worker build-ws-gateway run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev dev-host smoke-dev check-parity swagger loadtest stresstest spiketest test-kafka-integration kafka-env kafka-sasl-users kafka-acls kafka-acl-verify kafka-tls-certs check-dlq clear-dlq kafka-health kafka-reset-group logq seed seed-docker env-dev env-prod
 
