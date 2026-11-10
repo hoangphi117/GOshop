@@ -11,6 +11,7 @@ How to run GOshop in two modes, and the reasoning behind each choice at the curr
 | **Object Storage**  | MinIO container                        | **Cloudflare R2** (no MinIO container)             |
 | **Backend Tracing** | Local Jaeger (`jaeger:4318`)           | Grafana Cloud Tempo                                |
 | **Logging**         | stdout → Promtail → Grafana Cloud Loki | Same as DEV                                        |
+| **Metrics/Alerts**  | Local Prometheus + Alertmanager → Discord | Local Prometheus + Alertmanager → Discord       |
 | **Email**           | Mailtrap sandbox                       | Mailtrap sandbox                                   |
 | **Storefront**      | Dev server on `:3001`                  | Next.js standalone image behind the edge           |
 | **Dashboard**       | Dev server                             | Static build, with `dist/` bind-mounted into Nginx |
@@ -105,6 +106,56 @@ When a real domain becomes available, only the following steps are required:
 There is no need to change `VITE_API_BASE_URL`. The dashboard is served from the same origin through the edge, so leaving this variable empty enables same-origin requests. Switching from HTTP to HTTPS happens automatically based on the page's origin.
 
 This is the main reason for adopting a **single edge origin** architecture: the frontend does not need to hardcode the origin.
+
+## Event Contracts
+
+The broker payloads are documented as protobuf under `backend/gomod/shared/proto/events/`. They are **schema only**: no code is generated from them and the services still marshal plain JSON structs. `buf breaking` (run in CI against `origin/develop`) fails a pull request that renames or removes a field, which is the only thing stopping a producer from drifting away from its consumers.
+
+| Topic | Proto package | Producer |
+| --- | --- | --- |
+| `order.created` | `events.order.v1` | order outbox |
+| `order.cancelled` | `events.order.v1` | order lifecycle |
+| `order.status_changed` | `events.order.v1` | order lifecycle / shipping |
+| `order_return.requested` / `.updated` / `.completed` | `events.order.v1` | order returns |
+| `payment.succeeded` / `.failed` / `.expired` / `.refunded` | `events.payment.v1` | payment |
+| `review.rating_updated` | `events.review.v1` | review |
+| `user.created` / `.updated` / `.deleted` | `events.identity.v1` | identity |
+| `media.uploaded` | `events.media.v1` | media |
+| `inventory.stock_low`, `notification_events` | no schema yet | inventory / any |
+
+Rules when editing an event proto:
+
+1. Add fields, never rename or reuse a number. Renaming requires a new field plus `reserved` on the old one.
+2. Every field carries `[json_name = "..."]`. The wire name is the snake_case JSON key, not protojson's camelCase guess.
+3. Publish through `buf lint` and `buf breaking` from the repository root — running either from `backend/` fails because buf resolves `.git` by walking up from the working directory.
+4. The proto describes what the **producer** sends. Where a consumer reads something else, that divergence is written in the field comment, not smoothed over.
+
+## Observability
+
+Prometheus scrapes every Go service, holds the alert rules, and hands firing alerts to Alertmanager, which posts them to a Discord channel. There is no separate bridge container: Alertmanager's native `discord_configs` receiver does the work.
+
+| Piece | Where | Exposed on |
+| --- | --- | --- |
+| `prometheus` | `system/prometheus/prometheus.yml` + `system/prometheus/rules/goshop.yml` | `:9090` (dev only; NOT published in prod) |
+| `alertmanager` | `system/alertmanager/alertmanager.yml` | `:9093` (dev only) |
+| `kafka-exporter` | compose service | `:9308` |
+| `goshop-*` services | `/metrics` on the service's own HTTP port (8080 in-container) | internal only |
+| Grafana dashboard | `system/grafana/dashboards/goshop-overview.json` | import into Grafana Cloud |
+| Logs | `system/promtail/promtail-config.yml` → Grafana Cloud Loki | — |
+
+**What is scraped.** Docker service discovery picks up every container whose name is `goshop-<service>`, on the container's own HTTP port (8080 for every service; the host port differs per published mapping). Adding a service means adding its name to the `keep` regex in `system/prometheus/prometheus.yml` — otherwise it is silently unscraped. `worker` and `ws-gateway` are excluded because neither mounts `/metrics` on an HTTP router; `worker` instead serves `METRICS_PORT=9464` via `shared/pkg/metrics.ListenAndServe`.
+
+**`/metrics` is internal-only.** The endpoint is unauthenticated. It listens on the compose network; it is not published to the host in prod, and nginx does not proxy it. Do not add a proxy rule for `/metrics`.
+
+**Alerts.** Rules live in `system/prometheus/rules/goshop.yml`. Every rule carries `severity` and `service` labels; Alertmanager groups by `[alertname, service]` and repeats every 4h. `scripts/check_alert_rules.py` is a CI gate: it fails if a rule loses a required label, if `ConsumerLagHigh`'s threshold drifts from `kafka.LagAlertThreshold`, or if a rule references a metric that is not exposed (a silent alert).
+
+**Where alerts go.** `ALERTMANAGER_DISCORD_WEBHOOK_URL` is the Discord channel webhook (Channel → Edit → Integrations → Webhooks). It is separate from `DISCORD_WEBHOOK_URL`, which feeds in-app alerts from `shared/pkg/discord`. The URL is substituted into the config at container start because Alertmanager does not expand environment variables in its own config file.
+
+**Silencing an alert.** While an alert is active, open Alertmanager (`:9093` in dev), pick the alert, and create a silence with a matcher such as `alertname="ConsumerLagHigh"` and an expiry. Silences are stored in `alertmanager-data` and survive restarts.
+
+**Retention.** Prometheus keeps 7 days (`--storage.tsdb.retention.time=7d`) in the `prometheus-data` volume. Alertmanager's silences and notification log live in `alertmanager-data`.
+
+**Verification.** `scripts/verify_lag_alert.py` starts a throwaway Prometheus against the real rule file, feeds it a synthetic lag of 5000, and asserts that `ConsumerLagHigh` reaches `firing`. Run it from the repository root.
 
 ## Secrets and Key Rotation
 

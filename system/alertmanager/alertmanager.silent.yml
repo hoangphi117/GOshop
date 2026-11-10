@@ -1,0 +1,15 @@
+# Alertmanager config for GOshop — no Discord delivery configured.
+#
+# Used when ALERTMANAGER_DISCORD_WEBHOOK_URL is empty or unset (dev convenience):
+# Alertmanager starts, rules fire, silences work, but nothing is sent anywhere.
+# Prod and any dev box that wants real notifications use alertmanager.yml with
+# the webhook substituted. See system/alertmanager/alertmanager.yml.
+route:
+  receiver: silent
+  group_by: [alertname, service]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+receivers:
+  - name: silent

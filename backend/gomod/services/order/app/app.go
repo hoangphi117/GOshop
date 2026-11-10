@@ -46,6 +46,7 @@ import (
 	"goshop/shared/pkg/kafka"
 	"goshop/shared/pkg/logger"
 	"goshop/shared/pkg/messaging"
+	"goshop/shared/pkg/metrics"
 	"goshop/shared/pkg/middleware"
 	"goshop/shared/pkg/shipping"
 	"goshop/shared/pkg/telemetry"
@@ -227,6 +228,7 @@ func New(cfg *config.Config) (*App, error) {
 
 	r := gin.Default()
 	r.Use(middleware.TraceMiddleware(), middleware.StructuredAccessLog(logger.Log))
+	r.GET("/metrics", metrics.Handler(nil))
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
@@ -364,6 +366,7 @@ func New(cfg *config.Config) (*App, error) {
 	if err != nil {
 		logger.Log.Warn().Err(err).Msg("Kafka not available on boot for order service, will retry in background")
 	}
+
 	r.GET("/healthz/ready", func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
 		defer cancel()

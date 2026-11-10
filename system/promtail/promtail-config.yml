@@ -38,11 +38,16 @@ scrape_configs:
       - source_labels: [__meta_docker_container_log_path]
         target_label: __path__
     pipeline_stages:
-      # Parse the common Go zerolog JSON line so level/service are queryable
-      # without reading the whole text (logfmt-ish fallback keeps text intact).
+      # Parse the common Go zerolog JSON line so level/trace_id are queryable.
+      # `level` is a label (low cardinality, the main filter); `trace_id` is
+      # structured metadata, NOT a label: one label per request would explode
+      # the index. `service` already arrives as a Docker-derived label above.
       - json:
           expressions:
             level: level
             message: message
+            trace_id: trace_id
       - labels:
           level:
+      - structured_metadata:
+          trace_id:
