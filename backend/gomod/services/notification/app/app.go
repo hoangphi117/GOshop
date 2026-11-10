@@ -33,6 +33,7 @@ import (
 	"goshop/shared/pkg/logger"
 	"goshop/shared/pkg/mail"
 	"goshop/shared/pkg/messaging"
+	"goshop/shared/pkg/metrics"
 	"goshop/shared/pkg/utils"
 	"goshop/shared/pkg/validation"
 	"goshop/shared/pkg/ws"
@@ -53,6 +54,7 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	r := gin.Default()
+	r.GET("/metrics", metrics.Handler(nil))
 
 	if cfg.AppEnv == "production" {
 		_ = r.SetTrustedProxies([]string{

@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+// Payment domain events. One union payload is published on four topics:
+//
+//   payment.succeeded   status "Paid"
+//   payment.failed      status "Failed"
+//   payment.expired     status "Expired"
+//   payment.refunded    refund row
+//
+// The producer is services/payment/internal/dto.PaymentEventPayload. This
+// message mirrors the PRODUCER bytes, which is NOT what the consumers decode:
+//
+//   producer has `payment_uuid`, `currency`, `status`, `metadata`, no `event_id`
+//   consumers (order, analytics, notification) decode `pt_uuid` + `event_id`
+//
+// So `pt_uuid` and `event_id` arrive empty at every consumer today, and
+// `currency` / `status` / `metadata` are dropped. Reconciling that is a runtime
+// change tracked outside this schema (see plan P7c); this file records the
+// divergence instead of hiding it.
+//
+// No envelope: payment does not call EnrichEventPayload, so events.common.v1
+// fields are absent on this topic.
+package events.payment.v1;
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "goshop/shared/proto/events/payment/v1;paymenteventsv1";
+
+message PaymentEventPayload {
+  // Transaction uuid. Consumers read this as `pt_uuid` and miss it.
+  string payment_uuid = 1 [json_name = "payment_uuid"];
+
+  string order_uuid = 2 [json_name = "order_uuid"];
+  string order_number = 3 [json_name = "order_number"];
+  string user_uuid = 4 [json_name = "user_uuid"];
+
+  string provider = 5 [json_name = "provider"];
+  string provider_txn_id = 6 [json_name = "provider_txn_id"];
+
+  // Major units, the same unit as the Go float64. Moving to integer minor
+  // units is a v2 change, never an in-place edit.
+  double amount = 7 [json_name = "amount"];
+
+  // Producer-only. Dropped by every consumer today.
+  string currency = 8 [json_name = "currency"];
+
+  // "Paid" | "Failed" | "Expired" (dto.MapPaymentTxnStatusToString).
+  // Producer-only; consumers infer the outcome from the routing key instead.
+  string status = 9 [json_name = "status"];
+
+  string reason = 10 [json_name = "reason"];
+
+  google.protobuf.Timestamp timestamp = 11 [json_name = "timestamp"];
+
+  // Provider callback metadata. Producer-only, dropped by every consumer.
+  google.protobuf.Struct metadata = 12 [json_name = "metadata"];
+}

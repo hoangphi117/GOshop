@@ -32,6 +32,7 @@ import (
 	"goshop/shared/pkg/db"
 	"goshop/shared/pkg/kafka"
 	"goshop/shared/pkg/logger"
+	"goshop/shared/pkg/metrics"
 	"goshop/shared/pkg/search"
 	"goshop/shared/pkg/telemetry"
 	"goshop/shared/pkg/utils"
@@ -54,6 +55,7 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	r := gin.Default()
+	r.GET("/metrics", metrics.Handler(nil))
 
 	if err := db.InitDBWithConfig(cfg, "catalog"); err != nil {
 		logger.Log.Fatal().Err(err).Msg("Failed to initialize database for catalog service")

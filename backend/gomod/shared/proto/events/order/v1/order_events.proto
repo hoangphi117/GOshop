@@ -1,0 +1,148 @@
+syntax = "proto3";
+
+// Order domain events. Seven topics, four payload messages:
+//
+//   order.created              OrderCreatedEvent
+//   order.cancelled            OrderCancelledEvent
+//   order.status_changed       OrderStatusChangedEvent
+//   order_return.requested     OrderReturnRequestedEvent
+//   order_return.updated       OrderReturnUpdatedEvent
+//   order_return.completed     OrderReturnCompletedEvent
+//
+// Every payload below is published through the order outbox, which runs
+// contracts/events.EnrichEventPayload on the marshalled JSON. So each message
+// on the wire also carries the events.common.v1.EventEnvelope fields when the
+// payload did not already define them. Two consequences:
+//
+//   * `event_id` is the payload field here, not the envelope one.
+//   * `occurred_at` (envelope, RFC3339Nano string) coexists with `timestamp`
+//     (payload, JSON time.Time) and may name a different instant.
+//
+// `coupon_id`, `coupon_uuid`, `reason`, `shipping_code`, `payment_status`,
+// `change_type`, `admin_note` and `refund_amount` are omitempty in Go: on the
+// wire the key is ABSENT, not null. protojson cannot express that difference,
+// which is why these are `optional`.
+package events.order.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "goshop/shared/proto/events/order/v1;ordereventsv1";
+
+message OrderCreatedItem {
+  string item_uuid = 1 [json_name = "item_uuid"];
+  int32 product_id = 2 [json_name = "product_id"];
+  string product_uuid = 3 [json_name = "product_uuid"];
+  string product_name = 4 [json_name = "product_name"];
+  double price = 5 [json_name = "price"];
+  int32 quantity = 6 [json_name = "quantity"];
+  double subtotal = 7 [json_name = "subtotal"];
+}
+
+message OrderCreatedEvent {
+  string event_id = 1 [json_name = "event_id"];
+  int32 order_id = 2 [json_name = "order_id"];
+  string order_uuid = 3 [json_name = "order_uuid"];
+  string order_number = 4 [json_name = "order_number"];
+  int32 user_id = 5 [json_name = "user_id"];
+  string user_uuid = 6 [json_name = "user_uuid"];
+  double total_amount = 7 [json_name = "total_amount"];
+  optional double discount_amount = 8 [json_name = "discount_amount"];
+  optional int32 coupon_id = 9 [json_name = "coupon_id"];
+  int32 payment_method = 10 [json_name = "payment_method"];
+  optional double shipping_fee = 11 [json_name = "shipping_fee"];
+
+  // Legacy product-id-only list, still emitted.
+  repeated int32 purchased_items = 12 [json_name = "purchased_items"];
+
+  // Product uuids, parallel to purchased_items.
+  repeated string purchased_item_uuids = 13 [json_name = "purchased_item_uuids"];
+
+  repeated OrderCreatedItem items = 14 [json_name = "items"];
+
+  google.protobuf.Timestamp timestamp = 15 [json_name = "timestamp"];
+}
+
+message OrderCancelledItem {
+  int32 product_id = 1 [json_name = "product_id"];
+  string product_uuid = 2 [json_name = "product_uuid"];
+  int32 quantity = 3 [json_name = "quantity"];
+}
+
+message OrderCancelledEvent {
+  string event_id = 1 [json_name = "event_id"];
+  int32 order_id = 2 [json_name = "order_id"];
+  string order_uuid = 3 [json_name = "order_uuid"];
+  string order_number = 4 [json_name = "order_number"];
+  int32 user_id = 5 [json_name = "user_id"];
+  string user_uuid = 6 [json_name = "user_uuid"];
+  optional string reason = 7 [json_name = "reason"];
+  optional int32 coupon_id = 8 [json_name = "coupon_id"];
+  optional string coupon_uuid = 9 [json_name = "coupon_uuid"];
+
+  // Absent on the legacy constructor (NewOrderCancelledEvent).
+  repeated OrderCancelledItem items = 10 [json_name = "items"];
+
+  google.protobuf.Timestamp timestamp = 11 [json_name = "timestamp"];
+}
+
+message OrderStatusChangedEvent {
+  string event_id = 1 [json_name = "event_id"];
+  int32 order_id = 2 [json_name = "order_id"];
+  string order_uuid = 3 [json_name = "order_uuid"];
+  string order_number = 4 [json_name = "order_number"];
+  int32 user_id = 5 [json_name = "user_id"];
+  string user_uuid = 6 [json_name = "user_uuid"];
+  int32 old_status = 7 [json_name = "old_status"];
+  int32 new_status = 8 [json_name = "new_status"];
+  optional int32 payment_status = 9 [json_name = "payment_status"];
+  optional string shipping_code = 10 [json_name = "shipping_code"];
+  google.protobuf.Timestamp timestamp = 11 [json_name = "timestamp"];
+}
+
+message OrderReturnRequestedEvent {
+  string event_id = 1 [json_name = "event_id"];
+  int32 return_id = 2 [json_name = "return_id"];
+  string return_uuid = 3 [json_name = "return_uuid"];
+  int32 order_id = 4 [json_name = "order_id"];
+  string order_uuid = 5 [json_name = "order_uuid"];
+  string order_number = 6 [json_name = "order_number"];
+  int32 user_id = 7 [json_name = "user_id"];
+  string return_reason = 8 [json_name = "return_reason"];
+  google.protobuf.Timestamp timestamp = 9 [json_name = "timestamp"];
+}
+
+message OrderReturnUpdatedEvent {
+  string event_id = 1 [json_name = "event_id"];
+  int32 return_id = 2 [json_name = "return_id"];
+  string return_uuid = 3 [json_name = "return_uuid"];
+  int32 order_id = 4 [json_name = "order_id"];
+  string order_uuid = 5 [json_name = "order_uuid"];
+  string order_number = 6 [json_name = "order_number"];
+  int32 user_id = 7 [json_name = "user_id"];
+
+  // Go declares int16; proto has no 16-bit scalar. Wire values stay small.
+  int32 return_status = 8 [json_name = "return_status"];
+
+  // One of: goods_received | refund_completed | shipping_submitted.
+  optional string change_type = 9 [json_name = "change_type"];
+  optional string admin_note = 10 [json_name = "admin_note"];
+  optional double refund_amount = 11 [json_name = "refund_amount"];
+  google.protobuf.Timestamp timestamp = 12 [json_name = "timestamp"];
+}
+
+message ReturnRestockItem {
+  int32 product_id = 1 [json_name = "product_id"];
+  string product_uuid = 2 [json_name = "product_uuid"];
+  int32 quantity = 3 [json_name = "quantity"];
+  bool restock = 4 [json_name = "restock"];
+}
+
+message OrderReturnCompletedEvent {
+  string event_id = 1 [json_name = "event_id"];
+  string return_uuid = 2 [json_name = "return_uuid"];
+  string order_uuid = 3 [json_name = "order_uuid"];
+  string order_number = 4 [json_name = "order_number"];
+  int32 user_id = 5 [json_name = "user_id"];
+  repeated ReturnRestockItem items = 6 [json_name = "items"];
+  google.protobuf.Timestamp timestamp = 7 [json_name = "timestamp"];
+}

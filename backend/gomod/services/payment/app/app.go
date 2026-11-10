@@ -34,6 +34,7 @@ import (
 	"goshop/shared/pkg/kafka"
 	"goshop/shared/pkg/logger"
 	"goshop/shared/pkg/messaging"
+	"goshop/shared/pkg/metrics"
 	"goshop/shared/pkg/telemetry"
 	"goshop/shared/pkg/utils"
 	"goshop/shared/pkg/validation"
@@ -56,6 +57,7 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	r := gin.Default()
+	r.GET("/metrics", metrics.Handler(nil))
 
 	if cfg.AppEnv == "production" {
 		if err := r.SetTrustedProxies([]string{

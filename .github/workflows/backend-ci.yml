@@ -16,7 +16,9 @@ on:
       - 'scripts/kafka-acl-verify.sh'
       - 'scripts/kafka-acl-ci.sh'
       - 'scripts/kafka-tls-certs-ci.sh'
+      - 'scripts/check-compose-parity.py'
       - 'docker-compose.prod.yml'
+      - 'docker-compose.dev.yml'
       - '.github/workflows/backend-ci.yml'
   pull_request:
     paths:
@@ -25,7 +27,9 @@ on:
       - 'scripts/kafka-acl-verify.sh'
       - 'scripts/kafka-acl-ci.sh'
       - 'scripts/kafka-tls-certs-ci.sh'
+      - 'scripts/check-compose-parity.py'
       - 'docker-compose.prod.yml'
+      - 'docker-compose.dev.yml'
       - '.github/workflows/backend-ci.yml'
   # Manual runs verify the image matrix without waiting for a push.
   workflow_dispatch:
@@ -77,12 +81,22 @@ jobs:
 
       - name: Buf breaking check
         # Both sides as git refs: identical file keying regardless of whether
-        # develop has backend/buf.yaml yet. buf defaults to FILE breaking
-        # rules here, matching backend/buf.yaml. Runs from the repo root
-        # (overrides the job's backend default) so buf finds .git directly;
-        # subdir points at the workspace, whose modules now live under gomod/.
+        # develop has backend/buf.yaml yet. FILE breaking rules come from
+        # backend/buf.yaml (breaking.use), restated there so the gate cannot
+        # drift with buf's defaults. Runs from the repo root (overrides the
+        # job's backend default) so buf finds .git directly; subdir points at
+        # the workspace, whose modules now live under gomod/.
+        #
+        # The second line repeats the check inside the proto tree alone.
+        # Broad first: it catches a break anywhere. Scoped second: when the
+        # broad run fails, this one tells the author whether the break is in
+        # the event contracts, which are consumed as plain JSON by
+        # encoding/json rather than by generated stubs.
         working-directory: .
-        run: buf breaking ".git#ref=HEAD,subdir=backend" --against ".git#ref=origin/develop,subdir=backend"
+        run: |
+          buf breaking ".git#ref=HEAD,subdir=backend" --against ".git#ref=origin/develop,subdir=backend"
+          buf breaking ".git#ref=HEAD,subdir=backend/gomod/shared/proto" \
+            --against ".git#ref=origin/develop,subdir=backend/gomod/shared/proto"
 
       - name: Go Vet
         # The workspace root is not a module, so ./... has to run per module.
@@ -127,13 +141,29 @@ jobs:
         # `docker compose config` interpolates `${VAR:?}` guards. This job only
         # validates file structure, so the committed example variant (no real
         # secrets) proves interpolation works end to end.
-        run: cp backend/.env.prod.example backend/.env
+        #
+        # ALERTMANAGER_DISCORD_WEBHOOK_URL is declared with `:?`, which rejects
+        # an empty value, and the example file ships it blank. Without the sed
+        # the whole job died on that one variable before validating anything.
+        run: |
+          cp backend/.env.prod.example backend/.env
+          sed -i 's|^ALERTMANAGER_DISCORD_WEBHOOK_URL=.*|ALERTMANAGER_DISCORD_WEBHOOK_URL=https://example.invalid/hook|' backend/.env
 
       - name: Validate prod compose
         run: docker compose -f docker-compose.prod.yml --env-file ./backend/.env config --quiet
 
       - name: Validate dev compose
         run: docker compose -f docker-compose.dev.yml --env-file ./backend/.env config --quiet
+
+      - name: Gateway/compose parity
+        # `config --quiet` above only proves the YAML parses. It does not prove
+        # the api gateway's proxy targets exist: a service added to the prod
+        # file and forgotten in the dev file (analytics, media, chat) parses
+        # fine and then answers 502 at request time. This scans routes.go for
+        # every *_SERVICE_URL the gateway dials and fails if the hostname is
+        # neither a service nor a network alias, or is localhost inside a
+        # container.
+        run: python3 scripts/check-compose-parity.py
 
   images:
     # Publish per-service images from the shared build/Dockerfile.service

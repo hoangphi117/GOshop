@@ -20,6 +20,7 @@ import (
 	"goshop/shared/pkg/auth"
 	"goshop/shared/pkg/cache"
 	"goshop/shared/pkg/logger"
+	"goshop/shared/pkg/metrics"
 	"goshop/shared/pkg/middleware"
 	"goshop/shared/pkg/telemetry"
 	"goshop/shared/pkg/utils"
@@ -96,6 +97,7 @@ func main() {
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.Use(middleware.CORSMiddleware())
+	r.GET("/metrics", metrics.Handler(nil))
 
 	// Health check endpoint for ingress / load balancer
 	r.GET("/health", func(c *gin.Context) {

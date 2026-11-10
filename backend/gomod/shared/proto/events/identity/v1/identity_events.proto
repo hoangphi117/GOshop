@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+// user.created | user.updated | user.deleted — identity publishes these so
+// downstream services keep their user projections in sync. The topic, not a
+// payload field, selects the operation, but UserSyncEvent also carries
+// `event_type` with the same routing key so a replayed message is still
+// self-describing.
+//
+// No envelope: identity publishes straight to the broker.
+package events.identity.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "goshop/shared/proto/events/identity/v1;identityeventsv1";
+
+message UserSyncEvent {
+  string event_id = 1 [json_name = "event_id"];
+
+  // One of: user.created | user.updated | user.deleted.
+  string event_type = 2 [json_name = "event_type"];
+
+  int32 user_id = 3 [json_name = "user_id"];
+  string user_uuid = 4 [json_name = "user_uuid"];
+  string user_fullname = 5 [json_name = "user_fullname"];
+  string user_email = 6 [json_name = "user_email"];
+  string user_avatar = 7 [json_name = "user_avatar"];
+
+  // Nullable in Go: a deleted user has no avatar url.
+  optional string user_avatar_url = 8 [json_name = "user_avatar_url"];
+
+  int32 user_status = 9 [json_name = "user_status"];
+  int32 user_level = 10 [json_name = "user_level"];
+  google.protobuf.Timestamp timestamp = 11 [json_name = "timestamp"];
+}

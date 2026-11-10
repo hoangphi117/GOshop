@@ -750,6 +750,9 @@ services:
       KAFKA_SASL_USER: "worker"
       KAFKA_SASL_PASSWORD: "${KAFKA_SASL_WORKER_PASSWORD:?KAFKA_SASL_WORKER_PASSWORD must be set in production}"
       MEILISEARCH_HOST: "http://meilisearch:7700"
+      # worker serves no HTTP router, so it is the one service that needs the
+      # separate /metrics listener (shared/pkg/metrics.ListenAndServe).
+      METRICS_PORT: "9464"
     depends_on:
       postgres:
         condition: service_healthy
@@ -1090,6 +1093,61 @@ services:
     networks:
       - goshop-network
 
+  prometheus:
+    # Scrapes kafka-exporter plus every goshop-* container on :9464 (see
+    # system/prometheus/prometheus.yml). Rules live in
+    # system/prometheus/rules/. Not published in prod: Grafana Cloud reads it
+    # over the compose network, and /metrics stays internal.
+    image: prom/prometheus:v3.6.0
+    container_name: goshop-prometheus
+    restart: unless-stopped
+    # The image runs as nobody (65534) and the host docker socket is root:root,
+    # so unprivileged docker service discovery fails with "permission denied".
+    # Reading the socket is the single capability this grants.
+    user: "0:0"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+    volumes:
+      - ./system/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./system/prometheus/rules:/etc/prometheus/rules:ro
+      # Read-only socket for docker service discovery (same privilege as
+      # promtail).
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      - kafka-exporter
+    networks:
+      - goshop-network
+
+  alertmanager:
+    # Fans Prometheus alerts out to Discord (native discord_configs). Config
+    # template in system/alertmanager/alertmanager.yml; the webhook URL is
+    # substituted from ALERTMANAGER_DISCORD_WEBHOOK_URL at container start,
+    # because Alertmanager does not expand env vars in its own config.
+    image: prom/alertmanager:v0.29.0
+    container_name: goshop-alertmanager
+    restart: unless-stopped
+    environment:
+      ALERTMANAGER_DISCORD_WEBHOOK_URL: ${ALERTMANAGER_DISCORD_WEBHOOK_URL:?ALERTMANAGER_DISCORD_WEBHOOK_URL must be set in production}
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        sed "s|__ALERTMANAGER_DISCORD_WEBHOOK_URL__|$$ALERTMANAGER_DISCORD_WEBHOOK_URL|g" \
+          /etc/alertmanager/alertmanager.tmpl.yml > /tmp/alertmanager.yml
+        exec /bin/alertmanager \
+          --config.file=/tmp/alertmanager.yml \
+          --storage.path=/alertmanager
+    volumes:
+      - ./system/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.tmpl.yml:ro
+      - alertmanager-data:/alertmanager
+    depends_on:
+      - prometheus
+    networks:
+      - goshop-network
+
 volumes:
   postgres-data:
     driver: local
@@ -1106,6 +1164,10 @@ volumes:
   meilisearch-data:
     driver: local
   minio-data:
+    driver: local
+  alertmanager-data:
+    driver: local
+  prometheus-data:
     driver: local
 
 networks:

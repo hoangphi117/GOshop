@@ -24,6 +24,7 @@ import (
 	"goshop/shared/pkg/logger"
 	"goshop/shared/pkg/mail"
 	"goshop/shared/pkg/messaging"
+	"goshop/shared/pkg/metrics"
 	"goshop/shared/pkg/storage"
 	"goshop/shared/pkg/telemetry"
 	"goshop/shared/pkg/utils"
@@ -282,6 +283,20 @@ func main() {
 	defer cancel()
 
 	var wg sync.WaitGroup
+
+	// The worker has no HTTP server of its own; without this listener its
+	// publish/DLQ counters are invisible to Prometheus.
+	metricsErrs, err := metrics.ListenAndServe(ctx, *logger.Log)
+	if err != nil {
+		logger.Log.Fatal().Err(err).Msg("Failed to start metrics listener")
+	}
+	if metricsErrs != nil {
+		wg.Go(func() {
+			if err := <-metricsErrs; err != nil {
+				logger.Log.Error().Err(err).Msg("Metrics listener failed")
+			}
+		})
+	}
 
 	wg.Go(func() {
 		if err := worker.Start(ctx); err != nil && err != context.Canceled {

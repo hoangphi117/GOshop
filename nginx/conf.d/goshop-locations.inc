@@ -115,6 +115,7 @@ location ^~ /goshop-media/ {
 # Điều hướng trực tiếp tới ws-gateway chuyên biệt giúp giảm tải trên REST API servers.
 # Timeout mở rộng 3600s để tránh ngắt kết nối WebSocket giữa chừng.
 location /api/v1/ws {
+    include /etc/nginx/conf.d/cors-headers.inc;
     # Dùng biến động để Nginx không bị crash nếu container ws-gateway chưa khởi động
     set $ws_target http://ws-gateway:8085;
     proxy_pass $ws_target;
@@ -145,6 +146,7 @@ location /api/v1/ws {
 # -----------------------------------------------------------------------------
 # Điều hướng các API định danh sang identity:8081
 location /api/v1/auth {
+    include /etc/nginx/conf.d/cors-headers.inc;
     limit_req zone=auth burst=10 nodelay;
     set $identity_target http://identity:8081;
     proxy_pass $identity_target;
@@ -166,6 +168,7 @@ location /api/v1/auth {
 }
 
 location /api/v1/users {
+    include /etc/nginx/conf.d/cors-headers.inc;
     set $identity_target http://identity:8081;
     proxy_pass $identity_target;
     proxy_http_version 1.1;
@@ -187,6 +190,7 @@ location /api/v1/users {
 }
 
 location /api/v1/admin/users {
+    include /etc/nginx/conf.d/cors-headers.inc;
     set $identity_target http://identity:8081;
     proxy_pass $identity_target;
     proxy_http_version 1.1;
@@ -208,6 +212,7 @@ location /api/v1/admin/users {
 }
 
 location /api/v1/addresses {
+    include /etc/nginx/conf.d/cors-headers.inc;
     set $identity_target http://identity:8081;
     proxy_pass $identity_target;
     proxy_http_version 1.1;
@@ -232,6 +237,7 @@ location /api/v1/addresses {
 # 4.2. COUPON SERVICE REVERSE PROXY (/api/v1/coupons, /api/v1/admin/coupons)
 # -----------------------------------------------------------------------------
 location /api/v1/coupons {
+    include /etc/nginx/conf.d/cors-headers.inc;
     set $coupon_target http://coupon:8084;
     proxy_pass $coupon_target;
     proxy_http_version 1.1;
@@ -253,6 +259,7 @@ location /api/v1/coupons {
 }
 
 location /api/v1/admin/coupons {
+    include /etc/nginx/conf.d/cors-headers.inc;
     set $coupon_target http://coupon:8084;
     proxy_pass $coupon_target;
     proxy_http_version 1.1;
@@ -279,6 +286,7 @@ location /api/v1/admin/coupons {
 # 4.2.5. BANNER SERVICE REVERSE PROXY (/api/v1/banners, /api/v1/admin/banners)
 # -----------------------------------------------------------------------------
 location /api/v1/banners {
+    include /etc/nginx/conf.d/cors-headers.inc;
     set $banner_target http://banner:8089;
     proxy_pass $banner_target;
     proxy_http_version 1.1;
@@ -300,6 +308,7 @@ location /api/v1/banners {
 }
 
 location /api/v1/admin/banners {
+    include /etc/nginx/conf.d/cors-headers.inc;
     set $banner_target http://banner:8089;
     proxy_pass $banner_target;
     proxy_http_version 1.1;
@@ -322,6 +331,7 @@ location /api/v1/admin/banners {
 # 4.3. INVENTORY SERVICE REVERSE PROXY (/api/v1/admin/inventory, /api/v1/inventory)
 # -----------------------------------------------------------------------------
 location /api/v1/admin/inventory {
+    include /etc/nginx/conf.d/cors-headers.inc;
     set $inventory_target http://inventory:8090;
     proxy_pass $inventory_target;
     proxy_http_version 1.1;
@@ -343,6 +353,7 @@ location /api/v1/admin/inventory {
 }
 
 location /api/v1/inventory {
+    include /etc/nginx/conf.d/cors-headers.inc;
     set $inventory_target http://inventory:8090;
     proxy_pass $inventory_target;
     proxy_http_version 1.1;
@@ -389,6 +400,7 @@ location ~ ^/api/v1/products/[^/]+/reviews {
 }
 
 location /api/v1/products {
+    include /etc/nginx/conf.d/cors-headers.inc;
     set $catalog_target http://catalog:8086;
     proxy_pass $catalog_target;
     proxy_http_version 1.1;
@@ -410,6 +422,7 @@ location /api/v1/products {
 }
 
 location /api/v1/admin/products {
+    include /etc/nginx/conf.d/cors-headers.inc;
     set $catalog_target http://catalog:8086;
     proxy_pass $catalog_target;
     proxy_http_version 1.1;
@@ -431,6 +444,7 @@ location /api/v1/admin/products {
 }
 
 location /api/v1/categories {
+    include /etc/nginx/conf.d/cors-headers.inc;
     set $catalog_target http://catalog:8086;
     proxy_pass $catalog_target;
     proxy_http_version 1.1;
@@ -452,6 +466,7 @@ location /api/v1/categories {
 }
 
 location /api/v1/admin/categories {
+    include /etc/nginx/conf.d/cors-headers.inc;
     set $catalog_target http://catalog:8086;
     proxy_pass $catalog_target;
     proxy_http_version 1.1;
@@ -476,6 +491,7 @@ location /api/v1/admin/categories {
 # 4.5. CART SERVICE REVERSE PROXY (/api/v1/cart)
 # -----------------------------------------------------------------------------
 location /api/v1/cart {
+    include /etc/nginx/conf.d/cors-headers.inc;
     set $cart_target http://cart:8087;
     proxy_pass $cart_target;
     proxy_http_version 1.1;
@@ -500,6 +516,7 @@ location /api/v1/cart {
 # 4.6. ORDER SERVICE REVERSE PROXY (/api/v1/orders, /api/v1/admin/orders)
 # -----------------------------------------------------------------------------
 location /api/v1/orders {
+    include /etc/nginx/conf.d/cors-headers.inc;
     set $order_target http://order:8088;
     proxy_pass $order_target;
     proxy_http_version 1.1;
@@ -521,6 +538,7 @@ location /api/v1/orders {
 }
 
 location /api/v1/admin/orders {
+    include /etc/nginx/conf.d/cors-headers.inc;
     set $order_target http://order:8088;
     proxy_pass $order_target;
     proxy_http_version 1.1;
@@ -542,6 +560,7 @@ location /api/v1/admin/orders {
 }
 
 location /api/v1/admin/returns {
+    include /etc/nginx/conf.d/cors-headers.inc;
     set $order_target http://order:8088;
     proxy_pass $order_target;
     proxy_http_version 1.1;
@@ -563,6 +582,7 @@ location /api/v1/admin/returns {
 }
 
 location /api/v1/shipping {
+    include /etc/nginx/conf.d/cors-headers.inc;
     set $order_target http://order:8088;
     proxy_pass $order_target;
     proxy_http_version 1.1;
@@ -597,6 +617,7 @@ location /internal/ {
 # Remaining API paths go to the API gateway, which fans out to the owning
 # services (catalog, cart, order, review, analytics, media, chat...).
 location /api/v1/ {
+    include /etc/nginx/conf.d/cors-headers.inc;
     proxy_pass http://goshop_backend;
     proxy_http_version 1.1;
 

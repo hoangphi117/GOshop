@@ -1,4 +1,4 @@
-﻿services:
+services:
   nginx:
     image: nginx:1.27-alpine
     container_name: goshop-nginx
@@ -8,6 +8,11 @@
     environment:
       - API_KEY=${API_KEY:?API_KEY must be set (edge injects it server-side)}
       - MEILISEARCH_MASTER_KEY=${MEILISEARCH_MASTER_KEY:?MEILISEARCH_MASTER_KEY must be set (edge injects it for /search-api)}
+      # Rendered into the storefront/dashboard CSP connect-src. Dev uploads go
+      # to MinIO (path style), so S3_ENDPOINT is already the origin; without the
+      # variable nginx exits on 'unknown "s3_public_origin" variable' and
+      # restart-loops. Composes fine overridden via S3_PUBLIC_ORIGIN in .env.
+      - S3_PUBLIC_ORIGIN=${S3_PUBLIC_ORIGIN:-${S3_ENDPOINT:-}}
       - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx/secret-conf
     volumes:
       - type: tmpfs
@@ -53,6 +58,11 @@
       - REVIEW_SERVICE_URL=http://review-service:8091
       - ANALYTICS_SERVICE_URL=http://analytics:8092
       - CHAT_SERVICE_URL=http://chat:8093
+      # backend/.env has http://localhost:8085 for host-run setups; inside the
+      # container that is the container itself, so the gateway answered 502 on
+      # any /api/v1/ws request that reached it. nginx happens to intercept
+      # /api/v1/ws first and route it straight to ws-gateway, which hid this.
+      - WS_GATEWAY_URL=http://ws-gateway:8085
       - CATALOG_SERVICE_URL=http://catalog:8086
       - CART_SERVICE_URL=http://cart:8087
       - COUPON_SERVICE_URL=http://coupon:8084
@@ -166,6 +176,108 @@
       goshop-network:
         aliases:
           - notification-service
+
+  media:
+    # The gateway proxies /api/v1/upload/* to MEDIA_SERVICE_URL
+    # (http://media:8094). Uploads are stateless, so this service needs no DB —
+    # only Redis, Kafka and the storage backend from backend/.env.
+    build:
+      context: ./backend
+      dockerfile: build/Dockerfile.service.dev
+      args:
+        SERVICE: media
+    container_name: goshop-media
+    restart: unless-stopped
+    mem_limit: 160m
+    ports:
+      - "8094:8094"
+    env_file:
+      - ./backend/.env
+    environment:
+      - APP_ENV=development
+      - MEDIA_SERVER_PORT=8094
+      - REDIS_ADDR=redis:6379
+      - KAFKA_BROKERS=kafka:29092
+      # backend/.env has S3_ENDPOINT=http://localhost:9000 for host-run setups;
+      # inside the container MinIO is reachable as minio:9000.
+      - S3_ENDPOINT=http://minio:9000
+      - JWT_SIGNING_ENABLED=false
+      - JWT_PRIVATE_KEY=
+      - JWT_PUBLIC_KEY=/app/certs/jwt_public.pem
+      - GOMEMLIMIT=1GiB
+      - GOMAXPROCS=1
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
+    volumes:
+      - ./backend:/app
+    depends_on:
+      redis:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      minio:
+        condition: service_started
+    networks:
+      goshop-network:
+        aliases:
+          - media-service
+
+  analytics:
+    # The gateway proxies /api/v1/admin/analytics/* to ANALYTICS_SERVICE_URL
+    # (http://analytics:8092). Without this service every admin dashboard chart
+    # returned 502 (DNS: lookup analytics: no such host).
+    build:
+      context: ./backend
+      dockerfile: build/Dockerfile.service.dev
+      args:
+        SERVICE: analytics
+    container_name: goshop-analytics
+    restart: unless-stopped
+    mem_limit: 192m
+    ports:
+      - "8092:8092"
+    env_file:
+      - ./backend/.env
+    environment:
+      - APP_ENV=development
+      - DB_HOST=postgres
+      - DB_NAME=shopping_analytics
+      - ANALYTICS_DB_NAME=shopping_analytics
+      - ANALYTICS_SERVER_PORT=8092
+      - REDIS_ADDR=redis:6379
+      - KAFKA_BROKERS=kafka:29092
+      # backend/.env points these at localhost for host-run binaries; inside the
+      # container that resolves to the container itself.
+      - IDENTITY_GRPC_ADDR=identity-service:50051
+      - CATALOG_GRPC_TARGET=catalog-service:50055
+      - ORDER_GRPC_TARGET=order-service:50057
+      - INVENTORY_GRPC_ADDR=inventory-service:50054
+      - JWT_SIGNING_ENABLED=false
+      - JWT_PRIVATE_KEY=
+      - JWT_PUBLIC_KEY=/app/certs/jwt_public.pem
+      - GOMEMLIMIT=1GiB
+      - GOMAXPROCS=1
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      identity:
+        condition: service_started
+      order:
+        condition: service_started
+      catalog:
+        condition: service_started
+      inventory:
+        condition: service_started
+      kafka-init:
+        condition: service_completed_successfully
+    networks:
+      goshop-network:
+        aliases:
+          - analytics-service
 
   payment:
     build:
@@ -524,6 +636,57 @@
         aliases:
           - order-service
 
+  chat:
+    # Storefront calls /api/v1/chat/* on page load; the api gateway proxies
+    # those to CHAT_SERVICE_URL=http://chat:8093. Without this service the
+    # widget 502s on every page (DNS: lookup chat: no such host).
+    build:
+      context: ./backend
+      dockerfile: build/Dockerfile.service.dev
+      args:
+        SERVICE: chat
+    container_name: goshop-chat
+    restart: unless-stopped
+    ports:
+      - "8093:8093"
+    env_file:
+      - ./backend/.env
+    environment:
+      - APP_ENV=development
+      - DB_HOST=postgres
+      - DB_NAME=shopping_chat
+      - CHAT_DB_NAME=shopping_chat
+      - CHAT_SERVER_PORT=8093
+      - CHAT_GRPC_PORT=50058
+      - REDIS_ADDR=redis:6379
+      - KAFKA_BROKERS=kafka:29092
+      - IDENTITY_GRPC_ADDR=identity-service:50051
+      - ORDER_GRPC_TARGET=order-service:50057
+      - JWT_SIGNING_ENABLED=false
+      - JWT_PRIVATE_KEY=
+      - JWT_PUBLIC_KEY=/app/certs/jwt_public.pem
+      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:-goshop-internal-secret-token}
+      - GOMEMLIMIT=1GiB
+      - GOMAXPROCS=1
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
+    mem_limit: 192m
+    cpus: 0.50
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      identity:
+        condition: service_started
+      order:
+        condition: service_started
+    networks:
+      goshop-network:
+        aliases:
+          - chat-service
+
   worker:
     build:
       context: ./backend
@@ -538,6 +701,9 @@
       - REDIS_ADDR=redis:6379
       - KAFKA_BROKERS=kafka:29092
       - MEILISEARCH_HOST=http://meilisearch:7700
+      # worker serves no HTTP router, so it is the one service that needs the
+      # separate /metrics listener (shared/pkg/metrics.ListenAndServe).
+      - METRICS_PORT=9464
     volumes:
       - ./backend:/app
     depends_on:
@@ -569,12 +735,26 @@
       - APP_ENV=development
       - JWT_SIGNING_ENABLED=false
       - JWT_PRIVATE_KEY=
+      - JWT_PUBLIC_KEY=/app/certs/jwt_public.pem
+      # backend/.env points these at localhost for host-run binaries; inside a
+      # container that is the container itself. Without the identity address
+      # the gRPC resolver dialled localhost and every handshake got 401.
+      - IDENTITY_GRPC_ADDR=identity-service:50051
+      - CHAT_GRPC_TARGET=chat:50058
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
+    volumes:
+      # The gateway verifies access tokens with the RSA public key. It runs the
+      # prod Dockerfile (no ./backend:/app bind), so without this mount
+      # /app/certs does not exist, jwt.ParseRSAPublicKeyFromPEM never runs, and
+      # every connection fails at ParseToken with "Invalid authentication token".
+      - ./backend/certs:/app/certs:ro
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
+      identity:
+        condition: service_started
+      chat:
+        condition: service_started
     networks:
       - goshop-network
 
@@ -760,6 +940,90 @@
     networks:
       - goshop-network
 
+  kafka-exporter:
+    # Broker-side lag/throughput metrics on :9308. The dev broker runs
+    # PLAINTEXT, so no SASL flags here (prod has them).
+    image: danielqsj/kafka-exporter:v1.9.0
+    container_name: goshop-kafka-exporter
+    restart: unless-stopped
+    command:
+      - --kafka.server=kafka:29092
+      - --web.listen-address=:9308
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - goshop-network
+
+  prometheus:
+    # Scrapes kafka-exporter plus every goshop-* container on its own HTTP port
+    # (see system/prometheus/prometheus.yml). Rules live in
+    # system/prometheus/rules/.
+    image: prom/prometheus:v3.6.0
+    container_name: goshop-prometheus
+    restart: unless-stopped
+    # The image runs as nobody (65534) and the host docker socket is root:root,
+    # so unprivileged docker service discovery fails with "permission denied"
+    # (only logs, no missing target). Prometheus itself needs no privileges:
+    # it reads the mounted config, writes only /prometheus, and has no shell in
+    # the flow. Reading the socket is the single capability this grants.
+    user: "0:0"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+      - --web.enable-lifecycle
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./system/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./system/prometheus/rules:/etc/prometheus/rules:ro
+      # Read-only socket for docker service discovery (same privilege as
+      # promtail).
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      - kafka-exporter
+    networks:
+      - goshop-network
+
+  alertmanager:
+    # Fans Prometheus alerts out to Discord (native discord_configs). Config
+    # template in system/alertmanager/alertmanager.yml; the webhook URL is
+    # substituted from ALERTMANAGER_DISCORD_WEBHOOK_URL at container start,
+    # because Alertmanager does not expand env vars in its own config. An empty
+    # URL falls back to alertmanager.silent.yml so dev still starts.
+    image: prom/alertmanager:v0.29.0
+    container_name: goshop-alertmanager
+    restart: unless-stopped
+    environment:
+      ALERTMANAGER_DISCORD_WEBHOOK_URL: ${ALERTMANAGER_DISCORD_WEBHOOK_URL:-}
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        if [ -n "$$ALERTMANAGER_DISCORD_WEBHOOK_URL" ]; then
+          sed "s|__ALERTMANAGER_DISCORD_WEBHOOK_URL__|$$ALERTMANAGER_DISCORD_WEBHOOK_URL|g" \
+            /etc/alertmanager/alertmanager.tmpl.yml > /tmp/alertmanager.yml
+        else
+          echo "WARN ALERTMANAGER_DISCORD_WEBHOOK_URL is empty: alerts will fire but not reach Discord" >&2
+          cp /etc/alertmanager/alertmanager.silent.yml /tmp/alertmanager.yml
+        fi
+        exec /bin/alertmanager \
+          --config.file=/tmp/alertmanager.yml \
+          --storage.path=/alertmanager \
+          --web.external-url=http://localhost:9093
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./system/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.tmpl.yml:ro
+      - ./system/alertmanager/alertmanager.silent.yml:/etc/alertmanager/alertmanager.silent.yml:ro
+      - alertmanager-data:/alertmanager
+    depends_on:
+      - prometheus
+    networks:
+      - goshop-network
+
 volumes:
   postgres-data:
     driver: local
@@ -770,6 +1034,10 @@ volumes:
   minio-data:
     driver: local
   meilisearch-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  alertmanager-data:
     driver: local
 
 networks:

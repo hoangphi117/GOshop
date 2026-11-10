@@ -19,6 +19,7 @@ import (
 	"goshop/shared/pkg/discord"
 	"goshop/shared/pkg/kafka"
 	"goshop/shared/pkg/logger"
+	"goshop/shared/pkg/metrics"
 	"goshop/shared/pkg/storage"
 	"goshop/shared/pkg/utils"
 	"goshop/shared/pkg/validation"
@@ -45,6 +46,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	}
 
 	r := gin.Default()
+	r.GET("/metrics", metrics.Handler(nil))
 
 	// =========================================================================
 	// CONFIGURE TRUSTED PROXIES FOR GIN ENGINE (REVERSE PROXY / LOAD BALANCER)

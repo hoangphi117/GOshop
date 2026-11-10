@@ -34,6 +34,8 @@ backend/.env.dev
 backend/.env.prod
 frontend/apps/storefront/.env.dev
 frontend/apps/storefront/.env.prod
+# Loaded automatically by `next dev`; absent it falls through to .env (prod).
+frontend/apps/storefront/.env.development
 
 # Runtime data
 .runtime/
@@ -90,3 +92,7 @@ skills-lock.json
 certs/
 # Edge-injected API key (mirrored from backend/.env by scripts/gen-local-secrets.ps1)
 nginx/secrets/api_key
+
+# Python bytecode from scripts/*.py helper runs
+__pycache__/
+*.pyc
