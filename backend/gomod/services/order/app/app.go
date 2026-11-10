@@ -43,6 +43,7 @@ import (
 	"goshop/shared/pkg/auth"
 	"goshop/shared/pkg/cache"
 	"goshop/shared/pkg/db"
+	"goshop/shared/pkg/eventledger"
 	"goshop/shared/pkg/kafka"
 	"goshop/shared/pkg/logger"
 	"goshop/shared/pkg/messaging"
@@ -367,6 +368,17 @@ func New(cfg *config.Config) (*App, error) {
 		logger.Log.Warn().Err(err).Msg("Kafka not available on boot for order service, will retry in background")
 	}
 
+	// Idempotency for the order-side consumers: at-least-once delivery and
+	// consumer-group rebalances redeliver records, and applying a payment twice
+	// is not a no-op (it re-drives the saga and re-publishes order events).
+	// eventledger records (event_id, consumer) and makes the second delivery a
+	// silent no-op. Same wiring as inventory/analytics/cart/coupon.
+	if err := eventledger.Migrate(connStr, "event_ledger_migrations_order"); err != nil {
+		logger.Log.Error().Err(err).Msg("Failed to migrate event ledger for order service")
+		return nil, err
+	}
+	ledgerRepo := eventledger.NewRepository(dbPool)
+	ledgerLogger := eventledger.NewZerologLogger(brokerLogger)
 	r.GET("/healthz/ready", func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
 		defer cancel()
@@ -461,7 +473,8 @@ func New(cfg *config.Config) (*App, error) {
 		shippingConsumer := orderworker.NewShippingConsumer(shippingService, logger.Log)
 
 		go func() {
-			if err := broker.Consume(context.Background(), events.QueuePaymentSucceeded, paymentSucceededConsumer.Handle); err != nil {
+			if err := broker.Consume(context.Background(), events.QueuePaymentSucceeded,
+				paymentSucceededHandler(ledgerRepo, ledgerLogger, paymentSucceededConsumer.Handle)); err != nil {
 				logger.Log.Error().Err(err).Msg("Failed to start PaymentSucceeded consumer")
 			}
 		}()
@@ -578,4 +591,23 @@ func (a *App) Run(ctx context.Context) error {
 
 	logger.Log.Info().Msg("Order service stopped cleanly")
 	return nil
+}
+
+// paymentSucceededHandler makes the order-side payment consumer idempotent.
+//
+// At-least-once delivery plus consumer-group rebalances redeliver records, and
+// applying a payment twice is not a no-op: it re-drives the saga and republishes
+// order events. eventledger.Wrap records (event_id, consumer) after the side
+// effects commit and turns a redelivery into a silent no-op.
+func paymentSucceededHandler(
+	repo eventledger.Repository,
+	log eventledger.Logger,
+	handle messaging.Handler,
+) messaging.Handler {
+	return eventledger.Wrap(repo, "order.payment_succeeded",
+		func(_ context.Context, body []byte) error {
+			return handle(nil, body)
+		},
+		log,
+	)
 }
