@@ -144,7 +144,7 @@ func (c *OpenAIClient) streamOnce(ctx context.Context, body []byte, emit func(Ch
 		}
 		return Reply{}, false, fmt.Errorf("%w: %v", errStreamTransient, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))

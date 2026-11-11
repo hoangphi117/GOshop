@@ -83,7 +83,7 @@ func (c *HTTPProductSearchClient) Search(ctx context.Context, query string, limi
 	if err != nil {
 		return nil, fmt.Errorf("catalog search: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("catalog search: status %d", resp.StatusCode)

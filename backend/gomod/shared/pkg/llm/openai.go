@@ -167,7 +167,7 @@ func (c *OpenAIClient) buildRequest(msgs []Message, tools []Tool) wireRequest {
 	for _, t := range tools {
 		req.Tools = append(req.Tools, wireTool{
 			Type:     "function",
-			Function: wireFunction{Name: t.Name, Description: t.Description, Parameters: t.Parameters},
+			Function: wireFunction(t),
 		})
 	}
 	return req
@@ -192,7 +192,7 @@ func (c *OpenAIClient) once(ctx context.Context, body []byte) (Reply, bool, erro
 		}
 		return Reply{}, true, fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	raw, readErr := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 	if readErr != nil {

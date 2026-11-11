@@ -110,7 +110,7 @@ func (a faqSearchAdapter) fetch(ctx context.Context, query string, limit int) ([
 	if err != nil {
 		return nil, fmt.Errorf("faq search: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// A non-200 is an error, not "no FAQs": the model must be able to tell an
 	// empty knowledge base from a broken one.

@@ -518,14 +518,6 @@ func toolError(name string, err error) string {
 	return string(b)
 }
 
-func jsonString(v any) string {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return `[]`
-	}
-	return string(b)
-}
-
 // tail keeps the last n messages of a slice without copying the whole thing.
 func tail(msgs []llm.Message, n int) []llm.Message {
 	if len(msgs) <= n {
