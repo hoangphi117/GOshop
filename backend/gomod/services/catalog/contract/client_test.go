@@ -50,6 +50,10 @@ func (m *mockCatalogService) GetAllCategories(ctx context.Context, activeOnly *b
 	}
 	return []dto.CategoryDTO{{CategoryID: 1, UUID: uuid.New().String(), Name: "Electronics", Slug: "electronics"}}, nil
 }
+func (m *mockCatalogService) ListFAQs(ctx context.Context, q *string, limit, offset int32) ([]dto.FAQDTO, error) {
+	return nil, nil
+}
+
 func (m *mockCatalogService) UpdateCategory(ctx context.Context, input dto.UpdateCategoryInput) (*dto.CategoryDTO, error) {
 	return nil, nil
 }

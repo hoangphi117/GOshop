@@ -612,6 +612,34 @@ location /internal/ {
 }
 
 # -----------------------------------------------------------------------------
+# 4b. ASSISTANT SSE STREAM (/api/v1/assistant/stream) - PHẢI ĐỨNG TRƯỚC /api/v1/
+# -----------------------------------------------------------------------------
+# Server-Sent Events: the assistant pushes answer deltas as they are generated.
+# Nginx buffers proxied responses by default, which would hold the whole answer
+# until the turn finished and turn streaming back into a slow single response.
+location = /api/v1/assistant/stream {
+    include /etc/nginx/conf.d/cors-headers.inc;
+    proxy_pass http://goshop_backend;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-ID $request_id;
+    proxy_set_header X-API-KEY $goshop_api_key;
+
+    proxy_buffering off;
+    proxy_cache off;
+    gzip off;
+    # A long answer with tool calls needs more than the 60s REST budget, but not
+    # unbounded: the assistant's own WriteTimeout is the real ceiling.
+    proxy_read_timeout 180s;
+    proxy_send_timeout 180s;
+    limit_req zone=api_read burst=200 nodelay;
+}
+
+# -----------------------------------------------------------------------------
 # 5. API GATEWAY REVERSE PROXY & LOAD BALANCER (/api/v1/)
 # -----------------------------------------------------------------------------
 # Remaining API paths go to the API gateway, which fans out to the owning

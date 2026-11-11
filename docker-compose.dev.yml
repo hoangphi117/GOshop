@@ -45,6 +45,12 @@ services:
       - DB_HOST=postgres
       - REDIS_ADDR=redis:6379
       - KAFKA_BROKERS=kafka:29092
+      # Dev broker is PLAINTEXT (see the kafka service below) and no TLS cert is
+      # mounted into dev containers, so the TLS block that gen-kafka-env.ps1
+      # merges into backend/.env for prod must not reach a dev run. Without
+      # this, clients die with "load TLS CA: open /app/kafka/tls/ca.crt".
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
       - MEILISEARCH_HOST=http://meilisearch:7700
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
       - IDENTITY_SERVICE_URL=http://identity-service:8081
@@ -66,6 +72,9 @@ services:
       - CATALOG_SERVICE_URL=http://catalog:8086
       - CART_SERVICE_URL=http://cart:8087
       - COUPON_SERVICE_URL=http://coupon:8084
+      # Without this the assistant routes 404 at the gateway: the service runs
+      # in its own container, the api proxy has nothing to forward to.
+      - ASSISTANT_SERVICE_URL=http://assistant-service:8097
       - INVENTORY_SERVICE_URL=http://inventory:8090
       - MEDIA_SERVICE_URL=http://media:8094
       - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:-goshop-internal-secret-token}
@@ -113,6 +122,12 @@ services:
       - IDENTITY_DB_NAME=shopping_identity
       - REDIS_ADDR=redis:6379
       - KAFKA_BROKERS=kafka:29092
+      # Dev broker is PLAINTEXT (see the kafka service below) and no TLS cert is
+      # mounted into dev containers, so the TLS block that gen-kafka-env.ps1
+      # merges into backend/.env for prod must not reach a dev run. Without
+      # this, clients die with "load TLS CA: open /app/kafka/tls/ca.crt".
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
       - MEILISEARCH_HOST=http://meilisearch:7700
       - IDENTITY_SERVER_PORT=8081
       - IDENTITY_GRPC_PORT=:50051
@@ -155,6 +170,12 @@ services:
       - DB_NAME=shopping_notification
       - REDIS_ADDR=redis:6379
       - KAFKA_BROKERS=kafka:29092
+      # Dev broker is PLAINTEXT (see the kafka service below) and no TLS cert is
+      # mounted into dev containers, so the TLS block that gen-kafka-env.ps1
+      # merges into backend/.env for prod must not reach a dev run. Without
+      # this, clients die with "load TLS CA: open /app/kafka/tls/ca.crt".
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
       - NOTIFICATION_SERVER_PORT=8082
       - IDENTITY_GRPC_ADDR=identity-service:50051
       - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:-goshop-internal-secret-token}
@@ -198,6 +219,12 @@ services:
       - MEDIA_SERVER_PORT=8094
       - REDIS_ADDR=redis:6379
       - KAFKA_BROKERS=kafka:29092
+      # Dev broker is PLAINTEXT (see the kafka service below) and no TLS cert is
+      # mounted into dev containers, so the TLS block that gen-kafka-env.ps1
+      # merges into backend/.env for prod must not reach a dev run. Without
+      # this, clients die with "load TLS CA: open /app/kafka/tls/ca.crt".
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
       # backend/.env has S3_ENDPOINT=http://localhost:9000 for host-run setups;
       # inside the container MinIO is reachable as minio:9000.
       - S3_ENDPOINT=http://minio:9000
@@ -245,6 +272,12 @@ services:
       - ANALYTICS_SERVER_PORT=8092
       - REDIS_ADDR=redis:6379
       - KAFKA_BROKERS=kafka:29092
+      # Dev broker is PLAINTEXT (see the kafka service below) and no TLS cert is
+      # mounted into dev containers, so the TLS block that gen-kafka-env.ps1
+      # merges into backend/.env for prod must not reach a dev run. Without
+      # this, clients die with "load TLS CA: open /app/kafka/tls/ca.crt".
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
       # backend/.env points these at localhost for host-run binaries; inside the
       # container that resolves to the container itself.
       - IDENTITY_GRPC_ADDR=identity-service:50051
@@ -279,6 +312,46 @@ services:
         aliases:
           - analytics-service
 
+  assistant:
+    # Public AI shopping assistant. No DB, no Kafka: sessions live in Redis and
+    # every product fact is read through catalog. The LLM key stays in
+    # backend/.env (server-side only, never in a browser bundle).
+    build:
+      context: ./backend
+      dockerfile: build/Dockerfile.service.dev
+      args:
+        SERVICE: assistant
+    container_name: goshop-assistant
+    restart: unless-stopped
+    mem_limit: 192m
+    ports:
+      - "8097:8097"
+    env_file:
+      - ./backend/.env
+    environment:
+      - APP_ENV=development
+      - ASSISTANT_SERVER_PORT=8097
+      - REDIS_ADDR=redis:6379
+      - CATALOG_GRPC_TARGET=catalog-service:50055
+      - CATALOG_BASE_URL=http://catalog:8086
+      - JWT_SIGNING_ENABLED=false
+      - JWT_PRIVATE_KEY=
+      - JWT_PUBLIC_KEY=/app/certs/jwt_public.pem
+      - GOMEMLIMIT=1GiB
+      - GOMAXPROCS=1
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
+    volumes:
+      - ./backend:/app
+    depends_on:
+      redis:
+        condition: service_healthy
+      catalog:
+        condition: service_started
+    networks:
+      goshop-network:
+        aliases:
+          - assistant-service
+
   payment:
     build:
       context: ./backend
@@ -299,6 +372,12 @@ services:
       - PAYMENT_DB_NAME=shopping_payment
       - REDIS_ADDR=redis:6379
       - KAFKA_BROKERS=kafka:29092
+      # Dev broker is PLAINTEXT (see the kafka service below) and no TLS cert is
+      # mounted into dev containers, so the TLS block that gen-kafka-env.ps1
+      # merges into backend/.env for prod must not reach a dev run. Without
+      # this, clients die with "load TLS CA: open /app/kafka/tls/ca.crt".
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
       - PAYMENT_SERVER_PORT=8083
       - PAYMENT_GRPC_PORT=50052
       - ORDER_GRPC_ADDR=order-service:50057
@@ -347,6 +426,12 @@ services:
       - INVENTORY_GRPC_ADDR=inventory-service:50054
       - REDIS_ADDR=redis:6379
       - KAFKA_BROKERS=kafka:29092
+      # Dev broker is PLAINTEXT (see the kafka service below) and no TLS cert is
+      # mounted into dev containers, so the TLS block that gen-kafka-env.ps1
+      # merges into backend/.env for prod must not reach a dev run. Without
+      # this, clients die with "load TLS CA: open /app/kafka/tls/ca.crt".
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
       - MEILISEARCH_HOST=http://meilisearch:7700
       - GOMEMLIMIT=1GiB
       - GOMAXPROCS=1
@@ -392,6 +477,12 @@ services:
       - JWT_PRIVATE_KEY=
       - REDIS_ADDR=redis:6379
       - KAFKA_BROKERS=kafka:29092
+      # Dev broker is PLAINTEXT (see the kafka service below) and no TLS cert is
+      # mounted into dev containers, so the TLS block that gen-kafka-env.ps1
+      # merges into backend/.env for prod must not reach a dev run. Without
+      # this, clients die with "load TLS CA: open /app/kafka/tls/ca.crt".
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
       - JWT_SIGNING_ENABLED=false
       - JWT_PRIVATE_KEY=
       - GOMEMLIMIT=1GiB
@@ -434,6 +525,12 @@ services:
       - JWT_PRIVATE_KEY=
       - REDIS_ADDR=redis:6379
       - KAFKA_BROKERS=kafka:29092
+      # Dev broker is PLAINTEXT (see the kafka service below) and no TLS cert is
+      # mounted into dev containers, so the TLS block that gen-kafka-env.ps1
+      # merges into backend/.env for prod must not reach a dev run. Without
+      # this, clients die with "load TLS CA: open /app/kafka/tls/ca.crt".
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
       - GOMEMLIMIT=96MiB
       - GOMAXPROCS=1
     cpus: 0.50
@@ -474,6 +571,12 @@ services:
       - CATALOG_GRPC_ADDR=catalog-service:50055
       - REDIS_ADDR=redis:6379
       - KAFKA_BROKERS=kafka:29092
+      # Dev broker is PLAINTEXT (see the kafka service below) and no TLS cert is
+      # mounted into dev containers, so the TLS block that gen-kafka-env.ps1
+      # merges into backend/.env for prod must not reach a dev run. Without
+      # this, clients die with "load TLS CA: open /app/kafka/tls/ca.crt".
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
       - GOMEMLIMIT=1GiB
       - GOMAXPROCS=1
     cpus: 0.50
@@ -515,6 +618,10 @@ services:
       - JWT_PRIVATE_KEY=
       - JWT_PUBLIC_KEY=/app/certs/jwt_public.pem
       - REDIS_ADDR=redis:6379
+      # Dev broker is PLAINTEXT; drop the prod-only TLS block from backend/.env
+      # (see the kafka service). Without this, banner dies at "load TLS CA".
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
       - GOMEMLIMIT=96MiB
       - GOMAXPROCS=1
     cpus: 0.50
@@ -550,6 +657,12 @@ services:
       - REVIEW_SERVER_PORT=8091
       - REDIS_ADDR=redis:6379
       - KAFKA_BROKERS=kafka:29092
+      # Dev broker is PLAINTEXT (see the kafka service below) and no TLS cert is
+      # mounted into dev containers, so the TLS block that gen-kafka-env.ps1
+      # merges into backend/.env for prod must not reach a dev run. Without
+      # this, clients die with "load TLS CA: open /app/kafka/tls/ca.crt".
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
       - IDENTITY_GRPC_ADDR=identity-service:50051
       - CATALOG_GRPC_TARGET=catalog-service:50055
       - ORDER_GRPC_TARGET=order-service:50057
@@ -594,6 +707,12 @@ services:
       - ORDER_DB_NAME=shopping_order
       - REDIS_ADDR=redis:6379
       - KAFKA_BROKERS=kafka:29092
+      # Dev broker is PLAINTEXT (see the kafka service below) and no TLS cert is
+      # mounted into dev containers, so the TLS block that gen-kafka-env.ps1
+      # merges into backend/.env for prod must not reach a dev run. Without
+      # this, clients die with "load TLS CA: open /app/kafka/tls/ca.crt".
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
       - ORDER_SERVER_PORT=8088
       - ORDER_GRPC_PORT=50057
       - CATALOG_GRPC_ADDR=catalog-service:50055
@@ -660,6 +779,12 @@ services:
       - CHAT_GRPC_PORT=50058
       - REDIS_ADDR=redis:6379
       - KAFKA_BROKERS=kafka:29092
+      # Dev broker is PLAINTEXT (see the kafka service below) and no TLS cert is
+      # mounted into dev containers, so the TLS block that gen-kafka-env.ps1
+      # merges into backend/.env for prod must not reach a dev run. Without
+      # this, clients die with "load TLS CA: open /app/kafka/tls/ca.crt".
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
       - IDENTITY_GRPC_ADDR=identity-service:50051
       - ORDER_GRPC_TARGET=order-service:50057
       - JWT_SIGNING_ENABLED=false
@@ -700,6 +825,12 @@ services:
     environment:
       - REDIS_ADDR=redis:6379
       - KAFKA_BROKERS=kafka:29092
+      # Dev broker is PLAINTEXT (see the kafka service below) and no TLS cert is
+      # mounted into dev containers, so the TLS block that gen-kafka-env.ps1
+      # merges into backend/.env for prod must not reach a dev run. Without
+      # this, clients die with "load TLS CA: open /app/kafka/tls/ca.crt".
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
       - MEILISEARCH_HOST=http://meilisearch:7700
       # worker serves no HTTP router, so it is the one service that needs the
       # separate /metrics listener (shared/pkg/metrics.ListenAndServe).
@@ -741,6 +872,8 @@ services:
       # the gRPC resolver dialled localhost and every handshake got 401.
       - IDENTITY_GRPC_ADDR=identity-service:50051
       - CHAT_GRPC_TARGET=chat:50058
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
     volumes:
       # The gateway verifies access tokens with the RSA public key. It runs the

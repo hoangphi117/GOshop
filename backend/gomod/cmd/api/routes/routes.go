@@ -465,9 +465,41 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 		}
 	}
 
+	// API Gateway reverse proxy for the AI shopping assistant. With
+	// ASSISTANT_SERVICE_URL unset these paths 404, which is what `make dev`
+	// hit: the assistant ran in its own container but no gateway forwarded
+	// to it. FlushInterval -1 disables response buffering so the SSE stream
+	// delivers deltas as they are produced instead of all at once at the end.
+	assistantURL := utils.GetEnv("ASSISTANT_SERVICE_URL", "")
+	if assistantURL != "" {
+		if parsedAssistantURL, err := url.Parse(assistantURL); err == nil && parsedAssistantURL.Scheme != "" {
+			assistantProxy := httputil.NewSingleHostReverseProxy(parsedAssistantURL)
+			transport := http.DefaultTransport.(*http.Transport).Clone()
+			transport.DisableCompression = true
+			assistantProxy.Transport = transport
+			assistantProxy.FlushInterval = -1
+
+			assistantProxy.ModifyResponse = func(resp *http.Response) error {
+				resp.Header.Del("Access-Control-Allow-Origin")
+				resp.Header.Del("Access-Control-Allow-Credentials")
+				resp.Header.Del("Access-Control-Allow-Methods")
+				resp.Header.Del("Access-Control-Allow-Headers")
+				resp.Header.Del("Access-Control-Max-Age")
+				return nil
+			}
+			assistantProxyHandler := func(ctx *gin.Context) {
+				ctx.Request.Host = parsedAssistantURL.Host
+				ctx.Request.Header.Del("Accept-Encoding")
+				assistantProxy.ServeHTTP(ctx.Writer, ctx.Request)
+			}
+
+			v1api.Any("/assistant", assistantProxyHandler)
+			v1api.Any("/assistant/*any", assistantProxyHandler)
+		}
+	}
+
 	// Reverse proxy for the WebSocket endpoint. The ws upgrade moved to the
-	// ws-gateway binary: with WS_GATEWAY_URL unset these paths 404. httputil
-	// handles the 101 Switching Protocols upgrade; ws-gateway authenticates
+	// ws-gateway binary: with WS_GATEWAY_URL unset these paths 404. httputil	// handles the 101 Switching Protocols upgrade; ws-gateway authenticates
 	// via the ?token= query param itself, so no auth middleware here (same
 	// trust boundary as nginx routing /api/v1/ws straight to ws-gateway).
 	wsURL := utils.GetEnv("WS_GATEWAY_URL", "")

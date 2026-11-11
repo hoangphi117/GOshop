@@ -63,14 +63,20 @@ scrape_configs:
         regex: "/goshop-(.+)"
         target_label: instance
       - source_labels: [__meta_docker_container_name]
-        regex: "/goshop-(api|identity|notification|payment|catalog|inventory|coupon|cart|banner|review|order|analytics|chat|media)(-[0-9]+)?"
+        regex: "/goshop-(api|identity|notification|payment|catalog|inventory|coupon|cart|banner|review|order|analytics|chat|media|ws-gateway)(-[0-9]+)?"
         action: keep
-      # Docker SD emits one target per *exposed port*. Keep only the HTTP port:
-      # gRPC is 50053..50058, HTTP is 80xx. Dropping the gRPC ports here avoids
-      # a duplicate target per service pointing at the wrong port.
-      - source_labels: [__meta_docker_port_private]
-        regex: "5005[0-9]"
-        action: drop
+      # Docker SD emits one target per *exposed port*. EXPOSE in
+      # build/Dockerfile.service lists every HTTP port (8080..8094) on every
+      # image, so a single service produced 15 targets: one that answers and
+      # 14 that never do. The 14 fired a permanent ServiceDown alert (first
+      # seen on identity, the first service rebuilt from the prod image).
+      #
+      # Map compose service -> its one real port instead of trusting EXPOSE.
+      # A service missing from this list is dropped, so add it here when you
+      # add a service (the `keep` regex above is not enough on its own).
+      - source_labels: [__meta_docker_container_label_com_docker_compose_service, __meta_docker_port_private]
+        regex: "api;8080|api1;8080|api2;8080|identity;8081|notification;8082|payment;8083|coupon;8084|ws-gateway;8085|catalog;8086|cart;8087|order;8088|banner;8089|inventory;8090|review;8091|analytics;8092|chat;8093|media;8094"
+        action: keep
       - source_labels: [__meta_docker_network_ip, __meta_docker_port_private]
         target_label: __address__
         separator: ":"
