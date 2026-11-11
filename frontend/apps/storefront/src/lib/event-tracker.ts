@@ -11,7 +11,7 @@ interface QueuedEvent {
   event_id: string
   event_type: EventType
   occurred_at: string
-  payload: Record<string, unknown>
+  [field: string]: unknown
 }
 
 const MAX_BATCH = 20
@@ -40,12 +40,10 @@ function endpoint(): string {
 
 function send(body: string) {
   const url = endpoint()
-  if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
-    // sendBeacon survives pagehide. The API key is injected server-side by the
-    // edge, so no custom header is needed on this path.
-    const blob = new Blob([body], { type: 'application/json' })
-    if (navigator.sendBeacon(url, blob)) return
-  }
+  // Always fetch with keepalive, never sendBeacon: sendBeacon cannot set the
+  // X-API-KEY header, so behind an edge that does not inject it (dev-host has
+  // no nginx) the request was rejected with 400 "missing API Key". keepalive
+  // survives pagehide just like sendBeacon.
   void fetch(url, {
     method: 'POST',
     body,
@@ -75,14 +73,18 @@ export function flushEvents() {
 /**
  * Records one interaction. Identity (anon cookie or bearer token) is attached
  * by the server, so the payload never carries a user id.
+ *
+ * Fields are spread flat, not nested under `payload`: the ingest DTO reads
+ * `query` / `product_uuid` / `result_count` at the top level of each event,
+ * and a nested object made every search fail with "search requires query".
  */
 export function track(event_type: EventType, payload: Record<string, unknown> = {}) {
   if (typeof window === 'undefined') return
   queue.push({
+    ...payload,
     event_id: uuid(),
     event_type,
     occurred_at: new Date().toISOString(),
-    payload,
   })
   if (queue.length >= MAX_BATCH) {
     flushEvents()

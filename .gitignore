@@ -36,6 +36,8 @@ frontend/apps/storefront/.env.dev
 frontend/apps/storefront/.env.prod
 # Loaded automatically by `next dev`; absent it falls through to .env (prod).
 frontend/apps/storefront/.env.development
+# Per-topology override copied to .env.local by `make dev-host`.
+frontend/apps/storefront/.env.dev-host
 
 # Runtime data
 .runtime/
