@@ -11,12 +11,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// RegisterRoutes mounts the admin-only analytics endpoints. The monolith
-// gateway proxies /admin/analytics/* here. Analytics is reporting-only, so
-// there is no public or customer surface.
+// RegisterRoutes mounts the admin-only analytics endpoints and the public
+// event-ingestion surface. The monolith gateway proxies /admin/analytics/* here.
 func RegisterRoutes(
 	r *gin.Engine,
 	analyticsHandler *handler.AnalyticsHandler,
+	eventsHandler *handler.EventHandler,
 	tokenService auth.TokenService,
 	cacheService cache.RedisCacheService,
 ) {
@@ -35,6 +35,23 @@ func RegisterRoutes(
 
 	if tokenService != nil {
 		middleware.InitAuthMiddleware(tokenService, cacheService)
+	}
+
+	// Public customer surface: telemetry ingestion and the search-history read
+	// model. Identity is optional (anon cookie or bearer token); nothing here
+	// exposes another user's data because the subject always comes from the
+	// request's own credentials.
+	if eventsHandler != nil {
+		pub := r.Group("/api/v1",
+			middleware.ApiKeyMiddleware(),
+			middleware.AnonCookie(),
+			middleware.OptionalAuthMiddleware(),
+		)
+		{
+			pub.POST("/events", eventsHandler.Ingest)
+			pub.GET("/search/history", eventsHandler.GetSearchHistory)
+			pub.DELETE("/search/history", eventsHandler.DeleteSearchHistory)
+		}
 	}
 
 	admin := r.Group("/api/v1/admin/analytics",

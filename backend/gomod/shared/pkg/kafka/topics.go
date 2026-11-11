@@ -96,6 +96,12 @@ var domainTopics = map[string]topicSpec{
 	"shipping.create":  {topic: "goshop.shipping.v1", keyField: "order_uuid"},
 	// order service constant (services/order QueueShippingCreate); same topic.
 	"shipping.order.create": {topic: "goshop.shipping.v1", keyField: "order_uuid"},
+	// interaction telemetry (*.event routing keys from services/analytics)
+	"search.event":       {topic: "goshop.events.v1", keyField: "anon_id"},
+	"search_click.event": {topic: "goshop.events.v1", keyField: "anon_id"},
+	"view_item.event":    {topic: "goshop.events.v1", keyField: "anon_id"},
+	"add_to_cart.event":  {topic: "goshop.events.v1", keyField: "anon_id"},
+	"purchase.event":     {topic: "goshop.events.v1", keyField: "anon_id"},
 }
 
 // fallbackTopics maps names the publishers use that are NOT routing keys

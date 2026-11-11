@@ -648,6 +648,10 @@ services:
       DB_NAME: "shopping_analytics"
       ANALYTICS_DB_NAME: "shopping_analytics"
       ANALYTICS_SERVER_PORT: "8092"
+      # Edge is plain HTTP on localhost in this stack; a Secure cookie would be
+      # dropped by the browser and search history/anon identity would reset on
+      # every reload. Set "true" behind TLS.
+      ANON_COOKIE_SECURE: "${ANON_COOKIE_SECURE:-false}"
       REDIS_ADDR: "redis:6379"
       KAFKA_BROKERS: "kafka:29096"
       KAFKA_SASL_USER: "analytics"
@@ -855,7 +859,9 @@ services:
   # Build it with:  pnpm --filter dashboard build   (host or CI)
 
   postgres:
-    image: postgres:16-alpine
+    # pgvector build of Postgres 16: drop-in for the stock image, adds the
+    # `vector` extension phase 2 needs for product embeddings.
+    image: pgvector/pgvector:pg16
     container_name: goshop-postgres
     restart: unless-stopped
     command: postgres -c max_connections=150 -c shared_buffers=256MB -c work_mem=16MB
@@ -1030,7 +1036,8 @@ services:
         $$K --bootstrap-server $$B --create --if-not-exists --topic goshop.notification.v1 --partitions 1 --replication-factor 1
         $$K --bootstrap-server $$B --create --if-not-exists --topic goshop.media.v1 --partitions 1 --replication-factor 1
         $$K --bootstrap-server $$B --create --if-not-exists --topic goshop.shipping.v1 --partitions 1 --replication-factor 1
-        for d in order order-return payment user email inventory review notification media shipping; do
+        $$K --bootstrap-server $$B --create --if-not-exists --topic goshop.events.v1 --partitions 6 --replication-factor 1
+        for d in order order-return payment user email inventory review notification media shipping events; do
           $$K --bootstrap-server $$B --create --if-not-exists --topic "goshop.$${d}.v1.dlq" --partitions 1 --replication-factor 1
           # Phase 3: a dead letter is only useful if it is still there when an
           # operator investigates, so DLQ topics keep records forever. Domain

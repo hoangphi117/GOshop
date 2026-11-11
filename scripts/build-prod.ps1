@@ -19,7 +19,10 @@ if (-not $env:JWT_PRIVATE_KEY) { $env:JWT_PRIVATE_KEY = 'build-dummy' }
 $services = @(
     'api1', 'api2', 'identity', 'notification', 'payment', 'catalog',
     'inventory', 'coupon', 'cart', 'banner', 'review', 'chat', 'media',
-    'analytics', 'order', 'worker', 'ws-gateway'
+    'analytics', 'order', 'worker', 'ws-gateway',
+    # Not Go services, but they are compose-managed images: leaving them out
+    # makes `up --no-build` fail on "No such image".
+    'assistant', 'storefront'
 )
 
 # Opt-in subset: ./scripts/build-prod.ps1 -Only api1,order
@@ -40,3 +43,19 @@ if ($failed.Count -gt 0) {
     exit 1
 }
 Write-Host 'all prod images built' -ForegroundColor Green
+
+# Kafka's image runs as uid 1000 but Docker creates named volumes owned by
+# root, so a fresh volume crash-loops with
+#   AccessDeniedException: /tmp/kafka-logs/bootstrap.checkpoint.tmp
+# Chown only a volume that does not exist yet: an existing one already has the
+# right owner and its data must not be touched.
+if (-not (docker volume inspect shopping_kafka-data 2>$null)) {
+    Write-Host '>>> preparing kafka volume ownership' -ForegroundColor Cyan
+    docker volume create shopping_kafka-data | Out-Null
+    docker run --rm -v shopping_kafka-data:/tmp/kafka-logs alpine `
+        sh -c 'chown -R 1000:1000 /tmp/kafka-logs && chmod -R 755 /tmp/kafka-logs'
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host 'FAILED: kafka volume ownership' -ForegroundColor Red
+        exit 1
+    }
+}

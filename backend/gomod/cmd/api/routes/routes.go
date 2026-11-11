@@ -400,6 +400,14 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 
 			v1api.Any("/admin/analytics", analyticsProxyHandler)
 			v1api.Any("/admin/analytics/*any", analyticsProxyHandler)
+
+			// Public interaction telemetry + the search-history read model the
+			// storefront dropdown reads. Identity travels as the anon cookie or
+			// the bearer token; the proxy must not strip Cookie, so nothing is
+			// rewritten here beyond the upstream host.
+			v1api.POST("/events", analyticsProxyHandler)
+			v1api.GET("/search/history", analyticsProxyHandler)
+			v1api.DELETE("/search/history", analyticsProxyHandler)
 		}
 	}
 

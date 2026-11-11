@@ -3,6 +3,9 @@ import Link from "next/link";
 import { getCategories, getProducts } from "@/lib/api-server";
 import { ProductGrid } from "@/components/product/product-grid";
 import { SearchAutocomplete } from "@/components/layout/search-autocomplete";
+import { SearchEvent } from "@/components/search/search-event";
+import { ANON_COOKIE_NAME, fetchSearchHistory } from "@/lib/search-history";
+import { cookies } from "next/headers";
 import {
   ChevronRight,
   Filter,
@@ -31,6 +34,9 @@ interface ProductsPageProps {
 
 export const dynamic = "force-dynamic";
 
+// The parent layout reads cookies (anon identity), so every route under it is
+// dynamic; this mirrors that instead of tripping a build-time error.
+
 const PRICE_PRESETS = [
   { label: "Under 1,000,000₫", min: undefined, max: 1000000 },
   { label: "1,000,000₫ – 5,000,000₫", min: 1000000, max: 5000000 },
@@ -44,6 +50,14 @@ const RATING_PRESETS = [
   { label: "2 Stars & above", rating: 2 },
   { label: "1 Star & above", rating: 1 },
 ];
+
+/** Server-side history read for the in-catalog search bar (first paint). */
+async function recentSearchKeywords(): Promise<string[]> {
+  const cookieStore = await cookies();
+  const anonId = cookieStore.get(ANON_COOKIE_NAME)?.value;
+  if (!anonId) return [];
+  return fetchSearchHistory(`goshop_anon_id=${anonId}`);
+}
 
 export default async function ProductsPage({
   searchParams,
@@ -501,6 +515,7 @@ export default async function ProductsPage({
 
           {/* Right Product Grid Column (lg:col-span-9) */}
           <main className="lg:col-span-9 space-y-5">
+            <SearchEvent query={currentSearch} resultCount={pagination?.total_records ?? 0} />
             {/* Filter Controls & In-Catalog Search Bar (2-Column Layout) */}
             <div className="bg-white border border-slate-200/90 rounded-xs p-3.5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-xs">
               {/* Column 1: Keyword Search Input (with Meilisearch autocomplete dropdown) */}
@@ -509,6 +524,7 @@ export default async function ProductsPage({
                   variant="compact"
                   placeholder="Filter within results..."
                   initialValue={currentSearch}
+                  recentSearches={await recentSearchKeywords()}
                   preserveParams={{
                     category: currentCategory,
                     sort: currentSort,
