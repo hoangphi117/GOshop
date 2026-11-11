@@ -137,7 +137,10 @@ func (a faqSearchAdapter) fetch(ctx context.Context, query string, limit int) ([
 //
 // ponytail: a fixed table, not an embedded search index. If the catalog ever
 // ships a second language, index the FAQs with Meilisearch per locale instead.
-var faqKeywordHints = []struct{ words []string; add string }{
+var faqKeywordHints = []struct {
+	words []string
+	add   string
+}{
 	{[]string{"hoàn trả", "hoàn hàng", "trả hàng", "đổi trả", "trả lại", "return", "refund"}, "return refund"},
 	{[]string{"giao hàng", "vận chuyển", "ship", "shipping", "delivery"}, "shipping delivery"},
 	{[]string{"thanh toán", "payment", "pay"}, "payment"},

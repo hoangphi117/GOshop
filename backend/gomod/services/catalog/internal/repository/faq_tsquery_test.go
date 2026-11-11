@@ -8,7 +8,7 @@ import "testing"
 func TestToTSQueryBuildsORQuery(t *testing.T) {
 	cases := map[string]string{
 		"return policy how many days to return": "return | policy | how | many | days | to | return",
-		"  Return!  ":                            "return",
+		"  Return!  ":                           "return",
 		// Quotes, pipes, parens and colons are tsquery syntax; they must not
 		// reach Postgres as operators.
 		`a'|&!:*()return`: "return",

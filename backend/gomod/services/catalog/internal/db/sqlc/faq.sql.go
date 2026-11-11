@@ -62,7 +62,7 @@ LIMIT $3 OFFSET $4
 `
 
 type ListFAQsParams struct {
-	Q   *string `json:"q"`
+	Q *string `json:"q"`
 	// Tsq is Q rewritten as an OR-tsquery ("return | polici | day"). Written by
 	// repository.toTSQuery, which is the only place allowed to build it.
 	Tsq *string `json:"tsq"`
