@@ -39,6 +39,9 @@ type CatalogService interface {
 	GetCategoryBySlug(ctx context.Context, slug string) (*dto.CategoryDTO, error)
 	GetCategoryByID(ctx context.Context, id int32) (*dto.CategoryDTO, error)
 	GetAllCategories(ctx context.Context, activeOnly *bool) ([]dto.CategoryDTO, error)
+
+	// FAQs
+	ListFAQs(ctx context.Context, q *string, limit, offset int32) ([]dto.FAQDTO, error)
 	UpdateCategory(ctx context.Context, input dto.UpdateCategoryInput) (*dto.CategoryDTO, error)
 	SoftDeleteCategory(ctx context.Context, u uuid.UUID) (*dto.CategoryDTO, error)
 	RestoreCategory(ctx context.Context, u uuid.UUID) (*dto.CategoryDTO, error)
@@ -102,6 +105,27 @@ func NewCatalogService(
 		search:          searchClient,
 		inventoryClient: inventoryClient,
 	}
+}
+
+// =============================================================================
+// FAQs
+// =============================================================================
+
+// ListFAQs serves the public FAQ endpoints. limit <= 0 means "every active
+// row", which is what the assistant wants: the FAQ set is small and the model
+// benefits from the full list rather than a truncated one.
+func (s *catalogService) ListFAQs(ctx context.Context, q *string, limit, offset int32) ([]dto.FAQDTO, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	items, err := s.repo.ListFAQs(ctx, q, limit, offset)
+	if err != nil {
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to list faqs", err)
+	}
+	return dto.MapFAQsToDTOs(items), nil
 }
 
 // =============================================================================
@@ -314,11 +338,13 @@ func (s *catalogService) enrichStockForDTOs(ctx context.Context, dtos []dto.Prod
 		stockMap[st.ProductUUID] = st.Quantity
 	}
 	for i := range dtos {
-		qty, ok := stockMap[dtos[i].UUID]
-		if !ok {
-			return nil, utils.NewError(utils.ErrCodeServiceUnavailable, "inventory stock record is unavailable")
-		}
-		dtos[i].Stock = qty
+		// A product with no inventory row is out of stock, not a broken service.
+		// Failing the whole batch here made every search that reached a seeded
+		// category without inventory rows (Cameras & Photography) return
+		// SERVICE_UNAVAILABLE to the storefront and the assistant.
+		// ponytail: missing row maps to 0 stock; if inventory ever needs to
+		// distinguish "unknown" from "zero", return an explicit flag instead.
+		dtos[i].Stock = stockMap[dtos[i].UUID]
 	}
 	return dtos, nil
 }

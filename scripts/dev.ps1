@@ -73,8 +73,8 @@ Write-Host ">>> [2/3] Building Go Binaries (Sequential)..." -ForegroundColor Yel
 $binDir = Join-Path $PSScriptRoot "..\backend\bin"
 if (!(Test-Path $binDir)) { New-Item -ItemType Directory -Path $binDir -Force | Out-Null }
 
-$services = @("api", "identity", "notification", "payment", "worker", "coupon", "inventory", "catalog", "cart", "order", "review", "analytics", "chat", "media", "ws-gateway")
-$hostServices = @("api", "identity", "notification", "payment", "worker", "order", "review", "analytics", "chat", "media", "ws-gateway")
+$services = @("api", "identity", "notification", "payment", "worker", "coupon", "inventory", "catalog", "cart", "order", "review", "analytics", "chat", "media", "ws-gateway", "assistant")
+$hostServices = @("api", "identity", "notification", "payment", "worker", "order", "review", "analytics", "chat", "media", "ws-gateway", "assistant")
 $backendDir = Join-Path $PSScriptRoot "..\backend"
 $serviceBinaryPaths = $services | ForEach-Object {
     [System.IO.Path]::GetFullPath((Join-Path $backendDir "bin\$_.exe"))
@@ -86,7 +86,7 @@ foreach ($process in $runningServiceProcesses) {
     Stop-Process -Id $process.Id -Force
 }
 
-$requiredPorts = @(8080, 8081, 8082, 8083, 8088, 8091, 8092, 8093, 8094, 8085, 50057, 50058)
+$requiredPorts = @(8080, 8081, 8082, 8083, 8088, 8091, 8092, 8093, 8094, 8097, 8085, 50057, 50058)
 $deadline = (Get-Date).AddSeconds(10)
 do {
     $occupiedPorts = @(
@@ -169,8 +169,8 @@ npx -y concurrently `
   -k `
   --restart-tries 3 `
   --restart-after 3000 `
-  -n "api,identity,notif,payment,worker,order,review,analytics,chat,media,wsgw" `
-  -c "cyan,green,magenta,blue,yellow,orange,white,gray,red,cyan,darkyellow" `
+  -n "api,identity,notif,payment,worker,order,review,analytics,chat,media,assistant,wsgw" `
+  -c "cyan,green,magenta,blue,yellow,orange,white,gray,red,cyan,magenta,darkyellow" `
   "cd backend && ${binPrefix}api$exe" `
   "cd backend && ${binPrefix}identity$exe" `
   "cd backend && ${binPrefix}notification$exe" `
@@ -181,4 +181,5 @@ npx -y concurrently `
   "cd backend && ${binPrefix}analytics$exe" `
   "cd backend && ${binPrefix}chat$exe" `
   "cd backend && ${binPrefix}media$exe" `
+  "cd backend && ${binPrefix}assistant$exe" `
   "cd backend && ${binPrefix}ws-gateway$exe"

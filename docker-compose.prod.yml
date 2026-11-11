@@ -109,6 +109,7 @@ services:
       CATALOG_SERVICE_URL: "http://catalog-service:8086"
       CATALOG_GRPC_TARGET: "catalog-service:50055"
       COUPON_SERVICE_URL: "http://coupon-service:8084"
+      ASSISTANT_SERVICE_URL: "http://assistant-service:8097"
       COUPON_GRPC_TARGET: "coupon-service:50053"
       INVENTORY_SERVICE_URL: "http://inventory-service:8090"
       INVENTORY_GRPC_ADDR: "inventory-service:50054"
@@ -162,6 +163,7 @@ services:
       CATALOG_SERVICE_URL: "http://catalog-service:8086"
       CATALOG_GRPC_TARGET: "catalog-service:50055"
       COUPON_SERVICE_URL: "http://coupon-service:8084"
+      ASSISTANT_SERVICE_URL: "http://assistant-service:8097"
       COUPON_GRPC_TARGET: "coupon-service:50053"
       INVENTORY_SERVICE_URL: "http://inventory-service:8090"
       INVENTORY_GRPC_ADDR: "inventory-service:50054"
@@ -676,6 +678,39 @@ services:
       goshop-network:
         aliases:
           - analytics-service
+
+  assistant:
+    build:
+      context: ./backend
+      dockerfile: build/Dockerfile.service
+      args:
+        SERVICE: assistant
+    container_name: goshop-assistant
+    restart: unless-stopped
+    ports:
+      - "8097:8097"
+    env_file:
+      - ./backend/.env
+    environment:
+      <<: *jwt-verifier
+      ASSISTANT_SERVER_PORT: "8097"
+      REDIS_ADDR: "redis:6379"
+      CATALOG_GRPC_TARGET: "catalog-service:50055"
+      CATALOG_BASE_URL: "http://catalog:8086"
+      GOMEMLIMIT: "96MiB"
+      GOMAXPROCS: "1"
+    mem_limit: 128m
+    cpus: 0.50
+    depends_on:
+      redis:
+        condition: service_healthy
+      catalog:
+        condition: service_started
+    volumes: *jwt-certs
+    networks:
+      goshop-network:
+        aliases:
+          - assistant-service
 
   order:
     build:

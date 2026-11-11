@@ -399,7 +399,7 @@ export function useChat() {
                       ),
                       tag: `storefront-chat-${conversation.uuid}`,
                       onClick: () => {
-                        useChatUIStore.getState().openChat();
+                        useChatUIStore.getState().openChatWithHuman();
                       },
                     });
                   }

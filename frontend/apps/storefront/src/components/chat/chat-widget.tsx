@@ -34,7 +34,6 @@ import {
 } from "@/hooks/use-chat";
 import type { OrderRef, ProductRef } from "@/hooks/use-chat";
 import { useChatUIStore } from "@/stores/chat-ui-store";
-import { requestNotificationPermission } from "@/lib/chat-notifications";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -1078,7 +1077,14 @@ function ProductPickerModal({
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export function ChatWidget() {
+/**
+ * The human support panel. `hideHeader` lets the unified widget draw one
+ * shared dark header above the mode switcher for both tabs; without it the
+ * panel keeps its own standalone frame and header.
+ */
+export function ChatPanel({
+  hideHeader = false,
+}: { hideHeader?: boolean } = {}) {
   const {
     isOpen,
     setIsOpen,
@@ -1316,15 +1322,13 @@ export function ChatWidget() {
       setPendingFiles(filesToSend);
       setIsUploading(false);
       const detail =
-        error instanceof Error && error.message
-          ? ` (${error.message})`
-          : "";
+        error instanceof Error && error.message ? ` (${error.message})` : "";
       toast.error(
         filesToSend.length > 0
           ? `Failed to upload ${filesToSend.length} attachment${
               filesToSend.length > 1 ? "s" : ""
             }${detail}. Your message was kept so you can retry.`
-          : `Failed to send message${detail}. Please try again.`
+          : `Failed to send message${detail}. Please try again.`,
       );
     }
   };
@@ -1376,587 +1380,566 @@ export function ChatWidget() {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
-      {isOpen && (
-        <div className="relative mb-3 flex flex-col w-[calc(100vw-2rem)] max-w-[390px] h-[520px] bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden text-slate-900">
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 bg-slate-900 text-white">
-            <div className="flex items-center gap-2.5">
-              {isShopOnline ? (
-                <div className="relative flex items-center justify-center w-2.5 h-2.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
-                </div>
-              ) : (
-                <div className="flex items-center justify-center w-2.5 h-2.5">
-                  <span className="inline-flex h-2 w-2 rounded-full bg-amber-400/80" />
-                </div>
-              )}
-              <div>
-                <h3 className="text-sm font-semibold leading-tight">
-                  Customer Support
-                </h3>
-                <p className="text-xs text-slate-400">
-                  {isShopOnline ? "Active now" : "Replies in a few minutes"}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => setIsOpen(false)}
-              className="p-1 text-slate-400 hover:text-white rounded transition-colors"
-              aria-label="Close chat"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Body */}
-          <div className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto bg-slate-50 p-4 space-y-3">
-            {!isAuthenticated ? (
-              <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-3">
-                <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center text-slate-600">
-                  <User className="w-6 h-6" />
-                </div>
-                <div className="space-y-1">
-                  <h4 className="text-sm font-medium text-slate-800">
-                    Sign in to chat
-                  </h4>
-                  <p className="text-xs text-slate-500">
-                    Please log in to contact support and view your order
-                    conversations.
-                  </p>
-                </div>
-                <Link
-                  href="/login"
-                  className="inline-flex items-center justify-center px-4 py-2 text-xs font-medium text-white bg-slate-900 rounded hover:bg-slate-800 transition-colors"
-                  onClick={() => setIsOpen(false)}
-                >
-                  Log In
-                </Link>
-              </div>
-            ) : messages.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-2 text-slate-500">
-                <MessageSquare className="w-8 h-8 text-slate-400" />
-                <p className="text-sm font-medium text-slate-700">
-                  How can we help you today?
-                </p>
-                <p className="text-xs">
-                  Send a message below and an agent will assist you shortly.
-                </p>
+    <div
+      className={
+        hideHeader
+          ? "relative flex min-h-0 flex-1 flex-col overflow-hidden bg-white text-slate-900"
+          : "relative flex flex-col w-[calc(100vw-2rem)] max-w-[560px] h-[600px] max-h-[calc(100vh-6rem)] bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden text-slate-900"
+      }
+    >
+      {/* Header */}
+      {!hideHeader && (
+        <div className="flex items-center justify-between px-4 py-3 bg-slate-900 text-white">
+          <div className="flex items-center gap-2.5">
+            {isShopOnline ? (
+              <div className="relative flex items-center justify-center w-2.5 h-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
               </div>
             ) : (
-              <>
-                {messages.map((msg, index) => {
-                  const prevMsg = index > 0 ? messages[index - 1] : undefined;
-                  const showDivider = shouldShowTimeDivider(
-                    msg.created_at,
-                    prevMsg?.created_at,
-                  );
-                  const isUser =
-                    msg.sender_role === "user" ||
-                    (Boolean(conversation?.user_id) &&
-                      msg.sender_id === conversation?.user_id);
-                  const isRecalled = msg.content_type === "recalled";
-                  const canRecall =
-                    isUser &&
-                    !isRecalled &&
-                    Date.now() - new Date(msg.created_at).getTime() <=
-                      60 * 60 * 1000;
-                  return (
-                    <div key={msg.uuid} className="flex flex-col">
-                      {showDivider && (
-                        <div className="flex items-center justify-center my-2">
-                          <span className="rounded-full bg-slate-200/80 border border-slate-300/60 px-2.5 py-0.5 text-[11px] font-medium text-slate-600 shadow-xs">
-                            {formatDividerTime(msg.created_at)}
-                          </span>
-                        </div>
-                      )}
-                      <div
-                        className={`flex flex-col w-full ${isUser ? "items-end" : "items-start"}`}
-                      >
-                        {(() => {
-                          const isMedia =
-                            msg.content_type === "image" ||
-                            msg.content_type === "video" ||
-                            msg.content_type === "media_group";
-                          const isMenuOpen = activeMenuMsgUuid === msg.uuid;
-                          const { replyQuote, body: cleanContent } =
-                            !isRecalled
-                              ? parseReplyContent(msg.content)
-                              : { replyQuote: null, body: msg.content };
-
-                          return (
-                            <div
-                              className={`group/msg relative flex items-center gap-1 ${
-                                isUser ? "self-end justify-end" : "self-start justify-start"
-                              }`}
-                            >
-                              {/* Menu Trigger Button for User message */}
-                              {isUser && (
-                                <div className="relative">
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setActiveMenuMsgUuid(
-                                        isMenuOpen ? null : msg.uuid,
-                                      )
-                                    }
-                                    className={`p-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 shadow-2xs transition-opacity cursor-pointer ${
-                                      isMenuOpen
-                                        ? "opacity-100 bg-slate-200/80"
-                                        : "opacity-0 group-hover/msg:opacity-100"
-                                    }`}
-                                    title="More actions"
-                                    aria-label="More actions"
-                                  >
-                                    <MoreHorizontal className="w-3.5 h-3.5" />
-                                  </button>
-
-                                  {/* Action Menu Popup */}
-                                  {isMenuOpen && (
-                                    <>
-                                      <div
-                                        className="fixed inset-0 z-40"
-                                        onClick={() =>
-                                          setActiveMenuMsgUuid(null)
-                                        }
-                                      />
-                                      <div className="absolute right-0 bottom-full mb-1 z-50 min-w-32 bg-white rounded-lg shadow-lg border border-slate-200 py-1 text-xs text-slate-700 animate-in fade-in zoom-in-95">
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setReplyingTo({
-                                              uuid: msg.uuid,
-                                              sender: "You",
-                                              content:
-                                                msg.content_type === "image"
-                                                  ? "[Image]"
-                                                  : msg.content_type ===
-                                                      "video"
-                                                    ? "[Video]"
-                                                    : msg.content_type ===
-                                                        "order_ref"
-                                                      ? "[Order]"
-                                                      : msg.content_type ===
-                                                          "product_ref"
-                                                        ? "[Product]"
-                                                        : cleanContent,
-                                            });
-                                            setActiveMenuMsgUuid(null);
-                                            inputRef.current?.focus();
-                                          }}
-                                          className="w-full px-3 py-1.5 text-left flex items-center gap-2 hover:bg-slate-100 cursor-pointer"
-                                        >
-                                          <Reply className="w-3.5 h-3.5 text-slate-500" />
-                                          <span>Reply</span>
-                                        </button>
-
-                                        {!isRecalled && msg.content && (
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              navigator.clipboard.writeText(
-                                                cleanContent,
-                                              );
-                                              setActiveMenuMsgUuid(null);
-                                            }}
-                                            className="w-full px-3 py-1.5 text-left flex items-center gap-2 hover:bg-slate-100 cursor-pointer"
-                                          >
-                                            <Copy className="w-3.5 h-3.5 text-slate-500" />
-                                            <span>Copy text</span>
-                                          </button>
-                                        )}
-
-                                        {canRecall && (
-                                          <button
-                                            type="button"
-                                            disabled={isRecalling}
-                                            onClick={() => {
-                                              recallMessage(msg.uuid);
-                                              setActiveMenuMsgUuid(null);
-                                            }}
-                                            className="w-full px-3 py-1.5 text-left flex items-center gap-2 hover:bg-red-50 text-red-600 cursor-pointer border-t border-slate-100"
-                                          >
-                                            <Undo2 className="w-3.5 h-3.5 text-red-500" />
-                                            <span>Recall</span>
-                                          </button>
-                                        )}
-                                      </div>
-                                    </>
-                                  )}
-                                </div>
-                              )}
-
-                              <div
-                                className={`max-w-[80%] text-sm break-words flex flex-col overflow-hidden shadow-xs ${
-                                  isRecalled
-                                    ? isUser
-                                      ? "px-3 py-1.5 rounded-lg rounded-br-none border border-dashed border-slate-300 bg-slate-100 text-slate-500 text-xs italic shadow-none"
-                                      : "px-3 py-1.5 rounded-lg rounded-bl-none border border-dashed border-slate-300 bg-slate-100 text-slate-500 text-xs italic shadow-none"
-                                    : isMedia
-                                      ? "p-0 bg-transparent border-0 shadow-none overflow-hidden"
-                                      : isUser
-                                        ? "rounded-lg rounded-br-none bg-slate-900 text-white"
-                                        : "rounded-lg rounded-bl-none bg-white text-slate-900 border border-slate-200"
-                                }`}
-                              >
-                                {/* Darker attached top sub-bubble for reply */}
-                                {replyQuote && (
-                                  <div
-                                    className={`flex items-center gap-1.5 px-3 py-1 text-[11px] border-b select-none ${
-                                      isUser
-                                        ? "bg-black/35 text-slate-200 border-white/15"
-                                        : "bg-slate-100 text-slate-600 border-slate-200"
-                                    }`}
-                                  >
-                                    <Reply className="w-3 h-3 shrink-0 opacity-75" />
-                                    <span className="truncate italic">{replyQuote}</span>
-                                  </div>
-                                )}
-
-                                <div className={!isRecalled && !isMedia ? "px-3.5 py-2" : ""}>
-                                  <MessageContent
-                                    content={cleanContent}
-                                    content_type={msg.content_type}
-                                    attachment_url={msg.attachment_url}
-                                    attachment_name={msg.attachment_name}
-                                    isUser={isUser}
-                                    onImageClick={(items, idx) =>
-                                      setPreviewMediaGroup({
-                                        items,
-                                        initialIndex: idx,
-                                      })
-                                    }
-                                  />
-                                </div>
-                              </div>
-
-                              {/* Menu Trigger Button for Admin/Support message */}
-                              {!isUser && (
-                                <div className="relative">
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setActiveMenuMsgUuid(
-                                        isMenuOpen ? null : msg.uuid,
-                                      )
-                                    }
-                                    className={`p-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 shadow-2xs transition-opacity cursor-pointer ${
-                                      isMenuOpen
-                                        ? "opacity-100 bg-slate-200/80"
-                                        : "opacity-0 group-hover/msg:opacity-100"
-                                    }`}
-                                    title="More actions"
-                                    aria-label="More actions"
-                                  >
-                                    <MoreHorizontal className="w-3.5 h-3.5" />
-                                  </button>
-
-                                  {/* Action Menu Popup */}
-                                  {isMenuOpen && (
-                                    <>
-                                      <div
-                                        className="fixed inset-0 z-40"
-                                        onClick={() =>
-                                          setActiveMenuMsgUuid(null)
-                                        }
-                                      />
-                                      <div className="absolute left-0 bottom-full mb-1 z-50 min-w-32 bg-white rounded-lg shadow-lg border border-slate-200 py-1 text-xs text-slate-700 animate-in fade-in zoom-in-95">
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setReplyingTo({
-                                              uuid: msg.uuid,
-                                              sender: "Support",
-                                              content:
-                                                msg.content_type === "image"
-                                                  ? "[Image]"
-                                                  : msg.content_type ===
-                                                      "video"
-                                                    ? "[Video]"
-                                                    : msg.content_type ===
-                                                        "order_ref"
-                                                      ? "[Order]"
-                                                      : msg.content_type ===
-                                                          "product_ref"
-                                                        ? "[Product]"
-                                                        : cleanContent,
-                                            });
-                                            setActiveMenuMsgUuid(null);
-                                            inputRef.current?.focus();
-                                          }}
-                                          className="w-full px-3 py-1.5 text-left flex items-center gap-2 hover:bg-slate-100 cursor-pointer"
-                                        >
-                                          <Reply className="w-3.5 h-3.5 text-slate-500" />
-                                          <span>Reply</span>
-                                        </button>
-
-                                        {!isRecalled && msg.content && (
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              navigator.clipboard.writeText(
-                                                cleanContent,
-                                              );
-                                              setActiveMenuMsgUuid(null);
-                                            }}
-                                            className="w-full px-3 py-1.5 text-left flex items-center gap-2 hover:bg-slate-100 cursor-pointer"
-                                          >
-                                            <Copy className="w-3.5 h-3.5 text-slate-500" />
-                                            <span>Copy text</span>
-                                          </button>
-                                        )}
-                                      </div>
-                                    </>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })()}
-                        <div
-                          className={`flex items-center gap-1 text-[10px] text-slate-400 mt-1 px-1 ${
-                            isUser ? "justify-end" : "justify-start"
-                          }`}
-                        >
-                          <span>{formatTime(msg.created_at)}</span>
-                          {isUser &&
-                            (msg.is_read ? (
-                              <CheckCheck className="h-3 w-3 text-emerald-600" />
-                            ) : (
-                              <Check className="w-3 h-3 text-slate-400" />
-                            ))}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-                {isAdminTyping && (
-                  <div className="flex flex-col items-start">
-                    <div className="flex items-center gap-1.5 px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg rounded-bl-none shadow-sm">
-                      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:-0.3s]" />
-                      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:-0.15s]" />
-                      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" />
-                    </div>
-                  </div>
-                )}
-                <div ref={messagesEndRef} />
-              </>
+              <div className="flex items-center justify-center w-2.5 h-2.5">
+                <span className="inline-flex h-2 w-2 rounded-full bg-amber-400/80" />
+              </div>
             )}
-          </div>
-
-          {/* Order Selection Modal (Centered Overlay with fixed frame) */}
-          <OrderPickerModal
-            isOpen={showOrderPicker}
-            onSelect={handleOrderSelect}
-            onClose={() => setShowOrderPicker(false)}
-          />
-
-          {/* Product Selection Modal (Centered Overlay with fixed frame) */}
-          <ProductPickerModal
-            isOpen={showProductPicker}
-            onSelect={handleProductSelect}
-            onClose={() => setShowProductPicker(false)}
-          />
-
-          {/* Footer Input */}
-          {isAuthenticated && (
-            <div className="bg-white border-t border-slate-200">
-              {/* Replying banner */}
-              {replyingTo && (
-                <div className="flex items-center justify-between px-3 py-1.5 bg-slate-100 border-b border-slate-200 text-xs">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <Reply className="w-3.5 h-3.5 text-slate-700 shrink-0" />
-                    <div className="min-w-0">
-                      <span className="font-semibold text-[11px] text-slate-800 block">
-                        Replying to {replyingTo.sender}
-                      </span>
-                      <span className="text-slate-500 text-[11px] truncate block max-w-[260px]">
-                        {replyingTo.content}
-                      </span>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setReplyingTo(null)}
-                    className="text-slate-400 hover:text-slate-700 p-0.5 rounded cursor-pointer"
-                    aria-label="Cancel reply"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              )}
-
-              {/* Pending files preview strip */}
-              {pendingFiles.length > 0 && (
-                <div className="flex items-center gap-2 p-2.5 pb-1 overflow-x-auto overflow-y-hidden border-b border-slate-100 bg-slate-50/50">
-                  {pendingFiles.map((file, idx) => {
-                    const isImg = file.type.startsWith("image/");
-                    const isVid = file.type.startsWith("video/");
-                    return (
-                      <div
-                        key={idx}
-                        className="relative group shrink-0 w-13 h-13 rounded-lg bg-white border border-slate-200 overflow-hidden flex items-center justify-center text-slate-500 shadow-2xs"
-                      >
-                        {isImg ? (
-                          <img
-                            src={URL.createObjectURL(file)}
-                            alt={file.name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : isVid ? (
-                          <span className="text-[9px] font-bold text-slate-600 bg-slate-100 px-1 py-0.5 rounded">
-                            VIDEO
-                          </span>
-                        ) : (
-                          <Paperclip className="w-4 h-4 text-slate-400" />
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveFile(idx)}
-                          className="absolute top-0.5 right-0.5 p-0.5 rounded-full bg-slate-900/80 text-white hover:bg-slate-900 transition-colors cursor-pointer"
-                          title="Remove file"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    );
-                  })}
-                  <div className="text-[11px] text-slate-400 shrink-0 font-medium px-1">
-                    {pendingFiles.length}{" "}
-                    {pendingFiles.length === 1 ? "file" : "files"}
-                  </div>
-                </div>
-              )}
-
-              <form onSubmit={handleSend} className="p-3 flex items-center ">
-                {/* Hidden file input supporting multiple files */}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  accept="image/*,video/*"
-                  className="hidden"
-                  onChange={handleFileSelect}
-                />
-
-                {/* File attach button */}
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isSending || isUploading}
-                  className="p-2 text-slate-400 hover:text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                  aria-label="Attach file"
-                  title="Attach file"
-                >
-                  <Paperclip className="w-4 h-4" />
-                </button>
-
-                {/* Product attach button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowProductPicker((v) => !v);
-                    setShowOrderPicker(false);
-                  }}
-                  disabled={isSending || isUploading}
-                  className={`p-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                    showProductPicker
-                      ? "text-slate-900 bg-slate-100 rounded"
-                      : "text-slate-400 hover:text-slate-700"
-                  }`}
-                  aria-label="Product"
-                  title="Product"
-                >
-                  <ShoppingBag className="w-4 h-4" />
-                </button>
-
-                {/* Order attach button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowOrderPicker((v) => !v);
-                    setShowProductPicker(false);
-                  }}
-                  disabled={isSending || isUploading}
-                  className={`p-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                    showOrderPicker
-                      ? "text-slate-900 bg-slate-100 rounded"
-                      : "text-slate-400 hover:text-slate-700"
-                  }`}
-                  aria-label="Order"
-                  title="Order"
-                >
-                  <ClipboardMinus className="w-4 h-4" />
-                </button>
-
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={inputValue}
-                  onChange={handleInputChange}
-                  onFocus={() => {
-                    if (
-                      unreadCount > 0 ||
-                      messages.some(
-                        (m) => !m.is_read && m.sender_role === "admin",
-                      )
-                    ) {
-                      markAsRead();
-                    }
-                  }}
-                  placeholder={
-                    pendingFiles.length > 0
-                      ? `Add a caption for ${pendingFiles.length} ${
-                          pendingFiles.length === 1 ? "file" : "files"
-                        }...`
-                      : "Type your message..."
-                  }
-                  className="flex-1 text-sm px-3 py-2 border border-slate-300 rounded focus:outline-none focus:border-slate-900"
-                  disabled={isSending || isUploading}
-                />
-
-                <button
-                  type="submit"
-                  disabled={
-                    (!inputValue.trim() && pendingFiles.length === 0) ||
-                    isSending ||
-                    isUploading
-                  }
-                  className="p-2 bg-slate-900 text-white rounded hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                  aria-label="Send message"
-                >
-                  <Send className="w-4 h-4" />
-                </button>
-              </form>
+            <div>
+              <h3 className="text-sm font-semibold leading-tight">
+                Customer Support
+              </h3>
+              <p className="text-xs text-slate-400">
+                {isShopOnline ? "Active now" : "Replies in a few minutes"}
+              </p>
             </div>
-          )}
+          </div>
+          <button
+            onClick={() => setIsOpen(false)}
+            className="p-1 text-slate-400 hover:text-white rounded transition-colors"
+            aria-label="Close chat"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
       )}
 
-      {/* Floating Toggle Button */}
-      <button
-        onClick={() => {
-          const next = !isOpen;
-          setIsOpen(next);
-          if (next) {
-            requestNotificationPermission().catch(() => {});
-          }
-        }}
-        className="relative flex items-center justify-center w-12 h-12 rounded-full bg-slate-900 text-white shadow-lg hover:bg-slate-800 focus:outline-none transition-colors"
-        aria-label={isOpen ? "Close chat" : "Open chat"}
-      >
-        {isOpen ? (
-          <X className="w-5 h-5" />
+      {/* Body */}
+      <div className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto bg-slate-50 p-4 space-y-3">
+        {!isAuthenticated ? (
+          <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-3">
+            <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center text-slate-600">
+              <User className="w-6 h-6" />
+            </div>
+            <div className="space-y-1">
+              <h4 className="text-sm font-medium text-slate-800">
+                Sign in to chat
+              </h4>
+              <p className="text-xs text-slate-500">
+                Please log in to contact support and view your order
+                conversations.
+              </p>
+            </div>
+            <Link
+              href="/login"
+              className="inline-flex items-center justify-center px-4 py-2 text-xs font-medium text-white bg-slate-900 rounded hover:bg-slate-800 transition-colors"
+              onClick={() => setIsOpen(false)}
+            >
+              Log In
+            </Link>
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-2 text-slate-500">
+            <MessageSquare className="w-8 h-8 text-slate-400" />
+            <p className="text-sm font-medium text-slate-700">
+              How can we help you today?
+            </p>
+            <p className="text-xs">
+              Send a message below and an agent will assist you shortly.
+            </p>
+          </div>
         ) : (
-          <MessageSquare className="w-5 h-5" />
+          <>
+            {messages.map((msg, index) => {
+              const prevMsg = index > 0 ? messages[index - 1] : undefined;
+              const showDivider = shouldShowTimeDivider(
+                msg.created_at,
+                prevMsg?.created_at,
+              );
+              const isUser =
+                msg.sender_role === "user" ||
+                (Boolean(conversation?.user_id) &&
+                  msg.sender_id === conversation?.user_id);
+              const isRecalled = msg.content_type === "recalled";
+              const canRecall =
+                isUser &&
+                !isRecalled &&
+                Date.now() - new Date(msg.created_at).getTime() <=
+                  60 * 60 * 1000;
+              return (
+                <div key={msg.uuid} className="flex flex-col">
+                  {showDivider && (
+                    <div className="flex items-center justify-center my-2">
+                      <span className="rounded-full bg-slate-200/80 border border-slate-300/60 px-2.5 py-0.5 text-[11px] font-medium text-slate-600 shadow-xs">
+                        {formatDividerTime(msg.created_at)}
+                      </span>
+                    </div>
+                  )}
+                  <div
+                    className={`flex flex-col w-full ${isUser ? "items-end" : "items-start"}`}
+                  >
+                    {(() => {
+                      const isMedia =
+                        msg.content_type === "image" ||
+                        msg.content_type === "video" ||
+                        msg.content_type === "media_group";
+                      const isMenuOpen = activeMenuMsgUuid === msg.uuid;
+                      const { replyQuote, body: cleanContent } = !isRecalled
+                        ? parseReplyContent(msg.content)
+                        : { replyQuote: null, body: msg.content };
+
+                      return (
+                        <div
+                          className={`group/msg relative flex items-center gap-1 ${
+                            isUser
+                              ? "self-end justify-end"
+                              : "self-start justify-start"
+                          }`}
+                        >
+                          {/* Menu Trigger Button for User message */}
+                          {isUser && (
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setActiveMenuMsgUuid(
+                                    isMenuOpen ? null : msg.uuid,
+                                  )
+                                }
+                                className={`p-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 shadow-2xs transition-opacity cursor-pointer ${
+                                  isMenuOpen
+                                    ? "opacity-100 bg-slate-200/80"
+                                    : "opacity-0 group-hover/msg:opacity-100"
+                                }`}
+                                title="More actions"
+                                aria-label="More actions"
+                              >
+                                <MoreHorizontal className="w-3.5 h-3.5" />
+                              </button>
+
+                              {/* Action Menu Popup */}
+                              {isMenuOpen && (
+                                <>
+                                  <div
+                                    className="fixed inset-0 z-40"
+                                    onClick={() => setActiveMenuMsgUuid(null)}
+                                  />
+                                  <div className="absolute right-0 bottom-full mb-1 z-50 min-w-32 bg-white rounded-lg shadow-lg border border-slate-200 py-1 text-xs text-slate-700 animate-in fade-in zoom-in-95">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setReplyingTo({
+                                          uuid: msg.uuid,
+                                          sender: "You",
+                                          content:
+                                            msg.content_type === "image"
+                                              ? "[Image]"
+                                              : msg.content_type === "video"
+                                                ? "[Video]"
+                                                : msg.content_type ===
+                                                    "order_ref"
+                                                  ? "[Order]"
+                                                  : msg.content_type ===
+                                                      "product_ref"
+                                                    ? "[Product]"
+                                                    : cleanContent,
+                                        });
+                                        setActiveMenuMsgUuid(null);
+                                        inputRef.current?.focus();
+                                      }}
+                                      className="w-full px-3 py-1.5 text-left flex items-center gap-2 hover:bg-slate-100 cursor-pointer"
+                                    >
+                                      <Reply className="w-3.5 h-3.5 text-slate-500" />
+                                      <span>Reply</span>
+                                    </button>
+
+                                    {!isRecalled && msg.content && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          navigator.clipboard.writeText(
+                                            cleanContent,
+                                          );
+                                          setActiveMenuMsgUuid(null);
+                                        }}
+                                        className="w-full px-3 py-1.5 text-left flex items-center gap-2 hover:bg-slate-100 cursor-pointer"
+                                      >
+                                        <Copy className="w-3.5 h-3.5 text-slate-500" />
+                                        <span>Copy text</span>
+                                      </button>
+                                    )}
+
+                                    {canRecall && (
+                                      <button
+                                        type="button"
+                                        disabled={isRecalling}
+                                        onClick={() => {
+                                          recallMessage(msg.uuid);
+                                          setActiveMenuMsgUuid(null);
+                                        }}
+                                        className="w-full px-3 py-1.5 text-left flex items-center gap-2 hover:bg-red-50 text-red-600 cursor-pointer border-t border-slate-100"
+                                      >
+                                        <Undo2 className="w-3.5 h-3.5 text-red-500" />
+                                        <span>Recall</span>
+                                      </button>
+                                    )}
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          )}
+
+                          <div
+                            className={`max-w-[80%] text-sm break-words flex flex-col overflow-hidden shadow-xs ${
+                              isRecalled
+                                ? isUser
+                                  ? "px-3 py-1.5 rounded-lg rounded-br-none border border-dashed border-slate-300 bg-slate-100 text-slate-500 text-xs italic shadow-none"
+                                  : "px-3 py-1.5 rounded-lg rounded-bl-none border border-dashed border-slate-300 bg-slate-100 text-slate-500 text-xs italic shadow-none"
+                                : isMedia
+                                  ? "p-0 bg-transparent border-0 shadow-none overflow-hidden"
+                                  : isUser
+                                    ? "rounded-lg rounded-br-none bg-slate-900 text-white"
+                                    : "rounded-lg rounded-bl-none bg-white text-slate-900 border border-slate-200"
+                            }`}
+                          >
+                            {/* Darker attached top sub-bubble for reply */}
+                            {replyQuote && (
+                              <div
+                                className={`flex items-center gap-1.5 px-3 py-1 text-[11px] border-b select-none ${
+                                  isUser
+                                    ? "bg-black/35 text-slate-200 border-white/15"
+                                    : "bg-slate-100 text-slate-600 border-slate-200"
+                                }`}
+                              >
+                                <Reply className="w-3 h-3 shrink-0 opacity-75" />
+                                <span className="truncate italic">
+                                  {replyQuote}
+                                </span>
+                              </div>
+                            )}
+
+                            <div
+                              className={
+                                !isRecalled && !isMedia ? "px-3.5 py-2" : ""
+                              }
+                            >
+                              <MessageContent
+                                content={cleanContent}
+                                content_type={msg.content_type}
+                                attachment_url={msg.attachment_url}
+                                attachment_name={msg.attachment_name}
+                                isUser={isUser}
+                                onImageClick={(items, idx) =>
+                                  setPreviewMediaGroup({
+                                    items,
+                                    initialIndex: idx,
+                                  })
+                                }
+                              />
+                            </div>
+                          </div>
+
+                          {/* Menu Trigger Button for Admin/Support message */}
+                          {!isUser && (
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setActiveMenuMsgUuid(
+                                    isMenuOpen ? null : msg.uuid,
+                                  )
+                                }
+                                className={`p-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 shadow-2xs transition-opacity cursor-pointer ${
+                                  isMenuOpen
+                                    ? "opacity-100 bg-slate-200/80"
+                                    : "opacity-0 group-hover/msg:opacity-100"
+                                }`}
+                                title="More actions"
+                                aria-label="More actions"
+                              >
+                                <MoreHorizontal className="w-3.5 h-3.5" />
+                              </button>
+
+                              {/* Action Menu Popup */}
+                              {isMenuOpen && (
+                                <>
+                                  <div
+                                    className="fixed inset-0 z-40"
+                                    onClick={() => setActiveMenuMsgUuid(null)}
+                                  />
+                                  <div className="absolute left-0 bottom-full mb-1 z-50 min-w-32 bg-white rounded-lg shadow-lg border border-slate-200 py-1 text-xs text-slate-700 animate-in fade-in zoom-in-95">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setReplyingTo({
+                                          uuid: msg.uuid,
+                                          sender: "Support",
+                                          content:
+                                            msg.content_type === "image"
+                                              ? "[Image]"
+                                              : msg.content_type === "video"
+                                                ? "[Video]"
+                                                : msg.content_type ===
+                                                    "order_ref"
+                                                  ? "[Order]"
+                                                  : msg.content_type ===
+                                                      "product_ref"
+                                                    ? "[Product]"
+                                                    : cleanContent,
+                                        });
+                                        setActiveMenuMsgUuid(null);
+                                        inputRef.current?.focus();
+                                      }}
+                                      className="w-full px-3 py-1.5 text-left flex items-center gap-2 hover:bg-slate-100 cursor-pointer"
+                                    >
+                                      <Reply className="w-3.5 h-3.5 text-slate-500" />
+                                      <span>Reply</span>
+                                    </button>
+
+                                    {!isRecalled && msg.content && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          navigator.clipboard.writeText(
+                                            cleanContent,
+                                          );
+                                          setActiveMenuMsgUuid(null);
+                                        }}
+                                        className="w-full px-3 py-1.5 text-left flex items-center gap-2 hover:bg-slate-100 cursor-pointer"
+                                      >
+                                        <Copy className="w-3.5 h-3.5 text-slate-500" />
+                                        <span>Copy text</span>
+                                      </button>
+                                    )}
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                    <div
+                      className={`flex items-center gap-1 text-[10px] text-slate-400 mt-1 px-1 ${
+                        isUser ? "justify-end" : "justify-start"
+                      }`}
+                    >
+                      <span>{formatTime(msg.created_at)}</span>
+                      {isUser &&
+                        (msg.is_read ? (
+                          <CheckCheck className="h-3 w-3 text-emerald-600" />
+                        ) : (
+                          <Check className="w-3 h-3 text-slate-400" />
+                        ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            {isAdminTyping && (
+              <div className="flex flex-col items-start">
+                <div className="flex items-center gap-1.5 px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg rounded-bl-none shadow-sm">
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:-0.3s]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:-0.15s]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" />
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </>
         )}
-        {!isOpen && unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[20px] h-5 px-1 text-[11px] font-bold text-white bg-red-600 rounded-full border-2 border-white">
-            {unreadCount > 99 ? "99+" : unreadCount}
-          </span>
-        )}
-      </button>
+      </div>
+
+      {/* Order Selection Modal (Centered Overlay with fixed frame) */}
+      <OrderPickerModal
+        isOpen={showOrderPicker}
+        onSelect={handleOrderSelect}
+        onClose={() => setShowOrderPicker(false)}
+      />
+
+      {/* Product Selection Modal (Centered Overlay with fixed frame) */}
+      <ProductPickerModal
+        isOpen={showProductPicker}
+        onSelect={handleProductSelect}
+        onClose={() => setShowProductPicker(false)}
+      />
+
+      {/* Footer Input */}
+      {isAuthenticated && (
+        <div className="bg-white border-t border-slate-200">
+          {/* Replying banner */}
+          {replyingTo && (
+            <div className="flex items-center justify-between px-3 py-1.5 bg-slate-100 border-b border-slate-200 text-xs">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Reply className="w-3.5 h-3.5 text-slate-700 shrink-0" />
+                <div className="min-w-0">
+                  <span className="font-semibold text-[11px] text-slate-800 block">
+                    Replying to {replyingTo.sender}
+                  </span>
+                  <span className="text-slate-500 text-[11px] truncate block max-w-[260px]">
+                    {replyingTo.content}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReplyingTo(null)}
+                className="text-slate-400 hover:text-slate-700 p-0.5 rounded cursor-pointer"
+                aria-label="Cancel reply"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* Pending files preview strip */}
+          {pendingFiles.length > 0 && (
+            <div className="flex items-center gap-2 p-2.5 pb-1 overflow-x-auto overflow-y-hidden border-b border-slate-100 bg-slate-50/50">
+              {pendingFiles.map((file, idx) => {
+                const isImg = file.type.startsWith("image/");
+                const isVid = file.type.startsWith("video/");
+                return (
+                  <div
+                    key={idx}
+                    className="relative group shrink-0 w-13 h-13 rounded-lg bg-white border border-slate-200 overflow-hidden flex items-center justify-center text-slate-500 shadow-2xs"
+                  >
+                    {isImg ? (
+                      <img
+                        src={URL.createObjectURL(file)}
+                        alt={file.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : isVid ? (
+                      <span className="text-[9px] font-bold text-slate-600 bg-slate-100 px-1 py-0.5 rounded">
+                        VIDEO
+                      </span>
+                    ) : (
+                      <Paperclip className="w-4 h-4 text-slate-400" />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFile(idx)}
+                      className="absolute top-0.5 right-0.5 p-0.5 rounded-full bg-slate-900/80 text-white hover:bg-slate-900 transition-colors cursor-pointer"
+                      title="Remove file"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                );
+              })}
+              <div className="text-[11px] text-slate-400 shrink-0 font-medium px-1">
+                {pendingFiles.length}{" "}
+                {pendingFiles.length === 1 ? "file" : "files"}
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleSend} className="p-3 flex items-center ">
+            {/* Hidden file input supporting multiple files */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="image/*,video/*"
+              className="hidden"
+              onChange={handleFileSelect}
+            />
+
+            {/* File attach button */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isSending || isUploading}
+              className="p-2 text-slate-400 hover:text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              aria-label="Attach file"
+              title="Attach file"
+            >
+              <Paperclip className="w-4 h-4" />
+            </button>
+
+            {/* Product attach button */}
+            <button
+              type="button"
+              onClick={() => {
+                setShowProductPicker((v) => !v);
+                setShowOrderPicker(false);
+              }}
+              disabled={isSending || isUploading}
+              className={`p-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                showProductPicker
+                  ? "text-slate-900 bg-slate-100 rounded"
+                  : "text-slate-400 hover:text-slate-700"
+              }`}
+              aria-label="Product"
+              title="Product"
+            >
+              <ShoppingBag className="w-4 h-4" />
+            </button>
+
+            {/* Order attach button */}
+            <button
+              type="button"
+              onClick={() => {
+                setShowOrderPicker((v) => !v);
+                setShowProductPicker(false);
+              }}
+              disabled={isSending || isUploading}
+              className={`p-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                showOrderPicker
+                  ? "text-slate-900 bg-slate-100 rounded"
+                  : "text-slate-400 hover:text-slate-700"
+              }`}
+              aria-label="Order"
+              title="Order"
+            >
+              <ClipboardMinus className="w-4 h-4" />
+            </button>
+
+            <input
+              ref={inputRef}
+              type="text"
+              value={inputValue}
+              onChange={handleInputChange}
+              onFocus={() => {
+                if (
+                  unreadCount > 0 ||
+                  messages.some((m) => !m.is_read && m.sender_role === "admin")
+                ) {
+                  markAsRead();
+                }
+              }}
+              placeholder={
+                pendingFiles.length > 0
+                  ? `Add a caption for ${pendingFiles.length} ${
+                      pendingFiles.length === 1 ? "file" : "files"
+                    }...`
+                  : "Type your message..."
+              }
+              className="flex-1 text-sm px-3 py-2 border border-slate-300 rounded focus:outline-none focus:border-slate-900"
+              disabled={isSending || isUploading}
+            />
+
+            <button
+              type="submit"
+              disabled={
+                (!inputValue.trim() && pendingFiles.length === 0) ||
+                isSending ||
+                isUploading
+              }
+              className="ml-2 p-2 bg-slate-900 text-white rounded hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              aria-label="Send message"
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          </form>
+        </div>
+      )}
 
       {/* Media Lightbox Gallery Modal with Next/Prev Arrows */}
       <MediaLightbox

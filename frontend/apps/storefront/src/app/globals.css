@@ -22,6 +22,53 @@
 
   --font-heading: "Rubik", ui-sans-serif, system-ui, sans-serif;
   --font-body: "Nunito Sans", ui-sans-serif, system-ui, sans-serif;
+
+  /* Chat panel open/close. Origin is the launcher corner, so the panel grows
+     out of the button instead of fading in mid-air. */
+  --animate-chat-in: chat-in 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-chat-out: chat-out 120ms ease-in;
+  --animate-fade-up: fade-up 220ms ease-out both;
+}
+
+@keyframes chat-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes chat-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-chat-in,
+  .animate-chat-out,
+  .animate-fade-up {
+    animation: none !important;
+  }
 }
 
 :root {
@@ -40,15 +87,28 @@
 body {
   background-color: var(--background);
   color: var(--foreground);
-  font-family: var(--font-body), system-ui, -apple-system, sans-serif;
+  font-family:
+    var(--font-body),
+    system-ui,
+    -apple-system,
+    sans-serif;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   -webkit-font-smoothing: antialiased;
 }
 
-h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-heading), system-ui, -apple-system, sans-serif;
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family:
+    var(--font-heading),
+    system-ui,
+    -apple-system,
+    sans-serif;
 }
 
 /* Global button and interactive cursor behavior */

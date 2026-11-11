@@ -91,6 +91,17 @@ func New(cfg *config.Config) (*App, error) {
 	searchClient, err := search.NewClient(cfg.Meilisearch.Host, cfg.Meilisearch.MasterKey, cfg.Meilisearch.IndexProducts)
 	if err != nil {
 		logger.Log.Warn().Err(err).Msg("Failed to initialize Meilisearch client for catalog service")
+	} else {
+		// Without this the index has documents but no filterable/sortable
+		// attributes, so every filtered search is rejected with a 400, the
+		// service falls back to Postgres ILIKE on product_name, and category
+		// words ("laptop") match nothing. SetupIndex existed but was never
+		// called, which is how that stayed invisible.
+		go func() {
+			if err := searchClient.SetupIndex(context.Background()); err != nil {
+				logger.Log.Warn().Err(err).Msg("Failed to configure Meilisearch products index")
+			}
+		}()
 	}
 
 	inventoryGRPCAddr := utils.GetEnv("INVENTORY_GRPC_ADDR", "localhost:50054")

@@ -36,6 +36,8 @@ type Querier interface {
 	// =============================================================================
 	InsertOutboxEvent(ctx context.Context, arg InsertOutboxEventParams) (OutboxEvent, error)
 	ListCategories(ctx context.Context, activeOnly *bool) ([]Category, error)
+	ListAllFAQs(ctx context.Context) ([]CatalogFaq, error)
+	ListFAQs(ctx context.Context, arg ListFAQsParams) ([]CatalogFaq, error)
 	MarkOutboxEventProcessed(ctx context.Context, eventID int64) error
 	RestoreCategory(ctx context.Context, categoryUuid uuid.UUID) (Category, error)
 	RestoreProduct(ctx context.Context, productUuid uuid.UUID) (Product, error)

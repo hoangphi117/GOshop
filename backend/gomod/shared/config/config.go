@@ -25,6 +25,24 @@ type MeilisearchConfig struct {
 	IndexProducts string
 }
 
+// AssistantConfig holds the LLM settings for the shopping assistant service.
+// The API key is a server-side secret only; never expose it to a browser
+// bundle (NEXT_PUBLIC_*/VITE_*). Missing key disables the feature instead of
+// failing startup, because every service builds this config.
+type AssistantConfig struct {
+	Enabled      bool
+	Provider     string // free-form label, used in logs only
+	BaseURL      string
+	APIKey       string
+	Model        string
+	MaxTokens    int
+	Temperature  float64
+	TimeoutSec   int
+	DailyPerUser int
+	SessionTTL   int
+	SessionTurns int
+}
+
 type Config struct {
 	AppEnv             string // Environment: "development", "production", "staging"
 	ServerAddress      string
@@ -41,6 +59,7 @@ type Config struct {
 	PaymentServiceURL  string
 	PaymentGRPCAddr    string
 	InternalSecret     string
+	Assistant          AssistantConfig
 }
 
 func NewConfig() *Config {
@@ -142,7 +161,59 @@ func NewConfig() *Config {
 			}
 			return secret
 		}(),
+		Assistant: newAssistantConfig(),
 	}
+}
+
+func newAssistantConfig() AssistantConfig {
+	cfg := AssistantConfig{
+		Provider:     utils.GetEnv("ASSISTANT_PROVIDER", "river"),
+		BaseURL:      utils.GetEnv("ASSISTANT_BASE_URL", "https://api.river.ai/v1"),
+		APIKey:       utils.GetEnv("ASSISTANT_API_KEY", ""),
+		Model:        utils.GetEnv("ASSISTANT_MODEL", "deepseek-ai/DeepSeek-V4.1-Flash-1017"),
+		MaxTokens:    envInt("ASSISTANT_MAX_TOKENS", 1024),
+		Temperature:  envFloat("ASSISTANT_TEMPERATURE", 0.3),
+		TimeoutSec:   envInt("ASSISTANT_TIMEOUT_SEC", 120),
+		DailyPerUser: envInt("ASSISTANT_DAILY_PER_USER", 40),
+		SessionTTL:   envInt("ASSISTANT_SESSION_TTL", 3600),
+		SessionTurns: envInt("ASSISTANT_SESSION_TURNS", 6),
+	}
+
+	// Explicit ASSISTANT_ENABLED wins; otherwise the feature turns itself on
+	// only when both a key and a model are present.
+	enabledDefault := cfg.APIKey != "" && cfg.Model != ""
+	cfg.Enabled = strings.EqualFold(utils.GetEnv("ASSISTANT_ENABLED", strconv.FormatBool(enabledDefault)), "true")
+
+	if cfg.TimeoutSec <= 0 {
+		cfg.TimeoutSec = 120
+	}
+	if cfg.MaxTokens <= 0 {
+		cfg.MaxTokens = 1024
+	}
+	if cfg.SessionTTL <= 0 {
+		cfg.SessionTTL = 3600
+	}
+	if cfg.SessionTurns <= 0 {
+		cfg.SessionTurns = 6
+	}
+
+	return cfg
+}
+
+func envInt(key string, fallback int) int {
+	v, err := strconv.Atoi(utils.GetEnv(key, ""))
+	if err != nil {
+		return fallback
+	}
+	return v
+}
+
+func envFloat(key string, fallback float64) float64 {
+	v, err := strconv.ParseFloat(utils.GetEnv(key, ""), 64)
+	if err != nil {
+		return fallback
+	}
+	return v
 }
 
 func (c *Config) DNS() string {
