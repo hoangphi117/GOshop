@@ -35,10 +35,14 @@ ENV_FILE=./backend/.env
 # The real .env.dev/.env.prod are git-ignored (secrets); if they are missing
 # on a fresh clone, copy the committed .env.prod.example files and fill them.
 # NEXT_PUBLIC_* are baked at storefront build time â€” rebuild after switching.
+#
+# .env.local outranks .env and .env.development, so it is rewritten too:
+# leaving a stale copy made `next dev` keep pointing at the previous
+# topology's port (browser hits a closed port after the switch).
 env-dev:
-	powershell -NoProfile -Command "if (!(Test-Path backend/.env.dev) -or !(Test-Path frontend/apps/storefront/.env.dev)) { Write-Host 'Missing dev variant: cp backend/.env.dev.example backend/.env.dev + cp frontend/apps/storefront/.env.dev.example frontend/apps/storefront/.env.dev (secrets: see backend/.env.example)' -ForegroundColor Red; exit 1 }; Copy-Item backend/.env.dev backend/.env; Copy-Item frontend/apps/storefront/.env.dev frontend/apps/storefront/.env; Copy-Item frontend/apps/storefront/.env.dev frontend/apps/storefront/.env.production; Write-Host 'dev env active'"
+	powershell -NoProfile -Command "if (!(Test-Path backend/.env.dev) -or !(Test-Path frontend/apps/storefront/.env.dev)) { Write-Host 'Missing dev variant: cp backend/.env.dev.example backend/.env.dev + cp frontend/apps/storefront/.env.dev.example frontend/apps/storefront/.env.dev (secrets: see backend/.env.example)' -ForegroundColor Red; exit 1 }; Copy-Item backend/.env.dev backend/.env; Copy-Item frontend/apps/storefront/.env.dev frontend/apps/storefront/.env; Copy-Item frontend/apps/storefront/.env.dev frontend/apps/storefront/.env.production; Remove-Item frontend/apps/storefront/.env.local -ErrorAction SilentlyContinue; Write-Host 'dev env active'"
 env-prod:
-	powershell -NoProfile -Command "if (!(Test-Path backend/.env.prod) -or !(Test-Path frontend/apps/storefront/.env.prod)) { Write-Host 'Missing prod variant: cp backend/.env.prod.example backend/.env.prod + cp frontend/apps/storefront/.env.prod.example frontend/apps/storefront/.env.prod, then fill every CHANGE_ME' -ForegroundColor Red; exit 1 }; Copy-Item backend/.env.prod backend/.env; Copy-Item frontend/apps/storefront/.env.prod frontend/apps/storefront/.env; Copy-Item frontend/apps/storefront/.env.prod frontend/apps/storefront/.env.production; Write-Host 'prod env active - set APP_ORIGIN in backend/.env.prod first; rebuild storefront + payment + api1 + api2; then run make kafka-env (this copy has no Kafka SASL/TLS values)'"
+	powershell -NoProfile -Command "if (!(Test-Path backend/.env.prod) -or !(Test-Path frontend/apps/storefront/.env.prod)) { Write-Host 'Missing prod variant: cp backend/.env.prod.example backend/.env.prod + cp frontend/apps/storefront/.env.prod.example frontend/apps/storefront/.env.prod, then fill every CHANGE_ME' -ForegroundColor Red; exit 1 }; Copy-Item backend/.env.prod backend/.env; Copy-Item frontend/apps/storefront/.env.prod frontend/apps/storefront/.env; Copy-Item frontend/apps/storefront/.env.prod frontend/apps/storefront/.env.production; Remove-Item frontend/apps/storefront/.env.local -ErrorAction SilentlyContinue; Write-Host 'prod env active - set APP_ORIGIN in backend/.env.prod first; rebuild storefront + payment + api1 + api2; then run make kafka-env (this copy has no Kafka SASL/TLS values)'"
 
 importdb:
 	docker exec -i goshop-postgres psql -U ${DB_USER} -d ${DB_NAME} < ./backupdb.sql
@@ -212,8 +216,11 @@ noapp:
 stop-noapp:
 	docker compose -f ${NOAPP_COMPOSE} down
 
-# Build container for dev
+# Build container for dev.
+# Drops the dev-host override: with nginx on :80, a stale .env.local pointing
+# at :8080 would shadow .env.development and the browser would hit a dead port.
 dev:
+	powershell -NoProfile -Command "Remove-Item frontend/apps/storefront/.env.local -ErrorAction SilentlyContinue"
 	docker compose -f ${DEV_COMPOSE} down
 	docker compose -f ${DEV_COMPOSE} --env-file ${ENV_FILE} up --build
 
@@ -224,8 +231,12 @@ stop-dev:
 	docker compose -f ${DEV_COMPOSE} down
 	powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/stop-dev.ps1
 
-# Run lightweight hybrid development (Infra in Docker, Go apps on Host)
+# Run lightweight hybrid development (Infra in Docker, Go apps on Host).
+# No nginx in this topology, so the storefront must target :8080 instead of the
+# edge on :80. .env.local outranks .env.development, which is why this copy is
+# what keeps Google login and every client fetch pointing at a live port.
 dev-host:
+	powershell -NoProfile -Command "Copy-Item frontend/apps/storefront/.env.dev-host frontend/apps/storefront/.env.local -Force"
 	powershell -ExecutionPolicy Bypass -File ./scripts/dev.ps1
 
 # Verify every gateway-proxied route answers (fails on 502). Run after `make dev`

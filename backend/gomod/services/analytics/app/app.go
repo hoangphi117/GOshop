@@ -165,7 +165,16 @@ func New(cfg *config.Config) (*App, error) {
 		inventoryClient,
 	)
 
-	analyticsroutes.RegisterRoutes(r, analyticshandler.NewAnalyticsHandler(svc), tokenService, cacheRedisService)
+	eventRepo := analyticsrepo.NewSqlEventRepository(db.DBPool)
+	eventSvc := analyticsservice.NewEventService(eventRepo, broker)
+
+	analyticsroutes.RegisterRoutes(
+		r,
+		analyticshandler.NewAnalyticsHandler(svc),
+		analyticshandler.NewEventHandler(eventSvc),
+		tokenService,
+		cacheRedisService,
+	)
 
 	// Phase-1 observability: /healthz reports this process's consumer lag.
 	kafka.RegisterHealthz(r, "analytics", broker, db.DBPool.Ping)

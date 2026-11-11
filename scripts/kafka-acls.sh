@@ -72,6 +72,10 @@ allow review    goshop.notification.v1 literal  Write Describe
 
 allow media     goshop.media.v1        literal  Write Describe
 
+# Interaction telemetry comes from the analytics service, which accepts the
+# batch from the storefront and fans it out here.
+allow analytics goshop.events.v1       literal  Write Describe Read
+
 # api is the storefront BFF: it fans events out on behalf of the SPA and reads
 # back for admin views. Broad on purpose; narrow it if the BFF stops proxying
 # Kafka directly.
@@ -96,6 +100,9 @@ grp inventory goshop.inventory.return_events
 
 allow coupon    goshop.order.v1        literal  Read Describe
 grp coupon goshop.coupon.order_events
+
+allow analytics goshop.events.v1       literal  Read Describe
+grp recommendations goshop.recommendations.aggregator
 
 allow cart      goshop.order.v1        literal  Read Describe
 grp cart goshop.order.created
@@ -144,6 +151,7 @@ allow catalog     goshop.review.v1.dlq       literal Write Describe
 allow worker      goshop.email.v1.dlq        literal Write Describe
 allow worker      goshop.user.v1.dlq         literal Write Describe
 allow worker      goshop.media.v1.dlq        literal Write Describe
+allow analytics   goshop.events.v1.dlq       literal Write Describe Read
 
 # Fan-out subscribers can dead-letter anything they read.
 allow notification goshop.             prefixed Write Describe

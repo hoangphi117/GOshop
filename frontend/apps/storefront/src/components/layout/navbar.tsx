@@ -32,7 +32,7 @@ import { SearchAutocomplete } from "@/components/layout/search-autocomplete";
 import { Button } from "@/components/ui/button";
 import { authFetch } from "@/lib/api";
 
-export function Navbar() {
+export function Navbar({ recentSearches = [] }: { recentSearches?: string[] }) {
   const pathname = usePathname();
   const router = useRouter();
   const { items, getTotalItems, openDrawer } = useCartStore();
@@ -269,7 +269,7 @@ export function Navbar() {
 
           {/* Center: Omnichannel Search Bar (Desktop) */}
           <div className="hidden md:flex flex-1 max-w-xl mx-auto">
-            <SearchAutocomplete />
+            <SearchAutocomplete recentSearches={recentSearches} />
           </div>
 
           {/* Right Action Hub: Notifications, Cart, Account */}
@@ -455,6 +455,7 @@ export function Navbar() {
             {/* Mobile Search */}
             <SearchAutocomplete
               isMobile
+              recentSearches={recentSearches}
               onClose={() => setMobileMenuOpen(false)}
             />
 
