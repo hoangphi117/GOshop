@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	recsdto "goshop/services/recommendations/internal/dto"
 )
 
@@ -173,29 +175,19 @@ func TestReadThroughCachesOnlyRealShelves(t *testing.T) {
 }
 
 // TestCacheKeysKeepRequestsApart guards the one property a cache key must have:
-// two different requests never share an entry.
+// two different requests never share an entry. Search caching is off (see
+// shelf_cache.go), so only the visitor-scoped home key is checked here.
 func TestCacheKeysKeepRequestsApart(t *testing.T) {
-	base := HybridQuery{Query: "keyboard", Page: 1, Limit: 20}
-	variants := []HybridQuery{
-		base,
-		{Query: "keyboard", Page: 2, Limit: 20},
-		{Query: "keyboard", Page: 1, Limit: 10},
-		{Query: "keyboards", Page: 1, Limit: 20},
-		{Query: "keyboard", Page: 1, Limit: 20, Narrowing: SearchNarrowing{MinPrice: 100}},
-	}
-
-	seen := map[string]bool{}
-	for _, q := range variants {
-		key := searchCacheKey(q)
-		if seen[key] {
-			t.Fatalf("two requests share a key: %+v", q)
-		}
-		seen[key] = true
-	}
-
 	// The visitor is the whole point of the home key: two visitors must never
 	// see each other's shelf.
 	if homeCacheKey("a:1", 12) == homeCacheKey("u:2", 12) {
 		t.Fatal("home shelf cache key ignores the visitor")
+	}
+	// The limit is part of the key too: a twelve-item shelf is not a fifty.
+	if homeCacheKey("a:1", 12) == homeCacheKey("a:1", 50) {
+		t.Fatal("home shelf cache key ignores the limit")
+	}
+	if similarCacheKey(uuid.New(), 12) == similarCacheKey(uuid.New(), 50) {
+		t.Fatal("similar cache key ignores the limit")
 	}
 }

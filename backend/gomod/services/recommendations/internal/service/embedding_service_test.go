@@ -283,7 +283,9 @@ func TestEmbeddingTextOmitsVolatileFields(t *testing.T) {
 }
 
 func TestContentHashIsStable(t *testing.T) {
-	if ContentHash("abc") != ContentHash("abc") {
+	const text = "abc"
+	first := ContentHash(text)
+	if first != ContentHash(text) {
 		t.Fatal("hash is not deterministic")
 	}
 	if ContentHash("abc") == ContentHash("abd") {

@@ -2,9 +2,6 @@ package service
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"fmt"
 	"strconv"
 	"time"
 
@@ -38,31 +35,6 @@ func homeCacheKey(visitorKey string, limit int) string {
 func similarCacheKey(productUUID uuid.UUID, limit int) string {
 	return "recs:similar:" + productUUID.String() + ":" + strconv.Itoa(limit)
 }
-
-// searchCacheKey fingerprints the whole request, narrowing included, so a
-// filtered query can never be answered by an unfiltered entry.
-//
-// Deliberately unused for now — see searchCacheEnabled.
-func searchCacheKey(in HybridQuery) string {
-	h := sha256.New()
-	// Labels are spelled out so two different requests cannot collide by
-	// concatenation (query "ab", page 1 vs query "a", page "b1"-ish).
-	fmt.Fprintf(h, "q=%s\npage=%d\nlimit=%d\ncat=%s\nmin=%v\nmax=%v\nrating=%v",
-		in.Query, in.Page, in.Limit,
-		in.Narrowing.CategoryUUID.String(),
-		in.Narrowing.MinPrice, in.Narrowing.MaxPrice, in.Narrowing.MinRating)
-	return "recs:search:" + hex.EncodeToString(h.Sum(nil))[:32]
-}
-
-// searchCacheEnabled is deliberately false.
-//
-// Search is the cheapest of the three reads (one embed, one Meilisearch query,
-// one pgvector query) and the most dangerous to cache: a filtered page answered
-// from an entry written before a product's price changed shows products the
-// shopper excluded, and the outbox publishes no per-facet invalidation signal
-// to prevent it. The key above is ready; turn this on when there is a measured
-// p95 problem *and* a price/stock change event to invalidate on.
-const searchCacheEnabled = false
 
 // cacheShelf is the cache payload. It is a distinct type from Shelf so a field
 // added to Shelf does not silently change how old entries decode, and the

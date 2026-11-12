@@ -119,7 +119,7 @@ func (c *catalogSuggester) Suggest(ctx context.Context, query string, narrow Sea
 	if err != nil {
 		return nil, fmt.Errorf("suggest: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("suggest: status %d", resp.StatusCode)
 	}
