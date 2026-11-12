@@ -61,12 +61,12 @@ func (f *fakeCache) Clear(pattern string) error {
 // The double has to satisfy the real interface, not a narrowed one: the service
 // accepts cache.RedisCacheService, and a fake that only covers the methods this
 // file happens to call would stop compiling the moment the service used another.
-func (f *fakeCache) SetNX(string, any, time.Duration) (bool, error)  { return true, nil }
-func (f *fakeCache) Exists(string) (bool, error)                     { return false, nil }
-func (f *fakeCache) Del(string) error                                { return nil }
-func (f *fakeCache) Incr(string) (int64, error)                      { return 0, nil }
-func (f *fakeCache) Expire(string, time.Duration) error              { return nil }
-func (f *fakeCache) TTL(string) (time.Duration, error)               { return 0, nil }
+func (f *fakeCache) SetNX(string, any, time.Duration) (bool, error) { return true, nil }
+func (f *fakeCache) Exists(string) (bool, error)                    { return false, nil }
+func (f *fakeCache) Del(string) error                               { return nil }
+func (f *fakeCache) Incr(string) (int64, error)                     { return 0, nil }
+func (f *fakeCache) Expire(string, time.Duration) error             { return nil }
+func (f *fakeCache) TTL(string) (time.Duration, error)              { return 0, nil }
 
 func shelfFixture() Shelf {
 	return Shelf{Source: SourcePersonalized, Items: []recsdto.RecommendationItem{{UUID: "p1", Name: "Keyboard"}}}

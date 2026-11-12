@@ -68,10 +68,10 @@ const searchCacheEnabled = false
 // added to Shelf does not silently change how old entries decode, and the
 // version tag makes a format change explicit instead of accidental.
 type cacheShelf struct {
-	V      int                  `json:"v"`
-	Source string               `json:"source"`
+	V      int                          `json:"v"`
+	Source string                       `json:"source"`
 	Items  []recsdto.RecommendationItem `json:"items"`
-	Total  int                  `json:"total,omitempty"`
+	Total  int                          `json:"total,omitempty"`
 }
 
 // cacheV changes when cacheShelf's meaning changes. Bumping it orphans old

@@ -14,8 +14,8 @@ import (
 // unfiltered keyword list would spend the whole fusion pool on products the
 // shopper excluded, and the page would come back short.
 type recordingSuggester struct {
-	got  SearchNarrowing
-	ids  []string
+	got   SearchNarrowing
+	ids   []string
 	calls int
 }
 

@@ -98,8 +98,8 @@ type catalogService struct {
 	reembed         *reembedClient
 	// mediaBase is S3_PUBLIC_BASE_URL; product images are normalized against it
 	// so nothing external ever sees the storage origin.
-	mediaBase       string
-	sf              singleflight.Group
+	mediaBase string
+	sf        singleflight.Group
 }
 
 func NewCatalogService(
