@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useAssistant } from "@/hooks/use-assistant";
 import { useChat } from "@/hooks/use-chat";
+import { getImageUrl } from "@/lib/utils";
 import { useChatUIStore } from "@/stores/chat-ui-store";
 import type { ChatMode } from "@/stores/chat-ui-store";
 import {
@@ -50,7 +51,7 @@ function ProductCards({ products }: { products: AssistantProduct[] }) {
             <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-md border border-slate-200 bg-slate-100">
               {p.image_url ? (
                 <img
-                  src={p.image_url}
+                  src={getImageUrl(p.image_url)}
                   alt={p.name}
                   className="h-full w-full object-cover"
                 />

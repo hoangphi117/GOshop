@@ -6,6 +6,7 @@ import Image from "next/image";
 import { ArrowRight, Zap, ShoppingBag } from "lucide-react";
 import type { Product } from "@/lib/api-server";
 import { formatCurrency } from "@/lib/format";
+import { getImageUrl } from "@/lib/utils";
 
 interface FlashDealsProps {
   products?: Product[];
@@ -101,10 +102,11 @@ export function FlashDeals({ products = [] }: FlashDealsProps) {
             const discountPercent = Math.round(
               ((originalPrice - product.price) / originalPrice) * 100,
             );
-            const imageUrl =
+            const imageUrl = getImageUrl(
               product.image_url ||
-              product.images?.[0]?.image_url ||
-              "https://images.unsplash.com/photo-1550009158-9ebf69173e03?w=800";
+                product.images?.[0]?.image_url ||
+                "https://images.unsplash.com/photo-1550009158-9ebf69173e03?w=800",
+            );
             const soldPercent = Math.min(
               95,
               Math.max(

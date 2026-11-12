@@ -44,6 +44,11 @@ function send(body: string) {
   // X-API-KEY header, so behind an edge that does not inject it (dev-host has
   // no nginx) the request was rejected with 400 "missing API Key". keepalive
   // survives pagehide just like sendBeacon.
+  //
+  // The failure branch is silent in prod but logs in dev: the gateway's 400
+  // carries the reason ("missing API Key", "search requires query"), and an
+  // event batch that never lands is otherwise indistinguishable from one with
+  // nothing to do — which made a broken search-affinity pipeline look idle.
   void fetch(url, {
     method: 'POST',
     body,
@@ -54,9 +59,16 @@ function send(body: string) {
       ...(API_KEY ? { 'X-API-KEY': API_KEY } : {}),
       'X-Client-App': 'storefront',
     },
-  }).catch(() => {
-    // Fire and forget: telemetry must never break the shopping flow.
   })
+    .then((res) => {
+      if (process.env.NODE_ENV !== 'production' && !res.ok) {
+        console.warn('[events] ingest rejected', res.status, res.statusText)
+      }
+    })
+    .catch((err) => {
+      // Fire and forget: telemetry must never break the shopping flow.
+      if (process.env.NODE_ENV !== 'production') console.warn('[events] ingest failed', err)
+    })
 }
 
 export function flushEvents() {
@@ -94,6 +106,37 @@ export function track(event_type: EventType, payload: Record<string, unknown> = 
 }
 
 let installed = false
+
+const reportedPurchases = new Set<string>()
+
+/**
+ * Records the purchase of one order exactly once, at the moment of payment
+ * (GA4 semantics). Ingest requires one product_uuid per event, so a multi-item
+ * order emits one event per item, all sharing the order uuid. The local guard
+ * keeps a React re-render or a retry from double-counting revenue.
+ */
+export function trackPurchase(
+  orderUuid: string,
+  lines: { productUuid: string; quantity: number; price: number }[],
+  opts: { paymentMethod?: string; value?: number } = {}
+) {
+  if (!orderUuid || reportedPurchases.has(orderUuid)) return
+  reportedPurchases.add(orderUuid)
+  installEventTracking()
+  for (const line of lines) {
+    if (!line.productUuid) continue
+    track('purchase', {
+      product_uuid: line.productUuid,
+      props: {
+        order_uuid: orderUuid,
+        quantity: line.quantity,
+        price: line.price,
+        total_value: opts.value,
+        payment_method: opts.paymentMethod,
+      },
+    })
+  }
+}
 
 /** Wires the pagehide/visibility flush exactly once per page load. */
 export function installEventTracking() {

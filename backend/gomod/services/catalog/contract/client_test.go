@@ -113,6 +113,9 @@ func (m *mockCatalogService) SearchProducts(ctx context.Context, q, categoryUUID
 func (m *mockCatalogService) SuggestProducts(ctx context.Context, q string, limit int32) ([]dto.ProductSuggestionDTO, error) {
 	return nil, nil
 }
+func (m *mockCatalogService) SuggestProductsFiltered(ctx context.Context, q, filter string, limit int32) ([]dto.ProductSuggestionDTO, error) {
+	return nil, nil
+}
 func (m *mockCatalogService) UpdateProduct(ctx context.Context, input dto.UpdateProductInput) (*dto.ProductDTO, error) {
 	return nil, nil
 }

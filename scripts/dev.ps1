@@ -3,7 +3,8 @@
 # =============================================================================
 # 1. Docker Compose starts infrastructure (Postgres, Redis, Kafka, MinIO,
 #    Meilisearch) plus the storage-heavy domain services (inventory, catalog,
-#    coupon, cart, banner).
+#    coupon, cart, banner), the recommendations service (needs pgvector and
+#    postgres_fdw) and the Python embedder sidecar, which cannot be a Go binary.
 # 2. The gateway and the remaining services build and run on the host for fast
 #    rebuild loops: api, identity, notification, payment, worker, order,
 #    review, analytics, chat, media, ws-gateway.
@@ -25,7 +26,7 @@ if ($LASTEXITCODE -ne 0) {
 # only works for services of the current project and silently skips strays.
 $hostOwnedContainers = @(
     "goshop-api", "goshop-identity", "goshop-notification", "goshop-order", "goshop-payment",
-    "goshop-worker", "goshop-ws-gateway", "goshop-review", "goshop-analytics", "goshop-chat", "goshop-nginx",
+    "goshop-worker", "goshop-ws-gateway", "goshop-review", "goshop-analytics", "goshop-chat",
     "goshop-media"
 )
 foreach ($container in $hostOwnedContainers) {
@@ -43,7 +44,25 @@ foreach ($svc in @("inventory", "catalog", "coupon", "cart", "banner")) {
     }
 }
 
-docker compose -f docker-compose.dev.yml --env-file ./backend/.env up -d --force-recreate minio jaeger postgres redis kafka kafka-init inventory catalog coupon cart banner
+# The embedder is Python, so it cannot run as a host-mode Go binary. It stays a
+# container even in this topology, and its image must exist before
+# recommendations (which waits on its health) can start.
+if (-not (docker image inspect shopping-embedder:latest 2>$null)) {
+    Write-Host "Building image embedder..." -ForegroundColor DarkGray
+    docker compose -f docker-compose.dev.yml --env-file ./backend/.env build embedder
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Build failed for image embedder!" -ForegroundColor Red
+        exit 1
+    }
+}
+
+# nginx is deliberately NOT started here. In this topology the gateway runs on
+# the host, and the edge vhost's upstreams (nginx/conf.d/goshop-locations.inc)
+# name in-cluster services like `identity-service:8081` that only exist when the
+# whole stack is in Docker. Starting it produced a 502 on every proxied route:
+# nginx -> api container (removed above) -> identity-service (no such host).
+# The storefront and dashboard call the host gateway directly on :8080.
+docker compose -f docker-compose.dev.yml --env-file ./backend/.env up -d --force-recreate minio jaeger postgres redis kafka kafka-init meilisearch inventory catalog coupon cart banner embedder recommendations
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Failed to start infrastructure containers!" -ForegroundColor Red

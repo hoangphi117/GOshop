@@ -55,4 +55,6 @@ create_user analytics   "${KAFKA_SASL_ANALYTICS_PASSWORD}"
 create_user chat        "${KAFKA_SASL_CHAT_PASSWORD}"
 create_user media       "${KAFKA_SASL_MEDIA_PASSWORD}"
 create_user worker      "${KAFKA_SASL_WORKER_PASSWORD}"
-create_user wsgateway   "${KAFKA_SASL_WSGATEWAY_PASSWORD}"
+# No wsgateway user: the websocket gateway does not touch Kafka (it fans out
+# through Redis pub/sub and calls the chat gRPC service directly), so a SCRAM
+# user for it would be a credential nobody holds.

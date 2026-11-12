@@ -61,6 +61,7 @@ services:
       - ORDER_SERVICE_URL=http://order-service:8088
       - ORDER_GRPC_TARGET=order-service:50057
       - BANNER_SERVICE_URL=http://banner-service:8089
+      - RECOMMENDATIONS_SERVICE_URL=http://recommendations-service:8095
       - REVIEW_SERVICE_URL=http://review-service:8091
       - ANALYTICS_SERVICE_URL=http://analytics:8092
       - CHAT_SERVICE_URL=http://chat:8093
@@ -82,6 +83,9 @@ services:
       - JWT_PRIVATE_KEY=
       - JWT_PUBLIC_KEY=/app/certs/jwt_public.pem
       - S3_ENDPOINT=http://minio:9000
+      # Images are rendered by the browser, so the read URL must be the edge
+      # origin (nginx proxies /goshop-media/ to MinIO), never the in-cluster name.
+      - S3_PUBLIC_BASE_URL=${S3_PUBLIC_BASE_URL:-http://localhost/goshop-media}
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
     volumes:
       - ./backend:/app
@@ -228,6 +232,7 @@ services:
       # backend/.env has S3_ENDPOINT=http://localhost:9000 for host-run setups;
       # inside the container MinIO is reachable as minio:9000.
       - S3_ENDPOINT=http://minio:9000
+      - S3_PUBLIC_BASE_URL=${S3_PUBLIC_BASE_URL:-http://localhost/goshop-media}
       - JWT_SIGNING_ENABLED=false
       - JWT_PRIVATE_KEY=
       - JWT_PUBLIC_KEY=/app/certs/jwt_public.pem
@@ -427,6 +432,10 @@ services:
       - JWT_PRIVATE_KEY=
       - INVENTORY_GRPC_ADDR=inventory-service:50054
       - REDIS_ADDR=redis:6379
+      # Publish hook: a new or renamed product is embedded immediately instead
+      # of waiting for the recommender's next boot.
+      - RECOMMENDATIONS_SERVICE_URL=http://recommendations:8095
+      - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-dev-internal-token}
       - KAFKA_BROKERS=kafka:29092
       # Dev broker is PLAINTEXT (see the kafka service below) and no TLS cert is
       # mounted into dev containers, so the TLS block that gen-kafka-env.ps1
@@ -638,6 +647,90 @@ services:
       goshop-network:
         aliases:
           - banner-service
+
+  recommendations:
+    build:
+      context: ./backend
+      dockerfile: build/Dockerfile.service.dev
+      args:
+        SERVICE: recommendations
+    container_name: goshop-recommendations
+    restart: unless-stopped
+    mem_limit: 160m
+    ports:
+      - "8095:8095"
+    env_file:
+      - ./backend/.env
+    environment:
+      - APP_ENV=development
+      - DB_HOST=postgres
+      - DB_NAME=shopping_recs
+      - RECOMMENDATIONS_DB_NAME=shopping_recs
+      - RECOMMENDATIONS_SERVER_PORT=8095
+      # Storefront is on http://localhost:3001, so a Secure guest cookie would
+      # be rejected and every visit would start a new anonymous profile.
+      - ANON_COOKIE_SECURE=false
+      # Shared secret for the catalog's publish hook. Unset means the internal
+      # embed route is open, which is fine for a dev box.
+      - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-dev-internal-token}
+      - CATALOG_GRPC_TARGET=catalog:50055
+      - CATALOG_SERVICE_URL=http://catalog:8086
+      # The hybrid-search keyword half reads the catalog's suggest route. In
+      # compose that call goes catalog-to-catalog and bypasses the gateway, so
+      # the API key is provided here; dev-host points CATALOG_SERVICE_URL at the
+      # gateway instead, which injects it, and leaves this empty.
+      - CATALOG_API_KEY=${API_KEY:-abcd-1234-1111}
+      - CATALOG_DB_NAME=shopping_catalog
+      - ANALYTICS_DB_NAME=shopping_analytics
+      # Without this the embedding backfill is skipped and the vector shelves
+      # stay empty; the service degrades to best sellers rather than failing.
+      - EMBEDDER_URL=http://embedder:8096
+      # Shelf cache. Unset means uncached, which is slower but still correct;
+      # the service logs that at boot instead of failing to start.
+      - REDIS_ADDR=redis:6379
+      - JWT_SIGNING_ENABLED=false
+      - GOMEMLIMIT=96MiB
+      - GOMAXPROCS=1
+    cpus: 0.50
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      catalog:
+        condition: service_started
+      embedder:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    networks:
+      goshop-network:
+        aliases:
+          - recommendations-service
+
+  embedder:
+    # Text embeddings for the recommendation vectors. Its own container because
+    # torch needs several hundred MB resident, which does not fit the 160m cap
+    # the Go services share; see docker/embedder/Dockerfile.
+    build:
+      context: .
+      dockerfile: docker/embedder/Dockerfile
+    container_name: goshop-embedder
+    restart: unless-stopped
+    # Measured at ~800 MiB resident with torch loaded, before any batching.
+    # 1.5g leaves headroom for a 64-text batch on a 16.8 GB host.
+    mem_limit: 1536m
+    ports:
+      - "8096:8096"
+    environment:
+      - EMBEDDING_MODEL=all-MiniLM-L6-v2
+      - EMBEDDING_THREADS=1
+      - OMP_NUM_THREADS=1
+    cpus: 1.0
+    networks:
+      goshop-network:
+        aliases:
+          - embedder
 
   review:
     build:

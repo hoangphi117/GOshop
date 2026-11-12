@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/gin-contrib/gzip"
@@ -229,6 +230,17 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 			catalogProxyHandler = func(ctx *gin.Context) {
 				ctx.Request.Host = parsedCatalogURL.Host
 				ctx.Request.Header.Del("Accept-Encoding")
+				// /products/suggest is a fixed-rate internal read used by the
+				// recommendations service. That service has no API key of its
+				// own, and requiring one would quietly reduce hybrid search to
+				// its keyword half. The edge (nginx or this gateway) is where
+				// the key belongs, so it is injected here; /products/search, the
+				// public path, is deliberately not included.
+				if ctx.Request.URL.Path == "/products/suggest" || ctx.Request.URL.Path == "/api/v1/products/suggest" {
+					if key := os.Getenv("API_KEY"); key != "" {
+						ctx.Request.Header.Set("X-API-KEY", key)
+					}
+				}
 				catalogProxy.ServeHTTP(ctx.Writer, ctx.Request)
 			}
 
@@ -301,6 +313,45 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 			v1api.Any("/banners", bannerProxyHandler)
 			v1api.Any("/admin/banners", bannerProxyHandler)
 			v1api.Any("/admin/banners/*any", bannerProxyHandler)
+		}
+	}
+
+	// API Gateway reverse proxy for Recommendations microservice endpoints.
+	// Unset keeps the route absent rather than inventing an empty shelf.
+	// The handler outlives this block because NoRoute also dispatches to it.
+	var recsProxyHandler gin.HandlerFunc
+	recsURL := utils.GetEnv("RECOMMENDATIONS_SERVICE_URL", "")
+	if recsURL != "" {
+		if parsedRecsURL, err := url.Parse(recsURL); err == nil && parsedRecsURL.Scheme != "" {
+			recsProxy := httputil.NewSingleHostReverseProxy(parsedRecsURL)
+			transport := http.DefaultTransport.(*http.Transport).Clone()
+			transport.DisableCompression = true
+			recsProxy.Transport = transport
+
+			recsProxy.ModifyResponse = func(resp *http.Response) error {
+				resp.Header.Del("Access-Control-Allow-Origin")
+				resp.Header.Del("Access-Control-Allow-Credentials")
+				resp.Header.Del("Access-Control-Allow-Methods")
+				resp.Header.Del("Access-Control-Allow-Headers")
+				resp.Header.Del("Access-Control-Max-Age")
+				return nil
+			}
+			recsProxyHandler = func(ctx *gin.Context) {
+				ctx.Request.Host = parsedRecsURL.Host
+				ctx.Request.Header.Del("Accept-Encoding")
+				recsProxy.ServeHTTP(ctx.Writer, ctx.Request)
+			}
+
+			v1api.GET("/recommendations", recsProxyHandler)
+			v1api.GET("/recommendations/personalized", recsProxyHandler)
+			// Similar products belong to the product namespace on the
+			// storefront but are served by this service: catalog cannot rank
+			// by embedding distance without owning the vectors.
+			v1api.GET("/products/similar", recsProxyHandler)
+			// Hybrid search supersedes the catalog's keyword-only listing: it
+			// fuses Meilisearch's ranking with pgvector's, and only this service
+			// has the second half.
+			v1api.GET("/products/search", recsProxyHandler)
 		}
 	}
 
@@ -493,6 +544,13 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 				resp.Header.Del("Access-Control-Allow-Methods")
 				resp.Header.Del("Access-Control-Allow-Headers")
 				resp.Header.Del("Access-Control-Max-Age")
+				// The gzip middleware wraps the response after this proxy has
+				// copied the upstream Content-Length. That length describes the
+				// uncompressed body, so leaving it set sends the browser a
+				// compressed body with a plain one's length and Chrome aborts
+				// with ERR_CONTENT_LENGTH_MISMATCH. Let net/http compute it
+				// from the bytes actually written.
+				resp.Header.Del("Content-Length")
 				return nil
 			}
 			assistantProxyHandler := func(ctx *gin.Context) {
@@ -548,6 +606,20 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 
 	r.NoRoute(func(ctx *gin.Context) {
 		p := ctx.Request.URL.Path
+
+		// Similar products are served by the recommendations service, but live
+		// in the catalog's namespace. The catalog NoRoute below matches every
+		// /products/* and would swallow this path before it is ever seen.
+		if recsProxyHandler != nil &&
+			((p == "/api/v1/products/similar") || (p == "/products/similar") ||
+				(p == "/api/v1/products/search") || (p == "/products/search")) {
+			if !strings.HasPrefix(p, "/api/v1") {
+				ctx.Request.URL.Path = "/api/v1" + p
+			}
+			recsProxyHandler(ctx)
+			return
+		}
+
 		// Product review endpoints belong to the review service; everything else
 		// under /products goes to catalog.
 		if isReviewProxied && reviewProxyHandler != nil &&

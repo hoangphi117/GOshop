@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -23,13 +24,23 @@ import (
 type UploadHandler struct {
 	storage storage.StorageService
 	mq      messaging.Broker
+	// mediaBase is the public base URL of the bucket (e.g.
+	// https://shop.example.com/goshop-media). Stored/public URLs are returned as
+	// edge-relative paths under it so they survive a domain change.
+	mediaBase string
 }
 
 func NewUploadHandler(storageService storage.StorageService, mq messaging.Broker) *UploadHandler {
 	return &UploadHandler{
-		storage: storageService,
-		mq:      mq,
+		storage:   storageService,
+		mq:        mq,
+		mediaBase: os.Getenv("S3_PUBLIC_BASE_URL"),
 	}
+}
+
+// publicPath is the origin-agnostic form of a stored object URL.
+func (uh *UploadHandler) publicPath(u string) string {
+	return utils.PublicMediaPath(uh.mediaBase, u)
 }
 
 // publishMediaUploaded enqueues post-processing (resize/re-encode) for a
@@ -132,7 +143,7 @@ func (uh *UploadHandler) GetPresignedURL(ctx *gin.Context) {
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Presigned upload URL generated successfully", gin.H{
 		"upload_url":   uploadURL,
-		"public_url":   publicURL,
+		"public_url":   uh.publicPath(publicURL),
 		"file_key":     fileKey,
 		"expires_in":   900,
 		"content_type": contentType,
@@ -326,7 +337,7 @@ func (uh *UploadHandler) ConfirmUpload(ctx *gin.Context) {
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Upload confirmed", ConfirmUploadResponseDTO{
 		FileKey:     fileKey,
-		PublicURL:   uh.storage.PublicURL(fileKey),
+		PublicURL:   uh.publicPath(uh.storage.PublicURL(fileKey)),
 		ContentType: expectedContentType,
 		Size:        size,
 	})

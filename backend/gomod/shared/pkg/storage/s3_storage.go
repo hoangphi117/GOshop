@@ -133,8 +133,20 @@ func NewS3StorageService(ctx context.Context, cfg S3Config, logger *zerolog.Logg
 		checkCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()
 		if _, headErr := client.HeadBucket(checkCtx, &s3.HeadBucketInput{Bucket: aws.String(cfg.Bucket)}); headErr != nil {
-			if _, createErr := client.CreateBucket(checkCtx, &s3.CreateBucketInput{Bucket: aws.String(cfg.Bucket)}); createErr == nil && logger != nil {
-				logger.Info().Str("bucket", cfg.Bucket).Msg("Auto-created S3/MinIO bucket successfully")
+			if _, createErr := client.CreateBucket(checkCtx, &s3.CreateBucketInput{Bucket: aws.String(cfg.Bucket)}); createErr == nil {
+				if logger != nil {
+					logger.Info().Str("bucket", cfg.Bucket).Msg("Auto-created S3/MinIO bucket successfully")
+				}
+				// Public reads: uploads are linked directly from <img> tags, so the
+				// bucket must serve anonymous GetObject. Without this a fresh MinIO
+				// volume yields 403 on every image while the object exists.
+				policy := fmt.Sprintf(`{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"AWS":["*"]},"Action":["s3:GetObject"],"Resource":["arn:aws:s3:::%s/*"]}]}`, cfg.Bucket)
+				if _, polErr := client.PutBucketPolicy(ctx, &s3.PutBucketPolicyInput{
+					Bucket: aws.String(cfg.Bucket),
+					Policy: aws.String(policy),
+				}); polErr != nil && logger != nil {
+					logger.Warn().Err(polErr).Str("bucket", cfg.Bucket).Msg("Failed to set public read policy on bucket")
+				}
 			}
 		}
 	}

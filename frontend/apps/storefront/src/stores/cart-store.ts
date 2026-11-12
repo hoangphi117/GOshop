@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { useAuthStore } from '@/stores/auth-store'
 import { authFetch } from '@/lib/api'
+import { installEventTracking, track } from '@/lib/event-tracker'
 import { toast } from 'sonner'
 
 export interface CartItem {
@@ -324,6 +325,14 @@ export const useCartStore = create<CartState>((set, get) => ({
 
     set({ items: updatedItems, isDrawerOpen: true })
     persistUserCart(userKey, updatedItems, get().appliedCoupon)
+
+    // Only a genuinely accepted add is recorded: the sign-in guard above and
+    // the toast on failure already return early.
+    installEventTracking()
+    track('add_to_cart', {
+      product_uuid: newItem.productUuid,
+      props: { quantity: newItem.quantity, price: newItem.price },
+    })
 
     // Sync to backend server
     authFetch('/api/v1/cart/items', {

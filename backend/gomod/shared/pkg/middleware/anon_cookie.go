@@ -12,9 +12,14 @@ import (
 // Kept in sync with the storefront constant of the same name.
 const AnonCookieName = "goshop_anon_id"
 
-// anonCookieMaxAge is one year. The identity is low value and rebuildable, so a
+// AnonCookieMaxAge is one year. The identity is low value and rebuildable, so a
 // long life avoids re-minting on every visit.
-const anonCookieMaxAge = 365 * 24 * 3600
+const AnonCookieMaxAge = 365 * 24 * 3600
+
+// NewAnonID mints a fresh guest identity.
+func NewAnonID() string {
+	return uuid.NewString()
+}
 
 // AnonCookie mints a stable guest identity when the cookie is missing or
 // malformed and exposes it as "anon_id" in the gin context. It never aborts:
@@ -35,19 +40,24 @@ func AnonCookie() gin.HandlerFunc {
 			}
 		}
 
-		id := uuid.NewString()
-		http.SetCookie(ctx.Writer, &http.Cookie{
-			Name:     AnonCookieName,
-			Value:    id,
-			Path:     "/",
-			MaxAge:   anonCookieMaxAge,
-			HttpOnly: true,
-			Secure:   secure,
-			SameSite: http.SameSiteLaxMode,
-		})
+		id := NewAnonID()
+		SetAnonCookie(ctx, id, secure)
 		ctx.Set("anon_id", id)
 		ctx.Next()
 	}
+}
+
+// SetAnonCookie writes the guest cookie onto the response.
+func SetAnonCookie(ctx *gin.Context, id string, secure bool) {
+	http.SetCookie(ctx.Writer, &http.Cookie{
+		Name:     AnonCookieName,
+		Value:    id,
+		Path:     "/",
+		MaxAge:   AnonCookieMaxAge,
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
+	})
 }
 
 // GetAnonID returns the guest identity set by AnonCookie.
