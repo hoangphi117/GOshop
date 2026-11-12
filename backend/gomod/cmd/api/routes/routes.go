@@ -211,7 +211,7 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 	// API Gateway reverse proxy for Catalog microservice endpoints
 	catalogURL := utils.GetEnv("CATALOG_SERVICE_URL", "http://localhost:8086")
 	isCatalogProxied := false
-	var catalogProxyHandler func(ctx *gin.Context)
+	var catalogProxyHandler gin.HandlerFunc
 	if catalogURL != "" {
 		if parsedCatalogURL, err := url.Parse(catalogURL); err == nil && parsedCatalogURL.Scheme != "" {
 			catalogProxy := httputil.NewSingleHostReverseProxy(parsedCatalogURL)
@@ -244,13 +244,14 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 				catalogProxy.ServeHTTP(ctx.Writer, ctx.Request)
 			}
 
-			// Proxy categories & admin endpoints directly (no sub-route conflicts)
+			// Proxy categories through the gateway. Admin product and category
+			// paths are registered on the `admin` group below, not here: this
+			// group carries no middleware, and a proxy registered on it would
+			// forward writes to catalog without ever checking the JWT. That is
+			// the hole the previous edge routing had, and it let an anonymous
+			// caller create and read products.
 			v1api.Any("/categories", catalogProxyHandler)
 			v1api.Any("/categories/*any", catalogProxyHandler)
-			v1api.Any("/admin/products", catalogProxyHandler)
-			v1api.Any("/admin/products/*any", catalogProxyHandler)
-			v1api.Any("/admin/categories", catalogProxyHandler)
-			v1api.Any("/admin/categories/*any", catalogProxyHandler)
 			// Public /products is routed in NoRoute so the catalog proxy can fall through
 			// to the review service for /products/{uuid}/reviews*.
 			isCatalogProxied = true
@@ -588,6 +589,17 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 	admin := v1api.Group("/admin")
 	admin.Use(middleware.ApiKeyMiddleware(), middleware.AuthMiddleware())
 	admin.Use(middleware.RequireRole(middleware.RoleAdmin, middleware.RoleModerator))
+
+	// Admin catalog writes, behind the same three checks as every other admin
+	// route. Registered here rather than next to the public catalog proxy so
+	// the middleware actually applies: Gin resolves a route to the group it
+	// was declared on, so an unauthenticated registration would win.
+	if catalogProxyHandler != nil {
+		admin.Any("/products", catalogProxyHandler)
+		admin.Any("/products/*any", catalogProxyHandler)
+		admin.Any("/categories", catalogProxyHandler)
+		admin.Any("/categories/*any", catalogProxyHandler)
+	}
 
 	// PublicRegistrar marks routes that must skip auth (health checks polled by
 	// uptime monitors and load balancers).
