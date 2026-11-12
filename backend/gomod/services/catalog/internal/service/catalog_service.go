@@ -9,6 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -71,6 +73,11 @@ type CatalogService interface {
 		page, limit int32,
 	) ([]dto.ProductDTO, int64, error)
 	SuggestProducts(ctx context.Context, q string, limit int32) ([]dto.ProductSuggestionDTO, error)
+	// SuggestProductsFiltered is the same read with a caller-supplied
+	// Meilisearch filter, used by hybrid search so the keyword half cannot
+	// return hits the shopper excluded. The filter is ANDed with the sellable
+	// predicate; it never replaces it.
+	SuggestProductsFiltered(ctx context.Context, q, filter string, limit int32) ([]dto.ProductSuggestionDTO, error)
 	UpdateProduct(ctx context.Context, input dto.UpdateProductInput) (*dto.ProductDTO, error)
 	SoftDeleteProduct(ctx context.Context, u uuid.UUID) (*dto.ProductDTO, error)
 	RestoreProduct(ctx context.Context, u uuid.UUID) (*dto.ProductDTO, error)
@@ -88,7 +95,11 @@ type catalogService struct {
 	cache           cache.RedisCacheService
 	search          *search.Client
 	inventoryClient inventorycontract.InventoryClient
-	sf              singleflight.Group
+	reembed         *reembedClient
+	// mediaBase is S3_PUBLIC_BASE_URL; product images are normalized against it
+	// so nothing external ever sees the storage origin.
+	mediaBase string
+	sf        singleflight.Group
 }
 
 func NewCatalogService(
@@ -98,13 +109,60 @@ func NewCatalogService(
 	searchClient *search.Client,
 	inventoryClient inventorycontract.InventoryClient,
 ) CatalogService {
+	reembedClient := newReembedClient(os.Getenv("RECOMMENDATIONS_SERVICE_URL"))
+	if reembedClient == nil {
+		logger.Log.Info().Msg("RECOMMENDATIONS_SERVICE_URL unset; new products will not be embedded until the recommender restarts")
+	}
 	return &catalogService{
 		repo:            repo,
 		pool:            pool,
 		cache:           cache,
 		search:          searchClient,
 		inventoryClient: inventoryClient,
+		reembed:         reembedClient,
+		mediaBase:       os.Getenv("S3_PUBLIC_BASE_URL"),
 	}
+}
+
+// rewriteImage makes every outbound product image origin-agnostic. Rows written
+// before the media service returned relative paths still carry
+// http://host:9000/goshop-media/... or a stale edge origin; collapsing them to
+// /goshop-media/... keeps the API in one shape and lets the client resolve it.
+func (s *catalogService) rewriteImage(p *dto.ProductDTO) {
+	if p == nil || p.ImageURL == nil {
+		return
+	}
+	clean := utils.PublicMediaPath(s.mediaBase, *p.ImageURL)
+	if clean == *p.ImageURL {
+		return
+	}
+	p.ImageURL = &clean
+}
+
+// persistImage keeps the stored row origin-agnostic. The API response can be
+// rewritten on read, but the row outlives whichever host produced it.
+func (s *catalogService) persistImage(u **string) {
+	if s.mediaBase == "" || u == nil || *u == nil || **u == "" {
+		return
+	}
+	clean := utils.PublicMediaPath(s.mediaBase, **u)
+	*u = &clean
+}
+
+func (s *catalogService) rewriteImages(list []dto.ProductDTO) []dto.ProductDTO {
+	for i := range list {
+		s.rewriteImage(&list[i])
+	}
+	return list
+}
+
+// cleanRow is rewriteImage for the row type the search document is built from.
+func (s *catalogService) cleanRow(r catalogsqlc.GetProductByUUIDRow) catalogsqlc.GetProductByUUIDRow {
+	if s.mediaBase != "" && r.ProductImageUrl != nil {
+		clean := utils.PublicMediaPath(s.mediaBase, *r.ProductImageUrl)
+		r.ProductImageUrl = &clean
+	}
+	return r
 }
 
 // =============================================================================
@@ -350,6 +408,7 @@ func (s *catalogService) enrichStockForDTOs(ctx context.Context, dtos []dto.Prod
 }
 
 func (s *catalogService) CreateProduct(ctx context.Context, input dto.CreateProductInput) (*dto.ProductDTO, error) {
+	s.persistImage(&input.ImageURL)
 	catUUID, err := uuid.Parse(input.CategoryUUID)
 	if err != nil {
 		return nil, utils.NewError(utils.ErrCodeBadRequest, "invalid category UUID")
@@ -404,7 +463,7 @@ func (s *catalogService) CreateProduct(ctx context.Context, input dto.CreateProd
 
 	// Enqueue Outbox event for Meilisearch sync & trigger direct search sync
 	if prodRow, err := s.repo.GetProductByUUID(ctx, created.ProductUuid); err == nil {
-		doc := mapProductRowToSearchDoc(prodRow)
+		doc := mapProductRowToSearchDoc(s.cleanRow(prodRow))
 		if _, err := s.repo.InsertOutboxEvent(ctx, "product", created.ProductUuid.String(), "PRODUCT_UPSERT", doc); err != nil {
 			return nil, s.compensateProductCreation(ctx, created.ProductUuid, utils.WrapError(utils.ErrCodeInternal, "failed to enqueue product event", err))
 		}
@@ -414,6 +473,10 @@ func (s *catalogService) CreateProduct(ctx context.Context, input dto.CreateProd
 		}
 	}
 	go s.syncProductToSearch(context.Background(), created.ProductUuid)
+	// The product is sellable now, so its vector must exist before a shopper can
+	// reach it. Best-effort in the background: a cold sidecar must not delay the
+	// create response.
+	go s.reembed.Embed(context.Background(), created.ProductUuid.String())
 
 	// Adjust initial stock in inventory service. The product UUID is the
 	// idempotency reference, so a retried call cannot double the initial stock.
@@ -440,6 +503,7 @@ func (s *catalogService) CreateProduct(ctx context.Context, input dto.CreateProd
 	res := dto.MapCreateProductRowToDTO(created)
 	// Stock was written above; skip the extra inventory round-trip.
 	res.Stock = max(input.Stock, 0)
+	s.rewriteImage(&res)
 	return &res, nil
 }
 
@@ -498,6 +562,7 @@ func (s *catalogService) GetProductByUUID(ctx context.Context, u uuid.UUID) (*dt
 	}
 
 	res := dto.MapProductRowToDTO(prod)
+	s.rewriteImage(&res)
 	if err := s.enrichStockForDTO(ctx, &res); err != nil {
 		return nil, err
 	}
@@ -532,6 +597,7 @@ func (s *catalogService) GetProductBySlug(ctx context.Context, slug string) (*dt
 		CreatedAt:    prod.ProductCreatedAt.Format(time.RFC3339),
 		UpdatedAt:    prod.ProductUpdatedAt.Format(time.RFC3339),
 	}
+	s.rewriteImage(&res)
 	if err := s.enrichStockForDTO(ctx, &res); err != nil {
 		return nil, err
 	}
@@ -566,6 +632,7 @@ func (s *catalogService) GetProductByID(ctx context.Context, id int32) (*dto.Pro
 		CreatedAt:    prod.ProductCreatedAt.Format(time.RFC3339),
 		UpdatedAt:    prod.ProductUpdatedAt.Format(time.RFC3339),
 	}
+	s.rewriteImage(&res)
 	if err := s.enrichStockForDTO(ctx, &res); err != nil {
 		return nil, err
 	}
@@ -640,6 +707,7 @@ func (s *catalogService) GetProductsBatch(ctx context.Context, uuids []string, i
 	}
 
 	var enrichErr error
+	results = s.rewriteImages(results)
 	results, enrichErr = s.enrichStockForDTOs(ctx, results)
 	if enrichErr != nil {
 		return nil, enrichErr
@@ -779,6 +847,7 @@ func (s *catalogService) GetAllProducts(
 		for i, r := range rows {
 			dtos[i] = dto.MapProductRowToDTO(r)
 		}
+		dtos = s.rewriteImages(dtos)
 		dtos, err = s.enrichStockForDTOs(ctx, dtos)
 		if err != nil {
 			return nil, err
@@ -883,7 +952,7 @@ func (s *catalogService) SearchProducts(
 			createdAtStr = time.Unix(doc.CreatedAt, 0).Format(time.RFC3339)
 		}
 		sku := doc.SKU
-		img := doc.ImageURL
+		img := utils.PublicMediaPath(s.mediaBase, doc.ImageURL)
 		products = append(products, dto.ProductDTO{
 			UUID:         doc.ID,
 			Name:         doc.Name,
@@ -908,8 +977,24 @@ func (s *catalogService) SearchProducts(
 }
 
 func (s *catalogService) SuggestProducts(ctx context.Context, q string, limit int32) ([]dto.ProductSuggestionDTO, error) {
-	if limit <= 0 || limit > 20 {
+	return s.SuggestProductsFiltered(ctx, q, "", limit)
+}
+
+// SuggestProductsFiltered is the suggestion path with a caller-supplied
+// Meilisearch filter.
+//
+// Hybrid search needs it for two reasons: fusion must not receive hits the
+// visitor filtered out, and the suggestion limit is 20 while fusion wants ~50,
+// so the internal caller also raises the cap. The filter is ANDed with the
+// sellable predicate, never replaces it: a caller must not be able to surface
+// archived products by passing its own string.
+func (s *catalogService) SuggestProductsFiltered(ctx context.Context, q, filter string, limit int32) ([]dto.ProductSuggestionDTO, error) {
+	if limit <= 0 || limit > 200 {
 		limit = 8
+	}
+	filterClause := "product_status = 1"
+	if strings.TrimSpace(filter) != "" {
+		filterClause += " AND (" + filter + ")"
 	}
 	if s.search == nil {
 		list, _, err := s.GetAllProducts(ctx, q, "", 0, 0, 0, 1, "product_name", "asc", 1, limit, false)
@@ -930,7 +1015,7 @@ func (s *catalogService) SuggestProducts(ctx context.Context, q string, limit in
 		return suggestions, nil
 	}
 
-	docs, _, err := s.search.SearchDocuments(ctx, q, "product_status = 1", nil, int64(limit), 0)
+	docs, _, err := s.search.SearchDocuments(ctx, q, filterClause, nil, int64(limit), 0)
 	if err != nil || len(docs) == 0 {
 		// Meili may miss (broken filter settings, lagging index): fall back to
 		// the DB path so suggestions never go blank while search works.
@@ -957,7 +1042,7 @@ func (s *catalogService) SuggestProducts(ctx context.Context, q string, limit in
 
 	suggestions := make([]dto.ProductSuggestionDTO, 0, len(docs))
 	for _, doc := range docs {
-		img := doc.ImageURL
+		img := utils.PublicMediaPath(s.mediaBase, doc.ImageURL)
 		suggestions = append(suggestions, dto.ProductSuggestionDTO{
 			UUID:         doc.ID,
 			Name:         doc.Name,
@@ -976,6 +1061,7 @@ func (s *catalogService) UpdateProduct(ctx context.Context, input dto.UpdateProd
 	if err != nil {
 		return nil, utils.NewError(utils.ErrCodeBadRequest, "invalid product UUID")
 	}
+	s.persistImage(&input.ImageURL)
 
 	var catID *int32
 	if input.CategoryUUID != nil {
@@ -1038,12 +1124,15 @@ func (s *catalogService) UpdateProduct(ctx context.Context, input dto.UpdateProd
 
 	// Enqueue Outbox event & trigger direct search sync
 	if prodRow, err := s.repo.GetProductByUUID(ctx, updated.ProductUuid); err == nil {
-		doc := mapProductRowToSearchDoc(prodRow)
+		doc := mapProductRowToSearchDoc(s.cleanRow(prodRow))
 		_, _ = s.repo.InsertOutboxEvent(ctx, "product", updated.ProductUuid.String(), "PRODUCT_UPSERT", doc)
 	} else {
 		_, _ = s.repo.InsertOutboxEvent(ctx, "product", updated.ProductUuid.String(), "PRODUCT_UPSERT", updated)
 	}
 	go s.syncProductToSearch(context.Background(), updated.ProductUuid)
+	// A rename or description edit changes the embedded text, so the vector has
+	// to be rebuilt or "similar products" keeps matching the old name.
+	go s.reembed.Embed(context.Background(), updated.ProductUuid.String())
 
 	// Stock is set absolutely (target_quantity) inside the inventory
 	// transaction, so there is no read-then-write window and retrying the same
@@ -1067,6 +1156,7 @@ func (s *catalogService) UpdateProduct(ctx context.Context, input dto.UpdateProd
 	}
 
 	res := dto.MapUpdateProductRowToDTO(updated)
+	s.rewriteImage(&res)
 	if input.Stock != nil {
 		res.Stock = max(*input.Stock, 0)
 	} else if err := s.enrichStockForDTO(ctx, &res); err != nil {
@@ -1115,7 +1205,7 @@ func (s *catalogService) RestoreProduct(ctx context.Context, u uuid.UUID) (*dto.
 	}
 
 	if prodRow, err := s.repo.GetProductByUUID(ctx, u); err == nil {
-		doc := mapProductRowToSearchDoc(prodRow)
+		doc := mapProductRowToSearchDoc(s.cleanRow(prodRow))
 		_, _ = s.repo.InsertOutboxEvent(ctx, "product", u.String(), "PRODUCT_UPSERT", doc)
 	} else {
 		_, _ = s.repo.InsertOutboxEvent(ctx, "product", u.String(), "PRODUCT_UPSERT", prod)
@@ -1288,7 +1378,7 @@ func (s *catalogService) ImportProductsCSV(ctx context.Context, file io.Reader) 
 		}
 
 		if prodRow, err := s.repo.GetProductByUUID(ctx, created.ProductUuid); err == nil {
-			doc := mapProductRowToSearchDoc(prodRow)
+			doc := mapProductRowToSearchDoc(s.cleanRow(prodRow))
 			if _, err := s.repo.InsertOutboxEvent(ctx, "product", created.ProductUuid.String(), "PRODUCT_UPSERT", doc); err != nil {
 				compensationErr := s.compensateProductCreation(ctx, created.ProductUuid, err)
 				csvErrors = append(csvErrors, dto.CSVRowError{Row: lineNum, Field: "outbox", Reason: compensationErr.Error()})
@@ -1373,6 +1463,61 @@ func mapProductRowToSearchDoc(product catalogsqlc.GetProductByUUIDRow) search.Pr
 	}
 }
 
+// reembedClient fires the recommendations service's publish hook after a
+// product is created or updated.
+//
+// The vector used to be produced only by the recommendation service's boot
+// backfill, so anything published in between stayed invisible to every vector
+// shelf until a restart. This is the publish-path half of that fix; the outbox
+// below is the durable retry, in case the call is lost.
+//
+// A nil client is a deployment without the recommendation service: publishing
+// still succeeds, there is simply no shelf to feed.
+type reembedClient struct {
+	baseURL string
+	token   string
+	http    *http.Client
+}
+
+func newReembedClient(baseURL string) *reembedClient {
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if baseURL == "" {
+		return nil
+	}
+	return &reembedClient{
+		baseURL: baseURL,
+		token:   os.Getenv("INTERNAL_API_TOKEN"),
+		// Short: this runs in a goroutine and must not pin a connection for a
+		// minute if the embedder is cold.
+		http: &http.Client{Timeout: 20 * time.Second},
+	}
+}
+
+func (c *reembedClient) Embed(ctx context.Context, productUUID string) {
+	if c == nil {
+		return
+	}
+	url := c.baseURL + "/internal/embeddings/" + productUUID
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+	if err != nil {
+		logger.Log.Warn().Err(err).Str("product_uuid", productUUID).Msg("Recommendations embed: bad request")
+		return
+	}
+	if c.token != "" {
+		req.Header.Set("X-Internal-Token", c.token)
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		logger.Log.Warn().Err(err).Str("product_uuid", productUUID).Msg("Recommendations embed: unreachable")
+		return
+	}
+	defer func() { _ = resp.Body.Close() }()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		logger.Log.Warn().Int("status", resp.StatusCode).Str("product_uuid", productUUID).Msg("Recommendations embed rejected")
+	}
+}
+
 func (s *catalogService) syncProductToSearch(ctx context.Context, u uuid.UUID) {
 	if s.search == nil {
 		return
@@ -1381,7 +1526,7 @@ func (s *catalogService) syncProductToSearch(ctx context.Context, u uuid.UUID) {
 	if err != nil {
 		return
 	}
-	doc := mapProductRowToSearchDoc(prod)
+	doc := mapProductRowToSearchDoc(s.cleanRow(prod))
 	_, _ = s.search.IndexProducts(ctx, []search.ProductDocument{doc})
 }
 
@@ -1423,11 +1568,13 @@ func (s *catalogService) ProcessOutboxBatch(ctx context.Context) (int, error) {
 			}
 			var doc search.ProductDocument
 			if err := json.Unmarshal(ev.Payload, &doc); err == nil && doc.ID != "" && doc.Name != "" {
+				// Events enqueued before the image fix carry the storage origin.
+				doc.ImageURL = utils.PublicMediaPath(s.mediaBase, doc.ImageURL)
 				upsertDocs = append(upsertDocs, doc)
 			} else {
 				if u, parseErr := uuid.Parse(ev.AggregateID); parseErr == nil {
 					if prod, getErr := s.repo.GetProductByUUID(ctx, u); getErr == nil {
-						upsertDocs = append(upsertDocs, mapProductRowToSearchDoc(prod))
+						upsertDocs = append(upsertDocs, mapProductRowToSearchDoc(s.cleanRow(prod)))
 					}
 				}
 			}

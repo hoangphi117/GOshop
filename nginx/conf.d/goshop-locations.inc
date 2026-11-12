@@ -808,5 +808,8 @@ location / {
     # straight to the bucket (packages/api-client/src/upload.ts), not through
     # this edge, so 'self' is not enough. $goshop_storage_origin is rendered
     # from S3_PUBLIC_ORIGIN at start; empty in a local-disk deployment.
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://accounts.google.com $goshop_storage_origin; frame-src 'self' https://accounts.google.com https://content.googleapis.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'" always;
+    # Google Identity renders in an iframe AND injects its own stylesheet from
+    # accounts.google.com/gsi/style, so both style-src and style-src-elem must
+    # allow that origin; style-src-elem falls back to style-src otherwise.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com; font-src 'self' https://fonts.gstatic.com data: https://accounts.google.com; img-src 'self' data: blob: https:; connect-src 'self' https://accounts.google.com $goshop_storage_origin; frame-src 'self' https://accounts.google.com https://content.googleapis.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'" always;
 }

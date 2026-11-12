@@ -4,6 +4,7 @@ import { getCategories, getProducts } from "@/lib/api-server";
 import { ProductGrid } from "@/components/product/product-grid";
 import { SearchAutocomplete } from "@/components/layout/search-autocomplete";
 import { SearchEvent } from "@/components/search/search-event";
+import { SearchClickTracker } from "@/components/search/search-click-tracker";
 import { ANON_COOKIE_NAME, fetchSearchHistory } from "@/lib/search-history";
 import { cookies } from "next/headers";
 import {
@@ -65,6 +66,9 @@ export default async function ProductsPage({
   const params = await searchParams;
   const currentPage = parseInt(params.page || "1", 10);
   const currentSearch = params.search?.trim() || "";
+  // Same identity the history read uses; forwarded so every read on this page
+  // describes the same visitor.
+  const anonId = (await cookies()).get(ANON_COOKIE_NAME)?.value;
   const currentSort = params.sort || "";
   const currentMinPrice = params.min_price
     ? parseFloat(params.min_price)
@@ -90,6 +94,7 @@ export default async function ProductsPage({
     min_price: currentMinPrice,
     max_price: currentMaxPrice,
     min_rating: currentMinRating,
+    anonId,
   });
 
   const products = productsData.products || [];
@@ -515,7 +520,10 @@ export default async function ProductsPage({
 
           {/* Right Product Grid Column (lg:col-span-9) */}
           <main className="lg:col-span-9 space-y-5">
-            <SearchEvent query={currentSearch} resultCount={pagination?.total_records ?? 0} />
+            <SearchEvent
+              query={currentSearch}
+              resultCount={pagination?.total_records ?? products.length}
+            />
             {/* Filter Controls & In-Catalog Search Bar (2-Column Layout) */}
             <div className="bg-white border border-slate-200/90 rounded-xs p-3.5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-xs">
               {/* Column 1: Keyword Search Input (with Meilisearch autocomplete dropdown) */}
@@ -609,17 +617,21 @@ export default async function ProductsPage({
             </div>
 
             {/* Product Cards Grid */}
-            <ProductGrid
-              products={products}
-              columnsClassName="grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
-              emptyMessage={
-                hasActiveFilters
-                  ? "No products match the selected filters. Try broadening your criteria."
-                  : "No products available in this department."
-              }
-            />
+            <SearchClickTracker query={currentSearch}>
+              <ProductGrid
+                products={products}
+                columnsClassName="grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+                emptyMessage={
+                  hasActiveFilters
+                    ? "No products match the selected filters. Try broadening your criteria."
+                    : "No products available in this department."
+                }
+              />
+            </SearchClickTracker>
 
-            {/* Pagination Controls */}
+            {/* Pagination Controls. Search reports a real match total now, so
+                the page-number row shows every page up front rather than one
+                more per click. */}
             {pagination && pagination.total_pages > 1 && (
               <div className="bg-white border border-slate-200/90 rounded-xs p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
                 <p className="text-xs text-slate-600 font-body">

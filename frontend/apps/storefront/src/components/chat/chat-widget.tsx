@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { getImageUrl } from "@/lib/utils";
 import {
   MessageSquare,
   X,
@@ -828,7 +829,7 @@ function OrderPickerModal({
                   {/* Product Thumbnail */}
                   {firstItem?.image_url ? (
                     <img
-                      src={firstItem.image_url}
+                      src={getImageUrl(firstItem.image_url)}
                       alt={firstItem.product_name || "product"}
                       className="w-12 h-12 rounded-md object-cover border border-slate-200 shrink-0 bg-slate-100"
                     />
@@ -1023,7 +1024,7 @@ function ProductPickerModal({
                   <div className="relative w-12 h-12 rounded-md overflow-hidden shrink-0 border border-slate-200 bg-slate-100">
                     {p.image_url ? (
                       <img
-                        src={p.image_url}
+                        src={getImageUrl(p.image_url)}
                         alt={p.name}
                         className="w-full h-full object-cover"
                       />

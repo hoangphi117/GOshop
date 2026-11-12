@@ -242,8 +242,13 @@ dev-host:
 # Verify every gateway-proxied route answers (fails on 502). Run after `make dev`
 # or `make dev-host`: a service added to prod compose but not to dev compose has
 # no build-time symptom, only a bare 502 once a page asks for it.
+#
+# The edge only exists after `make dev` (nginx on :80). `make dev-host` removes
+# that container and leaves the gateway on the host at :8080, so probing the
+# default :80 there reports every route as dead. Probe :8080 when it is
+# listening, since that is the topology dev-host leaves behind.
 smoke-dev:
-	powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/smoke-dev.ps1
+	powershell -NoProfile -Command "$$port = if (Get-NetTCPConnection -State Listen -LocalPort 8080 -ErrorAction SilentlyContinue) { 'http://localhost:8080' } else { 'http://localhost' }; powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/smoke-dev.ps1 -BaseUrl $$port"
 
 # Static twin of smoke-dev: proves each gateway proxy target resolves to a
 # service in the dev compose file. Needs no running stack, so it can gate
@@ -251,8 +256,14 @@ smoke-dev:
 check-parity:
 	python ./scripts/check-compose-parity.py
 
-# Build container for production
+# Build container for production.
+#
+# First line reverts local edits to nginx/conf.d/goshop-locations.inc. That file
+# is tracked, and a hand edit pointing upstreams at host.docker.internal (or any
+# host-only address) makes every proxied route 502 once nginx runs inside the
+# compose network. A local experiment belongs in a separate untracked override.
 prod:
+	powershell -NoProfile -Command "$$d = git status --porcelain nginx/conf.d/goshop-locations.inc; if ($$d) { Write-Host 'reverting local edit: nginx/conf.d/goshop-locations.inc' -ForegroundColor Yellow; git checkout -- nginx/conf.d/goshop-locations.inc }"
 	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-prod.ps1
 	docker compose -f ${PROD_COMPOSE} --env-file ${ENV_FILE} build storefront
 	docker compose -f ${PROD_COMPOSE} --env-file ${ENV_FILE} up -d
@@ -285,6 +296,13 @@ smoke-prod:
 # Reset nginx upstream failure state after backend recovery.
 reload-nginx:
 	docker exec goshop-nginx nginx -s reload
+
+# Rotate the edge API key and make sure INTERNAL_API_TOKEN exists and agrees
+# across backend/.env and backend/.env.prod. The internal token is kept stable
+# across runs; pass ROTATE=1 to change it (then recreate catalog and
+# recommendations together, or the catalog publish hook 401s).
+secrets:
+	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/gen-local-secrets.ps1 $(if $(filter 1,$(ROTATE)),-RotateInternalToken,)
 
 # View production logs
 logs-prod:

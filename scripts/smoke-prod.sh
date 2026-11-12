@@ -48,12 +48,17 @@ check "auth rejects anonymous" "$BASE_URL/api/v1/auth/does-not-exist" 404
 check "cart rejects anonymous" "$BASE_URL/api/v1/cart" "401|400"
 check "orders rejects anonymous" "$BASE_URL/api/v1/orders" "401|400"
 
+# Recommendations is what the storefront homepage shelf calls. It answers 200
+# with a shelf (personalized or its best-seller fallback); a 502 here means the
+# container is missing from the compose file or died at boot.
+check "personalized shelf via gateway" "$BASE_URL/api/v1/recommendations/personalized?limit=1" 200
+
 # Internal IPC must never be reachable from outside.
 check "internal endpoints blocked" "$BASE_URL/internal/health" 403
 
 # Every service container the prod stack claims to run must be up.
 echo "container health"
-for name in api1 api2 identity notification payment catalog inventory coupon cart banner review chat media analytics order worker ws-gateway storefront nginx; do
+for name in api1 api2 identity notification payment catalog inventory coupon cart banner review chat media analytics order worker ws-gateway storefront nginx recommendations embedder; do
     status="$(docker inspect -f '{{if .State.Running}}running{{else}}{{.State.Status}}{{end}}' "goshop-$name" 2>/dev/null || echo missing)"
     if [[ "$status" == "running" ]]; then
         printf '  ok    %-42s %s\n' "$name" "$status"

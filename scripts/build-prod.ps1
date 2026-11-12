@@ -19,10 +19,12 @@ if (-not $env:JWT_PRIVATE_KEY) { $env:JWT_PRIVATE_KEY = 'build-dummy' }
 $services = @(
     'api1', 'api2', 'identity', 'notification', 'payment', 'catalog',
     'inventory', 'coupon', 'cart', 'banner', 'review', 'chat', 'media',
-    'analytics', 'order', 'worker', 'ws-gateway',
+    'analytics', 'order', 'recommendations', 'worker', 'ws-gateway',
     # Not Go services, but they are compose-managed images: leaving them out
     # makes `up --no-build` fail on "No such image".
-    'assistant', 'storefront'
+    # embedder is the recommendations sidecar; without it the shelf silently
+    # degrades to best sellers, so it is built like any other service.
+    'assistant', 'storefront', 'embedder'
 )
 
 # Opt-in subset: ./scripts/build-prod.ps1 -Only api1,order

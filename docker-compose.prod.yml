@@ -114,6 +114,7 @@ services:
       INVENTORY_SERVICE_URL: "http://inventory-service:8090"
       INVENTORY_GRPC_ADDR: "inventory-service:50054"
       BANNER_SERVICE_URL: "http://banner-service:8089"
+      RECOMMENDATIONS_SERVICE_URL: "http://recommendations-service:8095"
       CHAT_GRPC_TARGET: "chat-service:50058"
     depends_on:
       postgres:
@@ -168,6 +169,7 @@ services:
       INVENTORY_SERVICE_URL: "http://inventory-service:8090"
       INVENTORY_GRPC_ADDR: "inventory-service:50054"
       BANNER_SERVICE_URL: "http://banner-service:8089"
+      RECOMMENDATIONS_SERVICE_URL: "http://recommendations-service:8095"
       CHAT_GRPC_TARGET: "chat-service:50058"
     depends_on:
       postgres:
@@ -320,6 +322,11 @@ services:
       CATALOG_GRPC_PORT: "50055"
       INVENTORY_GRPC_ADDR: "inventory-service:50054"
       REDIS_ADDR: "redis:6379"
+      # Publish hook: a new or renamed product is embedded immediately instead
+      # of waiting for the recommender's next boot. The token is required here:
+      # an open write route on a public host is not acceptable.
+      RECOMMENDATIONS_SERVICE_URL: "http://recommendations:8095"
+      INTERNAL_API_TOKEN: "${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN must be set in production}"
       KAFKA_BROKERS: "kafka:29096"
       KAFKA_SASL_USER: "catalog"
       KAFKA_SASL_PASSWORD: "${KAFKA_SASL_CATALOG_PASSWORD:?KAFKA_SASL_CATALOG_PASSWORD must be set in production}"
@@ -504,6 +511,89 @@ services:
       goshop-network:
         aliases:
           - banner-service
+
+  recommendations:
+    build:
+      context: ./backend
+      dockerfile: build/Dockerfile.service
+      args:
+        SERVICE: recommendations
+    container_name: goshop-recommendations
+    restart: unless-stopped
+    ports:
+      - "8095:8095"
+    env_file:
+      - ./backend/.env
+    environment:
+      DB_HOST: "postgres"
+      DB_NAME: "shopping_recs"
+      RECOMMENDATIONS_DB_NAME: "shopping_recs"
+      # Secure is correct here: the storefront is served over https.
+      ANON_COOKIE_SECURE: "true"
+      # Guards the catalog's publish hook. Required in production: an open
+      # write route that can rewrite a product's vector is not acceptable.
+      INTERNAL_API_TOKEN: "${INTERNAL_API_TOKEN:?INTERNAL_API_TOKEN must be set in production}"
+      RECOMMENDATIONS_SERVER_PORT: "8095"
+      # Shelf cache. Unset would mean uncached, which is slower but correct;
+      # production sets it so the homepage shelf is not recomputed per visit.
+      REDIS_ADDR: "redis:6379"
+      CATALOG_GRPC_TARGET: "catalog-service:50055"
+      CATALOG_SERVICE_URL: "http://catalog-service:8086"
+      # The catalog suggest route is guarded. Inside the compose network this
+      # call is catalog-to-catalog and never crosses the edge, so no proxy
+      # injects X-API-KEY; without it the keyword half of hybrid search 401s
+      # and every result reports source "semantic".
+      CATALOG_API_KEY: "${API_KEY:?API_KEY must be set in production}"
+      # Mirrors that make the shelf work: product_detail feeds the candidate
+      # join, user_events feeds affinity and co-visitation.
+      CATALOG_DB_NAME: "shopping_catalog"
+      ANALYTICS_DB_NAME: "shopping_analytics"
+      # Without this the embedding backfill is skipped and every vector shelf
+      # silently degrades to best sellers.
+      EMBEDDER_URL: "http://embedder:8096"
+      GOMEMLIMIT: "96MiB"
+      GOMAXPROCS: "1"
+    mem_limit: 128m
+    cpus: 0.50
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      catalog:
+        condition: service_started
+      embedder:
+        condition: service_healthy
+    networks:
+      goshop-network:
+        aliases:
+          - recommendations-service
+
+  embedder:
+    # Sentence embeddings for the recommendation vectors. Separate image because
+    # it is the only Python/torch runtime; the Go images stay scratch-thin.
+    build:
+      context: .
+      dockerfile: docker/embedder/Dockerfile
+    container_name: goshop-embedder
+    restart: unless-stopped
+    # ~800 MiB resident with torch loaded, before batching. 1.5g leaves headroom
+    # for a 64-text batch.
+    mem_limit: 1536m
+    # No published port: only recommendations reaches it, over the compose
+    # network. Publishing 8096 would expose an unauthenticated compute route.
+    environment:
+      EMBEDDING_MODEL: "all-MiniLM-L6-v2"
+      EMBEDDING_THREADS: "1"
+      OMP_NUM_THREADS: "1"
+    cpus: 1.0
+    # Healthcheck lives in the image (curl /healthz, 40s start period for the
+    # first model load).
+    networks:
+      goshop-network:
+        aliases:
+          - embedder
+
 
   review:
     build:

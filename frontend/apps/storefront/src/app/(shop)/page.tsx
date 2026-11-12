@@ -1,14 +1,17 @@
 import React from "react";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import {
   getBanners,
   getCategories,
   getProducts,
+  getRecommendations,
   type Product,
 } from "@/lib/api-server";
 import { HeroBanner } from "@/components/home/hero-banner";
 import { FlashDeals } from "@/components/home/flash-deals";
 import { CategoryShowcase } from "@/components/home/category-showcase";
+import { RecommendationSection } from "@/components/home/recommendation-section";
 import { ProductGrid } from "@/components/product/product-grid";
 import { ArrowRight } from "lucide-react";
 
@@ -16,15 +19,19 @@ import { ArrowRight } from "lucide-react";
 export const revalidate = 0;
 
 export default async function HomePage() {
+  // Minted by src/middleware.ts before this render, so the shelf below is the
+  // visitor's own and not the best-seller fallback.
+  const anonId = (await cookies()).get("goshop_anon_id")?.value;
+
   // Fetch real data concurrently from Go backend
-  const [banners, subBanners, categories, productsResponse] = await Promise.all(
-    [
+  const [banners, subBanners, categories, productsResponse, initialShelf] =
+    await Promise.all([
       getBanners("home_main"),
       getBanners("home_sub"),
       getCategories(),
       getProducts({ limit: 12 }),
-    ],
-  );
+      getRecommendations(12, anonId),
+    ]);
 
   const subBanner = subBanners[0] || null;
   const initialProducts: Product[] = productsResponse?.products || [];
@@ -46,7 +53,10 @@ export default async function HomePage() {
       {/* 3. Curated Department Grid (4 Columns) */}
       <CategoryShowcase categories={categories} />
 
-      {/* 4. Featured Drops & Best Sellers Catalog Grid */}
+      {/* 4. Personalized shelf — server-rendered fallback keeps first paint full */}
+      <RecommendationSection initialShelf={initialShelf} limit={12} />
+
+      {/* 5. Featured Drops & Best Sellers Catalog Grid */}
       <section id="featured" className="max-w-7xl mx-auto px-4 sm:px-6 mb-16">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-8">
           <div>

@@ -1,0 +1,6 @@
+fastapi==0.115.6
+uvicorn==0.34.0
+# CPU-only torch: the default wheel pulls ~2.5 GB of CUDA libraries that this
+# container can never use. The +cpu index is added in the Dockerfile.
+torch
+sentence-transformers==3.3.1
