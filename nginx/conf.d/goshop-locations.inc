@@ -399,6 +399,28 @@ location ~ ^/api/v1/products/[^/]+/reviews {
     limit_req zone=api_read burst=200 nodelay;
 }
 
+# Hybrid search and similar-products are served by the recommendations
+# service, not catalog. The api gateway owns that proxy hop, so these two
+# paths must reach it: the catalog location below would otherwise answer
+# /products/search with its keyword-only handler.
+location ~ ^/api/v1/products/(search|similar)$ {
+    proxy_pass http://goshop_backend;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-ID $request_id;
+    # The key never ships to a browser: the edge injects it server-side.
+    proxy_set_header X-API-KEY $goshop_api_key;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Port $server_port;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 60s;
+    proxy_send_timeout 60s;
+}
+
 location /api/v1/products {
     include /etc/nginx/conf.d/cors-headers.inc;
     set $catalog_target http://catalog:8086;

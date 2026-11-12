@@ -41,7 +41,10 @@ func RegisterRoutes(r *gin.Engine, h *handler.CatalogHandler) {
 	pubProd := r.Group("/api/v1/products")
 	{
 		pubProd.GET("", h.GetAllProducts)
-		pubProd.GET("/search", h.SearchProducts)
+		// /products/search is intentionally absent: the API gateway proxies that
+		// path to the recommendations service (hybrid keyword + vector search).
+		// register it here and Gin matches this route before the gateway's
+		// NoRoute dispatch, so search silently answers keyword-only.
 		pubProd.GET("/suggest", h.SuggestProducts)
 		pubProd.GET("/suggestions", h.SuggestProducts)
 		pubProd.GET("/:slug", h.GetProductBySlug)
