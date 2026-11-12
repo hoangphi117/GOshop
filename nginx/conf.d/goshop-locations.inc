@@ -377,137 +377,15 @@ location /api/v1/inventory {
 # -----------------------------------------------------------------------------
 # 4.4. CATALOG SERVICE REVERSE PROXY (/api/v1/products, /api/v1/categories)
 # -----------------------------------------------------------------------------
-# Review product is served by the dedicated review service via the API
-# gateway's REVIEW_SERVICE_URL proxy.
-location ~ ^/api/v1/products/[^/]+/reviews {
-    proxy_pass http://goshop_backend;
-    proxy_http_version 1.1;
-    proxy_set_header Connection "";
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Request-ID $request_id;
-    # The key never ships to a browser: the edge injects it server-side.
-    proxy_set_header X-API-KEY $goshop_api_key;
-    proxy_set_header X-Forwarded-Host $host;
-    proxy_set_header X-Forwarded-Port $server_port;
-    proxy_connect_timeout 10s;
-    proxy_read_timeout 60s;
-    proxy_send_timeout 60s;
-    proxy_request_buffering off;
-    limit_req zone=api_read burst=200 nodelay;
-}
-
-# Hybrid search and similar-products are served by the recommendations
-# service, not catalog. The api gateway owns that proxy hop, so these two
-# paths must reach it: the catalog location below would otherwise answer
-# /products/search with its keyword-only handler.
-location ~ ^/api/v1/products/(search|similar)$ {
-    proxy_pass http://goshop_backend;
-    proxy_http_version 1.1;
-    proxy_set_header Connection "";
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Request-ID $request_id;
-    # The key never ships to a browser: the edge injects it server-side.
-    proxy_set_header X-API-KEY $goshop_api_key;
-    proxy_set_header X-Forwarded-Host $host;
-    proxy_set_header X-Forwarded-Port $server_port;
-    proxy_connect_timeout 10s;
-    proxy_read_timeout 60s;
-    proxy_send_timeout 60s;
-}
-
-location /api/v1/products {
-    include /etc/nginx/conf.d/cors-headers.inc;
-    set $catalog_target http://catalog:8086;
-    proxy_pass $catalog_target;
-    proxy_http_version 1.1;
-    proxy_set_header Connection "";
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Request-ID $request_id;
-    # The key never ships to a browser: the edge injects it server-side.
-    proxy_set_header X-API-KEY $goshop_api_key;
-    proxy_set_header X-Forwarded-Host $host;
-    proxy_set_header X-Forwarded-Port $server_port;
-    proxy_connect_timeout 10s;
-    proxy_read_timeout 60s;
-    proxy_send_timeout 60s;
-    proxy_request_buffering off;
-    limit_req zone=api_read burst=200 nodelay;
-}
-
-location /api/v1/admin/products {
-    include /etc/nginx/conf.d/cors-headers.inc;
-    set $catalog_target http://catalog:8086;
-    proxy_pass $catalog_target;
-    proxy_http_version 1.1;
-    proxy_set_header Connection "";
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Request-ID $request_id;
-    # The key never ships to a browser: the edge injects it server-side.
-    proxy_set_header X-API-KEY $goshop_api_key;
-    proxy_set_header X-Forwarded-Host $host;
-    proxy_set_header X-Forwarded-Port $server_port;
-    proxy_connect_timeout 10s;
-    proxy_read_timeout 60s;
-    proxy_send_timeout 60s;
-    proxy_request_buffering off;
-    limit_req zone=api_read burst=200 nodelay;
-}
-
-location /api/v1/categories {
-    include /etc/nginx/conf.d/cors-headers.inc;
-    set $catalog_target http://catalog:8086;
-    proxy_pass $catalog_target;
-    proxy_http_version 1.1;
-    proxy_set_header Connection "";
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Request-ID $request_id;
-    # The key never ships to a browser: the edge injects it server-side.
-    proxy_set_header X-API-KEY $goshop_api_key;
-    proxy_set_header X-Forwarded-Host $host;
-    proxy_set_header X-Forwarded-Port $server_port;
-    proxy_connect_timeout 10s;
-    proxy_read_timeout 60s;
-    proxy_send_timeout 60s;
-    proxy_request_buffering off;
-    limit_req zone=api_read burst=200 nodelay;
-}
-
-location /api/v1/admin/categories {
-    include /etc/nginx/conf.d/cors-headers.inc;
-    set $catalog_target http://catalog:8086;
-    proxy_pass $catalog_target;
-    proxy_http_version 1.1;
-    proxy_set_header Connection "";
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Request-ID $request_id;
-    # The key never ships to a browser: the edge injects it server-side.
-    proxy_set_header X-API-KEY $goshop_api_key;
-    proxy_set_header X-Forwarded-Host $host;
-    proxy_set_header X-Forwarded-Port $server_port;
-    proxy_connect_timeout 10s;
-    proxy_read_timeout 60s;
-    proxy_send_timeout 60s;
-    proxy_request_buffering off;
-    limit_req zone=api_read burst=200 nodelay;
-}
+# /api/v1/products, /api/v1/admin/products and /api/v1/categories are NOT
+# listed here on purpose. The edge used to proxy them straight to catalog,
+# which bypassed the API gateway; hybrid search and similar-products live in
+# the recommendations service and are reached through the gateway's proxy, so
+# any path declared here could never resolve to its real owner. Every
+# /api/v1/* path without a dedicated location falls through to the gateway
+# below, which routes to catalog, recommendations, review and the rest from
+# one table (backend/gomod/cmd/api/routes/routes.go). One hop is cheaper than
+# two places to remember.
 
 # -----------------------------------------------------------------------------
 # 4.5. CART SERVICE REVERSE PROXY (/api/v1/cart)
