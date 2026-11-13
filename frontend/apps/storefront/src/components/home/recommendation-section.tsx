@@ -71,7 +71,7 @@ export function RecommendationSection({
   initialShelf = null,
   limit = 12,
 }: RecommendationSectionProps) {
-  // The anonymous cookie is HttpOnly and minted by middleware, so the SSR pass
+  // The anonymous cookie is HttpOnly and minted by proxy, so the SSR pass
   // already personalizes; this refetch only catches a profile that changed
   // after the server rendered (e.g. the previous page recorded a view).
   const [mounted, setMounted] = useState(false)
