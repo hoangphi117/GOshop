@@ -12,6 +12,7 @@ import { HeroBanner } from "@/components/home/hero-banner";
 import { FlashDeals } from "@/components/home/flash-deals";
 import { CategoryShowcase } from "@/components/home/category-showcase";
 import { RecommendationSection } from "@/components/home/recommendation-section";
+import { HomePopup } from "@/components/home/home-popup";
 import { ProductGrid } from "@/components/product/product-grid";
 import { ArrowRight } from "lucide-react";
 
@@ -29,11 +30,12 @@ export default async function HomePage() {
       getBanners("home_main"),
       getBanners("home_sub"),
       getCategories(),
-      getProducts({ limit: 12 }),
+      getProducts({ limit: 24 }),
       getRecommendations(12, anonId),
     ]);
+  // Popup is a separate slot; a missing promo must not delay the shelf above.
+  const popupBanners = await getBanners("home_popup");
 
-  const subBanner = subBanners[0] || null;
   const initialProducts: Product[] = productsResponse?.products || [];
 
   // Top 4 products for flash deals
@@ -44,8 +46,11 @@ export default async function HomePage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-[#F8FAFC]">
+      {/* 0. Promo modal — once per session, never blocks the page underneath */}
+      <HomePopup banners={popupBanners} />
+
       {/* 1. Hero Showcase Section */}
-      <HeroBanner banners={banners} subBanner={subBanner} />
+      <HeroBanner banners={banners} subBanners={subBanners} />
 
       {/* 2. Flash Sale Countdown & Real Deals Ticker */}
       <FlashDeals products={dealProducts} />
@@ -64,7 +69,7 @@ export default async function HomePage() {
               Official Catalog
             </span>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight font-heading mt-0.5">
-              Featured Drops & Best Sellers
+              Featured Drops
             </h2>
           </div>
 
@@ -72,9 +77,10 @@ export default async function HomePage() {
           <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar w-full md:w-auto pb-2 md:pb-0">
             <Link
               href="/products"
+              aria-current="page"
               className="bg-[#007D9C] text-white px-4 py-1.5 rounded-md text-xs font-bold shrink-0 shadow-xs font-heading"
             >
-              All Merch
+              All Collections
             </Link>
             {categories.slice(0, 4).map((cat) => (
               <Link

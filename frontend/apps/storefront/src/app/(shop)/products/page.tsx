@@ -1,6 +1,7 @@
 import React from "react";
 import Link from "next/link";
-import { getCategories, getProducts } from "@/lib/api-server";
+import Image from "next/image";
+import { getBanners, getCategories, getProducts } from "@/lib/api-server";
 import { ProductGrid } from "@/components/product/product-grid";
 import { SearchAutocomplete } from "@/components/layout/search-autocomplete";
 import { SearchEvent } from "@/components/search/search-event";
@@ -82,6 +83,8 @@ export default async function ProductsPage({
 
   // Fetch categories to resolve active department
   const categories = await getCategories();
+  // Sidebar promo slot; paging and filtering must not refetch it.
+  const sidebarBanners = await getBanners("sidebar");
   const currentCategory = params.category?.trim() || "";
 
   // Fetch paginated products matching filters
@@ -516,6 +519,34 @@ export default async function ProductsPage({
                 inventory. 7-day hassle-free returns supported.
               </p>
             </div>
+            {/* Sidebar promo slot — admin-managed, position "sidebar" */}
+            {sidebarBanners.length > 0 && (
+              <div className="space-y-3">
+                {sidebarBanners.map((banner, idx) => {
+                  const href = banner.link_url || "/products";
+                  return (
+                    <Link
+                      key={banner.uuid || idx}
+                      href={
+                        href.startsWith("/category/")
+                          ? `/products?category=${href.replace("/category/", "").trim()}`
+                          : href
+                      }
+                      className="block relative w-full aspect-[4/5] overflow-hidden rounded-xs border border-slate-200/90 bg-slate-100 shadow-xs group/sidebar-banner"
+                      aria-label={banner.title || "Promotional banner"}
+                    >
+                      <Image
+                        src={banner.image_url}
+                        alt={banner.title || "Promotional banner"}
+                        fill
+                        sizes="(max-width: 1024px) 100vw, 280px"
+                        className="object-cover"
+                      />
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
           </aside>
 
           {/* Right Product Grid Column (lg:col-span-9) */}
@@ -620,7 +651,7 @@ export default async function ProductsPage({
             <SearchClickTracker query={currentSearch}>
               <ProductGrid
                 products={products}
-                columnsClassName="grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+                columnsClassName="grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4"
                 emptyMessage={
                   hasActiveFilters
                     ? "No products match the selected filters. Try broadening your criteria."
@@ -674,7 +705,15 @@ export default async function ProductsPage({
                     } else if (cur <= 4) {
                       items.push(1, 2, 3, 4, 5, "…", total);
                     } else if (cur >= total - 3) {
-                      items.push(1, "…", total - 4, total - 3, total - 2, total - 1, total);
+                      items.push(
+                        1,
+                        "…",
+                        total - 4,
+                        total - 3,
+                        total - 2,
+                        total - 1,
+                        total,
+                      );
                     } else {
                       items.push(1, "…", cur - 1, cur, cur + 1, "…", total);
                     }

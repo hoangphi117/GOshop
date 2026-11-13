@@ -69,6 +69,11 @@
   .animate-fade-up {
     animation: none !important;
   }
+
+  /* Sliding shelves jump instead of gliding for motion-sensitive users */
+  .scroll-smooth {
+    scroll-behavior: auto !important;
+  }
 }
 
 :root {
@@ -136,6 +141,15 @@ button:disabled,
 .focus-ring:focus-visible {
   outline: 2px solid #00add8;
   outline-offset: 2px;
+}
+
+/* Scroll container with no visible scrollbar (carousel shelves) */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 /* Smooth custom scrollbars */
