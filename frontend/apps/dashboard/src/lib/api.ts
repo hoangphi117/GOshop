@@ -97,7 +97,6 @@ export const api = new Proxy(rawApi, {
 }) as typeof rawApi
 
 export type Api = typeof api
-export type ApiInstance = typeof api
 
 // Single-flight silent refresh for route guards: when the access token is
 // gone or expired but a refresh token survives, try to restore the session

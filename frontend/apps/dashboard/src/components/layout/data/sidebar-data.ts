@@ -1,12 +1,7 @@
 import {
   LayoutDashboard,
-  Monitor,
-  HelpCircle,
-  Bell,
   Palette,
   Settings,
-  Wrench,
-  UserCog,
   Users,
   Layers,
   ShoppingBag,
@@ -20,12 +15,9 @@ import {
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
-export const sidebarData: SidebarData = {
-  user: {
-    name: 'Admin GOshop',
-    email: 'admin@goshop.vn',
-    avatar: '/avatars/shadcn.jpg',
-  },
+// ponytail: one static team until multi-tenant exists; the signed-in user is
+// injected at render time by AppSidebar from the auth store.
+export const sidebarData: Omit<SidebarData, 'user'> = {
   teams: [
     {
       name: 'GOshop Admin',
@@ -107,36 +99,11 @@ export const sidebarData: SidebarData = {
           icon: Settings,
           items: [
             {
-              title: 'Profile',
-              url: '/settings',
-              icon: UserCog,
-            },
-            {
-              title: 'Account',
-              url: '/settings/account',
-              icon: Wrench,
-            },
-            {
               title: 'Appearance',
               url: '/settings/appearance',
               icon: Palette,
             },
-            {
-              title: 'Notifications',
-              url: '/settings/notifications',
-              icon: Bell,
-            },
-            {
-              title: 'Display',
-              url: '/settings/display',
-              icon: Monitor,
-            },
           ],
-        },
-        {
-          title: 'Help Center',
-          url: '/help-center',
-          icon: HelpCircle,
         },
       ],
     },
