@@ -13614,7 +13614,7 @@ const docTemplate = `
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
 	InfoInstanceName: "swagger",
-	SwaggerTemplate: docTemplate,
+	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",
 	RightDelim:       "}}",
 }

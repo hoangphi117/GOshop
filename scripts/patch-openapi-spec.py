@@ -501,7 +501,8 @@ def as_go_doc(spec: dict, title: str, version: str) -> str:
         "// SwaggerInfo holds exported Swagger Info so clients can modify it\n"
         "var SwaggerInfo = &swag.Spec{\n"
         "\tInfoInstanceName: \"swagger\",\n"
-        f"\tSwaggerTemplate: docTemplate,\n"
+        # gofmt aligns the struct literal values in one column.
+        f"\tSwaggerTemplate:  docTemplate,\n"
         "\tLeftDelim:        \"{{\",\n"
         "\tRightDelim:       \"}}\",\n"
         "}\n\n"
