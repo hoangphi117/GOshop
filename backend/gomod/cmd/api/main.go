@@ -26,7 +26,14 @@ import (
 // @license.url   http://www.apache.org/licenses/LICENSE-2.0.html
 
 // @host      localhost:8080
-// @BasePath  /
+// @BasePath  /api/v1
+// `@host` is deliberately removed from the published spec by
+// scripts/patch-openapi-spec.py: "Try it out" must target whatever origin served
+// the page (edge on :80/:443, gateway on :8080 in dev-host), not a hardcoded
+// localhost:8080 that prod does not even publish. @BasePath is NOT cosmetic: the
+// edge only proxies /api/v1/*, so without it every documented path builds a URL
+// like /categories that falls through to the storefront and answers a Next.js
+// 404 HTML page.
 
 // @securityDefinitions.apikey BearerAuth
 // @in header

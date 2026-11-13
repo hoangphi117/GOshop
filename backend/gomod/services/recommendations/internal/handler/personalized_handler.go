@@ -32,7 +32,7 @@ func NewPersonalizedHandler(
 // @Tags         Recommendations
 // @Produce      json
 // @Param        limit query int false "Number of products (default 12, max 50)"
-// @Success      200 {object} recssvc.Shelf
+// @Success      200 {object} utils.APIResponse{data=recssvc.Shelf}
 // @Failure      400 {object} utils.ErrorResponse
 // @Router       /api/v1/recommendations/personalized [get]
 func (h *PersonalizedHandler) ForVisitor(ctx *gin.Context) {
@@ -64,7 +64,7 @@ func (h *PersonalizedHandler) ForVisitor(ctx *gin.Context) {
 // @Produce      json
 // @Param        uuid query string true "Product UUID"
 // @Param        limit query int false "Number of products (default 12, max 50)"
-// @Success      200 {object} recssvc.Shelf
+// @Success      200 {object} utils.APIResponse{data=recssvc.Shelf}
 // @Failure      400 {object} utils.ErrorResponse
 // @Router       /api/v1/products/similar [get]
 func (h *PersonalizedHandler) Similar(ctx *gin.Context) {
@@ -90,7 +90,7 @@ func (h *PersonalizedHandler) Similar(ctx *gin.Context) {
 
 // Search godoc
 // @Summary      Hybrid product search
-// @Description  Ranks the catalog by keyword relevance and by embedding similarity, fused with reciprocal rank fusion. The response always reports in `source` which halves were available (hybrid, keyword, semantic). Filters are applied inside both halves, so `total` counts only matches the shopper would actually accept.
+// @Description  Ranks the catalog by keyword relevance and by embedding similarity, fused with reciprocal rank fusion. The response always reports in its source field which halves were available (hybrid, keyword, semantic). Filters are applied inside both halves, so total counts only matches the shopper would actually accept.
 // @Tags         Recommendations
 // @Produce      json
 // @Param        q query string true "Search query"
@@ -100,7 +100,7 @@ func (h *PersonalizedHandler) Similar(ctx *gin.Context) {
 // @Param        min_price query number false "Minimum product price (inclusive)"
 // @Param        max_price query number false "Maximum product price (inclusive)"
 // @Param        min_rating query number false "Minimum average rating (inclusive)"
-// @Success      200 {object} recssvc.Shelf
+// @Success      200 {object} utils.APIResponse{data=recssvc.Shelf}
 // @Failure      400 {object} utils.ErrorResponse
 // @Router       /api/v1/products/search [get]
 func (h *PersonalizedHandler) Search(ctx *gin.Context) {

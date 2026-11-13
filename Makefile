@@ -141,9 +141,27 @@ run-binary:
 sqlc:
 	cd backend && sqlc generate
 
+# `swag` cannot see across the Go workspace: a run limited to the gateway
+# returns 3 paths, and a run that also lists service modules fails on
+# `utils.APIResponse`. So it regenerates the gateway routes into a scratch
+# directory and scripts/patch-openapi-spec.py merges the service-owned
+# routes (recommendations, assistant, hybrid search) back in.
+SWAGGER_TMP=.swag-tmp
+# `rm -rf` is not present in the GNU make on Windows; use each shell's own.
+ifeq ($(OS),Windows_NT)
+REMOVE_TMP=if exist ${SWAGGER_TMP} rmdir /s /q ${SWAGGER_TMP}
+else
+REMOVE_TMP=rm -rf ${SWAGGER_TMP}
+endif
+
 swagger:
-	cd backend && swag init -g cmd/api/main.go -o docs --parseDependency --parseInternal
-	npx --yes swagger2openapi ./backend/docs/swagger.json -o ./backend/docs/openapi.json
+	cd backend/gomod/cmd && swag init -g main.go -d ./api --parseDependency --parseInternal --outputTypes json -o ../../../${SWAGGER_TMP}
+	python scripts/patch-openapi-spec.py --from ${SWAGGER_TMP}/swagger.json --yaml --go
+	npx --yes swagger2openapi ./backend/gomod/shared/docs/swagger.json -o ./backend/gomod/shared/docs/openapi.json
+	$(REMOVE_TMP)
+
+swagger-check:
+	python scripts/patch-openapi-spec.py --check
 
 migrate-create:
 	migrate create -ext sql -dir ${MIGRATION_IDENTITY_DIR} -seq ${NAME}
@@ -255,6 +273,11 @@ smoke-dev:
 # `make dev` instead of reporting after the fact.
 check-parity:
 	python ./scripts/check-compose-parity.py
+
+# Regenerate docs/SERVICES.md from compose ports, service migrations and proto
+# contracts. Run after adding/moving a service instead of editing the table.
+services-doc:
+	node ./scripts/gen-services-doc.cjs
 
 # Build container for production.
 #
