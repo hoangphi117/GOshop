@@ -198,7 +198,7 @@ func (ah *AuthHandler) Logout(ctx *gin.Context) {
 
 	refreshToken := input.RefreshToken
 	if refreshToken == "" {
-		refreshToken = refreshTokenFromCookie(ctx)
+		_, refreshToken = refreshTokenFromCookie(ctx)
 	}
 
 	clearRefreshCookies(ctx)
@@ -233,12 +233,17 @@ func (ah *AuthHandler) RefreshToken(ctx *gin.Context) {
 	_ = ctx.ShouldBindJSON(&input)
 
 	refreshToken := input.RefreshToken
+	cookieName := ""
 	if refreshToken == "" {
-		refreshToken = refreshTokenFromCookie(ctx)
+		cookieName, refreshToken = refreshTokenFromCookie(ctx)
 	}
-
 	if refreshToken == "" {
-		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Refresh token is required"))
+		// TEMP diagnostic
+		raw := make([]string, 0, 4)
+		for _, c := range ctx.Request.Cookies() {
+			raw = append(raw, c.Name)
+		}
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "DIAG cookies="+strings.Join(raw, ",")+" hdr="+ctx.GetHeader("X-Client-App")))
 		return
 	}
 
@@ -248,7 +253,11 @@ func (ah *AuthHandler) RefreshToken(ctx *gin.Context) {
 		return
 	}
 
-	setRefreshCookie(ctx, newRefreshToken)
+	if cookieName == "" {
+		setRefreshCookie(ctx, newRefreshToken)
+	} else {
+		setRefreshCookieNamed(ctx, cookieName, newRefreshToken)
+	}
 
 	response := dto.LoginResponse{
 		AccessToken:  accessToken,
