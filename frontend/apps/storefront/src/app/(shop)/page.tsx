@@ -20,7 +20,7 @@ import { ArrowRight } from "lucide-react";
 export const revalidate = 0;
 
 export default async function HomePage() {
-  // Minted by src/middleware.ts before this render, so the shelf below is the
+  // Minted by src/proxy.ts before this render, so the shelf below is the
   // visitor's own and not the best-seller fallback.
   const anonId = (await cookies()).get("goshop_anon_id")?.value;
 

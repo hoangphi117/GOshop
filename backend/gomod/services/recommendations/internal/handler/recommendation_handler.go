@@ -24,7 +24,7 @@ func NewRecommendationHandler(service recssvc.RecommendationService) *Recommenda
 // @Tags         Recommendations
 // @Produce      json
 // @Param        limit query int false "Number of products (default 12, max 50)"
-// @Success      200 {object} recssvc.Shelf
+// @Success      200 {object} utils.APIResponse{data=recssvc.Shelf}
 // @Failure      400 {object} utils.ErrorResponse
 // @Router       /api/v1/recommendations [get]
 func (h *RecommendationHandler) BestSellers(ctx *gin.Context) {

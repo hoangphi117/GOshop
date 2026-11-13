@@ -17,7 +17,7 @@ const ANON_COOKIE = 'goshop_anon_id'
 const ANON_MAX_AGE = 365 * 24 * 60 * 60
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const existing = request.cookies.get(ANON_COOKIE)?.value
   if (existing && UUID_RE.test(existing)) return NextResponse.next()
 

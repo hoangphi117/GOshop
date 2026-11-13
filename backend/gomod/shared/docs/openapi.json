@@ -1,7 +1,7 @@
 {
     "openapi": "3.0.0",
     "info": {
-        "description": "High-performance E-Commerce platform API built with Go, Gin, PostgreSQL, Redis, RabbitMQ, GHN, and VNPay.",
+        "description": "High-performance E-Commerce platform API built with Go, Gin, PostgreSQL, Redis, Kafka, GHN, and VNPay.",
         "title": "GOshop E-Commerce API",
         "termsOfService": "http://swagger.io/terms/",
         "contact": {
@@ -2527,7 +2527,7 @@
                                 "schema": {
                                     "allOf": [
                                         {
-                                            "$ref": "#/components/schemas/goshop_internal_utils.APIResponse"
+                                            "$ref": "#/components/schemas/utils.APIResponse"
                                         },
                                         {
                                             "type": "object",
@@ -7195,57 +7195,17 @@
         },
         "/api/v1/products/search": {
             "get": {
-                "description": "Fast instant product search using Meilisearch with typo tolerance (< 10ms)",
+                "description": "Ranks the catalog by keyword relevance and by embedding similarity, fused with reciprocal rank fusion. The response always reports in its source field which halves were available (hybrid, keyword, semantic). Filters apply to both halves, so total counts only matches the shopper would actually accept.",
                 "tags": [
-                    "Products"
+                    "Recommendations"
                 ],
-                "summary": "Search products with typo-tolerance",
+                "summary": "Hybrid product search",
                 "parameters": [
                     {
-                        "description": "Search query keyword",
+                        "description": "Search query",
                         "name": "q",
                         "in": "query",
                         "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "Filter by Category UUID",
-                        "name": "category_uuid",
-                        "in": "query",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "Minimum price",
-                        "name": "min_price",
-                        "in": "query",
-                        "schema": {
-                            "type": "number"
-                        }
-                    },
-                    {
-                        "description": "Maximum price",
-                        "name": "max_price",
-                        "in": "query",
-                        "schema": {
-                            "type": "number"
-                        }
-                    },
-                    {
-                        "description": "Minimum rating (0-5)",
-                        "name": "min_rating",
-                        "in": "query",
-                        "schema": {
-                            "type": "number"
-                        }
-                    },
-                    {
-                        "description": "Sort option (price:asc, price:desc, created_at:desc, created_at:asc, rating:desc, rating:asc)",
-                        "name": "sort",
-                        "in": "query",
                         "schema": {
                             "type": "string"
                         }
@@ -7259,46 +7219,63 @@
                         }
                     },
                     {
-                        "description": "Page limit (default 20)",
+                        "description": "Page size (default 20, max 50)",
                         "name": "limit",
                         "in": "query",
                         "schema": {
                             "type": "integer"
                         }
+                    },
+                    {
+                        "description": "Restrict to one category UUID",
+                        "name": "category_uuid",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Minimum product price (inclusive)",
+                        "name": "min_price",
+                        "in": "query",
+                        "schema": {
+                            "type": "number"
+                        }
+                    },
+                    {
+                        "description": "Maximum product price (inclusive)",
+                        "name": "max_price",
+                        "in": "query",
+                        "schema": {
+                            "type": "number"
+                        }
+                    },
+                    {
+                        "description": "Minimum average rating (inclusive)",
+                        "name": "min_rating",
+                        "in": "query",
+                        "schema": {
+                            "type": "number"
+                        }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Products retrieved successfully",
+                        "description": "Products searched successfully",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "allOf": [
-                                        {
-                                            "$ref": "#/components/schemas/goshop_internal_utils.APIResponse"
-                                        },
-                                        {
-                                            "type": "object",
-                                            "properties": {
-                                                "data": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "$ref": "#/components/schemas/dto.ProductDTO"
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    ]
+                                    "$ref": "#/components/schemas/dto.Shelf"
                                 }
                             }
                         }
                     },
                     "400": {
-                        "description": "Invalid parameters",
+                        "description": "Invalid query or filter",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                    "$ref": "#/components/schemas/utils.ErrorResponse"
                                 }
                             }
                         }
@@ -8507,7 +8484,7 @@
         },
         "/healthz": {
             "get": {
-                "description": "Validates connectivity of Database, Redis, RabbitMQ, and Object Storage. Sends Discord alerts on degradation.",
+                "description": "Validates connectivity of Database, Redis, Kafka, and Object Storage. Sends Discord alerts on degradation.",
                 "tags": [
                     "Health"
                 ],
@@ -11536,7 +11513,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                    "$ref": "#/components/schemas/utils.ErrorResponse"
                                 }
                             }
                         }
@@ -11546,7 +11523,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                    "$ref": "#/components/schemas/utils.ErrorResponse"
                                 }
                             }
                         }
@@ -11556,7 +11533,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                    "$ref": "#/components/schemas/utils.ErrorResponse"
                                 }
                             }
                         }
@@ -11566,7 +11543,302 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/goshop_internal_utils.ErrorResponse"
+                                    "$ref": "#/components/schemas/utils.ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/recommendations": {
+            "get": {
+                "description": "Top-selling products over the popularity window. When the store has no sales yet, falls back to top-rated products and reports source=fallback_rating.",
+                "tags": [
+                    "Recommendations"
+                ],
+                "summary": "Get best-selling products",
+                "parameters": [
+                    {
+                        "description": "Number of products (default 12, max 50)",
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Recommendations retrieved successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.Shelf"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid limit",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/utils.ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/recommendations/personalized": {
+            "get": {
+                "description": "Products near the centroid of the caller's interaction history. Falls back (and reports its own source) when the visitor has no usable history.",
+                "tags": [
+                    "Recommendations"
+                ],
+                "summary": "Get personalized recommendations",
+                "parameters": [
+                    {
+                        "description": "Number of products (default 12, max 50)",
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Recommendations retrieved successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.Shelf"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid limit",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/utils.ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/products/similar": {
+            "get": {
+                "description": "Nearest neighbours in embedding space, excluding the product itself and anything out of stock.",
+                "tags": [
+                    "Recommendations"
+                ],
+                "summary": "Get products similar to one product",
+                "parameters": [
+                    {
+                        "description": "Product UUID",
+                        "name": "uuid",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Number of products (default 12, max 50)",
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Similar products retrieved successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.Shelf"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid uuid or limit",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/utils.ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/assistant/chat": {
+            "post": {
+                "description": "Grounded product advice and FAQ answers. Prices and stock come from the catalog, never from the model text.",
+                "tags": [
+                    "Assistant"
+                ],
+                "summary": "Ask the shopping assistant",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/dto.ChatRequest"
+                            }
+                        }
+                    },
+                    "description": "Question and optional history",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Assistant replied",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.ChatResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request body",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/utils.ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Daily quota reached",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/utils.ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Assistant not configured or provider unavailable",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/utils.ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/assistant/stream": {
+            "get": {
+                "description": "Same grounding as POST /chat, but the answer arrives as SSE text deltas. Event types: delta (text), done (session_id + products), error.",
+                "tags": [
+                    "Assistant"
+                ],
+                "summary": "Ask the shopping assistant, streamed",
+                "parameters": [
+                    {
+                        "description": "Question",
+                        "name": "message",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Session id",
+                        "name": "session_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "text/event-stream",
+                        "content": {
+                            "text/event-stream": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid message or session_id",
+                        "content": {
+                            "text/event-stream": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/utils.ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Daily quota reached",
+                        "content": {
+                            "text/event-stream": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/utils.ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Assistant not configured",
+                        "content": {
+                            "text/event-stream": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/utils.ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/assistant/session": {
+            "post": {
+                "description": "Returns a session id the widget sends back with each question.",
+                "tags": [
+                    "Assistant"
+                ],
+                "summary": "Start an assistant session",
+                "responses": {
+                    "200": {
+                        "description": "Session created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/dto.SessionResponse"
+                                }
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Assistant not configured",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/utils.ErrorResponse"
                                 }
                             }
                         }
@@ -11575,9 +11847,19 @@
             }
         }
     },
+    "tags": [
+        {
+            "name": "Recommendations",
+            "description": "Best sellers, vector-backed shelves and hybrid search"
+        },
+        {
+            "name": "Assistant",
+            "description": "LLM shopping assistant and its streaming variant"
+        }
+    ],
     "servers": [
         {
-            "url": "//localhost:8080"
+            "url": "/api/v1"
         }
     ],
     "components": {
@@ -14787,6 +15069,322 @@
                         "type": "string"
                     }
                 }
+            },
+            "utils.APIResponse": {
+                "type": "object",
+                "properties": {
+                    "data": {},
+                    "message": {
+                        "type": "string",
+                        "example": "Operation completed successfully"
+                    },
+                    "pagination": {
+                        "$ref": "#/components/schemas/utils.Pagination"
+                    },
+                    "status": {
+                        "type": "string",
+                        "example": "success"
+                    }
+                }
+            },
+            "utils.ErrorCode": {
+                "type": "string",
+                "enum": [
+                    "BAD_REQUEST",
+                    "NOT_FOUND",
+                    "CONFLICT",
+                    "INTERNAL_SERVER_ERROR",
+                    "UNAUTHORIZED",
+                    "TOO_MANY_REQUESTS",
+                    "FORBIDDEN",
+                    "BAD_GATEWAY",
+                    "EXTERNAL_SERVICE_ERROR",
+                    "SERVICE_UNAVAILABLE"
+                ],
+                "x-enum-varnames": [
+                    "ErrCodeBadRequest",
+                    "ErrCodeNotFound",
+                    "ErrCodeConflict",
+                    "ErrCodeInternal",
+                    "ErrCodeUnauthorized",
+                    "ErrCodeTooManyRequests",
+                    "ErrCodeForbidden",
+                    "ErrCodeBadGateway",
+                    "ErrCodeExternalService",
+                    "ErrCodeServiceUnavailable"
+                ]
+            },
+            "utils.ErrorResponse": {
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/utils.ErrorCode"
+                            }
+                        ],
+                        "example": "BAD_REQUEST"
+                    },
+                    "detail": {
+                        "type": "string",
+                        "example": "Detailed explanation"
+                    },
+                    "error": {
+                        "type": "string",
+                        "example": "Invalid input format"
+                    }
+                }
+            },
+            "utils.Pagination": {
+                "type": "object",
+                "properties": {
+                    "has_next": {
+                        "type": "boolean"
+                    },
+                    "has_prev": {
+                        "type": "boolean"
+                    },
+                    "limit": {
+                        "type": "integer"
+                    },
+                    "page": {
+                        "type": "integer"
+                    },
+                    "total_pages": {
+                        "type": "integer"
+                    },
+                    "total_records": {
+                        "type": "integer"
+                    }
+                }
+            },
+            "dto.RecommendationItem": {
+                "type": "object",
+                "properties": {
+                    "uuid": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "slug": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "price": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "stock": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "sku": {
+                        "type": "string"
+                    },
+                    "category_uuid": {
+                        "type": "string"
+                    },
+                    "category_name": {
+                        "type": "string"
+                    },
+                    "image_url": {
+                        "type": "string"
+                    },
+                    "rating": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "reviews_count": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "units_sold": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "similarity": {
+                        "type": "number",
+                        "format": "double"
+                    }
+                },
+                "required": [
+                    "uuid",
+                    "name",
+                    "slug",
+                    "price",
+                    "stock",
+                    "rating",
+                    "reviews_count"
+                ]
+            },
+            "dto.Shelf": {
+                "type": "object",
+                "properties": {
+                    "source": {
+                        "type": "string",
+                        "description": "hybrid | keyword | semantic | personalized | fallback_rating | best_sellers"
+                    },
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/dto.RecommendationItem"
+                        }
+                    },
+                    "total": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "source",
+                    "items"
+                ]
+            },
+            "dto.AssistantTurn": {
+                "type": "object",
+                "properties": {
+                    "role": {
+                        "type": "string",
+                        "enum": [
+                            "user",
+                            "assistant"
+                        ]
+                    },
+                    "content": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "role",
+                    "content"
+                ]
+            },
+            "dto.ChatRequest": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string"
+                    },
+                    "message": {
+                        "type": "string",
+                        "maxLength": 2000
+                    },
+                    "history": {
+                        "type": "array",
+                        "maxItems": 20,
+                        "items": {
+                            "$ref": "#/components/schemas/dto.AssistantTurn"
+                        }
+                    }
+                },
+                "required": [
+                    "message"
+                ]
+            },
+            "dto.Product": {
+                "type": "object",
+                "properties": {
+                    "uuid": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "slug": {
+                        "type": "string"
+                    },
+                    "price": {
+                        "type": "number",
+                        "format": "double"
+                    },
+                    "stock": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "category_name": {
+                        "type": "string"
+                    },
+                    "image_url": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "uuid",
+                    "name",
+                    "slug",
+                    "price",
+                    "stock"
+                ]
+            },
+            "dto.Usage": {
+                "type": "object",
+                "properties": {
+                    "prompt_tokens": {
+                        "type": "integer"
+                    },
+                    "completion_tokens": {
+                        "type": "integer"
+                    },
+                    "cached_tokens": {
+                        "type": "integer"
+                    },
+                    "tool_calls": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "prompt_tokens",
+                    "completion_tokens"
+                ]
+            },
+            "dto.ChatResponse": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string"
+                    },
+                    "answer": {
+                        "type": "string"
+                    },
+                    "products": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/dto.Product"
+                        }
+                    },
+                    "fallback_to_human": {
+                        "type": "boolean"
+                    },
+                    "model": {
+                        "type": "string"
+                    },
+                    "usage": {
+                        "$ref": "#/components/schemas/dto.Usage"
+                    }
+                },
+                "required": [
+                    "session_id",
+                    "answer",
+                    "products",
+                    "fallback_to_human"
+                ]
+            },
+            "dto.SessionResponse": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string"
+                    },
+                    "expires_in": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "session_id",
+                    "expires_in"
+                ]
             }
         }
     }
