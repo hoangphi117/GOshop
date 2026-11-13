@@ -138,7 +138,7 @@ export default function AccountLayout({
             Home
           </Link>
           <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-          <span className="font-semibold text-[#0F172A]">My Account</span>
+          <span className="font-semibold text-[#0F172A]"></span>
         </nav>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">

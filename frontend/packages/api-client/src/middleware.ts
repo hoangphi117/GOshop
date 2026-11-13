@@ -22,6 +22,11 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}): Middl
   const hasV1InBase = cleanBase.endsWith('/api/v1')
   const defaultRefresh = hasV1InBase ? '/auth/refresh' : '/api/v1/auth/refresh'
   const refreshEndpoint = options.refreshEndpoint || defaultRefresh
+  // Terminal 401s: the refresh call can succeed while the retried request
+  // still comes back 401 (wrong scope, wrong app's cookie, deleted user). Only
+  // callers that set onUnauthorized/listen for the event would stop, so
+  // track idempotency here and never refresh a request a second time.
+  const refreshedIds = new Set<string>()
   const requestClones = new Map<string, Request>()
   let refreshPromise: Promise<AuthTokens | null> | null = null
 
@@ -127,6 +132,18 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}): Middl
           return response
         }
 
+        // Retried once already and still unauthorized: refreshing again would
+        // spin (refresh 200 -> retry 401 -> refresh ...). Give up instead.
+        if (refreshedIds.has(id)) {
+          refreshedIds.delete(id)
+          if (options.onUnauthorized) {
+            options.onUnauthorized()
+          } else if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('goshop:unauthorized'))
+          }
+          return response
+        }
+
         // Share the refresh promise among concurrent 401s
         if (!refreshPromise) {
           refreshPromise = executeRefresh().finally(() => {
@@ -137,6 +154,9 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}): Middl
         const newTokens = await refreshPromise
 
         if (newTokens?.accessToken) {
+          // Bounded: the retried request gets at most one more 401 check.
+          refreshedIds.add(id)
+          setTimeout(() => refreshedIds.delete(id), 30_000)
           // Retry original request with the new access token
           try {
             const baseReq = requestClone || request

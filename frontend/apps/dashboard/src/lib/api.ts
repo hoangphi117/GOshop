@@ -24,10 +24,15 @@ export const CLIENT_HEADERS: Record<string, string> = { 'X-Client-App': 'dashboa
 // with a bare "Failed to fetch" on this stack, so body-carrying requests are
 // rebuilt with the string body they were created with. Bodyless requests
 // (GET/DELETE) can safely use Request-as-init.
+// `fetch` is also where every API call starts, so a missing access token is
+// restored here: the client never retries a 401 on its own (see `api` below).
 const apiFetch: NonNullable<Parameters<typeof createApiClient>[0]['fetch']> = async (
   input: Request,
 ) => {
   const url = input.url.replace('/api/v1/api/v1/', '/api/v1/')
+  if (!useAuthStore.getState().auth.accessToken && !url.includes('/auth/')) {
+    await tryRefreshSession()
+  }
   // The refresh token is an HttpOnly cookie, so every API call must carry
   // cookies: without them a silent refresh after reload has nothing to send.
   if (url === input.url) {
@@ -49,20 +54,49 @@ const apiFetch: NonNullable<Parameters<typeof createApiClient>[0]['fetch']> = as
   })
 }
 
-export const api = createApiClient({
+// openapi-fetch reports every 401 as an `error` result, so no caller ever
+// reacts to an expired token. Through this Proxy the first 401 attempt is
+// refreshed explicitly (with this app's cookie) and the call is retried once;
+// if it still fails the error result is handed back unchanged.
+const rawApi = createApiClient({
   baseUrl: API_VERSIONED_BASE,
   fetch: apiFetch,
   getToken: () => useAuthStore.getState().auth.accessToken,
-  // Refresh token lives in the HttpOnly cookie; the client never needs it.
-  getRefreshToken: () => '',
   getApiKey: () => API_KEY,
-  onTokenRefreshed: (tokens) => {
-    useAuthStore.getState().auth.setTokens(tokens.accessToken)
-  },
   onUnauthorized: () => {
     useAuthStore.getState().auth.resetAccessToken()
   },
 })
+
+const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] as const
+
+function isUnauthorized(result: unknown): boolean {
+  return (
+    typeof result === 'object' &&
+    result !== null &&
+    'response' in result &&
+    (result as { response?: Response }).response?.status === 401
+  )
+}
+
+export const api = new Proxy(rawApi, {
+  get(target, prop, receiver) {
+    const value = Reflect.get(target, prop, receiver)
+    if (typeof value !== 'function' || !METHODS.includes(prop as (typeof METHODS)[number])) {
+      return value
+    }
+    return async (...args: unknown[]): Promise<unknown> => {
+      const call = value as (...a: unknown[]) => Promise<unknown>
+      const result = await call(...args)
+      if (!isUnauthorized(result) || !(await tryRefreshSession())) {
+        return result
+      }
+      return call(...args)
+    }
+  },
+}) as typeof rawApi
+
+export type Api = typeof api
 
 // Single-flight silent refresh for route guards: when the access token is
 // gone or expired but a refresh token survives, try to restore the session
@@ -129,6 +163,11 @@ export type ApiInstance = typeof api
 export async function fetchWithAuth(path: string, options: RequestInit = {}): Promise<Response> {
   const baseUrl = API_BASE_URL
   const apiKey = API_KEY
+  // Restore a missing token before the first attempt; this path is used for
+  // uploads and invoices, where a wasted 401 round trip is the slow part.
+  if (!useAuthStore.getState().auth.accessToken) {
+    await tryRefreshSession()
+  }
   let token = useAuthStore.getState().auth.accessToken
 
   const getHeaders = (currToken: string) => {
@@ -153,36 +192,18 @@ export async function fetchWithAuth(path: string, options: RequestInit = {}): Pr
     headers: getHeaders(token),
   })
 
-  // If 401 Unauthorized (token expired), attempt silent refresh and retry
-  if (res.status === 401) {
-    try {
-      const refreshRes = await fetch(`${baseUrl}/api/v1/auth/refresh`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-KEY': apiKey,
-          'X-Client-App': 'dashboard',
-        },
-        credentials: 'include',
-        body: JSON.stringify({}),
+  // If 401 Unauthorized (token expired), refresh once and retry. Reuses the
+  // same single-flight refresh the route guard uses, which sends this app's
+  // X-Client-App so the right refresh cookie is rotated. /auth/* 401s are
+  // credential failures, not expiry, and must not reset the session.
+  if (res.status === 401 && !path.includes('/auth/')) {
+    const refreshed = await tryRefreshSession()
+    token = useAuthStore.getState().auth.accessToken
+    if (refreshed && token) {
+      res = await fetch(url, {
+        ...options,
+        headers: getHeaders(token),
       })
-
-      if (refreshRes.ok) {
-        const refreshJson = await refreshRes.json()
-        const tokenData = refreshJson?.data
-        if (tokenData?.access_token) {
-          useAuthStore.getState().auth.setTokens(tokenData.access_token)
-          token = tokenData.access_token
-          res = await fetch(url, {
-            ...options,
-            headers: getHeaders(token),
-          })
-        }
-      } else {
-        useAuthStore.getState().auth.resetAccessToken()
-      }
-    } catch {
-      useAuthStore.getState().auth.resetAccessToken()
     }
   }
 

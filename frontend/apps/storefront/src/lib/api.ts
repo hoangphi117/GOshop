@@ -15,17 +15,19 @@ export const MEILISEARCH_SEARCH_KEY =
 export const api = createApiClient({
   baseUrl: API_BASE_URL,
   getToken: () => useAuthStore.getState().accessToken,
-  // Refresh token lives in an HttpOnly cookie; the API client only needs the
-  // access token. A 401 falls through to refreshAccessToken below.
-  getRefreshToken: () => '',
-  getApiKey: () => API_KEY,
-  onTokenRefreshed: (tokens) => {
-    useAuthStore.getState().setTokens(tokens.accessToken)
-  },
+  // Refresh token lives in an HttpOnly cookie and authFetch owns the refresh,
+  // so the client must not retry on its own. A 401 without this check is
+  // answered by the middleware's executeRefresh, whose bare /auth/refresh call
+  // carries no X-Client-App and reads the legacy shared cookie (usually absent,
+  // because refresh cookies are scoped to /api/v1/auth). The second retry then
+  // fires with an empty bearer, which is the 401 seen right after the refresh.
   onUnauthorized: () => {
     useAuthStore.getState().reset()
   },
 })
+// NOTE: no getRefreshToken / onTokenRefreshed hooks on purpose — they would
+// re-enable the middleware retry. Ponytail: drop this comment if the middleware
+// ever learns X-Client-App and a max one-refresh guard.
 
 export type ApiInstance = typeof api
 
@@ -92,8 +94,10 @@ export async function authFetch(
   const apiKey = API_KEY
   let token = useAuthStore.getState().accessToken
 
-  // Access token is memory-only, so after a reload it is empty even with a
-  // live refresh cookie. Restore it before the first authenticated call.
+  // Never let the API client answer a 401 by retrying with an empty token: it
+  // calls /auth/refresh without X-Client-App, so the backend would rotate the
+  // anonymous `refresh_token` cookie instead of this app's. authFetch owns the
+  // retry below.
   if (!token && needsAuth(init)) {
     token = (await refreshAccessToken()) ?? ''
   }
@@ -124,15 +128,16 @@ export async function authFetch(
     headers: buildHeaders(token),
   })
 
-  if (res.status === 401) {
+  // A 401 from /auth/* is a real credential failure, not an expired access
+  // token; refreshing on it would turn a bad password into a session reset.
+  const targetHref = targetUrl instanceof Request ? targetUrl.url : String(targetUrl)
+  if (res.status === 401 && !targetHref.includes('/auth/')) {
     const newToken = await refreshAccessToken()
-    if (newToken) {
-      res = await fetch(targetUrl, {
-        ...init,
-        credentials: 'include',
-        headers: buildHeaders(newToken),
-      })
-    }
+    res = await fetch(targetUrl, {
+      ...init,
+      credentials: 'include',
+      headers: buildHeaders(newToken ?? token),
+    })
   }
 
   return res

@@ -17,6 +17,7 @@ import {
   Truck,
   Phone,
   HelpCircle,
+  Clipboard,
   Package,
   LogOut,
   ChevronDown,
@@ -115,7 +116,15 @@ export function Navbar({ recentSearches = [] }: { recentSearches?: string[] }) {
       .then((json) => {
         if (json?.data && Array.isArray(json.data)) {
           const cats = json.data.slice(0, 5).map(
-            (c: { category_name?: string; name?: string; slug?: string; uuid?: string }, idx: number) => ({
+            (
+              c: {
+                category_name?: string;
+                name?: string;
+                slug?: string;
+                uuid?: string;
+              },
+              idx: number,
+            ) => ({
               name: c.category_name || c.name || `Category ${idx}`,
               href: `/products?category=${c.slug || c.uuid || idx}`,
               badge: idx === 0 ? "Popular" : undefined,
@@ -192,12 +201,6 @@ export function Navbar({ recentSearches = [] }: { recentSearches?: string[] }) {
   }[] = [
     ...dynamicCategories,
     { name: "Flash Deals", href: "/#deals", icon: Flame, isHighlight: true },
-    {
-      name: "New Drops",
-      href: "/products?sort=newest",
-      icon: Sparkles,
-      isHighlight: false,
-    },
   ];
 
   return (
@@ -272,8 +275,18 @@ export function Navbar({ recentSearches = [] }: { recentSearches?: string[] }) {
             <SearchAutocomplete recentSearches={recentSearches} />
           </div>
 
-          {/* Right Action Hub: Notifications, Cart, Account */}
+          {/* Right Action Hub: Orders, Notifications, Cart, Account */}
           <div className="flex items-center gap-2 sm:gap-3">
+            {/* My Orders — outermost action, visible to everyone */}
+            <Link
+              href="/account/orders"
+              className="flex items-center gap-1.5 p-2 rounded-full text-white hover:text-[#007D9C] hover:bg-[#E6F7FB] cursor-pointer shadow-xs"
+              aria-label="My orders"
+              title="My Orders"
+            >
+              <Clipboard className="w-5 h-5" aria-hidden="true" />
+            </Link>
+
             {/* Real-time Notifications */}
             {isAuthenticated && <NotificationPopover isTransparent={false} />}
 
@@ -283,6 +296,7 @@ export function Navbar({ recentSearches = [] }: { recentSearches?: string[] }) {
               onClick={handleCartClick}
               className="flex items-center gap-2.5 p-2 rounded-full text-white hover:text-[#007D9C] hover:bg-[#E6F7FB] cursor-pointer shadow-xs"
               aria-label={`Shopping cart with ${totalCartItems} items`}
+              title="Shopping Cart"
             >
               <div className="relative flex items-center justify-center">
                 <ShoppingCart className="w-5 h-5" />
@@ -340,7 +354,7 @@ export function Navbar({ recentSearches = [] }: { recentSearches?: string[] }) {
                         onClick={() => setUserDropdownOpen(false)}
                         className="flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-[#E6F7FB] hover:text-[#007D9C] transition-colors"
                       >
-                        <Package className="w-4 h-4" />
+                        <Clipboard className="w-4 h-4" />
                         <span>My Orders</span>
                       </Link>
                       <Link

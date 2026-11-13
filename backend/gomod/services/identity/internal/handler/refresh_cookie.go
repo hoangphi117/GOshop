@@ -43,8 +43,14 @@ func cookieSecure() bool { return os.Getenv("APP_ENV") == "production" }
 
 // setRefreshCookie writes the refresh token for the calling client.
 func setRefreshCookie(ctx *gin.Context, token string) {
+	setRefreshCookieNamed(ctx, refreshCookieName(ctx), token)
+}
+
+// setRefreshCookieNamed writes the refresh token into an explicit cookie name,
+// used when rotating a token that arrived in a cookie.
+func setRefreshCookieNamed(ctx *gin.Context, name, token string) {
 	ctx.SetSameSite(http.SameSiteLaxMode)
-	ctx.SetCookie(refreshCookieName(ctx), token, int(auth.RefreshTokenTTL.Seconds()), refreshCookiePath, "", cookieSecure(), true)
+	ctx.SetCookie(name, token, int(auth.RefreshTokenTTL.Seconds()), refreshCookiePath, "", cookieSecure(), true)
 }
 
 // clearRefreshCookies expires this client's cookie plus every name in use, so a
@@ -65,13 +71,22 @@ func clearRefreshCookies(ctx *gin.Context) {
 }
 
 // refreshTokenFromCookie reads this client's cookie, falling back to the legacy
-// shared name for sessions created before per-client cookies existed.
-func refreshTokenFromCookie(ctx *gin.Context) string {
-	if val, err := ctx.Cookie(refreshCookieName(ctx)); err == nil && val != "" {
-		return val
+// shared name for sessions created before per-client cookies existed. It also
+// looks up the other client's cookie by name: after the api-client middleware
+// rotated a token with no X-Client-App header, the newest token lives under the
+// other app's name. Returns the name it read, so the rotated token is written
+// back into that same cookie instead of whichever name the header implies.
+func refreshTokenFromCookie(ctx *gin.Context) (name, token string) {
+	candidates := []string{
+		refreshCookieName(ctx),
+		refreshCookieBase,
+		refreshCookiePrefix + refreshCookieBase + "_" + clientDashboard,
+		refreshCookiePrefix + refreshCookieBase + "_" + clientStorefront,
 	}
-	if val, err := ctx.Cookie(refreshCookieBase); err == nil && val != "" {
-		return val
+	for _, candidate := range candidates {
+		if val, err := ctx.Cookie(candidate); err == nil && val != "" {
+			return candidate, val
+		}
 	}
-	return ""
+	return "", ""
 }
