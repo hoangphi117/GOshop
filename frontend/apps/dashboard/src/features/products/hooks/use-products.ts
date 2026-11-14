@@ -2,7 +2,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { directUpload, type UploadFolder } from '@goshop/api-client'
 import { api, fetchWithAuth } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
-import type { Product, ProductCSVImportResponse, ProductFormData, ProductSuggestion } from '../types'
+import type {
+  Product,
+  ProductCSVImportResponse,
+  ProductFormData,
+  ProductListResult,
+  ProductSuggestion,
+} from '../types'
 
 export interface ProductQueryParams {
   page?: number
@@ -17,7 +23,7 @@ export interface ProductQueryParams {
 }
 
 export function useProducts(params: ProductQueryParams = {}) {
-  return useQuery({
+  return useQuery<ProductListResult>({
     queryKey: ['products', params],
     queryFn: async () => {
       const isSearch = Boolean(params.search && params.search.trim().length >= 1)
@@ -39,7 +45,10 @@ export function useProducts(params: ProductQueryParams = {}) {
         if (error) {
           throw new Error((error as { error?: string })?.error || 'Failed to search products')
         }
-        return data
+        // /products/search answers with a rating-ordered shelf, not the admin
+        // list envelope. Normalize it so callers only ever see one shape.
+        const items = (data?.items ?? []) as Product[]
+        return { data: items, pagination: undefined, source: data?.source }
       }
 
       const { data, error } = await api.GET('/api/v1/products', {
@@ -60,7 +69,10 @@ export function useProducts(params: ProductQueryParams = {}) {
       if (error) {
         throw new Error((error as { error?: string })?.error || 'Failed to fetch products')
       }
-      return data
+      return {
+        data: (data?.data ?? []) as Product[],
+        pagination: (data as { pagination?: ProductListResult['pagination'] })?.pagination,
+      }
     },
   })
 }
