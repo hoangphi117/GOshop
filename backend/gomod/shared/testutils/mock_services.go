@@ -159,6 +159,7 @@ type MockTokenService struct {
 	RevokeRefreshTokenFunc            func(token string) error
 	RotateRefreshTokenFunc            func(oldToken string) (string, string, error)
 	RevokeTokenFamilyFunc             func(familyID string) error
+	RevokeUserSessionsFunc            func(userUUID string) error
 	GetTokenFamilyIDFunc              func(rawToken string) (string, error)
 }
 
@@ -231,6 +232,13 @@ func (m *MockTokenService) RotateRefreshToken(oldToken string) (string, string, 
 func (m *MockTokenService) RevokeTokenFamily(familyID string) error {
 	if m.RevokeTokenFamilyFunc != nil {
 		return m.RevokeTokenFamilyFunc(familyID)
+	}
+	return nil
+}
+
+func (m *MockTokenService) RevokeUserSessions(userUUID string) error {
+	if m.RevokeUserSessionsFunc != nil {
+		return m.RevokeUserSessionsFunc(userUUID)
 	}
 	return nil
 }

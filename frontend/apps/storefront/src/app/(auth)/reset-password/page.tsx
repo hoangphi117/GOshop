@@ -6,28 +6,41 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { extractErrorMessage } from "@/lib/utils";
 import { API_BASE_URL, API_KEY } from "@/lib/api";
 import {
-  Lock,
-  KeyRound,
+  Lock as LockIcon,
   ArrowRight,
   ArrowLeft,
-  ShieldCheck,
   CheckCircle2,
   AlertCircle,
   Eye,
   EyeOff,
-  Terminal,
-  Zap,
-  Lock as LockIcon,
-  Truck,
-  Award,
   Loader2,
+  Link2Off,
 } from "lucide-react";
+
+/**
+ * Moves the one-time reset token out of the page and into memory.
+ *
+ * The token arrives in the email link, and it must not stay in the address bar:
+ * a credential in a URL leaks through browser history and through the Referer
+ * header of any third-party resource the page loads. Reading it once into a ref
+ * and rewriting the URL immediately keeps it out of both, without rendering it
+ * (unlike a form field, which shows the same secret to anyone watching the
+ * screen or a recording).
+ */
+const capturedToken = { value: "" };
+
+function captureTokenFromUrl(search: string): string {
+  const token = new URLSearchParams(search).get("token") ?? "";
+  if (token) capturedToken.value = token;
+  return token;
+}
 
 function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [token, setToken] = useState("");
+  const tokenFromUrl = captureTokenFromUrl(searchParams.toString());
+  const [token] = useState(tokenFromUrl || capturedToken.value);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -35,28 +48,23 @@ function ResetPasswordForm() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<{
-    token?: string;
     newPassword?: string;
     confirmPassword?: string;
   }>({});
 
+  // Drop ?token= from the address bar and replace the history entry, so a
+  // reload or a copied link does not carry a usable credential.
   useEffect(() => {
-    const tokenFromUrl = searchParams.get("token");
-    if (tokenFromUrl) {
-      setToken(tokenFromUrl);
+    if (token && searchParams.has("token")) {
+      router.replace("/reset-password", { scroll: false });
     }
-  }, [searchParams]);
+  }, [token, searchParams, router]);
 
   const validate = () => {
     const errors: {
-      token?: string;
       newPassword?: string;
       confirmPassword?: string;
     } = {};
-
-    if (!token.trim()) {
-      errors.token = "Please enter the reset token received via email";
-    }
 
     if (!newPassword) {
       errors.newPassword = "Please enter a new password";
@@ -88,6 +96,7 @@ function ResetPasswordForm() {
         headers: {
           "Content-Type": "application/json",
           "X-API-KEY": API_KEY,
+          "X-Client-App": "storefront",
         },
         body: JSON.stringify({
           token: token.trim(),
@@ -101,11 +110,13 @@ function ResetPasswordForm() {
         throw new Error(
           extractErrorMessage(
             data,
-            "Failed to reset password. The token may be expired or invalid.",
+            "Failed to reset password. The link may be expired or invalid.",
           ),
         );
       }
 
+      // The token is spent; drop it so nothing in this tab can replay it.
+      capturedToken.value = "";
       setIsSuccess(true);
     } catch (err: unknown) {
       const message =
@@ -115,6 +126,9 @@ function ResetPasswordForm() {
       setLoading(false);
     }
   };
+
+  // Without a link token there is nothing to submit, so the form is not shown.
+  const invalidLink = !token && !isSuccess;
 
   return (
     <div
@@ -150,8 +164,7 @@ function ResetPasswordForm() {
                 Create New Password
               </h1>
               <p className="text-xs text-[#3E484D] mt-1 max-w-xs">
-                Enter your verification token and choose a strong new password
-                for your account.
+                Choose a strong new password for your account.
               </p>
             </div>
 
@@ -199,6 +212,40 @@ function ResetPasswordForm() {
                   </Link>
                 </div>
               </div>
+            ) : invalidLink ? (
+              /* INVALID LINK VIEW: a missing, used or expired link must not
+                 render as a form the visitor could fill in. */
+              <div className="text-center space-y-4 py-2">
+                <div className="w-14 h-14 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto shadow-2xs border border-amber-200">
+                  <Link2Off className="w-8 h-8" />
+                </div>
+                <div className="space-y-1">
+                  <h3
+                    className="text-base font-bold text-[#131B2A]"
+                    style={{
+                      fontFamily: 'var(--font-heading, "Rubik", sans-serif)',
+                    }}
+                  >
+                    This reset link is no longer valid
+                  </h3>
+                  <p className="text-xs text-[#3E484D] leading-relaxed">
+                    Reset links can be used once and expire quickly. Request a
+                    new one and open it from your inbox.
+                  </p>
+                </div>
+                <div className="pt-2">
+                  <Link
+                    href="/forgot-password"
+                    className="w-full py-3 px-4 rounded-lg bg-[#00637C] hover:bg-[#004D62] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-md shadow-[#00637C]/25 transition-all group"
+                    style={{
+                      fontFamily: 'var(--font-heading, "Rubik", sans-serif)',
+                    }}
+                  >
+                    <span>Request a new link</span>
+                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  </Link>
+                </div>
+              </div>
             ) : (
               /* FORM VIEW */
               <form
@@ -206,43 +253,6 @@ function ResetPasswordForm() {
                 noValidate
                 className="flex flex-col gap-4"
               >
-                {/* Reset Token Field */}
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-[#131B2A] flex items-center gap-1">
-                    <span>Reset Token / Code</span>
-                    <span className="text-rose-600">*</span>
-                  </label>
-                  <div className="relative flex items-center">
-                    <KeyRound className="w-5 h-5 absolute left-3 text-[#6F797E] pointer-events-none" />
-                    <input
-                      type="text"
-                      required
-                      value={token}
-                      onChange={(e) => {
-                        setToken(e.target.value);
-                        if (fieldErrors.token)
-                          setFieldErrors((prev) => ({
-                            ...prev,
-                            token: undefined,
-                          }));
-                        if (generalError) setGeneralError(null);
-                      }}
-                      placeholder="Enter token received via email"
-                      className={`w-full bg-white text-[#131B2A] text-sm font-mono pl-10 pr-4 py-2.5 rounded-lg border shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#007D9C] placeholder-[#6F797E]/70 transition-all ${
-                        fieldErrors.token
-                          ? "border-rose-500 bg-rose-50/20"
-                          : "border-[#BEC8CD]"
-                      }`}
-                    />
-                  </div>
-                  {fieldErrors.token && (
-                    <p className="text-[11px] font-medium text-rose-600 flex items-center gap-1 mt-0.5">
-                      <AlertCircle className="w-3 h-3 shrink-0" />
-                      <span>{fieldErrors.token}</span>
-                    </p>
-                  )}
-                </div>
-
                 {/* New Password Field */}
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-bold text-[#131B2A] flex items-center gap-1">
@@ -253,6 +263,7 @@ function ResetPasswordForm() {
                     <LockIcon className="w-5 h-5 absolute left-3 text-[#6F797E] pointer-events-none" />
                     <input
                       type={showPassword ? "text" : "password"}
+                      autoComplete="new-password"
                       required
                       value={newPassword}
                       onChange={(e) => {
@@ -301,6 +312,7 @@ function ResetPasswordForm() {
                     <LockIcon className="w-5 h-5 absolute left-3 text-[#6F797E] pointer-events-none" />
                     <input
                       type={showPassword ? "text" : "password"}
+                      autoComplete="new-password"
                       required
                       value={confirmPassword}
                       onChange={(e) => {
@@ -366,7 +378,7 @@ function ResetPasswordForm() {
                 href="/forgot-password"
                 className="font-bold text-[#00637C] hover:underline"
               >
-                Request new token
+                Request new link
               </Link>
             </div>
           </div>

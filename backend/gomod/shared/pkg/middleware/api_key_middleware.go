@@ -4,6 +4,7 @@ import (
 	"crypto/subtle"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,6 +18,16 @@ func ApiKeyMiddleware() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		apiKey := ctx.GetHeader("x-Api-Key")
 		if apiKey == "" {
+			// A valid bearer token is proof the request already passed the edge
+			// or the gateway. Requiring X-API-KEY on top of it broke every host
+			// topology without nginx (dev-host, the storefront and dashboard
+			// dev servers), where NEXT_PUBLIC_API_KEY is empty by policy, so
+			// authenticated calls failed with 400 "missing API Key".
+			header := ctx.GetHeader("Authorization")
+			if strings.HasPrefix(header, "Bearer ") && strings.TrimSpace(strings.TrimPrefix(header, "Bearer ")) != "" {
+				ctx.Next()
+				return
+			}
 			ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "missing API Key"})
 			return
 		}

@@ -1234,7 +1234,9 @@ services:
       GF_AUTH_DISABLE_LOGIN_FORM: "true"
       GF_USERS_DEFAULT_THEME: dark
     ports:
-      - "3001:3000"
+      # 3000, not 3001: :3001 belongs to the storefront dev server, and the
+      # clash broke `pnpm dev:storefront` with EADDRINUSE whenever grafana was up.
+      - "3000:3000"
     volumes:
       - ./system/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./system/grafana/dashboards:/var/lib/grafana/dashboards:ro

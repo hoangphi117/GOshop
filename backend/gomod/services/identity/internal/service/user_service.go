@@ -18,6 +18,7 @@ import (
 	"goshop/services/identity/internal/db/sqlc"
 	dto "goshop/services/identity/internal/dto"
 	"goshop/services/identity/internal/repository"
+	"goshop/shared/pkg/auth"
 	"goshop/shared/pkg/cache"
 	"goshop/shared/pkg/logger"
 	"goshop/shared/pkg/messaging"
@@ -25,11 +26,12 @@ import (
 )
 
 type userService struct {
-	repo   repository.UserRepository
-	cache  cache.RedisCacheService
-	redis  *redis.Client
-	broker messaging.Broker
-	outbox repository.OutboxRepository
+	repo         repository.UserRepository
+	cache        cache.RedisCacheService
+	redis        *redis.Client
+	broker       messaging.Broker
+	outbox       repository.OutboxRepository
+	tokenService auth.TokenService
 }
 
 func NewUserService(repo repository.UserRepository, redisClient *redis.Client, rmq ...messaging.Broker) UserService {
@@ -49,17 +51,18 @@ func NewUserService(repo repository.UserRepository, redisClient *redis.Client, r
 	}
 }
 
-func NewUserServiceWithOutbox(repo repository.UserRepository, redisClient *redis.Client, rmq messaging.Broker, outbox repository.OutboxRepository) UserService {
+func NewUserServiceWithOutbox(repo repository.UserRepository, redisClient *redis.Client, rmq messaging.Broker, outbox repository.OutboxRepository, tokenService auth.TokenService) UserService {
 	var cacheService cache.RedisCacheService
 	if redisClient != nil {
 		cacheService = cache.NewRedisCacheService(redisClient)
 	}
 	return &userService{
-		repo:   repo,
-		cache:  cacheService,
-		redis:  redisClient,
-		broker: rmq,
-		outbox: outbox,
+		repo:         repo,
+		cache:        cacheService,
+		redis:        redisClient,
+		broker:       rmq,
+		outbox:       outbox,
+		tokenService: tokenService,
 	}
 }
 
@@ -374,6 +377,16 @@ func (us *userService) ChangePassword(ctx context.Context, userUUID uuid.UUID, i
 			logger.Log.Warn().Err(err).Msg("Failed to clear users cache")
 		}
 	}
+
+	// Changing the password from a signed-in session is how a user reacts to a
+	// leaked one, so every other session dies with it. Failures are logged, not
+	// returned: the password is already stored and the caller cannot retry.
+	if us.tokenService != nil {
+		if err := us.tokenService.RevokeUserSessions(user.UserUuid.String()); err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to revoke sessions after password change")
+		}
+	}
+
 	logger.Log.Info().Str("user_uuid", user.UserUuid.String()).Msg("User password changed successfully")
 	return nil
 }

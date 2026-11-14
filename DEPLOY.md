@@ -12,7 +12,7 @@ How to run GOshop in two modes, and the reasoning behind each choice at the curr
 | **Backend Tracing** | Local Jaeger (`jaeger:4318`)           | Grafana Cloud Tempo                                |
 | **Logging**         | stdout → Promtail → Grafana Cloud Loki | Same as DEV                                        |
 | **Metrics/Alerts**  | Local Prometheus + Alertmanager → Discord | Local Prometheus + Alertmanager → Discord       |
-| **Email**           | Mailtrap sandbox                       | Mailtrap sandbox                                   |
+| **Email**           | Gmail SMTP (App Password)              | Gmail SMTP (App Password)                          |
 | **Storefront**      | Dev server on `:3001`                  | Next.js standalone image behind the edge           |
 | **Dashboard**       | Dev server                             | Static build, with `dist/` bind-mounted into Nginx |
 
@@ -164,5 +164,5 @@ All `CHANGE_ME` values in `backend/.env.*.example` represent your own secrets. E
 If a secret is accidentally committed:
 
 1. Removing it from the current file is **not enough** — the secret remains in Git history.
-2. Revoke or rotate the secret with the corresponding provider (Cloudflare, GHN, Discord, Mailtrap).
+2. Revoke or rotate the secret with the corresponding provider (Cloudflare, GHN, Discord, Gmail App Password).
 3. Optionally, use `git filter-repo` to permanently remove the secret from Git history. Be careful: rewriting history requires a force push, and all contributors will need to re-clone the repository.

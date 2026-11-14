@@ -29,7 +29,24 @@ type RefreshTokenData struct {
 type TokenFamilyData struct {
 	UserUUID string `json:"user_uuid"`
 	Revoked  bool   `json:"revoked"`
+	// Epoch is the per-user revocation cutoff. A refresh token minted before it
+	// is dead even though the token and family keys still say otherwise, which
+	// survives key expiry: "rt:family:<id>" lives 7 days while the in-family
+	// rotate path sets it back to 24h, so a cloned cookie could otherwise
+	// outlive a revoke that only deleted those keys.
+	Epoch int64 `json:"epoch,omitempty"`
 }
+
+const (
+	// UserRevokedAtPrefix + user uuid holds the cutoff written by "revoke every
+	// session of this user" (password reset).
+	userRevokedAtPrefix = "user:revoked_at:"
+	// UserRevokedAtTTL outlives the longest refresh token plus one family-key
+	// extension, so the cutoff never lapses before every token it must kill.
+	UserRevokedAtTTL = 9 * 24 * time.Hour
+)
+
+func userRevokedAtKey(userUUID string) string { return userRevokedAtPrefix + userUUID }
 
 const (
 	RefreshTokenDuration = 7 * 24 * time.Hour // 7 days
@@ -42,6 +59,7 @@ type RefreshTokenRotator interface {
 	RotateToken(oldRawToken string) (userUUID string, newRawToken string, err error)
 	RevokeToken(rawToken string) error
 	RevokeFamily(familyID string) error
+	RevokeUserSessions(userUUID string) error
 	GetFamilyID(rawToken string) (string, error)
 }
 
@@ -88,6 +106,11 @@ func (r *redisRefreshTokenRotator) CreateSession(userUUID string) (string, strin
 		UserUUID: userUUID,
 		Revoked:  false,
 	}
+	// Stamp the user's current cutoff so a reset issued before this login cannot
+	// invalidate a session created after it.
+	if epoch, err := r.userRevokedAt(userUUID); err == nil {
+		familyData.Epoch = epoch
+	}
 
 	if r.cache != nil {
 		if err := r.cache.Set("rt:"+tokenHash, tokenData, RefreshTokenDuration); err != nil {
@@ -128,6 +151,12 @@ func (r *redisRefreshTokenRotator) RotateToken(oldRawToken string) (string, stri
 	}
 
 	if famData.Revoked {
+		return "", "", ErrTokenFamilyRevoked
+	}
+
+	// Revoked for every session of the user since this one was created (a
+	// password reset between then and now).
+	if epoch, err := r.userRevokedAt(famData.UserUUID); err == nil && epoch > famData.Epoch {
 		return "", "", ErrTokenFamilyRevoked
 	}
 
@@ -188,6 +217,31 @@ func (r *redisRefreshTokenRotator) RevokeFamily(familyID string) error {
 	}
 	_ = r.cache.Del("rt:family:" + familyID)
 	return r.cache.Set("blacklist:family:"+familyID, "revoked", 15*time.Minute)
+}
+
+// RevokeUserSessions ends every refresh session of a user. The per-user cutoff
+// is what makes it stick: the "rt:" keys referenced by the old families are
+// removed, and any that a clone still holds is rejected because it was minted
+// before the cutoff.
+func (r *redisRefreshTokenRotator) RevokeUserSessions(userUUID string) error {
+	if userUUID == "" || r.cache == nil {
+		return nil
+	}
+
+	epoch := time.Now().Unix()
+	if err := r.cache.Set(userRevokedAtKey(userUUID), epoch, UserRevokedAtTTL); err != nil {
+		return utils.WrapError(utils.ErrCodeInternal, "Failed to store session revocation cutoff", err)
+	}
+	return r.cache.Clear("rt:family:*")
+}
+
+// userRevokedAt returns the user's session revocation cutoff, 0 when absent.
+func (r *redisRefreshTokenRotator) userRevokedAt(userUUID string) (int64, error) {
+	var epoch int64
+	if err := r.cache.Get(userRevokedAtKey(userUUID), &epoch); err != nil {
+		return 0, err
+	}
+	return epoch, nil
 }
 
 func (r *redisRefreshTokenRotator) GetFamilyID(rawToken string) (string, error) {

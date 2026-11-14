@@ -106,7 +106,7 @@ func GenerateRandomString(length int) (string, error) {
 		return "", err
 	}
 
-	return base64.URLEncoding.EncodeToString(nonce), nil
+	return base64.RawURLEncoding.EncodeToString(nonce), nil
 }
 
 func MustGetwd() string {
