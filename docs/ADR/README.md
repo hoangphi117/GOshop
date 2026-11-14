@@ -18,6 +18,7 @@ Read them in order; each assumes the previous.
 | [0008](0008-per-client-refresh-cookies.md) | Refresh cookies scoped per frontend | security |
 | [0009](0009-r2-in-prod-minio-in-dev.md) | Cloudflare R2 in production, MinIO in development | infrastructure |
 | [0010](0010-analytics-read-model.md) | Analytics is a read model, not a query over order tables | analytics |
+| [0011](0011-recommendation-personalization.md) | Recommendations are a tier ladder over visitor identity | recommendations |
 
 ## Why the original file still exists
 

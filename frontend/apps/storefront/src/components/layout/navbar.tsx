@@ -32,6 +32,7 @@ import { NotificationPopover } from "@/components/layout/notification-popover";
 import { SearchAutocomplete } from "@/components/layout/search-autocomplete";
 import { Button } from "@/components/ui/button";
 import { authFetch } from "@/lib/api";
+import { blockDeviceIntent } from "@/lib/device-intent";
 
 export function Navbar({ recentSearches = [] }: { recentSearches?: string[] }) {
   const pathname = usePathname();
@@ -99,6 +100,9 @@ export function Navbar({ recentSearches = [] }: { recentSearches?: string[] }) {
     } catch {
       // Ignore network errors on logout
     }
+    // Keep the anon cookie — the history behind it is the visitor's and comes
+    // back on the next sign-in — but stop ranking shelves from it.
+    blockDeviceIntent();
     reset();
     setUserDropdownOpen(false);
     router.push("/login");

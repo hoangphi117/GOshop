@@ -17,6 +17,18 @@ export interface AuthMiddlewareOptions {
   fetch?: ClientOptions['fetch']
 }
 
+// Paths a guest may call without a session. A 401 there means "wrong or missing
+// API key", never "your session expired", so it must not trigger a refresh whose
+// failure sign-out would wipe the caller's identity mid-page.
+const PUBLIC_GUEST_PATHS = [
+  '/recommendations',
+  '/events',
+  '/search/history',
+  '/products',
+  '/categories',
+  '/search',
+]
+
 export function createAuthMiddleware(options: AuthMiddlewareOptions = {}): Middleware {
   const cleanBase = (options.baseUrl || '').replace(/\/+$/, '')
   const hasV1InBase = cleanBase.endsWith('/api/v1')
@@ -43,6 +55,9 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}): Middl
           schemaPath.includes('/auth/register')))
     )
   }
+
+  // Public guest surface: no refresh, and no sign-out either. See below.
+  const isGuestPath = (url: string) => PUBLIC_GUEST_PATHS.some((p) => url.includes(p))
 
   const executeRefresh = async (): Promise<AuthTokens | null> => {
     const refreshToken = options.getRefreshToken?.()
@@ -122,6 +137,15 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}): Middl
       requestClones.delete(id)
 
       if (response.status === 401) {
+        // A 401 on the guest surface means "missing/wrong API key", not "your
+        // session expired": there is no session to refresh. Refreshing would
+        // fail, and its onUnauthorized would wipe the identity of an account
+        // that merely signed out — the shelf refetch then aborted and the
+        // homepage sat on skeletons. The 401 propagates; the caller falls back.
+        if (isGuestPath(request.url)) {
+          return response
+        }
+
         // If 401 is from an auth endpoint, do not attempt refresh
         if (isAuthEndpoint(request.url, schemaPath)) {
           if (options.onUnauthorized) {

@@ -19,11 +19,16 @@ func TestApiKeyMiddleware(t *testing.T) {
 		name    string
 		apiKey  string
 		bearer  string
+		anon    string
 		want    int
 		reached bool
 	}{
 		{name: "valid key and no auth", apiKey: "secret-key", want: http.StatusOK, reached: true},
 		{name: "bearer without key", bearer: "abc.def.ghi", want: http.StatusOK, reached: true},
+		// The storefront's telemetry never has a token: the guest cookie the
+		// gateway minted is the only proof it could have come through it.
+		{name: "anon cookie without key", anon: "9f1e2d3c-4b5a-4c6d-8e7f-0a1b2c3d4e5f", want: http.StatusOK, reached: true},
+		{name: "garbage anon cookie is not proof", anon: "not-a-uuid", want: http.StatusBadRequest},
 		{name: "no key and no bearer", want: http.StatusBadRequest},
 		{name: "empty bearer is not proof", bearer: "   ", want: http.StatusBadRequest},
 		{name: "wrong key", apiKey: "nope", want: http.StatusUnauthorized},
@@ -46,6 +51,9 @@ func TestApiKeyMiddleware(t *testing.T) {
 			}
 			if tc.bearer != "" {
 				req.Header.Set("Authorization", "Bearer "+tc.bearer)
+			}
+			if tc.anon != "" {
+				req.AddCookie(&http.Cookie{Name: AnonCookieName, Value: tc.anon})
 			}
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)

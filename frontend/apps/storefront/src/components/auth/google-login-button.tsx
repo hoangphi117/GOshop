@@ -5,6 +5,7 @@ import Script from 'next/script'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth-store'
 import { API_BASE_URL, API_KEY } from '@/lib/api'
+import { clearDeviceIntent } from '@/lib/device-intent'
 
 interface GoogleLoginButtonProps {
   text?: 'signin_with' | 'signup_with' | 'continue_with'
@@ -84,6 +85,8 @@ export function GoogleLoginButton({
         const accessToken = data.data?.access_token || data.data?.accessToken || ''
         // Refresh token arrives as an HttpOnly cookie; never stored client-side.
         setTokens(accessToken)
+        // Signing in makes this device's history the account's again.
+        clearDeviceIntent()
 
         // Fetch user profile
         try {

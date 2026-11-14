@@ -27,6 +27,7 @@ import {
 } from "@/components/auth/auth-card";
 import { GoogleLoginButton } from "@/components/auth/google-login-button";
 import { API_BASE_URL, API_KEY } from "@/lib/api";
+import { clearDeviceIntent } from "@/lib/device-intent";
 import { useAuthStore } from "@/stores/auth-store";
 import { toast } from "sonner";
 
@@ -287,6 +288,8 @@ export default function RegisterPage() {
       if (accessToken) {
         // Refresh token arrives as an HttpOnly cookie; never stored client-side.
         setTokens(accessToken);
+        // The shelf is this account's now.
+        clearDeviceIntent();
         setUser({
           email: email.trim(),
           fullName: fullName.trim(),

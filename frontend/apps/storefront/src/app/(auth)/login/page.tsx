@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { GoogleLoginButton } from "@/components/auth/google-login-button";
 import { API_BASE_URL, API_KEY } from "@/lib/api";
+import { clearDeviceIntent } from "@/lib/device-intent";
 import { useAuthStore } from "@/stores/auth-store";
 
 export default function LoginPage() {
@@ -80,6 +81,9 @@ export default function LoginPage() {
       const accessToken = data.data.accessToken || data.data.access_token || "";
       // Refresh token arrives as an HttpOnly cookie; never stored client-side.
       setTokens(accessToken);
+      // Whoever was here before signed out and said "not my history". Signing
+      // in means the shelf is theirs again.
+      clearDeviceIntent();
 
       setUser({
         uuid: data.data.user?.uuid,
