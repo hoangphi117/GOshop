@@ -46,5 +46,6 @@ type TokenService interface {
 
 	RotateRefreshToken(oldToken string) (userUUID string, newRefreshToken string, err error)
 	RevokeTokenFamily(familyID string) error
+	RevokeUserSessions(userUUID string) error
 	GetTokenFamilyID(rawToken string) (string, error)
 }

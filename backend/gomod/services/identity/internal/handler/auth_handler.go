@@ -238,12 +238,7 @@ func (ah *AuthHandler) RefreshToken(ctx *gin.Context) {
 		cookieName, refreshToken = refreshTokenFromCookie(ctx)
 	}
 	if refreshToken == "" {
-		// TEMP diagnostic
-		raw := make([]string, 0, 4)
-		for _, c := range ctx.Request.Cookies() {
-			raw = append(raw, c.Name)
-		}
-		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "DIAG cookies="+strings.Join(raw, ",")+" hdr="+ctx.GetHeader("X-Client-App")))
+		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Refresh token is required"))
 		return
 	}
 

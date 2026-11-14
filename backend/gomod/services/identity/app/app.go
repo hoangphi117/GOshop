@@ -133,7 +133,7 @@ func New(cfg *config.Config) (*App, error) {
 	tokenService := auth.NewJWTService(cacheRedisService)
 
 	mailLogger := utils.NewLoggerWithPath("identity", "identity_mail.log", "info")
-	factory, err := mail.NewProviderFactory(mail.ProviderMailtrap)
+	factory, err := mail.NewProviderFactory(mail.ProviderTypeFromConfig(cfg.MailProviderType))
 	if err != nil {
 		mailLogger.Error().Err(err).Msg("Failed to create mail provider factory")
 		return nil, err
@@ -171,7 +171,7 @@ func New(cfg *config.Config) (*App, error) {
 
 	// Business Services
 	authService := identityservice.NewAuthService(userRepo, tokenService, cacheRedisService, mailService, broker, wsHub, redisBridge, cfg.StorefrontURL)
-	userService := identityservice.NewUserServiceWithOutbox(userRepo, redisClient, broker, outboxRepo)
+	userService := identityservice.NewUserServiceWithOutbox(userRepo, redisClient, broker, outboxRepo, tokenService)
 	addressService := identityservice.NewAddressService(addressRepo, userRepo)
 
 	// Handlers
