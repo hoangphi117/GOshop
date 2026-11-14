@@ -3,14 +3,16 @@
 import React, { useState, useEffect } from "react";
 import { useAuthStore } from "@/stores/auth-store";
 import { authFetch } from "@/lib/api";
-import { User, Mail, Phone, Shield, Save, CheckCircle2 } from "lucide-react";
+import { User, Mail, Phone, Save, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
+import { AvatarUploader } from "@/components/account/avatar-uploader";
 
 export default function ProfilePage() {
   const { user, accessToken, setUser } = useAuthStore();
 
   const [fullName, setFullName] = useState(user?.fullName || "");
   const [phone, setPhone] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || "");
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
 
@@ -31,11 +33,13 @@ export default function ProfilePage() {
               "",
           );
           setPhone(profile.phone_number || profile.phone || "");
+          setAvatarUrl(profile.avatar_url || currentUser?.avatarUrl || "");
           if (currentUser) {
             setUser({
               ...currentUser,
               fullName:
                 profile.full_name || profile.fullName || currentUser.fullName,
+              avatarUrl: profile.avatar_url || currentUser.avatarUrl,
             });
           }
         }
@@ -107,6 +111,21 @@ export default function ProfilePage() {
         </div>
 
         <form onSubmit={handleUpdateProfile} className="space-y-5">
+          {/* Avatar */}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-slate-700">
+              Profile Photo
+            </label>
+            <AvatarUploader
+              value={avatarUrl}
+              onUploaded={(url) => {
+                setAvatarUrl(url);
+                const current = useAuthStore.getState().user;
+                if (current) setUser({ ...current, avatarUrl: url });
+              }}
+            />
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             {/* Full Name */}
             <div className="space-y-1.5">

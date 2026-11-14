@@ -6,6 +6,7 @@ import (
 
 	dto "goshop/services/identity/internal/dto"
 	"goshop/services/identity/internal/service"
+	"goshop/shared/pkg/logger"
 	"goshop/shared/pkg/utils"
 	"goshop/shared/pkg/validation"
 
@@ -203,13 +204,16 @@ func (ah *AuthHandler) Logout(ctx *gin.Context) {
 
 	clearRefreshCookies(ctx)
 
+	// The browser cookie is already expired above, so a stale or rotated token
+	// must not turn a successful logout into a 401 the UI has to explain. Server
+	// revocation is best-effort; anything still valid is short-lived and the
+	// client no longer holds it.
 	authHeader := ctx.GetHeader("Authorization")
 	accessToken := strings.TrimPrefix(authHeader, "Bearer ")
 
 	if refreshToken != "" || accessToken != "" {
 		if err := ah.service.Logout(ctx.Request.Context(), accessToken, refreshToken); err != nil {
-			utils.ResponseError(ctx, err)
-			return
+			logger.Log.Warn().Err(err).Msg("Logout could not revoke the presented tokens")
 		}
 	}
 

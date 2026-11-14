@@ -443,10 +443,13 @@ func (s *chatService) ListConversations(
 
 		// Self-heal the denormalized user snapshot: conversations seeded from the
 		// monolith have all three columns empty (pre-extraction rows), which
-		// renders as "?" in the admin list. ponytail: renamed users keep their
-		// stale snapshot — refresh wipes identity or a real backfill fixes that.
+		// renders as "?" in the admin list. A missing avatar is healed on its own
+		// because the avatar feature stores a new column and every pre-existing
+		// conversation row still carries the old (often empty) value. ponytail:
+		// renamed users keep their stale snapshot — refresh wipes identity or a
+		// real backfill fixes that.
 		userEmail, userFullname, userAvatar := r.UserEmail, r.UserFullname, r.UserAvatar
-		if userEmail == "" && userFullname == "" {
+		if (userEmail == "" && userFullname == "") || userAvatar == "" {
 			if owner, ownerErr := s.userRepo.GetByID(ctx, r.UserID); ownerErr == nil {
 				userEmail, userFullname, userAvatar = owner.UserEmail, owner.UserFullname, owner.UserAvatar
 				if userFullname == "" {

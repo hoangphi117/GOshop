@@ -87,6 +87,47 @@ export async function restoreSession(): Promise<string | null> {
   return refreshAccessToken()
 }
 
+export interface StorefrontProfile {
+  uuid?: string
+  email?: string
+  full_name?: string
+  fullName?: string
+  phone_number?: string
+  phone?: string
+  avatar_url?: string
+}
+
+/**
+ * The caller's own profile, read with a token it already holds.
+ *
+ * Sign-in returns tokens only (`access_token` / `refresh_token`), so the navbar
+ * has no name to show until something fetches this — which is why it used to
+ * render "U" plus the email local part right after logging in, and the real
+ * name only after a visit to /account/profile.
+ *
+ * Never throws: a failed read must not turn a successful sign-in into an
+ * error. Callers fall back to whatever they had.
+ */
+export async function fetchStorefrontProfile(
+  token: string
+): Promise<StorefrontProfile | null> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/users/me`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'X-API-KEY': API_KEY,
+        'X-Client-App': 'storefront',
+      },
+      credentials: 'include',
+    })
+    if (!res.ok) return null
+    const json = await res.json()
+    return (json?.data as StorefrontProfile) ?? null
+  } catch {
+    return null
+  }
+}
+
 export async function authFetch(
   input: string | URL | Request,
   init?: RequestInit

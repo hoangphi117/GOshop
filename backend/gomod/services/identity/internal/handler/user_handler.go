@@ -257,6 +257,41 @@ func (uh *UserHandler) UpdateProfile(ctx *gin.Context) {
 	utils.ResponseSuccess(ctx, http.StatusOK, "Profile updated successfully", updatedUserDTO)
 }
 
+// UpdateAvatar godoc
+// @Summary      Set the caller's avatar
+// @Description  Stores an object key that /upload/confirm already verified. Send an empty file_key to clear the avatar.
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Security     ApiKeyAuth
+// @Param        request body dto.UpdateAvatarInput true "Avatar object key"
+// @Success      200 {object} utils.APIResponse{data=dto.UserDTO}
+// @Failure      400 {object} utils.ErrorResponse
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /users/me/avatar [put]
+func (uh *UserHandler) UpdateAvatar(ctx *gin.Context) {
+	var input dto.UpdateAvatarInput
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		utils.ResponseValidator(ctx, validation.HandleValidationErrors(err))
+		return
+	}
+
+	userUuid, err := middleware.GetUserUUID(ctx)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	updatedUserDTO, err := uh.service.UpdateAvatar(ctx.Request.Context(), userUuid, input.FileKey)
+	if err != nil {
+		utils.ResponseError(ctx, err)
+		return
+	}
+
+	utils.ResponseSuccess(ctx, http.StatusOK, "Avatar updated successfully", updatedUserDTO)
+}
+
 // SoftDeleteUser godoc
 // @Summary      Soft delete user
 // @Description  Soft delete user by UUID (Admin/Moderator)

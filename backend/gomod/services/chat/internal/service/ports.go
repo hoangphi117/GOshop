@@ -15,9 +15,11 @@ type User struct {
 	UserUUID     uuid.UUID
 	UserFullname string
 	UserEmail    string
-	UserAvatar   string
-	UserStatus   int32
-	UserLevel    int32
+	// UserAvatar is the display URL. The avatar feature writes user_avatar_url;
+	// user_avatar is a legacy column that predates it, so it is only a fallback.
+	UserAvatar string
+	UserStatus int32
+	UserLevel  int32
 }
 
 // user_level values shared with the identity contract (1 = Admin, 2 = Moderator).

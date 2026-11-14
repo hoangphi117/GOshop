@@ -3,18 +3,15 @@
 import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useCartStore } from "@/stores/cart-store";
 import { useAuthStore } from "@/stores/auth-store";
-import { formatCurrency } from "@/lib/format";
 import {
   ShoppingCart,
   User,
   Menu,
   X,
-  Sparkles,
   Flame,
-  Truck,
   Phone,
   HelpCircle,
   Clipboard,
@@ -22,7 +19,6 @@ import {
   LogOut,
   ChevronDown,
   RotateCcw,
-  Zap,
   Ghost,
   Shirt,
   Gamepad2,
@@ -33,12 +29,12 @@ import { SearchAutocomplete } from "@/components/layout/search-autocomplete";
 import { Button } from "@/components/ui/button";
 import { authFetch } from "@/lib/api";
 import { blockDeviceIntent } from "@/lib/device-intent";
+import { getImageUrl } from "@/lib/utils";
 
 export function Navbar({ recentSearches = [] }: { recentSearches?: string[] }) {
-  const pathname = usePathname();
   const router = useRouter();
-  const { items, getTotalItems, openDrawer } = useCartStore();
-  const { user, accessToken, reset } = useAuthStore();
+  const { getTotalItems, openDrawer } = useCartStore();
+  const { user, accessToken, reset, setUser } = useAuthStore();
 
   const mounted = useMounted();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -46,15 +42,8 @@ export function Navbar({ recentSearches = [] }: { recentSearches?: string[] }) {
   const [isScrolled, setIsScrolled] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
-  const isHome = pathname === "/";
   const isAuthenticated = Boolean(user && accessToken);
   const totalCartItems = mounted && isAuthenticated ? getTotalItems() : 0;
-
-  // Calculate cart subtotal for instant header display
-  const cartSubtotal =
-    mounted && isAuthenticated
-      ? items.reduce((sum, item) => sum + item.price * item.quantity, 0)
-      : 0;
 
   // Detect window scroll to toggle compact sticky header style
   useEffect(() => {
@@ -80,6 +69,33 @@ export function Navbar({ recentSearches = [] }: { recentSearches?: string[] }) {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // The persisted store can predate the avatar field (or an account may set one
+  // on another tab, e.g. the Google picture at signup), so the display profile
+  // is re-synced once per session instead of trusting stale localStorage.
+  useEffect(() => {
+    if (!accessToken) return;
+
+    let cancelled = false;
+    authFetch("/api/v1/users/me")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        const profile = json?.data;
+        if (cancelled || !profile) return;
+        const current = useAuthStore.getState().user;
+        if (!current) return;
+        const avatarUrl = profile.avatar_url || "";
+        const fullName = profile.full_name || current.fullName;
+        if (avatarUrl !== (current.avatarUrl || "") || fullName !== current.fullName) {
+          setUser({ ...current, avatarUrl, fullName });
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken, setUser]);
 
   const handleCartClick = () => {
     if (!isAuthenticated) {
@@ -321,8 +337,16 @@ export function Navbar({ recentSearches = [] }: { recentSearches?: string[] }) {
                   className="flex items-center gap-2 p-1 sm:px-2.5 sm:py-1 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-all cursor-pointer"
                   aria-label="User Account Menu"
                 >
-                  <div className="w-7 h-7 rounded-full bg-[#BAEAFF] border border-[#5CD4FF] text-[#004D62] font-bold flex items-center justify-center text-xs shadow-xs">
-                    {user?.fullName ? user.fullName[0].toUpperCase() : "U"}
+                  <div className="w-7 h-7 rounded-full bg-[#BAEAFF] border border-[#5CD4FF] text-[#004D62] font-bold flex items-center justify-center text-xs shadow-xs overflow-hidden">
+                    {user?.avatarUrl ? (
+                      <img
+                        src={getImageUrl(user.avatarUrl)}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <>{user?.fullName ? user.fullName[0].toUpperCase() : "U"}</>
+                    )}
                   </div>
                   <div className="hidden sm:flex flex-col text-left">
                     <span className="text-xs font-bold text-white max-w-[90px] truncate leading-tight font-heading">
