@@ -17,7 +17,6 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v5 v5.12.0
 	github.com/jung-kurt/gofpdf v1.16.2
-	github.com/mailtrap/mailtrap-go v0.5.0
 	github.com/meilisearch/meilisearch-go v0.36.3
 	github.com/moby/moby/api v1.55.0
 	github.com/prometheus/client_golang v1.23.2

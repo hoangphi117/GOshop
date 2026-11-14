@@ -72,21 +72,21 @@ func NewConfig() *Config {
 
 	mailProviderConfig := make(map[string]any)
 
-	mailProviderType := utils.GetEnv("MAIL_PROVIDER_TYPE", "mailtrap")
-	if mailProviderType == "mailtrap" {
-
-		sandboxID := utils.GetEnv("MAILTRAP_SANDBOX_ID", "0")
-		sandboxMode := utils.GetEnv("MAILTRAP_USE_SANDBOX", "true")
-
-		mailTrapConfig := map[string]any{
-			"api_key":          utils.GetEnv("MAILTRAP_API_KEY", "GOshop Admin"),
-			"mail_sender":      utils.GetEnv("MAILTRAP_MAIL_SENDER", "admin@goshop.com"),
-			"mail_sender_name": utils.GetEnv("MAILTRAP_MAIL_SENDER_NAME", "Admin"),
-			"sandbox_id":       sandboxID,
-			"sandbox_mode":     sandboxMode,
+	// The sender identity is provider-neutral on purpose: switching providers
+	// must not force a rename of the variables in every env file.
+	mailProviderType := utils.GetEnv("MAIL_PROVIDER_TYPE", "smtp")
+	switch mailProviderType {
+	case "smtp":
+		mailProviderConfig["smtp"] = map[string]any{
+			"host":     utils.GetEnv("SMTP_HOST", "smtp.gmail.com"),
+			"port":     utils.GetEnv("SMTP_PORT", "587"),
+			"username": utils.GetEnv("SMTP_USERNAME", ""),
+			// Gmail shows the App Password in four groups of four; copying it
+			// with those spaces is the most common reason authentication fails.
+			"password":         strings.ReplaceAll(utils.GetEnv("SMTP_PASSWORD", ""), " ", ""),
+			"mail_sender":      utils.GetEnv("MAIL_SENDER", ""),
+			"mail_sender_name": utils.GetEnv("MAIL_SENDER_NAME", "GOshop Admin"),
 		}
-
-		mailProviderConfig["mailtrap"] = mailTrapConfig
 	}
 
 	usePathStyle, _ := strconv.ParseBool(utils.GetEnv("S3_USE_PATH_STYLE", "true"))

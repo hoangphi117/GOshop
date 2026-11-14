@@ -67,7 +67,7 @@ func NewWorker(cfg *config.Config) *Worker {
 
 	// Init MailService
 	mailLogger := utils.NewLoggerWithPath("worker", "mail.log", "info")
-	factory, err := mail.NewProviderFactory(mail.ProviderMailtrap)
+	factory, err := mail.NewProviderFactory(mail.ProviderTypeFromConfig(cfg.MailProviderType))
 	if err != nil {
 		mailLogger.Error().Err(err).Msg("Failed to create mail provider factory")
 		return nil

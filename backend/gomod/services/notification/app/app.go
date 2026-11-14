@@ -114,7 +114,7 @@ func New(cfg *config.Config) (*App, error) {
 
 	// Mail & Discord
 	mailLogger := utils.NewLoggerWithPath("notification", "notification_mail.log", "info")
-	factory, err := mail.NewProviderFactory(mail.ProviderMailtrap)
+	factory, err := mail.NewProviderFactory(mail.ProviderTypeFromConfig(cfg.MailProviderType))
 	var mailService mail.EmailProviderService
 	if err == nil {
 		var mailErr error
