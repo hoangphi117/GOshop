@@ -24,6 +24,9 @@ if ($LASTEXITCODE -ne 0) {
 # Services that must run on the host: remove any container holding their name or
 # their host ports, regardless of which compose project started it. `compose stop`
 # only works for services of the current project and silently skips strays.
+# The list is also the input to the container-services selection below, so a
+# service moved between host and container cannot be forgotten in one place.
+$hostServices = @("api", "identity", "notification", "payment", "worker", "order", "review", "analytics", "chat", "media", "ws-gateway", "assistant")
 $hostOwnedContainers = @(
     "goshop-api", "goshop-identity", "goshop-notification", "goshop-order", "goshop-payment",
     "goshop-worker", "goshop-ws-gateway", "goshop-review", "goshop-analytics", "goshop-chat",
@@ -33,25 +36,39 @@ foreach ($container in $hostOwnedContainers) {
     docker rm -f $container 2>$null | Out-Null
 }
 
-# Rebuild domain images so container services pick up fresh host code.
+# Container services: every buildable compose service that does not run on the
+# host. This used to be a hardcoded five-name list, which silently skipped
+# recommendations: rebuilding that image was skipped, so `up` kept recreating
+# the container from whatever stale image was already there and failed with the
+# old entrypoint (`exec: "/app/service": no such file or directory`).
+$containerServices = @(
+    docker compose -f docker-compose.dev.yml --env-file ./backend/.env config --services 2>$null |
+        Where-Object { $hostServices -notcontains $_ }
+)
+# Keep only services this repo actually builds. Images pulled from Docker Hub
+# (postgres, kafka, grafana, ...) have no build context; `compose build` on
+# them is at best a no-op and at worst an error, so they are dropped by
+# checking the build key rather than maintaining a second name list that can
+# go stale.
+$composeJson = docker compose -f docker-compose.dev.yml --env-file ./backend/.env config --format json 2>$null
+if ($LASTEXITCODE -ne 0 -or -not $composeJson) {
+    Write-Host "Could not read docker-compose.dev.yml; refusing to start with stale images." -ForegroundColor Red
+    exit 1
+}
+$composeConfig = $composeJson | ConvertFrom-Json
+$containerServices = @($containerServices | Where-Object { $composeConfig.services.$_.build })
+if ($containerServices.Count -eq 0) {
+    Write-Host "No buildable container services found in docker-compose.dev.yml." -ForegroundColor Red
+    exit 1
+}
+
+# Rebuild container images so they pick up fresh host code.
 # Sequential (not parallel) to avoid OOM during go build on low-RAM hosts.
-foreach ($svc in @("inventory", "catalog", "coupon", "cart", "banner")) {
+foreach ($svc in $containerServices) {
     Write-Host "Building image $svc..." -ForegroundColor DarkGray
     docker compose -f docker-compose.dev.yml --env-file ./backend/.env build $svc
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Build failed for image $svc!" -ForegroundColor Red
-        exit 1
-    }
-}
-
-# The embedder is Python, so it cannot run as a host-mode Go binary. It stays a
-# container even in this topology, and its image must exist before
-# recommendations (which waits on its health) can start.
-if (-not (docker image inspect shopping-embedder:latest 2>$null)) {
-    Write-Host "Building image embedder..." -ForegroundColor DarkGray
-    docker compose -f docker-compose.dev.yml --env-file ./backend/.env build embedder
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Build failed for image embedder!" -ForegroundColor Red
         exit 1
     }
 }
@@ -93,7 +110,6 @@ $binDir = Join-Path $PSScriptRoot "..\backend\bin"
 if (!(Test-Path $binDir)) { New-Item -ItemType Directory -Path $binDir -Force | Out-Null }
 
 $services = @("api", "identity", "notification", "payment", "worker", "coupon", "inventory", "catalog", "cart", "order", "review", "analytics", "chat", "media", "ws-gateway", "assistant")
-$hostServices = @("api", "identity", "notification", "payment", "worker", "order", "review", "analytics", "chat", "media", "ws-gateway", "assistant")
 $backendDir = Join-Path $PSScriptRoot "..\backend"
 $serviceBinaryPaths = $services | ForEach-Object {
     [System.IO.Path]::GetFullPath((Join-Path $backendDir "bin\$_.exe"))
