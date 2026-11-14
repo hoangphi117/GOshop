@@ -180,6 +180,10 @@ func (ur *SqlUserRepository) Update(ctx context.Context, input sqlc.UpdateUserPa
 	return ur.db.UpdateUser(ctx, input)
 }
 
+func (ur *SqlUserRepository) UpdateAvatar(ctx context.Context, input sqlc.UpdateUserAvatarParams) (sqlc.User, error) {
+	return ur.db.UpdateUserAvatar(ctx, input)
+}
+
 func (ur *SqlUserRepository) SoftDelete(ctx context.Context, uuid uuid.UUID) (sqlc.User, error) {
 	return ur.db.SoftDeleteUser(ctx, uuid)
 }

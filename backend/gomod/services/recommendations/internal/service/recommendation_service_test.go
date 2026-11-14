@@ -14,14 +14,23 @@ import (
 )
 
 type fakeRepo struct {
-	rows []recsrepository.BestSellerRow
-	err  error
+	rows     []recsrepository.BestSellerRow
+	trending []recsrepository.BestSellerRow
+	err      error
+	// trendingErr is separate so a broken trending read can be tested without
+	// also breaking the best-seller rollup, which is what the fallback path
+	// depends on.
+	trendingErr error
 }
 
 func (f fakeRepo) Rebuild(context.Context, int) (int, error) { return 0, nil }
 
 func (f fakeRepo) Top(context.Context, int) ([]recsrepository.BestSellerRow, error) {
 	return f.rows, f.err
+}
+
+func (f fakeRepo) Trending(context.Context, int, int) ([]recsrepository.BestSellerRow, error) {
+	return f.trending, f.trendingErr
 }
 
 func (f fakeRepo) UnitsByProduct(context.Context) (map[uuid.UUID]int64, int64, error) {

@@ -14753,6 +14753,9 @@
                     "age": {
                         "type": "integer"
                     },
+                    "avatar_url": {
+                        "type": "string"
+                    },
                     "created_at": {
                         "type": "string"
                     },

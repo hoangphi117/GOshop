@@ -28,7 +28,7 @@ import {
   BellOff,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth-store'
-import { cn, getDisplayNameInitials } from '@/lib/utils'
+import { cn, getDisplayNameInitials, getImageUrl } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import {
@@ -795,6 +795,7 @@ export function Chats() {
       uuid?: string
       full_name?: string
       email?: string
+      avatar_url?: string
       status?: string
       level?: string
       created_at?: string
@@ -1211,6 +1212,10 @@ export function Chats() {
                               >
                                 <div className='flex min-w-0 items-center gap-2'>
                                   <Avatar className='h-7 w-7 shrink-0 text-[10px]'>
+                                    <AvatarImage
+                                      src={getImageUrl(u.avatar_url)}
+                                      alt={u.full_name || u.email}
+                                    />
                                     <AvatarFallback>{initials}</AvatarFallback>
                                   </Avatar>
                                   <div className='min-w-0 flex-1'>
@@ -1319,7 +1324,7 @@ export function Chats() {
                         <div className='relative shrink-0'>
                           <Avatar className='h-10 w-10 border'>
                             <AvatarImage
-                              src={conv.user_avatar}
+                              src={getImageUrl(conv.user_avatar)}
                               alt={conv.user_fullname}
                             />
                             <AvatarFallback className='text-xs font-semibold'>
@@ -1399,7 +1404,7 @@ export function Chats() {
                     <div className='relative shrink-0'>
                       <Avatar className='h-8 w-8 border'>
                         <AvatarImage
-                          src={activeConversation.user_avatar}
+                          src={getImageUrl(activeConversation.user_avatar)}
                           alt={activeConversation.user_fullname}
                         />
                         <AvatarFallback className='text-xs'>

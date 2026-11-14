@@ -64,16 +64,17 @@ func TestRefreshCookieMissingHeaderKeepsLegacyJar(t *testing.T) {
 	}
 }
 
-func TestRefreshCookieFallsBackToOtherClientName(t *testing.T) {
-	// A headerless refresh has no legacy cookie, but the middleware rotated the
-	// session into the other client's per-client cookie: the newest token is
-	// there and must be picked up rather than reported as missing.
-	ctx := cookieCtx(nil,
+func TestRefreshCookieNeverReadsOtherClientName(t *testing.T) {
+	// The two apps share one origin. Reading the other client's cookie turned a
+	// storefront reload into an admin refresh: the storefront came back as the
+	// admin, and the dashboard — whose token had just been rotated away — got
+	// 403 on every admin route. A client must only ever be itself.
+	ctx := cookieCtx(map[string]string{"X-Client-App": "storefront"},
 		&http.Cookie{Name: "goshop_refresh_token_dashboard", Value: "dash"})
 
 	name, token := refreshTokenFromCookie(ctx)
-	if name != "goshop_refresh_token_dashboard" || token != "dash" {
-		t.Fatalf("got (%q, %q)", name, token)
+	if name != "" || token != "" {
+		t.Fatalf("storefront read the dashboard cookie: got (%q, %q)", name, token)
 	}
 }
 
@@ -103,4 +104,24 @@ func contains(s, sub string) bool {
 		}
 	}
 	return false
+}
+
+func TestClearRefreshCookiesLeavesOtherClientAlone(t *testing.T) {
+	t.Setenv("APP_ENV", "development")
+	ctx := cookieCtx(map[string]string{"X-Client-App": "storefront"})
+
+	clearRefreshCookies(ctx)
+
+	cleared := false
+	for _, c := range ctx.Writer.Header().Values("Set-Cookie") {
+		if contains(c, "goshop_refresh_token_dashboard=") {
+			t.Fatalf("storefront logout cleared the dashboard session: %q", c)
+		}
+		if contains(c, "goshop_refresh_token_storefront=") {
+			cleared = true
+		}
+	}
+	if !cleared {
+		t.Fatalf("storefront cookie was not cleared")
+	}
 }

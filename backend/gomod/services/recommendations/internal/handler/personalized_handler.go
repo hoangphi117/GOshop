@@ -32,6 +32,7 @@ func NewPersonalizedHandler(
 // @Tags         Recommendations
 // @Produce      json
 // @Param        limit query int false "Number of products (default 12, max 50)"
+// @Param        tier query string false "crowd to ignore this device's history"
 // @Success      200 {object} utils.APIResponse{data=recssvc.Shelf}
 // @Failure      400 {object} utils.ErrorResponse
 // @Router       /api/v1/recommendations/personalized [get]
@@ -40,18 +41,43 @@ func (h *PersonalizedHandler) ForVisitor(ctx *gin.Context) {
 	if !ok {
 		return
 	}
+	tier, ok := parseTier(ctx)
+	if !ok {
+		return
+	}
 
-	shelf, reported, err := h.personalized.ForVisitor(ctx.Request.Context(), visitorKey(ctx), limit)
+	// tier=crowd: a device that signed out keeps its cookie (it is the browser's
+	// search history and must survive a logout), but must no longer be served a
+	// shelf built from that history. An empty key is the service's "no history"
+	// answer, which the fallback below turns into a crowd shelf.
+	key := ""
+	if tier != tierCrowd {
+		key = visitorKey(ctx)
+	}
+
+	shelf, reported, err := h.personalized.ForVisitor(ctx.Request.Context(), key, limit)
 	if err != nil {
 		// A missing vector table must not 500 the homepage shelf.
 		utils.ResponseError(ctx, err)
 		return
 	}
 	if !reported {
-		shelf, err = h.bestSellers.BestSellers(ctx.Request.Context(), limit)
-		if err != nil {
-			utils.ResponseError(ctx, err)
+		// Tier below the personal shelves: today's demand before the all-time
+		// list. Trending reports false when the day is too quiet to mean
+		// anything, and then best sellers answer.
+		trending, ok, terr := h.bestSellers.Trending(ctx.Request.Context(), limit)
+		if terr != nil {
+			utils.ResponseError(ctx, terr)
 			return
+		}
+		if ok {
+			shelf = trending
+		} else {
+			shelf, err = h.bestSellers.BestSellers(ctx.Request.Context(), limit)
+			if err != nil {
+				utils.ResponseError(ctx, err)
+				return
+			}
 		}
 	}
 	utils.ResponseSuccess(ctx, http.StatusOK, "Recommendations retrieved successfully", shelf)
@@ -204,6 +230,21 @@ func visitorKey(ctx *gin.Context) string {
 		return "a:" + anon
 	}
 	return ""
+}
+
+const tierCrowd = "crowd"
+
+// parseTier reads the shelf tier override. Anything but `crowd` is a typo that
+// would otherwise silently serve a personal shelf to a device asking not to
+// have one, so it is rejected rather than ignored.
+func parseTier(ctx *gin.Context) (string, bool) {
+	switch raw := ctx.Query("tier"); raw {
+	case "", tierCrowd:
+		return raw, true
+	default:
+		utils.ResponseValidator(ctx, map[string]string{"tier": "Tier must be empty or crowd"})
+		return "", false
+	}
 }
 
 func parseLimit(ctx *gin.Context) (int, bool) {

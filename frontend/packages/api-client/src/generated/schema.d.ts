@@ -2026,7 +2026,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
+                        "application/json": components["schemas"]["utils.APIResponse"] & {
                             data?: {
                                 [key: string]: unknown;
                             };
@@ -5901,28 +5901,26 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Search products with typo-tolerance
-         * @description Fast instant product search using Meilisearch with typo tolerance (< 10ms)
+         * Hybrid product search
+         * @description Ranks the catalog by keyword relevance and by embedding similarity, fused with reciprocal rank fusion. The response always reports in its source field which halves were available (hybrid, keyword, semantic). Filters apply to both halves, so total counts only matches the shopper would actually accept.
          */
         get: {
             parameters: {
                 query: {
-                    /** @description Search query keyword */
+                    /** @description Search query */
                     q: string;
-                    /** @description Filter by Category UUID */
-                    category_uuid?: string;
-                    /** @description Minimum price */
-                    min_price?: number;
-                    /** @description Maximum price */
-                    max_price?: number;
-                    /** @description Minimum rating (0-5) */
-                    min_rating?: number;
-                    /** @description Sort option (price:asc, price:desc, created_at:desc, created_at:asc, rating:desc, rating:asc) */
-                    sort?: string;
                     /** @description Page number (default 1) */
                     page?: number;
-                    /** @description Page limit (default 20) */
+                    /** @description Page size (default 20, max 50) */
                     limit?: number;
+                    /** @description Restrict to one category UUID */
+                    category_uuid?: string;
+                    /** @description Minimum product price (inclusive) */
+                    min_price?: number;
+                    /** @description Maximum product price (inclusive) */
+                    max_price?: number;
+                    /** @description Minimum average rating (inclusive) */
+                    min_rating?: number;
                 };
                 header?: never;
                 path?: never;
@@ -5930,24 +5928,22 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Products retrieved successfully */
+                /** @description Products searched successfully */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
-                            data?: components["schemas"]["dto.ProductDTO"][];
-                        };
+                        "application/json": components["schemas"]["dto.Shelf"];
                     };
                 };
-                /** @description Invalid parameters */
+                /** @description Invalid query or filter */
                 400: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "application/json": components["schemas"]["utils.ErrorResponse"];
                     };
                 };
             };
@@ -7024,7 +7020,7 @@ export interface paths {
         };
         /**
          * Comprehensive System Healthcheck
-         * @description Validates connectivity of Database, Redis, RabbitMQ, and Object Storage. Sends Discord alerts on degradation.
+         * @description Validates connectivity of Database, Redis, Kafka, and Object Storage. Sends Discord alerts on degradation.
          */
         get: {
             parameters: {
@@ -9584,7 +9580,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "*/*": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "*/*": components["schemas"]["utils.ErrorResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -9593,7 +9589,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "*/*": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "*/*": components["schemas"]["utils.ErrorResponse"];
                     };
                 };
                 /** @description Forbidden */
@@ -9602,7 +9598,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "*/*": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "*/*": components["schemas"]["utils.ErrorResponse"];
                     };
                 };
                 /** @description Not Found */
@@ -9611,13 +9607,358 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "*/*": components["schemas"]["goshop_internal_utils.ErrorResponse"];
+                        "*/*": components["schemas"]["utils.ErrorResponse"];
                     };
                 };
             };
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/recommendations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get best-selling products
+         * @description Top-selling products over the popularity window. When the store has no sales yet, falls back to top-rated products and reports source=fallback_rating.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Number of products (default 12, max 50) */
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Recommendations retrieved successfully */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["dto.Shelf"];
+                    };
+                };
+                /** @description Invalid limit */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/recommendations/personalized": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get personalized recommendations
+         * @description Products near the centroid of the caller's interaction history. Falls back (and reports its own source) when the visitor has no usable history.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Number of products (default 12, max 50) */
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Recommendations retrieved successfully */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["dto.Shelf"];
+                    };
+                };
+                /** @description Invalid limit */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/products/similar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get products similar to one product
+         * @description Nearest neighbours in embedding space, excluding the product itself and anything out of stock.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /** @description Product UUID */
+                    uuid: string;
+                    /** @description Number of products (default 12, max 50) */
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Similar products retrieved successfully */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["dto.Shelf"];
+                    };
+                };
+                /** @description Invalid uuid or limit */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assistant/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask the shopping assistant
+         * @description Grounded product advice and FAQ answers. Prices and stock come from the catalog, never from the model text.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description Question and optional history */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["dto.ChatRequest"];
+                };
+            };
+            responses: {
+                /** @description Assistant replied */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["dto.ChatResponse"];
+                    };
+                };
+                /** @description Invalid request body */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["utils.ErrorResponse"];
+                    };
+                };
+                /** @description Daily quota reached */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["utils.ErrorResponse"];
+                    };
+                };
+                /** @description Assistant not configured or provider unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assistant/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ask the shopping assistant, streamed
+         * @description Same grounding as POST /chat, but the answer arrives as SSE text deltas. Event types: delta (text), done (session_id + products), error.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /** @description Question */
+                    message: string;
+                    /** @description Session id */
+                    session_id?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description text/event-stream */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/event-stream": string;
+                    };
+                };
+                /** @description Invalid message or session_id */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/event-stream": components["schemas"]["utils.ErrorResponse"];
+                    };
+                };
+                /** @description Daily quota reached */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/event-stream": components["schemas"]["utils.ErrorResponse"];
+                    };
+                };
+                /** @description Assistant not configured */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/event-stream": components["schemas"]["utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assistant/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start an assistant session
+         * @description Returns a session id the widget sends back with each question.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Session created */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["dto.SessionResponse"];
+                    };
+                };
+                /** @description Assistant not configured */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["utils.ErrorResponse"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -10512,6 +10853,7 @@ export interface components {
         };
         "dto.UserDTO": {
             age?: number;
+            avatar_url?: string;
             created_at?: string;
             email?: string;
             full_name?: string;
@@ -10609,6 +10951,99 @@ export interface components {
             content_type?: string;
             filename?: string;
             folder?: string;
+        };
+        "utils.APIResponse": {
+            data?: unknown;
+            /** @example Operation completed successfully */
+            message?: string;
+            pagination?: components["schemas"]["utils.Pagination"];
+            /** @example success */
+            status?: string;
+        };
+        /** @enum {string} */
+        "utils.ErrorCode": "BAD_REQUEST" | "NOT_FOUND" | "CONFLICT" | "INTERNAL_SERVER_ERROR" | "UNAUTHORIZED" | "TOO_MANY_REQUESTS" | "FORBIDDEN" | "BAD_GATEWAY" | "EXTERNAL_SERVICE_ERROR" | "SERVICE_UNAVAILABLE";
+        "utils.ErrorResponse": {
+            /** @example BAD_REQUEST */
+            code?: components["schemas"]["utils.ErrorCode"];
+            /** @example Detailed explanation */
+            detail?: string;
+            /** @example Invalid input format */
+            error?: string;
+        };
+        "utils.Pagination": {
+            has_next?: boolean;
+            has_prev?: boolean;
+            limit?: number;
+            page?: number;
+            total_pages?: number;
+            total_records?: number;
+        };
+        "dto.RecommendationItem": {
+            uuid: string;
+            name: string;
+            slug: string;
+            description?: string;
+            /** Format: double */
+            price: number;
+            /** Format: int32 */
+            stock: number;
+            sku?: string;
+            category_uuid?: string;
+            category_name?: string;
+            image_url?: string;
+            /** Format: double */
+            rating: number;
+            /** Format: int32 */
+            reviews_count: number;
+            /** Format: int64 */
+            units_sold?: number;
+            /** Format: double */
+            similarity?: number;
+        };
+        "dto.Shelf": {
+            /** @description hybrid | keyword | semantic | personalized | fallback_rating | best_sellers */
+            source: string;
+            items: components["schemas"]["dto.RecommendationItem"][];
+            total?: number;
+        };
+        "dto.AssistantTurn": {
+            /** @enum {string} */
+            role: "user" | "assistant";
+            content: string;
+        };
+        "dto.ChatRequest": {
+            session_id?: string;
+            message: string;
+            history?: components["schemas"]["dto.AssistantTurn"][];
+        };
+        "dto.Product": {
+            uuid: string;
+            name: string;
+            slug: string;
+            /** Format: double */
+            price: number;
+            /** Format: int32 */
+            stock: number;
+            category_name?: string;
+            image_url?: string;
+        };
+        "dto.Usage": {
+            prompt_tokens: number;
+            completion_tokens: number;
+            cached_tokens?: number;
+            tool_calls?: number;
+        };
+        "dto.ChatResponse": {
+            session_id: string;
+            answer: string;
+            products: components["schemas"]["dto.Product"][];
+            fallback_to_human: boolean;
+            model?: string;
+            usage?: components["schemas"]["dto.Usage"];
+        };
+        "dto.SessionResponse": {
+            session_id: string;
+            expires_in: number;
         };
     };
     responses: never;

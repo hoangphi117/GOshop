@@ -9,6 +9,8 @@ export interface AuthUser {
   role?: string[]
   level?: string
   status?: string
+  /** Edge-relative media path or an external provider URL; empty when unset. */
+  avatarUrl?: string
 }
 
 interface AuthState {

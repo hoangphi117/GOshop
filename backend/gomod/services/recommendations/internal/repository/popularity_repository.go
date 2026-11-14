@@ -26,6 +26,18 @@ type PopularityRepository interface {
 	// UnitsByProduct returns units sold per product, plus the largest value, so
 	// a caller can normalise popularity onto 0..1 without a second query.
 	UnitsByProduct(ctx context.Context) (map[uuid.UUID]int64, int64, error)
+	// Trending returns what visitors are buying over the last windowDays,
+	// freshest first.
+	//
+	// It reads the event mirror, not product_popularity: the rollup is a 30-day
+	// aggregate rebuilt at boot, so it cannot answer "today" and would keep
+	// serving last week's winners. Trending is the tier below the personal
+	// shelves and above the all-time list — for a visitor we know nothing
+	// about, today's demand beats a month's average.
+	//
+	// Purchases only. A view is not demand: counting clicks here made the
+	// trending row a duplicate of whatever the last few shoppers opened.
+	Trending(ctx context.Context, windowDays int, limit int) ([]BestSellerRow, error)
 }
 
 type sqlPopularityRepository struct {
@@ -132,4 +144,42 @@ func (r *sqlPopularityRepository) UnitsByProduct(ctx context.Context) (map[uuid.
 		}
 	}
 	return out, max, rows.Err()
+}
+
+// trendingSQL counts purchased units per product inside the window.
+//
+// Purchases are one event per line with `props.quantity` carrying the count, so
+// it coalesces to 1 when a caller (an older bundle, or a test) omitted it: an
+// event that exists at all is one unit. Ordering by units then by the newest
+// purchase breaks ties toward whatever is selling right now.
+const trendingSQL = `
+SELECT product_uuid,
+       SUM(COALESCE((props->>'quantity')::int, 1))::bigint AS units,
+       0::float8                                          AS revenue
+  FROM analytics_mirror.user_events
+ WHERE event_type = 'purchase'
+   AND product_uuid IS NOT NULL
+   AND occurred_at > now() - make_interval(days => $1::int)
+ GROUP BY product_uuid
+ ORDER BY units DESC, MAX(occurred_at) DESC
+ LIMIT $2`
+
+func (r *sqlPopularityRepository) Trending(ctx context.Context, windowDays int, limit int) ([]BestSellerRow, error) {
+	if windowDays <= 0 {
+		windowDays = 1
+	}
+	if limit <= 0 || limit > 50 {
+		limit = 12
+	}
+	rows, err := r.pool.Query(ctx, trendingSQL, windowDays, limit)
+	if err != nil {
+		return nil, fmt.Errorf("query trending: %w", err)
+	}
+	defer rows.Close()
+
+	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (BestSellerRow, error) {
+		var b BestSellerRow
+		err := row.Scan(&b.ProductUUID, &b.UnitsSold, &b.Revenue)
+		return b, err
+	})
 }

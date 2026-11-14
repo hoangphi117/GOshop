@@ -10,6 +10,8 @@ export interface AuthUser {
   role?: string[]
   level?: string
   status?: string
+  /** Edge-relative media path ("/goshop-media/avatars/x.png") or external URL. */
+  avatarUrl?: string
   exp?: number
 }
 

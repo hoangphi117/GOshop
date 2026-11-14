@@ -11,11 +11,34 @@ interface QueuedEvent {
   event_id: string
   event_type: EventType
   occurred_at: string
+  session_id: string
   [field: string]: unknown
 }
 
 const MAX_BATCH = 20
 const FLUSH_MS = 5000
+
+// Session id groups a browsing pass so the recommendations service can answer
+// "what is this visitor doing right now" when the long-term profile is too thin
+// to project. sessionStorage (not localStorage) so it dies with the tab: a
+// shared machine must not hand one person's session to the next.
+const SESSION_KEY = 'goshop_sid'
+
+function sessionId(): string {
+  if (typeof window === 'undefined') return ''
+  try {
+    const existing = window.sessionStorage.getItem(SESSION_KEY)
+    if (existing) return existing
+    const fresh = uuid()
+    window.sessionStorage.setItem(SESSION_KEY, fresh)
+    return fresh
+  } catch {
+    // sessionStorage throws in some privacy modes (Safari locked storage,
+    // partitioned iframes). A shelf derived from a long-term profile is a
+    // degraded answer, not a broken one, so events still go out.
+    return ''
+  }
+}
 
 const queue: QueuedEvent[] = []
 let timer: ReturnType<typeof setTimeout> | null = null
@@ -96,6 +119,7 @@ export function track(event_type: EventType, payload: Record<string, unknown> = 
     ...payload,
     event_id: uuid(),
     event_type,
+    session_id: sessionId(),
     occurred_at: new Date().toISOString(),
   })
   if (queue.length >= MAX_BATCH) {

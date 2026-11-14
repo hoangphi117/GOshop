@@ -37,6 +37,19 @@ type QuerySeed struct {
 type AffinityRepository interface {
 	// Top returns the strongest products for one visitor, most relevant first.
 	Top(ctx context.Context, visitorKey string, limit int) ([]AffinityRow, error)
+	// SessionTop returns what the visitor touched in their most recent session,
+	// most recent first.
+	//
+	// This is the second-tier signal: a visitor with no 90-day profile but a
+	// live browsing pass is not a cold start. Ranking the last session is the
+	// cheapest honest answer to "what is this visitor doing right now", and it
+	// is available within seconds of the first click because the event log is
+	// already the source Top reads.
+	//
+	// An empty result means no session id was recorded (a browser in private
+	// mode, or events that predate the session_id migration), not that the
+	// visitor did nothing — the caller falls through to best sellers.
+	SessionTop(ctx context.Context, visitorKey string, limit int) ([]AffinityRow, error)
 	// SearchSeeds returns the visitor's most recent successful keywords, each
 	// with the products they clicked. A searched-but-never-clicked query is
 	// excluded: it says what the shopper wanted, not what the catalog has.
@@ -79,9 +92,32 @@ const (
 // (anon_id, occurred_at) and signed-in lookups on (user_id, occurred_at).
 //
 // $1 = user id (NULL when anonymous), $2 = anon id (NULL when signed in).
+//
+// Identity, not a bare key. A visitor leaves two disjoint trails: the device
+// they used before signing in (anon_id only) and everything they did while
+// signed in (both ids on the same row). Matching one column lost the other
+// trail on every login and every logout, which is why the shelf visibly reset:
+// a shopper who browsed anonymously for a week and then signed in got an empty
+// profile, and signing out handed them a stranger's shelf.
+//
+// The bridges are read from the event log itself rather than a link table. A
+// row that carries both $1 and an anon id is proof those two identities were
+// the same person at that moment, and there is nowhere else to learn it: the
+// schema has no identity column, and this service only reads the mirror.
+//
+// ponytail: an inline DISTINCT subquery, not a materialised identity_link
+// table. It costs two extra index-only reads per shelf today; add the table
+// (and a backfill) only when user_events crosses ~50M rows or the p95 shelf
+// shows it in the query plan.
 const visitorPredicate = `(
       ($1::int IS NOT NULL AND user_id = $1::int)
-   OR ($2::uuid IS NOT NULL AND $1::int IS NULL AND anon_id = $2::uuid)
+   OR ($2::uuid IS NOT NULL AND anon_id = $2::uuid)
+   OR ($2::uuid IS NOT NULL AND user_id IN (
+           SELECT DISTINCT user_id FROM analytics_mirror.user_events
+            WHERE anon_id = $2::uuid AND user_id IS NOT NULL))
+   OR ($1::int IS NOT NULL AND anon_id IN (
+           SELECT DISTINCT anon_id FROM analytics_mirror.user_events
+            WHERE user_id = $1::int AND anon_id IS NOT NULL))
 )`
 
 // topAffinitySQL scores every product the visitor touched and returns the
@@ -194,6 +230,106 @@ func (r *sqlAffinityRepository) Top(ctx context.Context, visitorKey string, limi
 // searchClickCap bounds how many clicked products one keyword can contribute,
 // so a search with fifty clicks does not outvote a purchase.
 const searchClickCap = 10
+
+// sessionSeedLimit is how much of one session is worth ranking by. A browsing
+// pass is short by nature; more than this and the "session" is really the whole
+// profile, which Top already answers better.
+const sessionSeedLimit = 10
+
+// sessionAffinitySQL scores the products of the visitor's latest session.
+//
+// The session is chosen once, by the newest event that session id ever wrote,
+// not by "newest ten events": a tab left open for an hour must not keep
+// outranking the pass that started five minutes ago in another tab. Recency
+// decay inside the session is the same curve Top uses, so a click five seconds
+// ago weighs more than the first view of the pass.
+//
+// The session branch of the predicate has no window: falling back to an older
+// session is what the tier is for, and a pass from two hours ago still answers
+// "what were you just doing". As a result an event with session_id of ” (a
+// client that has not learned to send one) would sort as the newest session, so
+// empty is filtered out above.
+//
+// The visitor predicate is shared with Top on purpose: after a login the newest
+// session may be tagged with both ids, and matching only one would drop it.
+const sessionAffinitySQL = `
+WITH latest AS (
+    SELECT session_id
+      FROM analytics_mirror.user_events
+     WHERE session_id IS NOT NULL
+       AND session_id::text <> ''
+       AND ` + visitorPredicate + `
+     ORDER BY occurred_at DESC
+     LIMIT 1
+),
+weighted AS (
+    SELECT e.product_uuid,
+           CASE e.event_type
+               WHEN 'purchase'    THEN $4::float8
+               WHEN 'add_to_cart' THEN $5::float8
+               ELSE $6::float8
+           END AS w,
+           e.occurred_at
+      FROM analytics_mirror.user_events e
+      JOIN latest ON latest.session_id = e.session_id
+     WHERE e.event_type IN ('view_item', 'add_to_cart', 'purchase')
+       AND e.product_uuid IS NOT NULL
+       -- The pass, not "everything ever": a session id reused across a week of
+       -- visits would hand back the profile under a different label.
+       AND e.occurred_at > now() - make_interval(days => $3::int)
+),
+scored AS (
+    SELECT product_uuid,
+           SUM(w * exp(-ln(2.0) * EXTRACT(EPOCH FROM (now() - occurred_at)) / 86400.0 / $7::float8)) AS score,
+           MAX(occurred_at) AS last_event_at
+      FROM weighted
+     GROUP BY product_uuid
+)
+SELECT product_uuid, score
+  FROM scored
+ WHERE score > 0
+ ORDER BY score DESC, last_event_at DESC
+ LIMIT $8`
+
+// sessionPassDays bounds the session tier to an actual pass. Visitor history is
+// read over the whole 90-day affinity window, but "one browsing pass" stops
+// meaning anything past a few hours, and the profile tier takes over the moment
+// it has enough evidence anyway.
+const sessionPassDays = 1
+
+func (r *sqlAffinityRepository) SessionTop(ctx context.Context, visitorKey string, limit int) ([]AffinityRow, error) {
+	userID, anonID, err := SplitVisitorKey(visitorKey)
+	if err != nil {
+		return nil, err
+	}
+	if userID == nil && anonID == nil {
+		return nil, nil
+	}
+	if limit <= 0 || limit > sessionSeedLimit {
+		limit = sessionSeedLimit
+	}
+	rows, err := r.pool.Query(ctx, sessionAffinitySQL,
+		userID, anonID,
+		sessionPassDays,
+		weightPurchase, weightAddCart, weightView,
+		affinityHalfLifeDays, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("read session affinity: %w", err)
+	}
+	defer rows.Close()
+
+	var out []AffinityRow
+	for rows.Next() {
+		var row AffinityRow
+		if err := rows.Scan(&row.ProductUUID, &row.Score); err != nil {
+			return nil, fmt.Errorf("scan session affinity: %w", err)
+		}
+		row.VisitorKey = visitorKey
+		out = append(out, row)
+	}
+	return out, rows.Err()
+}
 
 func (r *sqlAffinityRepository) SearchSeeds(ctx context.Context, visitorKey string, limit int) ([]QuerySeed, error) {
 	userID, anonID, err := SplitVisitorKey(visitorKey)

@@ -25,6 +25,7 @@ export function useAuth() {
         fullName: u.full_name,
         level: u.level,
         status: u.status,
+        avatarUrl: u.avatar_url,
       }
       auth.setUser(userProfile)
       return userProfile
@@ -67,6 +68,7 @@ export function useAuth() {
         fullName: u.full_name,
         level: u.level,
         status: u.status,
+        avatarUrl: u.avatar_url,
       }
       auth.setUser(userProfile)
 

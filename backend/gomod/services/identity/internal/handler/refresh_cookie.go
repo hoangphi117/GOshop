@@ -53,16 +53,16 @@ func setRefreshCookieNamed(ctx *gin.Context, name, token string) {
 	ctx.SetCookie(name, token, int(auth.RefreshTokenTTL.Seconds()), refreshCookiePath, "", cookieSecure(), true)
 }
 
-// clearRefreshCookies expires this client's cookie plus every name in use, so a
-// logout never leaves a live session behind under another client's name.
+// clearRefreshCookies expires only the calling client's cookie, plus the legacy
+// shared names (no live client writes those any more). Clearing both clients'
+// cookies made signing out of the storefront silently sign the admin out of the
+// dashboard — two sessions on one origin, two independent logouts.
 // Path=/ is included so cookies written by the previous broad scope die too.
 func clearRefreshCookies(ctx *gin.Context) {
 	ctx.SetSameSite(http.SameSiteLaxMode)
 	names := []string{
 		refreshCookieName(ctx),
 		refreshCookieBase,
-		refreshCookiePrefix + refreshCookieBase + "_" + clientDashboard,
-		refreshCookiePrefix + refreshCookieBase + "_" + clientStorefront,
 	}
 	for _, name := range names {
 		ctx.SetCookie(name, "", -1, refreshCookiePath, "", cookieSecure(), true)
@@ -71,18 +71,16 @@ func clearRefreshCookies(ctx *gin.Context) {
 }
 
 // refreshTokenFromCookie reads this client's cookie, falling back to the legacy
-// shared name for sessions created before per-client cookies existed. It also
-// looks up the other client's cookie by name: after the api-client middleware
-// rotated a token with no X-Client-App header, the newest token lives under the
-// other app's name. Returns the name it read, so the rotated token is written
-// back into that same cookie instead of whichever name the header implies.
+// shared name for sessions created before per-client cookies existed. It never
+// reads the other client's cookie: the two apps share an origin, so doing that
+// silently traded an admin's session for the storefront's on any refresh — the
+// storefront ended up as the admin, and the dashboard, whose token had just
+// been rotated out from under it, got 403 on every admin route. Returns the
+// name it read, so the rotated token is written back into that same cookie.
 func refreshTokenFromCookie(ctx *gin.Context) (name, token string) {
-	candidates := []string{
-		refreshCookieName(ctx),
-		refreshCookieBase,
-		refreshCookiePrefix + refreshCookieBase + "_" + clientDashboard,
-		refreshCookiePrefix + refreshCookieBase + "_" + clientStorefront,
-	}
+	// The shared legacy name is only a bucket for pre-migration sessions; it is
+	// never a stand-in for a different client's live cookie.
+	candidates := []string{refreshCookieName(ctx), refreshCookieBase}
 	for _, candidate := range candidates {
 		if val, err := ctx.Cookie(candidate); err == nil && val != "" {
 			return candidate, val

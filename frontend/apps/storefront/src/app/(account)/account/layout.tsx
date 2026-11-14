@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/auth-store";
 import { useMounted } from "@/hooks/use-mounted";
 import { authFetch } from "@/lib/api";
+import { blockDeviceIntent } from "@/lib/device-intent";
 import {
   User,
   ShoppingBag,
@@ -84,6 +85,9 @@ export default function AccountLayout({
     } catch {
       // Ignore
     }
+    // Keep the anon cookie — the history behind it is the visitor's and comes
+    // back on the next sign-in — but stop ranking shelves from it.
+    blockDeviceIntent();
     reset();
     router.push("/login");
   };

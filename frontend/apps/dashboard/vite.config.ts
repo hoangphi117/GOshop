@@ -44,17 +44,18 @@ export default defineConfig({
         target: PROXY_TARGET,
         changeOrigin: true,
       },
-      // Images are served by MinIO through the edge in prod. dev-host has no
-      // edge, so stop here and let the browser hit MinIO's published port —
-      // set up by the S3_PUBLIC_BASE_URL override below.
-      ...(PROXY_TARGET === 'http://localhost:8080'
-        ? {}
-        : {
-            '/goshop-media': {
-              target: PROXY_TARGET,
-              changeOrigin: true,
-            },
-          }),
+      // Media is reached two ways: the gateway forwards /goshop-media/ to MinIO
+      // in the containerised stack (edge nginx), and dev-host has neither — so
+      // this dev server proxies it to MinIO's published port directly. Proxying
+      // unconditionally is what makes getImageUrl's origin-stripping correct on
+      // both topologies.
+      '/goshop-media': {
+        target:
+          PROXY_TARGET === 'http://localhost:8080'
+            ? (process.env.DASHBOARD_MEDIA_TARGET ?? 'http://localhost:9000')
+            : PROXY_TARGET,
+        changeOrigin: true,
+      },
     },
   },
   test: {

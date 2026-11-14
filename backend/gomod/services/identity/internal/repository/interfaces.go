@@ -26,6 +26,7 @@ type UserRepository interface {
 	CountCustomersCreatedBetween(ctx context.Context, fromTime, toTime time.Time) (int64, error)
 	Create(ctx context.Context, input sqlc.CreateUserParams) (sqlc.User, error)
 	Update(ctx context.Context, input sqlc.UpdateUserParams) (sqlc.User, error)
+	UpdateAvatar(ctx context.Context, input sqlc.UpdateUserAvatarParams) (sqlc.User, error)
 	SoftDelete(ctx context.Context, uuid uuid.UUID) (sqlc.User, error)
 	Restore(ctx context.Context, uuid uuid.UUID) (sqlc.User, error)
 	Trash(ctx context.Context, uuid uuid.UUID) (sqlc.User, error)

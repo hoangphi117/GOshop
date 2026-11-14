@@ -21,7 +21,13 @@ import (
 // served when the list was really an anonymous best-seller fallback.
 const (
 	SourcePersonalized = "personalized"
-	SourceSimilar      = "similar"
+	// SourcePersonalizedSession is the second tier: the long-term profile was
+	// too thin to project, so the shelf was built from the visitor's latest
+	// browsing pass instead. It is still a personal shelf from the shopper's
+	// point of view — "you were just looking at this" — which is why the
+	// storefront labels it like SourcePersonalized rather than as a fallback.
+	SourcePersonalizedSession = "personalized_session"
+	SourceSimilar             = "similar"
 	// Hybrid search reports which halves of the ranking were available, so the
 	// storefront can label the result honestly instead of calling a keyword-only
 	// answer "smart search".
@@ -40,6 +46,22 @@ const affinitySeedSize = 20
 // its direction from clicks), so ten recent successful searches already describe
 // the intent, and a long tail of one-off queries would only add noise.
 const searchSeedSize = 10
+
+// sessionSeedSize is how many products of the latest session define the
+// session-tier centroid. A pass that touched more than ten products has stopped
+// being a single intent, and the extra rows would pull the centroid toward
+// "everything on this site" — the same failure affinitySeedSize guards against.
+const sessionSeedSize = 10
+
+// sessionThreshold is the profile depth below which the session tier takes over.
+//
+// The two tiers read the same 90-day events, so "profile is empty" is not the
+// trigger that matters: a profile with one product produces a centroid, and a
+// centroid of one product is just that product's neighbourhood, which is what
+// the session would say anyway — only staler. Three is the point where the
+// profile has more than one bougbt-or-browsed direction to average and is
+// genuinely a better answer than the current pass.
+const sessionThreshold = 3
 
 // candidatePoolSize is how many neighbours the ANN step over-fetches before the
 // popularity blend re-ranks them. A pure similarity top-12 is enough to fill the
@@ -167,12 +189,34 @@ func (s *personalizedService) ForVisitor(ctx context.Context, visitorKey string,
 
 // buildForVisitor is the uncached shelf. reported=false means "no usable
 // history", which the caller answers with best sellers.
+//
+// Two tiers, and the order is by *evidence*, not by recency: the 90-day profile
+// answers only when it is deep enough to mean something (sessionThreshold
+// products), because a one-product profile is a single product's neighbourhood
+// and the current session says the same thing with fresher data. Below the
+// threshold the session wins; if it has nothing either, the profile is used as
+// the last resort rather than falling straight through to best sellers.
 func (s *personalizedService) buildForVisitor(ctx context.Context, visitorKey string, limit int) (Shelf, bool, error) {
-	centroid, seen, err := s.visitorCentroid(ctx, visitorKey)
+	centroid, seen, depth, err := s.visitorCentroid(ctx, visitorKey)
 	if err != nil {
 		return Shelf{}, false, err
 	}
-	// A visitor whose products have no vectors yet has no signal to project.
+	source := SourcePersonalized
+
+	// A shallow profile is not evidence: swap it for the session when the
+	// session has one. The session read is skipped for a deep profile, so a
+	// regular shopper never pays for the extra query.
+	if depth < sessionThreshold {
+		sessionCentroid, sessionSeen, serr := s.sessionCentroid(ctx, visitorKey)
+		switch {
+		case serr != nil:
+			// A broken session read must not blank a shelf the profile could
+			// have filled; it only means there is no second chance.
+			logger.Log.Warn().Err(serr).Msg("session affinity unavailable; using the profile")
+		case sessionCentroid != nil:
+			centroid, seen, source = sessionCentroid, sessionSeen, SourcePersonalizedSession
+		}
+	}
 	if centroid == nil {
 		return Shelf{}, false, nil
 	}
@@ -222,12 +266,43 @@ func (s *personalizedService) buildForVisitor(ctx context.Context, visitorKey st
 		Int("category_coverage", categoryCoverage(items)).
 		Float64("intra_list_similarity", intraListSimilarity(items)).
 		Int("brands", brandCount(items)).
+		Str("source", source).
 		Msg("personalized shelf diversity")
-	return Shelf{Source: SourcePersonalized, Items: items}, true, nil
+	return Shelf{Source: source, Items: items}, true, nil
+}
+
+// sessionCentroid projects the visitor's latest session into embedding space.
+//
+// It is deliberately dumber than visitorCentroid: no search seeds, no
+// per-identity weighting. A session is minutes long and holds a handful of
+// clicks, so the only signal worth using is "these products, recently", and
+// folding search keywords in would add a second, older source to a point that
+// exists precisely because the older sources were empty.
+//
+// The same nil contract as visitorCentroid: a session whose products have no
+// vectors is no session at all.
+func (s *personalizedService) sessionCentroid(ctx context.Context, visitorKey string) ([]float32, []uuid.UUID, error) {
+	rows, err := s.affinity.SessionTop(ctx, visitorKey, sessionSeedSize)
+	if err != nil {
+		return nil, nil, fmt.Errorf("session affinity: %w", err)
+	}
+	if len(rows) == 0 {
+		return nil, nil, nil
+	}
+	centroid, seen, err := s.centroids.Centroid(ctx, rows)
+	if err != nil {
+		return nil, nil, fmt.Errorf("session centroid: %w", err)
+	}
+	return centroid, seen, nil
 }
 
 // visitorCentroid merges the two signals a visitor leaves behind: products they
 // interacted with, and keywords they searched.
+//
+// depth is how many of those products actually carry a vector. It is the number
+// that decides whether this profile is worth ranking: top can be long while every
+// product in it is un-embedded, and a centroid built from nothing is not depth
+// the caller can trust.
 //
 // Search is folded in as a second centroid rather than as extra products,
 // because a keyword has no vector of its own — it borrows the mean vector of
@@ -238,10 +313,10 @@ func (s *personalizedService) buildForVisitor(ctx context.Context, visitorKey st
 // not comparable, and a shopper with one purchase should not be drowned out by
 // a shopper whose history happens to be all searches. Each side contributes in
 // proportion to how much evidence it holds.
-func (s *personalizedService) visitorCentroid(ctx context.Context, visitorKey string) ([]float32, []uuid.UUID, error) {
+func (s *personalizedService) visitorCentroid(ctx context.Context, visitorKey string) ([]float32, []uuid.UUID, int, error) {
 	top, err := s.affinity.Top(ctx, visitorKey, affinitySeedSize)
 	if err != nil {
-		return nil, nil, fmt.Errorf("affinity lookup: %w", err)
+		return nil, nil, 0, fmt.Errorf("affinity lookup: %w", err)
 	}
 	seeds, err := s.affinity.SearchSeeds(ctx, visitorKey, searchSeedSize)
 	if err != nil {
@@ -255,6 +330,7 @@ func (s *personalizedService) visitorCentroid(ctx context.Context, visitorKey st
 		sum      []float64
 		total    float64
 		seen     []uuid.UUID
+		depth    int
 		bulkSeen = make(map[uuid.UUID]struct{})
 	)
 	add := func(centroid []float32, weight float64) error {
@@ -277,10 +353,17 @@ func (s *personalizedService) visitorCentroid(ctx context.Context, visitorKey st
 	if len(top) > 0 {
 		centroid, productSeen, err := s.centroids.Centroid(ctx, top)
 		if err != nil {
-			return nil, nil, fmt.Errorf("centroid: %w", err)
+			return nil, nil, 0, fmt.Errorf("centroid: %w", err)
 		}
+		// Depth is the profile's own breadth, before vector availability: a
+		// product whose embedding is missing still says the visitor cared about
+		// it, and Centroid already returns nil when none of them can be
+		// averaged. Counting only embedded rows here would make a catalogue
+		// backfill gap look like "this visitor is new" and hand them the session
+		// shelf every time.
+		depth = len(top)
 		if err := add(centroid, float64(len(top))); err != nil {
-			return nil, nil, err
+			return nil, nil, 0, err
 		}
 		for _, id := range productSeen {
 			if _, ok := bulkSeen[id]; !ok {
@@ -293,10 +376,10 @@ func (s *personalizedService) visitorCentroid(ctx context.Context, visitorKey st
 	if len(seeds) > 0 {
 		centroid, clickSeen, err := s.centroids.SearchCentroid(ctx, seeds)
 		if err != nil {
-			return nil, nil, fmt.Errorf("search centroid: %w", err)
+			return nil, nil, 0, fmt.Errorf("search centroid: %w", err)
 		}
 		if err := add(centroid, float64(len(seeds))); err != nil {
-			return nil, nil, err
+			return nil, nil, 0, err
 		}
 		// A click is only excluded when it is not already covered above, so a
 		// shopper who searched for something they had also viewed is not
@@ -311,9 +394,9 @@ func (s *personalizedService) visitorCentroid(ctx context.Context, visitorKey st
 	}
 
 	if total == 0 || sum == nil {
-		return nil, seen, nil
+		return nil, seen, depth, nil
 	}
-	return unitVector(sum, total), seen, nil
+	return unitVector(sum, total), seen, depth, nil
 }
 
 // unitVector is the shared final step: average, then rescale to unit length so
