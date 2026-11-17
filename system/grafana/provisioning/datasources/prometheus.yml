@@ -1,0 +1,15 @@
+# Grafana datasource for a local dashboard run (dev).
+#
+# Grafana Cloud is where production dashboards live; this file exists so
+# `system/grafana/dashboards/goshop-overview.json` has a Prometheus to read
+# when the stack runs on a laptop.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false

@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+// media.uploaded — published once a direct upload is confirmed; the worker
+// consumes it to normalise the object in place (resize / re-encode).
+//
+// Debt: this is the only domain event with neither `event_id` nor
+// `timestamp`, so it cannot be versioned or deduplicated on the wire. Adding
+// them is a producer change (media/upload_handler.go) and belongs to a
+// follow-up, not to this schema.
+//
+// No envelope: media publishes straight to the broker.
+package events.media.v1;
+
+option go_package = "goshop/shared/proto/events/media/v1;mediaeventsv1";
+
+message MediaUploadedEvent {
+  string file_key = 1 [json_name = "file_key"];
+  string content_type = 2 [json_name = "content_type"];
+
+  // int64 in Go: object sizes exceed the int32 range.
+  int64 size = 3 [json_name = "size"];
+}

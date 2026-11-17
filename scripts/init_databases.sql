@@ -41,3 +41,9 @@ WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'shopping_chat')\gexec
 
 SELECT 'CREATE DATABASE shopping_notification'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'shopping_notification')\gexec
+
+-- Personalization store: affinity, popularity windows and product embeddings.
+-- Owned by services/recommendations (phase 2); created here so phase 1 can wire
+-- the consumer against a database that already exists.
+SELECT 'CREATE DATABASE shopping_recs'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'shopping_recs')\gexec

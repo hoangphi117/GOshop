@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	catalogsqlc "goshop/services/catalog/internal/db/sqlc"
+	"regexp"
 	"strings"
 
 	"github.com/google/uuid"
@@ -19,6 +20,9 @@ type CatalogRepository interface {
 	GetCategoryByUUID(ctx context.Context, u uuid.UUID) (catalogsqlc.Category, error)
 	GetCategoryByID(ctx context.Context, id int32) (catalogsqlc.Category, error)
 	ListCategories(ctx context.Context, activeOnly *bool) ([]catalogsqlc.Category, error)
+
+	// FAQs
+	ListFAQs(ctx context.Context, q *string, limit, offset int32) ([]FAQ, error)
 	UpdateCategory(ctx context.Context, params catalogsqlc.UpdateCategoryParams) (catalogsqlc.Category, error)
 	SoftDeleteCategory(ctx context.Context, u uuid.UUID) (catalogsqlc.Category, error)
 	RestoreCategory(ctx context.Context, u uuid.UUID) (catalogsqlc.Category, error)
@@ -52,9 +56,74 @@ type CatalogRepository interface {
 	MarkOutboxEventProcessed(ctx context.Context, eventID int64) error
 }
 
+// FAQ is the projection the public FAQ endpoints return.
+type FAQ struct {
+	UUID     uuid.UUID
+	Question string
+	Answer   string
+	Tags     []string
+}
+
 type SqlCatalogRepository struct {
 	queries *catalogsqlc.Queries
 	pool    *pgxpool.Pool
+}
+
+// ListFAQs returns active FAQs, optionally filtered by a text query. A nil or
+// blank q returns the full list in creation order.
+func (r *SqlCatalogRepository) ListFAQs(ctx context.Context, q *string, limit, offset int32) ([]FAQ, error) {
+	if q == nil || strings.TrimSpace(*q) == "" {
+		rows, err := r.queries.ListAllFAQs(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return toFAQs(rows), nil
+	}
+	tsq := toTSQuery(*q)
+	rows, err := r.queries.ListFAQs(ctx, catalogsqlc.ListFAQsParams{Q: q, Tsq: &tsq, Lim: limit, Off: offset})
+	if err != nil {
+		return nil, err
+	}
+	return toFAQs(rows), nil
+}
+
+// faqWord strips everything Postgres would treat as tsquery syntax. The input
+// is user text (and, for the assistant, model text), so it must not be able to
+// raise a syntax error or inject operators.
+var faqWord = regexp.MustCompile(`[^\p{L}\p{N}]+`)
+
+// toTSQuery turns free text into an OR-query of its words.
+//
+// websearch_to_tsquery joins terms with AND, which is wrong here: the assistant
+// forwards a whole sentence ("return policy how many days to return") and
+// requiring every word matched zero rows. Any matching word is a useful hit;
+// ts_rank then puts the best one first.
+func toTSQuery(q string) string {
+	words := faqWord.Split(strings.ToLower(q), -1)
+	kept := make([]string, 0, len(words))
+	for _, w := range words {
+		// Single letters carry no meaning and only add noise to the ranking.
+		if len(w) > 1 {
+			kept = append(kept, w)
+		}
+	}
+	if len(kept) == 0 {
+		return "zzzznomatch"
+	}
+	return strings.Join(kept, " | ")
+}
+
+func toFAQs(rows []catalogsqlc.CatalogFaq) []FAQ {
+	out := make([]FAQ, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, FAQ{
+			UUID:     uuid.UUID(row.FaqUuid.Bytes),
+			Question: row.Question,
+			Answer:   row.Answer,
+			Tags:     row.Tags,
+		})
+	}
+	return out
 }
 
 func NewSqlCatalogRepository(pool *pgxpool.Pool) CatalogRepository {

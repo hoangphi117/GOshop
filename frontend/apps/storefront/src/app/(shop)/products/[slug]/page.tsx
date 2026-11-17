@@ -9,6 +9,9 @@ import {
 } from '@/lib/api-server'
 import { ProductDetailView } from '@/components/product/product-detail-view'
 import { ProductGrid } from '@/components/product/product-grid'
+import { ProductViewTracker } from '@/components/product/product-view-tracker'
+import { SimilarProducts } from '@/components/product/similar-products'
+import { RecentlyViewedShelf } from '@/components/product/recently-viewed-shelf'
 import { ChevronRight, ArrowLeft } from 'lucide-react'
 import type { Metadata } from 'next'
 
@@ -63,6 +66,7 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
   return (
     <div className="bg-[#F8FAFC] min-h-screen py-6">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 space-y-6">
+        <ProductViewTracker productUuid={product.uuid} />
         {/* Breadcrumb Navigation */}
         <nav className="flex items-center gap-2 text-xs text-[#64748B]">
           <Link href="/" className="hover:text-[#007D9C] transition-colors">
@@ -130,6 +134,12 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
             <ProductGrid products={relatedProducts} />
           </section>
         )}
+
+        {/* Vector nearest neighbours (server filters self + out of stock) */}
+        <SimilarProducts productUuid={product.uuid} />
+
+        {/* Local view history, resolved against the live catalog */}
+        <RecentlyViewedShelf excludeUuid={product.uuid} />
       </div>
     </div>
   )

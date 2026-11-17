@@ -118,4 +118,30 @@ logs-prod:
 bash:
 	docker exec -it goshop-api /bin/sh
 
-.PHONY: importdb exportdb server chat media migrate-create migrate-up migrate-down sqlc build build-chat build-media run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev swagger swagger-chat seed seed-docker
+# ---- Kafka operations ---------------------------------------------------
+# The same targets live in the repo-root Makefile. They are repeated here
+# because make only reads the Makefile in the current directory, and this is
+# where service work happens. ROOT keeps the scripts reachable from backend/.
+
+ROOT := $(abspath ..)
+
+# Ad-hoc Grafana Cloud Loki query (needs GRAFANA_LOKI_READ_TOKEN in .env).
+#   make logq Q='{container=goshop-order}' HOURS=6
+# Make strips bare double quotes; a value written without them is quoted by
+# the script, so Q='{container=goshop-order}' is enough.
+logq:
+	powershell -NoProfile -ExecutionPolicy Bypass -File "$(ROOT)/scripts/logq.ps1" '$(Q)' -Hours $(or $(HOURS),2) -Limit $(or $(LIMIT),10)
+
+# Every DLQ topic must be empty in steady state.
+check-dlq:
+	powershell -NoProfile -ExecutionPolicy Bypass -File "$(ROOT)/scripts/check-dlq.ps1"
+
+# Truncate DLQ topics in place, keeping the topics and their ACLs.
+clear-dlq:
+	powershell -NoProfile -ExecutionPolicy Bypass -File "$(ROOT)/scripts/clear-dlq.ps1"
+
+# Healthz + consumer lag for the six Kafka consumer services.
+kafka-health:
+	powershell -NoProfile -ExecutionPolicy Bypass -File "$(ROOT)/scripts/check-kafka-health.ps1"
+
+.PHONY: importdb exportdb server chat media migrate-create migrate-up migrate-down sqlc build build-chat build-media run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev swagger swagger-chat seed seed-docker logq check-dlq clear-dlq kafka-health

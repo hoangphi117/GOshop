@@ -171,11 +171,10 @@ export function BannerDialog({ open, onOpenChange, banner }: BannerDialogProps) 
                       <SelectContent>
                         <SelectItem value='home_main'>Home - Main Hero</SelectItem>
                         <SelectItem value='home_sub'>Home - Sub Banner</SelectItem>
-                        <SelectItem value='home_middle'>Home - Middle Section</SelectItem>
                         <SelectItem value='home_popup'>Home - Pop-up</SelectItem>
-                        <SelectItem value='category_top'>Category Top</SelectItem>
                         <SelectItem value='sidebar'>Sidebar</SelectItem>
-                        <SelectItem value='common'>General</SelectItem>
+                        {/* home_middle, category_top, common: the storefront has
+                            no slot for these yet — re-add when they render. */}
                       </SelectContent>
                     </Select>
                     <FormMessage />

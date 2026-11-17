@@ -319,6 +319,23 @@ func (h *CatalogHandler) CreateProduct(c *gin.Context) {
 // @Failure      500 {object} utils.ErrorResponse "Internal server error"
 // @Router       /api/v1/products [get]
 func (h *CatalogHandler) GetAllProducts(c *gin.Context) {
+	// Batch lookup by uuid list: the recently-viewed shelf stores ids only and
+	// resolves them here so prices and stock are always current. It bypasses
+	// the paging path on purpose; the caller already chose the order.
+	if raw := c.Query("uuids"); raw != "" {
+		uuids := strings.Split(raw, ",")
+		if len(uuids) > 50 {
+			uuids = uuids[:50]
+		}
+		products, err := h.svc.GetProductsBatch(c.Request.Context(), uuids, nil)
+		if err != nil {
+			utils.ResponseError(c, err)
+			return
+		}
+		utils.ResponseSuccess(c, http.StatusOK, "Products retrieved successfully", products)
+		return
+	}
+
 	searchStr := c.Query("search")
 	categoryUUID := c.Query("category_uuid")
 	minPrice, _ := strconv.ParseFloat(c.Query("min_price"), 64)
@@ -473,7 +490,19 @@ func (h *CatalogHandler) SuggestProducts(c *gin.Context) {
 		limit = 8
 	}
 
-	suggestions, err := h.svc.SuggestProducts(c.Request.Context(), q, int32(limit))
+	var (
+		suggestions []catalogdto.ProductSuggestionDTO
+		err         error
+	)
+	if filter := c.Query("filter"); filter != "" {
+		// Only the hybrid-search keyword half sends this. It is not a public
+		// facet API: the grammar is Meilisearch's, the sellable predicate is
+		// still ANDed by the service, and an invalid filter degrades to the
+		// unfiltered suggestion path rather than failing the request.
+		suggestions, err = h.svc.SuggestProductsFiltered(c.Request.Context(), q, filter, int32(limit))
+	} else {
+		suggestions, err = h.svc.SuggestProducts(c.Request.Context(), q, int32(limit))
+	}
 	if err != nil {
 		utils.ResponseError(c, err)
 		return

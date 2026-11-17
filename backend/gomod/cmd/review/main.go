@@ -15,7 +15,7 @@ import (
 
 // @title           GOshop Review Service API
 // @version         1.0
-// @description     Dedicated Review microservice owning product reviews, helpful votes, and reports. Rating aggregates propagate to the catalog via RabbitMQ.
+// @description     Dedicated Review microservice owning product reviews, helpful votes, and reports. Rating aggregates propagate to the catalog via Kafka.
 // @host            localhost:8091
 // @BasePath        /
 

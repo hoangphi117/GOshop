@@ -182,6 +182,7 @@ func (s *orderReturnService) AdminUpdateReturnStatus(ctx context.Context, userUU
 					updatedReturn.ReturnUuid.String(),
 					order.OrderUuid.String(),
 					order.OrderNumber,
+					order.OrderUserID,
 					restockItems,
 				)
 				if _, err := s.outboxStore.Insert(txCtx, tx, "order", order.OrderUuid.String(), events.QueueOrderReturnCompleted, completedEvt); err != nil {
@@ -392,6 +393,7 @@ func (s *orderReturnService) AdminProcessReturnRefund(ctx context.Context, userU
 				fmt.Sprintf("Refund of %.0f VND processed", refundAmt),
 			)
 			event.ChangeType = events.ReturnChangeTypeRefunded
+			event.RefundAmount = refundAmt
 			if _, err := s.outboxStore.Insert(txCtx, tx, "order", resolved.OrderUUID.String(), events.QueueOrderReturnUpdated, event); err != nil {
 				return err
 			}

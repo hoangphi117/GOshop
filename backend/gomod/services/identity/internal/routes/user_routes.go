@@ -21,6 +21,7 @@ func (ur *UserRoutes) Register(r *gin.RouterGroup) {
 	{
 		users.GET("/me", ur.handler.GetProfile)
 		users.PUT("/me", ur.handler.UpdateProfile)
+		users.PUT("/me/avatar", ur.handler.UpdateAvatar)
 		users.PUT("/me/change-password", ur.handler.ChangePassword)
 	}
 }

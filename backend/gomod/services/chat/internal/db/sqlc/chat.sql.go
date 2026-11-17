@@ -17,6 +17,7 @@ const countConversations = `-- name: CountConversations :one
 SELECT COUNT(*)
 FROM chat_conversations c
 WHERE ($1::text = '' OR c.status = $1)
+  AND c.owner_is_staff = FALSE
   AND (
       $2::text = ''
       OR c.user_fullname ILIKE '%' || $2 || '%'
@@ -68,9 +69,9 @@ func (q *Queries) CountUnreadMessages(ctx context.Context, arg CountUnreadMessag
 }
 
 const createConversation = `-- name: CreateConversation :one
-INSERT INTO chat_conversations (user_id, user_email, user_fullname, user_avatar)
-VALUES ($1, $2, $3, $4)
-RETURNING conversation_id, conversation_uuid, user_id, admin_id, user_fullname, user_email, user_avatar, status, last_message_at, created_at, updated_at
+INSERT INTO chat_conversations (user_id, user_email, user_fullname, user_avatar, owner_is_staff)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING conversation_id, conversation_uuid, user_id, admin_id, user_fullname, user_email, user_avatar, status, last_message_at, created_at, updated_at, owner_is_staff
 `
 
 type CreateConversationParams struct {
@@ -78,6 +79,7 @@ type CreateConversationParams struct {
 	UserEmail    string `json:"user_email"`
 	UserFullname string `json:"user_fullname"`
 	UserAvatar   string `json:"user_avatar"`
+	OwnerIsStaff bool   `json:"owner_is_staff"`
 }
 
 func (q *Queries) CreateConversation(ctx context.Context, arg CreateConversationParams) (ChatConversation, error) {
@@ -86,6 +88,7 @@ func (q *Queries) CreateConversation(ctx context.Context, arg CreateConversation
 		arg.UserEmail,
 		arg.UserFullname,
 		arg.UserAvatar,
+		arg.OwnerIsStaff,
 	)
 	var i ChatConversation
 	err := row.Scan(
@@ -100,6 +103,7 @@ func (q *Queries) CreateConversation(ctx context.Context, arg CreateConversation
 		&i.LastMessageAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OwnerIsStaff,
 	)
 	return i, err
 }
@@ -156,7 +160,7 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (C
 }
 
 const getConversationByID = `-- name: GetConversationByID :one
-SELECT conversation_id, conversation_uuid, user_id, admin_id, user_fullname, user_email, user_avatar, status, last_message_at, created_at, updated_at FROM chat_conversations WHERE conversation_id = $1
+SELECT conversation_id, conversation_uuid, user_id, admin_id, user_fullname, user_email, user_avatar, status, last_message_at, created_at, updated_at, owner_is_staff FROM chat_conversations WHERE conversation_id = $1
 `
 
 func (q *Queries) GetConversationByID(ctx context.Context, conversationID int32) (ChatConversation, error) {
@@ -174,12 +178,13 @@ func (q *Queries) GetConversationByID(ctx context.Context, conversationID int32)
 		&i.LastMessageAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OwnerIsStaff,
 	)
 	return i, err
 }
 
 const getConversationByUUID = `-- name: GetConversationByUUID :one
-SELECT conversation_id, conversation_uuid, user_id, admin_id, user_fullname, user_email, user_avatar, status, last_message_at, created_at, updated_at FROM chat_conversations WHERE conversation_uuid = $1
+SELECT conversation_id, conversation_uuid, user_id, admin_id, user_fullname, user_email, user_avatar, status, last_message_at, created_at, updated_at, owner_is_staff FROM chat_conversations WHERE conversation_uuid = $1
 `
 
 func (q *Queries) GetConversationByUUID(ctx context.Context, conversationUuid uuid.UUID) (ChatConversation, error) {
@@ -197,12 +202,13 @@ func (q *Queries) GetConversationByUUID(ctx context.Context, conversationUuid uu
 		&i.LastMessageAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OwnerIsStaff,
 	)
 	return i, err
 }
 
 const getConversationByUserID = `-- name: GetConversationByUserID :one
-SELECT conversation_id, conversation_uuid, user_id, admin_id, user_fullname, user_email, user_avatar, status, last_message_at, created_at, updated_at FROM chat_conversations
+SELECT conversation_id, conversation_uuid, user_id, admin_id, user_fullname, user_email, user_avatar, status, last_message_at, created_at, updated_at, owner_is_staff FROM chat_conversations
 WHERE user_id = $1 AND status != 'closed'
 ORDER BY created_at DESC
 LIMIT 1
@@ -223,6 +229,7 @@ func (q *Queries) GetConversationByUserID(ctx context.Context, userID int32) (Ch
 		&i.LastMessageAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OwnerIsStaff,
 	)
 	return i, err
 }
@@ -318,6 +325,7 @@ SELECT
     ), '')::text AS last_message_content
 FROM chat_conversations c
 WHERE ($1::text = '' OR c.status = $1)
+  AND c.owner_is_staff = FALSE
   AND (
       $2::text = ''
       OR c.user_fullname ILIKE '%' || $2 || '%'
@@ -538,7 +546,7 @@ const updateConversationStatus = `-- name: UpdateConversationStatus :one
 UPDATE chat_conversations
 SET status = $1, updated_at = now()
 WHERE conversation_id = $2
-RETURNING conversation_id, conversation_uuid, user_id, admin_id, user_fullname, user_email, user_avatar, status, last_message_at, created_at, updated_at
+RETURNING conversation_id, conversation_uuid, user_id, admin_id, user_fullname, user_email, user_avatar, status, last_message_at, created_at, updated_at, owner_is_staff
 `
 
 type UpdateConversationStatusParams struct {
@@ -561,6 +569,7 @@ func (q *Queries) UpdateConversationStatus(ctx context.Context, arg UpdateConver
 		&i.LastMessageAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OwnerIsStaff,
 	)
 	return i, err
 }

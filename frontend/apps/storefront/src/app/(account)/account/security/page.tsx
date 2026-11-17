@@ -27,8 +27,8 @@ export default function SecurityPage() {
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (newPassword.length < 6) {
-      toast.error("New password must be at least 6 characters long.");
+    if (newPassword.length < 8) {
+      toast.error("New password must be at least 8 characters long.");
       return;
     }
 
@@ -46,8 +46,9 @@ export default function SecurityPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          current_password: currentPassword,
+          old_password: currentPassword,
           new_password: newPassword,
+          confirm_password: confirmPassword,
         }),
       });
 
@@ -55,7 +56,8 @@ export default function SecurityPage() {
 
       if (!res.ok) {
         throw new Error(
-          data?.message ||
+          data?.error ||
+            data?.message ||
             "Failed to update password. Verify your current password.",
         );
       }
@@ -149,7 +151,7 @@ export default function SecurityPage() {
                 required
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="At least 6 characters"
+                placeholder="At least 8 characters"
                 className="w-full bg-[#FFFFFF] border border-[#E2E8F0] rounded-md px-3.5 py-2.5 text-sm text-[#0F172A] pr-10 focus:outline-none focus:border-[#007D9C]"
               />
               <button
@@ -194,7 +196,7 @@ export default function SecurityPage() {
             </div>
             <div className="flex flex-col gap-2 text-xs">
               <div className="flex items-center gap-1.5 text-[#059669] font-medium">
-                <span>Minimum 6 characters</span>
+                <span>Minimum 8 characters</span>
               </div>
               <div className="flex items-center gap-1.5 text-[#059669] font-medium">
                 <span>

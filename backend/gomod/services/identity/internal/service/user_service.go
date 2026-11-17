@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -13,11 +14,11 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
-
 	"goshop/contracts/events"
 	"goshop/services/identity/internal/db/sqlc"
 	dto "goshop/services/identity/internal/dto"
 	"goshop/services/identity/internal/repository"
+	"goshop/shared/pkg/auth"
 	"goshop/shared/pkg/cache"
 	"goshop/shared/pkg/logger"
 	"goshop/shared/pkg/messaging"
@@ -25,11 +26,12 @@ import (
 )
 
 type userService struct {
-	repo     repository.UserRepository
-	cache    cache.RedisCacheService
-	redis    *redis.Client
-	rabbitmq messaging.Broker
-	outbox   repository.OutboxRepository
+	repo         repository.UserRepository
+	cache        cache.RedisCacheService
+	redis        *redis.Client
+	broker       messaging.Broker
+	outbox       repository.OutboxRepository
+	tokenService auth.TokenService
 }
 
 func NewUserService(repo repository.UserRepository, redisClient *redis.Client, rmq ...messaging.Broker) UserService {
@@ -37,29 +39,30 @@ func NewUserService(repo repository.UserRepository, redisClient *redis.Client, r
 	if redisClient != nil {
 		cacheService = cache.NewRedisCacheService(redisClient)
 	}
-	var rabbitMQ messaging.Broker
+	var broker messaging.Broker
 	if len(rmq) > 0 {
-		rabbitMQ = rmq[0]
+		broker = rmq[0]
 	}
 	return &userService{
-		repo:     repo,
-		cache:    cacheService,
-		redis:    redisClient,
-		rabbitmq: rabbitMQ,
+		repo:   repo,
+		cache:  cacheService,
+		redis:  redisClient,
+		broker: broker,
 	}
 }
 
-func NewUserServiceWithOutbox(repo repository.UserRepository, redisClient *redis.Client, rmq messaging.Broker, outbox repository.OutboxRepository) UserService {
+func NewUserServiceWithOutbox(repo repository.UserRepository, redisClient *redis.Client, rmq messaging.Broker, outbox repository.OutboxRepository, tokenService auth.TokenService) UserService {
 	var cacheService cache.RedisCacheService
 	if redisClient != nil {
 		cacheService = cache.NewRedisCacheService(redisClient)
 	}
 	return &userService{
-		repo:     repo,
-		cache:    cacheService,
-		redis:    redisClient,
-		rabbitmq: rmq,
-		outbox:   outbox,
+		repo:         repo,
+		cache:        cacheService,
+		redis:        redisClient,
+		broker:       rmq,
+		outbox:       outbox,
+		tokenService: tokenService,
 	}
 }
 
@@ -107,12 +110,12 @@ func (us *userService) publishUserSyncEvent(ctx context.Context, eventType strin
 		}
 	}
 
-	// 3. Fast-path publish to RabbitMQ if available
-	if us.rabbitmq != nil {
-		if err := us.rabbitmq.Publish(ctx, queueName, event); err != nil {
-			logger.Log.Warn().Err(err).Str("queue", queueName).Int32("user_id", user.UserID).Msg("Fast-path RabbitMQ publish failed, will be retried by Outbox Worker")
+	// 3. Fast-path publish to broker if available
+	if us.broker != nil {
+		if err := us.broker.Publish(ctx, queueName, event); err != nil {
+			logger.Log.Warn().Err(err).Str("queue", queueName).Int32("user_id", user.UserID).Msg("Fast-path broker publish failed, will be retried by Outbox Worker")
 		} else {
-			logger.Log.Info().Str("queue", queueName).Int32("user_id", user.UserID).Msg("Published user sync event to RabbitMQ")
+			logger.Log.Info().Str("queue", queueName).Int32("user_id", user.UserID).Msg("Published user sync event to broker")
 			if us.outbox != nil && outboxEventID > 0 {
 				_ = us.outbox.MarkProcessed(ctx, []int64{outboxEventID})
 			}
@@ -331,6 +334,62 @@ func (us *userService) UpdateProfile(ctx context.Context, userUUID uuid.UUID, in
 	return mapIdentityUserToDTO(user), nil
 }
 
+// UpdateAvatar stores the verified object key as the caller's avatar.
+//
+// The key must come from /upload/confirm: that endpoint HEADs the object and
+// verifies its size and magic bytes, so a client cannot point this at an
+// arbitrary URL or another user's object. Only the avatars/ prefix is
+// accepted — without it a caller could claim a product image and have it
+// deleted or replaced from under the catalog.
+func (us *userService) UpdateAvatar(ctx context.Context, userUUID uuid.UUID, fileKey string) (*dto.UserDTO, error) {
+	fileKey = strings.Trim(strings.TrimSpace(fileKey), "/")
+
+	var avatarURL *string
+	if fileKey != "" {
+		if !strings.HasPrefix(fileKey, "avatars/") || strings.Contains(fileKey, "..") {
+			return nil, utils.NewError(utils.ErrCodeBadRequest, "file_key must be an object under avatars/")
+		}
+		// Stored absolute, resolved to an edge-relative path on the way out
+		// (dto.AvatarPath). Storing the path instead would break the storage
+		// client's own PublicURL round-trip.
+		avatarURL = us.storageURL(fileKey)
+	}
+
+	user, err := us.repo.UpdateAvatar(ctx, sqlc.UpdateUserAvatarParams{
+		AvatarUrl: avatarURL,
+		UserUuid:  userUUID,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+			return nil, utils.NewError(utils.ErrCodeNotFound, "user not found")
+		}
+		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to update avatar", err)
+	}
+
+	if us.cache != nil {
+		if err := us.cache.Clear("users:*"); err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to clear cache")
+		}
+	}
+
+	us.publishUserSyncEvent(ctx, events.QueueUserUpdated, user)
+
+	return mapIdentityUserToDTO(user), nil
+}
+
+// storageURL builds the public URL for a stored object key. When no media base
+// is configured (a bare dev box) the edge-relative path is stored as-is, which
+// still resolves through the same origin that serves the site.
+func (us *userService) storageURL(fileKey string) *string {
+	base := strings.TrimRight(os.Getenv("S3_PUBLIC_BASE_URL"), "/")
+	if base == "" {
+		path := "/" + fileKey
+		return &path
+	}
+	url := base + "/" + fileKey
+	return &url
+}
+
 func (us *userService) ChangePassword(ctx context.Context, userUUID uuid.UUID, input dto.ChangePasswordRequest) error {
 	user, err := us.repo.GetByUUID(ctx, userUUID)
 	if err != nil {
@@ -374,6 +433,16 @@ func (us *userService) ChangePassword(ctx context.Context, userUUID uuid.UUID, i
 			logger.Log.Warn().Err(err).Msg("Failed to clear users cache")
 		}
 	}
+
+	// Changing the password from a signed-in session is how a user reacts to a
+	// leaked one, so every other session dies with it. Failures are logged, not
+	// returned: the password is already stored and the caller cannot retry.
+	if us.tokenService != nil {
+		if err := us.tokenService.RevokeUserSessions(user.UserUuid.String()); err != nil {
+			logger.Log.Warn().Err(err).Msg("Failed to revoke sessions after password change")
+		}
+	}
+
 	logger.Log.Info().Str("user_uuid", user.UserUuid.String()).Msg("User password changed successfully")
 	return nil
 }
@@ -492,6 +561,7 @@ func mapIdentityUserToDTO(u sqlc.User) *dto.UserDTO {
 		Status:    mapStatusText(int(u.UserStatus)),
 		Level:     mapLevelText(int(u.UserLevel)),
 		CreatedAt: u.UserCreatedAt.Format("2006-01-02 15:04:05"),
+		AvatarURL: dto.AvatarPath(u.UserAvatarUrl),
 	}
 	if u.UserAge != nil {
 		age := int(*u.UserAge)

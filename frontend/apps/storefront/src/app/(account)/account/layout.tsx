@@ -6,6 +6,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/auth-store";
 import { useMounted } from "@/hooks/use-mounted";
 import { authFetch } from "@/lib/api";
+import { blockDeviceIntent } from "@/lib/device-intent";
+import { useQueryClient } from "@tanstack/react-query";
+import { resetChatSession } from "@/hooks/use-chat";
 import {
   User,
   ShoppingBag,
@@ -29,6 +32,7 @@ export default function AccountLayout({
   const pathname = usePathname();
   const router = useRouter();
   const { user, accessToken, reset } = useAuthStore();
+  const queryClient = useQueryClient();
   const { unreadCount } = useNotificationStore();
   const mounted = useMounted();
 
@@ -75,15 +79,21 @@ export default function AccountLayout({
 
   const handleLogout = async () => {
     try {
-      const refreshToken = useAuthStore.getState().refreshToken;
+      // Refresh token is an HttpOnly cookie; logout reads it server-side.
       await authFetch("/api/v1/auth/logout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(refreshToken ? { refresh_token: refreshToken } : {}),
+        body: JSON.stringify({}),
       });
     } catch {
       // Ignore
     }
+    // Keep the anon cookie — the history behind it is the visitor's and comes
+    // back on the next sign-in — but stop ranking shelves from it.
+    blockDeviceIntent();
+    // Account data cached in the browser (chat + assistant) must not survive
+    // into whoever signs in next on this device.
+    resetChatSession(queryClient);
     reset();
     router.push("/login");
   };
@@ -138,7 +148,7 @@ export default function AccountLayout({
             Home
           </Link>
           <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-          <span className="font-semibold text-[#0F172A]">My Account</span>
+          <span className="font-semibold text-[#0F172A]"></span>
         </nav>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">

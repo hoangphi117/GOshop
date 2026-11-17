@@ -7,7 +7,7 @@ import (
 	handler "goshop/cmd/api/handler"
 	"goshop/cmd/api/routes"
 	"goshop/shared/pkg/discord"
-	"goshop/shared/pkg/rabbitmq"
+	"goshop/shared/pkg/messaging"
 	"goshop/shared/pkg/storage"
 )
 
@@ -19,12 +19,12 @@ type HealthModule struct {
 func NewHealthModule(
 	dbPool handler.Pinger,
 	redisClient *redis.Client,
-	rabbitmqService rabbitmq.RabbitMQService,
+	broker messaging.Broker,
 	storageService storage.StorageService,
 	discordNotifier discord.Notifier,
 	logger *zerolog.Logger,
 ) *HealthModule {
-	handler := handler.NewHealthHandler(dbPool, redisClient, rabbitmqService, storageService, discordNotifier, logger)
+	handler := handler.NewHealthHandler(dbPool, redisClient, broker, storageService, discordNotifier, logger)
 	healthRoutes := routes.NewHealthRoutes(handler)
 	healthAdminRoutes := routes.NewHealthAdminRoutes(handler)
 

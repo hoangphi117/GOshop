@@ -13,12 +13,16 @@ import {
   Mail,
 } from "lucide-react";
 import { GoogleLoginButton } from "@/components/auth/google-login-button";
-import { API_BASE_URL, API_KEY } from "@/lib/api";
+import { API_BASE_URL, API_KEY, fetchStorefrontProfile } from "@/lib/api";
+import { clearDeviceIntent } from "@/lib/device-intent";
+import { useQueryClient } from "@tanstack/react-query";
+import { resetChatSession } from "@/hooks/use-chat";
 import { useAuthStore } from "@/stores/auth-store";
 
 export default function LoginPage() {
   const router = useRouter();
   const { setTokens, setUser } = useAuthStore();
+  const queryClient = useQueryClient();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -62,6 +66,7 @@ export default function LoginPage() {
         headers: {
           "Content-Type": "application/json",
           "X-API-KEY": API_KEY,
+          "X-Client-App": "storefront",
         },
         credentials: "include",
         body: JSON.stringify({ email: email.trim(), password }),
@@ -77,16 +82,46 @@ export default function LoginPage() {
       }
 
       const accessToken = data.data.accessToken || data.data.access_token || "";
-      const refreshToken =
-        data.data.refreshToken || data.data.refresh_token || "";
-      setTokens(accessToken, refreshToken);
+      // Refresh token arrives as an HttpOnly cookie; never stored client-side.
+      setTokens(accessToken);
+      // Whoever was here before signed out and said "not my history". Signing
+      // in means the shelf is theirs again.
+      clearDeviceIntent();
+      // Chat data is account-scoped and was cached under this browser, not this
+      // login: clear it before the new account's widget mounts, so nothing of
+      // the previous customer's transcript can paint for a frame.
+      resetChatSession(queryClient);
 
-      setUser({
-        uuid: data.data.user?.uuid,
-        email: data.data.user?.email || email,
-        fullName: data.data.user?.full_name || data.data.user?.fullName || "",
+      // The login response carries tokens only, so the navbar had nothing to
+      // name the visitor by and fell back to "U" / the email local part until
+      // some other page happened to fetch the profile. Read it here, once.
+      // A failed read keeps the email-derived fallback rather than blocking
+      // a sign-in that already succeeded.
+      const profile = await fetchStorefrontProfile(accessToken);
+
+      const nextUser = {
+        uuid:
+          profile?.uuid ||
+          data.data.user?.uuid,
+        email:
+          profile?.email ||
+          data.data.user?.email ||
+          email,
+        fullName:
+          profile?.full_name ||
+          profile?.fullName ||
+          data.data.user?.full_name ||
+          data.data.user?.fullName ||
+          "",
         role: data.data.user?.roles || [],
-      });
+        avatarUrl: profile?.avatar_url || "",
+      };
+      setUser(nextUser);
+      // `package_chat_conversation` fired while this account was signed out and
+      // the widget was still mounted, so it cached "no conversation" under the
+      // anonymous key. Without removing it here the widget keeps that answer
+      // (staleTime 5m) and only a reload shows the real thread.
+      resetChatSession(queryClient, nextUser.uuid || nextUser.email);
 
       const redirectUrl =
         typeof window !== "undefined"

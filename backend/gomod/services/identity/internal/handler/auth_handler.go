@@ -2,12 +2,11 @@ package handler
 
 import (
 	"net/http"
-	"os"
 	"strings"
 
 	dto "goshop/services/identity/internal/dto"
 	"goshop/services/identity/internal/service"
-	"goshop/shared/pkg/auth"
+	"goshop/shared/pkg/logger"
 	"goshop/shared/pkg/utils"
 	"goshop/shared/pkg/validation"
 
@@ -103,9 +102,7 @@ func (ah *AuthHandler) VerifyRegisterOTP(ctx *gin.Context) {
 		return
 	}
 
-	cookieSecure := os.Getenv("APP_ENV") == "production"
-	ctx.SetSameSite(http.SameSiteLaxMode)
-	ctx.SetCookie("refresh_token", refreshToken, int(auth.RefreshTokenTTL.Seconds()), "/", "", cookieSecure, true)
+	setRefreshCookie(ctx, refreshToken)
 
 	response := dto.LoginResponse{
 		AccessToken:  accessToken,
@@ -174,9 +171,7 @@ func (ah *AuthHandler) Login(ctx *gin.Context) {
 		return
 	}
 
-	cookieSecure := os.Getenv("APP_ENV") == "production"
-	ctx.SetSameSite(http.SameSiteLaxMode)
-	ctx.SetCookie("refresh_token", refreshToken, int(auth.RefreshTokenTTL.Seconds()), "/", "", cookieSecure, true)
+	setRefreshCookie(ctx, refreshToken)
 
 	response := dto.LoginResponse{
 		AccessToken:  accessToken,
@@ -204,23 +199,21 @@ func (ah *AuthHandler) Logout(ctx *gin.Context) {
 
 	refreshToken := input.RefreshToken
 	if refreshToken == "" {
-		if cookieVal, err := ctx.Cookie("refresh_token"); err == nil && cookieVal != "" {
-			refreshToken = cookieVal
-		}
+		_, refreshToken = refreshTokenFromCookie(ctx)
 	}
 
-	cookieSecure := os.Getenv("APP_ENV") == "production"
-	ctx.SetSameSite(http.SameSiteLaxMode)
-	ctx.SetCookie("refresh_token", "", -1, "/", "", cookieSecure, true)
-	ctx.SetCookie("refresh_token", "", -1, "/api/v1/auth", "", cookieSecure, true)
+	clearRefreshCookies(ctx)
 
+	// The browser cookie is already expired above, so a stale or rotated token
+	// must not turn a successful logout into a 401 the UI has to explain. Server
+	// revocation is best-effort; anything still valid is short-lived and the
+	// client no longer holds it.
 	authHeader := ctx.GetHeader("Authorization")
 	accessToken := strings.TrimPrefix(authHeader, "Bearer ")
 
 	if refreshToken != "" || accessToken != "" {
 		if err := ah.service.Logout(ctx.Request.Context(), accessToken, refreshToken); err != nil {
-			utils.ResponseError(ctx, err)
-			return
+			logger.Log.Warn().Err(err).Msg("Logout could not revoke the presented tokens")
 		}
 	}
 
@@ -244,12 +237,10 @@ func (ah *AuthHandler) RefreshToken(ctx *gin.Context) {
 	_ = ctx.ShouldBindJSON(&input)
 
 	refreshToken := input.RefreshToken
+	cookieName := ""
 	if refreshToken == "" {
-		if cookieVal, err := ctx.Cookie("refresh_token"); err == nil && cookieVal != "" {
-			refreshToken = cookieVal
-		}
+		cookieName, refreshToken = refreshTokenFromCookie(ctx)
 	}
-
 	if refreshToken == "" {
 		utils.ResponseError(ctx, utils.NewError(utils.ErrCodeBadRequest, "Refresh token is required"))
 		return
@@ -261,9 +252,11 @@ func (ah *AuthHandler) RefreshToken(ctx *gin.Context) {
 		return
 	}
 
-	cookieSecure := os.Getenv("APP_ENV") == "production"
-	ctx.SetSameSite(http.SameSiteLaxMode)
-	ctx.SetCookie("refresh_token", newRefreshToken, int(auth.RefreshTokenTTL.Seconds()), "/", "", cookieSecure, true)
+	if cookieName == "" {
+		setRefreshCookie(ctx, newRefreshToken)
+	} else {
+		setRefreshCookieNamed(ctx, cookieName, newRefreshToken)
+	}
 
 	response := dto.LoginResponse{
 		AccessToken:  accessToken,
@@ -357,17 +350,7 @@ func (ah *AuthHandler) GoogleLogin(ctx *gin.Context) {
 		return
 	}
 
-	cookieSecure := os.Getenv("APP_ENV") == "production"
-	ctx.SetSameSite(http.SameSiteLaxMode)
-	ctx.SetCookie(
-		"refresh_token",
-		refreshToken,
-		int(auth.RefreshTokenTTL.Seconds()),
-		"/",
-		"",
-		cookieSecure,
-		true,
-	)
+	setRefreshCookie(ctx, refreshToken)
 
 	utils.ResponseSuccess(ctx, http.StatusOK, "Login with Google successful", gin.H{
 		"access_token": accessToken,

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/gin-contrib/gzip"
@@ -210,7 +211,7 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 	// API Gateway reverse proxy for Catalog microservice endpoints
 	catalogURL := utils.GetEnv("CATALOG_SERVICE_URL", "http://localhost:8086")
 	isCatalogProxied := false
-	var catalogProxyHandler func(ctx *gin.Context)
+	var catalogProxyHandler gin.HandlerFunc
 	if catalogURL != "" {
 		if parsedCatalogURL, err := url.Parse(catalogURL); err == nil && parsedCatalogURL.Scheme != "" {
 			catalogProxy := httputil.NewSingleHostReverseProxy(parsedCatalogURL)
@@ -229,16 +230,28 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 			catalogProxyHandler = func(ctx *gin.Context) {
 				ctx.Request.Host = parsedCatalogURL.Host
 				ctx.Request.Header.Del("Accept-Encoding")
+				// /products/suggest is a fixed-rate internal read used by the
+				// recommendations service. That service has no API key of its
+				// own, and requiring one would quietly reduce hybrid search to
+				// its keyword half. The edge (nginx or this gateway) is where
+				// the key belongs, so it is injected here; /products/search, the
+				// public path, is deliberately not included.
+				if ctx.Request.URL.Path == "/products/suggest" || ctx.Request.URL.Path == "/api/v1/products/suggest" {
+					if key := os.Getenv("API_KEY"); key != "" {
+						ctx.Request.Header.Set("X-API-KEY", key)
+					}
+				}
 				catalogProxy.ServeHTTP(ctx.Writer, ctx.Request)
 			}
 
-			// Proxy categories & admin endpoints directly (no sub-route conflicts)
+			// Proxy categories through the gateway. Admin product and category
+			// paths are registered on the `admin` group below, not here: this
+			// group carries no middleware, and a proxy registered on it would
+			// forward writes to catalog without ever checking the JWT. That is
+			// the hole the previous edge routing had, and it let an anonymous
+			// caller create and read products.
 			v1api.Any("/categories", catalogProxyHandler)
 			v1api.Any("/categories/*any", catalogProxyHandler)
-			v1api.Any("/admin/products", catalogProxyHandler)
-			v1api.Any("/admin/products/*any", catalogProxyHandler)
-			v1api.Any("/admin/categories", catalogProxyHandler)
-			v1api.Any("/admin/categories/*any", catalogProxyHandler)
 			// Public /products is routed in NoRoute so the catalog proxy can fall through
 			// to the review service for /products/{uuid}/reviews*.
 			isCatalogProxied = true
@@ -301,6 +314,45 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 			v1api.Any("/banners", bannerProxyHandler)
 			v1api.Any("/admin/banners", bannerProxyHandler)
 			v1api.Any("/admin/banners/*any", bannerProxyHandler)
+		}
+	}
+
+	// API Gateway reverse proxy for Recommendations microservice endpoints.
+	// Unset keeps the route absent rather than inventing an empty shelf.
+	// The handler outlives this block because NoRoute also dispatches to it.
+	var recsProxyHandler gin.HandlerFunc
+	recsURL := utils.GetEnv("RECOMMENDATIONS_SERVICE_URL", "")
+	if recsURL != "" {
+		if parsedRecsURL, err := url.Parse(recsURL); err == nil && parsedRecsURL.Scheme != "" {
+			recsProxy := httputil.NewSingleHostReverseProxy(parsedRecsURL)
+			transport := http.DefaultTransport.(*http.Transport).Clone()
+			transport.DisableCompression = true
+			recsProxy.Transport = transport
+
+			recsProxy.ModifyResponse = func(resp *http.Response) error {
+				resp.Header.Del("Access-Control-Allow-Origin")
+				resp.Header.Del("Access-Control-Allow-Credentials")
+				resp.Header.Del("Access-Control-Allow-Methods")
+				resp.Header.Del("Access-Control-Allow-Headers")
+				resp.Header.Del("Access-Control-Max-Age")
+				return nil
+			}
+			recsProxyHandler = func(ctx *gin.Context) {
+				ctx.Request.Host = parsedRecsURL.Host
+				ctx.Request.Header.Del("Accept-Encoding")
+				recsProxy.ServeHTTP(ctx.Writer, ctx.Request)
+			}
+
+			v1api.GET("/recommendations", recsProxyHandler)
+			v1api.GET("/recommendations/personalized", recsProxyHandler)
+			// Similar products belong to the product namespace on the
+			// storefront but are served by this service: catalog cannot rank
+			// by embedding distance without owning the vectors.
+			v1api.GET("/products/similar", recsProxyHandler)
+			// Hybrid search supersedes the catalog's keyword-only listing: it
+			// fuses Meilisearch's ranking with pgvector's, and only this service
+			// has the second half.
+			v1api.GET("/products/search", recsProxyHandler)
 		}
 	}
 
@@ -400,6 +452,14 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 
 			v1api.Any("/admin/analytics", analyticsProxyHandler)
 			v1api.Any("/admin/analytics/*any", analyticsProxyHandler)
+
+			// Public interaction telemetry + the search-history read model the
+			// storefront dropdown reads. Identity travels as the anon cookie or
+			// the bearer token; the proxy must not strip Cookie, so nothing is
+			// rewritten here beyond the upstream host.
+			v1api.POST("/events", analyticsProxyHandler)
+			v1api.GET("/search/history", analyticsProxyHandler)
+			v1api.DELETE("/search/history", analyticsProxyHandler)
 		}
 	}
 
@@ -465,9 +525,48 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 		}
 	}
 
+	// API Gateway reverse proxy for the AI shopping assistant. With
+	// ASSISTANT_SERVICE_URL unset these paths 404, which is what `make dev`
+	// hit: the assistant ran in its own container but no gateway forwarded
+	// to it. FlushInterval -1 disables response buffering so the SSE stream
+	// delivers deltas as they are produced instead of all at once at the end.
+	assistantURL := utils.GetEnv("ASSISTANT_SERVICE_URL", "")
+	if assistantURL != "" {
+		if parsedAssistantURL, err := url.Parse(assistantURL); err == nil && parsedAssistantURL.Scheme != "" {
+			assistantProxy := httputil.NewSingleHostReverseProxy(parsedAssistantURL)
+			transport := http.DefaultTransport.(*http.Transport).Clone()
+			transport.DisableCompression = true
+			assistantProxy.Transport = transport
+			assistantProxy.FlushInterval = -1
+
+			assistantProxy.ModifyResponse = func(resp *http.Response) error {
+				resp.Header.Del("Access-Control-Allow-Origin")
+				resp.Header.Del("Access-Control-Allow-Credentials")
+				resp.Header.Del("Access-Control-Allow-Methods")
+				resp.Header.Del("Access-Control-Allow-Headers")
+				resp.Header.Del("Access-Control-Max-Age")
+				// The gzip middleware wraps the response after this proxy has
+				// copied the upstream Content-Length. That length describes the
+				// uncompressed body, so leaving it set sends the browser a
+				// compressed body with a plain one's length and Chrome aborts
+				// with ERR_CONTENT_LENGTH_MISMATCH. Let net/http compute it
+				// from the bytes actually written.
+				resp.Header.Del("Content-Length")
+				return nil
+			}
+			assistantProxyHandler := func(ctx *gin.Context) {
+				ctx.Request.Host = parsedAssistantURL.Host
+				ctx.Request.Header.Del("Accept-Encoding")
+				assistantProxy.ServeHTTP(ctx.Writer, ctx.Request)
+			}
+
+			v1api.Any("/assistant", assistantProxyHandler)
+			v1api.Any("/assistant/*any", assistantProxyHandler)
+		}
+	}
+
 	// Reverse proxy for the WebSocket endpoint. The ws upgrade moved to the
-	// ws-gateway binary: with WS_GATEWAY_URL unset these paths 404. httputil
-	// handles the 101 Switching Protocols upgrade; ws-gateway authenticates
+	// ws-gateway binary: with WS_GATEWAY_URL unset these paths 404. httputil	// handles the 101 Switching Protocols upgrade; ws-gateway authenticates
 	// via the ?token= query param itself, so no auth middleware here (same
 	// trust boundary as nginx routing /api/v1/ws straight to ws-gateway).
 	wsURL := utils.GetEnv("WS_GATEWAY_URL", "")
@@ -491,6 +590,17 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 	admin.Use(middleware.ApiKeyMiddleware(), middleware.AuthMiddleware())
 	admin.Use(middleware.RequireRole(middleware.RoleAdmin, middleware.RoleModerator))
 
+	// Admin catalog writes, behind the same three checks as every other admin
+	// route. Registered here rather than next to the public catalog proxy so
+	// the middleware actually applies: Gin resolves a route to the group it
+	// was declared on, so an unauthenticated registration would win.
+	if catalogProxyHandler != nil {
+		admin.Any("/products", catalogProxyHandler)
+		admin.Any("/products/*any", catalogProxyHandler)
+		admin.Any("/categories", catalogProxyHandler)
+		admin.Any("/categories/*any", catalogProxyHandler)
+	}
+
 	// PublicRegistrar marks routes that must skip auth (health checks polled by
 	// uptime monitors and load balancers).
 	type PublicRegistrar interface{ RegisterPublic(r *gin.RouterGroup) }
@@ -508,6 +618,20 @@ func RegisterRoutes(r *gin.Engine, authService auth.TokenService, cacheService c
 
 	r.NoRoute(func(ctx *gin.Context) {
 		p := ctx.Request.URL.Path
+
+		// Similar products are served by the recommendations service, but live
+		// in the catalog's namespace. The catalog NoRoute below matches every
+		// /products/* and would swallow this path before it is ever seen.
+		if recsProxyHandler != nil &&
+			((p == "/api/v1/products/similar") || (p == "/products/similar") ||
+				(p == "/api/v1/products/search") || (p == "/products/search")) {
+			if !strings.HasPrefix(p, "/api/v1") {
+				ctx.Request.URL.Path = "/api/v1" + p
+			}
+			recsProxyHandler(ctx)
+			return
+		}
+
 		// Product review endpoints belong to the review service; everything else
 		// under /products goes to catalog.
 		if isReviewProxied && reviewProxyHandler != nil &&

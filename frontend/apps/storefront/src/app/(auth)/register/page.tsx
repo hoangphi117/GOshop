@@ -27,6 +27,9 @@ import {
 } from "@/components/auth/auth-card";
 import { GoogleLoginButton } from "@/components/auth/google-login-button";
 import { API_BASE_URL, API_KEY } from "@/lib/api";
+import { clearDeviceIntent } from "@/lib/device-intent";
+import { useQueryClient } from "@tanstack/react-query";
+import { resetChatSession } from "@/hooks/use-chat";
 import { useAuthStore } from "@/stores/auth-store";
 import { toast } from "sonner";
 
@@ -66,6 +69,7 @@ type RegisterFormData = z.infer<typeof registerSchema>;
 export default function RegisterPage() {
   const router = useRouter();
   const { setTokens, setUser } = useAuthStore();
+  const queryClient = useQueryClient();
 
   const [step, setStep] = useState<"form" | "otp">("form");
 
@@ -264,6 +268,7 @@ export default function RegisterPage() {
           headers: {
             "Content-Type": "application/json",
             "X-API-KEY": API_KEY,
+            "X-Client-App": "storefront",
           },
           body: JSON.stringify({
             email: email.trim(),
@@ -282,11 +287,13 @@ export default function RegisterPage() {
 
       const accessToken =
         data.data?.accessToken || data.data?.access_token || "";
-      const refreshToken =
-        data.data?.refreshToken || data.data?.refresh_token || "";
 
       if (accessToken) {
-        setTokens(accessToken, refreshToken);
+        // Refresh token arrives as an HttpOnly cookie; never stored client-side.
+        setTokens(accessToken);
+        // The shelf is this account's now.
+        clearDeviceIntent();
+        resetChatSession(queryClient, email.trim());
         setUser({
           email: email.trim(),
           fullName: fullName.trim(),

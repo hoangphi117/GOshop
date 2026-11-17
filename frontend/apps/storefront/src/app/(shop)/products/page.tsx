@@ -1,8 +1,13 @@
 import React from "react";
 import Link from "next/link";
-import { getCategories, getProducts } from "@/lib/api-server";
+import Image from "next/image";
+import { getBanners, getCategories, getProducts } from "@/lib/api-server";
 import { ProductGrid } from "@/components/product/product-grid";
 import { SearchAutocomplete } from "@/components/layout/search-autocomplete";
+import { SearchEvent } from "@/components/search/search-event";
+import { SearchClickTracker } from "@/components/search/search-click-tracker";
+import { ANON_COOKIE_NAME, fetchSearchHistory } from "@/lib/search-history";
+import { cookies } from "next/headers";
 import {
   ChevronRight,
   Filter,
@@ -31,6 +36,9 @@ interface ProductsPageProps {
 
 export const dynamic = "force-dynamic";
 
+// The parent layout reads cookies (anon identity), so every route under it is
+// dynamic; this mirrors that instead of tripping a build-time error.
+
 const PRICE_PRESETS = [
   { label: "Under 1,000,000₫", min: undefined, max: 1000000 },
   { label: "1,000,000₫ – 5,000,000₫", min: 1000000, max: 5000000 },
@@ -45,12 +53,23 @@ const RATING_PRESETS = [
   { label: "1 Star & above", rating: 1 },
 ];
 
+/** Server-side history read for the in-catalog search bar (first paint). */
+async function recentSearchKeywords(): Promise<string[]> {
+  const cookieStore = await cookies();
+  const anonId = cookieStore.get(ANON_COOKIE_NAME)?.value;
+  if (!anonId) return [];
+  return fetchSearchHistory(`goshop_anon_id=${anonId}`);
+}
+
 export default async function ProductsPage({
   searchParams,
 }: ProductsPageProps) {
   const params = await searchParams;
   const currentPage = parseInt(params.page || "1", 10);
   const currentSearch = params.search?.trim() || "";
+  // Same identity the history read uses; forwarded so every read on this page
+  // describes the same visitor.
+  const anonId = (await cookies()).get(ANON_COOKIE_NAME)?.value;
   const currentSort = params.sort || "";
   const currentMinPrice = params.min_price
     ? parseFloat(params.min_price)
@@ -64,6 +83,8 @@ export default async function ProductsPage({
 
   // Fetch categories to resolve active department
   const categories = await getCategories();
+  // Sidebar promo slot; paging and filtering must not refetch it.
+  const sidebarBanners = await getBanners("sidebar");
   const currentCategory = params.category?.trim() || "";
 
   // Fetch paginated products matching filters
@@ -76,6 +97,7 @@ export default async function ProductsPage({
     min_price: currentMinPrice,
     max_price: currentMaxPrice,
     min_rating: currentMinRating,
+    anonId,
   });
 
   const products = productsData.products || [];
@@ -497,10 +519,42 @@ export default async function ProductsPage({
                 inventory. 7-day hassle-free returns supported.
               </p>
             </div>
+            {/* Sidebar promo slot — admin-managed, position "sidebar" */}
+            {sidebarBanners.length > 0 && (
+              <div className="space-y-3">
+                {sidebarBanners.map((banner, idx) => {
+                  const href = banner.link_url || "/products";
+                  return (
+                    <Link
+                      key={banner.uuid || idx}
+                      href={
+                        href.startsWith("/category/")
+                          ? `/products?category=${href.replace("/category/", "").trim()}`
+                          : href
+                      }
+                      className="block relative w-full aspect-[4/5] overflow-hidden rounded-xs border border-slate-200/90 bg-slate-100 shadow-xs group/sidebar-banner"
+                      aria-label={banner.title || "Promotional banner"}
+                    >
+                      <Image
+                        src={banner.image_url}
+                        alt={banner.title || "Promotional banner"}
+                        fill
+                        sizes="(max-width: 1024px) 100vw, 280px"
+                        className="object-cover"
+                      />
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
           </aside>
 
           {/* Right Product Grid Column (lg:col-span-9) */}
           <main className="lg:col-span-9 space-y-5">
+            <SearchEvent
+              query={currentSearch}
+              resultCount={pagination?.total_records ?? products.length}
+            />
             {/* Filter Controls & In-Catalog Search Bar (2-Column Layout) */}
             <div className="bg-white border border-slate-200/90 rounded-xs p-3.5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-xs">
               {/* Column 1: Keyword Search Input (with Meilisearch autocomplete dropdown) */}
@@ -509,6 +563,7 @@ export default async function ProductsPage({
                   variant="compact"
                   placeholder="Filter within results..."
                   initialValue={currentSearch}
+                  recentSearches={await recentSearchKeywords()}
                   preserveParams={{
                     category: currentCategory,
                     sort: currentSort,
@@ -593,17 +648,21 @@ export default async function ProductsPage({
             </div>
 
             {/* Product Cards Grid */}
-            <ProductGrid
-              products={products}
-              columnsClassName="grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
-              emptyMessage={
-                hasActiveFilters
-                  ? "No products match the selected filters. Try broadening your criteria."
-                  : "No products available in this department."
-              }
-            />
+            <SearchClickTracker query={currentSearch}>
+              <ProductGrid
+                products={products}
+                columnsClassName="grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4"
+                emptyMessage={
+                  hasActiveFilters
+                    ? "No products match the selected filters. Try broadening your criteria."
+                    : "No products available in this department."
+                }
+              />
+            </SearchClickTracker>
 
-            {/* Pagination Controls */}
+            {/* Pagination Controls. Search reports a real match total now, so
+                the page-number row shows every page up front rather than one
+                more per click. */}
             {pagination && pagination.total_pages > 1 && (
               <div className="bg-white border border-slate-200/90 rounded-xs p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
                 <p className="text-xs text-slate-600 font-body">
@@ -636,26 +695,51 @@ export default async function ProductsPage({
                     </span>
                   )}
 
-                  {/* Page Numbers */}
-                  {Array.from({
-                    length: Math.min(5, pagination.total_pages),
-                  }).map((_, i) => {
-                    const pNum = i + 1;
-                    const isCurr = pNum === pagination.page;
-                    return (
-                      <Link
-                        key={pNum}
-                        href={buildUrl({ page: pNum.toString() })}
-                        className={`w-8 h-8 flex items-center justify-center rounded-xs text-xs font-bold ${
-                          isCurr
-                            ? "bg-[#007D9C] text-white"
-                            : "border border-slate-200 hover:bg-slate-50 text-slate-700"
-                        }`}
-                      >
-                        {pNum}
-                      </Link>
+                  {/* Page Numbers: 1 ... window ... total */}
+                  {(() => {
+                    const total = pagination.total_pages;
+                    const cur = pagination.page;
+                    const items: (number | "…")[] = [];
+                    if (total <= 7) {
+                      for (let i = 1; i <= total; i++) items.push(i);
+                    } else if (cur <= 4) {
+                      items.push(1, 2, 3, 4, 5, "…", total);
+                    } else if (cur >= total - 3) {
+                      items.push(
+                        1,
+                        "…",
+                        total - 4,
+                        total - 3,
+                        total - 2,
+                        total - 1,
+                        total,
+                      );
+                    } else {
+                      items.push(1, "…", cur - 1, cur, cur + 1, "…", total);
+                    }
+                    return items.map((pNum, idx) =>
+                      pNum === "…" ? (
+                        <span
+                          key={`gap-${idx}`}
+                          className="w-8 h-8 flex items-center justify-center text-xs text-slate-400"
+                        >
+                          …
+                        </span>
+                      ) : (
+                        <Link
+                          key={pNum}
+                          href={buildUrl({ page: pNum.toString() })}
+                          className={`w-8 h-8 flex items-center justify-center rounded-xs text-xs font-bold ${
+                            pNum === cur
+                              ? "bg-[#007D9C] text-white"
+                              : "border border-slate-200 hover:bg-slate-50 text-slate-700"
+                          }`}
+                        >
+                          {pNum}
+                        </Link>
+                      ),
                     );
-                  })}
+                  })()}
 
                   {pagination.has_next ? (
                     <Link

@@ -6,10 +6,8 @@ import (
 	"encoding/json"
 	"io"
 	"os"
-	"path/filepath"
 	"time"
 
-	"github.com/natefinch/lumberjack"
 	"github.com/rs/zerolog"
 )
 
@@ -22,6 +20,9 @@ func init() {
 	Log = &nop
 }
 
+// LoggerConfig keeps the pre-stdout field names so callers do not change.
+// Filename, MaxSize, MaxBackups, MaxAge and Compress are accepted and ignored:
+// every process writes to stdout.
 type LoggerConfig struct {
 	Level      string
 	Filename   string
@@ -36,6 +37,15 @@ func InitLogger(config LoggerConfig) {
 	Log = NewLogger(config)
 }
 
+// NewLogger writes to stdout.
+//
+// A containerised process has nobody reading a file it writes: promtail tails
+// the Docker log file and ships it to Loki. Rotating into the container
+// filesystem loses the lines that matter and keeps a copy that dies with the
+// container.
+//
+// ponytail: no size-based rotation. Add it when a bare-metal run needs one —
+// systemd/journald or a log shipper already covers that case.
 func NewLogger(config LoggerConfig) *zerolog.Logger {
 
 	zerolog.TimeFieldFormat = time.RFC3339
@@ -45,22 +55,9 @@ func NewLogger(config LoggerConfig) *zerolog.Logger {
 		lvl = zerolog.InfoLevel
 	}
 
-	var writer io.Writer
-
+	var writer io.Writer = os.Stdout
 	if config.IsDev == "development" {
 		writer = PrettyJSONWriter{Writer: os.Stdout}
-	} else if err := os.MkdirAll(filepath.Dir(config.Filename), 0o755); err == nil {
-		writer = &lumberjack.Logger{
-			Filename:   config.Filename,
-			MaxSize:    config.MaxSize, // megabytes
-			MaxBackups: config.MaxBackups,
-			MaxAge:     config.MaxAge,   //days
-			Compress:   config.Compress, // disabled by default
-		}
-	} else {
-		// Directory creation failed (read-only FS etc.): stdout is still
-		// collected by the container runtime / shipped to Loki by promtail.
-		writer = os.Stdout
 	}
 
 	logger := zerolog.New(writer).Level(lvl).With().Timestamp().Logger()
@@ -68,6 +65,8 @@ func NewLogger(config LoggerConfig) *zerolog.Logger {
 	return &logger
 }
 
+// PrettyJSONWriter indents one JSON line for local development. A line it
+// cannot parse is written unchanged, which is what zerolog expects.
 type PrettyJSONWriter struct {
 	Writer io.Writer
 }

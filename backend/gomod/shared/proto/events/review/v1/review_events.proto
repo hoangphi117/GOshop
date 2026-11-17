@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+// review.rating_updated — emitted by the review service so catalog can refresh
+// its denormalised product rating columns (separate databases since the review
+// extraction).
+//
+// No envelope: review publishes straight to the broker, so the
+// events.common.v1 fields are absent on this topic.
+package events.review.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "goshop/shared/proto/events/review/v1;revieweventsv1";
+
+message ReviewRatingUpdatedEvent {
+  string event_id = 1 [json_name = "event_id"];
+  int32 product_id = 2 [json_name = "product_id"];
+  string product_uuid = 3 [json_name = "product_uuid"];
+  double avg_rating = 4 [json_name = "avg_rating"];
+
+  // int64 in Go: review counts can pass the int32 range.
+  int64 review_count = 5 [json_name = "review_count"];
+
+  google.protobuf.Timestamp timestamp = 6 [json_name = "timestamp"];
+}

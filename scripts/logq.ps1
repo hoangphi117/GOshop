@@ -2,15 +2,33 @@
 # (read token with logs:read scope).
 #
 # Usage:
-#   .\scripts\logq.ps1 '{container="goshop-api1"}'                 # last 2h
-#   .\scripts\logq.ps1 '{service="nginx"} |= "POST"' -Hours 24 -Limit 20
-#   .\scripts\logq.ps1 '{service=~"api1|api2"} | json | level="warn"'
+#   .\scripts/logq.ps1 '{container="goshop-api1"}'                 # last 2h
+#   .\scripts/logq.ps1 '{service="nginx"} |= "POST"' -Hours 24 -Limit 20
+#   .\scripts/logq.ps1 '{service=~"api1|api2"} | json | level="warn"'
+#
+# Quoting through cmd/make strips bare double quotes, which LogQL requires, so
+# a value written without them is quoted here: {container=goshop-order} means
+# the same as {container="goshop-order"}.
 param(
     [Parameter(Mandatory = $true)][string]$Query,
     [int]$Hours = 2,
     [int]$Limit = 10,
     [ValidateSet("backward", "forward")][string]$Direction = "backward"
 )
+
+# Quote unquoted stream-selector values so cmd/make can pass LogQL without
+# double quotes: {container=goshop-order} == {container="goshop-order"}.
+# Only the leading {...} block is touched; pipelines after it are left as-is.
+$selectorEnd = $Query.IndexOf("}")
+if ($Query.StartsWith("{") -and $selectorEnd -gt 0) {
+    $head = $Query.Substring(0, $selectorEnd + 1)
+    $tail = $Query.Substring($selectorEnd + 1)
+    $head = [regex]::Replace($head, '([=!]=?~?)\s*([A-Za-z0-9_.:-]+)', {
+        param($m) $op = $m.Groups[1].Value; "$op`"$($m.Groups[2].Value)`""
+    })
+    $Query = $head + $tail
+}
+Write-Verbose "logql: $Query"
 
 $ErrorActionPreference = "Stop"
 $envFile = Join-Path $PSScriptRoot "..\backend\.env"

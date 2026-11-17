@@ -5,7 +5,17 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function getImageUrl(url?: string | null): string {
+// Legacy rows and stale Meilisearch documents store the object-storage origin
+// (e.g. http://localhost:9000/goshop-media/...). MinIO is not published in dev
+// and the browser must not depend on it otherwise, so every media read goes
+// through the edge, which proxies /goshop-media/ to the bucket.
+export function normalizeStoredImageUrl(url?: string | null): string {
+  if (!url) return ''
+  return url.replace(/^https?:\/\/[^/]+\/goshop-media\//, '/goshop-media/')
+}
+
+export function getImageUrl(rawUrl?: string | null): string {
+  const url = normalizeStoredImageUrl(rawUrl)
   if (!url) return ''
   if (
     url.startsWith('http://') ||

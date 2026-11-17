@@ -17,11 +17,28 @@ export interface AuthMiddlewareOptions {
   fetch?: ClientOptions['fetch']
 }
 
+// Paths a guest may call without a session. A 401 there means "wrong or missing
+// API key", never "your session expired", so it must not trigger a refresh whose
+// failure sign-out would wipe the caller's identity mid-page.
+const PUBLIC_GUEST_PATHS = [
+  '/recommendations',
+  '/events',
+  '/search/history',
+  '/products',
+  '/categories',
+  '/search',
+]
+
 export function createAuthMiddleware(options: AuthMiddlewareOptions = {}): Middleware {
   const cleanBase = (options.baseUrl || '').replace(/\/+$/, '')
   const hasV1InBase = cleanBase.endsWith('/api/v1')
   const defaultRefresh = hasV1InBase ? '/auth/refresh' : '/api/v1/auth/refresh'
   const refreshEndpoint = options.refreshEndpoint || defaultRefresh
+  // Terminal 401s: the refresh call can succeed while the retried request
+  // still comes back 401 (wrong scope, wrong app's cookie, deleted user). Only
+  // callers that set onUnauthorized/listen for the event would stop, so
+  // track idempotency here and never refresh a request a second time.
+  const refreshedIds = new Set<string>()
   const requestClones = new Map<string, Request>()
   let refreshPromise: Promise<AuthTokens | null> | null = null
 
@@ -38,6 +55,9 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}): Middl
           schemaPath.includes('/auth/register')))
     )
   }
+
+  // Public guest surface: no refresh, and no sign-out either. See below.
+  const isGuestPath = (url: string) => PUBLIC_GUEST_PATHS.some((p) => url.includes(p))
 
   const executeRefresh = async (): Promise<AuthTokens | null> => {
     const refreshToken = options.getRefreshToken?.()
@@ -117,8 +137,29 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}): Middl
       requestClones.delete(id)
 
       if (response.status === 401) {
+        // A 401 on the guest surface means "missing/wrong API key", not "your
+        // session expired": there is no session to refresh. Refreshing would
+        // fail, and its onUnauthorized would wipe the identity of an account
+        // that merely signed out — the shelf refetch then aborted and the
+        // homepage sat on skeletons. The 401 propagates; the caller falls back.
+        if (isGuestPath(request.url)) {
+          return response
+        }
+
         // If 401 is from an auth endpoint, do not attempt refresh
         if (isAuthEndpoint(request.url, schemaPath)) {
+          if (options.onUnauthorized) {
+            options.onUnauthorized()
+          } else if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('goshop:unauthorized'))
+          }
+          return response
+        }
+
+        // Retried once already and still unauthorized: refreshing again would
+        // spin (refresh 200 -> retry 401 -> refresh ...). Give up instead.
+        if (refreshedIds.has(id)) {
+          refreshedIds.delete(id)
           if (options.onUnauthorized) {
             options.onUnauthorized()
           } else if (typeof window !== 'undefined') {
@@ -137,6 +178,9 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions = {}): Middl
         const newTokens = await refreshPromise
 
         if (newTokens?.accessToken) {
+          // Bounded: the retried request gets at most one more 401 check.
+          refreshedIds.add(id)
+          setTimeout(() => refreshedIds.delete(id), 30_000)
           // Retry original request with the new access token
           try {
             const baseReq = requestClone || request

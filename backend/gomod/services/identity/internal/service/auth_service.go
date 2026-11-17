@@ -33,9 +33,17 @@ import (
 )
 
 const (
-	passwordResetTokenTTL = time.Hour
-	loginRateLimitTTL     = 5 * time.Minute
-	maxLoginAttempts      = 5
+	// A reset link is a password-equivalent credential sitting in an inbox, so
+	// it lives as short as a mail round-trip allows.
+	passwordResetTokenTTL = 15 * time.Minute
+
+	// A cloned refresh cookie survives beyond its 7-day Redis TTL because the
+	// 24h family key lets RotateToken mint a new one. After a password reset the
+	// blacklist has to outlive that gap, otherwise the stolen session recovers.
+	passwordResetRevokeTTL = 8 * 24 * time.Hour
+
+	loginRateLimitTTL = 5 * time.Minute
+	maxLoginAttempts  = 5
 
 	registerOTPTTL       = 5 * time.Minute
 	registerOTPResendTTL = 60 * time.Second
@@ -74,7 +82,7 @@ type authService struct {
 	tokenService  auth.TokenService
 	cacheService  cache.RedisCacheService
 	mailService   mail.EmailProviderService
-	rabbitmq      messaging.Broker
+	broker        messaging.Broker
 	wsHub         ws.Hub
 	redisBridge   ws.RedisBridge
 	storefrontURL string
@@ -85,7 +93,7 @@ func NewAuthService(
 	tokenService auth.TokenService,
 	cacheService cache.RedisCacheService,
 	mailService mail.EmailProviderService,
-	rabbitmqService messaging.Broker,
+	broker messaging.Broker,
 	wsHub ws.Hub,
 	redisBridge ws.RedisBridge,
 	storefrontURL string,
@@ -95,7 +103,7 @@ func NewAuthService(
 		tokenService:  tokenService,
 		cacheService:  cacheService,
 		mailService:   mailService,
-		rabbitmq:      rabbitmqService,
+		broker:        broker,
 		wsHub:         wsHub,
 		redisBridge:   redisBridge,
 		storefrontURL: strings.TrimRight(storefrontURL, "/"),
@@ -298,8 +306,8 @@ func (as *authService) RequestForgotPassword(ctx context.Context, email string) 
 		Category: "password-reset",
 	}
 
-	if as.rabbitmq != nil {
-		if err := as.rabbitmq.Publish(ctx, "auth_email_queue", mailContent); err != nil {
+	if as.broker != nil {
+		if err := as.broker.Publish(ctx, "auth_email_queue", mailContent); err != nil {
 			return utils.NewError(utils.ErrCodeInternal, "Failed to publish reset password email to queue")
 		}
 	}
@@ -345,7 +353,48 @@ func (as *authService) ResetPassword(ctx context.Context, token, newPassword str
 
 	_ = as.cacheService.Del("reset:" + token)
 
+	// A reset is how a locked-out or compromised account is recovered, so every
+	// session issued with the old password dies with it, including the one an
+	// attacker keeps open.
+	as.revokeUserSessions(ctx, userUuid)
+
 	return nil
+}
+
+// revokeUserSessions ends every login of a user.
+//
+// The auth middleware accepts an access token for up to 15 minutes unless its
+// family id is blacklisted, so the reset must also kill the family the current
+// session belongs to; otherwise the attacker's copy of the access token keeps
+// working. Refresh tokens are handled by the rotator's per-user cutoff, which
+// survives the key expiry that a family delete alone does not.
+//
+// Failures are logged, not returned: the password is already changed, and a 500
+// here would make the user retry a reset whose token is now spent.
+func (as *authService) revokeUserSessions(ctx context.Context, userUUID uuid.UUID) {
+	subject := userUUID.String()
+
+	if as.tokenService != nil {
+		if err := as.tokenService.RevokeUserSessions(subject); err != nil {
+			logger.Log.Error().Err(err).
+				Str("user_uuid", subject).
+				Msg("Failed to revoke refresh sessions after password reset")
+		}
+	}
+
+	if as.cacheService == nil {
+		return
+	}
+
+	// Rotator sessions carry "fam_<uuid>" even though their family key is
+	// random, so the per-user blacklist above does not cover them.
+	if err := as.cacheService.Set(
+		"blacklist:family:"+subject, "revoked", passwordResetRevokeTTL,
+	); err != nil {
+		logger.Log.Error().Err(err).
+			Str("user_uuid", subject).
+			Msg("Failed to revoke sessions after password reset")
+	}
 }
 
 func (as *authService) Register(ctx context.Context, input dto.RegisterInput) error {
@@ -373,7 +422,7 @@ func (as *authService) Register(ctx context.Context, input dto.RegisterInput) er
 		return utils.WrapError(utils.ErrCodeInternal, "failed to register user", err)
 	}
 
-	if as.rabbitmq != nil {
+	if as.broker != nil {
 		syncEvent := events.NewUserSyncEvent(
 			events.QueueUserCreated,
 			createdUser.UserID,
@@ -385,7 +434,7 @@ func (as *authService) Register(ctx context.Context, input dto.RegisterInput) er
 			createdUser.UserStatus,
 			createdUser.UserLevel,
 		)
-		if err := as.rabbitmq.Publish(ctx, events.QueueUserCreated, syncEvent); err != nil {
+		if err := as.broker.Publish(ctx, events.QueueUserCreated, syncEvent); err != nil {
 			logger.Log.Error().Err(err).Int32("user_id", createdUser.UserID).Msg("Failed to publish user.created event")
 		}
 	}
@@ -440,7 +489,7 @@ func (as *authService) SendRegisterOTP(ctx context.Context, input dto.SendRegist
 		_ = as.cacheService.Set(cooldownKey, "1", registerOTPResendTTL)
 	}
 
-	// 6. Send OTP Email via RabbitMQ queue
+	// 6. Send OTP Email via broker queue
 	htmlBody, textBody, err := mail.RegisterOTPTemplate(input.Name, otp, registerOTPTTL, time.Now().Year())
 	if err != nil {
 		return utils.WrapError(utils.ErrCodeInternal, "Failed to render verification email", err)
@@ -454,8 +503,10 @@ func (as *authService) SendRegisterOTP(ctx context.Context, input dto.SendRegist
 		Category: "register-otp",
 	}
 
-	if as.rabbitmq != nil {
-		_ = as.rabbitmq.Publish(ctx, "auth_email_queue", mailContent)
+	if as.broker != nil {
+		if perr := as.broker.Publish(ctx, "auth_email_queue", mailContent); perr != nil {
+			logger.Log.Warn().Err(perr).Msg("Failed to publish auth email event")
+		}
 	} else if as.mailService != nil {
 		_ = as.mailService.SendEmail(ctx, mailContent)
 	}
@@ -514,7 +565,7 @@ func (as *authService) VerifyRegisterOTP(ctx context.Context, input dto.VerifyRe
 		return "", "", 0, utils.WrapError(utils.ErrCodeInternal, "failed to register user", err)
 	}
 
-	if as.rabbitmq != nil {
+	if as.broker != nil {
 		syncEvent := events.NewUserSyncEvent(
 			events.QueueUserCreated,
 			createdUser.UserID,
@@ -526,7 +577,7 @@ func (as *authService) VerifyRegisterOTP(ctx context.Context, input dto.VerifyRe
 			createdUser.UserStatus,
 			createdUser.UserLevel,
 		)
-		if err := as.rabbitmq.Publish(ctx, events.QueueUserCreated, syncEvent); err != nil {
+		if err := as.broker.Publish(ctx, events.QueueUserCreated, syncEvent); err != nil {
 			logger.Log.Error().Err(err).Int32("user_id", createdUser.UserID).Msg("Failed to publish user.created event")
 		}
 	}
@@ -613,8 +664,10 @@ func (as *authService) ResendRegisterOTP(ctx context.Context, input dto.ResendRe
 		Category: "register-otp",
 	}
 
-	if as.rabbitmq != nil {
-		_ = as.rabbitmq.Publish(ctx, "auth_email_queue", mailContent)
+	if as.broker != nil {
+		if perr := as.broker.Publish(ctx, "auth_email_queue", mailContent); perr != nil {
+			logger.Log.Warn().Err(perr).Msg("Failed to publish auth email event")
+		}
 	} else if as.mailService != nil {
 		_ = as.mailService.SendEmail(ctx, mailContent)
 	}
@@ -706,7 +759,7 @@ func (as *authService) findOrCreateGoogleUser(ctx context.Context, payload *dto.
 		return sqlc.User{}, utils.WrapError(utils.ErrCodeInternal, "failed to create new OAuth user", err)
 	}
 
-	if as.rabbitmq != nil {
+	if as.broker != nil {
 		syncEvent := events.NewUserSyncEvent(
 			events.QueueUserCreated,
 			newUser.UserID,
@@ -718,7 +771,7 @@ func (as *authService) findOrCreateGoogleUser(ctx context.Context, payload *dto.
 			newUser.UserStatus,
 			newUser.UserLevel,
 		)
-		if err := as.rabbitmq.Publish(ctx, events.QueueUserCreated, syncEvent); err != nil {
+		if err := as.broker.Publish(ctx, events.QueueUserCreated, syncEvent); err != nil {
 			logger.Log.Error().Err(err).Int32("user_id", newUser.UserID).Msg("Failed to publish user.created event for oauth user")
 		}
 	}

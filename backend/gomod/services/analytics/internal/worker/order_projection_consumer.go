@@ -15,7 +15,7 @@ import (
 	"goshop/shared/pkg/messaging"
 )
 
-// OrderProjectionConsumer consumes order lifecycle events from RabbitMQ and
+// OrderProjectionConsumer consumes order lifecycle events from the message broker and
 // maintains the reporting read model (analytics_orders_projection,
 // analytics_order_items_projection) inside the analytics database.
 type OrderProjectionConsumer struct {
@@ -260,6 +260,106 @@ func (c *OrderProjectionConsumer) HandleOrderCancelled(headers messaging.Header,
 	_, err := c.dbPool.Exec(ctx, query, parsedOrderUUID, event.OrderID)
 	if err != nil && c.logger != nil {
 		c.logger.Error().Err(err).Str("order_uuid", event.OrderUUID).Msg("failed to record cancellation in analytics_orders_projection")
+	}
+	return err
+}
+
+// HandleOrderReturnUpdated applies return-driven financial changes to the projection.
+// A refund lowers net revenue and flips the payment status so the order leaves the
+// paid bucket once fully refunded.
+func (c *OrderProjectionConsumer) HandleOrderReturnUpdated(headers messaging.Header, body []byte) error {
+	var event events.OrderReturnUpdatedEvent
+	if err := json.Unmarshal(body, &event); err != nil {
+		return err
+	}
+
+	if c.dbPool == nil {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	parsedOrderUUID, _ := uuid.Parse(event.OrderUUID)
+
+	// Only a processed refund moves money; status changes stay in the order service.
+	if event.ChangeType != events.ReturnChangeTypeRefunded {
+		return nil
+	}
+
+	refundAmount := event.RefundAmount
+	if refundAmount <= 0 {
+		if c.logger != nil {
+			c.logger.Warn().Str("order_uuid", event.OrderUUID).Msg("return refund event carries no amount; projection left unchanged")
+		}
+		return nil
+	}
+
+	query := `
+		UPDATE analytics_orders_projection
+		SET order_refunded_amount = order_refunded_amount + $1,
+		    order_payment_status = CASE
+		        WHEN order_refunded_amount + $1 >= order_total_amount THEN 4
+		        ELSE 3
+		    END,
+		    order_updated_at = NOW()
+		WHERE order_uuid = $2 OR order_id = $3;
+	`
+
+	_, err := c.dbPool.Exec(ctx, query, refundAmount, parsedOrderUUID, event.OrderID)
+	if err != nil && c.logger != nil {
+		c.logger.Error().Err(err).Str("order_uuid", event.OrderUUID).Msg("failed to record refund in analytics_orders_projection")
+	}
+	return err
+}
+
+// HandlePaymentRefunded applies a payment-service simulated refund to the
+// projection. Same math as HandleOrderReturnUpdated, so revenue stays correct
+// whether the refund arrives via payment.refunded or order_return.updated.
+// Idempotent: the payment service dedups by idempotency key, and the order
+// service blocks double refunds, so a replay only re-adds what the ledger has.
+func (c *OrderProjectionConsumer) HandlePaymentRefunded(headers messaging.Header, body []byte) error {
+	var event struct {
+		OrderUUID   string  `json:"order_uuid"`
+		OrderNumber string  `json:"order_number"`
+		OrderID     int64   `json:"order_id"`
+		Amount      float64 `json:"amount"`
+	}
+	if err := json.Unmarshal(body, &event); err != nil {
+		return err
+	}
+
+	if c.dbPool == nil {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	parsedOrderUUID, _ := uuid.Parse(event.OrderUUID)
+
+	refundAmount := event.Amount
+	if refundAmount <= 0 {
+		if c.logger != nil {
+			c.logger.Warn().Str("order_uuid", event.OrderUUID).Msg("payment refund event carries no amount; projection left unchanged")
+		}
+		return nil
+	}
+
+	query := `
+		UPDATE analytics_orders_projection
+		SET order_refunded_amount = order_refunded_amount + $1,
+		    order_payment_status = CASE
+		        WHEN order_refunded_amount + $1 >= order_total_amount THEN 4
+		        ELSE 3
+		    END,
+		    order_updated_at = NOW()
+		WHERE order_uuid = $2 OR order_id = $3;
+	`
+
+	_, err := c.dbPool.Exec(ctx, query, refundAmount, parsedOrderUUID, event.OrderID)
+	if err != nil && c.logger != nil {
+		c.logger.Error().Err(err).Str("order_uuid", event.OrderUUID).Msg("failed to record payment refund in analytics_orders_projection")
 	}
 	return err
 }

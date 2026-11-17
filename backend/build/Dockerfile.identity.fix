@@ -1,0 +1,17 @@
+#identity
+FROM golang:1.26.10-alpine AS builder
+RUN apk add --no-cache ca-certificates
+WORKDIR /app
+COPY go.work ./
+COPY gomod/shared/go.mod gomod/shared/go.sum ./gomod/shared/
+COPY gomod/contracts/go.mod gomod/contracts/go.sum ./gomod/contracts/
+COPY gomod/services/go.mod gomod/services/go.sum ./gomod/services/
+COPY gomod/cmd/go.mod gomod/cmd/go.sum ./gomod/cmd/
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+COPY . .
+RUN cd gomod/cmd && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /out/identity ./identity
+FROM alpine:3.20
+RUN apk add --no-cache ca-certificates
+WORKDIR /app
+COPY --from=builder /out/identity /app/service
+ENTRYPOINT ["/app/service"]

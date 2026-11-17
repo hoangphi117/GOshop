@@ -47,7 +47,7 @@ func TestOutboxPublisherWorker_ProcessBatch(t *testing.T) {
 	logger := zerolog.Nop()
 
 	t.Run("Returns 0 when dependencies are nil", func(t *testing.T) {
-		w1 := identityworker.NewOutboxPublisherWorker(nil, &testutils.MockRabbitMQService{}, time.Second, 10, &logger)
+		w1 := identityworker.NewOutboxPublisherWorker(nil, &testutils.MockBrokerService{}, time.Second, 10, &logger)
 		count, err := w1.ProcessBatch(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
@@ -60,7 +60,7 @@ func TestOutboxPublisherWorker_ProcessBatch(t *testing.T) {
 
 	t.Run("Returns 0 when no pending events", func(t *testing.T) {
 		store := &fakeOutbox{}
-		w := identityworker.NewOutboxPublisherWorker(store, &testutils.MockRabbitMQService{}, time.Second, 10, &logger)
+		w := identityworker.NewOutboxPublisherWorker(store, &testutils.MockBrokerService{}, time.Second, 10, &logger)
 		count, err := w.ProcessBatch(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
@@ -68,7 +68,7 @@ func TestOutboxPublisherWorker_ProcessBatch(t *testing.T) {
 
 	t.Run("Returns error when fetch fails", func(t *testing.T) {
 		store := &fakeOutbox{fetchErr: errors.New("db error")}
-		w := identityworker.NewOutboxPublisherWorker(store, &testutils.MockRabbitMQService{}, time.Second, 10, &logger)
+		w := identityworker.NewOutboxPublisherWorker(store, &testutils.MockBrokerService{}, time.Second, 10, &logger)
 		_, err := w.ProcessBatch(ctx)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to fetch pending identity outbox events")
@@ -76,7 +76,7 @@ func TestOutboxPublisherWorker_ProcessBatch(t *testing.T) {
 
 	t.Run("Successfully publishes events and marks them processed", func(t *testing.T) {
 		publishedQueues := make([]string, 0)
-		rabbit := &testutils.MockRabbitMQService{
+		broker := &testutils.MockBrokerService{
 			PublishFunc: func(_ context.Context, queue string, _ any) error {
 				publishedQueues = append(publishedQueues, queue)
 				return nil
@@ -89,7 +89,7 @@ func TestOutboxPublisherWorker_ProcessBatch(t *testing.T) {
 			},
 		}
 
-		w := identityworker.NewOutboxPublisherWorker(store, rabbit, time.Second, 10, &logger)
+		w := identityworker.NewOutboxPublisherWorker(store, broker, time.Second, 10, &logger)
 		count, err := w.ProcessBatch(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, 2, count)
@@ -97,11 +97,11 @@ func TestOutboxPublisherWorker_ProcessBatch(t *testing.T) {
 		assert.Equal(t, []string{events.QueueUserCreated, events.QueueUserUpdated}, publishedQueues)
 	})
 
-	t.Run("Marks failed when RabbitMQ publish returns error", func(t *testing.T) {
-		rabbit := &testutils.MockRabbitMQService{
+	t.Run("Marks failed when broker publish returns error", func(t *testing.T) {
+		broker := &testutils.MockBrokerService{
 			PublishFunc: func(_ context.Context, queue string, _ any) error {
 				if queue == events.QueueUserCreated {
-					return errors.New("rabbitmq connection down")
+					return errors.New("broker connection down")
 				}
 				return nil
 			},
@@ -113,7 +113,7 @@ func TestOutboxPublisherWorker_ProcessBatch(t *testing.T) {
 			},
 		}
 
-		w := identityworker.NewOutboxPublisherWorker(store, rabbit, time.Second, 10, &logger)
+		w := identityworker.NewOutboxPublisherWorker(store, broker, time.Second, 10, &logger)
 		count, err := w.ProcessBatch(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, 1, count)

@@ -1,0 +1,115 @@
+# Alert rules for GOshop. Loaded by Prometheus as /etc/prometheus/rules/*.yml.
+#
+# Every rule carries a `service` label so Alertmanager can group by it and the
+# Discord bridge can render one card per failing component.
+#
+# ConsumerLagHigh mirrors shared/pkg/kafka.LagAlertThreshold (1000): the /healthz
+# check already fails above that number, so the alert and the health probe agree
+# on what "lagging" means.
+groups:
+  - name: goshop-kafka
+    rules:
+      - alert: ConsumerLagHigh
+        expr: sum by (consumergroup, topic) (kafka_consumergroup_lag) > 1000
+        for: 5m
+        labels:
+          severity: critical
+          service: kafka
+        annotations:
+          summary: "Consumer group {{ $labels.consumergroup }} is {{ $value }} messages behind on {{ $labels.topic }}"
+          description: "Lag stayed above 1000 (LagAlertThreshold) for 5m. Check the consumer pods for the group, then Kafka partition balance."
+          runbook_url: "DEPLOY.md#observability"
+
+      # Lag that is not zero but also not moving means the consumer is wedged
+      # (poison message, blocked DB, dead partition leader), not slow.
+      - alert: ConsumerLagStalled
+        expr: |
+          sum by (consumergroup, topic) (kafka_consumergroup_lag) > 0
+          and
+          delta(sum by (consumergroup, topic) (kafka_consumergroup_lag)[10m:]) == 0
+        for: 15m
+        labels:
+          severity: warning
+          service: kafka
+        annotations:
+          summary: "Consumer group {{ $labels.consumergroup }} stopped progressing on {{ $labels.topic }}"
+          description: "Lag is non-zero and has not changed in 10m. This is a wedged consumer, not a slow one."
+          runbook_url: "DEPLOY.md#observability"
+
+      - alert: KafkaDLQGrowing
+        expr: sum by (topic) (rate(kafka_dlq_total[5m])) > 0
+        for: 5m
+        labels:
+          severity: warning
+          service: kafka
+        annotations:
+          summary: "Messages are landing in DLQ {{ $labels.topic }}"
+          description: "Rate is {{ $value | printf \"%.2f\" }}/s. A poison message or a handler regression is exhausting retries."
+          runbook_url: "DEPLOY.md#observability"
+
+      - alert: KafkaPublishFailing
+        expr: sum by (topic) (rate(kafka_publish_errors_total[5m])) > 0.2
+        for: 10m
+        labels:
+          severity: warning
+          service: kafka
+        annotations:
+          summary: "Publishes to {{ $labels.topic }} are failing"
+          description: "More than 0.2 failed publishes/s for 10m. Check broker health and SASL/TLS credentials."
+          runbook_url: "DEPLOY.md#observability"
+
+  - name: goshop-producers
+    rules:
+      # The producer-side twin of the P7c routing bug: a stream whose records
+      # carry no payload event_id cannot be deduplicated by consumers, so any
+      # redelivery applies twice.
+      - alert: EventsMissingEventID
+        expr: |
+          increase(kafka_records_missing_event_id_total[1h]) > 0
+          and
+          increase(kafka_records_missing_event_id_total[1h])
+            / increase(kafka_records_published_total[1h]) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          service: producer
+        annotations:
+          summary: "{{ $labels.topic }} publishes records without event_id"
+          description: "More than 1% of records in the last hour had no payload event_id, so consumers cannot deduplicate them. Check the payload struct of the producer for {{ $labels.topic }}."
+          runbook_url: "DEPLOY.md#observability"
+
+  - name: goshop-platform
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: "{{ $labels.job }}"
+        annotations:
+          summary: "{{ $labels.job }} / {{ $labels.instance }} is not answering scrapes"
+          description: "Target has been down for 2m. If job is goshop-services, the container is running but its /metrics route is not answering (process died, or the service is not in the scrape regex)."
+          runbook_url: "DEPLOY.md#observability"
+
+      - alert: KafkaExporterDown
+        expr: up{job="kafka-exporter"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: kafka
+        annotations:
+          summary: "kafka-exporter is down, consumer-lag alerts are blind"
+          description: "Every rule built on kafka_consumergroup_lag is silently disabled while this is down. Check Kafka SASL credentials (KAFKA_SASL_ADMIN_PASSWORD)."
+          runbook_url: "DEPLOY.md#observability"
+
+      - alert: AlertmanagerDown
+        expr: up{job="alertmanager"} == 0
+        for: 5m
+        labels:
+          severity: warning
+          service: platform
+        annotations:
+          summary: "Alertmanager is unreachable; alerts only exist in Prometheus"
+          description: "No Discord delivery happens while Alertmanager is down (the Discord receiver is native to Alertmanager)."
+          runbook_url: "DEPLOY.md#observability"
+

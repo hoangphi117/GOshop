@@ -100,6 +100,26 @@ type TotalUnreadCountResponse struct {
 	UnreadCount int64 `json:"unread_count"`
 }
 
+// PreviewMessageContent renders a message body as a one-line list preview. It
+// mirrors the CASE in the ListConversations query so the list and the detail
+// endpoint show the same text for media and reference messages.
+func PreviewMessageContent(content, contentType string) string {
+	switch contentType {
+	case "image":
+		return "[Image]"
+	case "media_group":
+		return "[Images]"
+	case "video":
+		return "[Video]"
+	case "order_ref":
+		return "[Order]"
+	case "product_ref":
+		return "[Product]"
+	default:
+		return content
+	}
+}
+
 func MapChatMessageToResponse(m sqlc.ChatMessage) MessageResponse {
 	resp := MessageResponse{
 		UUID:        m.MessageUuid,

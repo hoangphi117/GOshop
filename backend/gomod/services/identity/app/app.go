@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -12,12 +13,16 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"google.golang.org/grpc"
 	"net"
 
 	identitysqlc "goshop/services/identity/internal/db/sqlc"
 	identitygrpc "goshop/services/identity/internal/grpc"
 	identityhandler "goshop/services/identity/internal/handler"
+	identitymigrations "goshop/services/identity/internal/migrations"
 	identityrepo "goshop/services/identity/internal/repository"
 	identityroutes "goshop/services/identity/internal/routes"
 	identityservice "goshop/services/identity/internal/service"
@@ -26,9 +31,10 @@ import (
 	"goshop/shared/pkg/auth"
 	"goshop/shared/pkg/cache"
 	"goshop/shared/pkg/db"
+	"goshop/shared/pkg/kafka"
 	"goshop/shared/pkg/logger"
 	"goshop/shared/pkg/mail"
-	"goshop/shared/pkg/rabbitmq"
+	"goshop/shared/pkg/metrics"
 	"goshop/shared/pkg/telemetry"
 	"goshop/shared/pkg/utils"
 	"goshop/shared/pkg/validation"
@@ -44,6 +50,48 @@ type App struct {
 	grpcAddr   string
 }
 
+// runMigrations applies the embedded identity migrations. Without it a fresh
+// volume starts with an empty shopping_identity schema and the seeder fails on
+// missing tables (outbox_events etc).
+func runMigrations(cfg *config.Config) error {
+	// golang-migrate parses postgres:// URLs; a key=value DSN fails with
+	// "failed to parse scheme from database URL". Use the same env overrides
+	// IdentityDNS() honours, rendered as a URL.
+	host := utils.GetEnv("IDENTITY_DB_HOST", utils.GetEnv("DB_IDENTITY_HOST", cfg.DB.Host))
+	port := utils.GetEnv("IDENTITY_DB_PORT", utils.GetEnv("DB_IDENTITY_PORT", cfg.DB.Port))
+	user := utils.GetEnv("IDENTITY_DB_USER", utils.GetEnv("DB_IDENTITY_USER", cfg.DB.User))
+	password := utils.GetEnv("IDENTITY_DB_PASSWORD", utils.GetEnv("DB_IDENTITY_PASSWORD", cfg.DB.Password))
+	dbName := utils.GetEnv("IDENTITY_DB_NAME", utils.GetEnv("DB_IDENTITY_NAME", ""))
+	sslMode := utils.GetEnv("IDENTITY_DB_SSL_MODE", utils.GetEnv("DB_IDENTITY_SSL_MODE", cfg.DB.SSLMode))
+
+	if dbName == "" {
+		logger.Log.Warn().Msg("Identity DB name is empty, skipping migrations")
+		return nil
+	}
+
+	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+		url.QueryEscape(user), url.QueryEscape(password), host, port, dbName, sslMode)
+
+	sourceDriver, err := iofs.New(identitymigrations.FS, ".")
+	if err != nil {
+		return fmt.Errorf("load identity migration source: %w", err)
+	}
+
+	m, err := migrate.NewWithSourceInstance("iofs", sourceDriver, connStr)
+	if err != nil {
+		return fmt.Errorf("init identity migrate instance: %w", err)
+	}
+
+	upErr := m.Up()
+	_, _ = m.Close()
+
+	if upErr != nil && !errors.Is(upErr, migrate.ErrNoChange) {
+		return fmt.Errorf("apply identity migrations: %w", upErr)
+	}
+	logger.Log.Info().Msg("Identity service database migrations applied successfully")
+	return nil
+}
+
 // New constructs and wires the Identity application
 func New(cfg *config.Config) (*App, error) {
 	if err := validation.InitValidator(); err != nil {
@@ -51,6 +99,7 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	r := gin.Default()
+	r.GET("/metrics", metrics.Handler(nil))
 
 	if cfg.AppEnv == "production" {
 		_ = r.SetTrustedProxies([]string{
@@ -71,12 +120,20 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, err
 	}
 
+	// Run embedded migrations before any handler touches the schema. Identity
+	// owns its own database (IDENTITY_DB_NAME), so the connection string is
+	// built from that rather than the generic DB_NAME.
+	if err := runMigrations(cfg); err != nil {
+		logger.Log.Error().Err(err).Msg("Identity service database migrations failed")
+		return nil, err
+	}
+
 	redisClient := config.NewRedisClient()
 	cacheRedisService := cache.NewRedisCacheService(redisClient)
 	tokenService := auth.NewJWTService(cacheRedisService)
 
 	mailLogger := utils.NewLoggerWithPath("identity", "identity_mail.log", "info")
-	factory, err := mail.NewProviderFactory(mail.ProviderMailtrap)
+	factory, err := mail.NewProviderFactory(mail.ProviderTypeFromConfig(cfg.MailProviderType))
 	if err != nil {
 		mailLogger.Error().Err(err).Msg("Failed to create mail provider factory")
 		return nil, err
@@ -88,10 +145,12 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, err
 	}
 
-	rabbitmqLogger := utils.NewLoggerWithPath("identity", "identity_rabbitmq.log", "info")
-	rabbitmqService, err := rabbitmq.NewRabbitMQService(utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"), rabbitmqLogger)
+	brokerLogger := utils.NewLoggerWithPath("identity", "identity_kafka.log", "info")
+	broker, err := kafka.NewKafkaBroker(utils.GetEnv("KAFKA_BROKERS", ""),
+		brokerLogger,
+	)
 	if err != nil {
-		logger.Log.Fatal().Err(err).Msg("Failed to create RabbitMQ service")
+		logger.Log.Fatal().Err(err).Msg("Failed to create Kafka service")
 		return nil, err
 	}
 
@@ -111,8 +170,8 @@ func New(cfg *config.Config) (*App, error) {
 	outboxRepo := identityrepo.NewSqlOutboxRepository(identitySqlc)
 
 	// Business Services
-	authService := identityservice.NewAuthService(userRepo, tokenService, cacheRedisService, mailService, rabbitmqService, wsHub, redisBridge, cfg.StorefrontURL)
-	userService := identityservice.NewUserServiceWithOutbox(userRepo, redisClient, rabbitmqService, outboxRepo)
+	authService := identityservice.NewAuthService(userRepo, tokenService, cacheRedisService, mailService, broker, wsHub, redisBridge, cfg.StorefrontURL)
+	userService := identityservice.NewUserServiceWithOutbox(userRepo, redisClient, broker, outboxRepo, tokenService)
 	addressService := identityservice.NewAddressService(addressRepo, userRepo)
 
 	// Handlers
@@ -130,10 +189,10 @@ func New(cfg *config.Config) (*App, error) {
 	})
 
 	// Transactional Outbox Publisher for Identity Service (Guaranteed At-Least-Once Delivery)
-	if rabbitmqService != nil {
+	if broker != nil {
 		identityOutboxWorker := identityworker.NewOutboxPublisherWorkerWithAggregates(
 			outboxRepo,
-			rabbitmqService,
+			broker,
 			1*time.Second,
 			50,
 			logger.Log,

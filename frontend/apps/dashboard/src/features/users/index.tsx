@@ -29,6 +29,13 @@ export function Users() {
     created_at?: string
   }>) || []
 
+  const apiPagination = (
+    apiData as unknown as {
+      pagination?: { total_pages?: number; total_records?: number }
+    }
+  )?.pagination
+  const pageCount = apiPagination?.total_pages ?? 1
+
   const users: User[] = rawUsers.map((u) => {
     const names = (u.full_name || 'User').split(' ')
     const firstName = names[0] || 'User'
@@ -76,7 +83,7 @@ export function Users() {
           </div>
           <UsersPrimaryButtons />
         </div>
-        <UsersTable data={users} search={search} navigate={navigate} isLoading={isLoading} />
+        <UsersTable data={users} search={search} navigate={navigate} isLoading={isLoading} pageCount={pageCount} />
       </Main>
 
       <UsersDialogs />

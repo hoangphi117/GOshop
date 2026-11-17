@@ -23,12 +23,18 @@ func (r *IdentityUserReader) toUser(dto *identitycontract.InternalUserDTO) (User
 	if dto == nil {
 		return User{}, fmt.Errorf("identity client returned no user")
 	}
+	// user_avatar_url is what the avatar upload writes; user_avatar is the
+	// pre-avatar-feature column and is empty for everyone who set one since.
+	avatar := dto.UserAvatar
+	if dto.UserAvatarUrl != nil && *dto.UserAvatarUrl != "" {
+		avatar = *dto.UserAvatarUrl
+	}
 	return User{
 		UserID:       dto.UserID,
 		UserUUID:     dto.UserUUID,
 		UserFullname: dto.UserFullname,
 		UserEmail:    dto.UserEmail,
-		UserAvatar:   dto.UserAvatar,
+		UserAvatar:   avatar,
 		UserStatus:   dto.UserStatus,
 		UserLevel:    dto.UserLevel,
 	}, nil

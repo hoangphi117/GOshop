@@ -1,4 +1,4 @@
-﻿include ./backend/.env
+include ./backend/.env
 export
 
 MIGRATION_IDENTITY_DIR=backend/gomod/services/identity/internal/migrations
@@ -35,10 +35,14 @@ ENV_FILE=./backend/.env
 # The real .env.dev/.env.prod are git-ignored (secrets); if they are missing
 # on a fresh clone, copy the committed .env.prod.example files and fill them.
 # NEXT_PUBLIC_* are baked at storefront build time â€” rebuild after switching.
+#
+# .env.local outranks .env and .env.development, so it is rewritten too:
+# leaving a stale copy made `next dev` keep pointing at the previous
+# topology's port (browser hits a closed port after the switch).
 env-dev:
-	powershell -NoProfile -Command "if (!(Test-Path backend/.env.dev) -or !(Test-Path frontend/apps/storefront/.env.dev)) { Write-Host 'Missing dev variant: cp backend/.env.dev.example backend/.env.dev + cp frontend/apps/storefront/.env.dev.example frontend/apps/storefront/.env.dev (secrets: see backend/.env.example)' -ForegroundColor Red; exit 1 }; Copy-Item backend/.env.dev backend/.env; Copy-Item frontend/apps/storefront/.env.dev frontend/apps/storefront/.env; Copy-Item frontend/apps/storefront/.env.dev frontend/apps/storefront/.env.production; Write-Host 'dev env active'"
+	powershell -NoProfile -Command "if (!(Test-Path backend/.env.dev) -or !(Test-Path frontend/apps/storefront/.env.dev)) { Write-Host 'Missing dev variant: cp backend/.env.dev.example backend/.env.dev + cp frontend/apps/storefront/.env.dev.example frontend/apps/storefront/.env.dev (secrets: see backend/.env.example)' -ForegroundColor Red; exit 1 }; Copy-Item backend/.env.dev backend/.env; Copy-Item frontend/apps/storefront/.env.dev frontend/apps/storefront/.env; Copy-Item frontend/apps/storefront/.env.dev frontend/apps/storefront/.env.production; Remove-Item frontend/apps/storefront/.env.local -ErrorAction SilentlyContinue; Write-Host 'dev env active'"
 env-prod:
-	powershell -NoProfile -Command "if (!(Test-Path backend/.env.prod) -or !(Test-Path frontend/apps/storefront/.env.prod)) { Write-Host 'Missing prod variant: cp backend/.env.prod.example backend/.env.prod + cp frontend/apps/storefront/.env.prod.example frontend/apps/storefront/.env.prod, then fill every CHANGE_ME' -ForegroundColor Red; exit 1 }; Copy-Item backend/.env.prod backend/.env; Copy-Item frontend/apps/storefront/.env.prod frontend/apps/storefront/.env; Copy-Item frontend/apps/storefront/.env.prod frontend/apps/storefront/.env.production; Write-Host 'prod env active - set APP_ORIGIN in backend/.env.prod first; rebuild storefront + payment + api1 + api2'"
+	powershell -NoProfile -Command "if (!(Test-Path backend/.env.prod) -or !(Test-Path frontend/apps/storefront/.env.prod)) { Write-Host 'Missing prod variant: cp backend/.env.prod.example backend/.env.prod + cp frontend/apps/storefront/.env.prod.example frontend/apps/storefront/.env.prod, then fill every CHANGE_ME' -ForegroundColor Red; exit 1 }; Copy-Item backend/.env.prod backend/.env; Copy-Item frontend/apps/storefront/.env.prod frontend/apps/storefront/.env; Copy-Item frontend/apps/storefront/.env.prod frontend/apps/storefront/.env.production; Remove-Item frontend/apps/storefront/.env.local -ErrorAction SilentlyContinue; Write-Host 'prod env active - set APP_ORIGIN in backend/.env.prod first; rebuild storefront + payment + api1 + api2; then run make kafka-env (this copy has no Kafka SASL/TLS values)'"
 
 importdb:
 	docker exec -i goshop-postgres psql -U ${DB_USER} -d ${DB_NAME} < ./backupdb.sql
@@ -137,9 +141,27 @@ run-binary:
 sqlc:
 	cd backend && sqlc generate
 
+# `swag` cannot see across the Go workspace: a run limited to the gateway
+# returns 3 paths, and a run that also lists service modules fails on
+# `utils.APIResponse`. So it regenerates the gateway routes into a scratch
+# directory and scripts/patch-openapi-spec.py merges the service-owned
+# routes (recommendations, assistant, hybrid search) back in.
+SWAGGER_TMP=.swag-tmp
+# `rm -rf` is not present in the GNU make on Windows; use each shell's own.
+ifeq ($(OS),Windows_NT)
+REMOVE_TMP=if exist ${SWAGGER_TMP} rmdir /s /q ${SWAGGER_TMP}
+else
+REMOVE_TMP=rm -rf ${SWAGGER_TMP}
+endif
+
 swagger:
-	cd backend && swag init -g cmd/api/main.go -o docs --parseDependency --parseInternal
-	npx --yes swagger2openapi ./backend/docs/swagger.json -o ./backend/docs/openapi.json
+	cd backend/gomod/cmd && swag init -g main.go -d ./api --parseDependency --parseInternal --outputTypes json -o ../../../${SWAGGER_TMP}
+	python scripts/patch-openapi-spec.py --from ${SWAGGER_TMP}/swagger.json --yaml --go
+	npx --yes swagger2openapi ./backend/gomod/shared/docs/swagger.json -o ./backend/gomod/shared/docs/openapi.json
+	$(REMOVE_TMP)
+
+swagger-check:
+	python scripts/patch-openapi-spec.py --check
 
 migrate-create:
 	migrate create -ext sql -dir ${MIGRATION_IDENTITY_DIR} -seq ${NAME}
@@ -212,21 +234,75 @@ noapp:
 stop-noapp:
 	docker compose -f ${NOAPP_COMPOSE} down
 
-# Build container for dev
+# Build container for dev.
+# Drops the dev-host override: with nginx on :80, a stale .env.local pointing
+# at :8080 would shadow .env.development and the browser would hit a dead port.
 dev:
+	powershell -NoProfile -Command "Remove-Item frontend/apps/storefront/.env.local -ErrorAction SilentlyContinue"
 	docker compose -f ${DEV_COMPOSE} down
 	docker compose -f ${DEV_COMPOSE} --env-file ${ENV_FILE} up --build
 
-# Stop dev containers
+# Stop dev containers AND the host processes dev-host started. Without the
+# second line a stopped stack leaves api.exe/analytics.exe etc. holding their
+# ports, so the next dev-host dies with "bind: address already in use".
 stop-dev:
 	docker compose -f ${DEV_COMPOSE} down
+	powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/stop-dev.ps1
 
-# Run lightweight hybrid development (Infra in Docker, Go apps on Host)
+# Run lightweight hybrid development (Infra in Docker, Go apps on Host).
+# No nginx in this topology, so the storefront must target :8080 instead of the
+# edge on :80. .env.local outranks .env.development, which is why this copy is
+# what keeps Google login and every client fetch pointing at a live port.
 dev-host:
+	powershell -NoProfile -Command "Copy-Item frontend/apps/storefront/.env.dev-host frontend/apps/storefront/.env.local -Force"
 	powershell -ExecutionPolicy Bypass -File ./scripts/dev.ps1
 
-# Build container for production
+# Verify every gateway-proxied route answers (fails on 502). Run after `make dev`
+# or `make dev-host`: a service added to prod compose but not to dev compose has
+# no build-time symptom, only a bare 502 once a page asks for it.
+#
+# The edge only exists after `make dev` (nginx on :80). `make dev-host` removes
+# that container and leaves the gateway on the host at :8080, so probing the
+# default :80 there reports every route as dead. Probe :8080 when it is
+# listening, since that is the topology dev-host leaves behind.
+smoke-dev:
+	powershell -NoProfile -Command "$$port = if (Get-NetTCPConnection -State Listen -LocalPort 8080 -ErrorAction SilentlyContinue) { 'http://localhost:8080' } else { 'http://localhost' }; powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/smoke-dev.ps1 -BaseUrl $$port"
+
+# Static twin of smoke-dev: proves each gateway proxy target resolves to a
+# service in the dev compose file. Needs no running stack, so it can gate
+# `make dev` instead of reporting after the fact.
+check-parity:
+	python ./scripts/check-compose-parity.py
+
+# Live twin: proves no container of the current stack runs stale config.
+# `up -d` does not always recreate, so a service can keep a dead environment
+# (that is how prod dialled kafka:29096 while the broker spoke plaintext). Run
+# it after any `up -d`, and always after switching dev <-> prod.
+check-drift:
+	python ./scripts/check-compose-drift.py
+
+check-drift-dev:
+	python ./scripts/check-compose-drift.py --dev
+
+# The only supported way to switch stacks. Both compose files share
+# container_name values and the goshop-network, so plain `up -d` from the other
+# file leaves half the old stack running.
+switch-stack:
+	powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/switch-stack.ps1 -Stack $(or $(STACK),prod)
+
+# Regenerate docs/SERVICES.md from compose ports, service migrations and proto
+# contracts. Run after adding/moving a service instead of editing the table.
+services-doc:
+	node ./scripts/gen-services-doc.cjs
+
+# Build container for production.
+#
+# First line reverts local edits to nginx/conf.d/goshop-locations.inc. That file
+# is tracked, and a hand edit pointing upstreams at host.docker.internal (or any
+# host-only address) makes every proxied route 502 once nginx runs inside the
+# compose network. A local experiment belongs in a separate untracked override.
 prod:
+	powershell -NoProfile -Command "$$d = git status --porcelain nginx/conf.d/goshop-locations.inc; if ($$d) { Write-Host 'reverting local edit: nginx/conf.d/goshop-locations.inc' -ForegroundColor Yellow; git checkout -- nginx/conf.d/goshop-locations.inc }"
 	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-prod.ps1
 	docker compose -f ${PROD_COMPOSE} --env-file ${ENV_FILE} build storefront
 	docker compose -f ${PROD_COMPOSE} --env-file ${ENV_FILE} up -d
@@ -248,7 +324,7 @@ prod-fast:
 
 # Stop production containers
 stop-prod:
-	docker compose -f ${PROD_COMPOSE} down
+	docker compose -f ${PROD_COMPOSE} --env-file ${ENV_FILE} down
 
 # Post-deploy smoke check (8 HTTP probes + container states).
 smoke-prod:
@@ -260,9 +336,16 @@ smoke-prod:
 reload-nginx:
 	docker exec goshop-nginx nginx -s reload
 
+# Rotate the edge API key and make sure INTERNAL_API_TOKEN exists and agrees
+# across backend/.env and backend/.env.prod. The internal token is kept stable
+# across runs; pass ROTATE=1 to change it (then recreate catalog and
+# recommendations together, or the catalog publish hook 401s).
+secrets:
+	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/gen-local-secrets.ps1 $(if $(filter 1,$(ROTATE)),-RotateInternalToken,)
+
 # View production logs
 logs-prod:
-	docker compose -f ${PROD_COMPOSE} logs -f --tail=100
+	docker compose -f ${PROD_COMPOSE} --env-file ${ENV_FILE} logs -f --tail=100
 
 # Enter bash shell in the API container
 bash:
@@ -278,5 +361,77 @@ stresstest:
 spiketest:
 	docker run --rm -i --network=shopping_goshop-network -v "./scripts/loadtest:/loadtest" -e BASE_URL=http://goshop-nginx -e API_KEY=${API_KEY} grafana/k6 run /loadtest/spike_test.js
 
-.PHONY: importdb exportdb server worker ws-gateway identity notification payment coupon inventory catalog order chat media build-identity build-notification build-payment build-coupon build-inventory build-catalog build-order build-chat build-media migrate-create migrate-up migrate-down sqlc build build-worker build-ws-gateway run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev dev-host swagger loadtest stresstest spiketest seed seed-docker env-dev env-prod
+# Kafka integration suite against a real broker in Testcontainers.
+# Needs Docker running; first run pulls apache/kafka:3.9.0 (~400MB).
+test-kafka-integration:
+	cd backend/gomod/shared && go test -tags=integration ./pkg/kafka/ -v -count=1 -timeout 20m
+
+# Adds every Kafka secret to backend/.env, the single source of truth: one
+# SCRAM password per client plus the broker TLS settings.
+#
+#   make kafka-env                 # add any missing value, keep existing
+#   make kafka-env ROTATE=1        # regenerate every Kafka password
+#
+# Compose reads the file for ${VAR} interpolation via --env-file ${ENV_FILE}.
+# Re-run after `make env-prod`/`make env-dev`: those replace the file.
+kafka-env:
+	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/gen-kafka-env.ps1 $(if $(ROTATE),-Rotate,)
+
+# Phase 6 item 2: creates one SCRAM user per service on the running broker.
+# Run once on a fresh kafka-data volume, BEFORE starting the services: with
+# SASL on and no credentials yet, nothing can log in - including this script.
+# Idempotent, so re-run it after rotating a password in the deployment env.
+kafka-sasl-users:
+	docker compose -f ${PROD_COMPOSE} --env-file ${ENV_FILE} exec -T kafka \
+		sh /tmp/kafka-sasl-users.sh kafka:29093
+
+# Phase 6 item 4: grants each service the topics and consumer groups it uses.
+# Run AFTER kafka-sasl-users, and BEFORE starting the services: the broker is
+# configured to deny by default (KAFKA_ALLOW_EVERYONE_IF_NO_ACL_FOUND=false), so
+# an ungranted client fails at startup. Idempotent.
+kafka-acls:
+	docker compose -f ${PROD_COMPOSE} --env-file ${ENV_FILE} exec -T kafka \
+		sh /tmp/kafka-acls.sh kafka:29093
+
+# Proves the ACLs are enforced, not merely present: each identity must reach the
+# topics it owns AND be refused another service's. Passwords come from the
+# broker's own environment, so no secrets are passed on the command line.
+kafka-acl-verify:
+	docker compose -f ${PROD_COMPOSE} --env-file ${ENV_FILE} exec -T kafka \
+		sh /tmp/kafka-acl-verify.sh kafka:29093 kafka:29096
+
+# Phase 6 item 3: broker TLS material (CA + broker cert + JKS keystore).
+# Writes backend/kafka/tls/; only ca.crt is committed. Run kafka-env after.
+kafka-tls-certs:
+	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/gen-kafka-tls-certs.ps1
+
+# Every dead-letter topic should be empty in steady state. A non-zero lag means
+# records exhausted their retries and wait for `dlqreplay`.
+check-dlq:
+	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check-dlq.ps1
+
+# Truncates every DLQ topic to offset 0 without dropping the topic (and its ACLs).
+# Destroys the dead letters: inspect them before running this.
+clear-dlq:
+	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/clear-dlq.ps1
+
+# Health of the six Kafka consumer services, straight through the edge.
+kafka-health:
+	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check-kafka-health.ps1
+
+# Rewinds one consumer group's offsets. Debug only: replaying side-effecting
+# consumers duplicates notifications and emails.
+#   make kafka-reset-group GROUP=goshop.notification_service_events_v3 MODE=Latest
+kafka-reset-group:
+	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/kafka-reset-group.ps1 -Group "$(GROUP)" -Mode "$(or $(MODE),Latest)" $(if $(DATETIME),-DateTime "$(DATETIME)",)
+
+# Ad-hoc Grafana Cloud Loki query (needs GRAFANA_LOKI_READ_TOKEN in backend/.env).
+#   make logq Q='{container="goshop-order"}' HOURS=6
+# Make strips bare double quotes, so $-escape them in the query when passing
+# one through a shell: Q='{container=$\"goshop-order$\"}'. Simpler queries
+# without quotes work directly.
+logq:
+	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/logq.ps1 '$(Q)' -Hours $(or $(HOURS),2) -Limit $(or $(LIMIT),10)
+
+.PHONY: importdb exportdb server worker ws-gateway identity notification payment coupon inventory catalog order chat media build-identity build-notification build-payment build-coupon build-inventory build-catalog build-order build-chat build-media migrate-create migrate-up migrate-down sqlc build build-worker build-ws-gateway run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev dev-host smoke-dev check-parity check-drift check-drift-dev switch-stack swagger loadtest stresstest spiketest test-kafka-integration kafka-env kafka-sasl-users kafka-acls kafka-acl-verify kafka-tls-certs check-dlq clear-dlq kafka-health kafka-reset-group logq seed seed-docker env-dev env-prod
 

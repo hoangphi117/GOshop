@@ -6,3 +6,16 @@ lint:
   # packages, no unused imports, RPC request/response naming.
   use:
     - STANDARD
+breaking:
+  # FILE, not WIRE_JSON. The event payloads under proto/events are consumed as
+  # plain JSON by encoding/json; a field renamed in the proto is a breaking
+  # change for those consumers even when it is still wire-compatible with a
+  # protojson reader. WIRE_JSON would let exactly that drift through.
+  #
+  # This is also buf's implicit default, restated so the gate cannot change
+  # silently when buf's defaults move.
+  #
+  # Deliberate consequence: a proto field may not be renamed, only deprecated
+  # and replaced by a new field, even if [json_name] keeps the wire name.
+  use:
+    - FILE

@@ -1,0 +1,29 @@
+# Alertmanager config template for GOshop.
+#
+# Mounted read-only; the container entrypoint (see compose command) substitutes
+# __ALERTMANAGER_DISCORD_WEBHOOK_URL__ with the env var of the same name into
+# /tmp/alertmanager.yml before starting. Alertmanager does not expand env vars
+# in its own config, so the substitution has to happen at container start.
+#
+# Native Discord receiver (alertmanager >= 0.25): no bridge container, no
+# extra service. The URL is a channel webhook from Discord -> Channel -> Edit ->
+# Integrations -> Webhooks.
+#
+# Grouping: (alertname, service) means one Kafka outage produces one message per
+# rule rather than one per consumer group, and an alert that clears collapses
+# into its own resolved message because send_resolved is on.
+route:
+  receiver: discord
+  group_by: [alertname, service]
+  # 30s lets a scrape/deploy blip settle before paging anyone.
+  group_wait: 30s
+  # 5m batches new alerts of the same group without waiting for a full cycle.
+  group_interval: 5m
+  # 4h: an unresolved critical re-notifies twice per shift, not every 5m.
+  repeat_interval: 4h
+
+receivers:
+  - name: discord
+    discord_configs:
+      - webhook_url: __ALERTMANAGER_DISCORD_WEBHOOK_URL__
+        send_resolved: true

@@ -51,6 +51,11 @@ export const adminChatKeys = {
   messages: (id?: string) => ['admin-chats', 'messages', id] as const,
 }
 
+export interface AdminConversationPage {
+  data: ConversationItem[]
+  total: number
+}
+
 export function useAdminConversations(params: ListConversationsParams = {}) {
   return useQuery({
     queryKey: adminChatKeys.conversations(params),
@@ -58,18 +63,18 @@ export function useAdminConversations(params: ListConversationsParams = {}) {
       const query = new URLSearchParams()
       if (params.status) query.set('status', params.status)
       if (params.search) query.set('search', params.search)
-      if (params.page) query.set('page', String(params.page))
-      if (params.limit) query.set('limit', String(params.limit || 50))
+      query.set('page', String(params.page || 1))
+      query.set('limit', String(params.limit || 50))
 
       const res = await fetchWithAuth(
         `/api/v1/admin/chat/conversations?${query.toString()}`
       )
       if (!res.ok) throw new Error('Failed to fetch conversations')
+      // Envelope is {status, message, data: ConversationItem[], pagination: {...}}:
+      // utils.NewPaginationResponse makes ResponseSuccess flatten data/pagination.
       const json = await res.json()
-      return (json.data?.data ||
-        json.data?.items ||
-        json.data ||
-        []) as ConversationItem[]
+      const data = Array.isArray(json.data) ? (json.data as ConversationItem[]) : []
+      return { data, total: Number(json.pagination?.total_records ?? data.length) }
     },
     refetchInterval: 5000,
   })
@@ -93,16 +98,19 @@ export function useAdminGetOrCreateConversation() {
     onSuccess: (data) => {
       if (data?.uuid) {
         queryClient.setQueryData(adminChatKeys.conversation(data.uuid), data)
-        queryClient.setQueriesData<ConversationItem[]>(
+        queryClient.setQueriesData<AdminConversationPage>(
           { queryKey: ['admin-chats', 'conversations'] },
-          (old = []) => {
-            if (!Array.isArray(old)) return [data]
-            if (old.some((c) => c.uuid === data.uuid)) {
-              return old.map((c) =>
-                c.uuid === data.uuid ? { ...c, ...data } : c
-              )
+          (old) => {
+            if (!old) return old
+            const exists = old.data.some((c) => c.uuid === data.uuid)
+            return {
+              ...old,
+              data: exists
+                ? old.data.map((c) =>
+                    c.uuid === data.uuid ? { ...c, ...data } : c
+                  )
+                : [data, ...old.data],
             }
-            return [data, ...old]
           }
         )
       }
@@ -147,7 +155,10 @@ export function useAdminMessages(conversationUUID?: string) {
       return [...items].reverse()
     },
     enabled: Boolean(conversationUUID),
-    refetchInterval: 3000,
+    // No polling: the active-room WebSocket pushes chat.message and inserts it
+    // straight into this cache. Polling every 3s duplicated every message and
+    // masked a dead socket. Refetch only when the tab regains focus.
+    refetchOnWindowFocus: true,
   })
 }
 
@@ -219,12 +230,15 @@ export function useAdminMarkRead() {
       return res.json()
     },
     onSuccess: (_, conversationUUID) => {
-      queryClient.setQueryData<ConversationItem[]>(
-        ['admin-chats', 'conversations'],
-        (old = []) =>
-          old.map((c) =>
-            c.uuid === conversationUUID ? { ...c, unread_count: 0 } : c
-          )
+      queryClient.setQueriesData<AdminConversationPage>(
+        { queryKey: ['admin-chats', 'conversations'] },
+        (old) =>
+          old && {
+            ...old,
+            data: old.data.map((c) =>
+              c.uuid === conversationUUID ? { ...c, unread_count: 0 } : c
+            ),
+          }
       )
       queryClient.invalidateQueries({
         queryKey: ['admin-chats', 'conversations'],
@@ -375,7 +389,6 @@ export function useAdminChatRoom(conversationUUID?: string | null) {
   const queryClient = useQueryClient()
   const accessToken = useAuthStore((state) => state.auth.accessToken)
   const isAuthenticated = Boolean(useAuthStore((state) => state.auth.user))
-
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -392,13 +405,18 @@ export function useAdminChatRoom(conversationUUID?: string | null) {
 
     const connect = () => {
       if (isCleanedUp) return
+      // Read the token fresh on every (re)connect: the auto-refresh may have
+      // rotated it while this effect holds an old closure value, and the old
+      // token makes the gateway drop the socket silently.
+      const token = useAuthStore.getState().auth.accessToken
+      if (!token) return
 
       try {
         const rawBaseUrl =
           import.meta.env.VITE_API_BASE_URL || window.location.origin
         const wsBaseUrl = rawBaseUrl.replace(/^http/, 'ws')
         const socketUrl = `${wsBaseUrl}/api/v1/ws?token=${encodeURIComponent(
-          accessToken
+          token
         )}&conversation_uuid=${encodeURIComponent(conversationUUID)}`
 
         const ws = new WebSocket(socketUrl)
@@ -435,12 +453,13 @@ export function useAdminChatRoom(conversationUUID?: string | null) {
               )
 
               // 2. Immediately update sidebar conversation preview
-              queryClient.setQueriesData<ConversationItem[]>(
+              queryClient.setQueriesData<AdminConversationPage>(
                 { queryKey: ['admin-chats', 'conversations'] },
-                (old) => {
-                  if (!old || !Array.isArray(old)) return old
-                  return old.map((c) => {
-                    if (c.uuid === targetConvUUID) {
+                (old) =>
+                  old && {
+                    ...old,
+                    data: old.data.map((c) => {
+                      if (c.uuid !== targetConvUUID) return c
                       return {
                         ...c,
                         last_message_content: msgData.content,
@@ -452,10 +471,8 @@ export function useAdminChatRoom(conversationUUID?: string | null) {
                             ? (c.unread_count || 0) + 1
                             : 0,
                       }
-                    }
-                    return c
-                  })
-                }
+                    }),
+                  }
               )
 
               // 3. Mark read immediately if admin is currently viewing this active conversation
@@ -547,20 +564,18 @@ export function useAdminChatRoom(conversationUUID?: string | null) {
               const { conversation_uuid, user_id, role, is_online } =
                 payload.data
               if (role === 'user') {
-                queryClient.setQueriesData<ConversationItem[]>(
+                queryClient.setQueriesData<AdminConversationPage>(
                   { queryKey: ['admin-chats', 'conversations'] },
-                  (old) => {
-                    if (!old || !Array.isArray(old)) return old
-                    return old.map((c) => {
-                      if (
+                  (old) =>
+                    old && {
+                      ...old,
+                      data: old.data.map((c) =>
                         (conversation_uuid && c.uuid === conversation_uuid) ||
                         (user_id && c.user_id === user_id)
-                      ) {
-                        return { ...c, is_online: Boolean(is_online) }
-                      }
-                      return c
-                    })
-                  }
+                          ? { ...c, is_online: Boolean(is_online) }
+                          : c
+                      ),
+                    }
                 )
 
                 if (conversationUUID) {

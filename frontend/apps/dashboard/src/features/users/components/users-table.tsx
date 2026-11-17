@@ -7,7 +7,6 @@ import {
   getFacetedRowModel,
   getFacetedUniqueValues,
   getFilteredRowModel,
-  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
@@ -32,9 +31,10 @@ type DataTableProps = {
   search: Record<string, unknown>
   navigate: NavigateFn
   isLoading?: boolean
+  pageCount?: number
 }
 
-export function UsersTable({ data, search, navigate, isLoading }: DataTableProps) {
+export function UsersTable({ data, search, navigate, isLoading, pageCount = 1 }: DataTableProps) {
   // Local UI-only states
   const [rowSelection, setRowSelection] = useState({})
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
@@ -76,12 +76,13 @@ export function UsersTable({ data, search, navigate, isLoading }: DataTableProps
       columnVisibility,
     },
     enableRowSelection: true,
+    manualPagination: true,
+    pageCount,
     onPaginationChange,
     onColumnFiltersChange,
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
     onColumnVisibilityChange: setColumnVisibility,
-    getPaginationRowModel: getPaginationRowModel(),
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -90,8 +91,8 @@ export function UsersTable({ data, search, navigate, isLoading }: DataTableProps
   })
 
   useEffect(() => {
-    ensurePageInRange(table.getPageCount())
-  }, [table, ensurePageInRange])
+    ensurePageInRange(pageCount)
+  }, [pageCount, ensurePageInRange])
 
   return (
     <div

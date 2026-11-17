@@ -30,8 +30,9 @@ import (
 	"goshop/shared/config"
 	"goshop/shared/pkg/cache"
 	"goshop/shared/pkg/db"
+	"goshop/shared/pkg/kafka"
 	"goshop/shared/pkg/logger"
-	"goshop/shared/pkg/rabbitmq"
+	"goshop/shared/pkg/metrics"
 	"goshop/shared/pkg/search"
 	"goshop/shared/pkg/telemetry"
 	"goshop/shared/pkg/utils"
@@ -54,6 +55,7 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	r := gin.Default()
+	r.GET("/metrics", metrics.Handler(nil))
 
 	if err := db.InitDBWithConfig(cfg, "catalog"); err != nil {
 		logger.Log.Fatal().Err(err).Msg("Failed to initialize database for catalog service")
@@ -89,6 +91,17 @@ func New(cfg *config.Config) (*App, error) {
 	searchClient, err := search.NewClient(cfg.Meilisearch.Host, cfg.Meilisearch.MasterKey, cfg.Meilisearch.IndexProducts)
 	if err != nil {
 		logger.Log.Warn().Err(err).Msg("Failed to initialize Meilisearch client for catalog service")
+	} else {
+		// Without this the index has documents but no filterable/sortable
+		// attributes, so every filtered search is rejected with a 400, the
+		// service falls back to Postgres ILIKE on product_name, and category
+		// words ("laptop") match nothing. SetupIndex existed but was never
+		// called, which is how that stayed invisible.
+		go func() {
+			if err := searchClient.SetupIndex(context.Background()); err != nil {
+				logger.Log.Warn().Err(err).Msg("Failed to configure Meilisearch products index")
+			}
+		}()
 	}
 
 	inventoryGRPCAddr := utils.GetEnv("INVENTORY_GRPC_ADDR", "localhost:50054")
@@ -105,14 +118,14 @@ func New(cfg *config.Config) (*App, error) {
 	// Consume review rating updates from the Review service (reviews live in a separate DB).
 	ratingQuerier := catalogsqlc.New(dbPool)
 	ratingConsumer := ratingconsumer.NewRatingConsumer(ratingQuerier, cacheRedisService)
-	if rmq, err := rabbitmq.NewRabbitMQService(utils.GetEnv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/"), utils.NewLoggerWithPath("catalog", "catalog_rabbitmq.log", "info")); err == nil {
+	if rmq, err := kafka.NewKafkaBroker(utils.GetEnv("KAFKA_BROKERS", ""), utils.NewLoggerWithPath("catalog", "catalog_kafka.log", "info")); err == nil {
 		go func() {
 			if err := rmq.Consume(context.Background(), events.QueueReviewRatingUpdated, ratingConsumer.HandleEvent); err != nil {
 				logger.Log.Error().Err(err).Msg("Catalog review-rating consumer stopped")
 			}
 		}()
 	} else {
-		logger.Log.Warn().Err(err).Msg("RabbitMQ unavailable, review rating updates disabled")
+		logger.Log.Warn().Err(err).Msg("Kafka unavailable, review rating updates disabled")
 	}
 
 	port := utils.GetEnv("CATALOG_SERVER_PORT", "8086")

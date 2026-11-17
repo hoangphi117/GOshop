@@ -7,6 +7,12 @@ services:
       - "80:80"
     environment:
       - API_KEY=${API_KEY:?API_KEY must be set (edge injects it server-side)}
+      - MEILISEARCH_MASTER_KEY=${MEILISEARCH_MASTER_KEY:?MEILISEARCH_MASTER_KEY must be set (edge injects it for /search-api)}
+      # Rendered into the storefront/dashboard CSP connect-src. Dev uploads go
+      # to MinIO (path style), so S3_ENDPOINT is already the origin; without the
+      # variable nginx exits on 'unknown "s3_public_origin" variable' and
+      # restart-loops. Composes fine overridden via S3_PUBLIC_ORIGIN in .env.
+      - S3_PUBLIC_ORIGIN=${S3_PUBLIC_ORIGIN:-${S3_ENDPOINT:-}}
       - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx/secret-conf
     volumes:
       - type: tmpfs
@@ -15,6 +21,8 @@ services:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./nginx/templates:/etc/nginx/templates:ro
       - ./backend/uploads:/var/www/uploads:ro
+      # Admin dashboard SPA — static build from the host (or CI artifact).
+      - ./frontend/apps/dashboard/dist:/srv/dashboard:ro
     depends_on:
       - api
     networks:
@@ -36,7 +44,13 @@ services:
       - APP_ENV=development
       - DB_HOST=postgres
       - REDIS_ADDR=redis:6379
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
+      - KAFKA_BROKERS=kafka:29092
+      # Dev broker is PLAINTEXT (see the kafka service below) and no TLS cert is
+      # mounted into dev containers, so the TLS block that gen-kafka-env.ps1
+      # merges into backend/.env for prod must not reach a dev run. Without
+      # this, clients die with "load TLS CA: open /app/kafka/tls/ca.crt".
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
       - MEILISEARCH_HOST=http://meilisearch:7700
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
       - IDENTITY_SERVICE_URL=http://identity-service:8081
@@ -47,12 +61,31 @@ services:
       - ORDER_SERVICE_URL=http://order-service:8088
       - ORDER_GRPC_TARGET=order-service:50057
       - BANNER_SERVICE_URL=http://banner-service:8089
+      - RECOMMENDATIONS_SERVICE_URL=http://recommendations-service:8095
       - REVIEW_SERVICE_URL=http://review-service:8091
+      - ANALYTICS_SERVICE_URL=http://analytics:8092
+      - CHAT_SERVICE_URL=http://chat:8093
+      # backend/.env has http://localhost:8085 for host-run setups; inside the
+      # container that is the container itself, so the gateway answered 502 on
+      # any /api/v1/ws request that reached it. nginx happens to intercept
+      # /api/v1/ws first and route it straight to ws-gateway, which hid this.
+      - WS_GATEWAY_URL=http://ws-gateway:8085
+      - CATALOG_SERVICE_URL=http://catalog:8086
+      - CART_SERVICE_URL=http://cart:8087
+      - COUPON_SERVICE_URL=http://coupon:8084
+      # Without this the assistant routes 404 at the gateway: the service runs
+      # in its own container, the api proxy has nothing to forward to.
+      - ASSISTANT_SERVICE_URL=http://assistant-service:8097
+      - INVENTORY_SERVICE_URL=http://inventory:8090
+      - MEDIA_SERVICE_URL=http://media:8094
       - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:-goshop-internal-secret-token}
       - JWT_SIGNING_ENABLED=false
       - JWT_PRIVATE_KEY=
       - JWT_PUBLIC_KEY=/app/certs/jwt_public.pem
       - S3_ENDPOINT=http://minio:9000
+      # Images are rendered by the browser, so the read URL must be the edge
+      # origin (nginx proxies /goshop-media/ to MinIO), never the in-cluster name.
+      - S3_PUBLIC_BASE_URL=${S3_PUBLIC_BASE_URL:-http://localhost/goshop-media}
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
     volumes:
       - ./backend:/app
@@ -62,8 +95,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
+      kafka-init:
+
+        condition: service_completed_successfully
     networks:
       goshop-network:
         aliases:
@@ -91,7 +125,13 @@ services:
       - DB_NAME=shopping_identity
       - IDENTITY_DB_NAME=shopping_identity
       - REDIS_ADDR=redis:6379
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
+      - KAFKA_BROKERS=kafka:29092
+      # Dev broker is PLAINTEXT (see the kafka service below) and no TLS cert is
+      # mounted into dev containers, so the TLS block that gen-kafka-env.ps1
+      # merges into backend/.env for prod must not reach a dev run. Without
+      # this, clients die with "load TLS CA: open /app/kafka/tls/ca.crt".
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
       - MEILISEARCH_HOST=http://meilisearch:7700
       - IDENTITY_SERVER_PORT=8081
       - IDENTITY_GRPC_PORT=:50051
@@ -108,8 +148,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
+      kafka-init:
+
+        condition: service_completed_successfully
     networks:
       goshop-network:
         aliases:
@@ -132,7 +173,13 @@ services:
       - DB_HOST=postgres
       - DB_NAME=shopping_notification
       - REDIS_ADDR=redis:6379
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
+      - KAFKA_BROKERS=kafka:29092
+      # Dev broker is PLAINTEXT (see the kafka service below) and no TLS cert is
+      # mounted into dev containers, so the TLS block that gen-kafka-env.ps1
+      # merges into backend/.env for prod must not reach a dev run. Without
+      # this, clients die with "load TLS CA: open /app/kafka/tls/ca.crt".
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
       - NOTIFICATION_SERVER_PORT=8082
       - IDENTITY_GRPC_ADDR=identity-service:50051
       - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:-goshop-internal-secret-token}
@@ -147,12 +194,170 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
+      kafka-init:
+
+        condition: service_completed_successfully
     networks:
       goshop-network:
         aliases:
           - notification-service
+
+  media:
+    # The gateway proxies /api/v1/upload/* to MEDIA_SERVICE_URL
+    # (http://media:8094). Uploads are stateless, so this service needs no DB —
+    # only Redis, Kafka and the storage backend from backend/.env.
+    build:
+      context: ./backend
+      dockerfile: build/Dockerfile.service.dev
+      args:
+        SERVICE: media
+    container_name: goshop-media
+    restart: unless-stopped
+    mem_limit: 160m
+    ports:
+      - "8094:8094"
+    env_file:
+      - ./backend/.env
+    environment:
+      - APP_ENV=development
+      - MEDIA_SERVER_PORT=8094
+      - REDIS_ADDR=redis:6379
+      - KAFKA_BROKERS=kafka:29092
+      # Dev broker is PLAINTEXT (see the kafka service below) and no TLS cert is
+      # mounted into dev containers, so the TLS block that gen-kafka-env.ps1
+      # merges into backend/.env for prod must not reach a dev run. Without
+      # this, clients die with "load TLS CA: open /app/kafka/tls/ca.crt".
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
+      # backend/.env has S3_ENDPOINT=http://localhost:9000 for host-run setups;
+      # inside the container MinIO is reachable as minio:9000.
+      - S3_ENDPOINT=http://minio:9000
+      - S3_PUBLIC_BASE_URL=${S3_PUBLIC_BASE_URL:-http://localhost/goshop-media}
+      - JWT_SIGNING_ENABLED=false
+      - JWT_PRIVATE_KEY=
+      - JWT_PUBLIC_KEY=/app/certs/jwt_public.pem
+      - GOMEMLIMIT=1GiB
+      - GOMAXPROCS=1
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
+    volumes:
+      - ./backend:/app
+    depends_on:
+      redis:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      minio:
+        condition: service_started
+    networks:
+      goshop-network:
+        aliases:
+          - media-service
+
+  analytics:
+    # The gateway proxies /api/v1/admin/analytics/* to ANALYTICS_SERVICE_URL
+    # (http://analytics:8092). Without this service every admin dashboard chart
+    # returned 502 (DNS: lookup analytics: no such host).
+    build:
+      context: ./backend
+      dockerfile: build/Dockerfile.service.dev
+      args:
+        SERVICE: analytics
+    container_name: goshop-analytics
+    restart: unless-stopped
+    mem_limit: 192m
+    ports:
+      - "8092:8092"
+    env_file:
+      - ./backend/.env
+    environment:
+      - APP_ENV=development
+      - DB_HOST=postgres
+      - DB_NAME=shopping_analytics
+      - ANALYTICS_DB_NAME=shopping_analytics
+      - ANALYTICS_SERVER_PORT=8092
+      # Dev edge is plain HTTP on localhost; a Secure cookie would be dropped.
+      - ANON_COOKIE_SECURE=false
+      - REDIS_ADDR=redis:6379
+      - KAFKA_BROKERS=kafka:29092
+      # Dev broker is PLAINTEXT (see the kafka service below) and no TLS cert is
+      # mounted into dev containers, so the TLS block that gen-kafka-env.ps1
+      # merges into backend/.env for prod must not reach a dev run. Without
+      # this, clients die with "load TLS CA: open /app/kafka/tls/ca.crt".
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
+      # backend/.env points these at localhost for host-run binaries; inside the
+      # container that resolves to the container itself.
+      - IDENTITY_GRPC_ADDR=identity-service:50051
+      - CATALOG_GRPC_TARGET=catalog-service:50055
+      - ORDER_GRPC_TARGET=order-service:50057
+      - INVENTORY_GRPC_ADDR=inventory-service:50054
+      - JWT_SIGNING_ENABLED=false
+      - JWT_PRIVATE_KEY=
+      - JWT_PUBLIC_KEY=/app/certs/jwt_public.pem
+      - GOMEMLIMIT=1GiB
+      - GOMAXPROCS=1
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      identity:
+        condition: service_started
+      order:
+        condition: service_started
+      catalog:
+        condition: service_started
+      inventory:
+        condition: service_started
+      kafka-init:
+        condition: service_completed_successfully
+    networks:
+      goshop-network:
+        aliases:
+          - analytics-service
+
+  assistant:
+    # Public AI shopping assistant. No DB, no Kafka: sessions live in Redis and
+    # every product fact is read through catalog. The LLM key stays in
+    # backend/.env (server-side only, never in a browser bundle).
+    build:
+      context: ./backend
+      dockerfile: build/Dockerfile.service.dev
+      args:
+        SERVICE: assistant
+    container_name: goshop-assistant
+    restart: unless-stopped
+    mem_limit: 192m
+    ports:
+      - "8097:8097"
+    env_file:
+      - ./backend/.env
+    environment:
+      - APP_ENV=development
+      - ASSISTANT_SERVER_PORT=8097
+      - REDIS_ADDR=redis:6379
+      - CATALOG_GRPC_TARGET=catalog-service:50055
+      - CATALOG_BASE_URL=http://catalog:8086
+      - JWT_SIGNING_ENABLED=false
+      - JWT_PRIVATE_KEY=
+      - JWT_PUBLIC_KEY=/app/certs/jwt_public.pem
+      - GOMEMLIMIT=1GiB
+      - GOMAXPROCS=1
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
+    volumes:
+      - ./backend:/app
+    depends_on:
+      redis:
+        condition: service_healthy
+      catalog:
+        condition: service_started
+    networks:
+      goshop-network:
+        aliases:
+          - assistant-service
 
   payment:
     build:
@@ -173,7 +378,13 @@ services:
       - DB_NAME=shopping_payment
       - PAYMENT_DB_NAME=shopping_payment
       - REDIS_ADDR=redis:6379
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
+      - KAFKA_BROKERS=kafka:29092
+      # Dev broker is PLAINTEXT (see the kafka service below) and no TLS cert is
+      # mounted into dev containers, so the TLS block that gen-kafka-env.ps1
+      # merges into backend/.env for prod must not reach a dev run. Without
+      # this, clients die with "load TLS CA: open /app/kafka/tls/ca.crt".
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
       - PAYMENT_SERVER_PORT=8083
       - PAYMENT_GRPC_PORT=50052
       - ORDER_GRPC_ADDR=order-service:50057
@@ -189,8 +400,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
+      kafka-init:
+
+        condition: service_completed_successfully
     networks:
       goshop-network:
         aliases:
@@ -204,6 +416,7 @@ services:
         SERVICE: catalog
     container_name: goshop-catalog
     restart: unless-stopped
+    mem_limit: 160m
     ports:
       - "8086:8086"
       - "50055:50055"
@@ -219,20 +432,29 @@ services:
       - JWT_PRIVATE_KEY=
       - INVENTORY_GRPC_ADDR=inventory-service:50054
       - REDIS_ADDR=redis:6379
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
+      # Publish hook: a new or renamed product is embedded immediately instead
+      # of waiting for the recommender's next boot.
+      - RECOMMENDATIONS_SERVICE_URL=http://recommendations:8095
+      - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-dev-internal-token}
+      - KAFKA_BROKERS=kafka:29092
+      # Dev broker is PLAINTEXT (see the kafka service below) and no TLS cert is
+      # mounted into dev containers, so the TLS block that gen-kafka-env.ps1
+      # merges into backend/.env for prod must not reach a dev run. Without
+      # this, clients die with "load TLS CA: open /app/kafka/tls/ca.crt".
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
       - MEILISEARCH_HOST=http://meilisearch:7700
-      - GOMEMLIMIT=128MiB
+      - GOMEMLIMIT=1GiB
       - GOMAXPROCS=1
-      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
-    mem_limit: 160m
     cpus: 0.50
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
+      kafka-init:
+
+        condition: service_completed_successfully
       meilisearch:
         condition: service_started
       inventory:
@@ -250,6 +472,7 @@ services:
         SERVICE: inventory
     container_name: goshop-inventory
     restart: unless-stopped
+    mem_limit: 160m
     ports:
       - "8090:8090"
       - "50054:50054"
@@ -264,21 +487,26 @@ services:
       - INVENTORY_GRPC_PORT=50054
       - JWT_PRIVATE_KEY=
       - REDIS_ADDR=redis:6379
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
+      - KAFKA_BROKERS=kafka:29092
+      # Dev broker is PLAINTEXT (see the kafka service below) and no TLS cert is
+      # mounted into dev containers, so the TLS block that gen-kafka-env.ps1
+      # merges into backend/.env for prod must not reach a dev run. Without
+      # this, clients die with "load TLS CA: open /app/kafka/tls/ca.crt".
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
       - JWT_SIGNING_ENABLED=false
       - JWT_PRIVATE_KEY=
-      - GOMEMLIMIT=128MiB
+      - GOMEMLIMIT=1GiB
       - GOMAXPROCS=1
-      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
-    mem_limit: 160m
     cpus: 0.50
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
+      kafka-init:
+
+        condition: service_completed_successfully
     networks:
       goshop-network:
         aliases:
@@ -292,6 +520,7 @@ services:
         SERVICE: coupon
     container_name: goshop-coupon
     restart: unless-stopped
+    mem_limit: 160m
     ports:
       - "8084:8084"
       - "50053:50053"
@@ -306,19 +535,24 @@ services:
       - COUPON_GRPC_PORT=50053
       - JWT_PRIVATE_KEY=
       - REDIS_ADDR=redis:6379
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
+      - KAFKA_BROKERS=kafka:29092
+      # Dev broker is PLAINTEXT (see the kafka service below) and no TLS cert is
+      # mounted into dev containers, so the TLS block that gen-kafka-env.ps1
+      # merges into backend/.env for prod must not reach a dev run. Without
+      # this, clients die with "load TLS CA: open /app/kafka/tls/ca.crt".
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
       - GOMEMLIMIT=96MiB
       - GOMAXPROCS=1
-      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
-    mem_limit: 128m
     cpus: 0.50
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
+      kafka-init:
+
+        condition: service_completed_successfully
     networks:
       goshop-network:
         aliases:
@@ -332,6 +566,7 @@ services:
         SERVICE: cart
     container_name: goshop-cart
     restart: unless-stopped
+    mem_limit: 160m
     ports:
       - "8087:8087"
       - "50056:50056"
@@ -346,19 +581,24 @@ services:
       - CART_GRPC_PORT=50056
       - CATALOG_GRPC_ADDR=catalog-service:50055
       - REDIS_ADDR=redis:6379
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
-      - GOMEMLIMIT=128MiB
+      - KAFKA_BROKERS=kafka:29092
+      # Dev broker is PLAINTEXT (see the kafka service below) and no TLS cert is
+      # mounted into dev containers, so the TLS block that gen-kafka-env.ps1
+      # merges into backend/.env for prod must not reach a dev run. Without
+      # this, clients die with "load TLS CA: open /app/kafka/tls/ca.crt".
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
+      - GOMEMLIMIT=1GiB
       - GOMAXPROCS=1
-      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
-    mem_limit: 160m
     cpus: 0.50
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
+      kafka-init:
+
+        condition: service_completed_successfully
       catalog:
         condition: service_started
     networks:
@@ -374,6 +614,7 @@ services:
         SERVICE: banner
     container_name: goshop-banner
     restart: unless-stopped
+    mem_limit: 160m
     ports:
       - "8089:8089"
     env_file:
@@ -388,10 +629,12 @@ services:
       - JWT_PRIVATE_KEY=
       - JWT_PUBLIC_KEY=/app/certs/jwt_public.pem
       - REDIS_ADDR=redis:6379
+      # Dev broker is PLAINTEXT; drop the prod-only TLS block from backend/.env
+      # (see the kafka service). Without this, banner dies at "load TLS CA".
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
       - GOMEMLIMIT=96MiB
       - GOMAXPROCS=1
-      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
-    mem_limit: 128m
     cpus: 0.50
     depends_on:
       postgres:
@@ -404,6 +647,90 @@ services:
       goshop-network:
         aliases:
           - banner-service
+
+  recommendations:
+    build:
+      context: ./backend
+      dockerfile: build/Dockerfile.service.dev
+      args:
+        SERVICE: recommendations
+    container_name: goshop-recommendations
+    restart: unless-stopped
+    mem_limit: 160m
+    ports:
+      - "8095:8095"
+    env_file:
+      - ./backend/.env
+    environment:
+      - APP_ENV=development
+      - DB_HOST=postgres
+      - DB_NAME=shopping_recs
+      - RECOMMENDATIONS_DB_NAME=shopping_recs
+      - RECOMMENDATIONS_SERVER_PORT=8095
+      # Storefront is on http://localhost:3001, so a Secure guest cookie would
+      # be rejected and every visit would start a new anonymous profile.
+      - ANON_COOKIE_SECURE=false
+      # Shared secret for the catalog's publish hook. Unset means the internal
+      # embed route is open, which is fine for a dev box.
+      - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-dev-internal-token}
+      - CATALOG_GRPC_TARGET=catalog:50055
+      - CATALOG_SERVICE_URL=http://catalog:8086
+      # The hybrid-search keyword half reads the catalog's suggest route. In
+      # compose that call goes catalog-to-catalog and bypasses the gateway, so
+      # the API key is provided here; dev-host points CATALOG_SERVICE_URL at the
+      # gateway instead, which injects it, and leaves this empty.
+      - CATALOG_API_KEY=${API_KEY:-abcd-1234-1111}
+      - CATALOG_DB_NAME=shopping_catalog
+      - ANALYTICS_DB_NAME=shopping_analytics
+      # Without this the embedding backfill is skipped and the vector shelves
+      # stay empty; the service degrades to best sellers rather than failing.
+      - EMBEDDER_URL=http://embedder:8096
+      # Shelf cache. Unset means uncached, which is slower but still correct;
+      # the service logs that at boot instead of failing to start.
+      - REDIS_ADDR=redis:6379
+      - JWT_SIGNING_ENABLED=false
+      - GOMEMLIMIT=96MiB
+      - GOMAXPROCS=1
+    cpus: 0.50
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      catalog:
+        condition: service_started
+      embedder:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    networks:
+      goshop-network:
+        aliases:
+          - recommendations-service
+
+  embedder:
+    # Text embeddings for the recommendation vectors. Its own container because
+    # torch needs several hundred MB resident, which does not fit the 160m cap
+    # the Go services share; see docker/embedder/Dockerfile.
+    build:
+      context: .
+      dockerfile: docker/embedder/Dockerfile
+    container_name: goshop-embedder
+    restart: unless-stopped
+    # Measured at ~800 MiB resident with torch loaded, before any batching.
+    # 1.5g leaves headroom for a 64-text batch on a 16.8 GB host.
+    mem_limit: 1536m
+    ports:
+      - "8096:8096"
+    environment:
+      - EMBEDDING_MODEL=all-MiniLM-L6-v2
+      - EMBEDDING_THREADS=1
+      - OMP_NUM_THREADS=1
+    cpus: 1.0
+    networks:
+      goshop-network:
+        aliases:
+          - embedder
 
   review:
     build:
@@ -424,7 +751,13 @@ services:
       - REVIEW_DB_NAME=shopping_review
       - REVIEW_SERVER_PORT=8091
       - REDIS_ADDR=redis:6379
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
+      - KAFKA_BROKERS=kafka:29092
+      # Dev broker is PLAINTEXT (see the kafka service below) and no TLS cert is
+      # mounted into dev containers, so the TLS block that gen-kafka-env.ps1
+      # merges into backend/.env for prod must not reach a dev run. Without
+      # this, clients die with "load TLS CA: open /app/kafka/tls/ca.crt".
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
       - IDENTITY_GRPC_ADDR=identity-service:50051
       - CATALOG_GRPC_TARGET=catalog-service:50055
       - ORDER_GRPC_TARGET=order-service:50057
@@ -432,7 +765,7 @@ services:
       - JWT_PRIVATE_KEY=
       - JWT_PUBLIC_KEY=/app/certs/jwt_public.pem
       - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:-goshop-internal-secret-token}
-      - GOMEMLIMIT=128MiB
+      - GOMEMLIMIT=1GiB
       - GOMAXPROCS=1
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
     mem_limit: 192m
@@ -468,7 +801,13 @@ services:
       - DB_NAME=shopping_order
       - ORDER_DB_NAME=shopping_order
       - REDIS_ADDR=redis:6379
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
+      - KAFKA_BROKERS=kafka:29092
+      # Dev broker is PLAINTEXT (see the kafka service below) and no TLS cert is
+      # mounted into dev containers, so the TLS block that gen-kafka-env.ps1
+      # merges into backend/.env for prod must not reach a dev run. Without
+      # this, clients die with "load TLS CA: open /app/kafka/tls/ca.crt".
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
       - ORDER_SERVER_PORT=8088
       - ORDER_GRPC_PORT=50057
       - CATALOG_GRPC_ADDR=catalog-service:50055
@@ -491,8 +830,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
+      kafka-init:
+
+        condition: service_completed_successfully
       catalog:
         condition: service_started
       inventory:
@@ -510,6 +850,63 @@ services:
         aliases:
           - order-service
 
+  chat:
+    # Storefront calls /api/v1/chat/* on page load; the api gateway proxies
+    # those to CHAT_SERVICE_URL=http://chat:8093. Without this service the
+    # widget 502s on every page (DNS: lookup chat: no such host).
+    build:
+      context: ./backend
+      dockerfile: build/Dockerfile.service.dev
+      args:
+        SERVICE: chat
+    container_name: goshop-chat
+    restart: unless-stopped
+    ports:
+      - "8093:8093"
+    env_file:
+      - ./backend/.env
+    environment:
+      - APP_ENV=development
+      - DB_HOST=postgres
+      - DB_NAME=shopping_chat
+      - CHAT_DB_NAME=shopping_chat
+      - CHAT_SERVER_PORT=8093
+      - CHAT_GRPC_PORT=50058
+      - REDIS_ADDR=redis:6379
+      - KAFKA_BROKERS=kafka:29092
+      # Dev broker is PLAINTEXT (see the kafka service below) and no TLS cert is
+      # mounted into dev containers, so the TLS block that gen-kafka-env.ps1
+      # merges into backend/.env for prod must not reach a dev run. Without
+      # this, clients die with "load TLS CA: open /app/kafka/tls/ca.crt".
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
+      - IDENTITY_GRPC_ADDR=identity-service:50051
+      - ORDER_GRPC_TARGET=order-service:50057
+      - JWT_SIGNING_ENABLED=false
+      - JWT_PRIVATE_KEY=
+      - JWT_PUBLIC_KEY=/app/certs/jwt_public.pem
+      - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:-goshop-internal-secret-token}
+      - GOMEMLIMIT=1GiB
+      - GOMAXPROCS=1
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
+    mem_limit: 192m
+    cpus: 0.50
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      identity:
+        condition: service_started
+      order:
+        condition: service_started
+    networks:
+      goshop-network:
+        aliases:
+          - chat-service
+
   worker:
     build:
       context: ./backend
@@ -522,8 +919,17 @@ services:
       - ./backend/.env
     environment:
       - REDIS_ADDR=redis:6379
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-goshop}:${RABBITMQ_PASSWORD:-goshop}@rabbitmq:5672/
+      - KAFKA_BROKERS=kafka:29092
+      # Dev broker is PLAINTEXT (see the kafka service below) and no TLS cert is
+      # mounted into dev containers, so the TLS block that gen-kafka-env.ps1
+      # merges into backend/.env for prod must not reach a dev run. Without
+      # this, clients die with "load TLS CA: open /app/kafka/tls/ca.crt".
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
       - MEILISEARCH_HOST=http://meilisearch:7700
+      # worker serves no HTTP router, so it is the one service that needs the
+      # separate /metrics listener (shared/pkg/metrics.ListenAndServe).
+      - METRICS_PORT=9464
     volumes:
       - ./backend:/app
     depends_on:
@@ -531,8 +937,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
+      kafka-init:
+
+        condition: service_completed_successfully
     networks:
       - goshop-network
 
@@ -554,17 +961,35 @@ services:
       - APP_ENV=development
       - JWT_SIGNING_ENABLED=false
       - JWT_PRIVATE_KEY=
+      - JWT_PUBLIC_KEY=/app/certs/jwt_public.pem
+      # backend/.env points these at localhost for host-run binaries; inside a
+      # container that is the container itself. Without the identity address
+      # the gRPC resolver dialled localhost and every handshake got 401.
+      - IDENTITY_GRPC_ADDR=identity-service:50051
+      - CHAT_GRPC_TARGET=chat:50058
+      - KAFKA_TLS_ENABLED=false
+      - KAFKA_TLS_CA_FILE=
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4318}
+    volumes:
+      # The gateway verifies access tokens with the RSA public key. It runs the
+      # prod Dockerfile (no ./backend:/app bind), so without this mount
+      # /app/certs does not exist, jwt.ParseRSAPublicKeyFromPEM never runs, and
+      # every connection fails at ParseToken with "Invalid authentication token".
+      - ./backend/certs:/app/certs:ro
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
+      identity:
+        condition: service_started
+      chat:
+        condition: service_started
     networks:
       - goshop-network
 
   postgres:
-    image: postgres:16-alpine
+    # pgvector build of Postgres 16: drop-in for the stock image, adds the
+    # `vector` extension phase 2 needs for product embeddings.
+    image: pgvector/pgvector:pg16
     container_name: goshop-postgres
     restart: unless-stopped
     command: postgres -c max_connections=150 -c shared_buffers=256MB -c work_mem=16MB
@@ -603,23 +1028,92 @@ services:
     networks:
       - goshop-network
 
-  rabbitmq:
-    image: rabbitmq:3-management-alpine
-    container_name: goshop-rabbitmq
+  kafka:
+    image: apache/kafka:3.9.0
+    container_name: goshop-kafka
     restart: unless-stopped
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-goshop}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-goshop}
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,HOST://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,HOST://localhost:9092,CONTROLLER://kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,HOST:PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_HEAP_OPTS: "-Xmx512m -Xms256m"
+      # Pin the same cluster id as prod: dev and prod share the physical
+      # kafka-data volume on a single-host setup, and a mismatched id makes
+      # the broker refuse to start ("Invalid cluster.id in meta.properties").
+      CLUSTER_ID: goshop-prod-kafka-000000001
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "9092:9092"
     volumes:
-      - rabbitmq-data:/var/lib/rabbitmq
+      # apache/kafka:3.9.0 writes to /tmp/kafka-logs by default (log in
+      # Nov 2026 showed LogLoader loading from there); the old mount on
+      # /var/lib/kafka/data saved nothing, so every restart wiped topics.
+      - kafka-data:/tmp/kafka-logs
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+    networks:
+      - goshop-network
+
+  kafka-init:
+    # One-shot: creates the domain topics from the plan (§4.1) before any
+    # consumer starts. AUTO_CREATE is off so a typo fails loudly here.
+    image: apache/kafka:3.9.0
+    container_name: goshop-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic goshop.order.v1 --partitions 3 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic goshop.order-return.v1 --partitions 1 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic goshop.payment.v1 --partitions 3 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic goshop.user.v1 --partitions 3 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic goshop.email.v1 --partitions 1 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic goshop.inventory.v1 --partitions 1 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic goshop.review.v1 --partitions 1 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic goshop.notification.v1 --partitions 1 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic goshop.media.v1 --partitions 1 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic goshop.shipping.v1 --partitions 1 --replication-factor 1
+        # Interaction telemetry: high volume, keyed by anon cookie so one
+        # visitor's events stay ordered inside a partition.
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic goshop.events.v1 --partitions 6 --replication-factor 1
+        for d in order order-return payment user email inventory review notification media shipping events; do
+          /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic "goshop.$${d}.v1.dlq" --partitions 1 --replication-factor 1
+          # Phase 3: DLQ records are the forensic record of a failure, so they
+          # never expire. Domain topics keep the broker default.
+          /opt/kafka/bin/kafka-configs.sh --bootstrap-server kafka:29092 --alter --entity-type topics --entity-name "goshop.$${d}.v1.dlq" --add-config retention.ms=-1
+        done
+        echo "kafka topics ready"
+    networks:
+      - goshop-network
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.2
+    container_name: goshop-kafka-ui
+    restart: unless-stopped
+    ports:
+      # 8086 is the catalog service, and 8096 is the embedder: publishing the UI
+      # there made `up` fail with "Bind for 0.0.0.0:8096 failed: port is already
+      # allocated", which took kafka-init and every dependent service down with
+      # it. 8098 is unused in both compose files.
+      - "8098:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: goshop
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+    depends_on:
+      kafka:
+        condition: service_healthy
     networks:
       - goshop-network
 
@@ -682,16 +1176,132 @@ services:
     networks:
       - goshop-network
 
+  kafka-exporter:
+    # Broker-side lag/throughput metrics on :9308. The dev broker runs
+    # PLAINTEXT, so no SASL flags here (prod has them).
+    image: danielqsj/kafka-exporter:v1.9.0
+    container_name: goshop-kafka-exporter
+    restart: unless-stopped
+    command:
+      - --kafka.server=kafka:29092
+      - --web.listen-address=:9308
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - goshop-network
+
+  prometheus:
+    # Scrapes kafka-exporter plus every goshop-* container on its own HTTP port
+    # (see system/prometheus/prometheus.yml). Rules live in
+    # system/prometheus/rules/.
+    image: prom/prometheus:v3.6.0
+    container_name: goshop-prometheus
+    restart: unless-stopped
+    # The image runs as nobody (65534) and the host docker socket is root:root,
+    # so unprivileged docker service discovery fails with "permission denied"
+    # (only logs, no missing target). Prometheus itself needs no privileges:
+    # it reads the mounted config, writes only /prometheus, and has no shell in
+    # the flow. Reading the socket is the single capability this grants.
+    user: "0:0"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+      - --web.enable-lifecycle
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./system/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./system/prometheus/rules:/etc/prometheus/rules:ro
+      # Read-only socket for docker service discovery (same privilege as
+      # promtail).
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      - kafka-exporter
+    networks:
+      - goshop-network
+
+  grafana:
+    # Local rendering of system/grafana/dashboards/. Grafana Cloud is where the
+    # production dashboards live; this container exists so the committed
+    # overview JSON has a Prometheus to read on a laptop.
+    image: grafana/grafana:12.2.0
+    container_name: goshop-grafana
+    restart: unless-stopped
+    environment:
+      # No anonymous editing: the dashboard is provisioned read-only from git.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_USERS_DEFAULT_THEME: dark
+    ports:
+      # 3000, not 3001: :3001 belongs to the storefront dev server, and the
+      # clash broke `pnpm dev:storefront` with EADDRINUSE whenever grafana was up.
+      - "3000:3000"
+    volumes:
+      - ./system/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./system/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - goshop-network
+
+  alertmanager:
+    # Fans Prometheus alerts out to Discord (native discord_configs). Config
+    # template in system/alertmanager/alertmanager.yml; the webhook URL is
+    # substituted from ALERTMANAGER_DISCORD_WEBHOOK_URL at container start,
+    # because Alertmanager does not expand env vars in its own config. An empty
+    # URL falls back to alertmanager.silent.yml so dev still starts.
+    image: prom/alertmanager:v0.29.0
+    container_name: goshop-alertmanager
+    restart: unless-stopped
+    environment:
+      ALERTMANAGER_DISCORD_WEBHOOK_URL: ${ALERTMANAGER_DISCORD_WEBHOOK_URL:-}
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        if [ -n "$$ALERTMANAGER_DISCORD_WEBHOOK_URL" ]; then
+          sed "s|__ALERTMANAGER_DISCORD_WEBHOOK_URL__|$$ALERTMANAGER_DISCORD_WEBHOOK_URL|g" \
+            /etc/alertmanager/alertmanager.tmpl.yml > /tmp/alertmanager.yml
+        else
+          echo "WARN ALERTMANAGER_DISCORD_WEBHOOK_URL is empty: alerts will fire but not reach Discord" >&2
+          cp /etc/alertmanager/alertmanager.silent.yml /tmp/alertmanager.yml
+        fi
+        exec /bin/alertmanager \
+          --config.file=/tmp/alertmanager.yml \
+          --storage.path=/alertmanager \
+          --web.external-url=http://localhost:9093
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./system/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.tmpl.yml:ro
+      - ./system/alertmanager/alertmanager.silent.yml:/etc/alertmanager/alertmanager.silent.yml:ro
+      - alertmanager-data:/alertmanager
+    depends_on:
+      - prometheus
+    networks:
+      - goshop-network
+
 volumes:
   postgres-data:
     driver: local
   redis-data:
     driver: local
-  rabbitmq-data:
+  kafka-data:
     driver: local
   minio-data:
     driver: local
   meilisearch-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  alertmanager-data:
+    driver: local
+  grafana-data:
     driver: local
 
 networks:

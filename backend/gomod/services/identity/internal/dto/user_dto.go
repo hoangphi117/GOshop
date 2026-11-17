@@ -1,6 +1,8 @@
 package dto
 
 import (
+	"os"
+
 	"goshop/services/identity/internal/db/sqlc"
 	"goshop/shared/pkg/utils"
 
@@ -15,6 +17,10 @@ type UserDTO struct {
 	Status    string `json:"status"`
 	Level     string `json:"level"`
 	CreatedAt string `json:"created_at"`
+	// AvatarURL is the edge-relative media path ("/goshop-media/avatars/x.png"),
+	// or an external URL when the account signed in with a provider that
+	// supplied one. Empty when the user never set an avatar.
+	AvatarURL string `json:"avatar_url"`
 }
 
 type CreateUserInput struct {
@@ -38,6 +44,14 @@ type UpdateProfileInput struct {
 	Name     *string `json:"name" binding:"omitempty,min=2,max=100"`
 	Age      *int32  `json:"age" binding:"omitempty,gt=0"`
 	Password *string `json:"password" binding:"omitempty,min=6,password_strong"`
+}
+
+// UpdateAvatarInput carries the storage key returned by /upload/confirm, never
+// a client-built URL: the identity service trusts only objects the media
+// service already verified (size, magic bytes) under the avatars/ prefix.
+// An empty value clears the avatar.
+type UpdateAvatarInput struct {
+	FileKey string `json:"file_key" binding:"omitempty,max=255"`
 }
 
 type GoogleLoginInput struct {
@@ -105,6 +119,7 @@ func MapUserToDTO(user sqlc.User) *UserDTO {
 		Status:    mapStatusText(int(user.UserStatus)),
 		Level:     mapLevelText(int(user.UserLevel)),
 		CreatedAt: user.UserCreatedAt.Format("2006-01-02 15:04:05"),
+		AvatarURL: AvatarPath(user.UserAvatarUrl),
 	}
 
 	if user.UserAge != nil {
@@ -123,6 +138,17 @@ func MapListUsersToDTO(users []sqlc.User) []UserDTO {
 	}
 
 	return dtos
+}
+
+// AvatarPath flattens the nullable avatar column into the DTO's single string
+// field. Storage may hold the absolute URL it minted at upload time; the DTO
+// carries the edge-relative path so the browser (and a later domain change)
+// resolve it. Exported because both mappers (dto and service) need it.
+func AvatarPath(raw *string) string {
+	if raw == nil {
+		return ""
+	}
+	return utils.PublicMediaPath(os.Getenv("S3_PUBLIC_BASE_URL"), *raw)
 }
 
 func mapStatusText(status int) string {

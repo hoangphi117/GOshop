@@ -12,10 +12,18 @@ import { NavGroup } from './nav-group'
 import { NavUser } from './nav-user'
 import { TeamSwitcher } from './team-switcher'
 import { useAdminChatUnreadCount } from '@/features/chats/hooks/use-admin-chats'
+import { useAuthStore } from '@/stores/auth-store'
 
 export function AppSidebar() {
   const { collapsible, variant } = useLayout()
   const { data: unreadCount = 0 } = useAdminChatUnreadCount()
+  const authUser = useAuthStore((state) => state.auth.user)
+  const user = {
+    name: authUser?.fullName || authUser?.email || 'GOshop Admin',
+    email: authUser?.email || '',
+    // No avatar storage yet: NavUser falls back to initials.
+    avatar: '',
+  }
 
   const navGroups = useMemo(() => {
     return sidebarData.navGroups.map((group) => ({
@@ -48,7 +56,7 @@ export function AppSidebar() {
         ))}
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={sidebarData.user} />
+        <NavUser user={user} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

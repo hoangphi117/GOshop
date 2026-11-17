@@ -1,6 +1,8 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import { getCookie } from '@/lib/cookies'
+import { tryRefreshSession } from '@/lib/api'
+import { sanitizeRedirectTarget } from '@/lib/auth-redirect'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 import { LayoutProvider } from '@/context/layout-provider'
@@ -16,6 +18,7 @@ type AuthenticatedLayoutProps = {
 export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
   const defaultOpen = getCookie('sidebar_state') !== 'false'
   const accessToken = useAuthStore((s) => s.auth.accessToken)
+  const user = useAuthStore((s) => s.auth.user)
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -23,11 +26,24 @@ export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
   // die while this layout is already mounted (token expired mid-use, refresh
   // failed -> the API client calls auth.reset()). React to that and send the
   // user to sign-in instead of leaving them staring at failing queries.
+  // Try one silent refresh first so short-lived access tokens do not bounce
+  // the admin to sign-in on every expiry.
+  const refreshing = useRef(false)
   useEffect(() => {
-    if (!accessToken) {
-      navigate({ to: '/sign-in', search: { redirect: location.href }, replace: true })
-    }
-  }, [accessToken, navigate, location.href])
+    if (accessToken || user || refreshing.current) return
+    refreshing.current = true
+    void tryRefreshSession().then((ok) => {
+      refreshing.current = false
+      if (!ok) {
+        const target = sanitizeRedirectTarget(location.href)
+        navigate({
+          to: '/sign-in',
+          search: target ? { redirect: target } : undefined,
+          replace: true,
+        })
+      }
+    })
+  }, [accessToken, user, navigate, location.href])
 
   return (
     <SearchProvider>

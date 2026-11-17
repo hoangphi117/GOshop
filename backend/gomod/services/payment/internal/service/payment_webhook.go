@@ -121,7 +121,7 @@ type settleRequest struct {
 
 // settlePayment performs the settlement of a payment callback inside ONE
 // database transaction: the webhook audit row, the payment transition and the
-// outbox message commit or roll back together. RabbitMQ publishes only after
+// outbox message commit or roll back together. broker publishes only after
 // commit, so a failed commit can never emit an event for a payment that did
 // not settle.
 func (s *paymentService) settlePayment(ctx context.Context, req settleRequest) (WebhookOutcome, error) {
@@ -152,7 +152,7 @@ func (s *paymentService) settlePayment(ctx context.Context, req settleRequest) (
 	}
 
 	if evt != nil {
-		s.publishRabbitEvent(ctx, routingKey, *evt)
+		s.publishBrokerEvent(ctx, routingKey, *evt)
 	}
 	return outcome, nil
 }

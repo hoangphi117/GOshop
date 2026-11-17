@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Search, X, Loader2, Tag, ArrowRight, Sparkles } from "lucide-react";
+import { Search, X, Loader2, Tag, ArrowRight, Sparkles, History } from "lucide-react";
 import { ProductSuggestion } from "@/lib/api-server";
 import { API_BASE_URL, API_KEY, MEILISEARCH_URL, MEILISEARCH_SEARCH_KEY } from "@/lib/api";
 import { formatCurrency } from "@/lib/format";
@@ -25,6 +25,11 @@ interface SearchAutocompleteProps {
     min_rating?: number;
   };
   className?: string;
+  /**
+   * Keywords the server rendered for this visitor. Rendered on first paint so
+   * the dropdown is populated before any client fetch.
+   */
+  recentSearches?: string[];
 }
 
 export function SearchAutocomplete({
@@ -36,12 +41,17 @@ export function SearchAutocomplete({
   initialValue = "",
   preserveParams,
   className = "",
+  recentSearches = [],
 }: SearchAutocompleteProps) {
   const router = useRouter();
   const [query, setQuery] = useState(initialValue);
   const [suggestions, setSuggestions] = useState<ProductSuggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  const [recents, setRecents] = useState<string[]>(recentSearches);
+  // -1 = nothing highlighted. Indexes into the combined row list (recents then
+  // product suggestions) so arrow keys walk both blocks as one list.
+  const [activeIndex, setActiveIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -49,6 +59,56 @@ export function SearchAutocomplete({
   useEffect(() => {
     setQuery(initialValue);
   }, [initialValue]);
+
+  useEffect(() => {
+    setActiveIndex(-1);
+  }, [query, isOpen]);
+
+  // The server rendered the list for the first paint; keep it in sync when the
+  // parent re-renders with fresher data (e.g. after a refresh).
+  useEffect(() => {
+    setRecents(recentSearches);
+  }, [recentSearches]);
+
+  const visibleRecents = query.trim() ? [] : recents;
+  const rowCount = visibleRecents.length + (query.trim() ? suggestions.length : 0);
+
+  const addRecent = (keyword: string) => {
+    const q = keyword.trim();
+    if (q.length < 2) return;
+    setRecents((prev) =>
+      [q, ...prev.filter((item) => item.toLowerCase() !== q.toLowerCase())].slice(0, 10)
+    );
+  };
+
+  const removeRecent = async (keyword: string) => {
+    setRecents((prev) => prev.filter((item) => item !== keyword));
+    try {
+      await fetch(
+        `${API_BASE_URL}/api/v1/search/history?query=${encodeURIComponent(keyword)}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+          headers: API_KEY ? { "X-API-KEY": API_KEY } : undefined,
+        }
+      );
+    } catch {
+      // The local list is already correct; the server catches up on next load.
+    }
+  };
+
+  const clearRecents = async () => {
+    setRecents([]);
+    try {
+      await fetch(`${API_BASE_URL}/api/v1/search/history`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: API_KEY ? { "X-API-KEY": API_KEY } : undefined,
+      });
+    } catch {
+      // Same as above: optimistic UI, the server catches up on next load.
+    }
+  };
 
   // Debounced search suggestion query to Meilisearch
   useEffect(() => {
@@ -172,7 +232,47 @@ export function SearchAutocomplete({
     if (e) e.preventDefault();
     setIsOpen(false);
     if (onClose) onClose();
+    // Optimistic: the page records the authoritative "search" event once it
+    // knows the result count, so a query that finds nothing never lands here.
+    addRecent(query);
     router.push(buildUrl(query));
+  };
+
+  const handleQuickSearch = (keyword: string) => {
+    setQuery(keyword);
+    setIsOpen(false);
+    if (onClose) onClose();
+    addRecent(keyword);
+    router.push(buildUrl(keyword));
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Escape") {
+      setIsOpen(false);
+      return;
+    }
+    if (!isOpen || rowCount === 0) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((i) => (i + 1) % rowCount);
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((i) => (i <= 0 ? rowCount - 1 : i - 1));
+      return;
+    }
+    if (e.key === "Enter" && activeIndex >= 0) {
+      e.preventDefault();
+      if (visibleRecents.length > 0) {
+        // Recents occupy the first block when the input is empty.
+        handleQuickSearch(visibleRecents[activeIndex]);
+      } else {
+        const picked = suggestions[activeIndex];
+        if (picked) handleSelectProduct(picked.slug);
+      }
+    }
   };
 
   const isCompact = variant === "compact";
@@ -206,11 +306,9 @@ export function SearchAutocomplete({
               setIsOpen(true);
             }}
             onFocus={() => {
-              if (query.trim().length > 0) setIsOpen(true);
+              if (query.trim().length > 0 || visibleRecents.length > 0) setIsOpen(true);
             }}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") setIsOpen(false);
-            }}
+            onKeyDown={handleKeyDown}
             placeholder={
               placeholder ||
               (isCompact ? "Filter within results..." : "Search GOshop")
@@ -255,8 +353,8 @@ export function SearchAutocomplete({
         </div>
       </form>
 
-      {/* Suggestions Dropdown */}
-      {isOpen && query.trim().length > 0 && (
+      {/* Suggestions Dropdown: recents when idle, product hits while typing */}
+      {isOpen && (query.trim().length > 0 || visibleRecents.length > 0) && (
         <div
           className={`absolute ${
             isCompact
@@ -264,19 +362,69 @@ export function SearchAutocomplete({
               : "left-0 right-0 top-full mt-1"
           } bg-white rounded-md shadow-2xl border border-slate-200/90 overflow-hidden z-50 animate-in fade-in-50 zoom-in-95`}
         >
-          {suggestions.length > 0 ? (
+          {visibleRecents.length > 0 && (
+            <div className="border-b border-slate-100">
+              <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-500 font-heading">
+                <span>Recent searches</span>
+                <button
+                  type="button"
+                  onClick={clearRecents}
+                  className="text-[11px] font-medium text-slate-400 hover:text-[#007D9C] underline underline-offset-2 cursor-pointer"
+                >
+                  Clear all
+                </button>
+              </div>
+              <ul className="max-h-64 overflow-y-auto">
+                {visibleRecents.map((keyword, index) => (
+                  <li
+                    key={keyword}
+                    className={`flex items-center group ${
+                      activeIndex === index ? "bg-[#E6F7FB]" : ""
+                    }`}
+                    onMouseEnter={() => setActiveIndex(index)}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleQuickSearch(keyword)}
+                      className="flex-1 min-w-0 px-3.5 py-2 flex items-center gap-2.5 text-left text-xs text-slate-700 hover:text-[#007D9C] cursor-pointer transition-colors"
+                    >
+                      <History className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span className="truncate font-body">{keyword}</span>
+                    </button>
+                    {/* Sibling button, never nested: a button inside a button is invalid HTML. */}
+                    <button
+                      type="button"
+                      aria-label={`Remove ${keyword} from search history`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void removeRecent(keyword);
+                      }}
+                      className="p-1.5 mr-2 rounded text-slate-300 hover:text-slate-700 hover:bg-slate-100 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity cursor-pointer"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {query.trim().length > 0 && suggestions.length > 0 ? (
             <div>
               <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-500 font-heading">
                 <span>{suggestions.length} found</span>
               </div>
 
               <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
-                {suggestions.map((item) => (
+                {suggestions.map((item, index) => (
                   <button
                     key={item.uuid}
                     type="button"
+                    onMouseEnter={() => setActiveIndex(index)}
                     onClick={() => handleSelectProduct(item.slug)}
-                    className="w-full px-3.5 py-2 flex items-center gap-3 hover:bg-[#E6F7FB] text-left cursor-pointer transition-colors group"
+                    className={`w-full px-3.5 py-2 flex items-center gap-3 text-left cursor-pointer transition-colors group ${
+                      activeIndex === index ? "bg-[#E6F7FB]" : "hover:bg-[#E6F7FB]"
+                    }`}
                   >
                     <div className="relative w-9 h-9 rounded-md bg-slate-100 overflow-hidden border border-slate-200/80 shrink-0">
                       {item.image_url ? (
@@ -321,7 +469,7 @@ export function SearchAutocomplete({
                 <ArrowRight className="w-3.5 h-3.5 text-[#00ADD8]" />
               </button>
             </div>
-          ) : !isLoading ? (
+          ) : query.trim().length === 0 ? null : !isLoading ? (
             <div className="p-4 text-center">
               <p className="text-xs text-slate-600 font-medium font-body">
                 No instant matches found for &quot;{query}&quot;

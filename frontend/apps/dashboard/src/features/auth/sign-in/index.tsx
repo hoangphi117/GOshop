@@ -4,6 +4,7 @@ import {
   CardContent,
   CardHeader,
 } from '@/components/ui/card'
+import { sanitizeRedirectTarget } from '@/lib/auth-redirect'
 import { AuthLayout } from '../auth-layout'
 import { UserAuthForm } from './components/user-auth-form'
 
@@ -19,7 +20,7 @@ export function SignIn() {
           </div>
         </CardHeader>
         <CardContent>
-          <UserAuthForm redirectTo={redirect} />
+          <UserAuthForm redirectTo={sanitizeRedirectTarget(redirect)} />
         </CardContent>
       </Card>
     </AuthLayout>

@@ -147,6 +147,12 @@ export async function getProducts(params?: {
   min_price?: number
   max_price?: number
   min_rating?: number
+  /**
+   * Guest identity, forwarded as the anon cookie. Recommendations uses it to
+   * personalise; search does not need it yet, but the same call site already
+   * has it, so passing it keeps one identity for every read on the page.
+   */
+  anonId?: string
 }): Promise<{ products: Product[]; pagination?: Pagination }> {
   const query = new URLSearchParams()
   if (params?.page) query.set('page', params.page.toString())
@@ -194,26 +200,15 @@ export async function getProducts(params?: {
 
   const isMeiliSearch = Boolean(params?.search && params.search.trim().length >= 1)
 
-  // Use Meilisearch endpoint when search is provided
+  // Search is answered by the recommendations service, which fuses the keyword
+  // ranking with an embedding ranking. Filters are forwarded too: both halves
+  // apply them and the total counts only what survives, so one call site keeps
+  // working for both paths.
   if (isMeiliSearch) {
     query.set('q', params!.search!.trim())
-    if (params?.sort) {
-      const sortVal = params.sort.toLowerCase()
-      if (sortVal === 'price_asc') {
-        query.set('sort', 'price:asc')
-      } else if (sortVal === 'price_desc') {
-        query.set('sort', 'price:desc')
-      } else if (sortVal === 'rating_desc' || sortVal === 'top_rated') {
-        query.set('sort', 'rating:desc')
-      } else if (sortVal === 'rating_asc') {
-        query.set('sort', 'rating:asc')
-      } else if (sortVal === 'newest') {
-        query.set('sort', 'created_at:desc')
-      } else if (sortVal === 'oldest') {
-        query.set('sort', 'created_at:asc')
-      }
-    }
-  } else {
+  }
+
+  if (!isMeiliSearch) {
     // Standard PostgreSQL filtering
     if (params?.order_by) {
       query.set('order_by', params.order_by)
@@ -254,6 +249,23 @@ export async function getProducts(params?: {
   const endpoint = isMeiliSearch ? '/products/search' : '/products'
   const path = `${endpoint}${queryString ? `?${queryString}` : ''}`
 
+  // The hybrid route answers `{source, items, total}`, not a paginated list.
+  // `total` is the number of products that survived the active check, so the
+  // page-number row can render the real last page instead of guessing one page
+  // ahead of wherever the visitor currently is.
+  if (isMeiliSearch) {
+    const res = await fetchServer<ApiResponse<RecommendationShelf>>(path, {
+      revalidate: 0,
+      headers: params?.anonId ? { Cookie: `goshop_anon_id=${params.anonId}` } : undefined,
+    })
+    const items = res?.data?.items || []
+    const total = res?.data?.total ?? items.length
+    return {
+      products: items,
+      pagination: buildSearchPagination(total, items.length, params?.page ?? 1, params?.limit ?? 20),
+    }
+  }
+
   const res = await fetchServer<ApiResponse<Product[]>>(path, {
     revalidate: 15,
   })
@@ -264,8 +276,60 @@ export async function getProducts(params?: {
   }
 }
 
-export async function getProductSuggestions(q: string, limit = 8): Promise<ProductSuggestion[]> {
-  if (!q || q.trim().length === 0) {
+/**
+ * Maps the hybrid route's `{total, items}` onto the pagination shape the grid
+ * already renders. `total` is the true number of matches, so the page-number
+ * row can show every page at once instead of revealing one more per click.
+ */
+function buildSearchPagination(
+  total: number,
+  count: number,
+  page: number,
+  limit: number
+): Pagination {
+  const total_pages = Math.ceil(total / limit)
+  return {
+    page,
+    limit,
+    total_pages,
+    total_records: total,
+    // A page past the end still reports the real last page, so its own link
+    // ("Prev") leads somewhere and the row does not collapse to one item.
+    has_next: page < total_pages,
+    has_prev: page > 1,
+  }
+}
+
+export interface RecommendationShelf {
+  source: string
+  items: Product[]
+  /** Number of matches across all pages; search only. */
+  total?: number
+}
+
+/**
+ * Server-side personalized shelf. Without a visitor cookie the service returns
+ * its best-seller fallback and labels it in `source`, so the client can present
+ * it honestly instead of as a personal recommendation.
+ */
+export async function getRecommendations(
+  limit = 12,
+  anonId?: string
+): Promise<RecommendationShelf | null> {
+  // The anon cookie is this app's guest identity and lives on the storefront
+  // origin, so it has to be forwarded explicitly or every visitor looks new to
+  // the recommendations service.
+  const res = await fetchServer<ApiResponse<RecommendationShelf>>(
+    `/recommendations/personalized?limit=${limit}`,
+    {
+      revalidate: 0,
+      headers: anonId ? { Cookie: `goshop_anon_id=${anonId}` } : undefined,
+    }
+  )
+  return res?.data ?? null
+}
+
+export async function getProductSuggestions(q: string, limit = 8): Promise<ProductSuggestion[]> {  if (!q || q.trim().length === 0) {
     return []
   }
 

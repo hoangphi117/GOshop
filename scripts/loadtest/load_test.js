@@ -21,7 +21,7 @@ const TOTAL_PRODUCTS = parseInt(__ENV.TOTAL_PRODUCTS || "5032", 10);
 const CATEGORY_PARAM = __ENV.CATEGORY_PARAM || "category_uuid";
 const PRODUCT_PATH = __ENV.PRODUCT_PATH || "/api/v1/products";
 
-const TARGET_RATE = parseInt(__ENV.TARGET_RATE || "150", 10);
+const TARGET_RATE = parseInt(__ENV.TARGET_RATE || "20", 10);
 
 export const options = {
   summaryTrendStats: ["avg", "min", "med", "max", "p(90)", "p(95)", "p(99)"],

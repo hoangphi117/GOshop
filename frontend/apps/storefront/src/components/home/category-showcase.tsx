@@ -2,14 +2,16 @@
 
 import React from "react";
 import Link from "next/link";
-import { ArrowRight, Layers } from "lucide-react";
+import Image from "next/image";
+import { ArrowRight, Package } from "lucide-react";
 import type { Category } from "@/lib/api-server";
 
 interface CategoryShowcaseProps {
   categories?: Category[];
 }
 
-// Fallback high-fidelity image mapping for categories if image_url is not set
+// Fallback images for the seeded category slugs, used only when the category
+// row has no image_url of its own.
 const CATEGORY_IMAGE_MAP: Record<string, string> = {
   "smartphones-tablets":
     "https://images.unsplash.com/photo-1561154464-82e9adf32764?w=800",
@@ -30,93 +32,68 @@ const CATEGORY_IMAGE_MAP: Record<string, string> = {
 };
 
 export function CategoryShowcase({ categories = [] }: CategoryShowcaseProps) {
-  // Take top 4 categories from backend
-  const displayCategories = categories.slice(0, 4);
-
-  if (displayCategories.length === 0) {
+  if (categories.length === 0) {
     return null;
   }
 
   return (
     <section
       id="categories"
-      aria-label="Collections"
+      aria-labelledby="categories-heading"
       className="max-w-7xl mx-auto px-4 sm:px-6 mb-12 sm:mb-16"
     >
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 mb-8">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3 mb-6">
         <div>
           <span className="text-xs font-bold text-[#007D9C] uppercase tracking-wider font-heading">
             Curated Hardware & Merch
           </span>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight font-heading mt-0.5">
-            Explore by Department
+          <h2
+            id="categories-heading"
+            className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight font-heading mt-0.5"
+          >
+            Categories
           </h2>
         </div>
         <Link
           href="/products"
           className="text-[#007D9C] hover:text-[#00637C] font-bold text-sm flex items-center gap-1.5 font-heading"
         >
-          <span>View All Departments</span>
-          <ArrowRight className="w-4 h-4" />
+          <span>Shop All</span>
+          <ArrowRight className="w-4 h-4" aria-hidden="true" />
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {displayCategories.map((cat, idx) => {
-          const catImage =
-            cat.image_url ||
-            CATEGORY_IMAGE_MAP[cat.slug] ||
-            "https://images.unsplash.com/photo-1550009158-9ebf69173e03?w=800";
-          const tagLabel =
-            idx === 0
-              ? "Trending"
-              : idx === 1
-                ? "Popular"
-                : idx === 2
-                  ? "Top Rated"
-                  : "Official";
-          const tagBg =
-            idx === 0
-              ? "bg-[#FFE2D5] text-[#F26522]"
-              : idx === 1
-                ? "bg-[#E0F7FC] text-[#007D9C]"
-                : idx === 2
-                  ? "bg-[#BAEAFF] text-[#004D62]"
-                  : "bg-[#E6F7FB] text-[#007D9C]";
+      <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-8 gap-2.5 sm:gap-3">
+        {categories.map((cat) => {
+          const catImage = cat.image_url || CATEGORY_IMAGE_MAP[cat.slug] || null;
 
           return (
             <Link
               key={cat.uuid || cat.slug}
               href={`/products?category=${cat.slug}`}
-              className="group bg-white rounded-md p-5 border border-slate-200/90 hover:border-[#007D9C] hover:shadow-xl cursor-pointer overflow-hidden shadow-xs flex flex-col justify-between"
+              className="group bg-white rounded-md border border-slate-200/90 hover:border-[#007D9C] hover:shadow-md transition-all overflow-hidden shadow-xs flex flex-col"
+              title={cat.description || cat.category_name}
             >
-              <div>
-                <div className="w-full h-44 rounded-md bg-slate-50 overflow-hidden relative mb-4 border border-slate-100">
-                  <span
-                    className={`absolute top-3 left-3 text-[11px] font-bold px-2.5 py-0.5 rounded-full z-10 shadow-xs font-heading ${tagBg}`}
-                  >
-                    {tagLabel}
-                  </span>
-                  <img
+              <div className="relative w-full aspect-square bg-gradient-to-br from-[#E6F7FB] to-slate-50 overflow-hidden border-b border-slate-100 flex items-center justify-center">
+                {catImage ? (
+                  <Image
                     src={catImage}
-                    alt={cat.category_name}
-                    className="w-full h-full object-cover"
+                    alt=""
+                    fill
+                    sizes="(max-width: 640px) 33vw, (max-width: 1024px) 25vw, 150px"
+                    className="object-cover"
                   />
-                </div>
-
-                <h3 className="text-lg font-bold text-slate-900 font-heading truncate">
-                  {cat.category_name}
-                </h3>
-                <p className="text-xs text-slate-500 mt-1 font-body line-clamp-2">
-                  {cat.description ||
-                    "High-performance tech gear & official merch"}
-                </p>
+                ) : (
+                  <Package
+                    className="w-6 h-6 text-[#007D9C]/40"
+                    aria-hidden="true"
+                  />
+                )}
               </div>
 
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[#007D9C] font-bold text-xs font-heading">
-                <span>Shop Collection</span>
-                <ArrowRight className="w-4 h-4" />
-              </div>
+              <h3 className="px-2 py-2 text-[11px] sm:text-xs font-bold text-slate-800 text-center leading-tight line-clamp-2 min-h-[2.5rem] font-heading group-hover:text-[#007D9C]">
+                {cat.category_name}
+              </h3>
             </Link>
           );
         })}

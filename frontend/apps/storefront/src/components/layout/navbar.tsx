@@ -3,25 +3,22 @@
 import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useCartStore } from "@/stores/cart-store";
 import { useAuthStore } from "@/stores/auth-store";
-import { formatCurrency } from "@/lib/format";
 import {
   ShoppingCart,
   User,
   Menu,
   X,
-  Sparkles,
   Flame,
-  Truck,
   Phone,
   HelpCircle,
+  Clipboard,
   Package,
   LogOut,
   ChevronDown,
   RotateCcw,
-  Zap,
   Ghost,
   Shirt,
   Gamepad2,
@@ -31,12 +28,16 @@ import { NotificationPopover } from "@/components/layout/notification-popover";
 import { SearchAutocomplete } from "@/components/layout/search-autocomplete";
 import { Button } from "@/components/ui/button";
 import { authFetch } from "@/lib/api";
+import { blockDeviceIntent } from "@/lib/device-intent";
+import { useQueryClient } from "@tanstack/react-query";
+import { resetChatSession } from "@/hooks/use-chat";
+import { getImageUrl } from "@/lib/utils";
 
-export function Navbar() {
-  const pathname = usePathname();
+export function Navbar({ recentSearches = [] }: { recentSearches?: string[] }) {
   const router = useRouter();
-  const { items, getTotalItems, openDrawer } = useCartStore();
-  const { user, accessToken, reset } = useAuthStore();
+  const { getTotalItems, openDrawer } = useCartStore();
+  const { user, accessToken, reset, setUser } = useAuthStore();
+  const queryClient = useQueryClient();
 
   const mounted = useMounted();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -44,15 +45,8 @@ export function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
-  const isHome = pathname === "/";
   const isAuthenticated = Boolean(user && accessToken);
   const totalCartItems = mounted && isAuthenticated ? getTotalItems() : 0;
-
-  // Calculate cart subtotal for instant header display
-  const cartSubtotal =
-    mounted && isAuthenticated
-      ? items.reduce((sum, item) => sum + item.price * item.quantity, 0)
-      : 0;
 
   // Detect window scroll to toggle compact sticky header style
   useEffect(() => {
@@ -79,6 +73,33 @@ export function Navbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // The persisted store can predate the avatar field (or an account may set one
+  // on another tab, e.g. the Google picture at signup), so the display profile
+  // is re-synced once per session instead of trusting stale localStorage.
+  useEffect(() => {
+    if (!accessToken) return;
+
+    let cancelled = false;
+    authFetch("/api/v1/users/me")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        const profile = json?.data;
+        if (cancelled || !profile) return;
+        const current = useAuthStore.getState().user;
+        if (!current) return;
+        const avatarUrl = profile.avatar_url || "";
+        const fullName = profile.full_name || current.fullName;
+        if (avatarUrl !== (current.avatarUrl || "") || fullName !== current.fullName) {
+          setUser({ ...current, avatarUrl, fullName });
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken, setUser]);
+
   const handleCartClick = () => {
     if (!isAuthenticated) {
       router.push("/login?redirect=/cart");
@@ -89,15 +110,22 @@ export function Navbar() {
 
   const handleLogout = async () => {
     try {
-      const refreshToken = useAuthStore.getState().refreshToken;
+      // Refresh token is an HttpOnly cookie; logout reads it server-side.
       await authFetch("/api/v1/auth/logout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(refreshToken ? { refresh_token: refreshToken } : {}),
+        body: JSON.stringify({}),
       });
     } catch {
       // Ignore network errors on logout
     }
+    // Keep the anon cookie — the history behind it is the visitor's and comes
+    // back on the next sign-in — but stop ranking shelves from it.
+    blockDeviceIntent();
+    // The chat cache and the assistant transcript are account data held in the
+    // browser; without this the next login on this device opens the previous
+    // customer's messages in both tabs.
+    resetChatSession(queryClient);
     reset();
     setUserDropdownOpen(false);
     router.push("/login");
@@ -115,7 +143,15 @@ export function Navbar() {
       .then((json) => {
         if (json?.data && Array.isArray(json.data)) {
           const cats = json.data.slice(0, 5).map(
-            (c: { category_name?: string; name?: string; slug?: string; uuid?: string }, idx: number) => ({
+            (
+              c: {
+                category_name?: string;
+                name?: string;
+                slug?: string;
+                uuid?: string;
+              },
+              idx: number,
+            ) => ({
               name: c.category_name || c.name || `Category ${idx}`,
               href: `/products?category=${c.slug || c.uuid || idx}`,
               badge: idx === 0 ? "Popular" : undefined,
@@ -192,12 +228,6 @@ export function Navbar() {
   }[] = [
     ...dynamicCategories,
     { name: "Flash Deals", href: "/#deals", icon: Flame, isHighlight: true },
-    {
-      name: "New Drops",
-      href: "/products?sort=newest",
-      icon: Sparkles,
-      isHighlight: false,
-    },
   ];
 
   return (
@@ -269,11 +299,21 @@ export function Navbar() {
 
           {/* Center: Omnichannel Search Bar (Desktop) */}
           <div className="hidden md:flex flex-1 max-w-xl mx-auto">
-            <SearchAutocomplete />
+            <SearchAutocomplete recentSearches={recentSearches} />
           </div>
 
-          {/* Right Action Hub: Notifications, Cart, Account */}
+          {/* Right Action Hub: Orders, Notifications, Cart, Account */}
           <div className="flex items-center gap-2 sm:gap-3">
+            {/* My Orders — outermost action, visible to everyone */}
+            <Link
+              href="/account/orders"
+              className="flex items-center gap-1.5 p-2 rounded-full text-white hover:text-[#007D9C] hover:bg-[#E6F7FB] cursor-pointer shadow-xs"
+              aria-label="My orders"
+              title="My Orders"
+            >
+              <Clipboard className="w-5 h-5" aria-hidden="true" />
+            </Link>
+
             {/* Real-time Notifications */}
             {isAuthenticated && <NotificationPopover isTransparent={false} />}
 
@@ -283,6 +323,7 @@ export function Navbar() {
               onClick={handleCartClick}
               className="flex items-center gap-2.5 p-2 rounded-full text-white hover:text-[#007D9C] hover:bg-[#E6F7FB] cursor-pointer shadow-xs"
               aria-label={`Shopping cart with ${totalCartItems} items`}
+              title="Shopping Cart"
             >
               <div className="relative flex items-center justify-center">
                 <ShoppingCart className="w-5 h-5" />
@@ -303,8 +344,16 @@ export function Navbar() {
                   className="flex items-center gap-2 p-1 sm:px-2.5 sm:py-1 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-all cursor-pointer"
                   aria-label="User Account Menu"
                 >
-                  <div className="w-7 h-7 rounded-full bg-[#BAEAFF] border border-[#5CD4FF] text-[#004D62] font-bold flex items-center justify-center text-xs shadow-xs">
-                    {user?.fullName ? user.fullName[0].toUpperCase() : "U"}
+                  <div className="w-7 h-7 rounded-full bg-[#BAEAFF] border border-[#5CD4FF] text-[#004D62] font-bold flex items-center justify-center text-xs shadow-xs overflow-hidden">
+                    {user?.avatarUrl ? (
+                      <img
+                        src={getImageUrl(user.avatarUrl)}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <>{user?.fullName ? user.fullName[0].toUpperCase() : "U"}</>
+                    )}
                   </div>
                   <div className="hidden sm:flex flex-col text-left">
                     <span className="text-xs font-bold text-white max-w-[90px] truncate leading-tight font-heading">
@@ -340,7 +389,7 @@ export function Navbar() {
                         onClick={() => setUserDropdownOpen(false)}
                         className="flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-[#E6F7FB] hover:text-[#007D9C] transition-colors"
                       >
-                        <Package className="w-4 h-4" />
+                        <Clipboard className="w-4 h-4" />
                         <span>My Orders</span>
                       </Link>
                       <Link
@@ -455,6 +504,7 @@ export function Navbar() {
             {/* Mobile Search */}
             <SearchAutocomplete
               isMobile
+              recentSearches={recentSearches}
               onClose={() => setMobileMenuOpen(false)}
             />
 

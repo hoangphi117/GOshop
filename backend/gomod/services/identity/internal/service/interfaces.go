@@ -14,6 +14,7 @@ type UserService interface {
 	UpdateUser(ctx context.Context, uuid uuid.UUID, input dto.UpdateUserInput) (*dto.UserDTO, error)
 	GetProfile(ctx context.Context, uuid uuid.UUID) (*dto.UserDTO, error)
 	UpdateProfile(ctx context.Context, uuid uuid.UUID, input dto.UpdateProfileInput) (*dto.UserDTO, error)
+	UpdateAvatar(ctx context.Context, uuid uuid.UUID, fileKey string) (*dto.UserDTO, error)
 	ChangePassword(ctx context.Context, uuid uuid.UUID, input dto.ChangePasswordRequest) error
 	SoftDeleteUser(ctx context.Context, uuid uuid.UUID) (*dto.UserDTO, error)
 	RestoreUser(ctx context.Context, uuid uuid.UUID) (*dto.UserDTO, error)

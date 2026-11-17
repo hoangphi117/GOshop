@@ -1,0 +1,19 @@
+# Dashboard provider for the local Grafana container (dev).
+#
+# Dashboards are read straight from system/grafana/dashboards/, which is mounted
+# read-only. Edit the JSON in git, then `docker compose -f docker-compose.dev.yml
+# restart grafana` — a provisioned dashboard cannot be edited in the UI, on
+# purpose: the committed file is the only source of truth.
+apiVersion: 1
+
+providers:
+  - name: goshop
+    orgId: 1
+    folder: GOshop
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

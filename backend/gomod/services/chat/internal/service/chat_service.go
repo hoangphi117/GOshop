@@ -124,6 +124,7 @@ func (s *chatService) GetOrCreateConversation(ctx context.Context, userUUID uuid
 		UserEmail:    user.UserEmail,
 		UserFullname: user.UserFullname,
 		UserAvatar:   user.UserAvatar,
+		OwnerIsStaff: s.determineSenderRole(user) == "admin",
 	})
 	if err != nil {
 		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to create conversation", err)
@@ -236,6 +237,14 @@ func (s *chatService) SendMessage(
 		attachSize = &req.AttachmentSize
 	}
 
+	var userEmail, userFullname, userAvatar string
+	if computedRole == "user" {
+		userEmail, userFullname, userAvatar = sender.UserEmail, sender.UserFullname, sender.UserAvatar
+		if userFullname == "" {
+			userFullname = userEmail
+		}
+	}
+
 	var msg sqlc.ChatMessage
 	createParams := sqlc.CreateMessageParams{
 		ConversationID: conv.ConversationID,
@@ -256,6 +265,24 @@ func (s *chatService) SendMessage(
 
 		if txErr = s.chatRepo.UpdateLastMessageAt(txCtx, conv.ConversationID); txErr != nil {
 			return utils.WrapError(utils.ErrCodeInternal, "failed to update conversation timestamp", txErr)
+		}
+
+		// A customer who renamed themselves keeps the snapshot taken when the
+		// conversation was first created, so the admin list showed a stale name.
+		// Sampling the owner's identity per message costs one lookup per send and
+		// keeps renames and avatar changes in sync without a backfill job.
+		if computedRole == "user" {
+			if userFullname != conv.UserFullname || userEmail != conv.UserEmail || userAvatar != conv.UserAvatar {
+				if txErr = s.chatRepo.UpdateConversationUserInfo(txCtx, sqlc.UpdateConversationUserInfoParams{
+					ConversationID: conv.ConversationID,
+					UserEmail:      userEmail,
+					UserFullname:   userFullname,
+					UserAvatar:     userAvatar,
+				}); txErr != nil {
+					s.logger.Warn().Err(txErr).Int32("conversation_id", conv.ConversationID).
+						Msg("Failed to refresh conversation user snapshot")
+				}
+			}
 		}
 		return nil
 	})
@@ -279,6 +306,25 @@ func (s *chatService) SendMessage(
 	})
 
 	return chatdto.MapChatMessageToResponse(msg), nil
+}
+
+func (s *chatService) fillLastMessage(ctx context.Context, conv *sqlc.ChatConversation) (string, error) {
+	var latest []sqlc.ChatMessage
+	var err error
+	if conv.LastMessageAt.Valid {
+		latest, err = s.chatRepo.ListMessages(ctx, sqlc.ListMessagesParams{
+			ConversationID: conv.ConversationID,
+			LimitCount:     1,
+			OffsetCount:    0,
+		})
+		if err != nil {
+			return "", utils.WrapError(utils.ErrCodeInternal, "failed to load last message", err)
+		}
+	}
+	if len(latest) == 0 {
+		return "", nil
+	}
+	return chatdto.PreviewMessageContent(latest[0].Content, latest[0].ContentType), nil
 }
 
 func (s *chatService) ListMessages(
@@ -433,21 +479,29 @@ func (s *chatService) ListConversations(
 		return nil, 0, utils.WrapError(utils.ErrCodeInternal, "failed to count conversations", err)
 	}
 
-	res := make([]chatdto.ConversationResponse, len(rows))
-	for i, r := range rows {
+	res := make([]chatdto.ConversationResponse, 0, len(rows))
+	for _, r := range rows {
 		var lastMsgAt *time.Time
 		if r.LastMessageAt.Valid {
 			lastMsgAt = &r.LastMessageAt.Time
 		}
 
-		// Self-heal the denormalized user snapshot: conversations seeded from the
-		// monolith have all three columns empty (pre-extraction rows), which
-		// renders as "?" in the admin list. ponytail: renamed users keep their
-		// stale snapshot — refresh wipes identity or a real backfill fixes that.
+		// The denormalized snapshot is only a fallback: users rename themselves
+		// and change avatars, and those edits never touch chat_conversations. The
+		// owner lookup is a cached identity call per row; the snapshot keeps rows
+		// renderable when identity is unreachable (pre-extraction seeded rows).
 		userEmail, userFullname, userAvatar := r.UserEmail, r.UserFullname, r.UserAvatar
-		if userEmail == "" && userFullname == "" {
+		if userFullname == "" || userAvatar == "" {
 			if owner, ownerErr := s.userRepo.GetByID(ctx, r.UserID); ownerErr == nil {
-				userEmail, userFullname, userAvatar = owner.UserEmail, owner.UserFullname, owner.UserAvatar
+				if owner.UserFullname != "" {
+					userFullname = owner.UserFullname
+				}
+				if owner.UserEmail != "" {
+					userEmail = owner.UserEmail
+				}
+				if owner.UserAvatar != "" {
+					userAvatar = owner.UserAvatar
+				}
 				if userFullname == "" {
 					userFullname = userEmail
 				}
@@ -469,7 +523,7 @@ func (s *chatService) ListConversations(
 		isCustomerOnline := s.presence.IsUserOnline(ctx, r.UserID)
 		isShopOnline := s.presence.HasOnlineAdmin(ctx)
 
-		res[i] = chatdto.ConversationResponse{
+		res = append(res, chatdto.ConversationResponse{
 			ConversationID:     r.ConversationID,
 			UUID:               r.ConversationUuid,
 			Status:             r.Status,
@@ -485,7 +539,7 @@ func (s *chatService) ListConversations(
 			UpdatedAt:          r.UpdatedAt,
 			IsOnline:           isCustomerOnline,
 			IsShopOnline:       isShopOnline,
-		}
+		})
 	}
 
 	return res, total, nil
@@ -566,6 +620,19 @@ func (s *chatService) GetConversationDetails(
 		}
 		convOwner = owner
 	}
+
+	// Identity is the source of truth for who the customer is now, matching
+	// ListConversations. The row's snapshot only fills gaps when identity has
+	// nothing (legacy users without a display name).
+	if convOwner.UserFullname == "" {
+		convOwner.UserFullname = conv.UserFullname
+	}
+	if convOwner.UserEmail == "" {
+		convOwner.UserEmail = conv.UserEmail
+	}
+	if convOwner.UserAvatar == "" {
+		convOwner.UserAvatar = conv.UserAvatar
+	}
 	unreadCount, _ := s.chatRepo.CountUnreadMessages(ctx, conv.ConversationID, caller.UserID)
 
 	var lastMsgAt *time.Time
@@ -573,24 +640,32 @@ func (s *chatService) GetConversationDetails(
 		lastMsgAt = &conv.LastMessageAt.Time
 	}
 
+	// chat_conversations never stores the last message body, so the detail row
+	// borrows it from chat_messages to match the list endpoint's preview.
+	lastMessageContent, err := s.fillLastMessage(ctx, &conv)
+	if err != nil {
+		return chatdto.ConversationResponse{}, err
+	}
+
 	isCustOnline := s.presence.IsUserOnline(ctx, conv.UserID)
 	isShopOnline := s.presence.HasOnlineAdmin(ctx)
 
 	return chatdto.ConversationResponse{
-		ConversationID: conv.ConversationID,
-		UUID:           conv.ConversationUuid,
-		Status:         conv.Status,
-		UserID:         conv.UserID,
-		AdminID:        conv.AdminID,
-		UserEmail:      convOwner.UserEmail,
-		UserFullname:   convOwner.UserFullname,
-		UserAvatar:     convOwner.UserAvatar,
-		UnreadCount:    unreadCount,
-		LastMessageAt:  lastMsgAt,
-		CreatedAt:      conv.CreatedAt,
-		UpdatedAt:      conv.UpdatedAt,
-		IsOnline:       isCustOnline,
-		IsShopOnline:   isShopOnline,
+		ConversationID:     conv.ConversationID,
+		UUID:               conv.ConversationUuid,
+		Status:             conv.Status,
+		UserID:             conv.UserID,
+		AdminID:            conv.AdminID,
+		UserEmail:          convOwner.UserEmail,
+		UserFullname:       convOwner.UserFullname,
+		UserAvatar:         convOwner.UserAvatar,
+		UnreadCount:        unreadCount,
+		LastMessageContent: lastMessageContent,
+		LastMessageAt:      lastMsgAt,
+		CreatedAt:          conv.CreatedAt,
+		UpdatedAt:          conv.UpdatedAt,
+		IsOnline:           isCustOnline,
+		IsShopOnline:       isShopOnline,
 	}, nil
 }
 

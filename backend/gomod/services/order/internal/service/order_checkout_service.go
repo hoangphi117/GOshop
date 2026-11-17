@@ -238,11 +238,19 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 		}
 
 		purchasedProductIDs = make([]int32, len(pricingResult.Items))
+		// Product UUIDs travel alongside the IDs so the cart consumer can drop
+		// the purchased lines by identity rather than by surrogate key. The saga
+		// path has always sent both; checkout sent only the IDs, so a product
+		// re-created under the same numeric id removed the wrong cart line.
+		purchasedProductUUIDStrings := make([]string, 0, len(pricingResult.Items))
 		createdOrderItems = make([]sqlc.GetOrderItemsByOrderIDRow, len(pricingResult.Items))
 
 		for i, item := range pricingResult.Items {
 			snap := prodIDToSnapshot[item.ProductID]
 			purchasedProductIDs[i] = item.ProductID
+			if snap.ProductUUID != uuid.Nil {
+				purchasedProductUUIDStrings = append(purchasedProductUUIDStrings, snap.ProductUUID.String())
+			}
 			createdItemParams := sqlc.CreateOrderItemParams{
 				OrderItemOrderID:         order.OrderID,
 				OrderItemProductID:       item.ProductID,
@@ -329,7 +337,7 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 				order.OrderUserID,
 				utils.NumericToFloat(order.OrderTotalAmount),
 				purchasedProductIDs,
-			)
+			).WithItemUUIDs(purchasedProductUUIDStrings)
 			items := make([]events.OrderCreatedItem, 0, len(createdOrderItems))
 			for _, item := range createdOrderItems {
 				items = append(items, events.OrderCreatedItem{

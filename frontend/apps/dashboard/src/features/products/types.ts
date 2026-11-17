@@ -15,6 +15,20 @@ export interface Product {
   reviews_count?: number
 }
 
+export interface ProductListResult {
+  data: Product[]
+  pagination?: {
+    page?: number
+    limit?: number
+    total_records?: number
+    total_pages?: number
+    has_next?: boolean
+    has_prev?: boolean
+  }
+  /** Set only by the search endpoint: hybrid | keyword | semantic. */
+  source?: string
+}
+
 export interface ProductFormData {
   name: string
   category_uuid: string

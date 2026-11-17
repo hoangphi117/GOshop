@@ -107,7 +107,7 @@ func (s *orderShippingService) HandleShippingWebhook(ctx context.Context, rawBod
 		}
 		logger.Log.Info().Str("order_number", order.OrderNumber).Str("code", payload.OrderCode).Msg("Order marked as DELIVERED via GHN Webhook")
 
-		if s.rabbitmq != nil {
+		if s.broker != nil {
 			evt := events.NewOrderStatusChangedEvent(
 				uuid.New().String(),
 				updatedOrder.OrderUuid.String(),
@@ -119,8 +119,9 @@ func (s *orderShippingService) HandleShippingWebhook(ctx context.Context, rawBod
 				OrderStatusDelivered,
 				payload.OrderCode,
 			)
-			_ = s.rabbitmq.Publish(context.Background(), events.QueueOrderStatusChanged, evt)
-			_ = s.rabbitmq.PublishTopic(context.Background(), events.RoutingKeyOrderStatusChanged, evt)
+			if err := s.broker.Publish(context.Background(), events.RoutingKeyOrderStatusChanged, evt); err != nil {
+				logger.Log.Warn().Err(err).Msg("Failed to publish order status change event")
+			}
 		}
 
 	case "delivering":

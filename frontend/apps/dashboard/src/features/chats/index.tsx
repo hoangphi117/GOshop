@@ -28,7 +28,7 @@ import {
   BellOff,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth-store'
-import { cn, getDisplayNameInitials } from '@/lib/utils'
+import { cn, getDisplayNameInitials, getImageUrl } from '@/lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import {
@@ -720,6 +720,11 @@ function MediaLightbox({
 
 const route = getRouteApi('/_authenticated/chats/')
 
+// Backend caps `limit` at 100; the pager only needs prev/next, so one page size
+// keeps the sidebar predictable.
+const CONVERSATIONS_PAGE_SIZE = 20
+const EMPTY_CONVERSATIONS: ConversationItem[] = []
+
 export function Chats() {
   const routeSearch = route.useSearch()
   const [search, setSearch] = useState('')
@@ -776,13 +781,36 @@ export function Chats() {
   }, [])
 
   const [statusFilter, setStatusFilter] = useState<'open' | 'closed'>('open')
+  const [conversationPageNumber, setConversationPageNumber] = useState(1)
+
+  // Reset to the first page when the filter or query changes. Adjusted during
+  // render rather than in an effect so no extra render cycle is spent.
+  const [appliedListFilter, setAppliedListFilter] = useState({
+    status: statusFilter,
+    search: debouncedSearch,
+  })
+  if (
+    appliedListFilter.status !== statusFilter ||
+    appliedListFilter.search !== debouncedSearch
+  ) {
+    setAppliedListFilter({ status: statusFilter, search: debouncedSearch })
+    setConversationPageNumber(1)
+  }
 
   // 1. Fetch conversations list with debounced search and status filter
-  const { data: conversations = [], isLoading: isConversationsLoading } =
-    useAdminConversations({
-      status: statusFilter,
-      search: debouncedSearch || undefined,
-    })
+  const {
+    data: conversationPage,
+    isLoading: isConversationsLoading,
+    isFetching: isConversationsFetching,
+  } = useAdminConversations({
+    status: statusFilter,
+    search: debouncedSearch || undefined,
+    page: conversationPageNumber,
+    limit: CONVERSATIONS_PAGE_SIZE,
+  })
+  const conversations = conversationPage?.data ?? EMPTY_CONVERSATIONS
+  const conversationsTotal = conversationPage?.total ?? 0
+  const hasNextConversationPage = conversationsTotal > CONVERSATIONS_PAGE_SIZE
 
   // 1b. Search across all system users when searching
   const { data: usersData, isLoading: isSearchingUsers } = useAdminUsers({
@@ -795,6 +823,7 @@ export function Chats() {
       uuid?: string
       full_name?: string
       email?: string
+      avatar_url?: string
       status?: string
       level?: string
       created_at?: string
@@ -1045,7 +1074,8 @@ export function Chats() {
             content: content || `${filesToSend.length} attachments`,
             content_type: 'media_group',
             attachment_url: JSON.stringify(uploadedItems),
-          })        }
+          })
+        }
         setIsUploading(false)
       } else if (content) {
         let textToSend = content
@@ -1210,6 +1240,10 @@ export function Chats() {
                               >
                                 <div className='flex min-w-0 items-center gap-2'>
                                   <Avatar className='h-7 w-7 shrink-0 text-[10px]'>
+                                    <AvatarImage
+                                      src={getImageUrl(u.avatar_url)}
+                                      alt={u.full_name || u.email}
+                                    />
                                     <AvatarFallback>{initials}</AvatarFallback>
                                   </Avatar>
                                   <div className='min-w-0 flex-1'>
@@ -1318,7 +1352,7 @@ export function Chats() {
                         <div className='relative shrink-0'>
                           <Avatar className='h-10 w-10 border'>
                             <AvatarImage
-                              src={conv.user_avatar}
+                              src={getImageUrl(conv.user_avatar)}
                               alt={conv.user_fullname}
                             />
                             <AvatarFallback className='text-xs font-semibold'>
@@ -1370,6 +1404,31 @@ export function Chats() {
                 </div>
               )}
             </div>
+
+            {(conversationPageNumber > 1 || hasNextConversationPage) && (
+              <div className='flex items-center justify-between gap-2 border-t border-border/60 px-3 py-2 text-[11px] text-muted-foreground'>
+                <button
+                  type='button'
+                  disabled={conversationPageNumber <= 1 || isConversationsFetching}
+                  onClick={() => setConversationPageNumber((p) => Math.max(1, p - 1))}
+                  className='rounded px-2 py-1 font-medium hover:bg-accent disabled:opacity-40'
+                >
+                  Previous
+                </button>
+                <span>
+                  Page {conversationPageNumber} of{' '}
+                  {Math.max(1, Math.ceil(conversationsTotal / CONVERSATIONS_PAGE_SIZE))}
+                </span>
+                <button
+                  type='button'
+                  disabled={!hasNextConversationPage || isConversationsFetching}
+                  onClick={() => setConversationPageNumber((p) => p + 1)}
+                  className='rounded px-2 py-1 font-medium hover:bg-accent disabled:opacity-40'
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Right Pane: Active Conversation Room */}
@@ -1398,7 +1457,7 @@ export function Chats() {
                     <div className='relative shrink-0'>
                       <Avatar className='h-8 w-8 border'>
                         <AvatarImage
-                          src={activeConversation.user_avatar}
+                          src={getImageUrl(activeConversation.user_avatar)}
                           alt={activeConversation.user_fullname}
                         />
                         <AvatarFallback className='text-xs'>

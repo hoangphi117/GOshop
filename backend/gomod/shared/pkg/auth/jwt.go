@@ -398,6 +398,15 @@ func (js *JWTService) RevokeTokenFamily(familyID string) error {
 	return nil
 }
 
+// RevokeUserSessions ends every session of a user, for logouts everywhere and
+// password resets.
+func (js *JWTService) RevokeUserSessions(userUUID string) error {
+	if js.rotator != nil {
+		return js.rotator.RevokeUserSessions(userUUID)
+	}
+	return nil
+}
+
 func (js *JWTService) GetTokenFamilyID(rawToken string) (string, error) {
 	if js.rotator != nil {
 		return js.rotator.GetFamilyID(rawToken)

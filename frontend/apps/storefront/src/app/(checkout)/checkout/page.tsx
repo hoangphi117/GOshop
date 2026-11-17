@@ -5,6 +5,7 @@ import React, {
   useEffect,
   useCallback,
   useMemo,
+  useRef,
   Suspense,
 } from "react";
 import Link from "next/link";
@@ -38,6 +39,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useMounted } from "@/hooks/use-mounted";
+import { trackPurchase } from "@/lib/event-tracker";
 import { useNotificationStore } from "@/stores/notification-store";
 
 interface Province {
@@ -102,6 +104,11 @@ function CheckoutContent() {
     shippingAddress?: string;
   } | null>(null);
   const [retryingPayment, setRetryingPayment] = useState(false);
+  // Cart items are cleared right after a successful order, so the purchase
+  // lines must be frozen here or the confirmation event would be empty.
+  const placedLinesRef = useRef<
+    { productUuid: string; quantity: number; price: number }[]
+  >([]);
 
   // Form State
   const [fullName, setFullName] = useState(user?.fullName || "");
@@ -746,6 +753,11 @@ function CheckoutContent() {
 
     try {
       const fullShippingAddress = `${address.trim()}, ${selectedWardName}, ${selectedDistrictName}, ${selectedProvinceName}`;
+      placedLinesRef.current = selectedItems.map((item) => ({
+        productUuid: item.productUuid,
+        quantity: item.quantity,
+        price: item.price,
+      }));
 
       const orderPayload = {
         shipping_name: fullName.trim(),
@@ -818,6 +830,13 @@ function CheckoutContent() {
             const paymentData = await paymentRes.json();
             const paymentUrl = paymentData?.data?.payment_url;
             if (paymentUrl) {
+              // The gateway returns to this page, but the order state is lost
+              // on a full navigation, so the purchase is recorded before we
+              // hand the visitor over.
+              trackPurchase(createdOrderUuid, placedLinesRef.current, {
+                paymentMethod,
+                value: subtotal + finalShippingFee,
+              });
               if (isBuyNow) {
                 clearBuyNowItem();
               } else {
@@ -853,7 +872,13 @@ function CheckoutContent() {
           shippingFee: finalShippingFee,
           shippingAddress: fullShippingAddress,
         });
+        // An unpaid online order is not a purchase yet: it only counts once
+        // the payment intent was actually issued.
         if (!paymentFailed) {
+          trackPurchase(createdOrderUuid, placedLinesRef.current, {
+            paymentMethod,
+            value: subtotal + finalShippingFee,
+          });
           toast.success("Order placed successfully!");
         }
         return;
@@ -872,6 +897,10 @@ function CheckoutContent() {
         paymentFailed: false,
         shippingFee: finalShippingFee,
         shippingAddress: fullShippingAddress,
+      });
+      trackPurchase(createdOrderUuid, placedLinesRef.current, {
+        paymentMethod,
+        value: subtotal + finalShippingFee,
       });
       toast.success("Order placed successfully!");
     } catch {

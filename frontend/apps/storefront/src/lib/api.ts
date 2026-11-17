@@ -15,51 +15,115 @@ export const MEILISEARCH_SEARCH_KEY =
 export const api = createApiClient({
   baseUrl: API_BASE_URL,
   getToken: () => useAuthStore.getState().accessToken,
-  getRefreshToken: () => useAuthStore.getState().refreshToken,
-  getApiKey: () => API_KEY,
-  onTokenRefreshed: (tokens) => {
-    useAuthStore.getState().setTokens(tokens.accessToken, tokens.refreshToken)
-  },
+  // Refresh token lives in an HttpOnly cookie and authFetch owns the refresh,
+  // so the client must not retry on its own. A 401 without this check is
+  // answered by the middleware's executeRefresh, whose bare /auth/refresh call
+  // carries no X-Client-App and reads the legacy shared cookie (usually absent,
+  // because refresh cookies are scoped to /api/v1/auth). The second retry then
+  // fires with an empty bearer, which is the 401 seen right after the refresh.
   onUnauthorized: () => {
     useAuthStore.getState().reset()
   },
 })
+// NOTE: no getRefreshToken / onTokenRefreshed hooks on purpose — they would
+// re-enable the middleware retry. Ponytail: drop this comment if the middleware
+// ever learns X-Client-App and a max one-refresh guard.
 
 export type ApiInstance = typeof api
 
 let refreshPromise: Promise<string | null> | null = null
 
-async function refreshAccessToken(): Promise<string | null> {
-  const refreshToken = useAuthStore.getState().refreshToken
+function needsAuth(init?: RequestInit): boolean {
+  // GET/HEAD are public for most storefront endpoints; the 401 retry below
+  // still recovers those, so only restore eagerly for mutating calls.
+  const method = (init?.method ?? 'GET').toUpperCase()
+  return method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS'
+}
 
+async function refreshAccessToken(): Promise<string | null> {
+  if (refreshPromise) return refreshPromise
+  refreshPromise = (async () => {
+    try {
+      const apiKey = API_KEY
+      const res = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-KEY': apiKey,
+          'X-Client-App': 'storefront',
+        },
+        // The refresh token is an HttpOnly cookie; the body stays empty.
+        credentials: 'include',
+        body: JSON.stringify({}),
+      })
+
+      if (!res.ok) {
+        useAuthStore.getState().reset()
+        return null
+      }
+
+      const json = await res.json()
+      const tokenData = json?.data
+      if (!tokenData?.access_token) {
+        useAuthStore.getState().reset()
+        return null
+      }
+
+      useAuthStore.getState().setTokens(tokenData.access_token)
+      return tokenData.access_token
+    } catch {
+      useAuthStore.getState().reset()
+      return null
+    } finally {
+      refreshPromise = null
+    }
+  })()
+  return refreshPromise
+}
+
+export async function restoreSession(): Promise<string | null> {
+  const token = useAuthStore.getState().accessToken
+  if (token) return token
+  return refreshAccessToken()
+}
+
+export interface StorefrontProfile {
+  uuid?: string
+  email?: string
+  full_name?: string
+  fullName?: string
+  phone_number?: string
+  phone?: string
+  avatar_url?: string
+}
+
+/**
+ * The caller's own profile, read with a token it already holds.
+ *
+ * Sign-in returns tokens only (`access_token` / `refresh_token`), so the navbar
+ * has no name to show until something fetches this — which is why it used to
+ * render "U" plus the email local part right after logging in, and the real
+ * name only after a visit to /account/profile.
+ *
+ * Never throws: a failed read must not turn a successful sign-in into an
+ * error. Callers fall back to whatever they had.
+ */
+export async function fetchStorefrontProfile(
+  token: string
+): Promise<StorefrontProfile | null> {
   try {
-    const apiKey = API_KEY
-    const res = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
-      method: 'POST',
+    const res = await fetch(`${API_BASE_URL}/api/v1/users/me`, {
       headers: {
-        'Content-Type': 'application/json',
-        'X-API-KEY': apiKey,
+        Authorization: `Bearer ${token}`,
+        'X-API-KEY': API_KEY,
+        'X-Client-App': 'storefront',
       },
       credentials: 'include',
-      body: JSON.stringify(refreshToken ? { refresh_token: refreshToken } : {}),
     })
-
-    if (!res.ok) {
-      useAuthStore.getState().reset()
-      return null
-    }
-
+    if (!res.ok) return null
     const json = await res.json()
-    const tokenData = json?.data
-    if (!tokenData?.access_token) {
-      useAuthStore.getState().reset()
-      return null
-    }
-
-    useAuthStore.getState().setTokens(tokenData.access_token, tokenData.refresh_token)
-    return tokenData.access_token
+    return (json?.data as StorefrontProfile) ?? null
   } catch {
-    useAuthStore.getState().reset()
     return null
   }
 }
@@ -69,7 +133,15 @@ export async function authFetch(
   init?: RequestInit
 ): Promise<Response> {
   const apiKey = API_KEY
-  const token = useAuthStore.getState().accessToken
+  let token = useAuthStore.getState().accessToken
+
+  // Never let the API client answer a 401 by retrying with an empty token: it
+  // calls /auth/refresh without X-Client-App, so the backend would rotate the
+  // anonymous `refresh_token` cookie instead of this app's. authFetch owns the
+  // retry below.
+  if (!token && needsAuth(init)) {
+    token = (await refreshAccessToken()) ?? ''
+  }
 
   let targetUrl = input
   if (typeof input === 'string' && input.startsWith('/')) {
@@ -84,6 +156,10 @@ export async function authFetch(
     if (!headers.has('X-API-KEY') && !headers.has('x-api-key')) {
       headers.set('X-API-KEY', apiKey)
     }
+    // Keeps the storefront's refresh cookie separate from the dashboard's.
+    if (!headers.has('X-Client-App')) {
+      headers.set('X-Client-App', 'storefront')
+    }
     return headers
   }
 
@@ -93,21 +169,16 @@ export async function authFetch(
     headers: buildHeaders(token),
   })
 
-  if (res.status === 401) {
-    if (!refreshPromise) {
-      refreshPromise = refreshAccessToken().finally(() => {
-        refreshPromise = null
-      })
-    }
-
-    const newToken = await refreshPromise
-    if (newToken) {
-      res = await fetch(targetUrl, {
-        ...init,
-        credentials: 'include',
-        headers: buildHeaders(newToken),
-      })
-    }
+  // A 401 from /auth/* is a real credential failure, not an expired access
+  // token; refreshing on it would turn a bad password into a session reset.
+  const targetHref = targetUrl instanceof Request ? targetUrl.url : String(targetUrl)
+  if (res.status === 401 && !targetHref.includes('/auth/')) {
+    const newToken = await refreshAccessToken()
+    res = await fetch(targetUrl, {
+      ...init,
+      credentials: 'include',
+      headers: buildHeaders(newToken ?? token),
+    })
   }
 
   return res
