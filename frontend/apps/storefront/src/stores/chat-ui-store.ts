@@ -50,3 +50,16 @@ export const useChatUIStore = create<ChatUIState>()(
     },
   ),
 );
+
+/**
+ * Drops the previous visitor's chat UI state. The chosen tab is a page
+ * preference worth keeping, but queued order/product references point at
+ * another account's data, so they go.
+ */
+export function resetChatUIForNewSession() {
+  useChatUIStore.setState({
+    isOpen: false,
+    pendingOrder: null,
+    pendingProduct: null,
+  });
+}

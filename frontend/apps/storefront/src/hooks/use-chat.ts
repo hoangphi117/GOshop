@@ -1,9 +1,15 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
 import { directUpload } from "@goshop/api-client";
 import { authFetch, API_BASE_URL, API_KEY } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
-import { useChatUIStore } from "@/stores/chat-ui-store";
+import { useChatUIStore, resetChatUIForNewSession } from "@/stores/chat-ui-store";
+import { useAssistant } from "@/hooks/use-assistant";
 import {
   playNotificationSound,
   showChatWebNotification,
@@ -153,11 +159,67 @@ export function useChatProducts(enabled: boolean, search?: string) {
   });
 }
 
-export function useChat() {
+/**
+ * Query keys are namespaced by account first. The old flat keys leaked one
+ * customer's conversation and messages to whoever signed in next on the same
+ * device, because the cached entry never expired before it was read again.
+ */
+export const chatKeys = {
+  all: ["chat"] as const,
+  conversation: (account: string) => ["chat", account, "conversation"] as const,
+  messages: (account: string, conversationUUID?: string) =>
+    ["chat", account, "messages", conversationUUID] as const,
+  unreadCount: (account: string) => ["chat", account, "unread-count"] as const,
+  shopStatus: (account: string) => ["chat", account, "shop-status"] as const,
+};
+
+/**
+ * Clears chat state that outlives a logout.
+ *
+ * Three stores keep customer chat data on the device: the TanStack cache
+ * (`chat/conversation`, `chat/messages`, `chat/unread-count` — scoped by user,
+ * but the query keys are not), the assistant transcript ("goshop-assistant"),
+ * and the widget's queued order/product. Signing out only cleared the auth
+ * store, so the next account saw the previous customer's history in both the
+ * AI and the human tab.
+ *
+ * `nextAccount` is the identity about to sign in. The chat queries mount while
+ * signed out, so they have already cached an "anonymous" conversation: without
+ * evicting that entry the widget under the new account keeps the stale answer
+ * for its whole `staleTime` and only a reload refetches.
+ */
+export function resetChatSession(queryClient: QueryClient, nextAccount?: string) {
+  queryClient.removeQueries({ queryKey: ["chat"] });
+  queryClient.removeQueries({ queryKey: ["assistant"] });
+  useAssistant.getState().reset();
+  resetChatUIForNewSession();
+  if (nextAccount) {
+    queryClient.removeQueries({
+      queryKey: chatKeys.conversation(nextAccount),
+      exact: true,
+    });
+  }
+}
+
+export const useChat = () => {
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const accessToken = useAuthStore((state) => state.accessToken);
   const isAuthenticated = Boolean(user && accessToken);
+
+  // Every chat query is scoped by account. Without this the cache entry
+  // "chat/conversation" written for account A stays fresh for `staleTime` and
+  // is returned verbatim to account B, which never asks the server.
+  const accountKey = user?.uuid || user?.email || "anonymous";
+
+  // Watch for identity changes here rather than in an effect: the widget mounts
+  // while signed out, the login page re-renders before this hook does, and the
+  // stale entry has to be gone before the first query of the new account runs.
+  const [observedAccount, setObservedAccount] = useState(accountKey);
+  if (observedAccount !== accountKey) {
+    setObservedAccount(accountKey);
+    resetChatSession(queryClient, accountKey);
+  }
 
   const [isAdminTyping, setIsAdminTyping] = useState(false);
   const adminTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -171,7 +233,7 @@ export function useChat() {
 
   // 1. Fetch active conversation
   const { data: conversation, isLoading: isConversationLoading } = useQuery({
-    queryKey: ["chat", "conversation"],
+    queryKey: chatKeys.conversation(accountKey),
     queryFn: async () => {
       const res = await authFetch("/api/v1/chat/conversation");
       if (!res.ok) throw new Error("Failed to fetch conversation");
@@ -184,7 +246,7 @@ export function useChat() {
 
   // 2. Fetch conversation messages
   const { data: messages = [], isLoading: isMessagesLoading } = useQuery({
-    queryKey: ["chat", "messages", conversation?.uuid],
+    queryKey: chatKeys.messages(accountKey, conversation?.uuid),
     queryFn: async () => {
       if (!conversation?.uuid) return [];
       const res = await authFetch("/api/v1/chat/messages?limit=50");
@@ -203,7 +265,7 @@ export function useChat() {
 
   // 3. Fetch unread count
   const { data: unreadCount = 0 } = useQuery({
-    queryKey: ["chat", "unread-count"],
+    queryKey: chatKeys.unreadCount(accountKey),
     queryFn: async () => {
       const res = await authFetch("/api/v1/chat/unread-count");
       if (!res.ok) return 0;
@@ -216,7 +278,7 @@ export function useChat() {
 
   // 4. Fetch shop online status
   const { data: shopStatus } = useQuery({
-    queryKey: ["chat", "shop-status"],
+    queryKey: chatKeys.shopStatus(accountKey),
     queryFn: async () => {
       const res = await authFetch("/api/v1/chat/shop-status");
       if (!res.ok) return { is_online: false };
@@ -263,7 +325,7 @@ export function useChat() {
     onSuccess: (newMsg) => {
       if (newMsg && conversation?.uuid) {
         queryClient.setQueryData<MessageItem[]>(
-          ["chat", "messages", conversation.uuid],
+          chatKeys.messages(accountKey, conversation.uuid),
           (old = []) => {
             if (old.some((m) => m.uuid === newMsg.uuid)) return old;
             return [...old, newMsg];
@@ -283,7 +345,7 @@ export function useChat() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.setQueryData(["chat", "unread-count"], 0);
+      queryClient.setQueryData(chatKeys.unreadCount(accountKey), 0);
     },
   });
 
@@ -302,7 +364,7 @@ export function useChat() {
     onSuccess: (_, messageUUID) => {
       if (conversation?.uuid) {
         queryClient.setQueryData<MessageItem[]>(
-          ["chat", "messages", conversation.uuid],
+          chatKeys.messages(accountKey, conversation.uuid),
           (old = []) =>
             old.map((m) =>
               m.uuid === messageUUID
@@ -322,8 +384,10 @@ export function useChat() {
   });
 
   // 6. Real-time WebSocket connection to the chat room
+  const conversationUUID = conversation?.uuid;
+  const conversationOwnerID = conversation?.user_id;
   useEffect(() => {
-    if (!isAuthenticated || !accessToken || !conversation?.uuid) {
+    if (!isAuthenticated || !accessToken || !conversationUUID) {
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;
@@ -338,7 +402,7 @@ export function useChat() {
 
       try {
         const wsBaseUrl = API_BASE_URL.replace(/^http/, "ws");
-        const socketUrl = `${wsBaseUrl}/api/v1/ws?token=${encodeURIComponent(accessToken)}&conversation_uuid=${encodeURIComponent(conversation.uuid)}`;
+        const socketUrl = `${wsBaseUrl}/api/v1/ws?token=${encodeURIComponent(accessToken)}&conversation_uuid=${encodeURIComponent(conversationUUID)}`;
 
         const ws = new WebSocket(socketUrl);
         wsRef.current = ws;
@@ -362,7 +426,7 @@ export function useChat() {
               };
 
               queryClient.setQueryData<MessageItem[]>(
-                ["chat", "messages", conversation.uuid],
+                chatKeys.messages(accountKey, conversationUUID),
                 (old = []) => {
                   if (old.some((m) => m.uuid === newMsg.uuid)) return old;
                   return [...old, newMsg];
@@ -382,7 +446,7 @@ export function useChat() {
                   }).catch(() => {});
                 } else {
                   queryClient.invalidateQueries({
-                    queryKey: ["chat", "unread-count"],
+                    queryKey: chatKeys.unreadCount(accountKey),
                   });
 
                   // Play audio chime if user is in background tab or widget is minimized
@@ -397,7 +461,7 @@ export function useChat() {
                         newMsg.content,
                         newMsg.attachment_name,
                       ),
-                      tag: `storefront-chat-${conversation.uuid}`,
+                      tag: `storefront-chat-${conversationUUID}`,
                       onClick: () => {
                         useChatUIStore.getState().openChatWithHuman();
                       },
@@ -411,7 +475,7 @@ export function useChat() {
             ) {
               const { message_uuid } = payload.data;
               queryClient.setQueryData<MessageItem[]>(
-                ["chat", "messages", conversation.uuid],
+                chatKeys.messages(accountKey, conversationUUID),
                 (old = []) =>
                   old.map((m) =>
                     m.uuid === message_uuid
@@ -429,7 +493,7 @@ export function useChat() {
             } else if (payload?.type === "chat.read") {
               // Mark all messages as read
               queryClient.setQueryData<MessageItem[]>(
-                ["chat", "messages", conversation.uuid],
+                chatKeys.messages(accountKey, conversationUUID),
                 (old = []) => old.map((m) => ({ ...m, is_read: true })),
               );
             } else if (payload?.type === "chat.typing" && payload?.data) {
@@ -438,7 +502,7 @@ export function useChat() {
               const isTyping = Boolean(payload.data.is_typing);
 
               // Never display typing indicator for own user events
-              if (conversation?.user_id && typingUserId === conversation.user_id) {
+              if (conversationOwnerID && typingUserId === conversationOwnerID) {
                 return;
               }
 
@@ -507,12 +571,19 @@ export function useChat() {
         }
       }
     };
-  }, [isAuthenticated, accessToken, conversation?.uuid, queryClient]);
+  }, [
+    isAuthenticated,
+    accessToken,
+    accountKey,
+    conversationUUID,
+    conversationOwnerID,
+    queryClient,
+  ]);
 
   // Send typing status to server via WS and HTTP fallback
   const sendTyping = useCallback(
     (isTyping: boolean) => {
-      if (!conversation?.uuid || !isAuthenticated) return;
+      if (!conversationUUID || !isAuthenticated) return;
 
       // Try WebSocket first
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -521,7 +592,7 @@ export function useChat() {
             JSON.stringify({
               type: "chat.typing",
               data: {
-                conversation_uuid: conversation.uuid,
+                conversation_uuid: conversationUUID,
                 is_typing: isTyping,
               },
             }),
@@ -539,7 +610,7 @@ export function useChat() {
         body: JSON.stringify({ is_typing: isTyping }),
       }).catch(() => {});
     },
-    [conversation?.uuid, isAuthenticated],
+    [conversationUUID, isAuthenticated],
   );
 
   return {

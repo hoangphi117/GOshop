@@ -63,6 +63,58 @@ func TestHTTPProductSearchClientDecodesHandlerShape(t *testing.T) {
 	assert.Equal(t, int32(0), items[1].ProductStock)
 }
 
+// The route the assistant actually reaches now is the gateway's hybrid search,
+// which nests the list under data.items. Decoding only the flat array left the
+// model with zero products — the "search isn't responding" answer.
+const hybridSearchResponse = `{
+  "status":"success",
+  "message":"Products searched successfully",
+  "data":{
+    "source":"hybrid",
+    "total":53,
+    "items":[
+      {"uuid":"p-1","name":"Nokia Pixel","slug":"nokia-pixel","price":3000000,"stock":76,
+       "category_name":"Smartphones & Tablets","image_url":"https://cdn/y.jpg"}
+    ]
+  }
+}`
+
+func TestHTTPProductSearchClientDecodesHybridShape(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(hybridSearchResponse))
+	}))
+	defer srv.Close()
+
+	c, err := contract.NewHTTPProductSearchClient(srv.URL, time.Second)
+	require.NoError(t, err)
+
+	items, err := c.Search(context.Background(), "phones", 5)
+	require.NoError(t, err)
+
+	require.Len(t, items, 1)
+	assert.Equal(t, "p-1", items[0].ProductUUID)
+	assert.Equal(t, "Nokia Pixel", items[0].ProductName)
+	assert.Equal(t, 3000000.0, items[0].ProductPrice)
+	assert.Equal(t, int32(76), items[0].ProductStock)
+	assert.Equal(t, "Smartphones & Tablets", items[0].ProductCategoryName)
+	assert.Equal(t, "https://cdn/y.jpg", items[0].ProductImageURL)
+}
+
+// An empty hybrid shelf must read as "no matches", not as an error.
+func TestHTTPProductSearchClientEmptyHybridShape(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"status":"success","data":{"source":"hybrid","items":[],"total":0}}`))
+	}))
+	defer srv.Close()
+
+	c, err := contract.NewHTTPProductSearchClient(srv.URL, time.Second)
+	require.NoError(t, err)
+
+	items, err := c.Search(context.Background(), "zzz", 5)
+	require.NoError(t, err)
+	assert.Empty(t, items)
+}
+
 // A 5xx must surface as an error so the model can escalate instead of being
 // told "no products found".
 func TestHTTPProductSearchClientErrorsOnNon200(t *testing.T) {

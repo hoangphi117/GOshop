@@ -29,12 +29,15 @@ import { SearchAutocomplete } from "@/components/layout/search-autocomplete";
 import { Button } from "@/components/ui/button";
 import { authFetch } from "@/lib/api";
 import { blockDeviceIntent } from "@/lib/device-intent";
+import { useQueryClient } from "@tanstack/react-query";
+import { resetChatSession } from "@/hooks/use-chat";
 import { getImageUrl } from "@/lib/utils";
 
 export function Navbar({ recentSearches = [] }: { recentSearches?: string[] }) {
   const router = useRouter();
   const { getTotalItems, openDrawer } = useCartStore();
   const { user, accessToken, reset, setUser } = useAuthStore();
+  const queryClient = useQueryClient();
 
   const mounted = useMounted();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -119,6 +122,10 @@ export function Navbar({ recentSearches = [] }: { recentSearches?: string[] }) {
     // Keep the anon cookie — the history behind it is the visitor's and comes
     // back on the next sign-in — but stop ranking shelves from it.
     blockDeviceIntent();
+    // The chat cache and the assistant transcript are account data held in the
+    // browser; without this the next login on this device opens the previous
+    // customer's messages in both tabs.
+    resetChatSession(queryClient);
     reset();
     setUserDropdownOpen(false);
     router.push("/login");

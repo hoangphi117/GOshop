@@ -74,8 +74,17 @@ func New(cfg *config.Config) (*App, error) {
 	// The three catalogs ports. Each is optional: a building that only answers
 	// FAQs is better than a service that refuses to boot because Meilisearch is
 	// down.
+	//
+	// Product search does NOT live on the catalog service: /api/v1/products/search
+	// is registered by recommendations (hybrid keyword + vector) and the gateway
+	// proxies it there. Pointing this at CATALOG_BASE_URL returned 404 from the
+	// catalog's own router, so every "do you sell X" answer degraded to
+	// "the search isn't responding". SEARCH_BASE_URL targets the gateway by
+	// default, which is also where X-API-KEY is injected for this path. The
+	// alias is `api` (shared by api1/api2); `api-gateway` does not resolve
+	// inside the compose network.
 	if search, err := catalogcontract.NewHTTPProductSearchClient(
-		utils.GetEnv("CATALOG_BASE_URL", "http://localhost:8086"),
+		utils.GetEnv("SEARCH_BASE_URL", "http://api:8080"),
 		5*time.Second,
 	); err != nil {
 		logger.Log.Warn().Err(err).Msg("Product search disabled")

@@ -720,6 +720,11 @@ function MediaLightbox({
 
 const route = getRouteApi('/_authenticated/chats/')
 
+// Backend caps `limit` at 100; the pager only needs prev/next, so one page size
+// keeps the sidebar predictable.
+const CONVERSATIONS_PAGE_SIZE = 20
+const EMPTY_CONVERSATIONS: ConversationItem[] = []
+
 export function Chats() {
   const routeSearch = route.useSearch()
   const [search, setSearch] = useState('')
@@ -776,13 +781,36 @@ export function Chats() {
   }, [])
 
   const [statusFilter, setStatusFilter] = useState<'open' | 'closed'>('open')
+  const [conversationPageNumber, setConversationPageNumber] = useState(1)
+
+  // Reset to the first page when the filter or query changes. Adjusted during
+  // render rather than in an effect so no extra render cycle is spent.
+  const [appliedListFilter, setAppliedListFilter] = useState({
+    status: statusFilter,
+    search: debouncedSearch,
+  })
+  if (
+    appliedListFilter.status !== statusFilter ||
+    appliedListFilter.search !== debouncedSearch
+  ) {
+    setAppliedListFilter({ status: statusFilter, search: debouncedSearch })
+    setConversationPageNumber(1)
+  }
 
   // 1. Fetch conversations list with debounced search and status filter
-  const { data: conversations = [], isLoading: isConversationsLoading } =
-    useAdminConversations({
-      status: statusFilter,
-      search: debouncedSearch || undefined,
-    })
+  const {
+    data: conversationPage,
+    isLoading: isConversationsLoading,
+    isFetching: isConversationsFetching,
+  } = useAdminConversations({
+    status: statusFilter,
+    search: debouncedSearch || undefined,
+    page: conversationPageNumber,
+    limit: CONVERSATIONS_PAGE_SIZE,
+  })
+  const conversations = conversationPage?.data ?? EMPTY_CONVERSATIONS
+  const conversationsTotal = conversationPage?.total ?? 0
+  const hasNextConversationPage = conversationsTotal > CONVERSATIONS_PAGE_SIZE
 
   // 1b. Search across all system users when searching
   const { data: usersData, isLoading: isSearchingUsers } = useAdminUsers({
@@ -1376,6 +1404,31 @@ export function Chats() {
                 </div>
               )}
             </div>
+
+            {(conversationPageNumber > 1 || hasNextConversationPage) && (
+              <div className='flex items-center justify-between gap-2 border-t border-border/60 px-3 py-2 text-[11px] text-muted-foreground'>
+                <button
+                  type='button'
+                  disabled={conversationPageNumber <= 1 || isConversationsFetching}
+                  onClick={() => setConversationPageNumber((p) => Math.max(1, p - 1))}
+                  className='rounded px-2 py-1 font-medium hover:bg-accent disabled:opacity-40'
+                >
+                  Previous
+                </button>
+                <span>
+                  Page {conversationPageNumber} of{' '}
+                  {Math.max(1, Math.ceil(conversationsTotal / CONVERSATIONS_PAGE_SIZE))}
+                </span>
+                <button
+                  type='button'
+                  disabled={!hasNextConversationPage || isConversationsFetching}
+                  onClick={() => setConversationPageNumber((p) => p + 1)}
+                  className='rounded px-2 py-1 font-medium hover:bg-accent disabled:opacity-40'
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Right Pane: Active Conversation Room */}

@@ -28,6 +28,8 @@ import {
 import { GoogleLoginButton } from "@/components/auth/google-login-button";
 import { API_BASE_URL, API_KEY } from "@/lib/api";
 import { clearDeviceIntent } from "@/lib/device-intent";
+import { useQueryClient } from "@tanstack/react-query";
+import { resetChatSession } from "@/hooks/use-chat";
 import { useAuthStore } from "@/stores/auth-store";
 import { toast } from "sonner";
 
@@ -67,6 +69,7 @@ type RegisterFormData = z.infer<typeof registerSchema>;
 export default function RegisterPage() {
   const router = useRouter();
   const { setTokens, setUser } = useAuthStore();
+  const queryClient = useQueryClient();
 
   const [step, setStep] = useState<"form" | "otp">("form");
 
@@ -290,6 +293,7 @@ export default function RegisterPage() {
         setTokens(accessToken);
         // The shelf is this account's now.
         clearDeviceIntent();
+        resetChatSession(queryClient, email.trim());
         setUser({
           email: email.trim(),
           fullName: fullName.trim(),

@@ -37,26 +37,50 @@ func NewHTTPProductSearchClient(baseURL string, timeout time.Duration) (*HTTPPro
 	}, nil
 }
 
-// productSearchEnvelope mirrors utils.ResponseSuccess for GET
-// /api/v1/products/search, whose handler wraps the list in
-// {"status","message","data":[...]}. It is a bare array, not {data,pagination} —
-// decoding it as the nested shape silently produced zero results, so every
-// product question fell back to "the product search isn't working".
+// productSearchItem is one element of the search response. Each field is
+// decoded on its own because dto.ProductDTO has a custom MarshalJSON that emits
+// BOTH snake_case and camelCase aliases; only the snake_case ones are stable.
+type productSearchItem struct {
+	UUID         string  `json:"uuid"`
+	Name         string  `json:"name"`
+	Slug         string  `json:"slug"`
+	Price        float64 `json:"price"`
+	Stock        int32   `json:"stock"`
+	CategoryName string  `json:"category_name"`
+	ImageURL     *string `json:"image_url"`
+	Description  *string `json:"description"`
+}
+
+// productSearchEnvelope accepts both shapes the route has served under
+// {"status","message","data":...}:
 //
-// Each element is decoded separately because dto.ProductDTO has a custom
-// MarshalJSON that emits BOTH snake_case and camelCase aliases; only the
-// snake_case ones are stable, so the struct below reads those.
+//   - hybrid search (recommendations): data = {"source","items":[...],"total"}
+//   - catalog keyword listing:          data = [...]
+//
+// Decoding only one of them silently yields zero items, which reaches the model
+// as "the search isn't responding".
 type productSearchEnvelope struct {
-	Data []struct {
-		UUID         string  `json:"uuid"`
-		Name         string  `json:"name"`
-		Slug         string  `json:"slug"`
-		Price        float64 `json:"price"`
-		Stock        int32   `json:"stock"`
-		CategoryName string  `json:"category_name"`
-		ImageURL     *string `json:"image_url"`
-		Description  *string `json:"description"`
-	} `json:"data"`
+	Data json.RawMessage `json:"data"`
+}
+
+func (e productSearchEnvelope) items() ([]productSearchItem, error) {
+	if len(e.Data) == 0 || string(e.Data) == "null" {
+		return nil, nil
+	}
+	if e.Data[0] == '[' {
+		var flat []productSearchItem
+		if err := json.Unmarshal(e.Data, &flat); err != nil {
+			return nil, err
+		}
+		return flat, nil
+	}
+	var nested struct {
+		Items []productSearchItem `json:"items"`
+	}
+	if err := json.Unmarshal(e.Data, &nested); err != nil {
+		return nil, err
+	}
+	return nested.Items, nil
 }
 
 // Search returns at most limit products matching the free-text query.
@@ -93,12 +117,16 @@ func (c *HTTPProductSearchClient) Search(ctx context.Context, query string, limi
 	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
 		return nil, fmt.Errorf("catalog search: decode: %w", err)
 	}
-	if env.Data == nil {
+	raw, err := env.items()
+	if err != nil {
+		return nil, fmt.Errorf("catalog search: decode data: %w", err)
+	}
+	if raw == nil {
 		return nil, nil
 	}
 
-	out := make([]ProductItemInfo, 0, len(env.Data))
-	for _, p := range env.Data {
+	out := make([]ProductItemInfo, 0, len(raw))
+	for _, p := range raw {
 		info := ProductItemInfo{
 			ProductUUID:         p.UUID,
 			ProductName:         p.Name,

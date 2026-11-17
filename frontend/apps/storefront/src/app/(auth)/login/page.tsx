@@ -15,11 +15,14 @@ import {
 import { GoogleLoginButton } from "@/components/auth/google-login-button";
 import { API_BASE_URL, API_KEY, fetchStorefrontProfile } from "@/lib/api";
 import { clearDeviceIntent } from "@/lib/device-intent";
+import { useQueryClient } from "@tanstack/react-query";
+import { resetChatSession } from "@/hooks/use-chat";
 import { useAuthStore } from "@/stores/auth-store";
 
 export default function LoginPage() {
   const router = useRouter();
   const { setTokens, setUser } = useAuthStore();
+  const queryClient = useQueryClient();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -84,6 +87,10 @@ export default function LoginPage() {
       // Whoever was here before signed out and said "not my history". Signing
       // in means the shelf is theirs again.
       clearDeviceIntent();
+      // Chat data is account-scoped and was cached under this browser, not this
+      // login: clear it before the new account's widget mounts, so nothing of
+      // the previous customer's transcript can paint for a frame.
+      resetChatSession(queryClient);
 
       // The login response carries tokens only, so the navbar had nothing to
       // name the visitor by and fell back to "U" / the email local part until
@@ -92,7 +99,7 @@ export default function LoginPage() {
       // a sign-in that already succeeded.
       const profile = await fetchStorefrontProfile(accessToken);
 
-      setUser({
+      const nextUser = {
         uuid:
           profile?.uuid ||
           data.data.user?.uuid,
@@ -108,7 +115,13 @@ export default function LoginPage() {
           "",
         role: data.data.user?.roles || [],
         avatarUrl: profile?.avatar_url || "",
-      });
+      };
+      setUser(nextUser);
+      // `package_chat_conversation` fired while this account was signed out and
+      // the widget was still mounted, so it cached "no conversation" under the
+      // anonymous key. Without removing it here the widget keeps that answer
+      // (staleTime 5m) and only a reload shows the real thread.
+      resetChatSession(queryClient, nextUser.uuid || nextUser.email);
 
       const redirectUrl =
         typeof window !== "undefined"
