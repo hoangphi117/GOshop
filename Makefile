@@ -274,6 +274,22 @@ smoke-dev:
 check-parity:
 	python ./scripts/check-compose-parity.py
 
+# Live twin: proves no container of the current stack runs stale config.
+# `up -d` does not always recreate, so a service can keep a dead environment
+# (that is how prod dialled kafka:29096 while the broker spoke plaintext). Run
+# it after any `up -d`, and always after switching dev <-> prod.
+check-drift:
+	python ./scripts/check-compose-drift.py
+
+check-drift-dev:
+	python ./scripts/check-compose-drift.py --dev
+
+# The only supported way to switch stacks. Both compose files share
+# container_name values and the goshop-network, so plain `up -d` from the other
+# file leaves half the old stack running.
+switch-stack:
+	powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/switch-stack.ps1 -Stack $(or $(STACK),prod)
+
 # Regenerate docs/SERVICES.md from compose ports, service migrations and proto
 # contracts. Run after adding/moving a service instead of editing the table.
 services-doc:
@@ -417,5 +433,5 @@ kafka-reset-group:
 logq:
 	powershell -NoProfile -ExecutionPolicy Bypass -File scripts/logq.ps1 '$(Q)' -Hours $(or $(HOURS),2) -Limit $(or $(LIMIT),10)
 
-.PHONY: importdb exportdb server worker ws-gateway identity notification payment coupon inventory catalog order chat media build-identity build-notification build-payment build-coupon build-inventory build-catalog build-order build-chat build-media migrate-create migrate-up migrate-down sqlc build build-worker build-ws-gateway run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev dev-host smoke-dev check-parity swagger loadtest stresstest spiketest test-kafka-integration kafka-env kafka-sasl-users kafka-acls kafka-acl-verify kafka-tls-certs check-dlq clear-dlq kafka-health kafka-reset-group logq seed seed-docker env-dev env-prod
+.PHONY: importdb exportdb server worker ws-gateway identity notification payment coupon inventory catalog order chat media build-identity build-notification build-payment build-coupon build-inventory build-catalog build-order build-chat build-media migrate-create migrate-up migrate-down sqlc build build-worker build-ws-gateway run-binary prod stop-prod logs-prod bash noapp stop-noapp dev stop-dev dev-host smoke-dev check-parity check-drift check-drift-dev switch-stack swagger loadtest stresstest spiketest test-kafka-integration kafka-env kafka-sasl-users kafka-acls kafka-acl-verify kafka-tls-certs check-dlq clear-dlq kafka-health kafka-reset-group logq seed seed-docker env-dev env-prod
 

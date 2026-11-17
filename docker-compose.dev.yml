@@ -1103,8 +1103,11 @@ services:
     container_name: goshop-kafka-ui
     restart: unless-stopped
     ports:
-      # 8086 is the catalog service; 8096 keeps the UI out of its way.
-      - "8096:8080"
+      # 8086 is the catalog service, and 8096 is the embedder: publishing the UI
+      # there made `up` fail with "Bind for 0.0.0.0:8096 failed: port is already
+      # allocated", which took kafka-init and every dependent service down with
+      # it. 8098 is unused in both compose files.
+      - "8098:8080"
     environment:
       KAFKA_CLUSTERS_0_NAME: goshop
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092

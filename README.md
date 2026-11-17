@@ -63,6 +63,7 @@ graceful shutdown, and an integration suite that runs against a real broker rath
 - [Prerequisites](#prerequisites)
 - [Environment Setup](#environment-setup-read-this-before-anything-else)
 - [Running the stack](#running-the-stack)
+  - [Switching between dev and prod](#switching-between-dev-and-prod-read-before-you-up--d)
 - [Monitoring, tracing and logs](#monitoring-tracing-and-logs)
 - [Demo accounts](#demo-accounts)
 - [Scripts](#scripts)
@@ -275,6 +276,57 @@ frontend/apps/storefront/.env.prod.example  →  .env.prod
 frontend/apps/storefront/.env.dev-host      →  .env.local  (copied by `make dev-host`)
 ```
 
+### Fresh clone — pick ONE path and follow it top to bottom
+
+`Step 1`–`Step 4` below describe the files. These two blocks are the same thing in
+executable order, including the steps the file table alone does not cover. Run from the
+repo root.
+
+**Dev (containerised, edge on `:80`)**
+
+```powershell
+corepack enable
+cd frontend; pnpm install; cd ..
+
+Copy-Item backend/.env.dev.example backend/.env.dev
+Copy-Item frontend/apps/storefront/.env.dev.example frontend/apps/storefront/.env.dev
+powershell -ExecutionPolicy Bypass -File scripts/gen-local-secrets.ps1
+
+openssl genpkey -algorithm RSA -out backend/certs/jwt_private.pem -pkeyopt rsa_keygen_bits:2048
+openssl rsa -pubout -in backend/certs/jwt_private.pem -out backend/certs/jwt_public.pem
+
+make env-dev
+make switch-stack STACK=dev     # builds images, up -d, checks drift
+make seed-docker
+make smoke-dev
+```
+
+**Prod (edge on `:80`/`:443`)**
+
+```powershell
+corepack enable
+cd frontend; pnpm install; cd ..
+
+Copy-Item backend/.env.prod.example backend/.env.prod
+Copy-Item frontend/apps/storefront/.env.prod.example frontend/apps/storefront/.env.prod
+powershell -ExecutionPolicy Bypass -File scripts/gen-local-secrets.ps1
+
+openssl genpkey -algorithm RSA -out backend/certs/jwt_private.pem -pkeyopt rsa_keygen_bits:2048
+openssl rsa -pubout -in backend/certs/jwt_private.pem -out backend/certs/jwt_public.pem
+
+make env-prod
+make kafka-env                  # SCRAM passwords + TLS material into backend/.env
+make switch-stack STACK=prod    # bootstraps SCRAM users, grants ACLs, verifies them
+make seed-docker
+make smoke-prod
+```
+
+> `gen-local-secrets.ps1` writes **`backend/.env` only**. It does not touch `backend/.env.dev`
+> or `.env.prod`, so the automated step still leaves the `CHANGE_ME` values in the variant you
+> copied — run it once per variant you intend to use, *then* fill in whatever is left
+> (`ALERTMANAGER_DISCORD_WEBHOOK_URL` is empty in the prod template and compose refuses to
+> interpolate until it is set).
+
 ### Step 1 — Backend
 
 ```powershell
@@ -284,7 +336,7 @@ cd backend
 Copy-Item .env.example     .env        # minimal, single-service
 # or
 Copy-Item .env.dev.example .env.dev    # full dev variant (recommended)
-Copy-Item .env.prod.example .env.prod  # full prod variant (only if deploying)
+Copy-Item .env.prod.example .env.prod  # full prod variant (required for make switch-stack STACK=prod)
 ```
 
 Then open the file and replace **every** `CHANGE_ME`:
@@ -320,14 +372,13 @@ openssl rsa -pubout -in certs/jwt_private.pem -out certs/jwt_public.pem
 ```powershell
 cd frontend/apps/storefront
 
-# dev-host topology (Go services on your host, gateway on :8080)
-Copy-Item .env.dev-host .env.local
+# containerised dev / prod: the container reads .env.dev / .env.prod, and
+# `make env-dev` / `make env-prod` copy the matching one over the file it reads.
+Copy-Item .env.dev.example  .env.dev
+# Copy-Item .env.prod.example .env.prod
 
-# bare containerised dev (edge on :80)
-# Copy-Item .env.development .env.local
-
-# or start from the template and fill it in
-# Copy-Item .env.example .env.local
+# dev-host topology only (Go services on your host, gateway on :8080)
+# Copy-Item .env.dev-host .env.local
 ```
 
 Order of precedence is `.env.local` → `.env.development` → `.env`. A **stale `.env.local`
@@ -355,10 +406,14 @@ pnpm dev
 
 ### Step 4 — Verify
 
+Run these **after** the stack is up (`make switch-stack STACK=dev|prod`, per the fresh-clone
+blocks above):
+
 ```powershell
 # from the repo root
-make check-parity     # static: every gateway proxy target exists in the compose file
+make check-parity     # static: every gateway proxy target exists in the compose file (no Docker)
 make smoke-dev        # live: probes each proxied route, fails on 502
+make check-drift-dev  # live: no container is running the other topology's config
 ```
 
 ---
@@ -384,7 +439,82 @@ Open **`http://127.0.0.1/`** (storefront) and **`http://127.0.0.1/admin/`** (das
 | Fastest loop, host-side Go | `make dev-host` | Infra in Docker, Go services on the host, gateway `:8080` | `http://localhost:5173/admin/`, storefront `:3001` |
 | Everything containerised | `make dev` | Full dev compose + edge | `http://127.0.0.1/` |
 | Production-shaped | `make prod` | Full prod compose behind nginx | `http://127.0.0.1/`, `:443` |
+| Switch between dev and prod | `make switch-stack STACK=dev\|prod` | Tears the other stack down first | — |
 | Stop cleanly | `make stop-dev` / `make stop-prod` | Kills host binaries **and** containers | — |
+
+### Switching between dev and prod (read before you `up -d`)
+
+Both compose files declare the **same `container_name` values** and join the same
+`goshop-network`. A plain `docker compose up -d` from the other file therefore leaves the
+previous stack's containers running, and the two configs end up mixed. On 2026-11-17 that
+mix took the whole event pipeline down: every prod service dialled `kafka:29096`
+(SASL_SSL) while `goshop-kafka` was still the dev broker speaking PLAINTEXT on `:29092`, so
+**no consumer joined and no notification or email was ever delivered** — while `up -d`
+printed "Started" for everything.
+
+Two rules, both enforced by tooling:
+
+1. `docker compose up -d` does **not** recreate a container whose config hash it has not
+   recomputed. Use `--force-recreate` after touching a compose file or `backend/.env`.
+2. Never `up -d` one stack on top of the other. Use `make switch-stack`.
+3. Both stacks tag their images `shopping-<service>`, so whichever built last owns the tag.
+   `make switch-stack` rebuilds unconditionally for that reason: skipping it runs the other
+   topology's entrypoint (`exec: "/app/service": no such file or directory` in dev).
+
+#### Enable the **dev** environment
+
+```powershell
+make env-dev                      # copy backend/.env.dev over backend/.env
+make switch-stack STACK=dev       # down prod, build dev images, up -d --force-recreate, check drift
+make smoke-dev                    # every gateway route answers
+```
+
+`make switch-stack STACK=dev` ends with the drift report; a clean run prints
+`no drift: N dev service(s) run the current config`. Nothing else is needed — `make dev`
+exists for the first-ever bootstrap and is not part of this sequence.
+
+#### Enable the **prod** environment
+
+```powershell
+make env-prod                     # copy backend/.env.prod over backend/.env
+make kafka-env                    # SASL creds + TLS material (first time, or after a rotation)
+make switch-stack STACK=prod      # down dev, build prod images, up -d, verify ACLs, check drift
+make smoke-prod                   # 8 HTTP probes against the edge
+```
+
+`make switch-stack STACK=prod` also runs `scripts/kafka-acl-verify.sh` and aborts if any
+service identity can no longer reach its topics.
+
+> Order matters: `make env-prod` **before** `make switch-stack`, or the build bakes the dev
+> `API_KEY`/`APP_ORIGIN` into the storefront bundle. And `make kafka-env` before the first
+> prod boot on a fresh volume — with SASL on and no SCRAM users, nothing can log in.
+
+#### Switching back to dev from prod
+
+The prod stack refuses to interpolate without its secrets (`KAFKA_SASL_*`,
+`INTERNAL_API_TOKEN`, `KAFKA_SSL_TRUSTSTORE_PASSWORD`), which `backend/.env` no longer has
+once `make env-dev` ran. `switch-stack` handles this: teardown uses `backend/.env.prod`, and
+falls back to removing containers by project label if that file is incomplete.
+
+#### Verify a switch (30 s)
+
+```powershell
+make check-drift                  # prod; add --dev or use make check-drift-dev for dev
+docker ps --format "{{.Names}}`t{{.Status}}" | Select-String "goshop-kafka"
+```
+
+In dev the broker API answers on `localhost:9092`; in prod only on the internal bootstrap
+listener `localhost:29093` from inside the `kafka` container:
+
+```powershell
+docker compose --env-file backend/.env -f docker-compose.prod.yml exec -T kafka `
+  sh -c '/opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server localhost:29093 --list'
+```
+
+`scripts/check-compose-drift.py` compares the `com.docker.compose.config-hash` label of every
+running container with `docker compose config --hash`. A missing or mismatched service means
+it was not recreated — that is exactly the failure a bare `up -d` hides.
+
 
 ### Local monitoring
 
@@ -689,6 +819,7 @@ Customers are `user1@goshop.com` … `user7@goshop.com` and `customer12@testmail
 | `make env-dev` / `make env-prod` | Copies the variant env files over the active ones | — |
 | `make prod` | Full `docker-compose.prod.yml` stack behind nginx on `:80/:443` | production |
 | `make stop-prod` | Stops the prod stack | — |
+| `make switch-stack STACK=dev\|prod` | The only supported way to swap stacks: `down` the other one, `up -d --force-recreate`, verify | both |
 | `make build` | Builds every Go binary into `backend/bin` | — |
 | `make sqlc` | Regenerates type-safe query code for all services | — |
 | `make swagger` | Regenerates the OpenAPI spec (`/swagger` on the gateway) | — |
@@ -697,6 +828,7 @@ Customers are `user1@goshop.com` … `user7@goshop.com` and `customer12@testmail
 | `make seed` / `make seed-docker` | Seeds demo catalog, users, orders | — |
 | `make smoke-dev` / `make smoke-prod` | Probes every gateway route; any 502 fails the run | — |
 | `make check-parity` | Static check of gateway proxy targets against compose (~2 s, no Docker needed) | — |
+| `make check-drift` / `check-drift-dev` | Live check: every container's config hash vs the current compose file | — |
 | `make services-doc` | Regenerates `docs/SERVICES.md` from compose, migrations and proto contracts | — |
 | `make loadtest` / `stresstest` / `spiketest` | k6 scenarios against the edge | — |
 | `make test-kafka-integration` | Outbox/consumer suite against a real Kafka in Testcontainers | — |
@@ -714,6 +846,8 @@ Customers are `user1@goshop.com` … `user7@goshop.com` and `customer12@testmail
 | `gen-kafka-tls-certs.ps1` | Issues the broker CA and certificates |
 | `smoke-dev.ps1` / `smoke-prod.sh` | Route-by-route live probe; non-zero exit on the first 502 |
 | `check-compose-parity.py` | Compares the gateway's proxy table to compose; catches a service that exists in prod but not dev |
+| `check-compose-drift.py` | Compares every running container's config hash to the current compose file; catches a stack left half-switched |
+| `switch-stack.ps1` | `down` the other stack, `up -d --force-recreate` this one, verify ACLs (prod) and drift |
 | `patch-openapi-spec.py` | Merges the service-owned routes into the gateway spec; `--from <fresh>` keeps them when `swag` only sees the gateway |
 | `check-dlq.ps1` / `clear-dlq.ps1` | Inspect / drain Kafka dead-letter topics |
 | `check-kafka-health.ps1` | Broker, consumer group lag, topic sanity |
@@ -812,6 +946,8 @@ real outbox publisher against a real broker.
 | Login returns **429** after a few attempts | Two login rate limiters (edge Redis + auth service) counted the same IP | clear `*ratelimit*` keys in Redis (snippet in [Demo accounts](#demo-accounts)) |
 | Analytics dashboard shows 2 orders after a seed | Dashboard reads `shopping_analytics` projections, and the seed emits no Kafka events | re-run the seed — its last section rebuilds both projections |
 | Product images blank | A seed older than the curated-photo change still points at `picsum.photos` | re-run `make seed`; every product now uses one of 32 curated Unsplash shots |
+| One service answers with the **other** topology's config (e.g. prod dials `kafka:29096` while the broker is plaintext) | `up -d` from the other compose file left the old container in place — same `container_name`, same network | `make switch-stack STACK=prod` (or `up -d --force-recreate <service>`), then `make check-drift` |
+| Kafka consumers never join, notifications and emails silently never arrive | Broker listener family and client settings disagree, or SCRAM/ACLs are missing on a fresh volume | `make check-drift`, `make kafka-acl-verify`, then `make switch-stack STACK=prod` |
 
 ---
 
