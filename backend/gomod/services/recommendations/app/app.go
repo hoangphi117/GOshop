@@ -320,7 +320,7 @@ func ensureForeignServer(pool *pgxpool.Pool, cfg *config.Config, s foreignServer
 
 	host := utils.GetEnv(s.HostEnv, cfg.DB.Host)
 	dbName := utils.GetEnv(s.NameEnv, s.DBName)
-	port := utils.GetEnv(s.PortEnv, cfg.DB.Port)
+	port := utils.GetEnv(s.PortEnv, cfg.MigrationPort())
 	user := utils.GetEnv("ORDER_DB_USER", cfg.DB.User)
 
 	options := func(pairs ...string) string {
@@ -372,7 +372,7 @@ func sqlLiteral(s string) string {
 
 func runMigrations(cfg *config.Config) {
 	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&search_path=public&x-migrations-table=schema_migrations_recommendations",
-		cfg.DB.User, cfg.DB.Password, cfg.DB.Host, cfg.DB.Port, cfg.DB.DBName, cfg.DB.SSLMode)
+		cfg.DB.User, cfg.DB.Password, cfg.MigrationHost(), cfg.MigrationPort(), cfg.DB.DBName, cfg.DB.SSLMode)
 
 	sourceDriver, err := iofs.New(migrations.FS, ".")
 	if err != nil {

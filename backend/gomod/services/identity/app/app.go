@@ -57,8 +57,8 @@ func runMigrations(cfg *config.Config) error {
 	// golang-migrate parses postgres:// URLs; a key=value DSN fails with
 	// "failed to parse scheme from database URL". Use the same env overrides
 	// IdentityDNS() honours, rendered as a URL.
-	host := utils.GetEnv("IDENTITY_DB_HOST", utils.GetEnv("DB_IDENTITY_HOST", cfg.DB.Host))
-	port := utils.GetEnv("IDENTITY_DB_PORT", utils.GetEnv("DB_IDENTITY_PORT", cfg.DB.Port))
+	host := utils.GetEnv("IDENTITY_DB_HOST", utils.GetEnv("DB_IDENTITY_HOST", cfg.MigrationHost()))
+	port := utils.GetEnv("IDENTITY_DB_PORT", utils.GetEnv("DB_IDENTITY_PORT", cfg.MigrationPort()))
 	user := utils.GetEnv("IDENTITY_DB_USER", utils.GetEnv("DB_IDENTITY_USER", cfg.DB.User))
 	password := utils.GetEnv("IDENTITY_DB_PASSWORD", utils.GetEnv("DB_IDENTITY_PASSWORD", cfg.DB.Password))
 	dbName := utils.GetEnv("IDENTITY_DB_NAME", utils.GetEnv("DB_IDENTITY_NAME", ""))

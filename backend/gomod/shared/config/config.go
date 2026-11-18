@@ -216,6 +216,26 @@ func envFloat(key string, fallback float64) float64 {
 	return v
 }
 
+// MigrationPort is the port migrations must use, which is not always the one
+// the services use. golang-migrate takes a session-level advisory lock and
+// relies on prepared statements; a transaction pooler (Supavisor :6543,
+// pgbouncer) breaks both, failing with
+//
+//	bind message supplies 1 parameters, but prepared statement "" requires 2
+//
+// DB_DIRECT_PORT points at the session-mode port (:5432) where that works.
+//
+// An existing schema hides this: migrate only takes the lock when it has
+// pending work, so a stack migrated locally keeps booting against the pooler
+// right up until someone deploys against an empty database.
+func (c *Config) MigrationPort() string {
+	return utils.GetEnv("DB_DIRECT_PORT", c.DB.Port)
+}
+
+func (c *Config) MigrationHost() string {
+	return utils.GetEnv("DB_DIRECT_HOST", c.DB.Host)
+}
+
 func (c *Config) DNS() string {
 	if dbURL := utils.GetEnv("DATABASE_URL", utils.GetEnv("DB_URL", "")); dbURL != "" {
 		return dbURL
