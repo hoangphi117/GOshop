@@ -164,7 +164,7 @@ func New(cfg *config.Config) (*App, error) {
 //
 // Nil is the degraded-but-correct mode: every recommendation read goes to the
 // database, which is what this service did before the cache existed. The
-// alternative — a boot-time Ping that fails the container — would make Redis a
+// alternative â€” a boot-time Ping that fails the container â€” would make Redis a
 // dependency of the homepage, and a cache is never worth that.
 func shelfCache() cache.RedisCacheService {
 	if utils.GetEnv("REDIS_ADDR", "") == "" {
@@ -328,7 +328,7 @@ func ensureForeignServer(pool *pgxpool.Pool, cfg *config.Config, s foreignServer
 	}
 
 	// DROP SERVER ... CASCADE would take the foreign tables with it, and those
-	// are created by migrations that have already run — the mirror would
+	// are created by migrations that have already run â€” the mirror would
 	// vanish on every restart. ALTER on an existing server plus a replaced user
 	// mapping reaches the same end state (rotated password included) and
 	// touches no tables.
@@ -371,7 +371,7 @@ func sqlLiteral(s string) string {
 }
 
 func runMigrations(cfg *config.Config) {
-	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&x-migrations-table=schema_migrations_recommendations",
+	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&search_path=public&x-migrations-table=schema_migrations_recommendations",
 		cfg.DB.User, cfg.DB.Password, cfg.DB.Host, cfg.DB.Port, cfg.DB.DBName, cfg.DB.SSLMode)
 
 	sourceDriver, err := iofs.New(migrations.FS, ".")

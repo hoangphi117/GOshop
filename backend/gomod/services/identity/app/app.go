@@ -69,7 +69,7 @@ func runMigrations(cfg *config.Config) error {
 		return nil
 	}
 
-	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&search_path=public",
 		url.QueryEscape(user), url.QueryEscape(password), host, port, dbName, sslMode)
 
 	sourceDriver, err := iofs.New(identitymigrations.FS, ".")

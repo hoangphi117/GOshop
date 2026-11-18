@@ -86,12 +86,12 @@ SELECT setval('users_user_id_seq', (SELECT MAX(user_id) FROM users), true);
 -- ==============================================================================
 INSERT INTO user_addresses (ua_id, ua_uuid, ua_user_id, ua_label, ua_name, ua_phone, ua_address, ua_is_default, ua_province_id, ua_province_name, ua_district_id, ua_district_name, ua_ward_code, ua_ward_name, ua_created_at, ua_updated_at)
 OVERRIDING SYSTEM VALUE VALUES
-(1, gen_random_uuid(), 4, 'Home', 'Nguyen Van An', '0912345678', 'Số 18, Ngõ 45, Đường Trần Duy Hưng, Cầu Giấy, Hà Nội', TRUE, 201, 'Hà Nội', 1488, 'Quận Cầu Giấy', '1A0101', 'Phường Trung Hòa', now() - interval '60 days', now()),
-(2, gen_random_uuid(), 4, 'Office', 'Nguyen Van An', '0912345678', 'Tầng 12, Tòa nhà Landmark 72, Đường Phạm Hùng, Nam Từ Liêm, Hà Nội', FALSE, 201, 'Hà Nội', 1490, 'Quận Nam Từ Liêm', '1A0202', 'Phường Mễ Trì', now() - interval '40 days', now()),
-(3, gen_random_uuid(), 5, 'Home', 'Tran Thi Binh', '0987654321', '245/12 Lê Văn Sỹ, Phường 14, Quận 3, TP. Hồ Chí Minh', TRUE, 202, 'TP. Hồ Chí Minh', 1442, 'Quận 3', '2B0301', 'Phường 14', now() - interval '58 days', now()),
-(4, gen_random_uuid(), 6, 'Home', 'Le Hoang Cuong', '0903112233', '102 Nguyễn Văn Linh, Phường Nam Dương, Quận Hải Châu, Đà Nẵng', TRUE, 203, 'Đà Nẵng', 1520, 'Quận Hải Châu', '3C0101', 'Phường Nam Dương', now() - interval '55 days', now()),
-(5, gen_random_uuid(), 7, 'Home', 'Pham Minh Duc', '0934556677', '56 Đường 30 Tháng 4, Phường An Phú, Quận Ninh Kiều, Cần Thơ', TRUE, 204, 'Cần Thơ', 1550, 'Quận Ninh Kiều', '4D0101', 'Phường An Phú', now() - interval '50 days', now()),
-(6, gen_random_uuid(), 8, 'Home', 'Hoang Thu Giang', '0978990011', '88 Lạch Tray, Quận Ngô Quyền, Hải Phòng', TRUE, 205, 'Hải Phòng', 1580, 'Quận Ngô Quyền', '5E0101', 'Phường Lạch Tray', now() - interval '45 days', now());
+(1, gen_random_uuid(), 4, 'Home', 'Nguyen Van An', '0912345678', 'SÃƒÂ¡Ã‚Â»Ã¢â‚¬Ëœ 18, NgÃƒÆ’Ã‚Âµ 45, Ãƒâ€žÃ‚ÂÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Âng TrÃƒÂ¡Ã‚ÂºÃ‚Â§n Duy HÃƒâ€ Ã‚Â°ng, CÃƒÂ¡Ã‚ÂºÃ‚Â§u GiÃƒÂ¡Ã‚ÂºÃ‚Â¥y, HÃƒÆ’Ã‚Â  NÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i', TRUE, 201, 'HÃƒÆ’Ã‚Â  NÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i', 1488, 'QuÃƒÂ¡Ã‚ÂºÃ‚Â­n CÃƒÂ¡Ã‚ÂºÃ‚Â§u GiÃƒÂ¡Ã‚ÂºÃ‚Â¥y', '1A0101', 'PhÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Âng Trung HÃƒÆ’Ã‚Â²a', now() - interval '60 days', now()),
+(2, gen_random_uuid(), 4, 'Office', 'Nguyen Van An', '0912345678', 'TÃƒÂ¡Ã‚ÂºÃ‚Â§ng 12, TÃƒÆ’Ã‚Â²a nhÃƒÆ’Ã‚Â  Landmark 72, Ãƒâ€žÃ‚ÂÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Âng PhÃƒÂ¡Ã‚ÂºÃ‚Â¡m HÃƒÆ’Ã‚Â¹ng, Nam TÃƒÂ¡Ã‚Â»Ã‚Â« LiÃƒÆ’Ã‚Âªm, HÃƒÆ’Ã‚Â  NÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i', FALSE, 201, 'HÃƒÆ’Ã‚Â  NÃƒÂ¡Ã‚Â»Ã¢â€žÂ¢i', 1490, 'QuÃƒÂ¡Ã‚ÂºÃ‚Â­n Nam TÃƒÂ¡Ã‚Â»Ã‚Â« LiÃƒÆ’Ã‚Âªm', '1A0202', 'PhÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Âng MÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¦ TrÃƒÆ’Ã‚Â¬', now() - interval '40 days', now()),
+(3, gen_random_uuid(), 5, 'Home', 'Tran Thi Binh', '0987654321', '245/12 LÃƒÆ’Ã‚Âª VÃƒâ€žÃ†â€™n SÃƒÂ¡Ã‚Â»Ã‚Â¹, PhÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Âng 14, QuÃƒÂ¡Ã‚ÂºÃ‚Â­n 3, TP. HÃƒÂ¡Ã‚Â»Ã¢â‚¬Å“ ChÃƒÆ’Ã‚Â­ Minh', TRUE, 202, 'TP. HÃƒÂ¡Ã‚Â»Ã¢â‚¬Å“ ChÃƒÆ’Ã‚Â­ Minh', 1442, 'QuÃƒÂ¡Ã‚ÂºÃ‚Â­n 3', '2B0301', 'PhÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Âng 14', now() - interval '58 days', now()),
+(4, gen_random_uuid(), 6, 'Home', 'Le Hoang Cuong', '0903112233', '102 NguyÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¦n VÃƒâ€žÃ†â€™n Linh, PhÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Âng Nam DÃƒâ€ Ã‚Â°Ãƒâ€ Ã‚Â¡ng, QuÃƒÂ¡Ã‚ÂºÃ‚Â­n HÃƒÂ¡Ã‚ÂºÃ‚Â£i ChÃƒÆ’Ã‚Â¢u, Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â  NÃƒÂ¡Ã‚ÂºÃ‚Âµng', TRUE, 203, 'Ãƒâ€žÃ‚ÂÃƒÆ’Ã‚Â  NÃƒÂ¡Ã‚ÂºÃ‚Âµng', 1520, 'QuÃƒÂ¡Ã‚ÂºÃ‚Â­n HÃƒÂ¡Ã‚ÂºÃ‚Â£i ChÃƒÆ’Ã‚Â¢u', '3C0101', 'PhÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Âng Nam DÃƒâ€ Ã‚Â°Ãƒâ€ Ã‚Â¡ng', now() - interval '55 days', now()),
+(5, gen_random_uuid(), 7, 'Home', 'Pham Minh Duc', '0934556677', '56 Ãƒâ€žÃ‚ÂÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Âng 30 ThÃƒÆ’Ã‚Â¡ng 4, PhÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Âng An PhÃƒÆ’Ã‚Âº, QuÃƒÂ¡Ã‚ÂºÃ‚Â­n Ninh KiÃƒÂ¡Ã‚Â»Ã‚Âu, CÃƒÂ¡Ã‚ÂºÃ‚Â§n ThÃƒâ€ Ã‚Â¡', TRUE, 204, 'CÃƒÂ¡Ã‚ÂºÃ‚Â§n ThÃƒâ€ Ã‚Â¡', 1550, 'QuÃƒÂ¡Ã‚ÂºÃ‚Â­n Ninh KiÃƒÂ¡Ã‚Â»Ã‚Âu', '4D0101', 'PhÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Âng An PhÃƒÆ’Ã‚Âº', now() - interval '50 days', now()),
+(6, gen_random_uuid(), 8, 'Home', 'Hoang Thu Giang', '0978990011', '88 LÃƒÂ¡Ã‚ÂºÃ‚Â¡ch Tray, QuÃƒÂ¡Ã‚ÂºÃ‚Â­n NgÃƒÆ’Ã‚Â´ QuyÃƒÂ¡Ã‚Â»Ã‚Ân, HÃƒÂ¡Ã‚ÂºÃ‚Â£i PhÃƒÆ’Ã‚Â²ng', TRUE, 205, 'HÃƒÂ¡Ã‚ÂºÃ‚Â£i PhÃƒÆ’Ã‚Â²ng', 1580, 'QuÃƒÂ¡Ã‚ÂºÃ‚Â­n NgÃƒÆ’Ã‚Â´ QuyÃƒÂ¡Ã‚Â»Ã‚Ân', '5E0101', 'PhÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Âng LÃƒÂ¡Ã‚ÂºÃ‚Â¡ch Tray', now() - interval '45 days', now());
 
 -- Generate addresses for users 9 to 51
 INSERT INTO user_addresses (ua_id, ua_uuid, ua_user_id, ua_label, ua_name, ua_phone, ua_address, ua_is_default, ua_province_id, ua_province_name, ua_district_id, ua_district_name, ua_ward_code, ua_ward_name, ua_created_at, ua_updated_at)
@@ -103,14 +103,14 @@ SELECT
     'Home',
     u.user_fullname,
     '09' || lpad((10000000 + u.user_id * 179)::text, 8, '0'),
-    'Số ' || (u.user_id * 3 + 10) || ' Phố ' || (ARRAY['Nguyễn Huệ', 'Lê Lợi', 'Hoàng Hoa Thám', 'Võ Văn Kiệt', 'Hai Bà Trưng', 'Điện Biên Phủ'])[1 + (u.user_id % 6)] || ', TP. HCM',
+    'SÃƒÂ¡Ã‚Â»Ã¢â‚¬Ëœ ' || (u.user_id * 3 + 10) || ' PhÃƒÂ¡Ã‚Â»Ã¢â‚¬Ëœ ' || (ARRAY['NguyÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¦n HuÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡', 'LÃƒÆ’Ã‚Âª LÃƒÂ¡Ã‚Â»Ã‚Â£i', 'HoÃƒÆ’Ã‚Â ng Hoa ThÃƒÆ’Ã‚Â¡m', 'VÃƒÆ’Ã‚Âµ VÃƒâ€žÃ†â€™n KiÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡t', 'Hai BÃƒÆ’Ã‚Â  TrÃƒâ€ Ã‚Â°ng', 'Ãƒâ€žÃ‚ÂiÃƒÂ¡Ã‚Â»Ã¢â‚¬Â¡n BiÃƒÆ’Ã‚Âªn PhÃƒÂ¡Ã‚Â»Ã‚Â§'])[1 + (u.user_id % 6)] || ', TP. HCM',
     TRUE,
     202,
-    'TP. Hồ Chí Minh',
+    'TP. HÃƒÂ¡Ã‚Â»Ã¢â‚¬Å“ ChÃƒÆ’Ã‚Â­ Minh',
     1440 + (u.user_id % 10),
-    'Quận ' || (1 + (u.user_id % 10)),
+    'QuÃƒÂ¡Ã‚ÂºÃ‚Â­n ' || (1 + (u.user_id % 10)),
     '2B00' || (u.user_id % 20),
-    'Phường ' || (1 + (u.user_id % 15)),
+    'PhÃƒâ€ Ã‚Â°ÃƒÂ¡Ã‚Â»Ã‚Âng ' || (1 + (u.user_id % 15)),
     now() - (u.user_id || ' days')::interval,
     now()
 FROM users u
@@ -392,9 +392,13 @@ TRUNCATE TABLE cart_items, carts RESTART IDENTITY CASCADE;
 TRUNCATE TABLE stock_movements, inventory_stocks RESTART IDENTITY CASCADE;
 CREATE EXTENSION IF NOT EXISTS dblink;
 
+-- The conninfo is the real DSN, substituted by the Go seeder ({{db_catalog}});
+-- dblink opens its own libpq connection and inherits nothing from this session,
+-- so a bare 'dbname=shopping_catalog' is rejected on any server that demands a
+-- password (Supabase: "password or GSSAPI delegated credentials required").
 INSERT INTO inventory_stocks (product_id, product_uuid, quantity)
 SELECT product_id, product_uuid, 20 + (product_id * 13) % 100
-FROM dblink('dbname=shopping_catalog', 'SELECT product_id, product_uuid FROM products WHERE product_deleted_at IS NULL')
+FROM dblink('{{db_catalog}}', 'SET search_path TO {{db_search_path}}; SELECT product_id, product_uuid FROM products WHERE product_deleted_at IS NULL')
 AS t(product_id int, product_uuid uuid);
 
 INSERT INTO stock_movements (product_id, product_uuid, change_type, quantity_change, stock_before, stock_after, reference_type, reference_id, note, created_at)
@@ -513,8 +517,7 @@ CROSS JOIN LATERAL generate_series(1, 1 + o.order_id % 3) AS line_no
 CROSS JOIN LATERAL (
     SELECT 1 + ((o.order_id * 13 + line_no * 7) % 400) AS product_id, 1 + ((o.order_id + line_no) % 2) AS qty
 ) AS pick
-JOIN dblink('dbname=shopping_catalog',
-    'SELECT product_id, product_uuid, product_name, product_slug, product_image_url, product_price
+JOIN dblink('{{db_catalog}}', 'SET search_path TO {{db_search_path}}; SELECT product_id, product_uuid, product_name, product_slug, product_image_url, product_price
      FROM products WHERE product_deleted_at IS NULL')
     AS p(product_id int, product_uuid uuid, product_name text, product_slug text, product_image_url text, product_price numeric)
     ON p.product_id = pick.product_id;
@@ -569,8 +572,7 @@ CROSS JOIN LATERAL (
     FROM seed_lines l
     WHERE l.order_id = o.order_id
 ) AS lt
-JOIN dblink('dbname=shopping_identity',
-    'SELECT user_id, user_uuid, user_fullname, user_email FROM users WHERE user_id BETWEEN 4 AND 51')
+JOIN dblink('{{db_identity}}', 'SET search_path TO {{db_search_path}}; SELECT user_id, user_uuid, user_fullname, user_email FROM users WHERE user_id BETWEEN 4 AND 51')
     AS u(user_id int, user_uuid uuid, user_fullname text, user_email text)
     ON u.user_id = 4 + ((o.order_id * 11) % 48);
 
@@ -652,8 +654,7 @@ SELECT o.order_id, o.order_uuid,
     'VND', f.status,
     f.paid_at, f.expired_at,
     o.order_created_at, COALESCE(f.paid_at, f.expired_at, o.order_created_at + interval '5 minutes')
-FROM dblink('dbname=shopping_order',
-    'SELECT order_uuid, order_id, order_number, order_created_at, order_cancelled_at,
+FROM dblink('{{db_order}}', 'SET search_path TO {{db_search_path_order}}; SELECT order_uuid, order_id, order_number, order_created_at, order_cancelled_at,
             order_payment_method, order_payment_status, order_status,
             order_subtotal_amount, order_discount_amount, order_shipping_fee
      FROM orders.orders WHERE order_payment_method IN (2, 3)')
@@ -681,8 +682,7 @@ SELECT t.pt_order_id, t.pt_order_uuid, 'refund:' || t.pt_uuid::text, t.pt_provid
     'RF' || t.pt_txn_ref, t.pt_provider_txn_id, 100000, 'VND', 5, t.pt_id, 100000,
     t.pt_paid_at + interval '2 days', t.pt_paid_at + interval '2 days'
 FROM payment_transactions t
-JOIN dblink('dbname=shopping_order',
-    'SELECT order_id FROM orders.orders WHERE order_status = 6 AND order_payment_status = 3')
+JOIN dblink('{{db_order}}', 'SET search_path TO {{db_search_path_order}}; SELECT order_id FROM orders.orders WHERE order_status = 6 AND order_payment_status = 3')
     AS o(order_id int) ON o.order_id = t.pt_order_id;
 
 SELECT setval('payment_transactions_pt_id_seq', (SELECT MAX(pt_id) FROM payment_transactions), true);
@@ -720,8 +720,7 @@ SELECT
     o.order_payment_status, o.order_note, o.order_status, o.order_shipping_provider,
     o.order_shipping_code, o.order_shipping_fee, o.order_delivered_at,
     o.order_cancelled_at, o.order_created_at, o.order_updated_at
-FROM dblink('dbname=shopping_order',
-    'SELECT order_id, order_uuid, order_number, order_user_id, order_user_uuid,
+FROM dblink('{{db_order}}', 'SET search_path TO {{db_search_path_order}}; SELECT order_id, order_uuid, order_number, order_user_id, order_user_uuid,
             order_customer_name, order_customer_email, order_shipping_name,
             order_shipping_phone, order_shipping_address, order_total_amount,
             order_refunded_amount, order_discount_amount, order_payment_method,
@@ -746,8 +745,7 @@ SELECT
     i.order_item_uuid, i.order_item_order_id, i.order_item_product_id, i.order_item_product_uuid,
     i.order_item_product_name, i.order_item_price, i.order_item_quantity, i.order_item_subtotal,
     i.order_item_created_at
-FROM dblink('dbname=shopping_order',
-    'SELECT order_item_uuid, order_item_order_id, order_item_product_id, order_item_product_uuid,
+FROM dblink('{{db_order}}', 'SET search_path TO {{db_search_path_order}}; SELECT order_item_uuid, order_item_order_id, order_item_product_id, order_item_product_uuid,
             order_item_product_name, order_item_price, order_item_quantity, order_item_subtotal,
             order_item_created_at
      FROM orders.order_items')

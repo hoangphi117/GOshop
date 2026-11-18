@@ -5,6 +5,10 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+      # Dev-only: serves `next dev` on the host (:3001) through this same edge,
+      # see nginx/conf.d/3001-dev.conf. Without it the storefront page and the
+      # API sit on different origins and the HttpOnly refresh cookie is dropped.
+      - "3001:3001"
     environment:
       - API_KEY=${API_KEY:?API_KEY must be set (edge injects it server-side)}
       - MEILISEARCH_MASTER_KEY=${MEILISEARCH_MASTER_KEY:?MEILISEARCH_MASTER_KEY must be set (edge injects it for /search-api)}
@@ -21,7 +25,7 @@ services:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./nginx/templates:/etc/nginx/templates:ro
       - ./backend/uploads:/var/www/uploads:ro
-      # Admin dashboard SPA — static build from the host (or CI artifact).
+      # Admin dashboard SPA: static build from the host (or CI artifact).
       - ./frontend/apps/dashboard/dist:/srv/dashboard:ro
     depends_on:
       - api
@@ -42,7 +46,11 @@ services:
       - ./backend/.env
     environment:
       - APP_ENV=development
-      - DB_HOST=postgres
+      # ${DB_HOST:-postgres} rather than a literal: the block below wins over
+      # env_file, so a hardcoded value silently pinned every service to the
+      # local container and made `DB_HOST=<managed host>` in backend/.env a lie.
+      # The default keeps the plain local topology working.
+      - DB_HOST=${DB_HOST:-postgres}
       - REDIS_ADDR=redis:6379
       - KAFKA_BROKERS=kafka:29092
       # Dev broker is PLAINTEXT (see the kafka service below) and no TLS cert is
@@ -121,7 +129,7 @@ services:
       - ./backend/.env
     environment:
       - APP_ENV=development
-      - DB_HOST=postgres
+      - DB_HOST=${DB_HOST:-postgres}
       - DB_NAME=shopping_identity
       - IDENTITY_DB_NAME=shopping_identity
       - REDIS_ADDR=redis:6379
@@ -170,7 +178,7 @@ services:
       - ./backend/.env
     environment:
       - APP_ENV=development
-      - DB_HOST=postgres
+      - DB_HOST=${DB_HOST:-postgres}
       - DB_NAME=shopping_notification
       - REDIS_ADDR=redis:6379
       - KAFKA_BROKERS=kafka:29092
@@ -204,7 +212,7 @@ services:
 
   media:
     # The gateway proxies /api/v1/upload/* to MEDIA_SERVICE_URL
-    # (http://media:8094). Uploads are stateless, so this service needs no DB —
+    # (http://media:8094). Uploads are stateless, so this service needs no DB â€”
     # only Redis, Kafka and the storage backend from backend/.env.
     build:
       context: ./backend
@@ -271,7 +279,7 @@ services:
       - ./backend/.env
     environment:
       - APP_ENV=development
-      - DB_HOST=postgres
+      - DB_HOST=${DB_HOST:-postgres}
       - DB_NAME=shopping_analytics
       - ANALYTICS_DB_NAME=shopping_analytics
       - ANALYTICS_SERVER_PORT=8092
@@ -374,7 +382,7 @@ services:
       - ./backend/.env
     environment:
       - APP_ENV=development
-      - DB_HOST=postgres
+      - DB_HOST=${DB_HOST:-postgres}
       - DB_NAME=shopping_payment
       - PAYMENT_DB_NAME=shopping_payment
       - REDIS_ADDR=redis:6379
@@ -424,7 +432,7 @@ services:
       - ./backend/.env
     environment:
       - APP_ENV=development
-      - DB_HOST=postgres
+      - DB_HOST=${DB_HOST:-postgres}
       - DB_NAME=shopping_catalog
       - CATALOG_DB_NAME=shopping_catalog
       - CATALOG_SERVER_PORT=8086
@@ -480,7 +488,7 @@ services:
       - ./backend/.env
     environment:
       - APP_ENV=development
-      - DB_HOST=postgres
+      - DB_HOST=${DB_HOST:-postgres}
       - DB_NAME=shopping_inventory
       - INVENTORY_DB_NAME=shopping_inventory
       - INVENTORY_SERVER_PORT=8090
@@ -528,7 +536,7 @@ services:
       - ./backend/.env
     environment:
       - APP_ENV=development
-      - DB_HOST=postgres
+      - DB_HOST=${DB_HOST:-postgres}
       - DB_NAME=shopping_coupon
       - COUPON_DB_NAME=shopping_coupon
       - COUPON_SERVER_PORT=8084
@@ -574,7 +582,7 @@ services:
       - ./backend/.env
     environment:
       - APP_ENV=development
-      - DB_HOST=postgres
+      - DB_HOST=${DB_HOST:-postgres}
       - DB_NAME=shopping_cart
       - CART_DB_NAME=shopping_cart
       - CART_SERVER_PORT=8087
@@ -621,7 +629,7 @@ services:
       - ./backend/.env
     environment:
       - APP_ENV=development
-      - DB_HOST=postgres
+      - DB_HOST=${DB_HOST:-postgres}
       - DB_NAME=shopping_banner
       - BANNER_DB_NAME=shopping_banner
       - BANNER_SERVER_PORT=8089
@@ -663,7 +671,7 @@ services:
       - ./backend/.env
     environment:
       - APP_ENV=development
-      - DB_HOST=postgres
+      - DB_HOST=${DB_HOST:-postgres}
       - DB_NAME=shopping_recs
       - RECOMMENDATIONS_DB_NAME=shopping_recs
       - RECOMMENDATIONS_SERVER_PORT=8095
@@ -746,7 +754,7 @@ services:
       - ./backend/.env
     environment:
       - APP_ENV=development
-      - DB_HOST=postgres
+      - DB_HOST=${DB_HOST:-postgres}
       - DB_NAME=shopping_review
       - REVIEW_DB_NAME=shopping_review
       - REVIEW_SERVER_PORT=8091
@@ -797,7 +805,7 @@ services:
       - ./backend/.env
     environment:
       - APP_ENV=development
-      - DB_HOST=postgres
+      - DB_HOST=${DB_HOST:-postgres}
       - DB_NAME=shopping_order
       - ORDER_DB_NAME=shopping_order
       - REDIS_ADDR=redis:6379
@@ -867,7 +875,7 @@ services:
       - ./backend/.env
     environment:
       - APP_ENV=development
-      - DB_HOST=postgres
+      - DB_HOST=${DB_HOST:-postgres}
       - DB_NAME=shopping_chat
       - CHAT_DB_NAME=shopping_chat
       - CHAT_SERVER_PORT=8093
@@ -1064,7 +1072,7 @@ services:
       - goshop-network
 
   kafka-init:
-    # One-shot: creates the domain topics from the plan (§4.1) before any
+    # One-shot: creates the domain topics from the plan (Â§4.1) before any
     # consumer starts. AUTO_CREATE is off so a typo fails loudly here.
     image: apache/kafka:3.9.0
     container_name: goshop-kafka-init

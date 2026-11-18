@@ -1,0 +1,60 @@
+# Whole backend in one image, for hosts that expose a single port.
+#
+# Why this exists instead of one Render service per binary: Render private
+# services publish exactly one port, and catalog/identity/inventory open a
+# second (gRPC) listener at boot. The compose stack is the topology that
+# actually works, so this image runs it the way docker-compose.prod.yml does.
+#
+# Dev parity: same base images and the same build flags as
+# build/Dockerfile.service, so a failure here is reproducible locally.
+#
+# Skipped on purpose: the broker, since managed Kafka (Upstash) replaces it, and
+# the TLS listeners, because the gateway terminates nothing — see §4.2 of
+# docs/DEPLOY-DOMAIN-RENDER-VERCEL.md.
+
+FROM golang:1.26.10-alpine AS builder
+
+RUN apk add --no-cache ca-certificates
+WORKDIR /app
+COPY go.work ./
+COPY gomod/shared/go.mod gomod/shared/go.sum ./gomod/shared/
+COPY gomod/contracts/go.mod gomod/contracts/go.sum ./gomod/contracts/
+COPY gomod/services/go.mod gomod/services/go.sum ./gomod/services/
+COPY gomod/cmd/go.mod gomod/cmd/go.sum ./gomod/cmd/
+
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go mod download
+
+COPY . .
+
+# One loop, one from the same build flag set: a service added to cmd/ is picked
+# up without editing this file. The one-off tools (seed, dlqreplay, loadtest,
+# reindex-images, integration) and .runtime are skipped: they are not servers,
+# and `seed` needs a CLI run, not a resident process.
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    set -eu; mkdir -p /out; cd gomod/cmd; \
+    for svc in analytics api assistant banner cart catalog chat coupon identity \
+               inventory media notification order payment recommendations \
+               review worker ws-gateway; do \
+      CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o "/out/$svc" "./$svc"; \
+    done
+
+FROM alpine:3.19
+
+RUN apk add --no-cache ca-certificates tzdata
+WORKDIR /app
+COPY --from=builder /out/ /app/bin/
+COPY deploy/render/start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+
+ENV APP_ENV=production
+# Render injects PORT; the gateway is the only public listener.
+ENV PORT=8080
+# Go services each get a small slice; 17 processes on one 2 GB instance.
+ENV GOMEMLIMIT=96MiB
+ENV GOMAXPROCS=1
+
+EXPOSE 8080
+ENTRYPOINT ["/app/start.sh"]

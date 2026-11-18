@@ -50,11 +50,19 @@ importdb:
 exportdb:
 	docker exec -i goshop-postgres pg_dump -U ${DB_USER} -d ${DB_NAME} > ./backupdb.sql
 
-seed:
-	cd backend/gomod/cmd && go run ./seed
+# There is no local postgres container any more: the stack talks to Supabase
+# through backend/.env (DB_HOST = pooler). The Go seeder is the one entry point
+# that understands that topology — it reads DB_DIRECT_* for the dblink() calls
+# the plain SQL cannot do, so seeding is `go run ./cmd/seed`, not
+# `psql < seed.sql`.
+#
+# Run from backend/gomod, NOT backend/gomod/cmd: the seeder looks for
+# scripts/seed.sql at most two levels above the module root, and from cmd/ the
+# repo root is three levels up.
+seed: seed-docker
 
 seed-docker:
-	docker exec -i goshop-postgres psql -U ${DB_USER} -d ${DB_NAME} < ./scripts/seed.sql
+	cd backend/gomod && go run ./cmd/seed
 
 server:
 	cd backend/gomod/cmd && go run ./api
