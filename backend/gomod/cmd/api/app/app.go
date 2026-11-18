@@ -103,6 +103,8 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		})
 	}
 
+	// NewRedisClient returns nil when the broker is unreachable; the cache layer
+	// then serves from process memory and the health module reports "unconfigured".
 	redisClient := config.NewRedisClient()
 	cacheRedisService := cache.NewRedisCacheService(redisClient)
 	tokenService := auth.NewJWTService(cacheRedisService)
@@ -119,8 +121,11 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 		brokerLogger,
 	)
 	if err != nil {
-		logger.Log.Fatal().Err(err).Msg("Failed to create Kafka service")
-		return nil, err
+		// The gateway serves reads and writes without a broker; events simply stop
+		// flowing. Treating that as fatal turns a broker misconfiguration into a
+		// total outage, including the endpoints needed to diagnose it.
+		logger.Log.Warn().Err(err).Msg("Kafka unavailable; events will not be published")
+		broker = nil
 	}
 
 	modules := []Module{

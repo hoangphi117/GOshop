@@ -6,6 +6,7 @@ package kafka
 
 import (
 	"errors"
+	"sort"
 	"strings"
 )
 
@@ -32,6 +33,24 @@ const dlqSuffix = ".dlq"
 // DLQName returns the dead-letter topic for a domain topic.
 func DLQName(topic string) string {
 	return topic + dlqSuffix
+}
+
+// DomainTopics lists every distinct domain topic the services publish to,
+// in a stable order (sorted), without the DLQ siblings. Consumers of this list
+// are the topic bootstrap (to create them before first publish) and the DLQ
+// tooling.
+func DomainTopics() []string {
+	seen := make(map[string]struct{}, len(domainTopics))
+	out := make([]string, 0, len(domainTopics))
+	for _, spec := range domainTopics {
+		if _, dup := seen[spec.topic]; dup {
+			continue
+		}
+		seen[spec.topic] = struct{}{}
+		out = append(out, spec.topic)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // KnownDLQTopics lists the DLQ sibling for every configured domain topic.

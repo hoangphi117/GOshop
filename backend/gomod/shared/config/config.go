@@ -236,6 +236,23 @@ func (c *Config) MigrationHost() string {
 	return utils.GetEnv("DB_DIRECT_HOST", c.DB.Host)
 }
 
+// MigrationURL is the postgres:// DSN for golang-migrate, pointed at the
+// session-mode host/port. Every migration set - the service's own and the
+// event ledger's - must use it: migrate takes a session advisory lock, which a
+// transaction pooler cannot hold, and on a full pool the pooler answers
+//
+//	pq: remaining connection slots are reserved for roles with the SUPERUSER attribute
+//
+// which reads like a permissions bug but is only exhaustion.
+//
+// searchPath and migrationsTable are per-database because several embedded
+// migration sets share one database and would otherwise collide on the
+// version table.
+func (c *Config) MigrationURL(searchPath, migrationsTable string) string {
+	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&search_path=%s&x-migrations-table=%s",
+		c.DB.User, c.DB.Password, c.MigrationHost(), c.MigrationPort(), c.DB.DBName, c.DB.SSLMode, searchPath, migrationsTable)
+}
+
 func (c *Config) DNS() string {
 	if dbURL := utils.GetEnv("DATABASE_URL", utils.GetEnv("DB_URL", "")); dbURL != "" {
 		return dbURL

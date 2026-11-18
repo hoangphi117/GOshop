@@ -2,6 +2,7 @@ package config
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -82,4 +83,29 @@ func TestNewRedisOptions_BadURL(t *testing.T) {
 
 	_, _, err := newRedisOptions()
 	require.Error(t, err)
+}
+
+// The optional variant is what lets a deployment run without a shared cache:
+// unset must mean "no Redis", not "dial localhost and retry five times".
+func TestNewOptionalRedisOptions_UnsetMeansNoRedis(t *testing.T) {
+	t.Setenv("REDIS_URL", "")
+	t.Setenv("REDIS_ADDR", "")
+
+	opt, err := NewOptionalRedisOptions()
+	require.NoError(t, err)
+	assert.Nil(t, opt, "an unset address must yield no client, not a localhost client")
+}
+
+func TestNewOptionalRedisOptions_ConfiguredReturnsOptions(t *testing.T) {
+	t.Setenv("REDIS_URL", "")
+	t.Setenv("REDIS_ADDR", "red-abc123:6379")
+
+	opt, err := NewOptionalRedisOptions()
+	require.NoError(t, err)
+	require.NotNil(t, opt)
+	assert.Equal(t, "red-abc123:6379", opt.Addr)
+}
+
+func TestPingRedis_NilIsError(t *testing.T) {
+	require.Error(t, PingRedis(nil, 50*time.Millisecond))
 }

@@ -37,9 +37,14 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     set -eu; mkdir -p /out; cd gomod/cmd; \
     for svc in analytics api assistant banner cart catalog chat coupon identity \
                inventory media notification order payment recommendations \
-               review worker ws-gateway; do \
+               review worker ws-gateway kafkatopics; do \
       CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o "/out/$svc" "./$svc"; \
     done
+
+# kafkatopics is a one-shot tool, kept in /app/bin but NOT started by
+# start.sh: it creates the Kafka topics the services publish to. Redpanda Cloud
+# does not auto-create, and a missing topic fails the publisher, not the
+# consumer. Run it manually from a Render job/shell against the same env.
 
 FROM alpine:3.19
 
@@ -47,6 +52,7 @@ RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 COPY --from=builder /out/ /app/bin/
 COPY deploy/render/start.sh /app/start.sh
+COPY deploy/render/kafka-topics.txt /app/kafka-topics.txt
 # Only the PUBLIC key is baked in: it is not a secret (the app serves it at
 # /api/v1/.well-known/jwks.json), and all 16 verifier services need it to accept
 # a token. The private key stays out of git (.gitignore: certs/) and is supplied

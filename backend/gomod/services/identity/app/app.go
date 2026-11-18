@@ -139,10 +139,14 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, err
 	}
 
+	// A missing SMTP block degrades registration emails (OTP, verification) to a
+	// logged warning. Exiting here took the whole auth service down, including
+	// login for accounts that already exist, so it is the wrong failure mode for
+	// a deployment that is still being configured.
 	mailService, err := mail.NewMailService(cfg, mailLogger, factory)
 	if err != nil {
-		mailLogger.Error().Err(err).Msg("Failed to create mail service")
-		return nil, err
+		mailLogger.Warn().Err(err).Msg("Mail provider unavailable; verification and OTP emails will not be sent")
+		mailService = nil
 	}
 
 	brokerLogger := utils.NewLoggerWithPath("identity", "identity_kafka.log", "info")
@@ -150,6 +154,9 @@ func New(cfg *config.Config) (*App, error) {
 		brokerLogger,
 	)
 	if err != nil {
+		// Auth services are not gated on Kafka in a way the app owns, so keep the
+		// existing hard failure: an identity service that silently drops user
+		// events is worse than a restart loop you can see in the logs.
 		logger.Log.Fatal().Err(err).Msg("Failed to create Kafka service")
 		return nil, err
 	}
@@ -212,6 +219,11 @@ func New(cfg *config.Config) (*App, error) {
 
 	// gRPC Server Initialization
 	grpcPort := utils.GetEnv("IDENTITY_GRPC_PORT", ":50051")
+	// net.Listen wants an address, not a bare port; normalise so the env value can
+	// be written either way.
+	if !strings.HasPrefix(grpcPort, ":") {
+		grpcPort = ":" + grpcPort
+	}
 	if !strings.HasPrefix(grpcPort, ":") {
 		grpcPort = ":" + grpcPort
 	}

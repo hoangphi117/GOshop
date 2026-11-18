@@ -70,8 +70,7 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	// Run embedded migrations
-	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&search_path=public&x-migrations-table=schema_migrations_inventory",
-		cfg.DB.User, cfg.DB.Password, cfg.MigrationHost(), cfg.MigrationPort(), cfg.DB.DBName, cfg.DB.SSLMode)
+	connStr := cfg.MigrationURL("public", "schema_migrations_inventory")
 	sourceDriver, err := iofs.New(migrations.FS, ".")
 	if err != nil {
 		logger.Log.Warn().Err(err).Msg("Could not load embedded migrations source for inventory service")
@@ -103,8 +102,9 @@ func New(cfg *config.Config) (*App, error) {
 		inventoryBrokerLogger,
 	)
 	if err != nil {
-		logger.Log.Error().Err(err).Msg("Failed to connect Kafka for inventory service event consumers")
-		return nil, fmt.Errorf("kafka connect failed: %w", err)
+		// Stock release is compensating work triggered by other domains' events.
+		// Losing it degrades correctness of cancellations but not the sell path.
+		logger.Log.Warn().Err(err).Msg("Kafka unavailable; inventory stock-release consumers disabled")
 	}
 	if err := eventledger.Migrate(connStr, "event_ledger_migrations_inventory"); err != nil {
 		logger.Log.Error().Err(err).Msg("Failed to migrate event ledger for inventory service")
@@ -176,6 +176,10 @@ func (a *App) Run(ctx context.Context) error {
 	// Topic consumers: stock release on order.cancelled, restock on
 	// order_return.completed (branch F ownership move).
 	go func() {
+		if a.broker == nil {
+			logger.Log.Warn().Msg("Inventory event consumers skipped: no broker")
+			return
+		}
 		for _, sub := range a.topicSubscriptions {
 			if err := a.broker.SubscribeTopic(ctx, sub.queue, []string{sub.routingKey}, sub.handler); err != nil {
 				logger.Log.Error().Err(err).Str("queue", sub.queue).Str("routing_key", sub.routingKey).Msg("Inventory event consumer stopped")
