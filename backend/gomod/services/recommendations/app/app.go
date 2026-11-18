@@ -67,10 +67,7 @@ func New(cfg *config.Config) (*App, error) {
 	ensureAnalyticsServer(db.DBPool, cfg)
 	runMigrations(cfg)
 
-	catalogTarget := utils.GetEnv("CATALOG_GRPC_TARGET", "")
-	if catalogTarget == "" {
-		return nil, fmt.Errorf("CATALOG_GRPC_TARGET is required")
-	}
+	catalogTarget := utils.GetEnv("CATALOG_GRPC_TARGET", "127.0.0.1:50055")
 	catalogClient, err := catalogcontract.NewGRPCCatalogClient(catalogTarget)
 	if err != nil {
 		return nil, fmt.Errorf("catalog gRPC client: %w", err)
@@ -164,29 +161,24 @@ func New(cfg *config.Config) (*App, error) {
 //
 // Nil is the degraded-but-correct mode: every recommendation read goes to the
 // database, which is what this service did before the cache existed. The
-// alternative â€” a boot-time Ping that fails the container â€” would make Redis a
+// alternative — a boot-time Ping that fails the container — would make Redis a
 // dependency of the homepage, and a cache is never worth that.
 func shelfCache() cache.RedisCacheService {
-	if utils.GetEnv("REDIS_ADDR", "") == "" {
-		logger.Log.Info().Msg("REDIS_ADDR not set; recommendation shelves are uncached")
-		return nil
-	}
-	// NewRedisClient pings and Fatals on failure, which is right for services
-	// that cannot run without Redis and wrong for this one.
-	redisOpt, err := config.NewRedisOptions()
+	redisOpt, err := config.NewOptionalRedisOptions()
 	if err != nil {
 		logger.Log.Warn().Err(err).Msg("Redis not configured; recommendation shelves are uncached")
 		return nil
 	}
-	client := redis.NewClient(redisOpt)
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	if err := client.Ping(ctx).Err(); err != nil {
+	if redisOpt == nil {
+		logger.Log.Info().Msg("REDIS_ADDR not set; recommendation shelves are uncached")
+		return nil
+	}
+	if err := config.PingRedis(redisOpt, 3*time.Second); err != nil {
 		logger.Log.Warn().Err(err).Msg("Redis unreachable; recommendation shelves are uncached")
 		return nil
 	}
 	logger.Log.Info().Msg("Recommendation shelf cache enabled")
-	return cache.NewRedisCacheService(client)
+	return cache.NewRedisCacheService(redis.NewClient(redisOpt))
 }
 
 // refreshReadModelsAfterMigrations rebuilds the three read models in the order
@@ -366,8 +358,7 @@ func sqlLiteral(s string) string {
 }
 
 func runMigrations(cfg *config.Config) {
-	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&search_path=public&x-migrations-table=schema_migrations_recommendations",
-		cfg.DB.User, cfg.DB.Password, cfg.MigrationHost(), cfg.MigrationPort(), cfg.DB.DBName, cfg.DB.SSLMode)
+	connStr := cfg.MigrationURL("public", "schema_migrations_recommendations")
 
 	sourceDriver, err := iofs.New(migrations.FS, ".")
 	if err != nil {

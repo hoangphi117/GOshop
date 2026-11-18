@@ -63,8 +63,7 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	// Run embedded migrations
-	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&search_path=public&x-migrations-table=schema_migrations_coupon",
-		cfg.DB.User, cfg.DB.Password, cfg.MigrationHost(), cfg.MigrationPort(), cfg.DB.DBName, cfg.DB.SSLMode)
+	connStr := cfg.MigrationURL("public", "schema_migrations_coupon")
 	sourceDriver, err := iofs.New(migrations.FS, ".")
 	if err != nil {
 		logger.Log.Warn().Err(err).Msg("Could not load embedded migrations source for coupon service")
@@ -96,8 +95,10 @@ func New(cfg *config.Config) (*App, error) {
 		couponBrokerLogger,
 	)
 	if err != nil {
-		logger.Log.Error().Err(err).Msg("Failed to connect Kafka for coupon service event consumer")
-		return nil, fmt.Errorf("kafka connect failed: %w", err)
+		// Degraded, not dead: checkout keeps working, only the coupon release on
+		// order.cancelled stops. Booting anyway is what lets a deployment whose
+		// broker is misconfigured still serve traffic.
+		logger.Log.Warn().Err(err).Msg("Kafka unavailable; coupon release on order.cancelled disabled")
 	}
 	if err := eventledger.Migrate(connStr, "event_ledger_migrations_coupon"); err != nil {
 		logger.Log.Error().Err(err).Msg("Failed to migrate event ledger for coupon service")
@@ -160,6 +161,10 @@ func (a *App) Run(ctx context.Context) error {
 
 	// Topic consumer: coupon release on order.cancelled (branch F ownership move)
 	go func() {
+		if a.broker == nil {
+			logger.Log.Warn().Str("queue", events.QueueCouponOrderEvents).Msg("Coupon event consumer skipped: no broker")
+			return
+		}
 		for _, consumerFn := range a.eventConsumers {
 			if err := a.broker.SubscribeTopic(ctx, events.QueueCouponOrderEvents, []string{events.RoutingKeyOrderCancelled}, consumerFn); err != nil {
 				logger.Log.Error().Err(err).Str("queue", events.QueueCouponOrderEvents).Msg("Coupon event consumer stopped")

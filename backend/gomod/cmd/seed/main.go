@@ -13,6 +13,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 
+	"goshop/shared/config"
 	"goshop/shared/pkg/logger"
 	"goshop/shared/pkg/search"
 	"goshop/shared/pkg/utils"
@@ -99,13 +100,12 @@ func main() {
 // a live product, and drop catalog caches so reads cannot serve stale rows.
 func purgeSearchAndCache(ctx context.Context, dsn string) {
 	// 1. Expire catalog caches.
-	redisAddr := utils.GetEnv("REDIS_ADDR", "localhost:6379")
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     redisAddr,
-		Username: utils.GetEnv("REDIS_USER", ""),
-		Password: utils.GetEnv("REDIS_PASSWORD", ""),
-		DB:       0,
-	})
+	redisOpt, err := config.NewOptionalRedisOptions()
+	if err != nil || redisOpt == nil {
+		logger.Log.Warn().Msg("Redis not configured; skipping cache purge")
+		return
+	}
+	rdb := redis.NewClient(redisOpt)
 	defer func() { _ = rdb.Close() }()
 
 	scanCtx, cancel := context.WithTimeout(ctx, 30*time.Second)

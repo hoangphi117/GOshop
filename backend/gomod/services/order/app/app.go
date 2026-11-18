@@ -254,8 +254,7 @@ func New(cfg *config.Config) (*App, error) {
 	// `SET search_path = pg_catalog`. That SET beats ALTER ROLE, so without this
 	// parameter migrate tries CREATE TABLE "pg_catalog"."schema_migrations_order"
 	// and dies with "permission denied for schema pg_catalog".
-	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&search_path=orders,public&x-migrations-table=schema_migrations_order",
-		cfg.DB.User, cfg.DB.Password, cfg.MigrationHost(), cfg.MigrationPort(), cfg.DB.DBName, cfg.DB.SSLMode)
+	connStr := cfg.MigrationURL("orders,public", "schema_migrations_order")
 	sourceDriver, err := iofs.New(migrations.FS, ".")
 	if err != nil {
 		logger.Log.Warn().Err(err).Msg("Could not load embedded migrations source for order service")

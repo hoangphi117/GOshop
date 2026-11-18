@@ -102,6 +102,14 @@ func (c authConfig) dialer() (*kafka.Dialer, error) {
 	return &kafka.Dialer{Timeout: dialTimeout, DualStack: true, SASLMechanism: mechanism, TLS: tlsCfg}, nil
 }
 
+// DialerFromEnv builds the kafka.Dialer that matches KAFKA_SASL_* /
+// KAFKA_TLS_*, or nil for a plaintext broker. The admin path (creating topics)
+// needs the same transport the producers use, and duplicating the auth parsing
+// there would let the two drift apart.
+func DialerFromEnv() (*kafka.Dialer, error) {
+	return loadAuthConfig().dialer()
+}
+
 // tlsConfig builds the client TLS config, or nil when TLS is off.
 func (c authConfig) tlsConfig() (*tls.Config, error) {
 	if !c.tlsEnabled {

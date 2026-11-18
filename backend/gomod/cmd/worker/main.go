@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/signal"
 	"path/filepath"
 	"sync"
@@ -51,16 +52,23 @@ func NewWorker(cfg *config.Config) *Worker {
 		log,
 	)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to create Kafka service")
+		// A worker with no broker has nothing to do; exiting is the honest signal.
+		// start.sh keeps the container alive either way, so this only shows up in
+		// the log as one line instead of a restart loop.
+		log.Error().Err(err).Msg("Kafka unavailable; worker exiting")
+		os.Exit(1)
 	}
 
-	redisOpt, err := config.NewRedisOptions()
+	redisOpt, err := config.NewOptionalRedisOptions()
 	if err != nil {
 		log.Warn().Err(err).Msg("Redis not configured, idempotency disabled")
 	}
-	redisClient := redis.NewClient(redisOpt)
-	if err := redisClient.Ping(context.Background()).Err(); err != nil {
-		log.Warn().Err(err).Msg("Redis unavailable, idempotency disabled")
+	var redisClient *redis.Client
+	if redisOpt != nil {
+		redisClient = redis.NewClient(redisOpt)
+		if err := redisClient.Ping(context.Background()).Err(); err != nil {
+			log.Warn().Err(err).Msg("Redis unavailable, idempotency disabled")
+		}
 	}
 	cacheService := cache.NewRedisCacheService(redisClient)
 

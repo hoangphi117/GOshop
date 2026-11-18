@@ -65,8 +65,7 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, fmt.Errorf("database init failed: %w", err)
 	}
 
-	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&search_path=public&x-migrations-table=schema_migrations_review",
-		cfg.DB.User, cfg.DB.Password, cfg.MigrationHost(), cfg.MigrationPort(), cfg.DB.DBName, cfg.DB.SSLMode)
+	connStr := cfg.MigrationURL("public", "schema_migrations_review")
 	if sourceDriver, err := iofs.New(migrations.FS, "."); err != nil {
 		logger.Log.Warn().Err(err).Msg("Could not load embedded migrations source for review service")
 	} else if m, err := migrate.NewWithSourceInstance("iofs", sourceDriver, connStr); err != nil {

@@ -74,8 +74,7 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	// Run embedded migrations (processed_events idempotency ledger)
-	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&search_path=public&x-migrations-table=schema_migrations_notification",
-		cfg.DB.User, cfg.DB.Password, cfg.MigrationHost(), cfg.MigrationPort(), cfg.DB.DBName, cfg.DB.SSLMode)
+	connStr := cfg.MigrationURL("public", "schema_migrations_notification")
 	sourceDriver, err := iofs.New(migrations.FS, ".")
 	if err != nil {
 		logger.Log.Error().Err(err).Msg("Could not load embedded migrations source for notification service")

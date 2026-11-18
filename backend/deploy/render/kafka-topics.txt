@@ -1,0 +1,42 @@
+# 21 Kafka topics GOshop publishes to (11 domain topics + 11 .dlq siblings).
+#
+# Redpanda Cloud does not auto-create topics, and a publish to a missing topic
+# fails in the publisher with "Unknown Topic Or Partition" - far from the cause.
+#
+# The image already contains /app/bin/kafkatopics, which creates these from the
+# same table the producers use, so this file is documentation and a fallback
+# for provisioning by hand (Confluent, MSK, a VPS broker).
+#
+#   docker run --rm -it -v "$PWD:/w" -w /w \\
+#     -e KAFKA_BROKERS -e KAFKA_SASL_USER -e KAFKA_SASL_PASSWORD \\
+#     -e KAFKA_SASL_MECHANISM=SCRAM-SHA-256 -e KAFKA_TLS_ENABLED=true \\
+#     --entrypoint /app/bin/kafkatopics goshop-render:local
+#
+# Or from a Render one-off job against the same environment:
+#   /app/bin/kafkatopics
+#
+# Verify against the code at any time (no broker needed):
+#   cd backend && go run ./gomod/cmd/kafkatopics -list
+
+goshop.email.v1
+goshop.email.v1.dlq
+goshop.events.v1
+goshop.events.v1.dlq
+goshop.inventory.v1
+goshop.inventory.v1.dlq
+goshop.media.v1
+goshop.media.v1.dlq
+goshop.notification.v1
+goshop.notification.v1.dlq
+goshop.order-return.v1
+goshop.order-return.v1.dlq
+goshop.order.v1
+goshop.order.v1.dlq
+goshop.payment.v1
+goshop.payment.v1.dlq
+goshop.review.v1
+goshop.review.v1.dlq
+goshop.shipping.v1
+goshop.shipping.v1.dlq
+goshop.user.v1
+goshop.user.v1.dlq

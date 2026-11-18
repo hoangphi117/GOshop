@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -34,6 +35,11 @@ type HealthHandler struct {
 	storageService  storage.StorageService
 	discordNotifier discord.Notifier
 	logger          *zerolog.Logger
+	// skip are dependency names excluded from the verdict and the response.
+	// A deployment can legitimately run without a shared cache (the cache layer
+	// falls back to process memory) and /healthz must not 503 forever over it,
+	// or the platform restarts a container that is serving fine.
+	skip map[string]bool
 }
 
 // lagReporter is the optional Kafka lag surface (R3). The concrete kafka
@@ -58,7 +64,19 @@ func NewHealthHandler(
 		storageService:  storageService,
 		discordNotifier: discordNotifier,
 		logger:          logger,
+		skip:            parseSkipList(utils.GetEnv("HEALTH_SKIP", "")),
 	}
+}
+
+// parseSkipList turns HEALTH_SKIP ("redis,storage") into a lookup set.
+func parseSkipList(raw string) map[string]bool {
+	out := make(map[string]bool)
+	for _, part := range strings.Split(raw, ",") {
+		if name := strings.ToLower(strings.TrimSpace(part)); name != "" {
+			out[name] = true
+		}
+	}
+	return out
 }
 
 // HealthCheck godoc
@@ -82,7 +100,9 @@ func (h *HealthHandler) checkDependencies(c *gin.Context, alertOnFailure bool) {
 	var errorDetails []string
 
 	// 1. Check PostgreSQL Database Pool
-	if h.dbPool != nil {
+	if h.skip["database"] {
+		services["database"] = "skipped"
+	} else if h.dbPool != nil {
 		if err := h.dbPool.Ping(ctx); err != nil {
 			services["database"] = "down"
 			isHealthy = false
@@ -95,7 +115,9 @@ func (h *HealthHandler) checkDependencies(c *gin.Context, alertOnFailure bool) {
 	}
 
 	// 2. Check Redis Cache & PubSub
-	if h.redisClient != nil {
+	if h.skip["redis"] {
+		services["redis"] = "skipped"
+	} else if h.redisClient != nil {
 		if err := h.redisClient.Ping(ctx).Err(); err != nil {
 			services["redis"] = "down"
 			isHealthy = false
@@ -108,7 +130,9 @@ func (h *HealthHandler) checkDependencies(c *gin.Context, alertOnFailure bool) {
 	}
 
 	// 3. Check Kafka messaging broker.
-	if h.broker != nil {
+	if h.skip["messaging"] {
+		services["messaging"] = "skipped"
+	} else if h.broker != nil {
 		if !h.broker.IsHealthy() {
 			services["messaging"] = "down"
 			isHealthy = false
@@ -121,7 +145,9 @@ func (h *HealthHandler) checkDependencies(c *gin.Context, alertOnFailure bool) {
 	}
 
 	// 4. Check Storage Provider (S3 / Cloudflare R2 / MinIO / Local)
-	if h.storageService != nil {
+	if h.skip["storage"] {
+		services["storage"] = "skipped"
+	} else if h.storageService != nil {
 		if !h.storageService.IsHealthy(ctx) {
 			services["storage"] = "down"
 			isHealthy = false

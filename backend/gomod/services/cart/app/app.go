@@ -85,8 +85,7 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	// Run embedded migrations
-	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&search_path=public&x-migrations-table=schema_migrations_cart",
-		cfg.DB.User, cfg.DB.Password, cfg.MigrationHost(), cfg.MigrationPort(), cfg.DB.DBName, cfg.DB.SSLMode)
+	connStr := cfg.MigrationURL("public", "schema_migrations_cart")
 	sourceDriver, err := iofs.New(migrations.FS, ".")
 	if err != nil {
 		logger.Log.Warn().Err(err).Msg("Could not load embedded migrations source for cart service")
@@ -120,8 +119,9 @@ func New(cfg *config.Config) (*App, error) {
 		cartBrokerLogger,
 	)
 	if err != nil {
-		logger.Log.Error().Err(err).Msg("Failed to connect Kafka for cart service event consumer")
-		return nil, fmt.Errorf("kafka connect failed: %w", err)
+		// Cart cleanup on order.created is an optimisation; the request path does
+		// not depend on it, so a broker outage must not take the service down.
+		logger.Log.Warn().Err(err).Msg("Kafka unavailable; cart cleanup on order.created disabled")
 	}
 	if err := eventledger.Migrate(connStr, "event_ledger_migrations_cart"); err != nil {
 		logger.Log.Error().Err(err).Msg("Failed to migrate event ledger for cart service")
@@ -205,6 +205,10 @@ func (a *App) Run(ctx context.Context) error {
 
 	// 3. Start event consumer (cart owns cart cleanup on order.created)
 	go func() {
+		if a.broker == nil {
+			logger.Log.Warn().Str("queue", events.QueueOrderCreated).Msg("Cart event consumer skipped: no broker")
+			return
+		}
 		if err := a.broker.Consume(ctx, events.QueueOrderCreated, a.eventConsumer); err != nil {
 			logger.Log.Error().Err(err).Str("queue", events.QueueOrderCreated).Msg("Cart event consumer stopped")
 		} else {

@@ -83,8 +83,7 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	// Run embedded migrations
-	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&search_path=public&x-migrations-table=schema_migrations_payment",
-		cfg.DB.User, cfg.DB.Password, cfg.MigrationHost(), cfg.MigrationPort(), cfg.DB.DBName, cfg.DB.SSLMode)
+	connStr := cfg.MigrationURL("public", "schema_migrations_payment")
 	sourceDriver, err := iofs.New(migrations.FS, ".")
 	if err != nil {
 		logger.Log.Warn().Err(err).Msg("Could not load embedded migrations source for payment service")
