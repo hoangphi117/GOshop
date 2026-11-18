@@ -173,17 +173,12 @@ func shelfCache() cache.RedisCacheService {
 	}
 	// NewRedisClient pings and Fatals on failure, which is right for services
 	// that cannot run without Redis and wrong for this one.
-	client := redis.NewClient(&redis.Options{
-		Addr:         utils.GetEnv("REDIS_ADDR", "localhost:6379"),
-		Username:     utils.GetEnv("REDIS_USERNAME", ""),
-		Password:     utils.GetEnv("REDIS_PASSWORD", ""),
-		DB:           utils.GetIntEnv("REDIS_DB", 0),
-		PoolSize:     10,
-		MinIdleConns: 2,
-		DialTimeout:  2 * time.Second,
-		ReadTimeout:  1 * time.Second,
-		WriteTimeout: 1 * time.Second,
-	})
+	redisOpt, err := config.NewRedisOptions()
+	if err != nil {
+		logger.Log.Warn().Err(err).Msg("Redis not configured; recommendation shelves are uncached")
+		return nil
+	}
+	client := redis.NewClient(redisOpt)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	if err := client.Ping(ctx).Err(); err != nil {
