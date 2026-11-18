@@ -47,6 +47,17 @@ RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 COPY --from=builder /out/ /app/bin/
 COPY deploy/render/start.sh /app/start.sh
+# Only the PUBLIC key is baked in: it is not a secret (the app serves it at
+# /api/v1/.well-known/jwks.json), and all 16 verifier services need it to accept
+# a token. The private key stays out of git (.gitignore: certs/) and is supplied
+# by Render as JWT_PRIVATE_KEY with literal \n escapes — loadKeyData treats a
+# non-file value as PEM after unescaping.
+#
+# backend/certs/ is gitignored, so the image build (which starts from a git
+# clone) has no certs at all. This tracked copy is the only one that survives to
+# Render. It must be re-copied whenever the signing keypair is rotated:
+#   cp backend/certs/jwt_public.pem backend/deploy/render/jwt_public.pem
+COPY deploy/render/jwt_public.pem /app/certs/jwt_public.pem
 RUN chmod +x /app/start.sh
 
 ENV APP_ENV=production

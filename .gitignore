@@ -98,3 +98,6 @@ nginx/secrets/api_key
 # Python bytecode from scripts/*.py helper runs
 __pycache__/
 *.pyc
+
+# Generated Render environment - contains live secrets, never commit
+render.env
