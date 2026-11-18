@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { z } from "zod";
 import {
   ArrowLeft,
@@ -26,7 +25,7 @@ import {
   AuthSubmitButton,
 } from "@/components/auth/auth-card";
 import { GoogleLoginButton } from "@/components/auth/google-login-button";
-import { API_BASE_URL, API_KEY } from "@/lib/api";
+import { API_BASE_URL, API_KEY, fetchStorefrontProfile } from "@/lib/api";
 import { clearDeviceIntent } from "@/lib/device-intent";
 import { useQueryClient } from "@tanstack/react-query";
 import { resetChatSession } from "@/hooks/use-chat";
@@ -67,7 +66,6 @@ const registerSchema = z
 type RegisterFormData = z.infer<typeof registerSchema>;
 
 export default function RegisterPage() {
-  const router = useRouter();
   const { setTokens, setUser } = useAuthStore();
   const queryClient = useQueryClient();
 
@@ -294,19 +292,35 @@ export default function RegisterPage() {
         // The shelf is this account's now.
         clearDeviceIntent();
         resetChatSession(queryClient, email.trim());
+        // Verify returns tokens only, so the navbar has nothing to name the
+        // visitor by and falls back to the signed-out "Sign In / Register" pair
+        // until some other page fetches the profile. A new account has no
+        // profile cache either. Read it once here, same as the login page.
+        const profile = await fetchStorefrontProfile(accessToken);
         setUser({
-          email: email.trim(),
-          fullName: fullName.trim(),
+          uuid: profile?.uuid,
+          email: profile?.email || email.trim(),
+          fullName:
+            profile?.full_name || profile?.fullName || fullName.trim(),
+          avatarUrl: profile?.avatar_url || "",
         });
       }
 
       toast.success("Account verified successfully! Welcome to GOshop.");
 
+      // Full navigation, not router.push(). The storefront runs on its own
+      // dev/prod origin (localhost:3001) while the API lives on another
+      // (localhost / localhost:8080), so the HttpOnly refresh cookie is
+      // cross-origin and StrictMode remounts pages in dev. router.push() only
+      // replays the in-memory token, and one remount drops it back to
+      // signed-out with nothing left to restore. A hard load makes
+      // restoreSession() rebuild the access token from the cookie exactly like
+      // any other visit, which is the one path that is known to work.
       const redirectUrl =
         typeof window !== "undefined"
           ? new URLSearchParams(window.location.search).get("redirect") || "/"
           : "/";
-      router.push(redirectUrl);
+      window.location.assign(redirectUrl);
     } catch (err: unknown) {
       const message =
         err instanceof Error

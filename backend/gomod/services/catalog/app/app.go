@@ -62,8 +62,15 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, fmt.Errorf("database init failed: %w", err)
 	}
 
-	// Run embedded migrations
-	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+	// Run embedded migrations.
+	//
+	// search_path must be in the DSN: golang-migrate derives the schema for its
+	// bookkeeping table from the session search_path, and a transaction pooler
+	// (Supavisor, pgbouncer) opens every backend with `SET search_path =
+	// pg_catalog`, which beats ALTER ROLE/DATABASE. Without this it tries
+	// CREATE TABLE "pg_catalog"."schema_migrations" and dies with
+	// "permission denied for schema pg_catalog".
+	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&search_path=public",
 		cfg.DB.User, cfg.DB.Password, cfg.DB.Host, cfg.DB.Port, cfg.DB.DBName, cfg.DB.SSLMode)
 	sourceDriver, err := iofs.New(migrations.FS, ".")
 	if err != nil {

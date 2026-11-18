@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -59,7 +60,7 @@ func main() {
 	}
 
 	dsn := fmt.Sprintf(
-		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s search_path=public",
 		utils.GetEnv("DB_HOST", "localhost"),
 		utils.GetEnv("DB_PORT", "5432"),
 		utils.GetEnv("DB_USER", "postgres"),
@@ -220,6 +221,20 @@ func runSection(ctx context.Context, baseDSN string, section seedSection) error 
 	defer func() { _ = conn.Close(ctx) }()
 
 	sql := stripConnectDirectives(section.sql)
+	// dblink opens its own libpq connection with no inherited credentials, so
+	// `dblink('dbname=shopping_catalog', ...)` only works where pg_hba trusts
+	// local socket users. On a managed server (Supabase) it fails with
+	// "password or GSSAPI delegated credentials required", and the pooler does
+	// not expose db_host/user as GUCs to rebuild the conninfo in SQL either.
+	// Substituting here is the one place that has both the plaintext DSN and the
+	// SQL text.
+	sql = expandSeedVars(sql, conninfoFor(cfg, baseDSN))
+	// Protective: an unexpanded {{...}} means the passthrough SQL will still
+	// contain a placeholder and fail with a confusing syntax error.
+	if strings.Contains(sql, "{{") {
+		return fmt.Errorf("unexpanded seed placeholder on %s: %s",
+			section.db, sql[strings.Index(sql, "{{"):min(strings.Index(sql, "{{")+40, len(sql))])
+	}
 	// Seed DDL/DML is order-dependent and must run as a single batch with the
 	// explicit BEGIN/COMMIT statements that guard the master-data section.
 	if _, err := conn.Exec(ctx, "SET statement_timeout = 0"); err != nil {
@@ -229,6 +244,79 @@ func runSection(ctx context.Context, baseDSN string, section seedSection) error 
 		return fmt.Errorf("execute seed SQL on %s: %w", section.db, err)
 	}
 	return nil
+}
+
+// conninfoFor renders a libpq key/value conninfo for a sibling database on the
+// same server, for dblink callers.
+//
+// search_path must be explicit: a transaction-mode pooler opens every backend
+// with `SET search_path = pg_catalog`, so a dblink connection that does not ask
+// for `public` sees none of the tables it is meant to read.
+func conninfoFor(cfg *pgx.ConnConfig, baseDSN string) map[string]string {
+	sslmode := "disable"
+	if strings.Contains(baseDSN, "sslmode=require") {
+		sslmode = "require"
+	}
+
+	// dblink opens its own libpq connection, bypassing pgx, so it does not get
+	// the DSN the seeder connected with. Reuse the outer DSN's host and port:
+	// on Supabase the direct host (db.<ref>.supabase.co) is AAAA-only and
+	// therefore unreachable from an IPv4-only network, so the pooler host is
+	// the only address that resolves. DB_DIRECT_HOST lets a caller force the
+	// session port (5432); transaction-mode 6543 rejects the nested hop with
+	// "password or GSSAPI delegated credentials required".
+	dblinkHost := cfg.Host
+	dblinkPort := int(cfg.Port)
+	if h := os.Getenv("DB_DIRECT_HOST"); h != "" {
+		dblinkHost = h
+	}
+	if p := os.Getenv("DB_DIRECT_PORT"); p != "" {
+		if n, err := strconv.Atoi(p); err == nil {
+			dblinkPort = n
+		}
+	}
+
+	out := map[string]string{
+		"db_host": dblinkHost,
+		"db_port": strconv.Itoa(dblinkPort),
+		"db_user": cfg.User,
+		// libpq conninfo is whitespace-separated, so a password with a space or
+		// quote would truncate the rest of the string.
+		"db_password": quoteConninfoValue(cfg.Password),
+	}
+	servers := map[string]string{
+		"db_identity":  "shopping_identity",
+		"db_catalog":   "shopping_catalog",
+		"db_order":     "shopping_order",
+		"db_inventory": "shopping_inventory",
+	}
+	for key, db := range servers {
+		out[key] = fmt.Sprintf(
+			"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+			dblinkHost, dblinkPort, cfg.User, quoteConninfoValue(cfg.Password), db, sslmode)
+	}
+	// dblink's conninfo parser accepts `search_path`, but some libpq builds
+	// ignore it; the explicit SET inside the dblink session is then the only
+	// thing that puts `public` on the path.
+	out["db_search_path"] = "public"
+	out["db_search_path_order"] = "orders, public"
+	return out
+}
+
+// quoteConninfoValue wraps a value in single quotes for libpq conninfo syntax
+// when it contains characters that would otherwise split the string.
+func quoteConninfoValue(v string) string {
+	if !strings.ContainsAny(v, " '\\") {
+		return v
+	}
+	return "'" + strings.NewReplacer(`\`, `\\`, `'`, `\'`).Replace(v) + "'"
+}
+
+func expandSeedVars(sql string, vars map[string]string) string {
+	for k, v := range vars {
+		sql = strings.ReplaceAll(sql, "{{"+k+"}}", v)
+	}
+	return sql
 }
 
 func parseSections(content string) []seedSection {

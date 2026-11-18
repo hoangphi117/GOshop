@@ -4,6 +4,7 @@
   "scripts": {
     "dev:dashboard": "turbo run dev --filter=dashboard",
     "dev:storefront": "turbo run dev --filter=storefront",
+    "dev:storefront:edge": "powershell -NoProfile -ExecutionPolicy Bypass -File ../scripts/dev-storefront.ps1",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "clean": "node scripts/clean.mjs",

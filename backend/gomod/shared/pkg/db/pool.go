@@ -53,9 +53,27 @@ func InitDBWithConfig(cfg *config.Config, serviceName ...string) error {
 	if err != nil {
 		return fmt.Errorf("error parsing DB config: %w", err)
 	}
+	// A transaction-mode pooler (Supavisor on Supabase :6543, pgbouncer) opens
+	// every backend with `SET search_path = pg_catalog`, and that SET beats both
+	// ALTER ROLE and ALTER DATABASE. Unqualified SQL then misses `public`:
+	// `SELECT ... FROM products` fails with 42P01, and golang-migrate tries to
+	// create its bookkeeping table inside pg_catalog. Sending search_path as a
+	// startup parameter is the only place that wins, and pgx applies
+	// RuntimeParams at connect time.
 	if len(serviceName) > 0 && serviceName[0] == "order" {
 		conf.ConnConfig.RuntimeParams["search_path"] = "orders,public"
+	} else {
+		conf.ConnConfig.RuntimeParams["search_path"] = "public"
 	}
+	// A transaction-mode pooler hands each query a backend that may already
+	// carry prepared statements from a different client, so pgx's default
+	// server-side statement cache collides: "prepared statement
+	// stmtcache_<hash> already exists (SQLSTATE 42P05)".
+	// CacheDescribe keeps the binary format (needed for []uuid.UUID, other
+	// array/composite params) but caches only the description client-side, never
+	// naming a statement on the server — which is what pgbouncer and Supavisor
+	// in transaction mode require.
+	conf.ConnConfig.DefaultQueryExecMode = pgxv5.QueryExecModeCacheDescribe
 
 	sqlLogFile := "sql.log"
 	svc := ""
@@ -118,6 +136,8 @@ func InitDBWithConfig(cfg *config.Config, serviceName ...string) error {
 			logger.Log.Warn().Err(err).Msg("Failed to parse Read DB config, falling back to primary DB")
 			ReadDBPool = DBPool
 		} else {
+			readConf.ConnConfig.RuntimeParams["search_path"] = conf.ConnConfig.RuntimeParams["search_path"]
+			readConf.ConnConfig.DefaultQueryExecMode = conf.ConnConfig.DefaultQueryExecMode
 			readConf.MaxConns = int32(utils.GetIntEnv("DB_READ_MAX_CONNS", utils.GetIntEnv("DB_MAX_CONNS", 20)))
 			readConf.MinConns = int32(utils.GetIntEnv("DB_READ_MIN_CONNS", utils.GetIntEnv("DB_MIN_CONNS", 5)))
 			readConf.MaxConnLifetime = time.Duration(utils.GetIntEnv("DB_MAX_CONN_LIFETIME_MIN", 30)) * time.Minute
@@ -152,6 +172,8 @@ func InitDBWithConfig(cfg *config.Config, serviceName ...string) error {
 			logger.Log.Warn().Err(err).Msg("Failed to parse Identity DB config, falling back to primary DB")
 			IdentityDBPool = DBPool
 		} else {
+			identityConf.ConnConfig.RuntimeParams["search_path"] = "public"
+			identityConf.ConnConfig.DefaultQueryExecMode = conf.ConnConfig.DefaultQueryExecMode
 			identityConf.MaxConns = int32(utils.GetIntEnv("DB_IDENTITY_MAX_CONNS", 15))
 			identityConf.MinConns = int32(utils.GetIntEnv("DB_IDENTITY_MIN_CONNS", 3))
 			identityConf.MaxConnLifetime = time.Duration(utils.GetIntEnv("DB_MAX_CONN_LIFETIME_MIN", 30)) * time.Minute

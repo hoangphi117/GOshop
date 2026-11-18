@@ -212,14 +212,25 @@ export const useChat = () => {
   // is returned verbatim to account B, which never asks the server.
   const accountKey = user?.uuid || user?.email || "anonymous";
 
-  // Watch for identity changes here rather than in an effect: the widget mounts
-  // while signed out, the login page re-renders before this hook does, and the
-  // stale entry has to be gone before the first query of the new account runs.
+  // Watch for identity changes here rather than zustand subscribers in the
+  // widget: the widget mounts while signed out, the login page re-renders
+  // before this hook does, and the stale entry has to be gone before the first
+  // query of the new account runs.
+  //
+  // Both resets live in the effect. `resetChatUIForNewSession()` calls
+  // `useChatUIStore.setState(...)`, which notifies every subscriber — running
+  // it during render is precisely React's "Cannot update a component
+  // (`ChatWidget`) while rendering a different component (`ChatWidget`)".
+  // Deferring one commit is safe: the queries below are already keyed by
+  // `accountKey`, so the new account never reads the old cache entry, and the
+  // queued order/product is cleared before the user can see it.
   const [observedAccount, setObservedAccount] = useState(accountKey);
-  if (observedAccount !== accountKey) {
-    setObservedAccount(accountKey);
-    resetChatSession(queryClient, accountKey);
-  }
+  useEffect(() => {
+    if (observedAccount !== accountKey) {
+      setObservedAccount(accountKey);
+      resetChatSession(queryClient, accountKey);
+    }
+  }, [observedAccount, accountKey, queryClient]);
 
   const [isAdminTyping, setIsAdminTyping] = useState(false);
   const adminTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(

@@ -11,9 +11,14 @@ x-jwt-verifier: &jwt-verifier
   JWT_SIGNING_ENABLED: "false"
   JWT_PRIVATE_KEY: ""
   JWT_PUBLIC_KEY: /app/certs/jwt_public.pem
-  # backend/.env ships DB_HOST=localhost for host-side runs (make dev-host).
-  # Compose services must override it to reach the postgres service.
-  DB_HOST: "postgres"
+  # backend/.env is the single source of truth for the database. It points at
+  # the Supabase pooler; hardcoding "postgres" here is what silently pinned the
+  # stack to a local container regardless of .env.
+  DB_HOST: "${DB_HOST:?set DB_HOST in backend/.env}"
+  # Follows .env for the same reason. Supabase refuses non-TLS and a local
+  # postgres container refuses TLS; pinning this per-service is how every
+  # service failed with "tls error: server refused TLS connection".
+  DB_SSL_MODE: "${DB_SSL_MODE:-require}"
 
 x-jwt-certs: &jwt-certs
   - ./backend/certs:/app/certs:ro
@@ -117,8 +122,6 @@ services:
       RECOMMENDATIONS_SERVICE_URL: "http://recommendations-service:8095"
       CHAT_GRPC_TARGET: "chat-service:50058"
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
       kafka:
@@ -172,8 +175,6 @@ services:
       RECOMMENDATIONS_SERVICE_URL: "http://recommendations-service:8095"
       CHAT_GRPC_TARGET: "chat-service:50058"
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
       kafka:
@@ -196,7 +197,9 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      - DB_HOST=postgres
+      - DB_HOST=${DB_HOST:?set DB_HOST in backend/.env}
+      # x-jwt-verifier anchor sets these too; list form does not inherit it.
+      - DB_SSL_MODE=${DB_SSL_MODE:-require}
       - DB_NAME=shopping_identity
       - IDENTITY_DB_NAME=shopping_identity
       - REDIS_ADDR=redis:6379
@@ -213,8 +216,6 @@ services:
       - JWT_PRIVATE_KEY=/app/certs/jwt_private.pem
       - JWT_PUBLIC_KEY=/app/certs/jwt_public.pem
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
       kafka:
@@ -239,7 +240,7 @@ services:
       - ./backend/.env
     environment:
       <<: *jwt-verifier
-      DB_HOST: "postgres"
+      DB_HOST: "${DB_HOST:?set DB_HOST in backend/.env}"
       DB_NAME: "shopping_notification"
       REDIS_ADDR: "redis:6379"
       KAFKA_BROKERS: "kafka:29096"
@@ -249,8 +250,6 @@ services:
       IDENTITY_GRPC_ADDR: "identity-service:50051"
       INTERNAL_API_SECRET: "${INTERNAL_API_SECRET:?INTERNAL_API_SECRET must be set in production}"
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
       kafka:
@@ -276,7 +275,7 @@ services:
       - ./backend/.env
     environment:
       <<: *jwt-verifier
-      DB_HOST: "postgres"
+      DB_HOST: "${DB_HOST:?set DB_HOST in backend/.env}"
       DB_NAME: "shopping_payment"
       PAYMENT_DB_NAME: "shopping_payment"
       REDIS_ADDR: "redis:6379"
@@ -288,8 +287,6 @@ services:
       ORDER_GRPC_ADDR: "order-service:50057"
       INTERNAL_API_SECRET: "${INTERNAL_API_SECRET:?INTERNAL_API_SECRET must be set in production}"
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
       kafka:
@@ -315,7 +312,7 @@ services:
       - ./backend/.env
     environment:
       <<: *jwt-verifier
-      DB_HOST: "postgres"
+      DB_HOST: "${DB_HOST:?set DB_HOST in backend/.env}"
       DB_NAME: "shopping_catalog"
       CATALOG_DB_NAME: "shopping_catalog"
       CATALOG_SERVER_PORT: "8086"
@@ -336,8 +333,6 @@ services:
     mem_limit: 160m
     cpus: 0.50
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
       kafka:
@@ -367,7 +362,7 @@ services:
       - ./backend/.env
     environment:
       <<: *jwt-verifier
-      DB_HOST: "postgres"
+      DB_HOST: "${DB_HOST:?set DB_HOST in backend/.env}"
       DB_NAME: "shopping_inventory"
       INVENTORY_DB_NAME: "shopping_inventory"
       INVENTORY_SERVER_PORT: "8090"
@@ -381,8 +376,6 @@ services:
     mem_limit: 160m
     cpus: 0.50
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
       kafka:
@@ -408,7 +401,7 @@ services:
       - ./backend/.env
     environment:
       <<: *jwt-verifier
-      DB_HOST: "postgres"
+      DB_HOST: "${DB_HOST:?set DB_HOST in backend/.env}"
       DB_NAME: "shopping_coupon"
       COUPON_DB_NAME: "shopping_coupon"
       COUPON_SERVER_PORT: "8084"
@@ -422,8 +415,6 @@ services:
     mem_limit: 128m
     cpus: 0.50
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
       kafka:
@@ -449,7 +440,7 @@ services:
       - ./backend/.env
     environment:
       <<: *jwt-verifier
-      DB_HOST: "postgres"
+      DB_HOST: "${DB_HOST:?set DB_HOST in backend/.env}"
       DB_NAME: "shopping_cart"
       CART_DB_NAME: "shopping_cart"
       CART_SERVER_PORT: "8087"
@@ -464,8 +455,6 @@ services:
     mem_limit: 160m
     cpus: 0.50
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
       kafka:
@@ -492,7 +481,7 @@ services:
       - ./backend/.env
     environment:
       <<: *jwt-verifier
-      DB_HOST: "postgres"
+      DB_HOST: "${DB_HOST:?set DB_HOST in backend/.env}"
       DB_NAME: "shopping_banner"
       BANNER_DB_NAME: "shopping_banner"
       BANNER_SERVER_PORT: "8089"
@@ -502,8 +491,6 @@ services:
     mem_limit: 128m
     cpus: 0.50
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     volumes: *jwt-certs
@@ -525,7 +512,9 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      DB_HOST: "postgres"
+      DB_HOST: "${DB_HOST:?set DB_HOST in backend/.env}"
+      # Own environment map: does not merge x-jwt-verifier.
+      DB_SSL_MODE: "${DB_SSL_MODE:-require}"
       DB_NAME: "shopping_recs"
       RECOMMENDATIONS_DB_NAME: "shopping_recs"
       # Secure is correct here: the storefront is served over https.
@@ -556,8 +545,6 @@ services:
     mem_limit: 128m
     cpus: 0.50
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
       catalog:
@@ -609,7 +596,7 @@ services:
       - ./backend/.env
     environment:
       <<: *jwt-verifier
-      DB_HOST: "postgres"
+      DB_HOST: "${DB_HOST:?set DB_HOST in backend/.env}"
       DB_NAME: "shopping_review"
       REVIEW_DB_NAME: "shopping_review"
       REVIEW_SERVER_PORT: "8091"
@@ -625,8 +612,6 @@ services:
     mem_limit: 128m
     cpus: 0.50
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
       kafka:
@@ -656,7 +641,7 @@ services:
       - ./backend/.env
     environment:
       <<: *jwt-verifier
-      DB_HOST: "postgres"
+      DB_HOST: "${DB_HOST:?set DB_HOST in backend/.env}"
       DB_NAME: "shopping_chat"
       CHAT_DB_NAME: "shopping_chat"
       CHAT_SERVER_PORT: "8093"
@@ -672,8 +657,6 @@ services:
     mem_limit: 160m
     cpus: 0.50
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
       kafka:
@@ -734,7 +717,7 @@ services:
       - ./backend/.env
     environment:
       <<: *jwt-verifier
-      DB_HOST: "postgres"
+      DB_HOST: "${DB_HOST:?set DB_HOST in backend/.env}"
       DB_NAME: "shopping_analytics"
       ANALYTICS_DB_NAME: "shopping_analytics"
       ANALYTICS_SERVER_PORT: "8092"
@@ -755,8 +738,6 @@ services:
     mem_limit: 128m
     cpus: 0.50
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
       kafka:
@@ -821,7 +802,7 @@ services:
       - ./backend/.env
     environment:
       <<: *jwt-verifier
-      DB_HOST: "postgres"
+      DB_HOST: "${DB_HOST:?set DB_HOST in backend/.env}"
       DB_NAME: "shopping_order"
       ORDER_DB_NAME: "shopping_order"
       REDIS_ADDR: "redis:6379"
@@ -838,8 +819,6 @@ services:
       PAYMENT_GRPC_ADDR: "payment-service:50052"
       INTERNAL_API_SECRET: "${INTERNAL_API_SECRET:?INTERNAL_API_SECRET must be set in production}"
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
       kafka:
@@ -883,8 +862,6 @@ services:
       # separate /metrics listener (shared/pkg/metrics.ListenAndServe).
       METRICS_PORT: "9464"
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
       kafka:
@@ -911,8 +888,6 @@ services:
       IDENTITY_GRPC_ADDR: "identity-service:50051"
       CHAT_GRPC_TARGET: "chat-service:50058"
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
       chat:
@@ -948,36 +923,10 @@ services:
   # directly (volume ./frontend/apps/dashboard/dist â†’ /srv/dashboard above).
   # Build it with:  pnpm --filter dashboard build   (host or CI)
 
-  postgres:
-    # pgvector build of Postgres 16: drop-in for the stock image, adds the
-    # `vector` extension phase 2 needs for product embeddings.
-    image: pgvector/pgvector:pg16
-    container_name: goshop-postgres
-    restart: unless-stopped
-    command: postgres -c max_connections=150 -c shared_buffers=256MB -c work_mem=16MB
-    env_file:
-      - ./backend/.env
-    environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-super@password}
-      POSTGRES_DB: ${DB_USER:-postgres}
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./scripts/init_databases.sql:/docker-entrypoint-initdb.d/init_databases.sql:ro
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "pg_isready -U ${DB_USER:-postgres} -d ${DB_USER:-postgres}",
-        ]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    networks:
-      - goshop-network
-
+  # No `postgres` service: the stack uses Supabase (backend/.env DB_HOST).
+  # A local container would need its own TLS story, its own seeded data and
+  # its own search_path fixes — every divergence from Render is a bug that
+  # only shows up after deploy.
   redis:
     image: redis:alpine
     container_name: goshop-redis
