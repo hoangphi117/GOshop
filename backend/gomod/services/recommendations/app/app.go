@@ -173,17 +173,12 @@ func shelfCache() cache.RedisCacheService {
 	}
 	// NewRedisClient pings and Fatals on failure, which is right for services
 	// that cannot run without Redis and wrong for this one.
-	client := redis.NewClient(&redis.Options{
-		Addr:         utils.GetEnv("REDIS_ADDR", "localhost:6379"),
-		Username:     utils.GetEnv("REDIS_USERNAME", ""),
-		Password:     utils.GetEnv("REDIS_PASSWORD", ""),
-		DB:           utils.GetIntEnv("REDIS_DB", 0),
-		PoolSize:     10,
-		MinIdleConns: 2,
-		DialTimeout:  2 * time.Second,
-		ReadTimeout:  1 * time.Second,
-		WriteTimeout: 1 * time.Second,
-	})
+	redisOpt, err := config.NewRedisOptions()
+	if err != nil {
+		logger.Log.Warn().Err(err).Msg("Redis not configured; recommendation shelves are uncached")
+		return nil
+	}
+	client := redis.NewClient(redisOpt)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	if err := client.Ping(ctx).Err(); err != nil {
@@ -320,7 +315,7 @@ func ensureForeignServer(pool *pgxpool.Pool, cfg *config.Config, s foreignServer
 
 	host := utils.GetEnv(s.HostEnv, cfg.DB.Host)
 	dbName := utils.GetEnv(s.NameEnv, s.DBName)
-	port := utils.GetEnv(s.PortEnv, cfg.DB.Port)
+	port := utils.GetEnv(s.PortEnv, cfg.MigrationPort())
 	user := utils.GetEnv("ORDER_DB_USER", cfg.DB.User)
 
 	options := func(pairs ...string) string {
@@ -372,7 +367,7 @@ func sqlLiteral(s string) string {
 
 func runMigrations(cfg *config.Config) {
 	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&search_path=public&x-migrations-table=schema_migrations_recommendations",
-		cfg.DB.User, cfg.DB.Password, cfg.DB.Host, cfg.DB.Port, cfg.DB.DBName, cfg.DB.SSLMode)
+		cfg.DB.User, cfg.DB.Password, cfg.MigrationHost(), cfg.MigrationPort(), cfg.DB.DBName, cfg.DB.SSLMode)
 
 	sourceDriver, err := iofs.New(migrations.FS, ".")
 	if err != nil {

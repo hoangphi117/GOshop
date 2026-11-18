@@ -54,12 +54,11 @@ func NewWorker(cfg *config.Config) *Worker {
 		log.Fatal().Err(err).Msg("Failed to create Kafka service")
 	}
 
-	redisClient := redis.NewClient(&redis.Options{
-		Addr:     utils.GetEnv("REDIS_ADDR", "localhost:6379"),
-		Username: utils.GetEnv("REDIS_USERNAME", ""),
-		Password: utils.GetEnv("REDIS_PASSWORD", ""),
-		DB:       utils.GetIntEnv("REDIS_DB", 0),
-	})
+	redisOpt, err := config.NewRedisOptions()
+	if err != nil {
+		log.Warn().Err(err).Msg("Redis not configured, idempotency disabled")
+	}
+	redisClient := redis.NewClient(redisOpt)
 	if err := redisClient.Ping(context.Background()).Err(); err != nil {
 		log.Warn().Err(err).Msg("Redis unavailable, idempotency disabled")
 	}
