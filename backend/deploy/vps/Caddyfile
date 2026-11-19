@@ -1,0 +1,45 @@
+# Caddy terminates TLS and proxies to the Go gateway.
+#
+# The gateway already proxies /api/v1/* to the 16 sibling services over
+# 127.0.0.1 inside the container, so Caddy only needs one upstream.
+#
+# Cloudflare sits in front (DNS proxied, orange cloud). With a proxied record
+# Cloudflare terminates TLS itself and Caddy sees plain HTTP on :80, so the
+# :443 block is only for the DNS-only case. Both are here; Caddy errors on a
+# name it cannot get a certificate for, so remove the :443 block if the record
+# stays proxied forever.
+
+{
+	email 			admin@goshop.dpdns.org
+	# Comment out for staging while testing so Let's Encrypt rate limits are
+	# not burned: acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+}
+
+api.goshop.dpdns.org {
+	# Cloudflare passes the real scheme in X-Forwarded-Proto; Caddy needs it to
+	# build absolute URLs and to answer redirects correctly.
+	reverse_proxy backend:8080 {
+		header_up X-Real-IP {remote_host}
+		# Long enough for the outbox worker's bulk enqueue and for large
+		# product imports on the admin surface.
+		transport http {
+			response_header_timeout 120s
+		}
+	}
+
+	encode gzip zstd
+
+	log {
+		output file /data/access.log {
+			roll_size 50MiB
+			roll_keep 5
+		}
+	}
+}
+
+# IP-only fallback so the healthcheck and a bare curl still answer before DNS
+# is switched. Remove once the A record points at this VM.
+:80 {
+	respond /healthz "ok"
+	reverse_proxy /api/* backend:8080
+}
