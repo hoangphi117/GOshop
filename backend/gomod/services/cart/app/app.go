@@ -124,8 +124,10 @@ func New(cfg *config.Config) (*App, error) {
 		logger.Log.Warn().Err(err).Msg("Kafka unavailable; cart cleanup on order.created disabled")
 	}
 	if err := eventledger.Migrate(connStr, "event_ledger_migrations_cart"); err != nil {
-		logger.Log.Error().Err(err).Msg("Failed to migrate event ledger for cart service")
-		return nil, err
+		// A missing ledger only disables idempotent replay of consumed events;
+		// serving this service's own requests does not depend on it. On a
+		// session-limited database this connection used to take the service down.
+		logger.Log.Warn().Err(err).Msg("Event ledger migration failed for cart service; replay dedupe disabled until the next boot")
 	}
 
 	// Catalog gRPC client

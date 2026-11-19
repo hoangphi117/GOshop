@@ -380,8 +380,10 @@ func New(cfg *config.Config) (*App, error) {
 	// eventledger records (event_id, consumer) and makes the second delivery a
 	// silent no-op. Same wiring as inventory/analytics/cart/coupon.
 	if err := eventledger.Migrate(connStr, "event_ledger_migrations_order"); err != nil {
-		logger.Log.Error().Err(err).Msg("Failed to migrate event ledger for order service")
-		return nil, err
+		// A missing ledger only disables idempotent replay of consumed events;
+		// serving this service's own requests does not depend on it. On a
+		// session-limited database this connection used to take the service down.
+		logger.Log.Warn().Err(err).Msg("Event ledger migration failed for order service; replay dedupe disabled until the next boot")
 	}
 	ledgerRepo := eventledger.NewRepository(dbPool)
 	ledgerLogger := eventledger.NewZerologLogger(brokerLogger)

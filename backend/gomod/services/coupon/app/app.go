@@ -101,8 +101,10 @@ func New(cfg *config.Config) (*App, error) {
 		logger.Log.Warn().Err(err).Msg("Kafka unavailable; coupon release on order.cancelled disabled")
 	}
 	if err := eventledger.Migrate(connStr, "event_ledger_migrations_coupon"); err != nil {
-		logger.Log.Error().Err(err).Msg("Failed to migrate event ledger for coupon service")
-		return nil, err
+		// A missing ledger only disables idempotent replay of consumed events;
+		// serving this service's own requests does not depend on it. On a
+		// session-limited database this connection used to take the service down.
+		logger.Log.Warn().Err(err).Msg("Event ledger migration failed for coupon service; replay dedupe disabled until the next boot")
 	}
 
 	port := utils.GetEnv("COUPON_SERVER_PORT", "8084")
