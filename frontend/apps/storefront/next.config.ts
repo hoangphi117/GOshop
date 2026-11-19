@@ -5,7 +5,14 @@ const nextConfig: NextConfig = {
   // Minimal container image: `next build` emits .next/standalone with only
   // the traced runtime files (server.js + trimmed node_modules) — the runner
   // stage runs `node apps/storefront/server.js` with no pnpm/full install.
-  output: "standalone",
+  // Minimal container image: `next build` emits .next/standalone with only
+  // the traced runtime files (server.js + trimmed node_modules) — the runner
+  // stage runs `node apps/storefront/server.js` with no pnpm/full install.
+  //
+  // Vercel does its own packaging and rejects standalone: the build dies
+  // reading .next/next-server.js.nft.json, which Vercel never writes. So it is
+  // opt-in, set by the Docker template only.
+  output: process.env.NEXT_OUTPUT_STANDALONE === "true" ? "standalone" : undefined,
   // Monorepo: trace from the pnpm workspace root so @goshop/* packages in
   // ../.. are bundled. Docs pattern: path.join(__dirname, "../../").
   outputFileTracingRoot: path.join(__dirname, "../../"),
