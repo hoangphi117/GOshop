@@ -89,7 +89,7 @@ Copy the values from the Render dashboard (Environment tab). Required:
 | Group | Keys |
 |---|---|
 | Database | `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_SSL_MODE=require`, all `*_DB_NAME` |
-| Redis | `REDIS_ADDR`, `REDIS_PASSWORD` (Render Key Value: `host:port`, TLS on) |
+| Redis | `REDIS_PASSWORD` only. `REDIS_ADDR` is overridden to `redis:6379` by the compose file |
 | Kafka | `KAFKA_BROKERS`, `KAFKA_SASL_*`, `KAFKA_SASL_MECHANISM=SCRAM-SHA-256`, `KAFKA_TLS_ENABLED=true` |
 | Search | `MEILISEARCH_HOST`, `MEILISEARCH_MASTER_KEY` |
 | Auth | `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEY`, `INTERNAL_API_SECRET`, `INTERNAL_API_TOKEN`, `API_KEY` |
@@ -99,6 +99,19 @@ Two rules that have bitten this stack before:
 
 - `KAFKA_TLS_CA_FILE` must stay **unset** against Redpanda Cloud.
 - `KAFKA_SASL_MECHANISM` must be `SCRAM-SHA-256`, not 512.
+
+Redis runs on this VM instead of Render Key Value. Render's free Key Value
+refuses external traffic, and its internal hostname only resolves inside
+Render's network, so a container here cannot reach it. Set a fresh password:
+
+```bash
+sed -i "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=$(openssl rand -hex 32)|" ~/goshop/backend/.env
+grep '^REDIS_PASSWORD=' ~/goshop/backend/.env
+```
+
+`REDIS_TLS_ENABLED` must be **unset**: the connection is plain TCP inside the
+compose network. The compose file replaces `REDIS_ADDR` with `redis:6379`, so
+whatever the copied `.env` still says from Render does not matter.
 
 The JWT keypair is bind-mounted by the image build from
 `backend/deploy/render/jwt_public.pem`, which is tracked. The **private** key is
@@ -138,6 +151,19 @@ curl -s localhost:8080/healthz
 `storage":"skipped"` is correct on this host: there is no local object store,
 uploads go to R2.
 
+Check Redis separately, since a wrong password there shows up as a health
+failure rather than a boot failure:
+
+```bash
+docker exec goshop-redis sh -c 'redis-cli --no-auth-warning -a "$REDIS_PASSWORD" ping'
+# PONG
+docker exec goshop-redis redis-cli --no-auth-warning -a "$(grep -oP "(?<=^REDIS_PASSWORD=).*" ~/goshop/backend/.env)" dbsize
+```
+
+If the gateway logs `failed to dial ... lookup red-...: server misbehaving`, the
+backend is still reading Render's hostname: `REDIS_ADDR` in the compose
+`environment` block was lost, or the container was started from an older file.
+
 ## 5. DNS (~5 min, in Cloudflare)
 
 `api.goshop.dpdns.org` currently points at Render. Switch it to the VM's IPv4:
@@ -160,14 +186,23 @@ curl -s -o /dev/null -w '%{http_code}\n' https://api.goshop.dpdns.org/api/v1/pro
 
 ## 6. Backups (~5 min)
 
-The contract source of truth is Supabase; this VM holds only code and Caddy
-state. Nothing here needs a backup except the Caddy ACME account
-(`caddy-data` volume), which re-issues itself if lost.
+The contract source of truth is Supabase; this VM holds only code, Caddy state
+and the Redis append-only file. Nothing here needs a backup except the Caddy
+ACME account (`caddy-data`, which re-issues itself if lost) and Redis, whose
+`redis-data` volume is a cache that refills from Postgres on demand — losing it
+logs users out and empties carts, nothing more.
 
 What *does* need a backup is `backend/.env`. Copy it somewhere safe now:
 
 ```bash
 scp deploy@<VM_IP>:/home/deploy/goshop/backend/.env ./goshop-vps.env
+```
+
+To snapshot Redis anyway:
+
+```bash
+docker exec goshop-redis sh -c 'redis-cli --no-auth-warning -a "$REDIS_PASSWORD" BGSAVE'
+docker cp goshop-redis:/data/appendonlydir ./redis-snapshot
 ```
 
 ## 7. Redeploy after a code change (~2 min)
@@ -178,7 +213,8 @@ cd backend
 docker compose -f deploy/vps/docker-compose.vps.yml up -d --build backend
 ```
 
-`--build backend` rebuilds only the app; Caddy stays up, so there is no TLS gap.
+`--build backend` rebuilds only the app; Caddy and Redis stay up, so there is no
+TLS gap and no cache flush.
 
 ## What this layout does not have
 
@@ -198,4 +234,6 @@ docker compose -f deploy/vps/docker-compose.vps.yml up -d --build backend
 | `tls error: server refused TLS connection` | `DB_SSL_MODE` not `require` | set it; Supabase refuses plaintext |
 | every authenticated request 401s | `JWT_PRIVATE_KEY` missing | paste the PEM with literal `\n` escapes |
 | `Unknown Topic Or Partition` on publish | Kafka topics missing | `docker exec goshop-backend /app/bin/kafkatopics` |
+| `lookup red-...: server misbehaving` | backend still reading Render Key Value's internal hostname | `REDIS_ADDR: redis:6379` must be in the compose `environment` block |
+| `NOAUTH` / `WRONGPASS` in redis logs | compose interpolated `REDIS_PASSWORD` from the shell, not `.env` | run compose from `backend/` so `../../.env` resolves, or export it first |
 | container restarts every ~60 s | OOM | `docker stats`, then raise the VM or set `GOMEMLIMIT` lower |

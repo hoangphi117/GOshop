@@ -1,9 +1,10 @@
 # One-container backend on a plain VPS, alongside managed services.
 #
 # This is the VPS sibling of deploy/render/Dockerfile.all: the same image, the
-# same 17 processes, the same start.sh. Nothing here replaces managed
-# infrastructure. Postgres stays on Supabase, Redis on Render Key Value, Kafka on
-# Redpanda Cloud, Meilisearch on Meilisearch Cloud — the VPS only runs Go.
+# same 17 processes, the same start.sh. Postgres stays on Supabase, Kafka on
+# Redpanda Cloud, Meilisearch on Meilisearch Cloud. Redis runs here as a third
+# container: Render Key Value free refuses external traffic and its internal
+# hostname does not resolve outside Render's network.
 #
 # Why not docker-compose.prod.yml: that file declares 3072 MB of mem_limit
 # (1536 of it the torch embedder) and its own Kafka/Redis/Meilisearch/Prometheus.
@@ -35,6 +36,11 @@ services:
       # PORT. Nothing here may bind outside the container except the gateway.
       PORT: "8080"
       RUN_MIGRATIONS: "${RUN_MIGRATIONS:-true}"
+      # Overrides REDIS_ADDR from .env, which still points at Render's internal
+      # hostname. The compose service name is the DNS entry inside `goshop`.
+      # TLS stays off: this is a same-host TCP connection, not Render's public
+      # endpoint, so REDIS_TLS_ENABLED must not be set.
+      REDIS_ADDR: "redis:6379"
     # Per-process cap. 17 processes x 96 MiB of Go heap should stay under
     # 1.6 GB worst case; the soft cap lets the runtime survive a spike rather
     # than be OOM-killed outright.
@@ -65,13 +71,50 @@ services:
       - caddy-data:/data
       - caddy-config:/config
     depends_on:
-      - backend
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    networks:
+      - goshop
+
+  # Replaces Render Key Value. No host port: only the backend reaches it, over
+  # the compose network. 256 MB cap keeps the whole VM inside 2 GB even when the
+  # cache is cold-filling.
+  redis:
+    image: redis:7-alpine
+    container_name: goshop-redis
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD:?set REDIS_PASSWORD in backend/.env}
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - allkeys-lru
+      - --appendonly
+      - "yes"
+    volumes:
+      - redis-data:/data
+    mem_limit: 320m
+    healthcheck:
+      # $$ escapes so the shell inside the container expands the password at
+      # check time; compose must not interpolate it.
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    environment:
+      REDIS_PASSWORD: "${REDIS_PASSWORD:?set REDIS_PASSWORD in backend/.env}"
     networks:
       - goshop
 
 volumes:
   caddy-data:
   caddy-config:
+  redis-data:
 
 networks:
   goshop:
