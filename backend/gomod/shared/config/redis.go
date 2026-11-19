@@ -53,6 +53,9 @@ func newRedisOptions() (*redis.Options, string, error) {
 	if utils.GetEnv("REDIS_TLS_ENABLED", "") == "true" {
 		opt.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
 	}
+	if maxConns := utils.GetIntEnv("REDIS_MAX_CONNS", 0); maxConns > 0 {
+		opt.PoolSize = maxConns
+	}
 	return opt, addr, nil
 }
 
@@ -63,6 +66,18 @@ func redisOptionsFromURL(raw string, allowTLS bool) (*redis.Options, string, err
 	}
 	if allowTLS && opt.TLSConfig == nil && strings.HasPrefix(raw, "rediss://") {
 		opt.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+	}
+	// go-redis defaults PoolSize to 10 x GOMAXPROCS, which is fine for one
+	// service and fatal for seventeen in one container against a managed Redis
+	// that caps total connections. Render Key Value's free plan allows 25; the
+	// stack's behaviour there was nine clients connecting and the rest failing
+	// with a bare "write: broken pipe" - the server hanging up, not the address
+	// being wrong. REDIS_MAX_CONNS sizes one process's share of that budget.
+	if maxConns := utils.GetIntEnv("REDIS_MAX_CONNS", 0); maxConns > 0 {
+		opt.PoolSize = maxConns
+		if opt.MinIdleConns > maxConns {
+			opt.MinIdleConns = maxConns
+		}
 	}
 	// Redact credentials before the value can reach a log line.
 	return opt, redactedRedisURL(raw), nil

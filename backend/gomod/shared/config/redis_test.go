@@ -109,3 +109,29 @@ func TestNewOptionalRedisOptions_ConfiguredReturnsOptions(t *testing.T) {
 func TestPingRedis_NilIsError(t *testing.T) {
 	require.Error(t, PingRedis(nil, 50*time.Millisecond))
 }
+
+// A managed Redis caps total connections, not connections per client, so the
+// stack's seventeen processes have to divide the budget rather than each take
+// go-redis' default 10 x GOMAXPROCS.
+func TestNewOptionalRedisOptions_HonoursPoolCap(t *testing.T) {
+	t.Setenv("REDIS_URL", "redis://red-abc123:6379")
+	t.Setenv("REDIS_ADDR", "")
+	t.Setenv("REDIS_MAX_CONNS", "2")
+
+	opt, err := NewOptionalRedisOptions()
+	require.NoError(t, err)
+	require.NotNil(t, opt)
+	assert.Equal(t, 2, opt.PoolSize)
+	assert.LessOrEqual(t, opt.MinIdleConns, 2, "idle floor must not exceed the cap")
+}
+
+func TestNewOptionalRedisOptions_UnsetCapKeepsDefault(t *testing.T) {
+	t.Setenv("REDIS_URL", "redis://red-abc123:6379")
+	t.Setenv("REDIS_ADDR", "")
+	t.Setenv("REDIS_MAX_CONNS", "")
+
+	opt, err := NewOptionalRedisOptions()
+	require.NoError(t, err)
+	require.NotNil(t, opt)
+	assert.Equal(t, 0, opt.PoolSize, "0 means go-redis picks its own default")
+}
