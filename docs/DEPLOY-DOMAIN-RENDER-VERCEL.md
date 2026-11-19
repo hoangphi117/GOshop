@@ -65,26 +65,33 @@ cert, so `Full (strict)` validates cleanly.
 
 ### 3.2 Records to add (Cloudflare → DNS → Records)
 
-Delete any existing `A`, `AAAA` or `CNAME` record for these names first. Render
-is IPv4-only; a stale `AAAA` produces `ERR_SSL_VERSION_OR_CIPHER_MISMATCH`.
+`goshop.dpdns.org` is a **subdomain delegation with its own Cloudflare zone**, not
+a record inside the `dpdns.org` zone. That matters: this zone owns its apex, so a
+`CNAME @` flattens normally and no `A` record is needed. (The older note here
+said a `CNAME` at the apex was impossible — that is true only when the name is a
+subdomain of a zone you do not control.)
+
+Delete any existing `A`, `AAAA` or `CNAME` record for these names first.
+Vercel is IPv4-only; a stale `AAAA` produces `ERR_SSL_VERSION_OR_CIPHER_MISMATCH`.
 
 | Type | Name | Content | Proxy | TTL |
 | --- | --- | --- | --- | --- |
-| CNAME | `goshop` | `cname.vercel-dns.com` | Proxied | Auto |
-| A | `goshop` | `76.76.21.21` | Proxied | Auto |
-| CNAME | `admin` | `cname.vercel-dns.com` | Proxied | Auto |
-| A | `admin` | `76.76.21.21` | Proxied | Auto |
-| CNAME | `api` | `<service-name>.onrender.com` | **DNS only** | 300 |
+| A | `@` | `216.198.79.1` | **DNS only** | Auto |
+| A | `@` | `64.29.17.1` | **DNS only** | Auto |
+| CNAME | `www` | `0ca56e3d993cf89.vercel-dns-017.com` | **DNS only** | Auto |
+| CNAME | `api` | `goshop-a7wz.onrender.com` | Proxied | Auto |
 
-The `A` + `CNAME` pair is deliberate: `dpdns.org` is not yours, so Cloudflare
-cannot CNAME-flatten at the apex and the `A` record carries the apex itself. Add
-both, or use only `A` if Cloudflare warns about the CNAME at the same name.
+Copy the exact values from Vercel → Domains, not from here: the project's
+`*.vercel-dns-0xx.com` target and its A records change per project.
+
+Keep Vercel's names on **DNS only** until Vercel reports the domain as Valid, then
+proxying them is optional. Leave `api` proxied: it gives Render a stable edge.
 
 Verify before touching either dashboard:
 
 ```powershell
 nslookup goshop.dpdns.org 1.1.1.1
-nslookup admin.goshop.dpdns.org 1.1.1.1
+nslookup www.goshop.dpdns.org 1.1.1.1
 nslookup api.goshop.dpdns.org 1.1.1.1
 ```
 
