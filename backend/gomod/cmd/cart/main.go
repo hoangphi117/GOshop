@@ -50,7 +50,7 @@ func main() {
 		cfg.DB.DBName = cartDBName
 	}
 	port := utils.GetEnv("CART_SERVER_PORT", "8087")
-	cfg.ServerAddress = ":" + port
+	cfg.ServerAddress = ":" + config.Port(port)
 
 	application, err := cartapp.New(cfg)
 	if err != nil {

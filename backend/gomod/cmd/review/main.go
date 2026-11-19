@@ -49,7 +49,7 @@ func main() {
 	if reviewDBName := utils.GetEnv("REVIEW_DB_NAME", utils.GetEnv("DB_REVIEW_NAME", "shopping_review")); reviewDBName != "" {
 		cfg.DB.DBName = reviewDBName
 	}
-	cfg.ServerAddress = ":" + utils.GetEnv("REVIEW_SERVER_PORT", "8091")
+	cfg.ServerAddress = ":" + config.Port(utils.GetEnv("REVIEW_SERVER_PORT", "8091"))
 
 	app, err := reviewapp.New(cfg)
 	if err != nil {

@@ -101,7 +101,7 @@ func New(cfg *config.Config) (*App, error) {
 		opts.FAQs = faqs
 	}
 
-	catalogTarget := utils.GetEnv("CATALOG_GRPC_TARGET", "localhost:50055")
+	catalogTarget := utils.GetEnv("CATALOG_GRPC_TARGET", "127.0.0.1:50055")
 	if catalogClient, err := catalogcontract.NewGRPCCatalogClient(catalogTarget); err != nil {
 		logger.Log.Warn().Err(err).Str("target", catalogTarget).Msg("Product reader disabled")
 	} else {

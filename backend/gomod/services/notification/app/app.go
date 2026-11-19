@@ -129,7 +129,7 @@ func New(cfg *config.Config) (*App, error) {
 	discordNotifier := discord.NewDiscordNotifier(discordWebhookURL, discordLogger)
 
 	// Identity Client (gRPC for user lookup)
-	identityGRPCAddr := utils.GetEnv("IDENTITY_GRPC_ADDR", "localhost:50051")
+	identityGRPCAddr := utils.GetEnv("IDENTITY_GRPC_ADDR", "127.0.0.1:50051")
 	identityClient, err := identitycontract.NewGRPCIdentityClient(identityGRPCAddr, redisClient)
 	if err != nil {
 		logger.Log.Warn().Err(err).Str("addr", identityGRPCAddr).Msg("Could not connect to Identity gRPC service on boot")

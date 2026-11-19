@@ -112,7 +112,7 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	grpcPort := utils.GetEnv("COUPON_GRPC_PORT", "50053")
-	grpcLis, err := net.Listen("tcp", ":"+grpcPort)
+	grpcLis, err := net.Listen("tcp", ":"+config.Port(grpcPort))
 	if err != nil {
 		logger.Log.Fatal().Err(err).Msgf("Failed to listen on gRPC port %s", grpcPort)
 		return nil, fmt.Errorf("failed to listen on gRPC port %s: %w", grpcPort, err)

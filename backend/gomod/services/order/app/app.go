@@ -289,31 +289,31 @@ func New(cfg *config.Config) (*App, error) {
 	cacheService := cache.NewRedisCacheService(redisClient)
 
 	// Cross-domain gRPC clients
-	catalogTarget := utils.GetEnv("CATALOG_GRPC_ADDR", "localhost:50055")
+	catalogTarget := utils.GetEnv("CATALOG_GRPC_ADDR", "127.0.0.1:50055")
 	catalogClient, err := catalogcontract.NewGRPCCatalogClient(catalogTarget)
 	if err != nil {
 		logger.Log.Warn().Err(err).Str("addr", catalogTarget).Msg("Failed to connect to Catalog gRPC service")
 	}
 
-	inventoryTarget := utils.GetEnv("INVENTORY_GRPC_ADDR", "localhost:50054")
+	inventoryTarget := utils.GetEnv("INVENTORY_GRPC_ADDR", "127.0.0.1:50054")
 	inventoryClient, err := inventorycontract.NewGRPCInventoryClient(inventoryTarget)
 	if err != nil {
 		logger.Log.Warn().Err(err).Str("addr", inventoryTarget).Msg("Failed to connect to Inventory gRPC service")
 	}
 
-	couponTarget := utils.GetEnv("COUPON_GRPC_ADDR", "localhost:50053")
+	couponTarget := utils.GetEnv("COUPON_GRPC_ADDR", "127.0.0.1:50053")
 	couponClient, err := couponcontract.NewGRPCCouponClient(couponTarget)
 	if err != nil {
 		logger.Log.Warn().Err(err).Str("addr", couponTarget).Msg("Failed to connect to Coupon gRPC service")
 	}
 
-	cartTarget := utils.GetEnv("CART_GRPC_ADDR", "localhost:50056")
+	cartTarget := utils.GetEnv("CART_GRPC_ADDR", "127.0.0.1:50056")
 	cartClient, err := cartcontract.NewGRPCCartClient(cartTarget)
 	if err != nil {
 		logger.Log.Warn().Err(err).Str("addr", cartTarget).Msg("Failed to connect to Cart gRPC service")
 	}
 
-	identityTarget := utils.GetEnv("IDENTITY_GRPC_ADDR", "localhost:50051")
+	identityTarget := utils.GetEnv("IDENTITY_GRPC_ADDR", "127.0.0.1:50051")
 	identityClient, err := identitycontract.NewGRPCIdentityClient(identityTarget, redisClient)
 	if err != nil {
 		logger.Log.Warn().Err(err).Str("addr", identityTarget).Msg("Failed to connect to Identity gRPC service")
@@ -515,7 +515,7 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	grpcPort := utils.GetEnv("ORDER_GRPC_PORT", "50057")
-	grpcLis, err := net.Listen("tcp", ":"+grpcPort)
+	grpcLis, err := net.Listen("tcp", ":"+config.Port(grpcPort))
 	if err != nil {
 		logger.Log.Fatal().Err(err).Msgf("Failed to listen on gRPC port %s", grpcPort)
 		return nil, fmt.Errorf("failed to listen on gRPC port %s: %w", grpcPort, err)

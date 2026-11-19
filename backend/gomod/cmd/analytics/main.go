@@ -49,7 +49,7 @@ func main() {
 	if analyticsDBName := utils.GetEnv("ANALYTICS_DB_NAME", utils.GetEnv("DB_ANALYTICS_NAME", "shopping_analytics")); analyticsDBName != "" {
 		cfg.DB.DBName = analyticsDBName
 	}
-	cfg.ServerAddress = ":" + utils.GetEnv("ANALYTICS_SERVER_PORT", "8092")
+	cfg.ServerAddress = ":" + config.Port(utils.GetEnv("ANALYTICS_SERVER_PORT", "8092"))
 
 	app, err := analyticsapp.New(cfg)
 	if err != nil {

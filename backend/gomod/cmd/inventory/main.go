@@ -50,7 +50,7 @@ func main() {
 		cfg.DB.DBName = inventoryDBName
 	}
 	port := utils.GetEnv("INVENTORY_SERVER_PORT", "8090")
-	cfg.ServerAddress = ":" + port
+	cfg.ServerAddress = ":" + config.Port(port)
 
 	application, err := inventoryapp.New(cfg)
 	if err != nil {

@@ -129,7 +129,7 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	// Catalog gRPC client
-	catalogGRPCAddr := utils.GetEnv("CATALOG_GRPC_ADDR", "localhost:50055")
+	catalogGRPCAddr := utils.GetEnv("CATALOG_GRPC_ADDR", "127.0.0.1:50055")
 	catalogClient, err := catalogcontract.NewGRPCCatalogClient(catalogGRPCAddr)
 	if err != nil {
 		logger.Log.Warn().Err(err).Str("addr", catalogGRPCAddr).Msg("Could not connect to Catalog gRPC service")
@@ -156,7 +156,7 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	grpcPort := utils.GetEnv("CART_GRPC_PORT", "50056")
-	grpcAddr := fmt.Sprintf(":%s", grpcPort)
+	grpcAddr := ":" + config.Port(grpcPort)
 	grpcListener, err := net.Listen("tcp", grpcAddr)
 	if err != nil {
 		logger.Log.Fatal().Err(err).Str("addr", grpcAddr).Msg("Failed to bind gRPC listener for cart service")

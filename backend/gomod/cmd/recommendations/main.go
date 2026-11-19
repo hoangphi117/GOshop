@@ -50,7 +50,7 @@ func main() {
 		cfg.DB.DBName = recsDBName
 	}
 	port := utils.GetEnv("RECOMMENDATIONS_SERVER_PORT", "8095")
-	cfg.ServerAddress = ":" + port
+	cfg.ServerAddress = ":" + config.Port(port)
 
 	application, err := recsapp.New(cfg)
 	if err != nil {

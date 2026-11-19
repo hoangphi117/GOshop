@@ -50,7 +50,7 @@ func main() {
 		cfg.DB.DBName = catalogDBName
 	}
 	port := utils.GetEnv("CATALOG_SERVER_PORT", "8086")
-	cfg.ServerAddress = ":" + port
+	cfg.ServerAddress = ":" + config.Port(port)
 
 	application, err := catalogapp.New(cfg)
 	if err != nil {

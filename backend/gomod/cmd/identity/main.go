@@ -50,7 +50,7 @@ func main() {
 		cfg.DB.DBName = identityDBName
 	}
 	port := utils.GetEnv("IDENTITY_SERVER_PORT", "8081")
-	cfg.ServerAddress = ":" + port
+	cfg.ServerAddress = ":" + config.Port(port)
 
 	application, err := identityapp.New(cfg)
 	if err != nil {

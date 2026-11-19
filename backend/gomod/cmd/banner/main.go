@@ -50,7 +50,7 @@ func main() {
 		cfg.DB.DBName = bannerDBName
 	}
 	port := utils.GetEnv("BANNER_SERVER_PORT", "8089")
-	cfg.ServerAddress = ":" + port
+	cfg.ServerAddress = ":" + config.Port(port)
 
 	application, err := bannerapp.New(cfg)
 	if err != nil {
