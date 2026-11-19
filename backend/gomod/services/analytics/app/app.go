@@ -183,32 +183,35 @@ func New(cfg *config.Config) (*App, error) {
 	// replacing the old 24h Redis TTL that double-applied after a flush.
 	if broker != nil {
 		if err := eventledger.Migrate(connStr, "event_ledger_migrations_analytics"); err != nil {
-			return nil, fmt.Errorf("event ledger migration failed: %w", err)
-		}
-		ledgerRepo := eventledger.NewRepository(db.DBPool)
-		ledgerLog := eventledger.NewZerologLogger(brokerLogger)
-		consumer := analyticsworker.NewOrderProjectionConsumer(db.DBPool, orderClient, logger.Log)
-		handler := func(headers messaging.Header, body []byte) error {
-			h, b := headers, body
-			inner := eventledger.Wrap(ledgerRepo, "analytics.order_events", func(_ context.Context, _ []byte) error {
-				return dispatchAnalyticsEvent(consumer, h, b)
-			}, ledgerLog)
-			return inner(headers, body)
-		}
-		routingKeys := []string{
-			events.RoutingKeyOrderCreated,
-			events.RoutingKeyOrderCancelled,
-			events.RoutingKeyOrderStatusChanged,
-			events.RoutingKeyOrderShipped,
-			events.RoutingKeyOrderDelivered,
-			events.RoutingKeyPaymentSucceeded,
-			events.RoutingKeyOrderReturnUpdated,
-			"payment.refunded",
-		}
-		if err := broker.SubscribeTopic(context.Background(), analyticsQueue, routingKeys, handler); err != nil {
-			logger.Log.Error().Err(err).Msg("Failed to subscribe analytics order events topic")
+			// Projections are a read-side convenience; losing them must not stop
+			// the service from serving. This is also the path an empty DSN takes.
+			logger.Log.Warn().Err(err).Msg("Event ledger migration failed for analytics; projections disabled until the next boot")
 		} else {
-			logger.Log.Info().Msgf("Analytics subscribed topic queue: %s", analyticsQueue)
+			ledgerRepo := eventledger.NewRepository(db.DBPool)
+			ledgerLog := eventledger.NewZerologLogger(brokerLogger)
+			consumer := analyticsworker.NewOrderProjectionConsumer(db.DBPool, orderClient, logger.Log)
+			handler := func(headers messaging.Header, body []byte) error {
+				h, b := headers, body
+				inner := eventledger.Wrap(ledgerRepo, "analytics.order_events", func(_ context.Context, _ []byte) error {
+					return dispatchAnalyticsEvent(consumer, h, b)
+				}, ledgerLog)
+				return inner(headers, body)
+			}
+			routingKeys := []string{
+				events.RoutingKeyOrderCreated,
+				events.RoutingKeyOrderCancelled,
+				events.RoutingKeyOrderStatusChanged,
+				events.RoutingKeyOrderShipped,
+				events.RoutingKeyOrderDelivered,
+				events.RoutingKeyPaymentSucceeded,
+				events.RoutingKeyOrderReturnUpdated,
+				"payment.refunded",
+			}
+			if err := broker.SubscribeTopic(context.Background(), analyticsQueue, routingKeys, handler); err != nil {
+				logger.Log.Error().Err(err).Msg("Failed to subscribe analytics order events topic")
+			} else {
+				logger.Log.Info().Msgf("Analytics subscribed topic queue: %s", analyticsQueue)
+			}
 		}
 	}
 
