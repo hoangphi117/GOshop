@@ -151,4 +151,3 @@ func TestNewRedisClient_HonoursPoolCap(t *testing.T) {
 	// And the client still degrades instead of exiting when the target is dead.
 	assert.Nil(t, NewRedisClient())
 }
-
