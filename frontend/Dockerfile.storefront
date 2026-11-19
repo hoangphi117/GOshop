@@ -18,6 +18,9 @@ COPY apps/storefront/ ./apps/storefront/
 
 RUN pnpm install --frozen-lockfile --fetch-timeout 600000 --fetch-retries 5 --network-concurrency 8
 ENV NEXT_TELEMETRY_DISABLED=1
+# next.config.ts only emits .next/standalone when this is set; Vercel rejects
+# the standalone output, so the Docker build is the one place that opts in.
+ENV NEXT_OUTPUT_STANDALONE=true
 RUN pnpm --filter storefront build
 
 # Runner: only the traced standalone bundle. No pnpm, no full node_modules —
