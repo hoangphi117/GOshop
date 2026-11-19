@@ -82,16 +82,19 @@ func New(cfg *config.Config) (*App, error) {
 	}
 	m, err := migrate.NewWithSourceInstance("iofs", sourceDriver, connStr)
 	if err != nil {
-		logger.Log.Error().Err(err).Msg("Could not initialize migrate instance for notification service")
-		return nil, fmt.Errorf("migrate instance init failed: %w", err)
-	}
-	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
-		logger.Log.Error().Err(err).Msg("Failed to execute database migrations for notification service")
-		return nil, fmt.Errorf("notification migrations failed: %w", err)
-	}
-	logger.Log.Info().Msg("Notification service database migrations applied successfully")
-	if sourceErr, dbErr := m.Close(); sourceErr != nil || dbErr != nil {
-		logger.Log.Warn().Interface("close_errors", map[string]any{"source": sourceErr, "db": dbErr}).Msg("Error closing migration instance")
+		// A migration failure here must not take the service down: notification
+		// delivery does not depend on this ledger being current, and an empty DSN
+		// (SKIP_MIGRATIONS=true) lands on exactly this path.
+		logger.Log.Warn().Err(err).Msg("Could not initialize migrate instance for notification service; continuing without the ledger migration")
+	} else {
+		if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+			logger.Log.Error().Err(err).Msg("Failed to execute database migrations for notification service")
+		} else {
+			logger.Log.Info().Msg("Notification service database migrations applied successfully")
+		}
+		if sourceErr, dbErr := m.Close(); sourceErr != nil || dbErr != nil {
+			logger.Log.Warn().Interface("close_errors", map[string]any{"source": sourceErr, "db": dbErr}).Msg("Error closing migration instance")
+		}
 	}
 
 	redisClient := config.NewRedisClient()

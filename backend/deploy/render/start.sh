@@ -56,13 +56,54 @@ for v in IDENTITY_GRPC_ADDR CATALOG_GRPC_ADDR CATALOG_GRPC_TARGET \
   esac
 done
 
-start() {  name="$1"; shift
+start() {
+  name="$1"; shift
   echo "start $name: $*"
   /app/bin/"$name" &
 }
 
+# Every service opens its own pool and runs its own migrations at boot. Firing
+# all seventeen at once means seventeen connection bursts against the same
+# database, and the loser dies with
+#   pq: remaining connection slots are reserved for roles with the SUPERUSER attribute
+# which showed up as a random service (notification and coupon last time)
+# failing while its neighbours booted fine. Starting them one at a time, waiting
+# for the listener before the next, removes the race at the cost of boot time.
+start_serial() {
+  name="$1"; port="$2"
+  echo "start $name on :$port"
+  /app/bin/"$name" &
+  pid=$!
+  i=0
+  while [ $i -lt 40 ]; do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      echo "  $name exited during boot; see its log above"
+      return 0
+    fi
+    if netstat -tln 2>/dev/null | grep -q ":$port "; then
+      echo "  $name listening"
+      return 0
+    fi
+    i=$((i + 1))
+    sleep 1
+  done
+  echo "  $name did not listen on :$port within 40s; continuing"
+}
+
 # Postgres/Redis/Kafka come from managed providers; each service runs its own
 # migrations at boot, so ordering below is about listeners, not schema.
+#
+# Every service opens its pool before it migrates, and golang-migrate takes its
+# own connection on top of that. On a session-limited database (Supabase free is
+# ~15 session-mode slots) seventeen of those in one container is guaranteed to
+# run out, and the services that lose the race die with
+#   pq: remaining connection slots are reserved for roles with the SUPERUSER attribute
+# Set RUN_MIGRATIONS=false once the schema is in place: the pool is then the
+# only connection each service holds, and the stack fits.
+if [ "${RUN_MIGRATIONS:-true}" = "false" ]; then
+  echo "RUN_MIGRATIONS=false: skipping per-service schema migrations"
+  export SKIP_MIGRATIONS=true
+fi
 
 # Topics first: Redpanda Cloud does not auto-create, and a producer that starts
 # before its topic exists fails the event it was publishing. Non-fatal because
@@ -72,22 +113,22 @@ if [ -n "${KAFKA_BROKERS:-}" ] && [ -x /app/bin/kafkatopics ]; then
   /app/bin/kafkatopics 2>&1 | tail -3 || echo "kafka topic bootstrap failed; continuing"
 fi
 
-start identity
-start catalog
-start cart
-start coupon
-start inventory
-start payment
-start order
-start review
-start banner
-start media
-start analytics
-start notification
-start recommendations
-start assistant
-start chat
-start ws-gateway
+start_serial identity 8081
+start_serial catalog 8086
+start_serial cart 8087
+start_serial coupon 8084
+start_serial inventory 8090
+start_serial payment 8083
+start_serial order 8088
+start_serial review 8091
+start_serial banner 8089
+start_serial media 8094
+start_serial analytics 8092
+start_serial notification 8082
+start_serial recommendations 8095
+start_serial assistant 8097
+start_serial chat 8093
+start_serial ws-gateway 8085
 start worker
 
 # Last, and in the foreground: the image lives exactly as long as the gateway.

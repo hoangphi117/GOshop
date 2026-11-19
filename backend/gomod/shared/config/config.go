@@ -245,6 +245,24 @@ func (c *Config) serverAddress() string {
 	return ":" + Port(utils.GetEnv("SERVER_PORT", "8080"))
 }
 
+// MigrationsEnabled reports whether a service should run its schema migrations
+// at boot. It defaults to true so nothing changes for local compose.
+//
+// The reason to turn it off exists only in a deployment that runs every service
+// in one container against a session-limited pooler. Each service opens its
+// database pool first and golang-migrate takes a second connection on top, so
+// seventeen services booting at once want roughly twice as many session slots
+// as the database has. The losers die with
+//
+//	pq: remaining connection slots are reserved for roles with the SUPERUSER attribute
+//
+// which reads like a permissions problem and is really exhaustion. Migrating
+// once and then setting RUN_MIGRATIONS=false leaves the pool as each service's
+// only connection.
+func MigrationsEnabled() bool {
+	return utils.GetEnv("SKIP_MIGRATIONS", "false") != "true"
+}
+
 // MigrationPort is the port migrations must use, which is not always the one
 // the services use. golang-migrate takes a session-level advisory lock and
 // relies on prepared statements; a transaction pooler (Supavisor :6543,
@@ -277,7 +295,15 @@ func (c *Config) MigrationHost() string {
 // searchPath and migrationsTable are per-database because several embedded
 // migration sets share one database and would otherwise collide on the
 // version table.
+//
+// With SKIP_MIGRATIONS=true this returns an empty string on purpose. Every
+// caller already treats an unusable DSN as "log a warning and carry on", so an
+// empty one is the cheapest way to keep the migration code untouched while
+// removing the extra connection it would otherwise take. See MigrationsEnabled.
 func (c *Config) MigrationURL(searchPath, migrationsTable string) string {
+	if !MigrationsEnabled() {
+		return ""
+	}
 	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&search_path=%s&x-migrations-table=%s",
 		c.DB.User, c.DB.Password, c.MigrationHost(), c.MigrationPort(), c.DB.DBName, c.DB.SSLMode, searchPath, migrationsTable)
 }

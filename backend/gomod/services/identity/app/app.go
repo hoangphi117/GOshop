@@ -54,6 +54,11 @@ type App struct {
 // volume starts with an empty shopping_identity schema and the seeder fails on
 // missing tables (outbox_events etc).
 func runMigrations(cfg *config.Config) error {
+	if !config.MigrationsEnabled() {
+		logger.Log.Info().Msg("Schema migrations skipped (SKIP_MIGRATIONS=true)")
+		return nil
+	}
+
 	// golang-migrate parses postgres:// URLs; a key=value DSN fails with
 	// "failed to parse scheme from database URL". Use the same env overrides
 	// IdentityDNS() honours, rendered as a URL.

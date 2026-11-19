@@ -9,6 +9,7 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 
+	"goshop/shared/config"
 	"goshop/shared/pkg/eventledger/migrations"
 )
 
@@ -17,6 +18,13 @@ import (
 // migration sets (one per version sequence) without version collisions.
 // Any x-migrations-table parameter already present in connStr is replaced.
 func Migrate(connStr, migrationsTable string) error {
+	// The ledger table is created once. After that this is a no-op that still
+	// costs a connection, and a deployment with a session-limited pooler cannot
+	// spare one per service - see config.MigrationsEnabled.
+	if !config.MigrationsEnabled() {
+		return nil
+	}
+
 	scopedConnStr, err := withMigrationsTable(connStr, migrationsTable)
 	if err != nil {
 		return fmt.Errorf("prepare event ledger migration connection: %w", err)
