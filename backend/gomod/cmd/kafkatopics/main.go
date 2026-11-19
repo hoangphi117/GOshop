@@ -88,9 +88,13 @@ func main() {
 	configs := make([]segmentio.TopicConfig, 0, len(topics))
 	for _, t := range topics {
 		configs = append(configs, segmentio.TopicConfig{
-			Topic:             t,
-			NumPartitions:     partitions,
-			ReplicationFactor: 1,
+			Topic:         t,
+			NumPartitions: partitions,
+			// Redpanda Cloud Serverless rejects replication factor 1 with
+			// "[38] Invalid Replication Factor"; a self-hosted single broker
+			// rejects 3. Neither default suits both, so it comes from
+			// KAFKA_REPLICATION_FACTOR and falls back to 3, the managed value.
+			ReplicationFactor: utils.GetIntEnv("KAFKA_REPLICATION_FACTOR", 3),
 		})
 	}
 
