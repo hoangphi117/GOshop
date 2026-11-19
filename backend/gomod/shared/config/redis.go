@@ -83,6 +83,24 @@ func redisOptionsFromURL(raw string, allowTLS bool) (*redis.Options, string, err
 	return opt, redactedRedisURL(raw), nil
 }
 
+// redisDialFacts reports the properties that decide whether the handshake can
+// succeed at all: the scheme the value arrived with, and whether a TLS config
+// was built. A TLS-enabled listener answering plaintext hangs up immediately,
+// which go-redis surfaces as a bare "write: broken pipe" - the same text as a
+// connection-budget exhaustion, so the two are indistinguishable without this.
+func redisDialFacts() string {
+	raw := strings.TrimSpace(utils.GetEnv("REDIS_URL", ""))
+	scheme := "none"
+	if i := strings.Index(raw, "://"); i >= 0 {
+		scheme = raw[:i]
+	}
+	tlsOn := "false"
+	if scheme == "rediss" || utils.GetEnv("REDIS_TLS_ENABLED", "") == "true" {
+		tlsOn = "true"
+	}
+	return fmt.Sprintf("scheme=%s tls=%s", scheme, tlsOn)
+}
+
 // NewOptionalRedisOptions is for services that can run without Redis. It
 // returns (nil, nil) when REDIS_URL/REDIS_ADDR is unset instead of falling
 // back to localhost, which in a container means "no Redis anywhere".
@@ -169,11 +187,13 @@ func NewRedisClient() *redis.Client {
 	defer cancel()
 	if _, err = client.Ping(ctx).Result(); err != nil {
 		// The target is logged so a bad REDIS_ADDR is visible without a shell.
-		logger.Log.Error().Err(err).Str("target", target).Msg("Redis unreachable; running with the in-memory cache only")
+		// The dial facts separate "wrong scheme" from "pool budget exhausted",
+		// which otherwise both read as "write: broken pipe".
+		logger.Log.Error().Err(err).Str("target", target).Str("dial", redisDialFacts()).Msg("Redis unreachable; running with the in-memory cache only")
 		_ = client.Close()
 		return nil
 	}
 
-	logger.Log.Info().Str("target", target).Msg("Connected to Redis!")
+	logger.Log.Info().Str("target", target).Str("dial", redisDialFacts()).Msg("Connected to Redis!")
 	return client
 }

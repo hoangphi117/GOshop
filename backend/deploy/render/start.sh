@@ -113,6 +113,31 @@ if [ -n "${KAFKA_BROKERS:-}" ] && [ -x /app/bin/kafkatopics ]; then
   /app/bin/kafkatopics 2>&1 | tail -3 || echo "kafka topic bootstrap failed; continuing"
 fi
 
+# Redis probe. Every service already reports "write: broken pipe" on failure,
+# but that text covers three different causes: a TLS listener answering
+# plaintext, credentials, and a connection budget that was already spent.
+# One raw PING before the services boot tells them apart, using netcat from
+# the image instead of adding a diagnostic binary.
+if [ -n "${REDIS_URL:-}" ]; then
+  echo "probe redis"
+  hostport=${REDIS_URL#*://}
+  hostport=${hostport##*@}
+  hostport=${hostport%%/*}
+  host=${hostport%%:*}
+  port=${hostport##*:}
+  case "$REDIS_URL" in
+    rediss://*) echo "  REDIS_URL scheme is rediss (TLS) using port $port" ;;
+    *) echo "  REDIS_URL scheme is plaintext using port $port" ;;
+  esac
+  # busybox nc has no -q; -w bounds the wait and closing stdin ends the read
+  # once the server replies. A PONG on stdout is a healthy instance.
+  if printf 'PING\r\n' | nc -w 3 "$host" "$port" 2>&1 | tr -d '\r' | grep -q '^+PONG'; then
+    echo "  redis answered PONG"
+  else
+    echo "  redis did NOT answer PONG; the services will fall back to in-memory"
+  fi
+fi
+
 start_serial identity 8081
 start_serial catalog 8086
 start_serial cart 8087
