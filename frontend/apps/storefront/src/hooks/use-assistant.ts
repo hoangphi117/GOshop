@@ -23,6 +23,12 @@ interface AssistantState {
   sessionId: string | null;
   messages: AssistantMessage[];
   isLoading: boolean;
+  /**
+   * False until persist has read localStorage. Effects that seed the transcript
+   * must wait for it, or they run against the empty SSR state, overwrite it,
+   * and persist then saves that empty state over the stored transcript.
+   */
+  hasHydrated: boolean;
   open: () => void;
   close: () => void;
   toggle: () => void;
@@ -50,6 +56,7 @@ export const useAssistant = create<AssistantState>()(
       sessionId: null,
       messages: [],
       isLoading: false,
+      hasHydrated: false,
 
       open: () => set({ isOpen: true }),
       close: () => set({ isOpen: false }),
@@ -69,10 +76,12 @@ export const useAssistant = create<AssistantState>()(
         }),
 
       // A greeting is a local message, not a turn: the server never sees it, so
-      // it costs no tokens and cannot be rate limited.
+      // it costs no tokens and cannot be rate limited. Guarded on hasHydrated
+      // because before hydration messages is [] even when storage has a
+      // transcript, and seeding then would persist over it.
       greet: () =>
         set((s) =>
-          s.messages.length > 0
+          !s.hasHydrated || s.messages.length > 0
             ? s
             : {
                 messages: [
@@ -222,6 +231,11 @@ export const useAssistant = create<AssistantState>()(
         sessionId: s.sessionId,
         messages: s.messages.slice(-MAX_MESSAGES),
       }),
+      // Runs after localStorage is read, on the client only. Without it nothing
+      // flips hasHydrated and greet() stays a no-op on an empty transcript.
+      onRehydrateStorage: () => (state) => {
+        if (state) state.hasHydrated = true;
+      },
     },
   ),
 );
