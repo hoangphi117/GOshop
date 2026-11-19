@@ -148,8 +148,17 @@ func NewRedisClient() *redis.Client {
 		return nil
 	}
 
-	opt.PoolSize = 20
-	opt.MinIdleConns = 5
+	// Honour REDIS_MAX_CONNS here too. redisOptionsFromURL already sized the
+	// pool, but the lines below used to overwrite it with 20 regardless, so a
+	// container running 17 services ignored the cap and the later services in
+	// the boot sequence were hung up with "write: broken pipe".
+	if maxConns := utils.GetIntEnv("REDIS_MAX_CONNS", 0); maxConns > 0 {
+		opt.PoolSize = maxConns
+		opt.MinIdleConns = 0
+	} else {
+		opt.PoolSize = 20
+		opt.MinIdleConns = 5
+	}
 	opt.DialTimeout = 5 * time.Second
 	opt.ReadTimeout = 3 * time.Second
 	opt.WriteTimeout = 3 * time.Second

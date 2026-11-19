@@ -135,3 +135,20 @@ func TestNewOptionalRedisOptions_UnsetCapKeepsDefault(t *testing.T) {
 	require.NotNil(t, opt)
 	assert.Equal(t, 0, opt.PoolSize, "0 means go-redis picks its own default")
 }
+
+// NewRedisClient used to overwrite the pool with a hardcoded 20, so the cap
+// set in redisOptionsFromURL never reached the client. Guard that regression:
+// the cap must still be in the options the client builds from.
+func TestNewRedisClient_HonoursPoolCap(t *testing.T) {
+	t.Setenv("REDIS_URL", "redis://127.0.0.1:1")
+	t.Setenv("REDIS_ADDR", "")
+	t.Setenv("REDIS_MAX_CONNS", "1")
+
+	opt, _, err := newRedisOptions()
+	require.NoError(t, err)
+	assert.Equal(t, 1, opt.PoolSize, "cap must survive to the client, not be overwritten by the default 20")
+
+	// And the client still degrades instead of exiting when the target is dead.
+	assert.Nil(t, NewRedisClient())
+}
+
