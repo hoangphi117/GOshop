@@ -32,8 +32,31 @@ export CART_GRPC_ADDR=${CART_GRPC_ADDR:-127.0.0.1:50056}
 export ORDER_GRPC_ADDR=${ORDER_GRPC_ADDR:-127.0.0.1:50057}
 export ORDER_GRPC_TARGET=${ORDER_GRPC_TARGET:-127.0.0.1:50057}
 
-start() {
-  name="$1"; shift
+# Every service except the gateway shares this process environment, so one
+# exported SERVER_PORT would move all of them onto the same listener. Only
+# identity needs a pin, and it reads IDENTITY_SERVER_PORT.
+export IDENTITY_SERVER_PORT=${IDENTITY_SERVER_PORT:-8081}
+
+# Compose file hostnames do not resolve in a single container. Every client
+# default is already 127.0.0.1 in code; this covers the values a deployment
+# copied out of docker-compose.prod.yml, which point at *-service names.
+for v in IDENTITY_SERVICE_URL NOTIFICATION_SERVICE_URL CATALOG_SERVICE_URL \
+         CATALOG_BASE_URL ASSISTANT_BASE_URL PAYMENT_WEBHOOK_BASE_URL; do
+  eval "cur=\${$v:-}"
+  case "$cur" in
+    *-service*) eval "export $v=http://127.0.0.1:\${cur##*:}" ;;
+  esac
+done
+for v in IDENTITY_GRPC_ADDR CATALOG_GRPC_ADDR CATALOG_GRPC_TARGET \
+         INVENTORY_GRPC_ADDR COUPON_GRPC_ADDR CART_GRPC_ADDR \
+         ORDER_GRPC_ADDR ORDER_GRPC_TARGET; do
+  eval "cur=\${$v:-}"
+  case "$cur" in
+    *-service*) eval "export $v=127.0.0.1:\${cur##*:}" ;;
+  esac
+done
+
+start() {  name="$1"; shift
   echo "start $name: $*"
   /app/bin/"$name" &
 }

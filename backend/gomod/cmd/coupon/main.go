@@ -50,7 +50,7 @@ func main() {
 		cfg.DB.DBName = couponDBName
 	}
 	port := utils.GetEnv("COUPON_SERVER_PORT", "8084")
-	cfg.ServerAddress = ":" + port
+	cfg.ServerAddress = ":" + config.Port(port)
 
 	application, err := couponapp.New(cfg)
 	if err != nil {

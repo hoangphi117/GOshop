@@ -117,13 +117,13 @@ func New(cfg *config.Config) (*App, error) {
 
 	// Cross-domain gRPC ports. Analytics owns no other service's data; every
 	// external dimension comes through one of these clients.
-	catalogTarget := utils.GetEnv("CATALOG_GRPC_TARGET", "localhost:50055")
+	catalogTarget := utils.GetEnv("CATALOG_GRPC_TARGET", "127.0.0.1:50055")
 	catalogClient, err := catalogcontract.NewGRPCCatalogClient(catalogTarget)
 	if err != nil {
 		return nil, fmt.Errorf("catalog gRPC client (%s): %w", catalogTarget, err)
 	}
 
-	orderTarget := utils.GetEnv("ORDER_GRPC_TARGET", "localhost:50057")
+	orderTarget := utils.GetEnv("ORDER_GRPC_TARGET", "127.0.0.1:50057")
 	orderClient, err := ordercontract.NewGRPCOrderClient(orderTarget)
 	if err != nil {
 		return nil, fmt.Errorf("order gRPC client (%s): %w", orderTarget, err)
@@ -141,7 +141,7 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, fmt.Errorf("identity client does not support customer counting")
 	}
 
-	inventoryTarget := utils.GetEnv("INVENTORY_GRPC_ADDR", "localhost:50054")
+	inventoryTarget := utils.GetEnv("INVENTORY_GRPC_ADDR", "127.0.0.1:50054")
 	inventoryClient, err := inventorycontract.NewGRPCInventoryClient(inventoryTarget)
 	if err != nil {
 		return nil, fmt.Errorf("inventory gRPC client (%s): %w", inventoryTarget, err)

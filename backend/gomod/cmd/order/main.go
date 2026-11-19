@@ -50,7 +50,7 @@ func main() {
 		cfg.DB.DBName = orderDBName
 	}
 	port := utils.GetEnv("ORDER_SERVER_PORT", "8088")
-	cfg.ServerAddress = ":" + port
+	cfg.ServerAddress = ":" + config.Port(port)
 
 	application, err := orderapp.New(cfg)
 	if err != nil {

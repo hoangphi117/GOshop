@@ -50,7 +50,7 @@ func main() {
 		cfg.DB.DBName = paymentDBName
 	}
 	port := utils.GetEnv("PAYMENT_SERVER_PORT", "8083")
-	cfg.ServerAddress = ":" + port
+	cfg.ServerAddress = ":" + config.Port(port)
 
 	application, err := paymentapp.New(cfg)
 	if err != nil {

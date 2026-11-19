@@ -97,7 +97,7 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, fmt.Errorf("identity gRPC client (%s): %w", cfg.IdentityGRPCAddr, err)
 	}
 
-	orderTarget := utils.GetEnv("ORDER_GRPC_TARGET", "localhost:50057")
+	orderTarget := utils.GetEnv("ORDER_GRPC_TARGET", "127.0.0.1:50057")
 	orderClient, err := ordercontract.NewGRPCOrderClient(orderTarget)
 	if err != nil {
 		return nil, fmt.Errorf("order gRPC client (%s): %w", orderTarget, err)
@@ -121,7 +121,7 @@ func New(cfg *config.Config) (*App, error) {
 		MaxHeaderBytes: 1 << 20,
 	}
 
-	grpcAddr := fmt.Sprintf(":%s", utils.GetEnv("CHAT_GRPC_PORT", "50058"))
+	grpcAddr := ":" + config.Port(utils.GetEnv("CHAT_GRPC_PORT", "50058"))
 	grpcListener, err := net.Listen("tcp", grpcAddr)
 	if err != nil {
 		logger.Log.Fatal().Err(err).Str("addr", grpcAddr).Msg("Failed to bind gRPC listener for chat service")

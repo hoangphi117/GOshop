@@ -120,7 +120,7 @@ func NewConfig() *Config {
 
 	return &Config{
 		AppEnv:        utils.GetEnv("APP_ENV", "development"),
-		ServerAddress: fmt.Sprintf(":%s", utils.GetEnv("SERVER_PORT", "8080")),
+		ServerAddress: (&Config{}).serverAddress(),
 		DB: DatabaseConfig{
 			Host:     utils.GetEnv("DB_HOST", "localhost"),
 			Port:     utils.GetEnv("DB_PORT", "5432"),
@@ -214,6 +214,35 @@ func envFloat(key string, fallback float64) float64 {
 		return fallback
 	}
 	return v
+}
+
+// Port normalises a port value taken from the environment.
+//
+// Env values pick up stray characters from a copy-paste or a dashboard form; a
+// trailing backtick produced
+//
+//	listen tcp: lookup tcp/8081`: unknown port
+//
+// on Render, after the listener had already announced that it started, so the
+// failure looked like a crash instead of a bad value. Anything that is not
+// digits after trimming falls back to the caller's default.
+func Port(raw string) string {
+	cleaned := strings.Trim(raw, " \t\r\n`'\"")
+	cleaned = strings.TrimPrefix(cleaned, ":")
+	if cleaned == "" {
+		return "8080"
+	}
+	for _, r := range cleaned {
+		if r < '0' || r > '9' {
+			return "8080"
+		}
+	}
+	return cleaned
+}
+
+// serverAddress is the listen address every service builds from SERVER_PORT.
+func (c *Config) serverAddress() string {
+	return ":" + Port(utils.GetEnv("SERVER_PORT", "8080"))
 }
 
 // MigrationPort is the port migrations must use, which is not always the one

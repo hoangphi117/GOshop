@@ -84,13 +84,13 @@ func New(cfg *config.Config) (*App, error) {
 	tokenService := auth.NewJWTService(cacheRedisService)
 
 	// Cross-domain gRPC ports
-	catalogTarget := utils.GetEnv("CATALOG_GRPC_TARGET", "localhost:50055")
+	catalogTarget := utils.GetEnv("CATALOG_GRPC_TARGET", "127.0.0.1:50055")
 	catalogClient, err := catalogcontract.NewGRPCCatalogClient(catalogTarget)
 	if err != nil {
 		return nil, fmt.Errorf("catalog gRPC client (%s): %w", catalogTarget, err)
 	}
 
-	orderTarget := utils.GetEnv("ORDER_GRPC_TARGET", "localhost:50057")
+	orderTarget := utils.GetEnv("ORDER_GRPC_TARGET", "127.0.0.1:50057")
 	orderClient, err := ordercontract.NewGRPCOrderClient(orderTarget)
 	if err != nil {
 		return nil, fmt.Errorf("order gRPC client (%s): %w", orderTarget, err)

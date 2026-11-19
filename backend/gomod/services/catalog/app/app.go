@@ -111,7 +111,7 @@ func New(cfg *config.Config) (*App, error) {
 		}()
 	}
 
-	inventoryGRPCAddr := utils.GetEnv("INVENTORY_GRPC_ADDR", "localhost:50054")
+	inventoryGRPCAddr := utils.GetEnv("INVENTORY_GRPC_ADDR", "127.0.0.1:50054")
 	inventoryClient, err := inventorycontract.NewGRPCInventoryClient(inventoryGRPCAddr)
 	if err != nil {
 		logger.Log.Warn().Err(err).Str("addr", inventoryGRPCAddr).Msg("Could not connect to Inventory gRPC service")
@@ -142,7 +142,7 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	grpcPort := utils.GetEnv("CATALOG_GRPC_PORT", "50055")
-	grpcLis, err := net.Listen("tcp", ":"+grpcPort)
+	grpcLis, err := net.Listen("tcp", ":"+config.Port(grpcPort))
 	if err != nil {
 		logger.Log.Fatal().Err(err).Msgf("Failed to listen on gRPC port %s", grpcPort)
 		return nil, fmt.Errorf("failed to listen on gRPC port %s: %w", grpcPort, err)

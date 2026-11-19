@@ -154,11 +154,12 @@ func New(cfg *config.Config) (*App, error) {
 		brokerLogger,
 	)
 	if err != nil {
-		// Auth services are not gated on Kafka in a way the app owns, so keep the
-		// existing hard failure: an identity service that silently drops user
-		// events is worse than a restart loop you can see in the logs.
-		logger.Log.Fatal().Err(err).Msg("Failed to create Kafka service")
-		return nil, err
+		// Login, registration and the JWKS endpoint must survive a broker outage:
+		// without this the container restart-loops on a Kafka ACL that is only
+		// needed by the notification fan-out. Every publish site already checks
+		// the broker for nil.
+		logger.Log.Warn().Err(err).Msg("Kafka unavailable; identity will not publish user events")
+		broker = nil
 	}
 
 	wsHub := ws.NewHub()
@@ -221,9 +222,6 @@ func New(cfg *config.Config) (*App, error) {
 	grpcPort := utils.GetEnv("IDENTITY_GRPC_PORT", ":50051")
 	// net.Listen wants an address, not a bare port; normalise so the env value can
 	// be written either way.
-	if !strings.HasPrefix(grpcPort, ":") {
-		grpcPort = ":" + grpcPort
-	}
 	if !strings.HasPrefix(grpcPort, ":") {
 		grpcPort = ":" + grpcPort
 	}

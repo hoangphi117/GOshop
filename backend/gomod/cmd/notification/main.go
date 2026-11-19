@@ -50,7 +50,7 @@ func main() {
 		cfg.DB.DBName = notifDBName
 	}
 	port := utils.GetEnv("NOTIFICATION_SERVER_PORT", "8082")
-	cfg.ServerAddress = ":" + port
+	cfg.ServerAddress = ":" + config.Port(port)
 
 	application, err := notificationapp.New(cfg)
 	if err != nil {

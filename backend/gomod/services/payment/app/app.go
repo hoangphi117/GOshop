@@ -126,7 +126,7 @@ func New(cfg *config.Config) (*App, error) {
 	paymentRepo := paymentrepo.NewSqlPaymentRepository(paymentQuerier)
 	webhookRepo := paymentrepo.NewSqlWebhookEventRepository(paymentQuerier)
 	outboxRepo := paymentrepo.NewSqlOutboxRepository(paymentQuerier)
-	orderTarget := utils.GetEnv("ORDER_GRPC_ADDR", utils.GetEnv("ORDER_GRPC_TARGET", "localhost:50057"))
+	orderTarget := utils.GetEnv("ORDER_GRPC_ADDR", utils.GetEnv("ORDER_GRPC_TARGET", "127.0.0.1:50057"))
 	orderClient, err := ordercontract.NewOrderClient(orderTarget)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize order gRPC client: %w", err)
@@ -208,7 +208,7 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	// gRPC Server setup
-	grpcAddr := fmt.Sprintf(":%s", utils.GetEnv("PAYMENT_GRPC_PORT", "50052"))
+	grpcAddr := ":" + config.Port(utils.GetEnv("PAYMENT_GRPC_PORT", "50052"))
 	grpcListener, err := net.Listen("tcp", grpcAddr)
 	if err != nil {
 		logger.Log.Fatal().Err(err).Str("addr", grpcAddr).Msg("Failed to bind gRPC listener for payment service")
