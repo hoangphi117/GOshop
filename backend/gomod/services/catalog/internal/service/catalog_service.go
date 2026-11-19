@@ -1622,13 +1622,24 @@ func (s *catalogService) ProcessOutboxBatch(ctx context.Context) (int, error) {
 	}
 
 	for _, id := range deleteIDs {
+		// Without a search client (a deployment without Meilisearch) there is
+		// nothing to delete, so the event must stay PENDING rather than be
+		// dropped, exactly as the upsert branch does.
+		if s.search == nil {
+			continue
+		}
 		if _, err := s.search.DeleteProduct(ctx, id); err != nil {
 			logger.Log.Warn().Err(err).Str("id", id).Msg("Catalog outbox: failed to delete product from search")
 		}
 	}
 
 	for _, id := range processedIDs {
-		_ = s.repo.MarkOutboxEventProcessed(ctx, id)
+		// Marking must not be silent: an error here leaves the row PENDING, so
+		// the next tick re-indexes it. Logging it is what makes that visible
+		// instead of showing up later as documents missing from the index.
+		if err := s.repo.MarkOutboxEventProcessed(ctx, id); err != nil {
+			logger.Log.Warn().Err(err).Int64("event_id", id).Msg("Catalog outbox: failed to mark event processed")
+		}
 	}
 
 	return len(processedIDs), nil
@@ -1641,12 +1652,22 @@ func (s *catalogService) StartOutboxWorker(ctx context.Context) {
 	ticker := time.NewTicker(2 * time.Second)
 	go func() {
 		defer ticker.Stop()
+		// The body below is synchronous, so a tick that arrives while the last
+		// batch is still running is dropped rather than started in parallel.
+		// Without that, a bulk enqueue (5000 rows) has its ticks overlap: each
+		// tick re-reads a batch whose rows are not yet marked, the same rows are
+		// indexed twice, and documents fall through. That is how 329 of 5000
+		// products ended up missing from the index with every event PROCESSED.
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				_, _ = s.ProcessOutboxBatch(ctx)
+				if _, err := s.ProcessOutboxBatch(ctx); err != nil {
+					// Keep running: a transient Meilisearch or DB error is retried
+					// on the next tick, and the unprocessed rows are still PENDING.
+					logger.Log.Warn().Err(err).Msg("Catalog outbox: batch failed, retrying next tick")
+				}
 			}
 		}
 	}()

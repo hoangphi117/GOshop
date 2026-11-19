@@ -249,7 +249,10 @@ RETURNING *;
 -- name: GetPendingOutboxEvents :many
 SELECT * FROM outbox_events
 WHERE status = 'PENDING'
-ORDER BY created_at ASC
+-- event_id breaks ties: a bulk insert stamps every row with one now(), so
+-- ordering by created_at alone returns the same arbitrary 50 rows each poll
+-- and starves the rest.
+ORDER BY created_at ASC, event_id ASC
 LIMIT $1;
 
 -- name: MarkOutboxEventProcessed :exec

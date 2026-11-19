@@ -365,7 +365,7 @@ func (q *Queries) GetCategoryByUUID(ctx context.Context, categoryUuid uuid.UUID)
 const getPendingOutboxEvents = `-- name: GetPendingOutboxEvents :many
 SELECT event_id, aggregate_type, aggregate_id, event_type, payload, status, created_at, processed_at FROM outbox_events
 WHERE status = 'PENDING'
-ORDER BY created_at ASC
+ORDER BY created_at ASC, event_id ASC
 LIMIT $1
 `
 
