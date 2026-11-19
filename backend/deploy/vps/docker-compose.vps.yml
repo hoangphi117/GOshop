@@ -68,6 +68,9 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Cloudflare Origin Certificate, generated in the dashboard. Not tracked:
+      # it is a private key, and the identity is per-zone.
+      - ./certs:/etc/caddy/certs:ro
       - caddy-data:/data
       - caddy-config:/config
     depends_on:
