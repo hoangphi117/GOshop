@@ -116,7 +116,10 @@ func New(cfg *config.Config) (*App, error) {
 	// Phase-1 observability: /healthz reports this process's consumer lag.
 	kafka.RegisterHealthz(r, "inventory", brokerService, dbPool.Ping)
 
-	port := utils.GetEnv("INVENTORY_SERVER_PORT", "8085")
+	// 8090 is what cmd/inventory and docker-compose both use; the old 8085
+	// default collided with ws-gateway in the single-container image and made
+	// whichever started second die with "address already in use".
+	port := config.Port(utils.GetEnv("INVENTORY_SERVER_PORT", "8090"))
 	server := &http.Server{
 		Addr:    ":" + port,
 		Handler: r,
