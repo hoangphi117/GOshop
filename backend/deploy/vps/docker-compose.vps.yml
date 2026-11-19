@@ -1,0 +1,78 @@
+# One-container backend on a plain VPS, alongside managed services.
+#
+# This is the VPS sibling of deploy/render/Dockerfile.all: the same image, the
+# same 17 processes, the same start.sh. Nothing here replaces managed
+# infrastructure. Postgres stays on Supabase, Redis on Render Key Value, Kafka on
+# Redpanda Cloud, Meilisearch on Meilisearch Cloud — the VPS only runs Go.
+#
+# Why not docker-compose.prod.yml: that file declares 3072 MB of mem_limit
+# (1536 of it the torch embedder) and its own Kafka/Redis/Meilisearch/Prometheus.
+# It needs ~4 GB. This one needs ~1.0-1.3 GB.
+#
+# Trade-off: the embedder is absent, so recommendation shelves fall back to
+# best-sellers and rating order. That is the documented degradation path, not a
+# failure.
+#
+# Usage on the VPS:
+#   docker compose -f deploy/vps/docker-compose.vps.yml up -d --build
+#
+# Caddy terminates TLS and forwards everything to :8080. There is no second
+# nginx: the image has no nginx, and Caddy is one 30 MB process instead.
+
+services:
+  backend:
+    build:
+      context: ../..
+      dockerfile: deploy/render/Dockerfile.all
+    image: goshop-backend:local
+    container_name: goshop-backend
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+    environment:
+      APP_ENV: production
+      # start.sh pins every listener to the compose ports; the gateway reads
+      # PORT. Nothing here may bind outside the container except the gateway.
+      PORT: "8080"
+      RUN_MIGRATIONS: "${RUN_MIGRATIONS:-true}"
+    # Per-process cap. 17 processes x 96 MiB of Go heap should stay under
+    # 1.6 GB worst case; the soft cap lets the runtime survive a spike rather
+    # than be OOM-killed outright.
+    mem_limit: 1600m
+    cpus: 1.0
+    expose:
+      - "8080"
+    healthcheck:
+      # /healthz is served by the gateway. "storage":"skipped" is expected:
+      # there is no local object store to probe.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 180s
+    networks:
+      - goshop
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: goshop-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - backend
+    networks:
+      - goshop
+
+volumes:
+  caddy-data:
+  caddy-config:
+
+networks:
+  goshop:
+    driver: bridge
