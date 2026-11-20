@@ -242,13 +242,23 @@ noapp:
 stop-noapp:
 	docker compose -f ${NOAPP_COMPOSE} down
 
-# Build container for dev.
-# Drops the dev-host override: with nginx on :80, a stale .env.local pointing
-# at :8080 would shadow .env.development and the browser would hit a dead port.
+# Start the dev stack (everything in Docker). Self-contained: writes the dev env
+# variant, then switches the stack to dev - which tears a running prod stack
+# down, rebuilds the dev images and starts them detached + drift-checked - and
+# finally attaches so the logs still stream. env-dev drops `.env.local`: with
+# nginx on :80 a stale copy pointing at :8080 would shadow .env.development and
+# the browser would hit a dead port.
 dev:
-	powershell -NoProfile -Command "Remove-Item frontend/apps/storefront/.env.local -ErrorAction SilentlyContinue"
-	docker compose -f ${DEV_COMPOSE} down
-	docker compose -f ${DEV_COMPOSE} --env-file ${ENV_FILE} up --build
+	$(MAKE) env-dev
+	$(MAKE) switch-stack STACK=dev
+	$(MAKE) up-dev
+
+# Started as its own sub-make on purpose: the makefile `include`s backend/.env
+# at parse time, so one make process keeps exporting the env it read before
+# `env-dev` rewrote that file. That stale env outranks --env-file and would
+# recreate the dev stack with the previous stack's DB_HOST/secrets.
+up-dev:
+	docker compose -f ${DEV_COMPOSE} --env-file ${ENV_FILE} up
 
 # Stop dev containers AND the host processes dev-host started. Without the
 # second line a stopped stack leaves api.exe/analytics.exe etc. holding their
@@ -258,10 +268,19 @@ stop-dev:
 	powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/stop-dev.ps1
 
 # Run lightweight hybrid development (Infra in Docker, Go apps on Host).
-# No nginx in this topology, so the storefront must target :8080 instead of the
-# edge on :80. .env.local outranks .env.development, which is why this copy is
-# what keeps Google login and every client fetch pointing at a live port.
+# Self-contained: writes the dev env variant first. This topology deliberately
+# has no nginx, so the storefront must target :8080 instead of the edge on :80;
+# .env.local outranks .env.development, which is why this copy keeps Google
+# login and every client fetch on a live port. Coming from a prod stack, run
+# `make switch-stack STACK=dev` once first: dev.ps1 moves the host-owned
+# services off Docker and cannot undo a running prod stack by itself.
 dev-host:
+	$(MAKE) env-dev
+	$(MAKE) dev-host-run
+
+# Same sub-make reason as up-dev: dev.ps1 must inherit the env env-dev just
+# wrote, not the one this make process parsed before the rewrite.
+dev-host-run:
 	powershell -NoProfile -Command "Copy-Item frontend/apps/storefront/.env.dev-host frontend/apps/storefront/.env.local -Force"
 	powershell -ExecutionPolicy Bypass -File ./scripts/dev.ps1
 
