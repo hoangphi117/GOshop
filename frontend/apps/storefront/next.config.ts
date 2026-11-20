@@ -89,6 +89,19 @@ const nextConfig: NextConfig = {
 
     return [
       {
+        // Dev-through-tunnel: `next dev` runs on the host with no server in
+        // front of it, so a browser on the public tunnel origin
+        // (dev.goshop.dpdns.org) would have to call the API at localhost — a
+        // public -> loopback fetch, which Chrome blocks as Local Network
+        // Access ("Permission was denied ... loopback address space"). Proxying
+        // /api/v1 through the dev server keeps the browser same-origin; the
+        // upstream is INTERNAL_API_URL (the local edge on :80), which injects
+        // X-API-KEY. Dormant in the containerized deploy: nginx owns /api/v1
+        // before the storefront location, so Next never sees these paths.
+        source: "/api/v1/:path*",
+        destination: `${backendUrl}/api/v1/:path*`,
+      },
+      {
         source: "/uploads/:path*",
         destination: `${backendUrl}/uploads/:path*`,
       },
