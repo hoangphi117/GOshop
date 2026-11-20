@@ -64,7 +64,7 @@ flowchart LR
         KF --> DLQ["dead-letter topics"]
     end
 
-    EMB["embedder<br/>Python + torch"] --> PGV
+    EMB["embedder<br/>Python + ONNX"] --> PGV
 
     SVC --> PG
     SVC --> PGV

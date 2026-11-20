@@ -1,0 +1,13 @@
+# The embedder image (docker/embedder) builds with the repo root as its context,
+# because its Dockerfile COPYs docker/embedder/*. Only that path and its own
+# requirements are read; everything listed here is context the Dockerfile never
+# touches, and shipping it whole (node_modules, .next, .git) is what makes a
+# root-context build slow. The Go services build from backend/ and use
+# backend/.dockerignore instead, so this file does not affect them.
+.git
+.gitnexus
+frontend
+docs
+**/node_modules
+**/.next
+**/*.log

@@ -4,8 +4,8 @@ One container runs the whole Go backend. Supabase, Render Key Value, Redpanda
 Cloud and Meilisearch Cloud stay managed: this host runs no database, no broker
 and no search engine.
 
-RAM budget: backend ~700–1000 MB, Caddy ~30 MB, OS + Docker ~250 MB. Fits 2 GB
-with room for a spike.
+RAM budget: backend ~700–1000 MB, embedder ~300 MB, Caddy ~30 MB, OS + Docker
+~250 MB. Fits 2 GB with a small spike margin.
 
 ## 1. Provision (Ubuntu 24.04, ~20 min)
 
@@ -210,17 +210,18 @@ docker cp goshop-redis:/data/appendonlydir ./redis-snapshot
 ```bash
 cd ~/goshop && git pull
 cd backend
-docker compose -f deploy/vps/docker-compose.vps.yml up -d --build backend
+docker compose -f deploy/vps/docker-compose.vps.yml up -d --build backend embedder
 ```
 
-`--build backend` rebuilds only the app; Caddy and Redis stay up, so there is no
-TLS gap and no cache flush.
+`--build backend embedder` rebuilds the two app images; Caddy and Redis stay up,
+so there is no TLS gap and no cache flush. Drop `embedder` when only the Go code
+changed.
 
 ## What this layout does not have
 
-- **The embedder.** `recommendations` falls back to best-sellers and rating
-  order. Restoring semantic shelves needs a 1.5 GB torch container, i.e. a
-  bigger VM.
+- **A GPU for embeddings.** The embedder runs as the CPU ONNX sidecar
+  (docker/embedder, ~300 MB), so semantic and personalized shelves work, but with
+  a single thread's throughput. Moving to a GPU is a hosting change, not a code one.
 - **A second gateway replica.** One `api` process. A crash costs ~10 s of
   downtime while Docker restarts it.
 - **Prometheus / alertmanager / promtail.** The prod compose stack has them;
