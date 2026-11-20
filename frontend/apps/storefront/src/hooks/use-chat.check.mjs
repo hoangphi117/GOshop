@@ -54,10 +54,20 @@ removeQueries({ queryKey: ["chat"] });
 removeQueries({ queryKey: ["assistant"] });
 assert.deepEqual([...cache.keys()], [JSON.stringify(["cart"])]);
 
-// 3. The assistant persist key is the one the reset targets.
+// 3. The assistant transcript is server-owned: no localStorage copy, and a
+//    reset must invalidate a history request that is still in flight.
 const assistant = readFileSync(join(here, "use-assistant.ts"), "utf8");
-assert.ok(assistant.includes('name: "goshop-assistant"'));
-assert.ok(assistant.includes("reset: () =>"));
+assert.ok(
+  !assistant.includes("zustand/middleware"),
+  "use-assistant still imports a persist middleware",
+);
+assert.ok(!assistant.includes("persist("), "assistant still persists its transcript");
+assert.ok(
+  assistant.includes("hydrationEpoch += 1"),
+  "reset does not invalidate in-flight hydration",
+);
+assert.ok(assistant.includes("hydrate: async () =>"));
+assert.ok(assistant.includes("startNewChat: () =>"));
 
 // 4. An "anonymous" conversation cached before sign-in must be evicted for the
 //    account that is signing in, or the widget serves it for its staleTime.
