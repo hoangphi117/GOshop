@@ -46,11 +46,13 @@ services:
       - ./backend/.env
     environment:
       - APP_ENV=development
-      # ${DB_HOST:-postgres} rather than a literal: the block below wins over
-      # env_file, so a hardcoded value silently pinned every service to the
-      # local container and made `DB_HOST=<managed host>` in backend/.env a lie.
-      # The default keeps the plain local topology working.
-      - DB_HOST=${DB_HOST:-postgres}
+      # The all-Docker dev stack always uses its own `postgres` service. The
+      # managed hosts in backend/.env are IPv6-only direct connections
+      # (Supabase db.<ref>.supabase.co), which the Docker bridge cannot resolve,
+      # and the local image serves without TLS - so both values are pinned here.
+      # `make dev-host` keeps honouring backend/.env for the host binaries.
+      - DB_HOST=postgres
+      - DB_SSL_MODE=disable
       - REDIS_ADDR=redis:6379
       - KAFKA_BROKERS=kafka:29092
       # Dev broker is PLAINTEXT (see the kafka service below) and no TLS cert is
@@ -129,7 +131,8 @@ services:
       - ./backend/.env
     environment:
       - APP_ENV=development
-      - DB_HOST=${DB_HOST:-postgres}
+      - DB_HOST=postgres
+      - DB_SSL_MODE=disable
       - DB_NAME=shopping_identity
       - IDENTITY_DB_NAME=shopping_identity
       - REDIS_ADDR=redis:6379
@@ -178,7 +181,8 @@ services:
       - ./backend/.env
     environment:
       - APP_ENV=development
-      - DB_HOST=${DB_HOST:-postgres}
+      - DB_HOST=postgres
+      - DB_SSL_MODE=disable
       - DB_NAME=shopping_notification
       - REDIS_ADDR=redis:6379
       - KAFKA_BROKERS=kafka:29092
@@ -279,7 +283,8 @@ services:
       - ./backend/.env
     environment:
       - APP_ENV=development
-      - DB_HOST=${DB_HOST:-postgres}
+      - DB_HOST=postgres
+      - DB_SSL_MODE=disable
       - DB_NAME=shopping_analytics
       - ANALYTICS_DB_NAME=shopping_analytics
       - ANALYTICS_SERVER_PORT=8092
@@ -345,6 +350,8 @@ services:
       - ./backend/.env
     environment:
       - APP_ENV=development
+      - DB_HOST=postgres
+      - DB_SSL_MODE=disable
       - ASSISTANT_SERVER_PORT=8097
       - REDIS_ADDR=redis:6379
       - CATALOG_GRPC_TARGET=catalog-service:50055
@@ -382,7 +389,8 @@ services:
       - ./backend/.env
     environment:
       - APP_ENV=development
-      - DB_HOST=${DB_HOST:-postgres}
+      - DB_HOST=postgres
+      - DB_SSL_MODE=disable
       - DB_NAME=shopping_payment
       - PAYMENT_DB_NAME=shopping_payment
       - REDIS_ADDR=redis:6379
@@ -432,7 +440,8 @@ services:
       - ./backend/.env
     environment:
       - APP_ENV=development
-      - DB_HOST=${DB_HOST:-postgres}
+      - DB_HOST=postgres
+      - DB_SSL_MODE=disable
       - DB_NAME=shopping_catalog
       - CATALOG_DB_NAME=shopping_catalog
       - CATALOG_SERVER_PORT=8086
@@ -488,7 +497,8 @@ services:
       - ./backend/.env
     environment:
       - APP_ENV=development
-      - DB_HOST=${DB_HOST:-postgres}
+      - DB_HOST=postgres
+      - DB_SSL_MODE=disable
       - DB_NAME=shopping_inventory
       - INVENTORY_DB_NAME=shopping_inventory
       - INVENTORY_SERVER_PORT=8090
@@ -536,7 +546,8 @@ services:
       - ./backend/.env
     environment:
       - APP_ENV=development
-      - DB_HOST=${DB_HOST:-postgres}
+      - DB_HOST=postgres
+      - DB_SSL_MODE=disable
       - DB_NAME=shopping_coupon
       - COUPON_DB_NAME=shopping_coupon
       - COUPON_SERVER_PORT=8084
@@ -582,7 +593,8 @@ services:
       - ./backend/.env
     environment:
       - APP_ENV=development
-      - DB_HOST=${DB_HOST:-postgres}
+      - DB_HOST=postgres
+      - DB_SSL_MODE=disable
       - DB_NAME=shopping_cart
       - CART_DB_NAME=shopping_cart
       - CART_SERVER_PORT=8087
@@ -629,7 +641,8 @@ services:
       - ./backend/.env
     environment:
       - APP_ENV=development
-      - DB_HOST=${DB_HOST:-postgres}
+      - DB_HOST=postgres
+      - DB_SSL_MODE=disable
       - DB_NAME=shopping_banner
       - BANNER_DB_NAME=shopping_banner
       - BANNER_SERVER_PORT=8089
@@ -671,7 +684,8 @@ services:
       - ./backend/.env
     environment:
       - APP_ENV=development
-      - DB_HOST=${DB_HOST:-postgres}
+      - DB_HOST=postgres
+      - DB_SSL_MODE=disable
       - DB_NAME=shopping_recs
       - RECOMMENDATIONS_DB_NAME=shopping_recs
       - RECOMMENDATIONS_SERVER_PORT=8095
@@ -754,7 +768,8 @@ services:
       - ./backend/.env
     environment:
       - APP_ENV=development
-      - DB_HOST=${DB_HOST:-postgres}
+      - DB_HOST=postgres
+      - DB_SSL_MODE=disable
       - DB_NAME=shopping_review
       - REVIEW_DB_NAME=shopping_review
       - REVIEW_SERVER_PORT=8091
@@ -805,7 +820,8 @@ services:
       - ./backend/.env
     environment:
       - APP_ENV=development
-      - DB_HOST=${DB_HOST:-postgres}
+      - DB_HOST=postgres
+      - DB_SSL_MODE=disable
       - DB_NAME=shopping_order
       - ORDER_DB_NAME=shopping_order
       - REDIS_ADDR=redis:6379
@@ -875,7 +891,8 @@ services:
       - ./backend/.env
     environment:
       - APP_ENV=development
-      - DB_HOST=${DB_HOST:-postgres}
+      - DB_HOST=postgres
+      - DB_SSL_MODE=disable
       - DB_NAME=shopping_chat
       - CHAT_DB_NAME=shopping_chat
       - CHAT_SERVER_PORT=8093
