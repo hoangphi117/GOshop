@@ -1,6 +1,7 @@
 fastapi==0.115.6
 uvicorn==0.34.0
-# CPU-only torch: the default wheel pulls ~2.5 GB of CUDA libraries that this
-# container can never use. The +cpu index is added in the Dockerfile.
-torch
-sentence-transformers==3.3.1
+# ONNX Runtime, not torch. The model is 22M parameters, so the ~700 MB torch
+# runtime was almost all overhead on the 1.9 GB VPS. Pinned >= 0.9.0: earlier
+# releases returned float64 for all-MiniLM-L6-v2 and capped it at 128 tokens,
+# both fixed in 0.9.0 (the cap now matches sentence-transformers' 256).
+fastembed>=0.9.0
