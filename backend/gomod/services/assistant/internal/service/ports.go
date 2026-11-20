@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"time"
 
 	"goshop/shared/pkg/llm"
 )
@@ -52,10 +53,30 @@ type Limiter interface {
 	Allow(ctx context.Context, key string) (bool, error)
 }
 
-// SessionStore keeps the last few turns of a conversation out of the client.
+// Turn is one stored exchange. It carries the product cards so a reload can
+// redraw the same answer, which a plain role+content message cannot.
+type Turn struct {
+	Role            string
+	Content         string
+	Products        []Product
+	FallbackToHuman bool
+	CreatedAt       time.Time
+}
+
+// Conversation is the transcript the widget redraws after a reload.
+type Conversation struct {
+	SessionID string
+	Messages  []Turn
+}
+
+// SessionStore is the transcript port. Every method is scoped by userID: the
+// session id is client-supplied, so ownership has to come from the token, not
+// from the id alone.
 type SessionStore interface {
-	Load(ctx context.Context, sessionID string) ([]llm.Message, error)
-	Append(ctx context.Context, sessionID string, msgs ...llm.Message) error
+	Load(ctx context.Context, userID int32, sessionID string) ([]llm.Message, error)
+	Append(ctx context.Context, userID int32, sessionID string, turns ...Turn) error
+	// Latest returns the newest conversation of the user, at most limit turns.
+	Latest(ctx context.Context, userID int32, limit int) (Conversation, error)
 }
 
 // Answer is what the handler returns to the storefront.
@@ -81,5 +102,12 @@ func (noopLimiter) Allow(context.Context, string) (bool, error) { return true, n
 
 type noopSessionStore struct{}
 
-func (noopSessionStore) Load(context.Context, string) ([]llm.Message, error)  { return nil, nil }
-func (noopSessionStore) Append(context.Context, string, ...llm.Message) error { return nil }
+func (noopSessionStore) Load(context.Context, int32, string) ([]llm.Message, error) {
+	return nil, nil
+}
+
+func (noopSessionStore) Append(context.Context, int32, string, ...Turn) error { return nil }
+
+func (noopSessionStore) Latest(context.Context, int32, int) (Conversation, error) {
+	return Conversation{}, nil
+}

@@ -53,5 +53,7 @@ func RegisterRoutes(
 		// GET so the browser can read it with a plain streaming fetch (or
 		// EventSource). Same auth policy: API key plus bearer.
 		authed.GET("/stream", h.Stream)
+		// The persisted transcript, so a reload or a second device redraws it.
+		authed.GET("/history", h.History)
 	}
 }

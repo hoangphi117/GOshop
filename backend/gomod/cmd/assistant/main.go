@@ -46,6 +46,11 @@ func main() {
 	defer func() { _ = shutdownTracer(context.Background()) }()
 
 	cfg := config.NewConfig()
+	// Without this the assistant would connect to DB_NAME (postgres), whose
+	// public schema is empty: every table would be missing.
+	if assistantDBName := utils.GetEnv("ASSISTANT_DB_NAME", utils.GetEnv("DB_ASSISTANT_NAME", "shopping_assistant")); assistantDBName != "" {
+		cfg.DB.DBName = assistantDBName
+	}
 
 	application, err := assistantapp.New(cfg)
 	if err != nil {

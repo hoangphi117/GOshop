@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"goshop/services/assistant/internal/dto"
@@ -74,7 +75,8 @@ func (h *AssistantHandler) Chat(c *gin.Context) {
 	// context by any middleware, so without this the service's tool/round logs
 	// go nowhere. One line makes the agent loop debuggable in `docker logs`.
 	ctx := logger.WithContext(c.Request.Context())
-	answer, err := h.svc.Ask(ctx, callerKey(c, sessionID), sessionID, toLLMHistory(req.History), req.Message)
+	userID, _ := middleware.GetUserID(c)
+	answer, err := h.svc.Ask(ctx, userID, sessionID, toLLMHistory(req.History), req.Message)
 	if err != nil {
 		utils.ResponseError(c, err)
 		return
@@ -172,7 +174,8 @@ func (h *AssistantHandler) Stream(c *gin.Context) {
 		return nil
 	}
 
-	answer, err := h.svc.AskStream(logger.WithContext(c.Request.Context()), callerKey(c, sessionID), sessionID, nil, message,
+	userID, _ := middleware.GetUserID(c)
+	answer, err := h.svc.AskStream(logger.WithContext(c.Request.Context()), userID, sessionID, nil, message,
 		func(delta string) error { return send(streamEvent{Type: "delta", Delta: delta}) })
 
 	// Once the first byte is out the status line is already sent, so failures
@@ -238,28 +241,43 @@ func (h *AssistantHandler) NewSession(c *gin.Context) {
 	})
 }
 
-// callerKey is the quota identity: user id when authenticated, else session.
-func callerKey(c *gin.Context, sessionID string) string {
-	if id, ok := middleware.GetUserID(c); ok {
-		return "user:" + itoa(id)
+// History godoc
+// @Summary      Read the persisted assistant transcript
+// @Description  Newest conversation of the signed-in user, so the widget can redraw it after a reload or on another device.
+// @Tags         Assistant
+// @Produce      json
+// @Param        limit query int false "Max messages" default(40)
+// @Success      200 {object} utils.APIResponse{data=dto.HistoryResponse}
+// @Failure      401 {object} utils.ErrorResponse
+// @Router       /api/v1/assistant/history [get]
+func (h *AssistantHandler) History(c *gin.Context) {
+	if !h.enabled {
+		utils.ResponseError(c, utils.NewError(utils.ErrCodeServiceUnavailable, "assistant is not configured"))
+		return
 	}
-	return "sess:" + sessionID
+	userID, ok := middleware.GetUserID(c)
+	if !ok {
+		utils.ResponseError(c, utils.NewError(utils.ErrCodeUnauthorized, "sign in to read your assistant history"))
+		return
+	}
+
+	limit, err := strconv.Atoi(c.Query("limit"))
+	if err != nil || limit <= 0 || limit > maxHistoryLimit {
+		limit = defaultHistoryLimit
+	}
+
+	conv, err := h.svc.History(c.Request.Context(), userID, limit)
+	if err != nil {
+		utils.ResponseError(c, err)
+		return
+	}
+	utils.ResponseSuccess(c, http.StatusOK, "Assistant history retrieved", toDTOHistory(conv))
 }
 
-func itoa(v int32) string {
-	const digits = "0123456789"
-	if v == 0 {
-		return "0"
-	}
-	var buf [12]byte
-	i := len(buf)
-	for v > 0 {
-		i--
-		buf[i] = digits[v%10]
-		v /= 10
-	}
-	return string(buf[i:])
-}
+const (
+	defaultHistoryLimit = 40
+	maxHistoryLimit     = 200
+)
 
 // toLLMHistory maps client echoes to model messages. Anything outside the
 // user/assistant pair is dropped: a client must not inject system or tool turns.
@@ -279,14 +297,41 @@ func toLLMHistory(turns []dto.AssistantTurn) []llm.Message {
 func toDTOProducts(answer service.Answer) []dto.Product {
 	out := make([]dto.Product, 0, len(answer.Products))
 	for _, p := range answer.Products {
-		out = append(out, dto.Product{
-			UUID:         p.UUID,
-			Name:         p.Name,
-			Slug:         p.Slug,
-			Price:        p.Price,
-			Stock:        p.Stock,
-			CategoryName: p.CategoryName,
-			ImageURL:     p.ImageURL,
+		out = append(out, toDTOProduct(p))
+	}
+	return out
+}
+
+func toDTOProduct(p service.Product) dto.Product {
+	return dto.Product{
+		UUID:         p.UUID,
+		Name:         p.Name,
+		Slug:         p.Slug,
+		Price:        p.Price,
+		Stock:        p.Stock,
+		CategoryName: p.CategoryName,
+		ImageURL:     p.ImageURL,
+	}
+}
+
+// toDTOHistory keeps product cards and the hand-off flag, so a redrawn
+// transcript is the same one the customer saw.
+func toDTOHistory(conv service.Conversation) dto.HistoryResponse {
+	out := dto.HistoryResponse{
+		SessionID: conv.SessionID,
+		Messages:  make([]dto.HistoryMessage, 0, len(conv.Messages)),
+	}
+	for _, m := range conv.Messages {
+		products := make([]dto.Product, 0, len(m.Products))
+		for _, p := range m.Products {
+			products = append(products, toDTOProduct(p))
+		}
+		out.Messages = append(out.Messages, dto.HistoryMessage{
+			Role:            m.Role,
+			Content:         m.Content,
+			Products:        products,
+			FallbackToHuman: m.FallbackToHuman,
+			CreatedAt:       m.CreatedAt,
 		})
 	}
 	return out

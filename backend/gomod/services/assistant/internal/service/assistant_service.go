@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 
@@ -126,15 +127,16 @@ var notFoundMarkers = []string{
 
 // ChatService is the assistant domain boundary exposed to the HTTP handler.
 type ChatService interface {
-	Ask(ctx context.Context, callerKey string, sessionID string, history []llm.Message, question string) (Answer, error)
+	Ask(ctx context.Context, userID int32, sessionID string, history []llm.Message, question string) (Answer, error)
 	// AskStream is Ask with text deltas pushed through emit as they arrive.
 	// emit runs on the caller's goroutine; an error from emit aborts the turn.
-	AskStream(ctx context.Context, callerKey string, sessionID string, history []llm.Message, question string, emit func(delta string) error) (Answer, error)
+	AskStream(ctx context.Context, userID int32, sessionID string, history []llm.Message, question string, emit func(delta string) error) (Answer, error)
+	// History is the newest stored conversation of the user, for a reload.
+	History(ctx context.Context, userID int32, limit int) (Conversation, error)
 }
 
 type assistantConfig struct {
-	model        string
-	sessionTurns int
+	model string
 }
 
 type chatService struct {
@@ -186,34 +188,34 @@ func NewChatService(opts Options) ChatService {
 // Ask runs one user turn: quota, history, model loop, tool execution.
 func (s *chatService) Ask(
 	ctx context.Context,
-	callerKey string,
+	userID int32,
 	sessionID string,
 	history []llm.Message,
 	question string,
 ) (Answer, error) {
-	msgs, err := s.prepare(ctx, callerKey, sessionID, history, question)
+	msgs, err := s.prepare(ctx, userID, sessionID, history, question)
 	if err != nil {
 		return Answer{}, err
 	}
-	return s.run(ctx, msgs, question, sessionID, nil)
+	return s.run(ctx, msgs, question, userID, sessionID, nil)
 }
 
 // AskStream is Ask with deltas streamed to emit. Providers without streaming
 // support fall back to Ask so the endpoint still works, just without deltas.
 func (s *chatService) AskStream(
 	ctx context.Context,
-	callerKey string,
+	userID int32,
 	sessionID string,
 	history []llm.Message,
 	question string,
 	emit func(delta string) error,
 ) (Answer, error) {
-	msgs, err := s.prepare(ctx, callerKey, sessionID, history, question)
+	msgs, err := s.prepare(ctx, userID, sessionID, history, question)
 	if err != nil {
 		return Answer{}, err
 	}
 	if _, ok := s.llm.(llm.StreamingClient); !ok {
-		answer, err := s.run(ctx, msgs, question, sessionID, nil)
+		answer, err := s.run(ctx, msgs, question, userID, sessionID, nil)
 		if err == nil && answer.Answer != "" {
 			if e := emit(answer.Answer); e != nil {
 				return Answer{}, e
@@ -221,14 +223,28 @@ func (s *chatService) AskStream(
 		}
 		return answer, err
 	}
-	return s.run(ctx, msgs, question, sessionID, emit)
+	return s.run(ctx, msgs, question, userID, sessionID, emit)
+}
+
+// History is the newest stored conversation, for the widget to redraw.
+func (s *chatService) History(ctx context.Context, userID int32, limit int) (Conversation, error) {
+	return s.sessions.Latest(ctx, userID, limit)
+}
+
+// limiterKey is the quota identity. The routes are signed-in only, so the
+// session branch is a degraded-mode fallback rather than a supported path.
+func limiterKey(userID int32, sessionID string) string {
+	if userID > 0 {
+		return "user:" + strconv.Itoa(int(userID))
+	}
+	return "sess:" + sessionID
 }
 
 // prepare applies validation, quota, and history assembly shared by Ask and
 // AskStream.
 func (s *chatService) prepare(
 	ctx context.Context,
-	callerKey string,
+	userID int32,
 	sessionID string,
 	history []llm.Message,
 	question string,
@@ -245,7 +261,7 @@ func (s *chatService) prepare(
 		return nil, utils.NewError(utils.ErrCodeBadRequest, "message is too long")
 	}
 
-	ok, err := s.limiter.Allow(ctx, callerKey)
+	ok, err := s.limiter.Allow(ctx, limiterKey(userID, sessionID))
 	if err != nil {
 		// A broken limiter must not break chat; log-and-allow is safer than
 		// blocking paying customers.
@@ -263,7 +279,7 @@ func (s *chatService) prepare(
 			"I can only help with products and shop policies.", errRefusal)
 	}
 
-	turns, err := s.sessions.Load(ctx, sessionID)
+	turns, err := s.sessions.Load(ctx, userID, sessionID)
 	if err != nil {
 		turns = nil
 	}
@@ -293,7 +309,9 @@ func (s *chatService) completeOnce(ctx context.Context, msgs []llm.Message, emit
 func (s *chatService) run(
 	ctx context.Context,
 	msgs []llm.Message,
-	question, sessionID string,
+	question string,
+	userID int32,
+	sessionID string,
 	emit func(string) error,
 ) (Answer, error) {
 	var (
@@ -383,26 +401,30 @@ func (s *chatService) run(
 		}
 	}
 
-	s.remember(ctx, sessionID, question, answer.Answer)
+	s.remember(ctx, userID, sessionID, question, answer)
 	metrics.ObserveRequest(nil, answer.FallbackToHuman)
 	return answer, nil
 }
 
 // remember persists the turn; failure is not fatal for the customer.
-func (s *chatService) remember(ctx context.Context, sessionID, question, reply string) {
-	if sessionID == "" || reply == "" {
+//
+// The product cards and the hand-off flag go with the assistant row so a
+// reload redraws the same answer instead of bare prose. Trimming is left to
+// the retention sweep and Load's cap: rewriting history on every turn only
+// ever lost rows the widget still wanted to show.
+func (s *chatService) remember(ctx context.Context, userID int32, sessionID, question string, answer Answer) {
+	if sessionID == "" || answer.Answer == "" {
 		return
 	}
-	turns := maxHistoryMessages / 2
-	if s.cfg.sessionTurns > 0 {
-		turns = s.cfg.sessionTurns
-	}
-	msgs := make([]llm.Message, 0, turns*2)
-	msgs = append(msgs,
-		llm.Message{Role: llm.RoleUser, Content: question},
-		llm.Message{Role: llm.RoleAssistant, Content: reply},
+	_ = s.sessions.Append(ctx, userID, sessionID,
+		Turn{Role: string(llm.RoleUser), Content: question},
+		Turn{
+			Role:            string(llm.RoleAssistant),
+			Content:         answer.Answer,
+			Products:        answer.Products,
+			FallbackToHuman: answer.FallbackToHuman,
+		},
 	)
-	_ = s.sessions.Append(ctx, sessionID, msgs...)
 }
 
 // executeTool dispatches one tool call. A single switch, three tools: a

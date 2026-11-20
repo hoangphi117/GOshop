@@ -153,7 +153,7 @@ func TestPromptExfiltrationIsRefused(t *testing.T) {
 	for _, q := range attacks {
 		fake := &fakeLLM{}
 		svc := NewChatService(Options{LLM: fake})
-		if _, err := svc.Ask(context.Background(), "k", "", nil, q); err == nil {
+		if _, err := svc.Ask(context.Background(), 1, "", nil, q); err == nil {
 			t.Fatalf("%q was allowed through", q)
 		}
 		if len(fake.calls) != 0 {

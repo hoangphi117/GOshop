@@ -11,14 +11,19 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 
 	assistanthandler "goshop/services/assistant/internal/handler"
+	"goshop/services/assistant/internal/migrations"
 	assistantroutes "goshop/services/assistant/internal/routes"
 	assistantservice "goshop/services/assistant/internal/service"
 	catalogcontract "goshop/services/catalog/contract"
 	"goshop/shared/config"
 	"goshop/shared/pkg/auth"
 	"goshop/shared/pkg/cache"
+	"goshop/shared/pkg/db"
 	"goshop/shared/pkg/llm"
 	"goshop/shared/pkg/logger"
 	"goshop/shared/pkg/metrics"
@@ -52,6 +57,31 @@ func New(cfg *config.Config) (*App, error) {
 	}
 
 	ac := cfg.Assistant
+
+	// The transcript lives in Postgres now, so the pool is not optional: a
+	// widget that answers but forgets is worse than an honest 503 at boot.
+	if err := db.InitDBWithConfig(cfg, "assistant"); err != nil {
+		return nil, fmt.Errorf("database init failed: %w", err)
+	}
+
+	// Assistant owns its own database (shopping_assistant) and its own version
+	// table, so the other services' migration sets cannot collide with it.
+	// With SKIP_MIGRATIONS=true MigrationURL returns "" and every branch below
+	// degrades to a warning, which is the intended no-op.
+	connStr := cfg.MigrationURL("public", "schema_migrations_assistant")
+	if sourceDriver, err := iofs.New(migrations.FS, "."); err != nil {
+		logger.Log.Warn().Err(err).Msg("Could not load embedded migrations source for assistant service")
+	} else if m, err := migrate.NewWithSourceInstance("iofs", sourceDriver, connStr); err != nil {
+		logger.Log.Warn().Err(err).Msg("Could not initialize migrate instance for assistant service")
+	} else {
+		if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+			logger.Log.Error().Err(err).Msg("Failed to execute database migrations for assistant service")
+		} else {
+			logger.Log.Info().Msg("Assistant service database migrations applied successfully")
+		}
+		_, _ = m.Close()
+	}
+
 	redisClient := config.NewRedisClient()
 	cacheRedisService := cache.NewRedisCacheService(redisClient)
 	tokenService := auth.NewJWTService(cacheRedisService)
@@ -59,11 +89,8 @@ func New(cfg *config.Config) (*App, error) {
 	var closers []func() error
 
 	opts := assistantservice.Options{
-		Sessions: assistantservice.NewRedisSessionStore(
-			redisClient,
-			time.Duration(ac.SessionTTL)*time.Second,
-			ac.SessionTurns*2,
-		),
+		// Two stored messages per replayed turn: one question, one answer.
+		Sessions:  assistantservice.NewDBSessionStore(db.DBPool, ac.SessionTurns*2),
 		Model:     ac.Model,
 		MaxTokens: ac.MaxTokens,
 		// Guests get a smaller bucket than signed-in users; the service only
@@ -132,6 +159,17 @@ func New(cfg *config.Config) (*App, error) {
 	svc := assistantservice.NewChatService(opts)
 	h := assistanthandler.NewAssistantHandler(svc, ac.Enabled, ac.SessionTTL)
 	assistantroutes.RegisterRoutes(r, h, tokenService, cacheRedisService)
+
+	// Retention sweep. Deliberately a goroutine rather than a cron container:
+	// the DELETE is idempotent, so both replicas sweeping at once is harmless.
+	if ac.RetentionDays > 0 {
+		go assistantservice.RunRetention(
+			context.Background(),
+			db.DBPool,
+			time.Duration(ac.RetentionDays)*24*time.Hour,
+			6*time.Hour,
+		)
+	}
 
 	app := &App{
 		server: &http.Server{
