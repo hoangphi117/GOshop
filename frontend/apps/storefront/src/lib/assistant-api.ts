@@ -102,8 +102,9 @@ type StreamEvent =
  *
  * Plain fetch + ReadableStream: EventSource cannot send the API key header and
  * would not carry the bearer token, so SSE is read by hand. Chat history is not
- * replayed here; the server keeps it in Redis under the session id.
- */export async function streamAssistant(
+ * replayed here; the server owns the transcript and loads it by session id.
+ */
+export async function streamAssistant(
   input: { message: string; sessionId?: string | null },
   onDelta: (delta: string) => void,
   signal?: AbortSignal,
@@ -170,7 +171,8 @@ type StreamEvent =
 }
 
 /** Opens a server-side session so history survives a page reload. */
-export async function createAssistantSession(): Promise<string> {  const res = await authFetch(`${API_BASE_URL}/api/v1/assistant/session`, {
+export async function createAssistantSession(): Promise<string> {
+  const res = await authFetch(`${API_BASE_URL}/api/v1/assistant/session`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: '{}',
@@ -180,4 +182,54 @@ export async function createAssistantSession(): Promise<string> {  const res = a
     'The assistant is unavailable right now.',
   )
   return data.session_id
+}
+
+/** One stored turn from GET /api/v1/assistant/history. */
+export interface AssistantHistoryMessage {
+  role: 'user' | 'assistant'
+  content: string
+  products: AssistantProduct[]
+  fallbackToHuman: boolean
+}
+
+/**
+ * Reads the signed-in user's persisted transcript.
+ *
+ * This replaced a localStorage copy. Two things came back with the move: the
+ * product cards (the old store kept role+content only, so every card was gone
+ * after a reload) and the account boundary (a shared browser no longer shows
+ * account A's conversation to account B).
+ */
+export async function getAssistantHistory(limit = 40): Promise<{
+  sessionId: string | null
+  messages: AssistantHistoryMessage[]
+}> {
+  const res = await authFetch(
+    `${API_BASE_URL}/api/v1/assistant/history?limit=${limit}`,
+  )
+  const data = await parse<{
+    session_id?: string
+    messages:
+      | {
+          role: string
+          content: string
+          products: AssistantProduct[] | null
+          fallback_to_human: boolean
+        }[]
+      | null
+  }>(res, 'Could not load your chat history.')
+
+  return {
+    sessionId: data.session_id || null,
+    messages: (data.messages ?? [])
+      // The store only knows user and assistant turns; anything else would be a
+      // server-side shape change, not something to render.
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .map((m) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+        products: m.products ?? [],
+        fallbackToHuman: m.fallback_to_human,
+      })),
+  }
 }

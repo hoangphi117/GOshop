@@ -41,6 +41,8 @@ type AssistantConfig struct {
 	DailyPerUser int
 	SessionTTL   int
 	SessionTurns int
+	// RetentionDays is how long a transcript survives. 0 disables the sweep.
+	RetentionDays int
 }
 
 type Config struct {
@@ -177,6 +179,10 @@ func newAssistantConfig() AssistantConfig {
 		DailyPerUser: envInt("ASSISTANT_DAILY_PER_USER", 40),
 		SessionTTL:   envInt("ASSISTANT_SESSION_TTL", 3600),
 		SessionTurns: envInt("ASSISTANT_SESSION_TURNS", 6),
+		// Transcripts are kept server-side now, so a retention window replaces
+		// the old Redis TTL. 30 days is the product default: long enough that a
+		// returning customer finds their thread, short enough to bound the table.
+		RetentionDays: envInt("ASSISTANT_RETENTION_DAYS", 30),
 	}
 
 	// Explicit ASSISTANT_ENABLED wins; otherwise the feature turns itself on
@@ -257,7 +263,7 @@ func (c *Config) serverAddress() string {
 //	pq: remaining connection slots are reserved for roles with the SUPERUSER attribute
 //
 // which reads like a permissions problem and is really exhaustion. Migrating
-// once and then setting RUN_MIGRATIONS=false leaves the pool as each service's
+// once and then setting SKIP_MIGRATIONS=true leaves the pool as each service's
 // only connection.
 func MigrationsEnabled() bool {
 	return utils.GetEnv("SKIP_MIGRATIONS", "false") != "true"

@@ -106,15 +106,9 @@ function AiThread({
   onSwitchToHuman: () => void;
   isAuthenticated: boolean;
 }) {
-  const { messages, isLoading, ask, greet } = useAssistant();
+  const { messages, isLoading, ask } = useAssistant();
   const [input, setInput] = useState("");
   const endRef = useRef<HTMLDivElement | null>(null);
-
-  // First-time greeting: a local message, so it renders with no network call
-  // and costs nothing against the daily quota.
-  useEffect(() => {
-    greet();
-  }, [greet]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "auto" });
@@ -313,8 +307,17 @@ export function ChatWidget() {
   const mounted = useMounted();
   const { isOpen, setIsOpen, mode, setMode } = useChatUIStore();
   const { isAuthenticated, unreadCount, messages, isShopOnline } = useChat();
-  const reset = useAssistant((s) => s.reset);
+  const startNewChat = useAssistant((s) => s.startNewChat);
+  const hydrate = useAssistant((s) => s.hydrate);
   const [showChooser, setShowChooser] = useState(false);
+
+  // Load the stored transcript once per signed-in session. Doing it here rather
+  // than in the AI thread keeps the first-open chooser honest: it already knows
+  // whether the customer has a conversation.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    void hydrate();
+  }, [isAuthenticated, hydrate]);
 
   const handleToggle = () => {
     const next = !isOpen;
@@ -323,8 +326,13 @@ export function ChatWidget() {
     requestNotificationPermission().catch(() => {});
     // First-run only: no tab remembered AND no conversation already on either
     // side. Someone returning to an existing thread goes straight back to it.
+    const assistant = useAssistant.getState();
     const hasHistory =
-      useAssistant.getState().messages.length > 0 || messages.length > 0;
+      assistant.messages.length > 0 ||
+      messages.length > 0 ||
+      // The transcript may still be in flight; assume it exists so a returning
+      // customer does not get the chooser on every reload.
+      !assistant.hydrated;
     if (!mode && !hasHistory) setShowChooser(true);
   };
 
@@ -376,7 +384,7 @@ export function ChatWidget() {
               {!showChooser && activeMode === "ai" && (
                 <button
                   type="button"
-                  onClick={reset}
+                  onClick={startNewChat}
                   disabled={assistantLoading}
                   aria-label="Start a new assistant conversation"
                   title="New chat"

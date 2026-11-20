@@ -68,7 +68,7 @@ func TestAskStreamEmitsDeltasInOrder(t *testing.T) {
 
 	svc := NewChatService(Options{LLM: fake, Model: "test-model"})
 	emit, out := collectDeltas()
-	got, err := svc.AskStream(context.Background(), "user:1", "", nil, "lantern?", emit)
+	got, err := svc.AskStream(context.Background(), 1, "", nil, "lantern?", emit)
 	if err != nil {
 		t.Fatalf("AskStream: %v", err)
 	}
@@ -95,7 +95,7 @@ func TestAskStreamRunsToolThenAnswers(t *testing.T) {
 
 	svc := NewChatService(Options{LLM: fake, Products: products, Model: "test-model"})
 	emit, out := collectDeltas()
-	got, err := svc.AskStream(context.Background(), "k", "", nil, "lantern?", emit)
+	got, err := svc.AskStream(context.Background(), 1, "", nil, "lantern?", emit)
 	if err != nil {
 		t.Fatalf("AskStream: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestAskStreamFallsBackForNonStreamingProvider(t *testing.T) {
 	svc := NewChatService(Options{LLM: fake, Model: "test-model"})
 
 	emit, out := collectDeltas()
-	got, err := svc.AskStream(context.Background(), "k", "", nil, "shipping?", emit)
+	got, err := svc.AskStream(context.Background(), 1, "", nil, "shipping?", emit)
 	if err != nil {
 		t.Fatalf("AskStream: %v", err)
 	}
@@ -135,7 +135,7 @@ func TestAskStreamStopsWhenEmitFails(t *testing.T) {
 
 	stop := errors.New("client disconnected")
 	calls := 0
-	_, err := svc.AskStream(context.Background(), "k", "", nil, "hi",
+	_, err := svc.AskStream(context.Background(), 1, "", nil, "hi",
 		func(string) error {
 			calls++
 			return stop
@@ -155,13 +155,13 @@ func TestAskStreamValidationAndQuota(t *testing.T) {
 	svc := NewChatService(Options{LLM: fake, Limiter: denyLimiter{}})
 
 	emit, out := collectDeltas()
-	_, err := svc.AskStream(context.Background(), "k", "", nil, "  ", emit)
+	_, err := svc.AskStream(context.Background(), 1, "", nil, "  ", emit)
 	var appErr *utils.AppError
 	if !errors.As(err, &appErr) || appErr.Code != utils.ErrCodeBadRequest {
 		t.Fatalf("err = %v, want BAD_REQUEST", err)
 	}
 
-	_, err = svc.AskStream(context.Background(), "k", "", nil, "hi", emit)
+	_, err = svc.AskStream(context.Background(), 1, "", nil, "hi", emit)
 	if !errors.As(err, &appErr) || appErr.Code != utils.ErrCodeTooManyRequests {
 		t.Fatalf("err = %v, want TOO_MANY_REQUESTS", err)
 	}
@@ -183,7 +183,7 @@ func TestAskStreamCancelledContextIsNotAnOutage(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := svc.AskStream(ctx, "k", "", nil, "hi", func(string) error { return nil })
+	_, err := svc.AskStream(ctx, 1, "", nil, "hi", func(string) error { return nil })
 	var appErr *utils.AppError
 	if !errors.As(err, &appErr) {
 		t.Fatalf("err = %v, want *utils.AppError", err)

@@ -7,7 +7,7 @@ proto contracts — re-run it after adding or moving a service instead of editin
 | Service | HTTP | gRPC | Database | Migrations | Contract |
 |---|---|---|---|---|---|
 | [`analytics`](../backend/gomod/services/analytics) | `8092` | — | `shopping_analytics` | 2 | — |
-| [`assistant`](../backend/gomod/services/assistant) | `8097` | — | — | — | — |
+| [`assistant`](../backend/gomod/services/assistant) | `8097` | — | `shopping_assistant` | 1 | — |
 | [`banner`](../backend/gomod/services/banner) | `8089` | — | `shopping_banner` | 1 | — |
 | [`cart`](../backend/gomod/services/cart) | `8087` | `50056` | `shopping_cart` | 1 | `shared/proto/cart/v1` |
 | [`catalog`](../backend/gomod/services/catalog) | `8086` | `50055` | `shopping_catalog` | 2 | `shared/proto/catalog/v1` |
@@ -26,11 +26,12 @@ proto contracts — re-run it after adding or moving a service instead of editin
 
 - Ports come from the prod compose environment. nginx is the only published entry point; the
   per-service ports are reachable inside the compose network.
-- **No database does not mean no state.** `assistant` keeps conversation sessions and the
-  per-user daily quota in Redis; `media` keeps uploaded bytes in object storage (R2/MinIO) and
-  is stateless itself. Both are deliberately single-store services: Postgres would add a
-  migration set and a backup obligation for data that ages out on its own. A dash in the
-  Database column is that decision, not an omission.
+- **No database does not mean no state.** `media` keeps uploaded bytes in object storage
+  (R2/MinIO) and is stateless itself. `assistant` used to be the other example: its
+  transcript lived in Redis, which meant a reload lost the product cards and a Redis flush
+  lost the conversation. It now owns `shopping_assistant` and the retention sweep, so a
+  customer finds their thread on any device. Redis keeps only the per-user daily quota,
+  which is genuinely ephemeral.
 - **No gRPC does not mean no callers.** `banner`, `notification`, `review`, `analytics` and
   `recommendations` are reached over HTTP through the gateway or fed by Kafka events; none of
   them needs a synchronous typed call on the checkout path. `recommendations` still owns seven

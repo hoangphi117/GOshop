@@ -55,12 +55,15 @@ type denyLimiter struct{}
 
 func (denyLimiter) Allow(context.Context, string) (bool, error) { return false, nil }
 
-type memSessions struct{ appended []llm.Message }
+type memSessions struct{ appended []Turn }
 
-func (m *memSessions) Load(context.Context, string) ([]llm.Message, error) { return nil, nil }
-func (m *memSessions) Append(_ context.Context, _ string, msgs ...llm.Message) error {
-	m.appended = append(m.appended, msgs...)
+func (m *memSessions) Load(context.Context, int32, string) ([]llm.Message, error) { return nil, nil }
+func (m *memSessions) Append(_ context.Context, _ int32, _ string, turns ...Turn) error {
+	m.appended = append(m.appended, turns...)
 	return nil
+}
+func (m *memSessions) Latest(context.Context, int32, int) (Conversation, error) {
+	return Conversation{}, nil
 }
 
 func lantern() Product {
@@ -86,7 +89,7 @@ func TestAskRunsToolThenAnswers(t *testing.T) {
 	}}
 
 	svc := NewChatService(Options{LLM: fake, Products: products, Sessions: sessions, Model: "test-model"})
-	got, err := svc.Ask(context.Background(), "user:1", "sess-1", nil, "do you have a lantern?")
+	got, err := svc.Ask(context.Background(), 1, "sess-1", nil, "do you have a lantern?")
 	if err != nil {
 		t.Fatalf("Ask: %v", err)
 	}
@@ -123,7 +126,11 @@ func TestAskRunsToolThenAnswers(t *testing.T) {
 	}
 
 	if len(sessions.appended) != 2 {
-		t.Fatalf("session appended %d messages, want 2", len(sessions.appended))
+		t.Fatalf("session appended %d turns, want 2", len(sessions.appended))
+	}
+	// The whole point of moving off Redis: the assistant row keeps its cards.
+	if len(sessions.appended[1].Products) != 1 || sessions.appended[1].Products[0].UUID != "p-1" {
+		t.Fatalf("assistant turn lost its product cards: %+v", sessions.appended[1])
 	}
 }
 
@@ -131,7 +138,7 @@ func TestAskReturnsServiceUnavailableWhenProviderFails(t *testing.T) {
 	fake := &fakeLLM{err: llm.ErrUnavailable}
 	svc := NewChatService(Options{LLM: fake, Products: &fakeProducts{}})
 
-	_, err := svc.Ask(context.Background(), "user:1", "", nil, "hi")
+	_, err := svc.Ask(context.Background(), 1, "", nil, "hi")
 	var appErr *utils.AppError
 	if !errors.As(err, &appErr) {
 		t.Fatalf("err = %v, want *utils.AppError", err)
@@ -144,18 +151,18 @@ func TestAskReturnsServiceUnavailableWhenProviderFails(t *testing.T) {
 func TestAskRejectsEmptyAndOversizedQuestion(t *testing.T) {
 	svc := NewChatService(Options{LLM: &fakeLLM{}})
 
-	if _, err := svc.Ask(context.Background(), "k", "", nil, "   "); err == nil {
+	if _, err := svc.Ask(context.Background(), 1, "", nil, "   "); err == nil {
 		t.Fatal("expected error for empty question")
 	}
 	big := strings.Repeat("x", maxQuestionChars+1)
-	if _, err := svc.Ask(context.Background(), "k", "", nil, big); err == nil {
+	if _, err := svc.Ask(context.Background(), 1, "", nil, big); err == nil {
 		t.Fatal("expected error for oversized question")
 	}
 }
 
 func TestAskHonoursQuota(t *testing.T) {
 	svc := NewChatService(Options{LLM: &fakeLLM{}, Limiter: denyLimiter{}})
-	_, err := svc.Ask(context.Background(), "user:1", "", nil, "hi")
+	_, err := svc.Ask(context.Background(), 1, "", nil, "hi")
 
 	var appErr *utils.AppError
 	if !errors.As(err, &appErr) || appErr.Code != utils.ErrCodeTooManyRequests {
@@ -172,7 +179,7 @@ func TestAskSurvivesUnknownTool(t *testing.T) {
 	}}
 	svc := NewChatService(Options{LLM: fake})
 
-	got, err := svc.Ask(context.Background(), "k", "", nil, "hi")
+	got, err := svc.Ask(context.Background(), 1, "", nil, "hi")
 	if err != nil {
 		t.Fatalf("Ask: %v", err)
 	}
@@ -193,7 +200,7 @@ func TestAskFallsBackAfterToolLoopExhausted(t *testing.T) {
 	}
 	svc := NewChatService(Options{LLM: &fakeLLM{replies: replies}, FAQs: &fakeFAQs{}})
 
-	got, err := svc.Ask(context.Background(), "k", "", nil, "hi")
+	got, err := svc.Ask(context.Background(), 1, "", nil, "hi")
 	if err != nil {
 		t.Fatalf("Ask: %v", err)
 	}
@@ -238,7 +245,7 @@ func TestAskSetsFallbackWhenModelEscalates(t *testing.T) {
 	}}
 	svc := NewChatService(Options{LLM: fake, Sessions: &memSessions{}, Model: "test-model"})
 
-	got, err := svc.Ask(context.Background(), "user:1", "sess-1", nil, "who won the 1998 World Cup?")
+	got, err := svc.Ask(context.Background(), 1, "sess-1", nil, "who won the 1998 World Cup?")
 	if err != nil {
 		t.Fatalf("Ask: %v", err)
 	}
@@ -264,7 +271,7 @@ func TestAskSetsFallbackWhenToolsReturnNothing(t *testing.T) {
 		Model:    "test-model",
 	})
 
-	got, err := svc.Ask(context.Background(), "user:1", "sess-1", nil, "do you have a unicorn?")
+	got, err := svc.Ask(context.Background(), 1, "sess-1", nil, "do you have a unicorn?")
 	if err != nil {
 		t.Fatalf("Ask: %v", err)
 	}
@@ -286,7 +293,7 @@ func TestAskDoesNotFlagGroundedAnswer(t *testing.T) {
 		Model:    "test-model",
 	})
 
-	got, err := svc.Ask(context.Background(), "user:1", "sess-1", nil, "do you have a lantern?")
+	got, err := svc.Ask(context.Background(), 1, "sess-1", nil, "do you have a lantern?")
 	if err != nil {
 		t.Fatalf("Ask: %v", err)
 	}

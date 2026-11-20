@@ -16,6 +16,10 @@ const nextConfig: NextConfig = {
   // Monorepo: trace from the pnpm workspace root so @goshop/* packages in
   // ../.. are bundled. Docs pattern: path.join(__dirname, "../../").
   outputFileTracingRoot: path.join(__dirname, "../../"),
+  // Dev-only: the Cloudflare tunnel exposes this server under a hostname that
+  // does not match the origin, and Next 16 rejects every dev resource (HMR,
+  // server actions) from an unknown origin. Production builds ignore this.
+  allowedDevOrigins: ["dev.goshop.dpdns.org"],
   images: {
     // DB/API carry absolute browser-facing media URLs
     // (S3_PUBLIC_BASE_URL=http://localhost/goshop-media). The internal image

@@ -4,7 +4,23 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
+
+// Redis-backed tests follow the repo convention (see ws_publisher_test.go): hit
+// localhost:6379 and skip when the dev container is not running.
+func newTestRedis(t *testing.T) *redis.Client {
+	t.Helper()
+	rdb := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 15})
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := rdb.Ping(ctx).Err(); err != nil {
+		t.Skipf("redis not available: %v", err)
+	}
+	t.Cleanup(func() { _ = rdb.Close() })
+	return rdb
+}
 
 func TestRedisLimiterCountsAndBlocks(t *testing.T) {
 	rdb := newTestRedis(t)
