@@ -558,19 +558,19 @@ services:
 
   embedder:
     # Sentence embeddings for the recommendation vectors. Separate image because
-    # it is the only Python/torch runtime; the Go images stay scratch-thin.
+    # it is the only Python runtime; the Go images stay scratch-thin.
     build:
       context: .
       dockerfile: docker/embedder/Dockerfile
     container_name: goshop-embedder
     restart: unless-stopped
-    # ~800 MiB resident with torch loaded, before batching. 1.5g leaves headroom
-    # for a 64-text batch.
-    mem_limit: 1536m
+    # ~190 MiB resident with the ONNX model loaded. 512m leaves headroom for the
+    # 256-text batch cap.
+    mem_limit: 512m
     # No published port: only recommendations reaches it, over the compose
     # network. Publishing 8096 would expose an unauthenticated compute route.
     environment:
-      EMBEDDING_MODEL: "all-MiniLM-L6-v2"
+      EMBEDDING_MODEL: "sentence-transformers/all-MiniLM-L6-v2"
       EMBEDDING_THREADS: "1"
       OMP_NUM_THREADS: "1"
     cpus: 1.0

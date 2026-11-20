@@ -718,20 +718,20 @@ services:
 
   embedder:
     # Text embeddings for the recommendation vectors. Its own container because
-    # torch needs several hundred MB resident, which does not fit the 160m cap
-    # the Go services share; see docker/embedder/Dockerfile.
+    # the ONNX model and runtime want a couple hundred MB resident, which does
+    # not fit the 160m cap the Go services share; see docker/embedder/Dockerfile.
     build:
       context: .
       dockerfile: docker/embedder/Dockerfile
     container_name: goshop-embedder
     restart: unless-stopped
-    # Measured at ~800 MiB resident with torch loaded, before any batching.
-    # 1.5g leaves headroom for a 64-text batch on a 16.8 GB host.
-    mem_limit: 1536m
+    # Measured at ~190 MiB resident with the ONNX model loaded. 512m leaves
+    # headroom for the 256-text batch cap without holding memory the host needs.
+    mem_limit: 512m
     ports:
       - "8096:8096"
     environment:
-      - EMBEDDING_MODEL=all-MiniLM-L6-v2
+      - EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
       - EMBEDDING_THREADS=1
       - OMP_NUM_THREADS=1
     cpus: 1.0

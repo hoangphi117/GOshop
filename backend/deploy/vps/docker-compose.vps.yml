@@ -2,17 +2,14 @@
 #
 # This is the VPS sibling of deploy/render/Dockerfile.all: the same image, the
 # same 17 processes, the same start.sh. Postgres stays on Supabase, Kafka on
-# Redpanda Cloud, Meilisearch on Meilisearch Cloud. Redis runs here as a third
+# Redpanda Cloud, Meilisearch on Meilisearch Cloud. Redis runs here as a local
 # container: Render Key Value free refuses external traffic and its internal
 # hostname does not resolve outside Render's network.
 #
 # Why not docker-compose.prod.yml: that file declares 3072 MB of mem_limit
 # (1536 of it the torch embedder) and its own Kafka/Redis/Meilisearch/Prometheus.
-# It needs ~4 GB. This one needs ~1.0-1.3 GB.
-#
-# Trade-off: the embedder is absent, so recommendation shelves fall back to
-# best-sellers and rating order. That is the documented degradation path, not a
-# failure.
+# It needs ~4 GB. This one fits ~1.5-1.6 GB: the embedder here is the ONNX
+# sidecar (docker/embedder), a few hundred MB, not the ~800 MB torch runtime.
 #
 # Usage on the VPS:
 #   docker compose -f deploy/vps/docker-compose.vps.yml up -d --build
@@ -45,6 +42,16 @@ services:
       # TLS stays off: this is a same-host TCP connection, not Render's public
       # endpoint, so REDIS_TLS_ENABLED must not be set.
       REDIS_ADDR: "redis:6379"
+      # Turns on the semantic and personalized recommendation tiers. The sidecar
+      # is a plain HTTP URL; without it recommendations falls back to
+      # best-sellers and keyword-only search (docs/DEPLOY-VPS.md).
+      EMBEDDER_URL: "http://embedder:8096"
+    depends_on:
+      # Start the backend only once the sidecar answers, so the first search
+      # does not race the container's own start. The model loads on first use
+      # (see app.py), so this is a process-up check, not a warm-model one.
+      embedder:
+        condition: service_healthy
     # Per-process cap. 17 processes x 96 MiB of Go heap should stay under
     # 1.6 GB worst case; the soft cap lets the runtime survive a spike rather
     # than be OOM-killed outright.
@@ -60,6 +67,31 @@ services:
       timeout: 10s
       retries: 3
       start_period: 180s
+    networks:
+      - goshop
+
+  # Sentence embeddings for the recommendation vectors. ONNX runtime, not torch:
+  # the model is 22M parameters, so the ~800 MB torch runtime was almost all
+  # overhead on this 1.9 GB host. mem_limit has to be small enough to leave the
+  # backend room; the healthcheck the image ships with is what `depends_on` reads.
+  embedder:
+    build:
+      # The Dockerfile COPYs docker/embedder/*, so the context is the repo root,
+      # three levels up from this file (deploy/vps -> deploy -> backend -> root).
+      context: ../../..
+      dockerfile: docker/embedder/Dockerfile
+    image: goshop-embedder:local
+    container_name: goshop-embedder
+    restart: unless-stopped
+    environment:
+      EMBEDDING_MODEL: "sentence-transformers/all-MiniLM-L6-v2"
+      EMBEDDING_THREADS: "1"
+    mem_limit: 512m
+    cpus: 1.0
+    # No published port: only the backend reaches it, over the compose network.
+    # Publishing 8096 would expose an unauthenticated compute route.
+    expose:
+      - "8096"
     networks:
       - goshop
 
