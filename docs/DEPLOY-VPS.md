@@ -230,7 +230,8 @@ TLS gap and no cache flush.
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `remaining connection slots are reserved` | migrations ran on all 17 services at once | set `RUN_MIGRATIONS=false` after the first successful boot |
+| `remaining connection slots are reserved` | 13 services opened a pool each, and Supabase `max_connections` is 60 | set `DB_MAX_CONNS=3` + `DB_MIN_CONNS=0`, and `SKIP_MIGRATIONS=true` after the first successful boot |
+| `Dirty database version N. Fix and force version.` | a migration committed its DDL but the version row stayed dirty | verify the schema, then `UPDATE public.schema_migrations_<svc> SET version=N, dirty=false;` |
 | `tls error: server refused TLS connection` | `DB_SSL_MODE` not `require` | set it; Supabase refuses plaintext |
 | every authenticated request 401s | `JWT_PRIVATE_KEY` missing | paste the PEM with literal `\n` escapes |
 | `Unknown Topic Or Partition` on publish | Kafka topics missing | `docker exec goshop-backend /app/bin/kafkatopics` |

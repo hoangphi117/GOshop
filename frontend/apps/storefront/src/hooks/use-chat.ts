@@ -176,12 +176,12 @@ export const chatKeys = {
 /**
  * Clears chat state that outlives a logout.
  *
- * Three stores keep customer chat data on the device: the TanStack cache
+ * Three stores keep customer chat data in the browser: the TanStack cache
  * (`chat/conversation`, `chat/messages`, `chat/unread-count` — scoped by user,
- * but the query keys are not), the assistant transcript ("goshop-assistant"),
- * and the widget's queued order/product. Signing out only cleared the auth
- * store, so the next account saw the previous customer's history in both the
- * AI and the human tab.
+ * but the query keys are not), the assistant's in-memory transcript, and the
+ * widget's queued order/product. Signing out only cleared the auth store, so
+ * the next account saw the previous customer's history in both the AI and the
+ * human tab.
  *
  * `nextAccount` is the identity about to sign in. The chat queries mount while
  * signed out, so they have already cached an "anonymous" conversation: without

@@ -35,7 +35,11 @@ services:
       # start.sh pins every listener to the compose ports; the gateway reads
       # PORT. Nothing here may bind outside the container except the gateway.
       PORT: "8080"
-      RUN_MIGRATIONS: "${RUN_MIGRATIONS:-true}"
+      # The switch the code reads is SKIP_MIGRATIONS
+      # (shared/config/config.go:262). start.sh only translates the older
+      # RUN_MIGRATIONS=false into it, so setting SKIP_MIGRATIONS directly is the
+      # one knob that cannot be short-circuited by the entrypoint.
+      SKIP_MIGRATIONS: "${SKIP_MIGRATIONS:-false}"
       # Overrides REDIS_ADDR from .env, which still points at Render's internal
       # hostname. The compose service name is the DNS entry inside `goshop`.
       # TLS stays off: this is a same-host TCP connection, not Render's public

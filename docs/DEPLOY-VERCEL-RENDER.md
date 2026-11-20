@@ -109,6 +109,7 @@ one is created.
      CREATE DATABASE shopping_recs;
      CREATE DATABASE shopping_banner;
      CREATE DATABASE shopping_notification;
+     CREATE DATABASE shopping_assistant;
      ```
    - Then verify the two extensions that are *not* available everywhere:
      ```sql

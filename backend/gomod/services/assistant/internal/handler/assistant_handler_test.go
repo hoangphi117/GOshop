@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -16,22 +17,23 @@ import (
 )
 
 type fakeChat struct {
+	gotUserID   int32
 	gotHistory  []llm.Message
 	gotQuestion string
-	gotKey      string
 	answer      service.Answer
+	conv        service.Conversation
 	err         error
 	deltas      []string
 	emitErr     error
 }
 
-func (f *fakeChat) Ask(_ context.Context, callerKey, _ string, history []llm.Message, question string) (service.Answer, error) {
-	f.gotKey, f.gotHistory, f.gotQuestion = callerKey, history, question
+func (f *fakeChat) Ask(_ context.Context, userID int32, _ string, history []llm.Message, question string) (service.Answer, error) {
+	f.gotUserID, f.gotHistory, f.gotQuestion = userID, history, question
 	return f.answer, f.err
 }
 
-func (f *fakeChat) AskStream(_ context.Context, callerKey, _ string, history []llm.Message, question string, emit func(string) error) (service.Answer, error) {
-	f.gotKey, f.gotHistory, f.gotQuestion = callerKey, history, question
+func (f *fakeChat) AskStream(_ context.Context, userID int32, _ string, history []llm.Message, question string, emit func(string) error) (service.Answer, error) {
+	f.gotUserID, f.gotHistory, f.gotQuestion = userID, history, question
 	if f.err != nil {
 		return service.Answer{}, f.err
 	}
@@ -43,13 +45,32 @@ func (f *fakeChat) AskStream(_ context.Context, callerKey, _ string, history []l
 	return f.answer, f.emitErr
 }
 
+func (f *fakeChat) History(_ context.Context, userID int32, _ int) (service.Conversation, error) {
+	f.gotUserID = userID
+	return f.conv, f.err
+}
+
 func newRouter(fake *fakeChat, enabled bool) *gin.Engine {
+	return newRouterAs(fake, enabled, 0)
+}
+
+// newRouterAs stands in for AuthMiddleware by stamping the user id before the
+// routes run; 0 leaves the request anonymous. Middleware has to be registered
+// before the routes, hence the parameter rather than a helper called later.
+func newRouterAs(fake *fakeChat, enabled bool, userID int32) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
+	if userID > 0 {
+		r.Use(func(c *gin.Context) {
+			c.Set("user_id", userID)
+			c.Next()
+		})
+	}
 	h := handler.NewAssistantHandler(fake, enabled, 3600)
 	r.POST("/chat", h.Chat)
 	r.POST("/session", h.NewSession)
 	r.GET("/stream", h.Stream)
+	r.GET("/history", h.History)
 	return r
 }
 
@@ -79,9 +100,10 @@ func TestChatReturnsProductsAndSession(t *testing.T) {
 			t.Fatalf("body missing %s: %s", want, body)
 		}
 	}
-	// Guest quota key is session-scoped, never empty.
-	if !strings.HasPrefix(fake.gotKey, "sess:") {
-		t.Fatalf("callerKey = %q, want sess: prefix", fake.gotKey)
+	// No auth middleware on this router: the handler must pass the zero id
+	// through instead of inventing an identity.
+	if fake.gotUserID != 0 {
+		t.Fatalf("userID = %d, want 0 without auth middleware", fake.gotUserID)
 	}
 }
 
@@ -176,8 +198,8 @@ func TestStreamEmitsDeltasThenDone(t *testing.T) {
 			t.Fatalf("unexpected frame line %q", line)
 		}
 	}
-	if !strings.HasPrefix(fake.gotKey, "sess:") {
-		t.Fatalf("callerKey = %q, want sess: prefix", fake.gotKey)
+	if fake.gotUserID != 0 {
+		t.Fatalf("userID = %d, want 0 without auth middleware", fake.gotUserID)
 	}
 }
 
@@ -220,5 +242,81 @@ func TestStreamDisabledReturns503(t *testing.T) {
 	r := newRouter(&fakeChat{}, false)
 	if w := get(r, "/stream?message=hi"); w.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want 503", w.Code)
+	}
+}
+
+// --- History --------------------------------------------------------------
+
+func TestChatForwardsUserID(t *testing.T) {
+	fake := &fakeChat{answer: service.Answer{Answer: "ok"}}
+	r := newRouterAs(fake, true, 7)
+
+	if w := post(r, "/chat", `{"message":"hi"}`); w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+	if fake.gotUserID != 7 {
+		t.Fatalf("userID = %d, want 7", fake.gotUserID)
+	}
+}
+
+// The route group already refuses anonymous callers; the handler refuses them
+// again so a future open route cannot expose another user's transcript.
+func TestHistoryRequiresSignedIn(t *testing.T) {
+	r := newRouter(&fakeChat{}, true)
+	if w := get(r, "/history"); w.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", w.Code)
+	}
+}
+
+func TestHistoryReturnsPersistedTurn(t *testing.T) {
+	now := time.Now().UTC()
+	fake := &fakeChat{conv: service.Conversation{
+		SessionID: "11111111-1111-4111-8111-111111111111",
+		Messages: []service.Turn{
+			{Role: "user", Content: "a lamp for reading?", CreatedAt: now},
+			{
+				Role:    "assistant",
+				Content: "Yes, the Bamboo Lantern.",
+				Products: []service.Product{
+					{UUID: "p-1", Name: "Bamboo Lantern", Price: 250000, Stock: 4},
+				},
+				CreatedAt: now,
+			},
+		},
+	}}
+	r := newRouterAs(fake, true, 7)
+
+	w := get(r, "/history")
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+	body := w.Body.String()
+	// The product cards and the timestamp must survive the round trip: they are
+	// the two things the old Redis store dropped.
+	for _, want := range []string{
+		`"session_id":"11111111-1111-4111-8111-111111111111"`,
+		`"role":"assistant"`,
+		`"uuid":"p-1"`,
+		`"created_at":"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("body missing %s: %s", want, body)
+		}
+	}
+	if fake.gotUserID != 7 {
+		t.Fatalf("userID = %d, want 7", fake.gotUserID)
+	}
+}
+
+// "No history yet" is a 200 with an empty list, not a 404: the widget seeds its
+// greeting on the same path it uses after a reload.
+func TestHistoryEmptyIsNotAnError(t *testing.T) {
+	r := newRouterAs(&fakeChat{}, true, 7)
+	w := get(r, "/history")
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"messages":[]`) {
+		t.Fatalf("body = %s", w.Body.String())
 	}
 }

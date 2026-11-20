@@ -1,5 +1,7 @@
 package dto
 
+import "time"
+
 // ChatRequest is the POST /api/v1/assistant/chat body.
 //
 // history is optional: the server replays its own Redis session when
@@ -52,4 +54,22 @@ type Usage struct {
 type SessionResponse struct {
 	SessionID string `json:"session_id"`
 	ExpiresIn int    `json:"expires_in"`
+}
+
+// HistoryResponse is the persisted transcript of the user's newest
+// conversation. Empty (session_id omitted, messages empty) means "no history
+// yet" and the widget seeds its greeting instead.
+type HistoryResponse struct {
+	SessionID string           `json:"session_id,omitempty"`
+	Messages  []HistoryMessage `json:"messages"`
+}
+
+// HistoryMessage is one stored turn. Products repeats what the original answer
+// carried, otherwise a redrawn transcript would lose its cards.
+type HistoryMessage struct {
+	Role            string    `json:"role"`
+	Content         string    `json:"content"`
+	Products        []Product `json:"products"`
+	FallbackToHuman bool      `json:"fallback_to_human"`
+	CreatedAt       time.Time `json:"created_at"`
 }
