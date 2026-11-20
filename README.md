@@ -14,23 +14,16 @@ one edge proxy · one event bus · one PostgreSQL cluster per domain
 ![Kafka](https://img.shields.io/badge/Kafka-231F20?style=flat-square&logo=apachekafka&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white)
 
-[Architecture](#architecture) ·
-[Environment setup](#environment-setup-read-this-before-anything-else) ·
-[Running the stack](#running-the-stack) ·
-[Scripts](#scripts) ·
-[API docs](#api-documentation) ·
-[Troubleshooting](#troubleshooting)
-
 </div>
 
 ---
 
 ## Preview
 
-| Storefront home page | Product catalogue | Admin dashboard |
-|:---:|:---:|:---:|
+|                                                 Storefront home page                                                  |                                                                  Product catalogue                                                                  |                                                  Admin dashboard                                                  |
+| :-------------------------------------------------------------------------------------------------------------------: | :-------------------------------------------------------------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------------------------------------------------: |
 | [![Storefront home page: hero carousel, category nav, flash deals](docs/img/storefront.png)](docs/img/storefront.png) | [![Storefront product grid: filter rail, product cards with live Unsplash imagery and pricing](docs/img/storefront1.png)](docs/img/storefront1.png) | [![Admin dashboard: revenue metrics, order trend, recent orders](docs/img/dashboard.png)](docs/img/dashboard.png) |
-| Next.js 16 storefront | Next.js 16 storefront | React 19 admin SPA |
+|                                                 Next.js 16 storefront                                                 |                                                                Next.js 16 storefront                                                                |                                                React 19 admin SPA                                                 |
 
 ---
 
@@ -39,14 +32,14 @@ one edge proxy · one event bus · one PostgreSQL cluster per domain
 A storefront that sells, an admin dashboard that runs it, and a backend that stays correct
 under load. Everything below is wired and runnable — not a scaffold:
 
-| | |
-|---|---|
-| **15 Go services** | one module, one schema, one migration set each |
-| **140 documented endpoints** | one OpenAPI spec, one generated TypeScript client |
-| **Transactional outbox** | domain events committed with the row, never a dual write |
-| **Hybrid search** | keyword + pgvector embeddings, fused with reciprocal rank fusion |
-| **Full observability** | Prometheus, Grafana, Alertmanager, Promtail, k6 load tests |
-| **Written down** | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) traces checkout end to end; ten [ADRs](docs/ADR/README.md) record why, including what was rejected |
+|                              |                                                                                                                                                   |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **15 Go services**           | one module, one schema, one migration set each                                                                                                    |
+| **140 documented endpoints** | one OpenAPI spec, one generated TypeScript client                                                                                                 |
+| **Transactional outbox**     | domain events committed with the row, never a dual write                                                                                          |
+| **Hybrid search**            | keyword + pgvector embeddings, fused with reciprocal rank fusion                                                                                  |
+| **Full observability**       | Prometheus, Grafana, Alertmanager, Promtail, k6 load tests                                                                                        |
+| **Written down**             | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) traces checkout end to end; ten [ADRs](docs/ADR/README.md) record why, including what was rejected |
 
 Built to be run for real: load shedding, circuit breakers, structured logs, health probes,
 graceful shutdown, and an integration suite that runs against a real broker rather than mocks.
@@ -57,13 +50,12 @@ graceful shutdown, and an integration suite that runs against a real broker rath
 
 - [Preview](#preview)
 - [What this is](#what-this-is)
-- [Tech Stack](#tech-stack)
 - [Architecture](#architecture)
 - [Repository Layout](#repository-layout)
 - [Prerequisites](#prerequisites)
-- [Environment Setup](#environment-setup-read-this-before-anything-else)
+- [Environment setup](#environment-setup-one-time)
 - [Running the stack](#running-the-stack)
-  - [Switching between dev and prod](#switching-between-dev-and-prod-read-before-you-up--d)
+- [Switching dev and prod](#switching-dev-and-prod)
 - [Monitoring, tracing and logs](#monitoring-tracing-and-logs)
 - [Demo accounts](#demo-accounts)
 - [Scripts](#scripts)
@@ -133,7 +125,7 @@ flowchart LR
     EDGE["nginx edge<br/>:80 / :443<br/><small>injects X-API-KEY</small>"]
 
     subgraph apps["Applications"]
-        SF["Storefront<br/>Next.js 16 :3000"]
+        SF["Storefront<br/>Next.js 16 :3001"]
         GW["API Gateway<br/>Gin :8080<br/><small>rate limit · JWT · routing</small>"]
         WS["WS Gateway<br/>:8085"]
     end
@@ -177,7 +169,7 @@ flowchart LR
         KF --> DLQ["dead-letter topics"]
     end
 
-    EMB["embedder<br/>Python + torch"] --> PGV
+    EMB["embedder<br/>fastembed · ONNX"] --> PGV
 
     SVC --> PG
     SVC --> PGV
@@ -187,28 +179,6 @@ flowchart LR
     SVC -. "writes outbox row" .-> OB
     KF -. "consumed by" .-> SVC
 ```
-
-**Design choices worth a look**
-
-- **Domain-per-database** — each service owns its schema (15 Go modules, one schema each, plus
-  a Python embedder sidecar). Migrations live beside the service that owns them. No service
-  reads another's tables; cross-domain reads go through the gateway or an event.
-- **Transactional outbox + Kafka** — domain events are written in the same transaction as
-  the row change, then published by a background worker. No dual-write window, and a broker
-  outage delays events instead of losing them.
-- **Per-client refresh cookies** — the two frontends share an origin, so refresh tokens are
-  scoped per client (`X-Client-App`) and rotated into the exact cookie they were read from.
-  Access tokens stay in memory only.
-- **Typed API boundary** — a single OpenAPI schema generates `@goshop/api-client`, consumed
-  by both apps. Path drift between gateway and services is caught by
-  `scripts/check-compose-parity.py` before the stack even starts.
-- **R2 in prod, MinIO in dev** — uploads use presigned URLs against an S3-compatible bucket,
-  so prod points at Cloudflare R2 (`STORAGE_DRIVER=r2`, no egress bill, no media container in
-  the compose file) while dev keeps a throwaway MinIO behind the `minio` profile. Same code
-  path, one env switch.
-- **Retail-grade edges** — Go runtime caps (`GOMEMLIMIT`, `GOMAXPROCS`), circuit breaker
-  (`gobreaker`), gzip, graceful shutdown, structured zerolog to stdout so Promtail ships
-  every line to Loki (no log file to lose with the container).
 
 ---
 
@@ -235,7 +205,7 @@ docs/SERVICES.md          generated index: HTTP/gRPC ports, database, migrations
 docs/ARCHITECTURE.md      checkout traced end to end, failure matrix, compensation flow
 docs/ADR/                 ten accepted decisions with consequences and rejected alternatives
 DEPLOY.md                 production deployment ADR (topology, secrets, rollback)
-Makefile                  every workflow below
+Makefile                  every workflow in this README
 ```
 
 > Per-service detail: [`docs/SERVICES.md`](docs/SERVICES.md) is generated from compose and the
@@ -246,43 +216,29 @@ Makefile                  every workflow below
 
 ## Prerequisites
 
-| Tool | Version | Notes |
-|---|---|---|
-| Docker Desktop | 4.x+ | Linux containers; 8 GB RAM recommended |
-| Go | 1.26+ | only needed for `make dev-host` / bare metal |
-| Node.js | 22+ | storefront + dashboard |
-| pnpm | 11.x | `corepack enable` is enough |
-| GNU Make | any | Windows: `choco install make` or run commands by hand |
-| PowerShell | 7+ | the `.ps1` orchestration scripts target it |
+| Tool           | Version | Notes                                                 |
+| -------------- | ------- | ----------------------------------------------------- |
+| Docker Desktop | 4.x+    | Linux containers; 8 GB RAM recommended                |
+| Go             | 1.26+   | only needed for `make dev-host` / bare metal          |
+| Node.js        | 22+     | storefront + dashboard                                |
+| pnpm           | 11.x    | `corepack enable` is enough                           |
+| GNU Make       | any     | Windows: `choco install make` or run commands by hand |
+| PowerShell     | 7+      | the `.ps1` orchestration scripts target it            |
 
 ---
 
-## Environment Setup (read this before anything else)
+## Environment setup (one-time)
 
-The repo ships **templates only** — every real `.env` is git-ignored because it holds
-secrets. Nothing runs until you copy the templates and fill in the `CHANGE_ME` values.
+Real `.env` files are git-ignored; the repo ships **templates only**. Every service, every
+compose command and every make target reads the literal path `backend/.env` — `make` fills it by
+copying the variant you asked for.
 
-There are **two variants** per side, and `make` swaps which one is active by copying it over
-the filename the code actually reads.
-
-```
-backend/.env.example           →  backend/.env          (read at runtime by every service)
-backend/.env.dev.example       →  backend/.env.dev      (dev variant, switched by make env-dev)
-backend/.env.prod.example      →  backend/.env.prod     (prod variant, switched by make env-prod)
-
-frontend/apps/storefront/.env.example       →  .env
-frontend/apps/storefront/.env.dev.example   →  .env.dev
-frontend/apps/storefront/.env.prod.example  →  .env.prod
-frontend/apps/storefront/.env.dev-host      →  .env.local  (copied by `make dev-host`)
-```
-
-### Fresh clone — pick ONE path and follow it top to bottom
-
-`Step 1`–`Step 4` below describe the files. These two blocks are the same thing in
-executable order, including the steps the file table alone does not cover. Run from the
-repo root.
-
-**Dev (containerised, edge on `:80`)**
+| Template                                    | Active file                  | Written by                                                |
+| ------------------------------------------- | ---------------------------- | --------------------------------------------------------- |
+| `backend/.env.dev.example`                  | `backend/.env`               | `make env-dev` (auto-ran by `make dev` / `make dev-host`) |
+| `backend/.env.prod.example`                 | `backend/.env`               | `make env-prod`                                           |
+| `frontend/apps/storefront/.env.dev.example` | `apps/storefront/.env`       | `make env-dev`                                            |
+| `frontend/apps/storefront/.env.dev-host`    | `apps/storefront/.env.local` | `make dev-host`                                           |
 
 ```powershell
 corepack enable
@@ -290,260 +246,106 @@ cd frontend; pnpm install; cd ..
 
 Copy-Item backend/.env.dev.example backend/.env.dev
 Copy-Item frontend/apps/storefront/.env.dev.example frontend/apps/storefront/.env.dev
+
+# API_KEY + INTERNAL_API_TOKEN -> nginx/secrets/ + backend/.env. Copy both values into backend/.env.dev.
 powershell -ExecutionPolicy Bypass -File scripts/gen-local-secrets.ps1
 
+# JWT RS256 key pair
 openssl genpkey -algorithm RSA -out backend/certs/jwt_private.pem -pkeyopt rsa_keygen_bits:2048
 openssl rsa -pubout -in backend/certs/jwt_private.pem -out backend/certs/jwt_public.pem
-
-make env-dev
-make switch-stack STACK=dev     # builds images, up -d, checks drift
-make seed-docker
-make smoke-dev
 ```
 
-**Prod (edge on `:80`/`:443`)**
+Then fill in whatever `CHANGE_ME` is left in `backend/.env.dev`:
 
-```powershell
-corepack enable
-cd frontend; pnpm install; cd ..
+| Variable                             | Value                                                  |
+| ------------------------------------ | ------------------------------------------------------ |
+| `API_KEY`                            | 32+ random chars; the edge injects it as `X-API-KEY`   |
+| `INTERNAL_API_SECRET`                | another random string, service-to-service only         |
+| `DB_PASSWORD`                        | password for the local `postgres` container            |
+| `JWT_PRIVATE_KEY` / `JWT_PUBLIC_KEY` | paths to the RSA pair above                            |
+| `APP_ORIGIN`                         | `http://localhost` — every browser URL derives from it |
 
-Copy-Item backend/.env.prod.example backend/.env.prod
-Copy-Item frontend/apps/storefront/.env.prod.example frontend/apps/storefront/.env.prod
-powershell -ExecutionPolicy Bypass -File scripts/gen-local-secrets.ps1
-
-openssl genpkey -algorithm RSA -out backend/certs/jwt_private.pem -pkeyopt rsa_keygen_bits:2048
-openssl rsa -pubout -in backend/certs/jwt_private.pem -out backend/certs/jwt_public.pem
-
-make env-prod
-make kafka-env                  # SCRAM passwords + TLS material into backend/.env
-make switch-stack STACK=prod    # bootstraps SCRAM users, grants ACLs, verifies them
-make seed-docker
-make smoke-prod
-```
-
-> `gen-local-secrets.ps1` writes **`backend/.env` only**. It does not touch `backend/.env.dev`
-> or `.env.prod`, so the automated step still leaves the `CHANGE_ME` values in the variant you
-> copied — run it once per variant you intend to use, *then* fill in whatever is left
-> (`ALERTMANAGER_DISCORD_WEBHOOK_URL` is empty in the prod template and compose refuses to
-> interpolate until it is set).
-
-### Step 1 — Backend
-
-```powershell
-cd backend
-
-# Pick ONE starting point.
-Copy-Item .env.example     .env        # minimal, single-service
-# or
-Copy-Item .env.dev.example .env.dev    # full dev variant (recommended)
-Copy-Item .env.prod.example .env.prod  # full prod variant (required for make switch-stack STACK=prod)
-```
-
-Then open the file and replace **every** `CHANGE_ME`:
-
-| Variable | What to put |
-|---|---|
-| `API_KEY` | any 32+ char random string (edge injects it as `X-API-KEY`) |
-| `INTERNAL_API_SECRET` | another random string, service-to-service only |
-| `DB_PASSWORD` | the password `postgres` container will use |
-| `JWT_PRIVATE_KEY` / `JWT_PUBLIC_KEY` | paths to your RSA key pair, e.g. `certs/jwt_private.pem` |
-| `APP_ORIGIN` | **one switch** — every browser URL derives from it (`http://localhost`) |
-
-Generate the secrets in one shot rather than typing them by hand:
-
-```powershell
-# Rotates API_KEY into nginx/secrets/api_key + backend/.env, keeps the internal token stable
-powershell -ExecutionPolicy Bypass -File ..\scripts\gen-local-secrets.ps1
-```
-
-> If you start from `.env.dev.example`, the active file is `backend/.env.dev`. Run
-> `make env-dev` (from the repo root) to copy it over `backend/.env`. Same for prod with
-> `make env-prod`. Compose always reads the literal path `backend/.env`, so a variant that is
-> never copied over is never read.
-
-JWT keys, if you need to make them:
-```powershell
-openssl genpkey -algorithm RSA -out certs/jwt_private.pem -pkeyopt rsa_keygen_bits:2048
-openssl rsa -pubout -in certs/jwt_private.pem -out certs/jwt_public.pem
-```
-
-### Step 2 — Storefront
-
-```powershell
-cd frontend/apps/storefront
-
-# containerised dev / prod: the container reads .env.dev / .env.prod, and
-# `make env-dev` / `make env-prod` copy the matching one over the file it reads.
-Copy-Item .env.dev.example  .env.dev
-# Copy-Item .env.prod.example .env.prod
-
-# dev-host topology only (Go services on your host, gateway on :8080)
-# Copy-Item .env.dev-host .env.local
-```
-
-Order of precedence is `.env.local` → `.env.development` → `.env`. A **stale `.env.local`
-pointing at the wrong port is the single most common "why is everything 502" cause** — delete
-it when switching topologies, which is exactly what `make dev` / `make env-dev` do for you.
-
-### Step 3 — Dashboard
-
-The dashboard only needs the API base URL. `frontend/apps/dashboard/.env` already ships with:
-
-```dotenv
-VITE_API_BASE_URL=
-VITE_API_KEY=
-```
-
-Both empty is correct: the SPA runs same-origin behind the edge, and the edge injects
-`X-API-KEY`. In dev, Vite proxies `/api` to `DASHBOARD_PROXY_TARGET` (default
-`http://localhost:8080`).
-
-```powershell
-cd frontend/apps/dashboard
-$env:DASHBOARD_PROXY_TARGET="http://localhost"   # only if you are pointing at the edge on :80
-pnpm dev
-```
-
-### Step 4 — Verify
-
-Run these **after** the stack is up (`make switch-stack STACK=dev|prod`, per the fresh-clone
-blocks above):
-
-```powershell
-# from the repo root
-make check-parity     # static: every gateway proxy target exists in the compose file (no Docker)
-make smoke-dev        # live: probes each proxied route, fails on 502
-make check-drift-dev  # live: no container is running the other topology's config
-```
+The dashboard needs no env: `VITE_API_BASE_URL` and `VITE_API_KEY` stay empty (same-origin
+behind the edge). Production is the same flow with `.env.prod` + `make kafka-env`.
 
 ---
 
 ## Running the stack
 
-### Quick start
+### Containerised dev
 
 ```powershell
-make dev-host     # ~5–10 min first run: builds images, starts infra, runs Go services on the host
-make smoke-dev    # confirms every route answers
+make dev            # env-dev -> switch-stack dev -> up (API edge :80, storefront edge :3001)
+make seed-docker    # first run only
+make smoke-dev      # every gateway route must answer; a 502 fails the run
 ```
 
-Open **`http://127.0.0.1/`** (storefront) and **`http://127.0.0.1/admin/`** (dashboard).
-
-> `http://localhost/` can hang on Windows because it resolves to IPv6 first while Docker
-> publishes on IPv4. Use `127.0.0.1`, or map it in `hosts`.
-
-### Choose a topology
-
-| Goal | Command | What runs where | URL |
-|---|---|---|---|
-| Fastest loop, host-side Go | `make dev-host` | Infra in Docker, Go services on the host, gateway `:8080` | `http://localhost:5173/admin/`, storefront `:3001` |
-| Everything containerised | `make dev` | Full dev compose + edge | `http://127.0.0.1/` |
-| Production-shaped | `make prod` | Full prod compose behind nginx | `http://127.0.0.1/`, `:443` |
-| Switch between dev and prod | `make switch-stack STACK=dev\|prod` | Tears the other stack down first | — |
-| Stop cleanly | `make stop-dev` / `make stop-prod` | Kills host binaries **and** containers | — |
-
-### Switching between dev and prod (read before you `up -d`)
-
-Both compose files declare the **same `container_name` values** and join the same
-`goshop-network`. A plain `docker compose up -d` from the other file therefore leaves the
-previous stack's containers running, and the two configs end up mixed. On 2026-11-17 that
-mix took the whole event pipeline down: every prod service dialled `kafka:29096`
-(SASL_SSL) while `goshop-kafka` was still the dev broker speaking PLAINTEXT on `:29092`, so
-**no consumer joined and no notification or email was ever delivered** — while `up -d`
-printed "Started" for everything.
-
-Two rules, both enforced by tooling:
-
-1. `docker compose up -d` does **not** recreate a container whose config hash it has not
-   recomputed. Use `--force-recreate` after touching a compose file or `backend/.env`.
-2. Never `up -d` one stack on top of the other. Use `make switch-stack`.
-3. Both stacks tag their images `shopping-<service>`, so whichever built last owns the tag.
-   `make switch-stack` rebuilds unconditionally for that reason: skipping it runs the other
-   topology's entrypoint (`exec: "/app/service": no such file or directory` in dev).
-
-#### Enable the **dev** environment
+The storefront runs on the host so it hot-reloads. Second terminal, from `frontend/`:
 
 ```powershell
-make env-dev                      # copy backend/.env.dev over backend/.env
-make switch-stack STACK=dev       # down prod, build dev images, up -d --force-recreate, check drift
-make smoke-dev                    # every gateway route answers
+pnpm dev:storefront:edge    # next dev :3002 behind the edge -> http://localhost:3001
+pnpm dev:dashboard          # dashboard -> http://localhost:5173
 ```
 
-`make switch-stack STACK=dev` ends with the drift report; a clean run prints
-`no drift: N dev service(s) run the current config`. Nothing else is needed — `make dev`
-exists for the first-ever bootstrap and is not part of this sequence.
+`pnpm dev:storefront:edge` refuses to start if the edge is not answering; bring it up once with
+`docker compose -f docker-compose.dev.yml --env-file backend/.env up -d nginx`.
 
-#### Enable the **prod** environment
+### Hybrid dev (fastest Go loop)
 
 ```powershell
-make env-prod                     # copy backend/.env.prod over backend/.env
-make kafka-env                    # SASL creds + TLS material (first time, or after a rotation)
-make switch-stack STACK=prod      # down dev, build prod images, up -d, verify ACLs, check drift
-make smoke-prod                   # 8 HTTP probes against the edge
+make dev-host                      # infra in Docker, Go services on the host, gateway :8080
+cd frontend; pnpm dev:storefront   # storefront -> http://localhost:3002
 ```
 
-`make switch-stack STACK=prod` also runs `scripts/kafka-acl-verify.sh` and aborts if any
-service identity can no longer reach its topics.
+### Topology
 
-> Order matters: `make env-prod` **before** `make switch-stack`, or the build bakes the dev
-> `API_KEY`/`APP_ORIGIN` into the storefront bundle. And `make kafka-env` before the first
-> prod boot on a fresh volume — with SASL on and no SCRAM users, nothing can log in.
+| Goal                     | Command                            | Entry point                            |
+| ------------------------ | ---------------------------------- | -------------------------------------- |
+| Everything containerised | `make dev`                         | storefront `:3001`, API `:80`          |
+| Host-side Go loop        | `make dev-host`                    | storefront `:3002`, gateway `:8080`    |
+| Production-shaped        | `make prod`                        | `http://127.0.0.1/`, `:443`            |
+| Stop                     | `make stop-dev` / `make stop-prod` | kills host binaries **and** containers |
 
-#### Switching back to dev from prod
+Use `127.0.0.1`, not `localhost`, on Windows: `localhost` resolves to IPv6 first while Docker
+publishes IPv4.
 
-The prod stack refuses to interpolate without its secrets (`KAFKA_SASL_*`,
-`INTERNAL_API_TOKEN`, `KAFKA_SSL_TRUSTSTORE_PASSWORD`), which `backend/.env` no longer has
-once `make env-dev` ran. `switch-stack` handles this: teardown uses `backend/.env.prod`, and
-falls back to removing containers by project label if that file is incomplete.
+### Switching dev and prod
 
-#### Verify a switch (30 s)
+Both compose files declare the same `container_name`s and join the same network, so a bare
+`docker compose up -d` from the other file leaves the previous stack running and mixes configs —
+that is exactly how the 2026-11-17 Kafka outage happened. Always:
 
 ```powershell
-make check-drift                  # prod; add --dev or use make check-drift-dev for dev
-docker ps --format "{{.Names}}`t{{.Status}}" | Select-String "goshop-kafka"
+make switch-stack STACK=dev     # or STACK=prod: tears the other stack down, rebuilds, checks drift
+make check-drift                # add --dev for the dev stack
+make smoke-dev                  # or make smoke-prod
 ```
 
-In dev the broker API answers on `localhost:9092`; in prod only on the internal bootstrap
-listener `localhost:29093` from inside the `kafka` container:
-
-```powershell
-docker compose --env-file backend/.env -f docker-compose.prod.yml exec -T kafka `
-  sh -c '/opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server localhost:29093 --list'
-```
-
-`scripts/check-compose-drift.py` compares the `com.docker.compose.config-hash` label of every
-running container with `docker compose config --hash`. A missing or mismatched service means
-it was not recreated — that is exactly the failure a bare `up -d` hides.
-
+`make dev` already runs `env-dev` + `switch-stack STACK=dev`. For prod the order matters —
+`make env-prod` → `make kafka-env` (fresh volume: SASL users + TLS material) →
+`make switch-stack STACK=prod`, otherwise the build bakes the dev `API_KEY`/`APP_ORIGIN` into the
+storefront bundle.
 
 ### Local monitoring
 
-`system/grafana/dashboards/goshop-overview.json` is provisioned by a `grafana` container in
-`docker-compose.dev.yml`, so the committed dashboard has a Prometheus to read without a
-Grafana Cloud account:
+Optional; the committed Grafana dashboard reads a local Prometheus:
 
 ```powershell
-docker compose -f docker-compose.dev.yml --env-file backend/.env up -d grafana
+docker compose -f docker-compose.dev.yml --env-file backend/.env up -d grafana prometheus jaeger
 ```
 
-| Surface | URL |
-|---|---|
-| Dashboard "GOshop Overview" | `http://127.0.0.1:3001/d/goshop-overview` |
-| Grafana (anonymous, viewer) | `http://127.0.0.1:3001` |
-| Prometheus | `http://127.0.0.1:9090` |
-| Alertmanager | `http://127.0.0.1:9093` |
-| Jaeger (traces, dev only) | `http://127.0.0.1:16686` |
-
-The dashboard is read-only on purpose: edit the JSON in git, then restart the container.
-Production does not run this container — dashboards there live in Grafana Cloud, which reads
-the same `prometheus.yml` scrape config.
+| Surface                   | URL                                       |
+| ------------------------- | ----------------------------------------- |
+| Grafana "GOshop Overview" | `http://127.0.0.1:3000/d/goshop-overview` |
+| Prometheus / Alertmanager | `:9090` / `:9093`                         |
+| Jaeger (dev only)         | `:16686`                                  |
 
 ---
 
 ## Monitoring, tracing and logs
 
 Three signals, one question each: **is it up** (metrics), **why was this request slow or
-broken** (traces), **what exactly happened** (logs). The fourth question — *is a message stuck* —
+broken** (traces), **what exactly happened** (logs). The fourth question — _is a message stuck_ —
 is answered by Kafka lag, which is a metric with an alert on it.
 
 ### 1. Metrics — Prometheus + the dashboard
@@ -563,13 +365,13 @@ start "http://127.0.0.1:9090/graph?g0.expr=sum%20by%20(consumergroup)%20(kafka_c
 
 What the 6 dashboard panels tell you:
 
-| Panel | Reads | Red flag |
-|---|---|---|
-| Services Up / Down | `up{job="goshop-services"}` | Down > 0 for 2 min → `ServiceDown` (critical) |
-| Consumer Lag by Group | `kafka_consumergroup_lag` | > 1000 for 5 min → `ConsumerLagHigh`; flat and non-zero → `ConsumerLagStalled` |
-| Publish OK vs Errors | `kafka_publish_ok_total`, `kafka_publish_errors_total` | > 0.2 errors/s for 10 min → `KafkaPublishFailing` |
-| DLQ Moves | `kafka_dlq_total` | Any rate → `KafkaDLQGrowing`, drain with `make check-dlq` |
-| Records Missing `event_id` | `kafka_records_published_total` vs `..._missing_event_id_total` | > 1% → `EventsMissingEventID`; those records cannot be deduplicated |
+| Panel                      | Reads                                                           | Red flag                                                                       |
+| -------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Services Up / Down         | `up{job="goshop-services"}`                                     | Down > 0 for 2 min → `ServiceDown` (critical)                                  |
+| Consumer Lag by Group      | `kafka_consumergroup_lag`                                       | > 1000 for 5 min → `ConsumerLagHigh`; flat and non-zero → `ConsumerLagStalled` |
+| Publish OK vs Errors       | `kafka_publish_ok_total`, `kafka_publish_errors_total`          | > 0.2 errors/s for 10 min → `KafkaPublishFailing`                              |
+| DLQ Moves                  | `kafka_dlq_total`                                               | Any rate → `KafkaDLQGrowing`, drain with `make check-dlq`                      |
+| Records Missing `event_id` | `kafka_records_published_total` vs `..._missing_event_id_total` | > 1% → `EventsMissingEventID`; those records cannot be deduplicated            |
 
 Per-service counters worth knowing: `kafka_publish_ok_total`, `kafka_publish_errors_total`,
 `kafka_dlq_total`, `kafka_consume_errors_total`, `kafka_records_published_total`,
@@ -612,13 +414,13 @@ followed from the provider IPN to the settlement transaction.
 
 Trace boundaries, so you know what to expect in the UI:
 
-| Span kind | Created by | Continues the same trace? |
-|---|---|---|
-| HTTP server span (one per request) | `middleware.TraceMiddleware()` | yes, extracts incoming `X-Trace-Id` |
-| gRPC server span (one per call) | `shared/pkg/telemetry.UnaryServerInterceptor()` | yes, extracts metadata |
-| gRPC client | interceptor injects only — **no client span** | parent link preserved, no extra box |
-| Kafka producer | `injectTraceContext` header only — **no span** | header carries the id; see below |
-| Kafka consumer | **not extracted** (`kafka/retry.go`) | no. The event keeps the producer's `trace_id` as a *log field*, and a consumer that does work starts a new trace |
+| Span kind                          | Created by                                      | Continues the same trace?                                                                                        |
+| ---------------------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| HTTP server span (one per request) | `middleware.TraceMiddleware()`                  | yes, extracts incoming `X-Trace-Id`                                                                              |
+| gRPC server span (one per call)    | `shared/pkg/telemetry.UnaryServerInterceptor()` | yes, extracts metadata                                                                                           |
+| gRPC client                        | interceptor injects only — **no client span**   | parent link preserved, no extra box                                                                              |
+| Kafka producer                     | `injectTraceContext` header only — **no span**  | header carries the id; see below                                                                                 |
+| Kafka consumer                     | **not extracted** (`kafka/retry.go`)            | no. The event keeps the producer's `trace_id` as a _log field_, and a consumer that does work starts a new trace |
 
 That last row is a deliberate limit: an async consumer is a new unit of work, and stitching it
 into the request trace needs a span link, which is not implemented here. In practice you follow
@@ -632,7 +434,16 @@ nothing is written to a container-local file that dies with the container.
 Every request line carries `trace_id` (`middleware.StructuredAccessLog`):
 
 ```json
-{"level":"info","time":"...","trace_id":"4bf92f3577b34da6...","method":"POST","path":"/api/v1/orders","status_code":201,"duration_ms":84,"message":"HTTP request"}
+{
+  "level": "info",
+  "time": "...",
+  "trace_id": "4bf92f3577b34da6...",
+  "method": "POST",
+  "path": "/api/v1/orders",
+  "status_code": 201,
+  "duration_ms": 84,
+  "message": "HTTP request"
+}
 ```
 
 That key is the join between all three signals: response header `X-Trace-Id` → Loki log line
@@ -665,88 +476,21 @@ curl.exe -s http://127.0.0.1:8092/healthz          # analytics: includes messagi
 `messaging_lag` above the same 1000-message threshold used by `ConsumerLagHigh` flips the
 response to `503 degraded`, so the probe and the alert agree on what "stuck" means.
 
-### 5. Trace one request, step by step
-
-The whole loop is: **read `X-Trace-Id` off a response → open that trace → find the same id in the
-logs → confirm the consequence in a metric**. Example with a checkout, but the pattern is the
-same for any route.
-
-**Step 1 — send one request and keep its trace id.**
-
-```powershell
-$r = Invoke-WebRequest -Uri "http://127.0.0.1:8092/healthz" -UseBasicParsing
-$trace = $r.Headers["X-Trace-Id"]
-$trace
-```
-
-Any HTTP surface answers with `X-Trace-Id`; every service sets it in `TraceMiddleware`. With the
-gateway in dev (`http://127.0.0.1:8080/api/v1/...`) the same header comes back on the edge too
-(the browser devtools Network tab shows it if you prefer clicking).
-
-**Step 2 — open the trace.** `http://127.0.0.1:16686/trace/<trace>` (or pasting the id into
-Jaeger's *Search by Trace ID*). You should see the HTTP server span named after the gin route
-(`/healthz`), and — for a checkout — child `goshop/grpc` spans for catalog, inventory, coupon and
-cart.
-
-**Step 3 — find the same id in the logs.** The id is on every `HTTP request` line
-(`middleware.StructuredAccessLog`):
-
-```powershell
-docker logs goshop-order --since 10m | Select-String $trace
-make logq Q="{container=goshop-order} |= `"$trace`"" HOURS=1
-```
-
-The second form goes through Promtail → Grafana Cloud Loki, so it works for a container that has
-already been recreated (the `docker logs` form does not). Inside Grafana Cloud Explore, the same
-query is `{container="goshop-order"} |= "<trace>"`.
-
-**Step 4 — follow the async half.** The order publishes `order.created`; analytics consumes it. The
-consumer does **not** continue the trace (see the table above), so follow the *field* instead:
-
-```powershell
-make logq Q="{container=goshop-analytics} |= `"$trace`"" HOURS=1
-```
-
-If the event was produced inside the request, the Kafka header carries the same `trace_id`
-(`shared/pkg/kafka/broker.go:183`), so a hit in the analytics logs proves the event that came
-out of *that* checkout was processed — and a miss, with the projection unchanged, is a
-consumer/DLQ problem rather than a checkout problem.
-
-**Step 5 — confirm in metrics.**
-
-```powershell
-make check-dlq                                   # nothing stuck in a DLQ topic
-start http://127.0.0.1:3001/d/goshop-overview    # order count / revenue move one event later
-start http://127.0.0.1:9090/targets              # every goshop-* target UP
-```
-
-**When the trace is missing**, in this order:
-
-1. `docker exec goshop-order printenv OTEL_EXPORTER_OTLP_ENDPOINT` — empty or pointed at Grafana
-   Cloud? The compose default `http://jaeger:4318` was overridden by `backend/.env`.
-2. `docker logs goshop-jaeger | Select-String "trace"` — nothing arriving means the service was
-   started before Jaeger and its exporter is backing off.
-3. Sampling: `OTEL_TRACES_SAMPLER_ARG=0.1` drops 9 of 10 traces by design. In dev, unset it (or
-   set `1`) before hunting a specific request.
-4. The span is there but no `X-Trace-Id`: the request never reached a service that mounts
-   `TraceMiddleware` — check the edge (nginx returns its own 404 with no trace header).
-
 ### Operationally, each piece costs this much
 
-| Piece | Keeps | Needs |
-|---|---|---|
-| Prometheus | 7 days in `prometheus-data` | ~200 MB RAM, docker socket (read-only) |
-| Grafana | dashboard state in `grafana-data` | ~150 MB RAM, dev only |
-| Jaeger | nothing (in-memory), dev only | ~100 MB RAM |
-| Promtail | positions in `/tmp` | ~40 MB RAM + Grafana Cloud keys |
-| Alertmanager | silences in `alertmanager-data` | ~20 MB RAM + a Discord webhook |
+| Piece        | Keeps                             | Needs                                  |
+| ------------ | --------------------------------- | -------------------------------------- |
+| Prometheus   | 7 days in `prometheus-data`       | ~200 MB RAM, docker socket (read-only) |
+| Grafana      | dashboard state in `grafana-data` | ~150 MB RAM, dev only                  |
+| Jaeger       | nothing (in-memory), dev only     | ~100 MB RAM                            |
+| Promtail     | positions in `/tmp`               | ~40 MB RAM + Grafana Cloud keys        |
+| Alertmanager | silences in `alertmanager-data`   | ~20 MB RAM + a Discord webhook         |
 
 Remove `grafana` from the compose file and the stack still runs: the dashboard is a
 convenience, not a dependency.
 
-> Port clash: `grafana` binds host `:3001`, which `make dev-host` also uses for the storefront.
-> Pick one — run the dashboard with `make dev`, or change the published port in
-> `docker-compose.dev.yml`.
+> `grafana` publishes on `:3000` on purpose: `:3001` belongs to the storefront edge, and the
+> clash used to break `pnpm dev:storefront` with `EADDRINUSE`.
 
 ### Seed data
 
@@ -755,31 +499,6 @@ make seed          # host Postgres
 make seed-docker   # through the postgres container
 ```
 
-One seed run populates every database:
-
-| Database | Contents |
-|---|---|
-| `shopping_identity` | 51 users (4 staff + 47 customers), addresses |
-| `shopping_catalog` | 8 categories, 5000 products with curated photography, search outbox rows |
-| `shopping_coupon` | Coupons across fixed/percentage and expiry states |
-| `shopping_inventory` | Stock rows + movement history per product |
-| `shopping_order` | 100 orders spanning every status, 200 items, tracking events, 14 return tickets |
-| `shopping_payment` | VNPay/MoMo transactions for the online orders, refund legs |
-| `shopping_analytics` | Order projections rebuilt from `shopping_order` so the dashboard has KPIs immediately |
-
-Order rules the seed enforces, so the demo screens look like a real shop:
-
-- **Pending orders are always cash-on-delivery.** An online order never sits in `pending` —
-  it is `paid`, `failed`, `expired`, `refunded`, or `partially refunded`. This mirrors the
-  payment flow: a gateway transaction resolves before the order can be considered placed.
-- `total_amount = subtotal − discount + shipping_fee` holds on every row.
-- Timestamps are spread over the last ~400 days so the revenue chart, growth deltas and
-  "last 30 days vs previous 30" comparisons all have movement.
-
-The analytics service normally fills its projection tables from Kafka `order.*` events. The
-seed writes SQL directly and emits no events, so its last section rebuilds the projections
-from `shopping_order` (same columns the projection consumer upserts).
-
 ---
 
 ## Demo accounts
@@ -787,12 +506,12 @@ from `shopping_order` (same columns the projection consumer upserts).
 Every seeded account uses the same password. They are development credentials — the seed is
 never run against production data.
 
-| Email | Password | Role | Sees |
-|---|---|---|---|
-| `admin@goshop.com` | `Admin123!` | Admin (`user_level` 1) | everything: analytics, catalog, orders, users, settings |
-| `manager@goshop.com` | `Password123!` | Staff (`user_level` 2) | catalog, orders, inventory, reports |
-| `mod@goshop.com` | `Password123!` | Staff (`user_level` 2) | reviews, banners, content |
-| `admin@gmail.com` | `Password123!` | Admin (`user_level` 1) | second admin, used by the storefront demo |
+| Email                | Password       | Role                   | Sees                                                    |
+| -------------------- | -------------- | ---------------------- | ------------------------------------------------------- |
+| `admin@goshop.com`   | `Admin123!`    | Admin (`user_level` 1) | everything: analytics, catalog, orders, users, settings |
+| `manager@goshop.com` | `Password123!` | Staff (`user_level` 2) | catalog, orders, inventory, reports                     |
+| `mod@goshop.com`     | `Password123!` | Staff (`user_level` 2) | reviews, banners, content                               |
+| `admin@gmail.com`    | `Password123!` | Admin (`user_level` 1) | second admin, used by the storefront demo               |
 
 Customers are `user1@goshop.com` … `user7@goshop.com` and `customer12@testmail.com` …
 `customer51@testmail.com` — 47 storefront accounts, all `Password123!` (`user_level` 3).
@@ -809,54 +528,7 @@ Customers are `user1@goshop.com` … `user7@goshop.com` and `customer12@testmail
 
 ## Scripts
 
-### Make targets (repo root)
-
-| Command | What it does | Topology |
-|---|---|---|
-| `make dev` | Full containerised stack via `docker-compose.dev.yml` + edge on `:80` | all-in-Docker |
-| `make dev-host` | Infra in Docker, Go services built and run on the host; gateway on `:8080` | hybrid (fastest loop) |
-| `make stop-dev` | Stops the dev stack **and** host binaries (prevents "address already in use") | — |
-| `make env-dev` / `make env-prod` | Copies the variant env files over the active ones | — |
-| `make prod` | Full `docker-compose.prod.yml` stack behind nginx on `:80/:443` | production |
-| `make stop-prod` | Stops the prod stack | — |
-| `make switch-stack STACK=dev\|prod` | The only supported way to swap stacks: `down` the other one, `up -d --force-recreate`, verify | both |
-| `make build` | Builds every Go binary into `backend/bin` | — |
-| `make sqlc` | Regenerates type-safe query code for all services | — |
-| `make swagger` | Regenerates the OpenAPI spec (`/swagger` on the gateway) | — |
-| `make swagger-check` | Fails when the committed spec drifted from the code (CI gate) | — |
-| `make migrate-up` / `migrate-down NAME=...` | Migrations for every service (`migrate-<service>-up` for one) | — |
-| `make seed` / `make seed-docker` | Seeds demo catalog, users, orders | — |
-| `make smoke-dev` / `make smoke-prod` | Probes every gateway route; any 502 fails the run | — |
-| `make check-parity` | Static check of gateway proxy targets against compose (~2 s, no Docker needed) | — |
-| `make check-drift` / `check-drift-dev` | Live check: every container's config hash vs the current compose file | — |
-| `make services-doc` | Regenerates `docs/SERVICES.md` from compose, migrations and proto contracts | — |
-| `make loadtest` / `stresstest` / `spiketest` | k6 scenarios against the edge | — |
-| `make test-kafka-integration` | Outbox/consumer suite against a real Kafka in Testcontainers | — |
-| `make kafka-env` | Merges generated Kafka SASL/TLS values into `backend/.env` (add `ROTATE=1` to rotate) | — |
-| `make importdb` / `make exportdb` | Database dump / restore | — |
-
-### PowerShell scripts (`scripts/`)
-
-| Script | Purpose |
-|---|---|
-| `dev.ps1` | The engine behind `make dev-host`: builds domain images, runs Go services on the host, waits for health |
-| `stop-dev.ps1` | Kills host binaries and containers left behind by a dev run |
-| `gen-local-secrets.ps1` | Generates/rotates `API_KEY` (writes `nginx/secrets/api_key` + `backend/.env`); `-RotateInternalToken` to rotate the internal token |
-| `gen-kafka-env.ps1` | Generates SASL credentials + TLS material and merges them into `backend/.env` (`-Rotate`) |
-| `gen-kafka-tls-certs.ps1` | Issues the broker CA and certificates |
-| `smoke-dev.ps1` / `smoke-prod.sh` | Route-by-route live probe; non-zero exit on the first 502 |
-| `check-compose-parity.py` | Compares the gateway's proxy table to compose; catches a service that exists in prod but not dev |
-| `check-compose-drift.py` | Compares every running container's config hash to the current compose file; catches a stack left half-switched |
-| `switch-stack.ps1` | `down` the other stack, `up -d --force-recreate` this one, verify ACLs (prod) and drift |
-| `patch-openapi-spec.py` | Merges the service-owned routes into the gateway spec; `--from <fresh>` keeps them when `swag` only sees the gateway |
-| `check-dlq.ps1` / `clear-dlq.ps1` | Inspect / drain Kafka dead-letter topics |
-| `check-kafka-health.ps1` | Broker, consumer group lag, topic sanity |
-| `kafka-acls.sh` / `kafka-sasl-users.sh` | Provision SCRAM users and per-topic ACLs |
-| `reindex-product-images.ps1` | Re-uploads media and rebuilds derived image paths |
-| `recommendation-acceptance.ps1` | End-to-end check of the vector-search recommendation path |
-| `verify_lag_alert.py` / `check_alert_rules.py` | Asserts the Prometheus alert rules fire at the expected thresholds |
-
-### Frontend
+`make help` lists every target. Each `scripts/*` file documents itself in its header comment.
 
 ```powershell
 cd frontend
@@ -864,7 +536,7 @@ corepack enable
 pnpm install
 
 pnpm dev:dashboard      # http://localhost:5173/admin/
-pnpm dev:storefront     # http://localhost:3001
+pnpm dev:storefront     # next dev :3002 (edge :3001 via pnpm dev:storefront:edge)
 pnpm build              # turbo: every app
 pnpm lint
 pnpm gen:api            # regenerate @goshop/api-client from the OpenAPI schema
@@ -907,47 +579,28 @@ between the script and the committed spec, not a route the script does not know 
 
 ## Testing & CI
 
-```
-.github/workflows/backend-ci.yml    buf lint + breaking check, gofmt, go vet, race tests per module,
-                                    golangci-lint, compose config smoke check
-.github/workflows/frontend-ci.yml   dashboard build + Vitest + lint, storefront build,
-                                    assert no API key leaked into bundles
-```
-
-Locally:
-
-```powershell
-# backend — the workspace root is not a module, so this must run per module
-cd backend
-foreach ($m in "shared","contracts","cmd","services") { (cd "gomod/$m"; go test ./...); cd ../.. }
-
-# dashboard
-cd frontend/apps/dashboard; npx tsc -b; npx vitest run --browser.headless
-
-# storefront
-cd frontend/apps/storefront; npx tsc --noEmit; npx vitest run
-```
-
-`make test-kafka-integration` is the one that matters for the event pipeline — it runs the
-real outbox publisher against a real broker.
+`make test-kafka-integration` runs the outbox publisher and its consumers against a real
+broker — the one test that matters for the event pipeline. The rest is in
+[`.github/workflows/`](.github/workflows/): gofmt, `go vet`, race tests per module,
+`golangci-lint`, both frontend builds, and an assertion that no API key reaches a bundle.
 
 ---
 
 ## Troubleshooting
 
-| Symptom | Cause | Fix |
-|---|---|---|
-| Every API call returns **502** | Vite proxy target has nothing listening (usually `:8080` is dark because only the prod stack is up) | `make dev-host`, or point the dashboard at the edge: `$env:DASHBOARD_PROXY_TARGET="http://localhost"` |
-| `bind: address already in use` | Host binaries from a previous run still alive | `make stop-dev` |
-| Browser hits a closed port after switching topology | Stale `frontend/apps/storefront/.env.local` | delete it; `make env-dev` / `make dev` do this for you |
-| `unknown port` / service crashes at boot | A stray character in `backend/.env` (a trailing backtick is the classic) | re-check the line, or recreate from the `.example` |
-| Google login `ERR_CONNECTION_REFUSED` | Storefront pointing at `:80` while no edge is running | use `.env.dev-host` (targets `:8080`) |
-| 502 only on one feature (`/ws`, analytics, media) | Service exists in prod compose but not dev | `make check-parity`, then `make smoke-dev` |
-| Login returns **429** after a few attempts | Two login rate limiters (edge Redis + auth service) counted the same IP | clear `*ratelimit*` keys in Redis (snippet in [Demo accounts](#demo-accounts)) |
-| Analytics dashboard shows 2 orders after a seed | Dashboard reads `shopping_analytics` projections, and the seed emits no Kafka events | re-run the seed — its last section rebuilds both projections |
-| Product images blank | A seed older than the curated-photo change still points at `picsum.photos` | re-run `make seed`; every product now uses one of 32 curated Unsplash shots |
-| One service answers with the **other** topology's config (e.g. prod dials `kafka:29096` while the broker is plaintext) | `up -d` from the other compose file left the old container in place — same `container_name`, same network | `make switch-stack STACK=prod` (or `up -d --force-recreate <service>`), then `make check-drift` |
-| Kafka consumers never join, notifications and emails silently never arrive | Broker listener family and client settings disagree, or SCRAM/ACLs are missing on a fresh volume | `make check-drift`, `make kafka-acl-verify`, then `make switch-stack STACK=prod` |
+| Symptom                                                                                                                | Cause                                                                                                     | Fix                                                                                                   |
+| ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Every API call returns **502**                                                                                         | Vite proxy target has nothing listening (usually `:8080` is dark because only the prod stack is up)       | `make dev-host`, or point the dashboard at the edge: `$env:DASHBOARD_PROXY_TARGET="http://localhost"` |
+| `bind: address already in use`                                                                                         | Host binaries from a previous run still alive                                                             | `make stop-dev`                                                                                       |
+| Browser hits a closed port after switching topology                                                                    | Stale `frontend/apps/storefront/.env.local`                                                               | delete it; `make env-dev` / `make dev` do this for you                                                |
+| `unknown port` / service crashes at boot                                                                               | A stray character in `backend/.env` (a trailing backtick is the classic)                                  | re-check the line, or recreate from the `.example`                                                    |
+| Google login `ERR_CONNECTION_REFUSED`                                                                                  | Storefront pointing at `:80` while no edge is running                                                     | use `.env.dev-host` (targets `:8080`)                                                                 |
+| 502 only on one feature (`/ws`, analytics, media)                                                                      | Service exists in prod compose but not dev                                                                | `make check-parity`, then `make smoke-dev`                                                            |
+| Login returns **429** after a few attempts                                                                             | Two login rate limiters (edge Redis + auth service) counted the same IP                                   | clear `*ratelimit*` keys in Redis (snippet in [Demo accounts](#demo-accounts))                        |
+| Analytics dashboard shows 2 orders after a seed                                                                        | Dashboard reads `shopping_analytics` projections, and the seed emits no Kafka events                      | re-run the seed — its last section rebuilds both projections                                          |
+| Product images blank                                                                                                   | A seed older than the curated-photo change still points at `picsum.photos`                                | re-run `make seed`; every product now uses one of 32 curated Unsplash shots                           |
+| One service answers with the **other** topology's config (e.g. prod dials `kafka:29096` while the broker is plaintext) | `up -d` from the other compose file left the old container in place — same `container_name`, same network | `make switch-stack STACK=prod` (or `up -d --force-recreate <service>`), then `make check-drift`       |
+| Kafka consumers never join, notifications and emails silently never arrive                                             | Broker listener family and client settings disagree, or SCRAM/ACLs are missing on a fresh volume          | `make check-drift`, `make kafka-acl-verify`, then `make switch-stack STACK=prod`                      |
 
 ---
 
@@ -955,15 +608,9 @@ real outbox publisher against a real broker.
 
 Actively developed. What is done and what is deliberately not:
 
-| | |
-|---|---|
-| **Working end to end** | storefront browse/cart/checkout, admin CRUD, auth with silent refresh, hybrid search, recommendations, assistant |
-| **Tested** | unit + race tests per Go module in CI, Vitest for both frontends, k6 load scenarios, `make smoke-dev` route probe |
-| **Known gap** | the OpenAPI spec cannot be regenerated in one pass (see [API Documentation](#api-documentation)); service-owned routes are declared in `scripts/patch-openapi-spec.py` |
-| **Not included** | hosted demo, `LICENSE` file, `CONTRIBUTING.md`, `SECURITY.md` |
-
----
-
-## License
-
-MIT
+|                        |                                                                                                                                                                        |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Working end to end** | storefront browse/cart/checkout, admin CRUD, auth with silent refresh, hybrid search, recommendations, assistant                                                       |
+| **Tested**             | unit + race tests per Go module in CI, Vitest for both frontends, k6 load scenarios, `make smoke-dev` route probe                                                      |
+| **Known gap**          | the OpenAPI spec cannot be regenerated in one pass (see [API Documentation](#api-documentation)); service-owned routes are declared in `scripts/patch-openapi-spec.py` |
+| **Not included**       | hosted demo, `LICENSE` file, `CONTRIBUTING.md`, `SECURITY.md`                                                                                                          |
