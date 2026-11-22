@@ -22,6 +22,12 @@ git reset --hard FETCH_HEAD
 
 cd backend
 
+# --env-file is explicit on every call: compose only auto-loads `.env` when the
+# project has not been recorded with a different --env-file path in
+# DOCKER_CONFIG. Revoking that record left `constraint: required variable
+# REDIS_PASSWORD is missing` on a host whose .env was perfectly fine.
+COMPOSE_ARGS=(--env-file .env -f "$COMPOSE")
+
 # Rollback target: the image the running container is on right now.
 PREVIOUS=$(docker inspect --format '{{.Config.Image}}' goshop-backend 2>/dev/null || true)
 
@@ -38,8 +44,8 @@ set_image GOSHOP_EMBEDDER_IMAGE "$REGISTRY/embedder:$IMAGE_TAG"
 
 # Pull first: if the registry is unreachable or the tag is missing, this aborts
 # with the old containers still serving traffic.
-docker compose -f "$COMPOSE" pull backend embedder
-docker compose -f "$COMPOSE" up -d --no-build --remove-orphans
+docker compose "${COMPOSE_ARGS[@]}" pull backend embedder
+docker compose "${COMPOSE_ARGS[@]}" up -d --no-build --remove-orphans
 
 echo "waiting for goshop-backend to report healthy (start_period is 180s)..."
 for _ in $(seq 1 60); do
@@ -63,6 +69,6 @@ done
 if [ -n "$PREVIOUS" ] && [ "$PREVIOUS" != "$REGISTRY/backend:$IMAGE_TAG" ]; then
   echo "rolling back to $PREVIOUS" >&2
   set_image GOSHOP_BACKEND_IMAGE "$PREVIOUS"
-  docker compose -f "$COMPOSE" up -d --no-build backend || true
+  docker compose "${COMPOSE_ARGS[@]}" up -d --no-build backend || true
 fi
 exit 1

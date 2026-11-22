@@ -133,7 +133,7 @@ cd ~/goshop/backend
 docker login ghcr.io -u <github-user> --password-stdin < /dev/null   # idempotent
 GOSHOP_BACKEND_IMAGE=ghcr.io/hoangphi117/goshop/backend:main \
 GOSHOP_EMBEDDER_IMAGE=ghcr.io/hoangphi117/goshop/embedder:main \
-  docker compose -f deploy/vps/docker-compose.vps.yml up -d --no-build
+  docker compose --env-file .env -f deploy/vps/docker-compose.vps.yml up -d --no-build
 ```
 
 In GitHub → Settings → Secrets and variables → Actions, add the three secrets
@@ -148,7 +148,7 @@ it re-points the tag at the previous image if that never happens.
 ```bash
 # rollback by hand (any previous sha, see the Actions run or `docker images`)
 sed -i 's|^GOSHOP_BACKEND_IMAGE=.*|GOSHOP_BACKEND_IMAGE=ghcr.io/hoangphi117/goshop/backend:<sha>|' ~/goshop/backend/.env
-cd ~/goshop/backend && docker compose -f deploy/vps/docker-compose.vps.yml up -d --no-build backend
+cd ~/goshop/backend && docker compose --env-file .env -f deploy/vps/docker-compose.vps.yml up -d --no-build backend
 ```
 
 Building on the host is still possible (`up -d --build`, ~15 min on one vCPU);
@@ -231,15 +231,23 @@ docker cp goshop-redis:/data/appendonlydir ./redis-snapshot
 
 ## 7. Redeploy after a code change (~2 min)
 
+Merging to `main` deploys itself (section 4). To deploy the current `main` by
+hand - or to rebuild on the host anyway:
+
 ```bash
 cd ~/goshop && git pull
 cd backend
-docker compose -f deploy/vps/docker-compose.vps.yml up -d --build backend embedder
+docker compose --env-file .env -f deploy/vps/docker-compose.vps.yml pull backend embedder
+docker compose --env-file .env -f deploy/vps/docker-compose.vps.yml up -d --no-build backend embedder
 ```
 
-`--build backend embedder` rebuilds the two app images; Caddy and Redis stay up,
-so there is no TLS gap and no cache flush. Drop `embedder` when only the Go code
-changed.
+Always pass `--env-file .env`: compose only auto-loads that file when this
+project has not been recorded with another path in `DOCKER_CONFIG`, and when it
+does not, `${REDIS_PASSWORD:?}` fails before anything starts.
+
+`up -d` replaces the two app containers; Caddy and Redis stay up, so there is no
+TLS gap and no cache flush. `--build` instead of `pull` compiles on the host and
+takes ~15 min on one vCPU.
 
 ## What this layout does not have
 
