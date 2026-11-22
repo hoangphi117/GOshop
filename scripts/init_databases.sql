@@ -42,6 +42,12 @@ WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'shopping_chat')\gexec
 SELECT 'CREATE DATABASE shopping_notification'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'shopping_notification')\gexec
 
+-- The assistant keeps its transcript in its own database (cmd/assistant stamps
+-- DBName=shopping_assistant), so the other services' migration sets cannot
+-- collide with schema_migrations_assistant.
+SELECT 'CREATE DATABASE shopping_assistant'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'shopping_assistant')\gexec
+
 -- Personalization store: affinity, popularity windows and product embeddings.
 -- Owned by services/recommendations (phase 2); created here so phase 1 can wire
 -- the consumer against a database that already exists.

@@ -118,17 +118,41 @@ The JWT keypair is bind-mounted by the image build from
 gitignored and arrives only through `JWT_PRIVATE_KEY`. If it is missing, every
 authenticated request 401s because `pkg/auth` mints an ephemeral key.
 
-## 4. Build and start (~10 min on 1 vCPU)
+## 4. First start (image from CI, ~1 min)
+
+CI builds the image on every push to `main` and pushes it to
+`ghcr.io/hoangphi117/goshop/backend:<sha>` (plus the embedder). The host only
+pulls; nothing is compiled here. One-time setup:
 
 ```bash
+# PAT with read:packages (packages are private even though the repo is public)
+echo "$GHCR_PAT" | docker login ghcr.io -u <github-user> --password-stdin
+
+# First boot uses the default local tag, so build once OR pull the current main:
 cd ~/goshop/backend
-docker compose -f deploy/vps/docker-compose.vps.yml up -d --build
-docker compose -f deploy/vps/docker-compose.vps.yml logs -f backend
+docker login ghcr.io -u <github-user> --password-stdin < /dev/null   # idempotent
+GOSHOP_BACKEND_IMAGE=ghcr.io/hoangphi117/goshop/backend:main \
+GOSHOP_EMBEDDER_IMAGE=ghcr.io/hoangphi117/goshop/embedder:main \
+  docker compose -f deploy/vps/docker-compose.vps.yml up -d --no-build
 ```
 
-The first build compiles 17 binaries. On one vCPU that takes a while; later
-builds reuse the Go build cache inside BuildKit only if `--build` keeps the
-cache, so expect ~15 min clean and ~2 min after a code change.
+In GitHub → Settings → Secrets and variables → Actions, add the three secrets
+the deploy job reads: `VPS_HOST`, `VPS_USER` (the `deploy` user), `VPS_SSH_KEY`
+(its private key, `-----BEGIN OPENSSH PRIVATE KEY-----` line included).
+
+From then on a merge to `main` deploys itself: `.github/deploy/vps.sh` records
+the new sha in `backend/.env` (`GOSHOP_BACKEND_IMAGE` / `GOSHOP_EMBEDDER_IMAGE`),
+pulls both images, restarts, and waits for `goshop-backend` to report healthy —
+it re-points the tag at the previous image if that never happens.
+
+```bash
+# rollback by hand (any previous sha, see the Actions run or `docker images`)
+sed -i 's|^GOSHOP_BACKEND_IMAGE=.*|GOSHOP_BACKEND_IMAGE=ghcr.io/hoangphi117/goshop/backend:<sha>|' ~/goshop/backend/.env
+cd ~/goshop/backend && docker compose -f deploy/vps/docker-compose.vps.yml up -d --no-build backend
+```
+
+Building on the host is still possible (`up -d --build`, ~15 min on one vCPU);
+it is just not part of a deploy anymore.
 
 Look for, in order:
 

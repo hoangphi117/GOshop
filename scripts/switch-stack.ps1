@@ -27,30 +27,25 @@ Set-Location $root
 $target = if ($Stack -eq "prod") { "docker-compose.prod.yml" } else { "docker-compose.dev.yml" }
 $other = if ($Stack -eq "prod") { "docker-compose.dev.yml" } else { "docker-compose.prod.yml" }
 $envFile = "./backend/.env"
-# The prod file interpolates with `${VAR:?…}` for every SASL password, the
-# internal token and the broker keystore secret. `make env-dev` copies the dev
-# variant over backend/.env, which has none of them, so `down` on the prod stack
-# then fails to interpolate and the switch aborts. Tear-down only needs the
-# project/container labels, so point interpolation at the prod variant instead.
-$otherEnvFile = if ($Stack -eq "dev" -and (Test-Path "./backend/.env.prod")) {
-  "./backend/.env.prod"
-} else {
-  $envFile
-}
 
 if (-not (Test-Path $envFile)) {
   throw "missing $envFile (API_KEY, KAFKA_SASL_*_PASSWORD are required to interpolate)"
 }
 
 Write-Host "== stopping the $other stack =="
-docker compose -f $other --env-file $otherEnvFile down --remove-orphans
-if ($LASTEXITCODE -ne 0) {
-  # A missing prod secret must not block leaving prod. `down` only needs the
-  # container labels, so fall back to the project namespace.
-  Write-Host "down via env file failed; removing containers by project label" -ForegroundColor Yellow
-  docker ps -aq --filter "label=com.docker.compose.project.config_files=$((Resolve-Path $other).Path)" |
-    ForEach-Object { docker rm -f $_ }
-  if ($LASTEXITCODE -ne 0) { throw "down failed for $other" }
+# Remove by compose label instead of `docker compose ... down`. `down` has to
+# interpolate every `${VAR:?}` in the other file, and the values that reach it
+# are the ones `make` exported for the target stack - shell env outranks
+# --env-file - while the prod file additionally requires
+# KAFKA_SSL_TRUSTSTORE_PASSWORD (written by `make kafka-env`). Both turned a
+# routine switch into an interpolation error. The label names the containers
+# exactly, so no interpolation is needed and a missing secret cannot block
+# leaving a stack.
+$otherPath = (Resolve-Path $other).Path
+$stale = @(docker ps -aq --filter "label=com.docker.compose.project.config_files=$otherPath")
+if ($stale.Count -gt 0) {
+  docker rm -f @stale | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw "failed to remove the $other containers" }
 }
 
 Write-Host "== starting the $Stack stack =="
