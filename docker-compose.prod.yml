@@ -64,14 +64,6 @@ services:
       # Self-signed localhost cert (scripts/gen-cert.ps1). Recreate/regenerate
       # for a real domain instead of trusting this one.
       - ./nginx/certs:/etc/nginx/ssl:ro
-      # Admin dashboard SPA — static build from the host (or CI artifact).
-      # Rebuild with: pnpm --filter dashboard build
-      - ./frontend/apps/dashboard/dist:/srv/dashboard:ro
-    # /admin/ uses `root` (not `alias`) so try_files can fall back to
-    # /admin/index.html for client-side routes; give the URI path a symlink.
-    tmpfs:
-      - /srv/root
-    entrypoint: ["/bin/sh", "-c", "ln -sfn /srv/dashboard /srv/root/admin && exec /docker-entrypoint.sh nginx -g 'daemon off;'"]
     depends_on:
       - api1
       - api2
@@ -919,9 +911,9 @@ services:
     networks:
       - goshop-network
 
-  # Admin SPA is NOT a container: the edge nginx serves the static Vite build
-  # directly (volume ./frontend/apps/dashboard/dist â†’ /srv/dashboard above).
-  # Build it with:  pnpm --filter dashboard build   (host or CI)
+  # Admin SPA is NOT a container and is not served by the edge: it deploys to
+  # Vercel on its own origin (admin.goshop.dpdns.org, base: '/'). See
+  # docs/DEPLOY-VERCEL-RENDER.md section 4.
 
   # No `postgres` service: the stack uses Supabase (backend/.env DB_HOST).
   # A local container would need its own TLS story, its own seeded data and

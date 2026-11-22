@@ -535,7 +535,7 @@ cd frontend
 corepack enable
 pnpm install
 
-pnpm dev:dashboard      # http://localhost:5173/admin/
+pnpm dev:dashboard      # http://localhost:5173/
 pnpm dev:storefront     # next dev :3002 (edge :3001 via pnpm dev:storefront:edge)
 pnpm build              # turbo: every app
 pnpm lint

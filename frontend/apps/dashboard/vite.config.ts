@@ -9,10 +9,11 @@ import { playwright } from '@vitest/browser-playwright'
 const PROXY_TARGET = process.env.DASHBOARD_PROXY_TARGET ?? 'http://localhost:8080'
 
 // https://vite.dev/config/
-// Served under /admin/ behind the prod edge (nginx strips the prefix);
-// dev URL becomes http://localhost:5173/admin/.
+// Served at the origin root: the project has its own Vercel domain
+// (admin.goshop.dpdns.org), so the old `/admin/` prefix only made every URL
+// longer. `base` and the TanStack `basepath` must stay in lockstep.
 export default defineConfig({
-  base: '/admin/',
+  base: '/',
   plugins: [
     tanstackRouter({
       target: 'react',

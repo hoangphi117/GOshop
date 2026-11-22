@@ -9,7 +9,7 @@ Everything below assumes three unrelated origins:
 | Piece | Origin | What it means |
 | --- | --- | --- |
 | Storefront | `https://<shop>.vercel.app` | Next.js 16 app router |
-| Dashboard | `https://<admin>.vercel.app` | Vite SPA, `base: '/admin/'` |
+| Dashboard | `https://<admin>.vercel.app` | Vite SPA, `base: '/'` |
 | Edge API | `https://<api>.onrender.com` | the `api` gateway binary (`cmd/api`) |
 
 Because the three are different *sites*, the browser sees them as
@@ -287,23 +287,24 @@ $pub  = Get-Content -Raw backend\certs\jwt_public.pem
 
 ---
 
-## 4. Frontend on Vercel — decide the dashboard base first
+## 4. Frontend on Vercel
 
-The dashboard is built with `base: '/admin/'` and a TanStack Router
-`basepath: '/admin'`. On Vercel the project gets its **own** origin, so
-`https://<admin>.vercel.app/` returns 404 and everything lives under
-`https://<admin>.vercel.app/admin/`. That works, but every deep link users
-share must carry the prefix.
+The dashboard is built with `base: '/'` and a TanStack Router `basepath: '/'`,
+so the project serves directly at its own domain root. It used to build with
+`base: '/admin/'` for the single-origin edge topology, where nginx mounted the
+SPA next to the storefront; on Vercel that only produced `/admin/...` URLs whose
+assets 404'd, because Vercel publishes the build output at the site root.
 
-1. **Keep `/admin/`** — no code change. Vercel's SPA behaviour already
-   serves `index.html` for unknown paths, so no `vercel.json` is needed;
-   `https://<admin>.vercel.app/admin/` loads and deep links work.
-2. **Drop the prefix** — change `base` in `vite.config.ts` to `'/'` **and**
-   `basepath` in `src/main.tsx` to `'/'`, then fix `src/lib/auth-redirect.ts`
-   and `auth-redirect.test.ts` (they strip `/admin`). Cleaner URLs; ~10
-   minutes of work; also touches the local edge setup.
+`frontend/vercel.json` carries the SPA fallback
+(`"rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]`): without
+it a deep link like `/orders` is a 404 on reload. Static files are matched
+before the rewrite, so `/assets/*` still resolves. Vercel only reads
+`vercel.json` from the project's Root Directory, so if you ever create the
+storefront project with Root Directory `frontend` as well, it inherits this
+catch-all and Next.js stops routing — give that project its own Root Directory
+(or drop the file when the storefront moves off the edge nginx).
 
-Pick one now. Both Vercel projects need the same monorepo settings:
+Both Vercel projects need the same monorepo settings:
 
 | Setting | Storefront | Dashboard |
 | --- | --- | --- |
@@ -457,8 +458,8 @@ curl -i -X POST "$env:EDGE_URL/api/v1/auth/login" `
 # 4. the storefront renders and points at the right API
 curl -s "$env:SHOP_URL" | Select-String "api"
 
-# 5. the dashboard loads under its base path
-curl -o NUL -w "%{http_code}`n" "$env:ADMIN_URL/admin/"
+# 5. the dashboard loads at its own origin
+curl -o NUL -w "%{http_code}`n" "$env:ADMIN_URL/"
 ```
 
 Expected: `1` → `/healthz` is an nginx-only location, so on Render expect
