@@ -195,8 +195,8 @@ Both keys stay **empty**: the bundle is public, and the gateway injects
 `X-API-KEY` server-side.
 
 Domains: storefront → `goshop.dpdns.org`; dashboard → `admin.goshop.dpdns.org`.
-The dashboard lives under `/admin/` unless you also change `base` in
-`vite.config.ts` and `basepath` in `src/main.tsx` (reference doc §4).
+The dashboard serves at its domain root (`base: '/'`, `basepath: '/'`); it no
+longer lives under `/admin/`, and the local edge no longer mounts it.
 
 Google Cloud Console → Credentials → your OAuth client → **Authorized JavaScript
 origins** must include `https://goshop.dpdns.org`, or the sign-in button throws

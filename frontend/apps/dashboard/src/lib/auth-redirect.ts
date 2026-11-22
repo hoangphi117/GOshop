@@ -25,7 +25,8 @@ export function sanitizeRedirectTarget(raw?: string | null): string | undefined 
       return current.startsWith('/') ? current : undefined
     }
     if (path.length > 1 && path.endsWith('/')) path = path.slice(0, -1)
-    // SPA lives under /admin basepath; sign-in navigate() wants the inner path.
+    // Legacy links from the days the SPA lived under /admin: keep them working
+    // by unwrapping to the same route at the origin root.
     if (path === '/admin') path = '/'
     else if (path.startsWith('/admin/')) path = path.slice('/admin'.length)
     if (SIGN_IN_PATHS.has(path)) {

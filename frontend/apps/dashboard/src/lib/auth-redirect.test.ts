@@ -16,8 +16,9 @@ describe('sanitizeRedirectTarget', () => {
     expect(sanitizeRedirectTarget('/sign-in?redirect=%2Fsign-in')).toBeUndefined()
   })
 
-  it('rejects non-path values and strips the /admin basepath', () => {
+  it('rejects non-path values and unwraps legacy /admin links', () => {
     expect(sanitizeRedirectTarget('https://evil.test/phish')).toBeUndefined()
     expect(sanitizeRedirectTarget('/admin/orders')).toBe('/orders')
+    expect(sanitizeRedirectTarget('/admin')).toBe('/')
   })
 })

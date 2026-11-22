@@ -637,38 +637,12 @@ location /search-api/ {
 }
 
 # -----------------------------------------------------------------------------
-# 7.5 ADMIN DASHBOARD SPA (/admin/) — static Vite build mounted straight into
-#     the edge nginx (no dashboard container, no extra port-forward hop).
-#     Build with:  pnpm --filter dashboard build   (host or CI)
-#     Output:      frontend/apps/dashboard/dist  → mounted at /srv/dashboard
-#     SPA fallback: any unknown path under /admin/ serves index.html so the
-#     client-side router (TanStack) owns the route table.
+# 7.5 ADMIN DASHBOARD SPA — hosted on its own origin (Vercel), not here.
+#     It used to be a static mount under /admin/; that only worked while the
+#     SPA was built with base=/admin/ (absolute asset URLs must match the
+#     mount). It now builds with base=/ for admin.goshop.dpdns.org, so the edge
+#     no longer serves it. See docs/DEPLOY-VERCEL-RENDER.md section 4.
 # -----------------------------------------------------------------------------
-location = /admin {
-    return 301 /admin/;
-}
-
-location ^~ /admin/ {
-    index index.html;
-    # SPA fallback: unknown routes serve the app shell. `root` (not `alias`)
-    # needs the URI path to exist on disk, so the nginx service creates a
-    # tmpfs symlink at boot: /srv/root/admin -> /srv/dashboard.
-    root /srv/root;
-    try_files $uri $uri/ /admin/index.html;
-
-    # Vite SPA: module scripts and injected CSS both need inline allowances
-    # ('unsafe-inline' for Vite's inline style tags, 'unsafe-eval' is not
-    # needed). Google Fonts is the only third-party origin.
-    # nginx add_header does not inherit once declared in a location, so the
-    # four server-level headers are restated here.
-    add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    add_header X-Request-ID $request_id always;
-    # connect-src must allow the storage origin, same as the storefront: the
-    # dashboard's admin uploads PUT straight to the bucket too.
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' $goshop_storage_origin; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'" always;
-}
 
 # -----------------------------------------------------------------------------
 # 8. FRONTEND NEXT.JS STOREFRONT ROUTING (/)

@@ -93,9 +93,10 @@ const queryClient = new QueryClient({
 // Create a new router instance
 const router = createRouter({
   routeTree,
-  // The SPA is served and routed under /admin/ (vite base + prod edge).
-  // Without it, /admin/ renders the default NotFound page.
-  basepath: '/admin',
+  // Routed at the origin root; must match `base` in vite.config.ts. The old
+  // `/admin` prefix belongs to the single-origin edge topology, where the
+  // dashboard shared a host with the storefront.
+  basepath: '/',
   context: { queryClient },
   defaultPreload: 'intent',
   defaultPreloadStaleTime: 0,
