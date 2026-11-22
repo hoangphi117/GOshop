@@ -12,7 +12,9 @@
 # sidecar (docker/embedder), a few hundred MB, not the ~800 MB torch runtime.
 #
 # Usage on the VPS:
-#   docker compose -f deploy/vps/docker-compose.vps.yml up -d --build
+#   CI publishes ghcr.io/hoangphi117/goshop/{backend,embedder}:<sha> and
+#   .github/deploy/vps.sh pins those tags in backend/.env, then pulls. The host
+#   never builds. Local: `up -d --build` still works (the default tags above).
 #
 # Caddy terminates TLS and forwards everything to :8080. There is no second
 # nginx: the image has no nginx, and Caddy is one 30 MB process instead.
@@ -22,7 +24,10 @@ services:
     build:
       context: ../..
       dockerfile: deploy/render/Dockerfile.all
-    image: goshop-backend:local
+    # On the VPS these point at the images CI published for this commit
+    # (docs/DEPLOY-VPS.md section 4); the script there rewrites both lines of
+    # backend/.env. The defaults keep `up -d --build` working on a laptop.
+    image: ${GOSHOP_BACKEND_IMAGE:-goshop-backend:local}
     container_name: goshop-backend
     restart: unless-stopped
     env_file:
@@ -80,7 +85,7 @@ services:
       # three levels up from this file (deploy/vps -> deploy -> backend -> root).
       context: ../../..
       dockerfile: docker/embedder/Dockerfile
-    image: goshop-embedder:local
+    image: ${GOSHOP_EMBEDDER_IMAGE:-goshop-embedder:local}
     container_name: goshop-embedder
     restart: unless-stopped
     environment:
