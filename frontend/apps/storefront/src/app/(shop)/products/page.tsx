@@ -28,6 +28,7 @@ interface ProductsPageProps {
     search?: string;
     sort?: string;
     page?: string;
+    limit?: string;
     min_price?: string;
     max_price?: string;
     min_rating?: string;
@@ -67,6 +68,8 @@ export default async function ProductsPage({
   const params = await searchParams;
   const currentPage = parseInt(params.page || "1", 10);
   const currentSearch = params.search?.trim() || "";
+  const parsedLimit = params.limit ? parseInt(params.limit, 10) : 24;
+  const pageLimit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : 24;
   // Same identity the history read uses; forwarded so every read on this page
   // describes the same visitor.
   const anonId = (await cookies()).get(ANON_COOKIE_NAME)?.value;
@@ -90,7 +93,7 @@ export default async function ProductsPage({
   // Fetch paginated products matching filters
   const productsData = await getProducts({
     page: currentPage,
-    limit: 12,
+    limit: pageLimit,
     category: currentCategory,
     search: currentSearch,
     sort: currentSort,
@@ -125,6 +128,7 @@ export default async function ProductsPage({
           ? currentMinRating.toString()
           : undefined,
       page: currentPage > 1 ? currentPage.toString() : undefined,
+      limit: params.limit && params.limit !== "24" ? params.limit : undefined,
       ...overrides,
     };
 

@@ -89,7 +89,10 @@ export function Navbar({ recentSearches = [] }: { recentSearches?: string[] }) {
         if (!current) return;
         const avatarUrl = profile.avatar_url || "";
         const fullName = profile.full_name || current.fullName;
-        if (avatarUrl !== (current.avatarUrl || "") || fullName !== current.fullName) {
+        if (
+          avatarUrl !== (current.avatarUrl || "") ||
+          fullName !== current.fullName
+        ) {
           setUser({ ...current, avatarUrl, fullName });
         }
       })
@@ -284,15 +287,15 @@ export function Navbar({ recentSearches = [] }: { recentSearches?: string[] }) {
           <div className="flex items-center gap-3 shrink-0">
             <Link
               href="/"
-              className="flex items-center gap-2 group bg-white/95 hover:bg-white rounded-xl px-2.5 py-1 shadow-xs"
+              className="flex items-center gap-2 group bg-white/95 hover:bg-white rounded-xl shadow-xs"
             >
               <Image
-                src="/Logo.svg"
+                src="/main_logo.png"
                 alt="GOshop — Official E-commerce Store for Tech Collectors and Developers"
-                width={150}
-                height={38}
+                width={200}
+                height={70}
                 priority
-                className="h-7 sm:h-8 w-auto object-contain"
+                className="h-9 sm:h-12 w-auto object-contain"
               />
             </Link>
           </div>
@@ -352,7 +355,9 @@ export function Navbar({ recentSearches = [] }: { recentSearches?: string[] }) {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <>{user?.fullName ? user.fullName[0].toUpperCase() : "U"}</>
+                      <>
+                        {user?.fullName ? user.fullName[0].toUpperCase() : "U"}
+                      </>
                     )}
                   </div>
                   <div className="hidden sm:flex flex-col text-left">
