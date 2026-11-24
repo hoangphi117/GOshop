@@ -11,6 +11,7 @@ import { useCartStore } from "@/stores/cart-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { ShoppingCart, Package, Star, Eye } from "lucide-react";
 import { toast } from "sonner";
+import { ProductSpecBadges } from "./product-spec-badges";
 
 interface ProductCardProps {
   product: Product;
@@ -78,7 +79,7 @@ export function ProductCard({ product }: ProductCardProps) {
   };
 
   return (
-    <article className="group relative rounded-md bg-white border border-slate-200/90 p-3 flex flex-col justify-between shadow-xs hover:border-[#007D9C] hover:shadow-md">
+    <article className="group relative rounded-md bg-white border border-slate-200/90 p-3 flex flex-col justify-between shadow-xs hover:border-[#007D9C] hover:shadow-md h-full min-w-0 overflow-hidden">
       <div>
         {/* Product Image Thumbnail */}
         <div className="relative aspect-square w-full rounded-md overflow-hidden bg-slate-50 mb-2.5 border border-slate-100 flex items-center justify-center">
@@ -122,7 +123,7 @@ export function ProductCard({ product }: ProductCardProps) {
         </Link>
 
         {/* Inventory Stock Indicator */}
-        <div className="mt-1.5 mb-2 flex items-center gap-1.5 text-xs font-medium font-body min-h-[16px]">
+        <div className="mt-1.5 mb-1.5 flex items-center gap-1.5 text-xs font-medium font-body min-h-[16px]">
           {isInStock ? (
             isLowStock ? (
               <>
@@ -143,6 +144,11 @@ export function ProductCard({ product }: ProductCardProps) {
             </>
           )}
         </div>
+
+        {/* Specifications Key Badges */}
+        <ProductSpecBadges
+          specifications={product.specifications as Record<string, unknown> | undefined}
+        />
       </div>
 
       {/* Category & Star Rating */}
@@ -159,7 +165,7 @@ export function ProductCard({ product }: ProductCardProps) {
       </div>
 
       {/* Pricing & Add to Cart Action */}
-      <div className="border-t border-slate-100 flex items-center justify-between gap-2">
+      <div className="pt-2.5 mt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 min-w-0">
         <div className="flex flex-col min-w-0">
           <span className="text-base font-semibold text-slate-900 truncate font-heading">
             {formatCurrency(product.price)}

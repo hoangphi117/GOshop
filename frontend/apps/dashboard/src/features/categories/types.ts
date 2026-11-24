@@ -6,10 +6,16 @@ export interface Category {
   description?: string
   status?: string
   created_at?: string
+  parent_id?: number | null
+  parent_uuid?: string | null
+  category_level?: number
+  children?: Category[]
 }
 
 export interface CategoryFormData {
   category_name: string
   description?: string
   status: 1 | 2
+  parent_id?: number | null
+  parent_uuid?: string | null
 }

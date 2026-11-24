@@ -6394,6 +6394,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/categories/tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["goshop_internal_utils.APIResponse"] & {
+                            data?: components["schemas"]["dto.CategoryDTO"][];
+                        };
+                    };
+                };
+            };
+        };
+    };
     "/categories": {
         parameters: {
             query?: never;
@@ -10138,6 +10167,9 @@ export interface components {
             category_name?: string;
             created_at?: string;
             description?: string;
+            parent_id?: number | null;
+            category_level?: number;
+            children?: components["schemas"]["dto.CategoryDTO"][];
             slug?: string;
             status?: string;
             updated_at?: string;
@@ -10212,6 +10244,8 @@ export interface components {
             category_name?: string;
             description?: string;
             name?: string;
+            parent_id?: number | null;
+            parent_uuid?: string | null;
             /** @enum {integer} */
             status?: 1 | 2;
         };
@@ -10283,6 +10317,7 @@ export interface components {
             name: string;
             price: number;
             sku?: string;
+            specifications?: { [key: string]: string };
             /** @enum {integer} */
             status?: 1 | 2 | 3;
             stock?: number;
@@ -10540,6 +10575,7 @@ export interface components {
             reviews_count?: number;
             sku?: string;
             slug?: string;
+            specifications?: { [key: string]: string };
             status?: string;
             stock?: number;
             updated_at?: string;
@@ -10772,6 +10808,8 @@ export interface components {
             category_name?: string;
             description?: string;
             name?: string;
+            parent_id?: number | null;
+            parent_uuid?: string | null;
             /** @enum {integer} */
             status?: 1 | 2;
             uuid?: string;
@@ -10815,6 +10853,7 @@ export interface components {
             name?: string;
             price?: number;
             sku?: string;
+            specifications?: { [key: string]: string };
             /** @enum {integer} */
             status?: 1 | 2 | 3;
             stock?: number;

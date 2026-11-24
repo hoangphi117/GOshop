@@ -33,6 +33,19 @@ export function useCategories(params: CategoryQueryParams = {}) {
   })
 }
 
+export function useCategoryTree() {
+  return useQuery({
+    queryKey: ['categories', 'tree'],
+    queryFn: async () => {
+      const { data, error } = await api.GET('/categories/tree')
+      if (error) {
+        throw new Error((error as { error?: string })?.error || 'Failed to fetch category tree')
+      }
+      return data
+    },
+  })
+}
+
 export function useCategoryMutations() {
   const queryClient = useQueryClient()
 
@@ -47,6 +60,8 @@ export function useCategoryMutations() {
           category_name: payload.category_name,
           description: payload.description,
           status: payload.status,
+          parent_id: payload.parent_id,
+          parent_uuid: payload.parent_uuid,
         },
       })
       if (error) {
@@ -65,6 +80,8 @@ export function useCategoryMutations() {
           category_name: payload.category_name,
           description: payload.description,
           status: payload.status,
+          parent_id: payload.parent_id,
+          parent_uuid: payload.parent_uuid,
         },
       })
       if (error) {

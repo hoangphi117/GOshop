@@ -1,3 +1,18 @@
+export interface ProductVariant {
+  uuid: string
+  sku: string
+  title: string
+  price: number
+  compare_at_price?: number
+  image_url?: string
+  attributes?: Record<string, string>
+  position?: number
+  status?: string
+  stock_quantity?: number
+  size?: string
+  color?: string
+}
+
 export interface Product {
   uuid: string
   name: string
@@ -12,27 +27,25 @@ export interface Product {
   status?: string
   images?: { uuid: string; image_url: string; is_primary?: boolean }[]
   image_url?: string
-  variants?: {
-    uuid: string
-    sku: string
-    size?: string
-    color?: string
-    price: number
-    compare_at_price?: number
-    stock_quantity: number
-  }[]
+  specifications?: Record<string, string>
+  variants?: ProductVariant[]
   created_at?: string
   rating?: number
   reviews_count?: number
 }
 
 export interface Category {
+  category_id?: number
   uuid: string
+  name?: string
   category_name: string
   slug: string
   description?: string
   image_url?: string
   status?: string
+  parent_id?: number | null
+  category_level?: number
+  children?: Category[]
 }
 
 export interface Banner {
@@ -124,6 +137,49 @@ export async function getCategories(): Promise<Category[]> {
   return res?.data || []
 }
 
+export async function getCategoryTree(): Promise<Category[]> {
+  const res = await fetchServer<ApiResponse<Category[]>>('/categories/tree', {
+    revalidate: 120,
+  })
+  return res?.data || []
+}
+
+export async function getMainCategories(): Promise<Category[]> {
+  const categories = await getCategoryTree()
+  return categories.filter((c) => !c.parent_id || c.category_level === 1)
+}
+
+export interface FacetOption {
+  value: string
+  count: number
+}
+
+export interface FacetGroup {
+  key: string
+  options: FacetOption[]
+}
+
+export interface SubcategoryCount {
+  category_id: number
+  uuid: string
+  name: string
+  slug: string
+  product_count: number
+}
+
+export interface CategoryFacets {
+  category: Category
+  subcategories: SubcategoryCount[]
+  facets: FacetGroup[]
+}
+
+export async function getCategoryFacets(slugOrUuid: string): Promise<CategoryFacets | null> {
+  const res = await fetchServer<ApiResponse<CategoryFacets>>(`/categories/${encodeURIComponent(slugOrUuid)}/facets`, {
+    revalidate: 60,
+  })
+  return res?.data || null
+}
+
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -147,6 +203,7 @@ export async function getProducts(params?: {
   min_price?: number
   max_price?: number
   min_rating?: number
+  specs?: Record<string, string | string[]>
   /**
    * Guest identity, forwarded as the anon cookie. Recommendations uses it to
    * personalise; search does not need it yet, but the same call site already
@@ -165,6 +222,18 @@ export async function getProducts(params?: {
   }
   if (params?.min_rating !== undefined && params.min_rating > 0) {
     query.set('min_rating', params.min_rating.toString())
+  }
+  if (params?.specs) {
+    Object.entries(params.specs).forEach(([k, v]) => {
+      if (Array.isArray(v)) {
+        const joined = v.map((item) => item.trim()).filter(Boolean).join(',')
+        if (joined) {
+          query.set(`spec_${k}`, joined)
+        }
+      } else if (v && v.trim() !== '') {
+        query.set(`spec_${k}`, v.trim())
+      }
+    })
   }
 
   // Resolve category UUID: backend requires 'category_uuid' with valid UUID
@@ -329,6 +398,18 @@ export async function getRecommendations(
   return res?.data ?? null
 }
 
+export async function getBestSellers(
+  limit = 12
+): Promise<RecommendationShelf | null> {
+  const res = await fetchServer<ApiResponse<RecommendationShelf>>(
+    `/recommendations?limit=${limit}`,
+    {
+      revalidate: 60,
+    }
+  )
+  return res?.data ?? null
+}
+
 export async function getProductSuggestions(q: string, limit = 8): Promise<ProductSuggestion[]> {  if (!q || q.trim().length === 0) {
     return []
   }
@@ -430,11 +511,28 @@ export interface GetProductReviewsParams {
   sort?: 'asc' | 'desc'
 }
 
+export async function getProductVariants(
+  productUuid: string
+): Promise<ProductVariant[]> {
+  try {
+    const res = await fetchServer<ApiResponse<ProductVariant[]>>(
+      `/products/uuid/${encodeURIComponent(productUuid)}/variants?active_only=true`,
+      { revalidate: 60 }
+    )
+    return res?.data || []
+  } catch (err) {
+    console.warn(`Failed to fetch variants for product ${productUuid}:`, err)
+    return []
+  }
+}
+
 export async function getProductByUuidOrSlug(
   identifier: string
 ): Promise<Product | null> {
   if (!identifier) return null
   const decoded = decodeURIComponent(identifier).trim()
+
+  let product: Product | null = null
 
   // 1. Direct fetch with identifier (Go backend natively handles both UUID and slug)
   const res = await fetchServer<ApiResponse<Product>>(
@@ -444,11 +542,11 @@ export async function getProductByUuidOrSlug(
     }
   )
   if (res?.data) {
-    return res.data
+    product = res.data
   }
 
   // 2. Fallback: If not found and identifier is a slug, search in products catalog
-  if (!UUID_REGEX.test(decoded)) {
+  if (!product && !UUID_REGEX.test(decoded)) {
     const listRes = await getProducts({ limit: 100 })
     const matched = listRes.products.find(
       (p) =>
@@ -462,11 +560,19 @@ export async function getProductByUuidOrSlug(
           revalidate: 60,
         }
       )
-      return fallbackRes?.data || null
+      product = fallbackRes?.data || null
     }
   }
 
-  return null
+  // 3. Ensure variants are attached if available
+  if (product && (!product.variants || product.variants.length === 0)) {
+    const variants = await getProductVariants(product.uuid)
+    if (variants && variants.length > 0) {
+      product.variants = variants
+    }
+  }
+
+  return product
 }
 
 export async function getProductReviews(

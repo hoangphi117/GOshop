@@ -1,8 +1,15 @@
 import React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { getBanners, getCategories, getProducts } from "@/lib/api-server";
+import {
+  getBanners,
+  getMainCategories,
+  getProducts,
+  getCategoryFacets,
+  type CategoryFacets,
+} from "@/lib/api-server";
 import { ProductGrid } from "@/components/product/product-grid";
+import { SpecFilterFlyout } from "@/components/product/spec-filter-flyout";
 import { SearchAutocomplete } from "@/components/layout/search-autocomplete";
 import { SearchEvent } from "@/components/search/search-event";
 import { SearchClickTracker } from "@/components/search/search-click-tracker";
@@ -20,6 +27,7 @@ import {
   Sparkles,
   Star,
   Banknote,
+  Cpu,
 } from "lucide-react";
 
 interface ProductsPageProps {
@@ -32,6 +40,7 @@ interface ProductsPageProps {
     min_price?: string;
     max_price?: string;
     min_rating?: string;
+    [key: string]: string | undefined;
   }>;
 }
 
@@ -84,11 +93,22 @@ export default async function ProductsPage({
     ? parseFloat(params.min_rating)
     : undefined;
 
-  // Fetch categories to resolve active department
-  const categories = await getCategories();
-  // Sidebar promo slot; paging and filtering must not refetch it.
-  const sidebarBanners = await getBanners("sidebar");
   const currentCategory = params.category?.trim() || "";
+
+  // Extract dynamic spec filters from query params (e.g. spec_RAM=16GB)
+  const currentSpecs: Record<string, string> = {};
+  Object.entries(params).forEach(([key, val]) => {
+    if (key.startsWith("spec_") && typeof val === "string" && val.trim() !== "") {
+      currentSpecs[key.replace("spec_", "")] = val.trim();
+    }
+  });
+
+  // Fetch main categories, sidebar banners, and category facets concurrently
+  const [categories, sidebarBanners, facetsData] = await Promise.all([
+    getMainCategories(),
+    getBanners("sidebar"),
+    currentCategory ? getCategoryFacets(currentCategory) : Promise.resolve(null),
+  ]);
 
   // Fetch paginated products matching filters
   const productsData = await getProducts({
@@ -100,13 +120,16 @@ export default async function ProductsPage({
     min_price: currentMinPrice,
     max_price: currentMaxPrice,
     min_rating: currentMinRating,
+    specs: currentSpecs,
     anonId,
   });
 
   const products = productsData.products || [];
   const pagination = productsData.pagination;
 
-  const selectedCategoryObj = categories.find(
+  // Flatten root + subcategories to resolve active department
+  const allTreeCategories = categories.flatMap((c) => [c, ...(c.children || [])]);
+  const selectedCategoryObj = allTreeCategories.find(
     (c) =>
       c.slug.toLowerCase() === currentCategory.toLowerCase() ||
       c.uuid.toLowerCase() === currentCategory.toLowerCase(),
@@ -115,6 +138,12 @@ export default async function ProductsPage({
   // Helper to construct query URLs cleanly
   const buildUrl = (overrides: Record<string, string | undefined>) => {
     const q = new URLSearchParams();
+
+    // Preserve active spec filters
+    Object.entries(currentSpecs).forEach(([k, v]) => {
+      q.set(`spec_${k}`, v);
+    });
+
     const merged: Record<string, string | undefined> = {
       category: currentCategory || undefined,
       search: currentSearch || undefined,
@@ -133,7 +162,9 @@ export default async function ProductsPage({
     };
 
     Object.entries(merged).forEach(([k, v]) => {
-      if (v !== undefined && v !== "") {
+      if (v === undefined || v === "") {
+        q.delete(k);
+      } else {
         q.set(k, v);
       }
     });
@@ -148,7 +179,8 @@ export default async function ProductsPage({
     currentSort ||
     currentMinPrice !== undefined ||
     currentMaxPrice !== undefined ||
-    currentMinRating !== undefined,
+    currentMinRating !== undefined ||
+    Object.keys(currentSpecs).length > 0,
   );
 
   return (
@@ -255,9 +287,15 @@ export default async function ProductsPage({
                 </Link>
 
                 {categories.map((cat) => {
-                  const isActive =
+                  const isDirectActive =
                     currentCategory.toLowerCase() === cat.slug.toLowerCase() ||
                     currentCategory.toLowerCase() === cat.uuid.toLowerCase();
+                  const isChildActive = cat.children?.some(
+                    (child) =>
+                      currentCategory.toLowerCase() === child.slug.toLowerCase() ||
+                      currentCategory.toLowerCase() === child.uuid.toLowerCase()
+                  );
+                  const isActive = isDirectActive || isChildActive;
 
                   return (
                     <Link
@@ -269,7 +307,7 @@ export default async function ProductsPage({
                           : "text-slate-700 hover:bg-[#F0F9FB] hover:text-[#007D9C]"
                       }`}
                     >
-                      <span className="truncate">{cat.category_name}</span>
+                      <span className="truncate">{cat.category_name || cat.name}</span>
                       {isActive && (
                         <Check className="w-3.5 h-3.5 text-white shrink-0" />
                       )}
@@ -278,6 +316,14 @@ export default async function ProductsPage({
                 })}
               </div>
             </div>
+
+            {/* Dynamic Category Specifications Filter (Flyout Menus) */}
+            {facetsData && facetsData.facets && facetsData.facets.length > 0 && (
+              <SpecFilterFlyout
+                facets={facetsData.facets}
+                currentSpecs={currentSpecs}
+              />
+            )}
 
             {/* Price Range Filter Section */}
             <div className="bg-white border border-slate-200/90 rounded-xs p-4 shadow-xs">
@@ -559,6 +605,42 @@ export default async function ProductsPage({
               query={currentSearch}
               resultCount={pagination?.total_records ?? products.length}
             />
+            {/* Subcategories Quick-Filter Horizontal Bar */}
+            {facetsData && facetsData.subcategories && facetsData.subcategories.length > 0 && (
+              <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider shrink-0 font-heading">
+                  Subcategories:
+                </span>
+                {facetsData.subcategories.map((sub) => {
+                  const isSubActive =
+                    currentCategory.toLowerCase() === sub.slug.toLowerCase() ||
+                    currentCategory.toLowerCase() === sub.uuid.toLowerCase();
+                  return (
+                    <Link
+                      key={sub.uuid}
+                      href={`/products?category=${sub.slug}`}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold shrink-0 transition-colors ${
+                        isSubActive
+                          ? "bg-[#007D9C] text-white shadow-xs font-bold font-heading"
+                          : "bg-white border border-slate-200 text-slate-700 hover:border-[#007D9C] hover:text-[#007D9C]"
+                      }`}
+                    >
+                      <span>{sub.name}</span>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                          isSubActive
+                            ? "bg-white/20 text-white"
+                            : "bg-slate-100 text-slate-500"
+                        }`}
+                      >
+                        {sub.product_count}
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+
             {/* Filter Controls & In-Catalog Search Bar (2-Column Layout) */}
             <div className="bg-white border border-slate-200/90 rounded-xs p-3.5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-xs">
               {/* Column 1: Keyword Search Input (with Meilisearch autocomplete dropdown) */}
@@ -628,6 +710,31 @@ export default async function ProductsPage({
                     <X className="w-3 h-3 text-slate-400 hover:text-slate-600" />
                   </Link>
                 )}
+                {Object.entries(currentSpecs).flatMap(([k, rawVal]) => {
+                  const vals = rawVal
+                    .split(",")
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+                  return vals.map((val) => {
+                    const remaining = vals.filter((item) => item !== val);
+                    return (
+                      <Link
+                        key={`${k}-${val}`}
+                        href={buildUrl({
+                          [`spec_${k}`]:
+                            remaining.length > 0 ? remaining.join(",") : undefined,
+                          page: "1",
+                        })}
+                        className="inline-flex items-center gap-1 bg-[#E0F7FC] hover:bg-[#D0F2F9] text-[#007D9C] border border-[#B3E5FC] text-[11px] font-bold px-2.5 py-1 rounded-xs font-body transition-colors"
+                      >
+                        <span>
+                          {k}: {val}
+                        </span>
+                        <X className="w-3 h-3 text-[#007D9C] hover:text-[#005B72]" />
+                      </Link>
+                    );
+                  });
+                })}
                 {currentSort && (
                   <Link
                     href={buildUrl({ sort: undefined, page: "1" })}

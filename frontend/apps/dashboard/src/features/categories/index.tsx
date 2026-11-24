@@ -148,7 +148,16 @@ export function Categories() {
               ) : (
                 categories.map((cat) => (
                   <TableRow key={cat.uuid}>
-                    <TableCell className='font-medium'>{cat.category_name}</TableCell>
+                    <TableCell className='font-medium'>
+                      <div className='flex items-center gap-2'>
+                        {cat.category_level && cat.category_level > 1 ? (
+                          <span className='inline-flex items-center text-[10px] text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded border'>
+                            ↳ L{cat.category_level}
+                          </span>
+                        ) : null}
+                        <span>{cat.category_name}</span>
+                      </div>
+                    </TableCell>
                     <TableCell className='text-muted-foreground font-mono text-xs'>
                       {cat.slug}
                     </TableCell>
