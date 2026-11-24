@@ -102,6 +102,9 @@ function CheckoutContent() {
     paymentFailed?: boolean;
     shippingFee: number;
     shippingAddress?: string;
+    subtotalAmount?: number;
+    discountAmount?: number;
+    totalAmount?: number;
   } | null>(null);
   const [retryingPayment, setRetryingPayment] = useState(false);
   // Cart items are cleared right after a successful order, so the purchase
@@ -770,6 +773,7 @@ function CheckoutContent() {
         items: selectedItems.map((item) => ({
           product_uuid: item.productUuid,
           quantity: item.quantity,
+          variant_uuid: item.variantUuid || undefined,
         })),
       };
 
@@ -784,6 +788,9 @@ function CheckoutContent() {
       let generatedId = `GS-${Math.floor(100000 + Math.random() * 900000)}`;
       let createdOrderUuid = "";
       let finalShippingFee = effectiveShippingFee;
+      let finalTotalAmount = grandTotal;
+      let finalSubtotal = subtotal;
+      let finalDiscount = discountAmount;
 
       if (res && res.ok) {
         const data = await res.json();
@@ -793,6 +800,15 @@ function CheckoutContent() {
             data.data.order_number || data.data.uuid.slice(0, 8).toUpperCase();
           if (typeof data.data.shipping_fee === "number") {
             finalShippingFee = data.data.shipping_fee;
+          }
+          if (typeof data.data.total_amount === "number") {
+            finalTotalAmount = data.data.total_amount;
+          }
+          if (typeof data.data.subtotal_amount === "number") {
+            finalSubtotal = data.data.subtotal_amount;
+          }
+          if (typeof data.data.discount_amount === "number") {
+            finalDiscount = data.data.discount_amount;
           }
           useNotificationStore.getState().fetchNotifications();
           useNotificationStore.getState().fetchUnreadCount();
@@ -871,13 +887,16 @@ function CheckoutContent() {
           paymentFailed,
           shippingFee: finalShippingFee,
           shippingAddress: fullShippingAddress,
+          subtotalAmount: finalSubtotal,
+          discountAmount: finalDiscount,
+          totalAmount: finalTotalAmount,
         });
         // An unpaid online order is not a purchase yet: it only counts once
         // the payment intent was actually issued.
         if (!paymentFailed) {
           trackPurchase(createdOrderUuid, placedLinesRef.current, {
             paymentMethod,
-            value: subtotal + finalShippingFee,
+            value: finalTotalAmount,
           });
           toast.success("Order placed successfully!");
         }
@@ -897,10 +916,13 @@ function CheckoutContent() {
         paymentFailed: false,
         shippingFee: finalShippingFee,
         shippingAddress: fullShippingAddress,
+        subtotalAmount: finalSubtotal,
+        discountAmount: finalDiscount,
+        totalAmount: finalTotalAmount,
       });
       trackPurchase(createdOrderUuid, placedLinesRef.current, {
         paymentMethod,
-        value: subtotal + finalShippingFee,
+        value: finalTotalAmount,
       });
       toast.success("Order placed successfully!");
     } catch {
@@ -1097,6 +1119,39 @@ function CheckoutContent() {
               <span className="font-semibold text-emerald-700">
                 GHN Express ({formatCurrency(orderPlaced.shippingFee)})
               </span>
+            </div>
+
+            <div className="pt-2 mt-2 border-t border-[#E2E8F0] space-y-1.5">
+              {typeof orderPlaced.subtotalAmount === "number" && (
+                <div className="flex justify-between text-[#64748B]">
+                  <span>Subtotal:</span>
+                  <span className="font-medium text-[#0F172A]">
+                    {formatCurrency(orderPlaced.subtotalAmount)}
+                  </span>
+                </div>
+              )}
+              {Boolean(orderPlaced.discountAmount && orderPlaced.discountAmount > 0) && (
+                <div className="flex justify-between text-emerald-600 font-medium">
+                  <span>Discount:</span>
+                  <span>-{formatCurrency(orderPlaced.discountAmount!)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-[#64748B]">
+                <span>Shipping Fee:</span>
+                <span className="font-medium text-[#0F172A]">
+                  {formatCurrency(orderPlaced.shippingFee)}
+                </span>
+              </div>
+              {typeof orderPlaced.totalAmount === "number" && (
+                <div className="flex justify-between items-baseline pt-2 mt-1 border-t border-dashed border-[#E2E8F0]">
+                  <span className="text-sm font-bold text-[#0F172A]">
+                    Total Amount:
+                  </span>
+                  <span className="text-base font-extrabold text-[#F26522]">
+                    {formatCurrency(orderPlaced.totalAmount)}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 

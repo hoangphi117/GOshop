@@ -91,7 +91,7 @@ function usable(shelf: Shelf | null | undefined, allowed: boolean): Shelf | null
 
 function SkeletonCard() {
   return (
-    <div className="shrink-0 w-[55%] max-w-[210px] sm:w-[30%] md:w-[22%] lg:w-[17%] rounded-md bg-white border border-slate-200/90 p-3 animate-pulse">
+    <div className="shrink-0 flex-[0_0_180px] sm:flex-[0_0_195px] md:flex-[0_0_210px] min-w-0 rounded-md bg-white border border-slate-200/90 p-3 animate-pulse">
       <div className="aspect-square w-full rounded-md bg-slate-100 mb-2.5" />
       <div className="h-2.5 w-1/3 bg-slate-100 rounded mb-1.5" />
       <div className="h-3 w-full bg-slate-100 rounded mb-1" />
@@ -105,11 +105,26 @@ interface RecommendationSectionProps {
   /** Server-rendered shelf, so the first paint is never empty. */
   initialShelf?: Shelf | null
   limit?: number
+  /** Custom section title if overriding default shelfLabels */
+  title?: string
+  /** Custom kicker/eyebrow if overriding default shelfLabels */
+  eyebrow?: string
+  /** Custom subtitle */
+  subtitle?: string
+  /** Link for 'See all' */
+  seeAllHref?: string
+  /** If true, disables client refetch for personalized vector centroid */
+  isStatic?: boolean
 }
 
 export function RecommendationSection({
   initialShelf = null,
   limit = 12,
+  title,
+  eyebrow,
+  subtitle,
+  seeAllHref = '/recommendations',
+  isStatic = false,
 }: RecommendationSectionProps) {
   // The anonymous cookie is HttpOnly and minted by proxy, so the SSR pass
   // already personalizes; this refetch only catches a profile that changed
@@ -144,14 +159,14 @@ export function RecommendationSection({
     // The tier is part of the key: a blocked device and a guest reader ask the
     // server different questions now (`tier=crowd` vs. the device's own
     // history), so their answers must not share a cache entry.
-    queryKey: ['recommendations', 'personalized', limit, allowedFlag ? 'personal' : 'crowd'],
-    queryFn: () => fetchShelf(limit, !allowedFlag),
+    queryKey: ['recommendations', isStatic ? 'static' : 'personalized', limit, allowedFlag ? 'personal' : 'crowd'],
+    queryFn: () => (isStatic ? Promise.resolve(initialShelf) : fetchShelf(limit, !allowedFlag)),
     // A blocked device must not seed from the server shelf: `initialData` makes
     // the query `success` and, with `staleTime`, *fresh*, so the crowd fetch
     // never ran and the request never appeared in the network panel. Only an
     // allowed device gets the SSR row as its starting point.
-    initialData: allowedFlag ? initialShelf ?? undefined : undefined,
-    enabled: mounted,
+    initialData: isStatic ? initialShelf ?? undefined : allowedFlag ? initialShelf ?? undefined : undefined,
+    enabled: isStatic ? false : mounted,
     ...options,
   })
 
@@ -165,10 +180,13 @@ export function RecommendationSection({
   // hand it back as soon as the personal refetch is the one in flight. With no
   // fallback the skeleton shows until the crowd answer lands, which is the
   // honest state for a device that just signed out.
-  const fallback = allowedFlag ? initialShelf : null
-  const shelf = usable(currentShelf(data, fallback), allowedFlag)
+  const fallback = isStatic ? initialShelf : allowedFlag ? initialShelf : null
+  const shelf = isStatic ? initialShelf : usable(currentShelf(data, fallback), allowedFlag)
   const items = shelf?.items?.slice(0, limit) ?? []
-  const labels = shelfLabels(shelf?.source)
+  const defaultLabels = shelfLabels(shelf?.source)
+  const displayEyebrow = eyebrow ?? defaultLabels.eyebrow
+  const displayHeading = title ?? defaultLabels.heading
+  const displaySubtitle = subtitle ?? defaultLabels.subtitle
 
   // Autoplay plugin instance must be stable across renders.
   const [emblaRef, emblaApi] = useEmblaCarousel(
@@ -216,15 +234,15 @@ export function RecommendationSection({
         <div className="flex items-end justify-between gap-4 mb-6">
           <div>
             <span className="text-xs font-bold text-[#007D9C] uppercase tracking-wider font-heading">
-              {pending.eyebrow}
+              {eyebrow ?? pending.eyebrow}
             </span>
             <h2
               id="recommended-heading"
               className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight font-heading mt-0.5"
             >
-              {pending.heading}
+              {title ?? pending.heading}
             </h2>
-            <p className="text-sm text-slate-500 mt-1 font-body">{pending.subtitle}</p>
+            <p className="text-sm text-slate-500 mt-1 font-body">{subtitle ?? pending.subtitle}</p>
           </div>
         </div>
         <div className="flex gap-4 overflow-hidden">
@@ -244,21 +262,21 @@ export function RecommendationSection({
       <div className="flex items-end justify-between gap-4 mb-6">
         <div>
           <span className="text-xs font-bold text-[#007D9C] uppercase tracking-wider font-heading">
-            {labels.eyebrow}
+            {displayEyebrow}
           </span>
           <h2
             id="recommended-heading"
             className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight font-heading mt-0.5"
           >
-            {labels.heading}
+            {displayHeading}
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 font-body mt-1">
-            {labels.subtitle}
+            {displaySubtitle}
           </p>
         </div>
 
         <Link
-          href="/recommendations"
+          href={seeAllHref}
           className="shrink-0 hidden sm:inline-flex items-center gap-1 text-xs font-semibold text-[#007D9C] hover:text-[#00657E] transition-colors"
         >
           See all
@@ -278,12 +296,12 @@ export function RecommendationSection({
         </button>
 
         {/* embla viewport: overflow hidden, no scrollbar, CSS-driven transform */}
-        <div ref={emblaRef} className="overflow-hidden -mx-4 px-4 sm:mx-0 sm:px-0">
-          <div className="flex gap-4 touch-pan-y">
+        <div ref={emblaRef} className="overflow-hidden w-full -mx-4 px-4 sm:mx-0 sm:px-0">
+          <div className="flex gap-4 touch-pan-y w-full">
             {items.map((product) => (
               <div
                 key={product.uuid}
-                className="w-[55%] max-w-[210px] shrink-0 sm:w-[30%] md:w-[22%] lg:w-[17%]"
+                className="flex-[0_0_180px] sm:flex-[0_0_195px] md:flex-[0_0_210px] min-w-0"
               >
                 <ProductCard product={product} />
               </div>

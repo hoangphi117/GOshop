@@ -1,3 +1,39 @@
+export interface ProductVariant {
+  uuid: string
+  sku: string
+  title: string
+  price: number
+  compare_at_price?: number
+  image_url?: string
+  attributes: Record<string, string>
+  position: number
+  status: 'Active' | 'Inactive' | string
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateVariantInput {
+  sku: string
+  title: string
+  price: number
+  compare_at_price?: number
+  image_url?: string
+  attributes: Record<string, string>
+  position?: number
+  status?: 1 | 2
+}
+
+export interface UpdateVariantInput {
+  sku?: string
+  title?: string
+  price?: number
+  compare_at_price?: number
+  image_url?: string
+  attributes?: Record<string, string>
+  position?: number
+  status?: 1 | 2
+}
+
 export interface Product {
   uuid?: string
   name?: string
@@ -9,10 +45,12 @@ export interface Product {
   sku?: string
   image_url?: string
   description?: string
+  specifications?: Record<string, string>
   status?: string
   created_at?: string
   rating?: number
   reviews_count?: number
+  variants?: ProductVariant[]
 }
 
 export interface ProductListResult {
@@ -37,6 +75,7 @@ export interface ProductFormData {
   sku?: string
   image_url?: string
   description?: string
+  specifications?: Record<string, string>
   status: 1 | 2
 }
 

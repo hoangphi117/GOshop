@@ -57,6 +57,8 @@ type OrderItem struct {
 	OrderItemQuantity        int32          `json:"order_item_quantity"`
 	OrderItemSubtotal        pgtype.Numeric `json:"order_item_subtotal"`
 	OrderItemCreatedAt       time.Time      `json:"order_item_created_at"`
+	OrderItemVariantUuid     *uuid.UUID     `json:"order_item_variant_uuid"`
+	OrderItemVariantTitle    *string        `json:"order_item_variant_title"`
 }
 
 type OrderReturn struct {

@@ -133,6 +133,7 @@ export function useProductMutations() {
           sku: payload.sku,
           image_url: payload.image_url,
           description: payload.description,
+          specifications: payload.specifications,
           status: payload.status,
         },
       })
@@ -156,6 +157,7 @@ export function useProductMutations() {
           sku: payload.sku,
           image_url: payload.image_url,
           description: payload.description,
+          specifications: payload.specifications,
           status: payload.status,
         },
       })

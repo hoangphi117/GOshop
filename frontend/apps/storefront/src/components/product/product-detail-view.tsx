@@ -49,7 +49,7 @@ export function ProductDetailView({
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [selectedVariantUuid, setSelectedVariantUuid] = useState<
     string | undefined
-  >(product.variants?.[0]?.uuid);
+  >(undefined);
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState<"desc" | "specs">("desc");
 
@@ -61,30 +61,46 @@ export function ProductDetailView({
     }
   };
 
-  // Active variant logic
-  const activeVariant = product.variants?.find(
-    (v) => v.uuid === selectedVariantUuid,
-  );
+  // Active variant logic: if user selects one, use it; otherwise fallback to base product
+  const activeVariant = selectedVariantUuid
+    ? product.variants?.find((v) => v.uuid === selectedVariantUuid)
+    : undefined;
 
   const currentPrice = activeVariant ? activeVariant.price : product.price;
-  const currentCompareAtPrice = activeVariant
-    ? activeVariant.compare_at_price
-    : product.compare_at_price;
   const currentStock = activeVariant
-    ? activeVariant.stock_quantity
+    ? (activeVariant.stock_quantity ?? product.stock)
     : product.stock;
   const isInStock = currentStock > 0;
 
-  const hasDiscount =
-    currentCompareAtPrice && currentCompareAtPrice > currentPrice;
-  const discountPercent = hasDiscount
-    ? Math.round(
-        ((currentCompareAtPrice - currentPrice) / currentCompareAtPrice) * 100,
-      )
-    : 0;
-  const savedAmount = hasDiscount ? currentCompareAtPrice! - currentPrice : 0;
+  const activeImage =
+    (activeVariant?.image_url && getImageUrl(activeVariant.image_url)) ||
+    allImages[activeImageIndex] ||
+    "";
 
-  const activeImage = allImages[activeImageIndex] || "";
+  // Merge base product specifications with active variant attributes
+  const mergedSpecs = React.useMemo(() => {
+    const list: Array<{ key: string; value: string; isVariant?: boolean }> = [];
+    const base = product.specifications || {};
+    const variantAttrs = activeVariant?.attributes || {};
+
+    // Base specs (overridden by variant attribute if key matches)
+    for (const [k, v] of Object.entries(base)) {
+      if (variantAttrs[k]) {
+        list.push({ key: k, value: variantAttrs[k], isVariant: true });
+      } else {
+        list.push({ key: k, value: v, isVariant: false });
+      }
+    }
+
+    // Any variant attributes not already in base specs
+    for (const [k, v] of Object.entries(variantAttrs)) {
+      if (!base[k]) {
+        list.push({ key: k, value: v, isVariant: true });
+      }
+    }
+
+    return list;
+  }, [product.specifications, activeVariant?.attributes]);
 
   const handleAddToCart = () => {
     if (!accessToken) {
@@ -107,7 +123,6 @@ export function ProductDetailView({
       variantUuid: activeVariant?.uuid,
       name: product.name,
       price: currentPrice,
-      compareAtPrice: currentCompareAtPrice,
       image: activeImage,
       quantity,
       selectedSize: activeVariant?.size,
@@ -145,7 +160,6 @@ export function ProductDetailView({
       variantUuid: activeVariant?.uuid,
       name: product.name,
       price: currentPrice,
-      compareAtPrice: currentCompareAtPrice,
       image: activeImage,
       quantity,
       selectedSize: activeVariant?.size,
@@ -179,12 +193,6 @@ export function ProductDetailView({
                   No Image Available
                 </span>
               </div>
-            )}
-
-            {hasDiscount && (
-              <span className="absolute top-3 left-3 px-2 py-0.5 rounded-md bg-[#F26522] text-white text-xs font-bold shadow-xs">
-                -{discountPercent}%
-              </span>
             )}
           </div>
 
@@ -277,20 +285,6 @@ export function ProductDetailView({
             <span className="font-heading text-2xl sm:text-3xl font-bold text-[#0F172A]">
               {formatCurrency(currentPrice)}
             </span>
-
-            {hasDiscount && (
-              <>
-                <span className="text-sm text-[#64748B] line-through">
-                  {formatCurrency(currentCompareAtPrice)}
-                </span>
-                <span className="font-heading text-xs font-bold text-white bg-[#F26522] px-2 py-0.5 rounded-md">
-                  -{discountPercent}% OFF
-                </span>
-                <span className="ml-auto text-xs text-[#007D9C] font-semibold bg-[#F0F9FB] px-2 py-0.5 rounded-md border border-[#E0F7FC]">
-                  Save {formatCurrency(savedAmount)}
-                </span>
-              </>
-            )}
           </div>
 
           {/* Variant Selector */}
@@ -301,36 +295,86 @@ export function ProductDetailView({
                   Options & Variants
                 </label>
                 <span className="text-[11px] text-[#64748B]">
-                  {product.variants.length} available
+                  {selectedVariantUuid ? (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedVariantUuid(undefined)}
+                      className="text-[#007D9C] hover:underline cursor-pointer"
+                    >
+                      Clear selection
+                    </button>
+                  ) : (
+                    "Default option"
+                  )}
                 </span>
               </div>
-              <div className="grid grid-cols-1 gap-1.5">
+              <div className="flex flex-wrap gap-2 max-h-56 overflow-y-auto pr-1">
+                {/* Default option button */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedVariantUuid(undefined)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded border text-xs font-medium transition-all ${
+                    !selectedVariantUuid
+                      ? "border-2 border-[#007D9C] bg-[#F0F9FB] text-[#007D9C] shadow-xs"
+                      : "border-[#E2E8F0] hover:border-[#CBD5E1] bg-white text-[#0F172A]"
+                  }`}
+                >
+                  {allImages[0] && (
+                    <img
+                      src={allImages[0]}
+                      alt="Default"
+                      className="w-6 h-6 rounded-sm object-cover border bg-white shrink-0"
+                    />
+                  )}
+                  <span>Default</span>
+                </button>
+
+                {/* Variant buttons */}
                 {product.variants.map((variant) => {
                   const isSelected = variant.uuid === selectedVariantUuid;
-                  const isVariantAvailable = variant.stock_quantity > 0;
+                  const isVariantAvailable =
+                    (variant.stock_quantity ?? product.stock) > 0;
+                  const variantTitle =
+                    variant.title ||
+                    variant.size ||
+                    variant.color ||
+                    variant.sku ||
+                    "Variant";
+                  const variantImg = variant.image_url
+                    ? getImageUrl(variant.image_url)
+                    : allImages[0];
+
                   return (
                     <button
                       key={variant.uuid}
                       type="button"
                       disabled={!isVariantAvailable}
-                      onClick={() => setSelectedVariantUuid(variant.uuid)}
-                      className={`flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium border text-left transition-colors ${
+                      onClick={() =>
+                        setSelectedVariantUuid(
+                          isSelected ? undefined : variant.uuid,
+                        )
+                      }
+                      className={`relative flex items-center gap-2 px-3 py-2 rounded border text-xs font-medium transition-all ${
                         isSelected
-                          ? "border-2 border-[#007D9C] bg-[#F0F9FB] text-[#007D9C] font-semibold"
+                          ? "border-2 border-[#007D9C] bg-[#F0F9FB] text-[#007D9C] shadow-xs"
                           : isVariantAvailable
                             ? "border-[#E2E8F0] hover:border-[#CBD5E1] bg-white text-[#0F172A]"
-                            : "border-[#E2E8F0] bg-[#F8FAFC] text-[#94A3B8] line-through cursor-not-allowed"
+                            : "border-[#E2E8F0] bg-[#F8FAFC] text-[#94A3B8] opacity-60 cursor-not-allowed"
                       }`}
                     >
-                      <span className="truncate">
-                        {variant.size ||
-                          variant.color ||
-                          variant.sku ||
-                          "Default"}
-                      </span>
-                      <span className="text-[11px] font-semibold shrink-0 ml-2">
-                        {formatCurrency(variant.price)}
-                      </span>
+                      {variantImg && (
+                        <img
+                          src={variantImg}
+                          alt={variantTitle}
+                          className="w-6 h-6 rounded-sm object-cover border bg-white shrink-0"
+                        />
+                      )}
+                      <span>{variantTitle}</span>
+                      {!isVariantAvailable && (
+                        <span className="ml-1 text-[10px] font-bold text-red-500 uppercase">
+                          Out of Stock
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -449,12 +493,41 @@ export function ProductDetailView({
               <div>
                 <h3 className="text-sm font-bold text-[#0F172A] mb-2">
                   About {product.name}
+                  {activeVariant?.title && (
+                    <span className="text-[#007D9C] font-semibold text-xs ml-2">
+                      — {activeVariant.title}
+                    </span>
+                  )}
                 </h3>
                 <div className="text-xs text-[#64748B] leading-relaxed whitespace-pre-line">
                   {product.description ||
                     "Experience top-tier quality and engineering with this authentic product from GOshop. Built for performance, durability, and a clean workspace setup."}
                 </div>
               </div>
+
+              {activeVariant?.attributes &&
+                Object.keys(activeVariant.attributes).length > 0 && (
+                  <div className="space-y-2 pt-4 border-t border-[#E2E8F0]">
+                    <h4 className="text-xs font-bold text-[#0F172A] uppercase tracking-wider">
+                      Selected Variant Features:
+                    </h4>
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      {Object.entries(activeVariant.attributes).map(
+                        ([key, val]) => (
+                          <span
+                            key={key}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-[#F0F9FB] border border-[#E0F7FC] text-[#007D9C] font-medium text-xs"
+                          >
+                            <span className="text-[#64748B] font-normal">
+                              {key}:
+                            </span>
+                            {val}
+                          </span>
+                        ),
+                      )}
+                    </div>
+                  </div>
+                )}
 
               <div className="space-y-2.5 pt-4 border-t border-[#E2E8F0]">
                 <h4 className="text-xs font-bold text-[#0F172A] uppercase tracking-wider">
@@ -495,31 +568,68 @@ export function ProductDetailView({
                     {product.name}
                   </span>
                 </div>
-                <div className="p-2.5 bg-white flex justify-between">
+                {activeVariant?.title && (
+                  <div className="p-2.5 bg-white flex justify-between">
+                    <span className="font-semibold text-[#64748B]">
+                      Variant Option
+                    </span>
+                    <span className="font-semibold text-[#007D9C]">
+                      {activeVariant.title}
+                    </span>
+                  </div>
+                )}
+                <div className="p-2.5 bg-[#F8FAFC] flex justify-between">
                   <span className="font-semibold text-[#64748B]">
                     SKU Number
                   </span>
                   <span className="font-mono text-[#0F172A]">
-                    {product.sku || "GOPHER-KB-PRO96"}
-                  </span>
-                </div>
-                <div className="p-2.5 bg-[#F8FAFC] flex justify-between">
-                  <span className="font-semibold text-[#64748B]">Category</span>
-                  <span className="text-[#007D9C] font-semibold">
-                    {product.category_name || "Keyboards & Mice"}
+                    {activeVariant?.sku || product.sku || "N/A"}
                   </span>
                 </div>
                 <div className="p-2.5 bg-white flex justify-between">
+                  <span className="font-semibold text-[#64748B]">Category</span>
+                  <span className="text-[#007D9C] font-semibold">
+                    {product.category_name || "General Catalog"}
+                  </span>
+                </div>
+                <div className="p-2.5 bg-[#F8FAFC] flex justify-between">
                   <span className="font-semibold text-[#64748B]">
                     Availability
                   </span>
-                  <span className="text-emerald-700 font-semibold">
+                  <span
+                    className={`font-semibold ${
+                      isInStock ? "text-emerald-700" : "text-red-600"
+                    }`}
+                  >
                     {isInStock
                       ? `In Stock (${currentStock} units)`
                       : "Out of Stock"}
                   </span>
                 </div>
-                <div className="p-2.5 bg-[#F8FAFC] flex justify-between">
+
+                {/* Technical Specifications (Base Specs + Active Variant Attributes) */}
+                {mergedSpecs.map((spec, idx) => (
+                  <div
+                    key={spec.key}
+                    className={`p-2.5 flex justify-between items-center ${
+                      idx % 2 === 0 ? "bg-white" : "bg-[#F8FAFC]"
+                    }`}
+                  >
+                    <span className="font-semibold text-[#64748B] flex items-center gap-1.5">
+                      {spec.key}
+                      {spec.isVariant && (
+                        <span className="text-[9px] bg-[#E0F7FC] text-[#007D9C] px-1.5 py-0.5 rounded font-medium">
+                          Variant
+                        </span>
+                      )}
+                    </span>
+                    <span className="font-medium text-[#0F172A]">
+                      {spec.value}
+                    </span>
+                  </div>
+                ))}
+
+                <div className="p-2.5 bg-white flex justify-between">
                   <span className="font-semibold text-[#64748B]">
                     Warranty Coverage
                   </span>
@@ -527,7 +637,7 @@ export function ProductDetailView({
                     24 Months Official Warranty
                   </span>
                 </div>
-                <div className="p-2.5 bg-white flex justify-between">
+                <div className="p-2.5 bg-[#F8FAFC] flex justify-between">
                   <span className="font-semibold text-[#64748B]">
                     Authenticity
                   </span>

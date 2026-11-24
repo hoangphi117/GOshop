@@ -25,7 +25,7 @@ export function AppTitle() {
               onClick={() => setOpenMobile(false)}
               className='flex items-center gap-2 text-start text-sm leading-tight'
             >
-              <img src='/Logo.svg' alt='GOshop' className='h-7 w-auto object-contain' />
+              <img src='/main_logo.png' alt='GOshop' className='h-9 w-auto object-contain' />
               <div className='grid flex-1'>
                 <span className='truncate font-bold tracking-tight text-foreground'>GOshop</span>
                 <span className='truncate text-[10px] text-muted-foreground'>Admin Control</span>
