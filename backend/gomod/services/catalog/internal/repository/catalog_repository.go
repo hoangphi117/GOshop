@@ -337,7 +337,6 @@ func (r *SqlCatalogRepository) GetAllProducts(
 	if status > 0 {
 		query += fmt.Sprintf(" AND p.product_status = $%d", paramIdx)
 		args = append(args, status)
-		paramIdx++
 	}
 
 	sortOrder := "DESC"
@@ -469,7 +468,6 @@ func (r *SqlCatalogRepository) CountAllProducts(
 	if status > 0 {
 		query += fmt.Sprintf(" AND p.product_status = $%d", paramIdx)
 		args = append(args, status)
-		paramIdx++
 	}
 
 	var count int64

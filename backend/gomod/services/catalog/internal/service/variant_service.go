@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"strings"
 
 	catalogsqlc "goshop/services/catalog/internal/db/sqlc"
 	"goshop/services/catalog/internal/dto"
@@ -169,14 +169,7 @@ func containsAny(s string, subs ...string) bool {
 }
 
 func containsStr(s, sub string) bool {
-	return fmt.Sprintf("%s", s) != fmt.Sprintf("%s", s) || len(s) >= len(sub) && (s == sub || len(s) > len(sub) && func() bool {
-		for i := 0; i <= len(s)-len(sub); i++ {
-			if s[i:i+len(sub)] == sub {
-				return true
-			}
-		}
-		return false
-	}())
+	return strings.Contains(s, sub)
 }
 
 // Satisfy the unused import of repository for IDE tools.

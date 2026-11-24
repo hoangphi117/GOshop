@@ -2,12 +2,10 @@ package repository
 
 import (
 	"context"
-	"encoding/json"
 
 	catalogsqlc "goshop/services/catalog/internal/db/sqlc"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // VariantRepository handles product variant DB operations.
@@ -50,27 +48,4 @@ func (r *SqlCatalogRepository) GetVariantsByUUIDs(ctx context.Context, uuids []u
 
 func (r *SqlCatalogRepository) CountVariantsByProductID(ctx context.Context, productID int32) (int64, error) {
 	return r.queries.CountVariantsByProductID(ctx, productID)
-}
-
-// encodeAttributes marshals an attribute map to JSON bytes for pgx JSONB.
-func encodeAttributes(attrs map[string]string) ([]byte, error) {
-	if attrs == nil {
-		return []byte("{}"), nil
-	}
-	return json.Marshal(attrs)
-}
-
-// floatToNumeric converts a float64 to pgtype.Numeric for use in SQLC params.
-func floatToNumeric(f float64) pgtype.Numeric {
-	var n pgtype.Numeric
-	_ = n.Scan(f)
-	return n
-}
-
-// ptrFloatToNumeric converts *float64 → pgtype.Numeric (zero value = invalid = NULL).
-func ptrFloatToNumeric(f *float64) pgtype.Numeric {
-	if f == nil {
-		return pgtype.Numeric{}
-	}
-	return floatToNumeric(*f)
 }

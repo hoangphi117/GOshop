@@ -249,6 +249,7 @@ test.describe("Checkout Flow with Product Variant", () => {
             getState: () => {
               items: unknown[];
               addItem: (item: unknown) => void;
+              closeDrawer: () => void;
             };
           };
         }
