@@ -479,6 +479,10 @@ ANALYZE coupons;
 
 \connect shopping_cart
 
+ALTER TABLE cart_items
+    ADD COLUMN IF NOT EXISTS variant_uuid  UUID,
+    ADD COLUMN IF NOT EXISTS variant_title VARCHAR(255);
+
 TRUNCATE TABLE cart_items, carts RESTART IDENTITY CASCADE;
 
 -- ##############################################################################
@@ -489,6 +493,14 @@ TRUNCATE TABLE cart_items, carts RESTART IDENTITY CASCADE;
 -- ##############################################################################
 
 \connect shopping_inventory
+
+ALTER TABLE inventory_stocks
+    ADD COLUMN IF NOT EXISTS variant_uuid UUID,
+    ADD COLUMN IF NOT EXISTS variant_id   INT;
+
+ALTER TABLE stock_movements
+    ADD COLUMN IF NOT EXISTS variant_uuid UUID,
+    ADD COLUMN IF NOT EXISTS variant_id   INT;
 
 TRUNCATE TABLE stock_movements, inventory_stocks RESTART IDENTITY CASCADE;
 CREATE EXTENSION IF NOT EXISTS dblink;
@@ -538,6 +550,12 @@ ANALYZE stock_movements;
 -- ##############################################################################
 
 \connect shopping_order
+
+SET search_path TO orders, public;
+
+ALTER TABLE orders.order_items
+    ADD COLUMN IF NOT EXISTS order_item_variant_uuid  UUID,
+    ADD COLUMN IF NOT EXISTS order_item_variant_title VARCHAR(255);
 
 TRUNCATE TABLE orders.webhook_events, orders.outbox_events, orders.order_sagas,
     orders.order_returns, orders.order_tracking_events, orders.order_items, orders.orders
