@@ -426,4 +426,389 @@ func TestOrderCheckoutService_CreateOrder(t *testing.T) {
 		assert.False(t, getByOrderIDCalled, "orderItemStore.GetByOrderID must NOT be called post-commit")
 		assert.False(t, cartRemovedSync, "cartPort.RemovePurchasedItems must NOT be called synchronously during checkout")
 	})
+
+	t.Run("Successful checkout with variant price snapshot", func(t *testing.T) {
+		variantUUIDStr := uuid.New().String()
+		variantUUID := uuid.MustParse(variantUUIDStr)
+		customerAdapter := &MockCustomerReader{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (*orderservice.OrderCustomer, error) {
+				return orderservice.NewOrderCustomer(customer.UserID, customer.UserUUID, customer.FullName, customer.UserEmail, orderservice.RoleMember, 1), nil
+			},
+		}
+
+		mockCatalog := &MockCatalogPort{
+			GetProductsForCheckoutFunc: func(ctx context.Context, productUUIDs []uuid.UUID) (map[string]orderservice.CheckoutProductSnapshot, error) {
+				return map[string]orderservice.CheckoutProductSnapshot{
+					prodUUID1: {ProductID: 10, ProductUUID: uuid.MustParse(prodUUID1), Price: 100000, ProductName: "Product 1", ProductSlug: "product-1", Status: orderservice.ProductStatusActive},
+				}, nil
+			},
+			GetVariantsForCheckoutFunc: func(ctx context.Context, productUUID uuid.UUID) ([]orderservice.CheckoutVariantSnapshot, error) {
+				return []orderservice.CheckoutVariantSnapshot{
+					{
+						VariantUUID: variantUUID,
+						Title:       "Variant Blue 256GB",
+						SKU:         "P1-BLUE-256",
+						Price:       150000,
+						Status:      "active",
+					},
+				}, nil
+			},
+		}
+
+		mockStock := &MockOrderStockPort{
+			LockAndDeductStockWithRefFunc: func(ctx context.Context, items []orderservice.DeductItem, refID, refType string, actorID *int32, note *string) error {
+				return nil
+			},
+			RestoreStockWithRefFunc: func(ctx context.Context, items []orderservice.RestoreItem, refID, refType string, actorID *int32, note *string) error {
+				return nil
+			},
+		}
+
+		var pricingInputItems []orderservice.ItemPriceInput
+		mockPricing := &MockOrderPricingService{
+			CalculateOrderTotalsFunc: func(ctx context.Context, items []orderservice.ItemPriceInput, couponCode *string, userID int32, shippingFee float64, now time.Time) (*orderservice.OrderPricingResult, error) {
+				pricingInputItems = items
+				return &orderservice.OrderPricingResult{
+					SubtotalAmount:   300000,
+					DiscountAmount:   0,
+					ShippingFee:      30000,
+					FinalTotalAmount: 330000,
+					Items: []orderservice.ItemPriceResult{
+						{ProductID: 10, ProductName: items[0].ProductName, Price: items[0].Price, Quantity: 2, Subtotal: 300000},
+					},
+				}, nil
+			},
+		}
+
+		createdOrderUUID := uuid.New()
+		var capturedOrderItemParams sqlc.CreateOrderItemParams
+		mockOrderRepo := &MockOrderRepository{
+			CreateFunc: func(ctx context.Context, params sqlc.CreateOrderParams) (sqlc.Order, error) {
+				return sqlc.Order{
+					OrderID:              99,
+					OrderUuid:            createdOrderUUID,
+					OrderNumber:          params.OrderNumber,
+					OrderUserID:          customer.UserID,
+					OrderStatus:          orderservice.OrderStatusPending,
+					OrderPaymentStatus:   orderservice.OrderPaymentStatusUnpaid,
+					OrderPaymentMethod:   params.OrderPaymentMethod,
+					OrderSubtotalAmount:  params.OrderSubtotalAmount,
+					OrderDiscountAmount:  params.OrderDiscountAmount,
+					OrderTotalAmount:     params.OrderTotalAmount,
+					OrderShippingFee:     params.OrderShippingFee,
+					OrderShippingName:    params.OrderShippingName,
+					OrderShippingPhone:   params.OrderShippingPhone,
+					OrderShippingAddress: params.OrderShippingAddress,
+					OrderCreatedAt:       time.Now(),
+				}, nil
+			},
+		}
+
+		mockOrderItemRepo := &MockOrderItemRepository{
+			CreateFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.CreateOrderItemParams) (sqlc.OrderItem, error) {
+				capturedOrderItemParams = params
+				return sqlc.OrderItem{
+					OrderItemID:           1,
+					OrderItemOrderID:      params.OrderItemOrderID,
+					OrderItemProductID:    params.OrderItemProductID,
+					OrderItemVariantUuid:  params.OrderItemVariantUuid,
+					OrderItemVariantTitle: params.OrderItemVariantTitle,
+					OrderItemQuantity:     params.OrderItemQuantity,
+					OrderItemPrice:        params.OrderItemPrice,
+					OrderItemSubtotal:     params.OrderItemSubtotal,
+				}, nil
+			},
+		}
+
+		svc := orderservice.NewOrderCheckoutService(
+			testutils.NewNoopTxManager(),
+			mockPricing,
+			mockCatalog,
+			mockStock,
+			mockOrderRepo,
+			mockOrderItemRepo,
+			customerAdapter,
+			&MockCartService{},
+			&MockOrderCouponPort{},
+			&MockTrackingRepository{},
+			nil,
+		)
+
+		ctxWithClaims := orderservice.WithOrderCustomer(ctx, customer)
+		input := v1dto.CreateOrderInput{
+			ShippingName:    "Jane Doe",
+			ShippingPhone:   "0909888777",
+			ShippingAddress: "456 Avenue, District 3, HCMC",
+			PaymentMethod:   orderservice.OrderPaymentMethodCOD,
+			Items: []v1dto.CreateOrderItemInput{
+				{ProductUUID: prodUUID1, VariantUUID: &variantUUIDStr, Quantity: 2},
+			},
+		}
+
+		res, err := svc.CreateOrder(ctxWithClaims, userUUID, input)
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		assert.Equal(t, createdOrderUUID.String(), res.UUID)
+		assert.Equal(t, 1, len(res.Items))
+		assert.Equal(t, prodUUID1, res.Items[0].ProductUUID)
+		assert.NotNil(t, res.Items[0].VariantUUID)
+		assert.Equal(t, variantUUIDStr, *res.Items[0].VariantUUID)
+		assert.NotNil(t, res.Items[0].VariantTitle)
+		assert.Equal(t, "Variant Blue 256GB", *res.Items[0].VariantTitle)
+		assert.Equal(t, float64(150000), res.Items[0].Price)
+		assert.Equal(t, float64(300000), res.Items[0].Subtotal)
+
+		require.Len(t, pricingInputItems, 1)
+		assert.Equal(t, float64(150000), pricingInputItems[0].Price)
+		assert.Equal(t, "Product 1 (Variant Blue 256GB)", pricingInputItems[0].ProductName)
+
+		assert.NotNil(t, capturedOrderItemParams.OrderItemVariantUuid)
+		assert.Equal(t, variantUUID, *capturedOrderItemParams.OrderItemVariantUuid)
+		assert.NotNil(t, capturedOrderItemParams.OrderItemVariantTitle)
+		assert.Equal(t, "Variant Blue 256GB", *capturedOrderItemParams.OrderItemVariantTitle)
+		assert.Equal(t, utils.FloatToNumeric(150000), capturedOrderItemParams.OrderItemPrice)
+	})
+
+	t.Run("Variant not found -> NotFound error", func(t *testing.T) {
+		unknownVariantUUIDStr := uuid.New().String()
+		customerAdapter := &MockCustomerReader{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (*orderservice.OrderCustomer, error) {
+				return orderservice.NewOrderCustomer(customer.UserID, customer.UserUUID, customer.FullName, customer.UserEmail, orderservice.RoleMember, 1), nil
+			},
+		}
+
+		mockCatalog := &MockCatalogPort{
+			GetProductsForCheckoutFunc: func(ctx context.Context, productUUIDs []uuid.UUID) (map[string]orderservice.CheckoutProductSnapshot, error) {
+				return map[string]orderservice.CheckoutProductSnapshot{
+					prodUUID1: {ProductID: 10, ProductUUID: uuid.MustParse(prodUUID1), Price: 100000, ProductName: "Product 1", ProductSlug: "product-1", Status: orderservice.ProductStatusActive},
+				}, nil
+			},
+			GetVariantsForCheckoutFunc: func(ctx context.Context, productUUID uuid.UUID) ([]orderservice.CheckoutVariantSnapshot, error) {
+				return []orderservice.CheckoutVariantSnapshot{}, nil // No matching variant
+			},
+		}
+
+		svc := orderservice.NewOrderCheckoutService(
+			testutils.NewNoopTxManager(),
+			&MockOrderPricingService{},
+			mockCatalog,
+			&MockOrderStockPort{},
+			&MockOrderRepository{},
+			&MockOrderItemRepository{},
+			customerAdapter,
+			&MockCartService{},
+			&MockOrderCouponPort{},
+			&MockTrackingRepository{},
+			nil,
+		)
+
+		ctxWithClaims := orderservice.WithOrderCustomer(ctx, customer)
+		input := v1dto.CreateOrderInput{
+			Items: []v1dto.CreateOrderItemInput{
+				{ProductUUID: prodUUID1, VariantUUID: &unknownVariantUUIDStr, Quantity: 1},
+			},
+		}
+
+		res, err := svc.CreateOrder(ctxWithClaims, userUUID, input)
+		require.Error(t, err)
+		assert.Nil(t, res)
+		assert.Contains(t, err.Error(), "Product variant not found or unavailable")
+	})
+
+	t.Run("Invalid variant UUID format -> BadRequest error", func(t *testing.T) {
+		invalidVariantStr := "invalid-uuid-format"
+		customerAdapter := &MockCustomerReader{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (*orderservice.OrderCustomer, error) {
+				return orderservice.NewOrderCustomer(customer.UserID, customer.UserUUID, customer.FullName, customer.UserEmail, orderservice.RoleMember, 1), nil
+			},
+		}
+
+		mockCatalog := &MockCatalogPort{
+			GetProductsForCheckoutFunc: func(ctx context.Context, productUUIDs []uuid.UUID) (map[string]orderservice.CheckoutProductSnapshot, error) {
+				return map[string]orderservice.CheckoutProductSnapshot{
+					prodUUID1: {ProductID: 10, ProductUUID: uuid.MustParse(prodUUID1), Price: 100000, ProductName: "Product 1", ProductSlug: "product-1", Status: orderservice.ProductStatusActive},
+				}, nil
+			},
+		}
+
+		svc := orderservice.NewOrderCheckoutService(
+			testutils.NewNoopTxManager(),
+			&MockOrderPricingService{},
+			mockCatalog,
+			&MockOrderStockPort{},
+			&MockOrderRepository{},
+			&MockOrderItemRepository{},
+			customerAdapter,
+			&MockCartService{},
+			&MockOrderCouponPort{},
+			&MockTrackingRepository{},
+			nil,
+		)
+
+		ctxWithClaims := orderservice.WithOrderCustomer(ctx, customer)
+		input := v1dto.CreateOrderInput{
+			Items: []v1dto.CreateOrderItemInput{
+				{ProductUUID: prodUUID1, VariantUUID: &invalidVariantStr, Quantity: 1},
+			},
+		}
+
+		res, err := svc.CreateOrder(ctxWithClaims, userUUID, input)
+		require.Error(t, err)
+		assert.Nil(t, res)
+		assert.Contains(t, err.Error(), "Invalid variant UUID")
+	})
+
+	t.Run("Duplicate same variant in order -> BadRequest error", func(t *testing.T) {
+		variantUUIDStr := uuid.New().String()
+		customerAdapter := &MockCustomerReader{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (*orderservice.OrderCustomer, error) {
+				return orderservice.NewOrderCustomer(customer.UserID, customer.UserUUID, customer.FullName, customer.UserEmail, orderservice.RoleMember, 1), nil
+			},
+		}
+
+		svc := orderservice.NewOrderCheckoutService(
+			testutils.NewNoopTxManager(),
+			&MockOrderPricingService{},
+			&MockCatalogPort{},
+			&MockOrderStockPort{},
+			&MockOrderRepository{},
+			&MockOrderItemRepository{},
+			customerAdapter,
+			&MockCartService{},
+			&MockOrderCouponPort{},
+			&MockTrackingRepository{},
+			nil,
+		)
+
+		input := v1dto.CreateOrderInput{
+			Items: []v1dto.CreateOrderItemInput{
+				{ProductUUID: prodUUID1, VariantUUID: &variantUUIDStr, Quantity: 1},
+				{ProductUUID: prodUUID1, VariantUUID: &variantUUIDStr, Quantity: 2},
+			},
+		}
+
+		res, err := svc.CreateOrder(ctx, userUUID, input)
+		require.Error(t, err)
+		assert.Nil(t, res)
+		assert.Contains(t, err.Error(), "Duplicate product in order")
+	})
+
+	t.Run("Multiple distinct variants of same product -> Allowed and succeeds", func(t *testing.T) {
+		variant1UUIDStr := uuid.New().String()
+		variant2UUIDStr := uuid.New().String()
+		v1UUID := uuid.MustParse(variant1UUIDStr)
+		v2UUID := uuid.MustParse(variant2UUIDStr)
+
+		customerAdapter := &MockCustomerReader{
+			GetByUUIDFunc: func(ctx context.Context, u uuid.UUID) (*orderservice.OrderCustomer, error) {
+				return orderservice.NewOrderCustomer(customer.UserID, customer.UserUUID, customer.FullName, customer.UserEmail, orderservice.RoleMember, 1), nil
+			},
+		}
+
+		mockCatalog := &MockCatalogPort{
+			GetProductsForCheckoutFunc: func(ctx context.Context, productUUIDs []uuid.UUID) (map[string]orderservice.CheckoutProductSnapshot, error) {
+				return map[string]orderservice.CheckoutProductSnapshot{
+					prodUUID1: {ProductID: 10, ProductUUID: uuid.MustParse(prodUUID1), Price: 100000, ProductName: "Product 1", ProductSlug: "product-1", Status: orderservice.ProductStatusActive},
+				}, nil
+			},
+			GetVariantsForCheckoutFunc: func(ctx context.Context, productUUID uuid.UUID) ([]orderservice.CheckoutVariantSnapshot, error) {
+				return []orderservice.CheckoutVariantSnapshot{
+					{VariantUUID: v1UUID, Title: "128GB Black", SKU: "P1-128-BLK", Price: 120000, Status: "active"},
+					{VariantUUID: v2UUID, Title: "256GB Silver", SKU: "P1-256-SLV", Price: 150000, Status: "active"},
+				}, nil
+			},
+		}
+
+		mockStock := &MockOrderStockPort{
+			LockAndDeductStockWithRefFunc: func(ctx context.Context, items []orderservice.DeductItem, refID, refType string, actorID *int32, note *string) error {
+				return nil
+			},
+		}
+
+		mockPricing := &MockOrderPricingService{
+			CalculateOrderTotalsFunc: func(ctx context.Context, items []orderservice.ItemPriceInput, couponCode *string, userID int32, shippingFee float64, now time.Time) (*orderservice.OrderPricingResult, error) {
+				return &orderservice.OrderPricingResult{
+					SubtotalAmount:   270000, // 120000 + 150000
+					DiscountAmount:   0,
+					ShippingFee:      30000,
+					FinalTotalAmount: 300000,
+					Items: []orderservice.ItemPriceResult{
+						{ProductID: 10, ProductName: items[0].ProductName, Price: items[0].Price, Quantity: 1, Subtotal: 120000},
+						{ProductID: 10, ProductName: items[1].ProductName, Price: items[1].Price, Quantity: 1, Subtotal: 150000},
+					},
+				}, nil
+			},
+		}
+
+		createdOrderUUID := uuid.New()
+		var capturedItems []sqlc.CreateOrderItemParams
+		mockOrderRepo := &MockOrderRepository{
+			CreateFunc: func(ctx context.Context, params sqlc.CreateOrderParams) (sqlc.Order, error) {
+				return sqlc.Order{
+					OrderID:              99,
+					OrderUuid:            createdOrderUUID,
+					OrderNumber:          params.OrderNumber,
+					OrderUserID:          customer.UserID,
+					OrderStatus:          orderservice.OrderStatusPending,
+					OrderPaymentStatus:   orderservice.OrderPaymentStatusUnpaid,
+					OrderPaymentMethod:   params.OrderPaymentMethod,
+					OrderSubtotalAmount:  params.OrderSubtotalAmount,
+					OrderTotalAmount:     params.OrderTotalAmount,
+					OrderCreatedAt:       time.Now(),
+				}, nil
+			},
+		}
+
+		mockOrderItemRepo := &MockOrderItemRepository{
+			CreateFunc: func(ctx context.Context, tx pgx.Tx, params sqlc.CreateOrderItemParams) (sqlc.OrderItem, error) {
+				capturedItems = append(capturedItems, params)
+				return sqlc.OrderItem{
+					OrderItemID:           int32(len(capturedItems)),
+					OrderItemOrderID:      params.OrderItemOrderID,
+					OrderItemProductID:    params.OrderItemProductID,
+					OrderItemVariantUuid:  params.OrderItemVariantUuid,
+					OrderItemVariantTitle: params.OrderItemVariantTitle,
+					OrderItemQuantity:     params.OrderItemQuantity,
+					OrderItemPrice:        params.OrderItemPrice,
+					OrderItemSubtotal:     params.OrderItemSubtotal,
+				}, nil
+			},
+		}
+
+		svc := orderservice.NewOrderCheckoutService(
+			testutils.NewNoopTxManager(),
+			mockPricing,
+			mockCatalog,
+			mockStock,
+			mockOrderRepo,
+			mockOrderItemRepo,
+			customerAdapter,
+			&MockCartService{},
+			&MockOrderCouponPort{},
+			&MockTrackingRepository{},
+			nil,
+		)
+
+		ctxWithClaims := orderservice.WithOrderCustomer(ctx, customer)
+		input := v1dto.CreateOrderInput{
+			ShippingName:    "Jane Doe",
+			ShippingPhone:   "0909888777",
+			ShippingAddress: "456 Avenue, District 3, HCMC",
+			PaymentMethod:   orderservice.OrderPaymentMethodCOD,
+			Items: []v1dto.CreateOrderItemInput{
+				{ProductUUID: prodUUID1, VariantUUID: &variant1UUIDStr, Quantity: 1},
+				{ProductUUID: prodUUID1, VariantUUID: &variant2UUIDStr, Quantity: 1},
+			},
+		}
+
+		res, err := svc.CreateOrder(ctxWithClaims, userUUID, input)
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		assert.Equal(t, 2, len(res.Items))
+		assert.Equal(t, 2, len(capturedItems))
+		assert.Equal(t, v1UUID, *capturedItems[0].OrderItemVariantUuid)
+		assert.Equal(t, v2UUID, *capturedItems[1].OrderItemVariantUuid)
+		assert.Equal(t, utils.FloatToNumeric(120000), capturedItems[0].OrderItemPrice)
+		assert.Equal(t, utils.FloatToNumeric(150000), capturedItems[1].OrderItemPrice)
+	})
 }

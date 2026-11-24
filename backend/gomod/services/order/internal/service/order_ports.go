@@ -101,10 +101,24 @@ type CheckoutProductSnapshot struct {
 	Status          int32     `json:"status"`
 }
 
+// CheckoutVariantSnapshot captures variant state (price, sku, title, image) for checkout item resolution.
+type CheckoutVariantSnapshot struct {
+	VariantID      int32     `json:"variant_id"`
+	VariantUUID    uuid.UUID `json:"variant_uuid"`
+	ProductID      int32     `json:"product_id"`
+	SKU            string    `json:"sku"`
+	Title          string    `json:"title"`
+	Price          float64   `json:"price"`
+	CompareAtPrice *float64  `json:"compare_at_price,omitempty"`
+	ImageURL       *string   `json:"image_url,omitempty"`
+	Status         string    `json:"status"`
+}
+
 // CatalogPort provides product catalog snapshots for checkout.
 // Satisfied by CatalogService (or OrderCatalogAdapter in monolith).
 type CatalogPort interface {
 	GetProductsForCheckout(ctx context.Context, productUUIDs []uuid.UUID) (map[string]CheckoutProductSnapshot, error)
+	GetVariantsForCheckout(ctx context.Context, productUUID uuid.UUID) ([]CheckoutVariantSnapshot, error)
 }
 
 type DeductItem struct {

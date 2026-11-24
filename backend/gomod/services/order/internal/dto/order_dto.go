@@ -35,14 +35,16 @@ type OrderDTO struct {
 }
 
 type OrderItemDTO struct {
-	UUID        string  `json:"uuid"`
-	ProductUUID string  `json:"product_uuid"`
-	ProductName string  `json:"product_name"`
-	ProductSlug string  `json:"product_slug,omitempty"`
-	ImageURL    string  `json:"image_url,omitempty"`
-	Price       float64 `json:"price"`
-	Quantity    int32   `json:"quantity"`
-	Subtotal    float64 `json:"subtotal"`
+	UUID         string  `json:"uuid"`
+	ProductUUID  string  `json:"product_uuid"`
+	ProductName  string  `json:"product_name"`
+	ProductSlug  string  `json:"product_slug,omitempty"`
+	ImageURL     string  `json:"image_url,omitempty"`
+	Price        float64 `json:"price"`
+	Quantity     int32   `json:"quantity"`
+	Subtotal     float64 `json:"subtotal"`
+	VariantUUID  *string `json:"variant_uuid,omitempty"`
+	VariantTitle *string `json:"variant_title,omitempty"`
 }
 
 type CreateOrderInput struct {
@@ -133,8 +135,9 @@ type UpdateOrderShippingInfoInput struct {
 }
 
 type CreateOrderItemInput struct {
-	ProductUUID string `json:"product_uuid" binding:"required,uuid"`
-	Quantity    int32  `json:"quantity" binding:"required,gte=1,lte=99"`
+	ProductUUID string  `json:"product_uuid" binding:"required,uuid"`
+	Quantity    int32   `json:"quantity" binding:"required,gte=1,lte=99"`
+	VariantUUID *string `json:"variant_uuid,omitempty" binding:"omitempty,uuid"`
 }
 
 func MapToOrderItemRowDTO(item ordersqlc.GetOrderItemsByOrderIDRow) OrderItemDTO {
@@ -143,15 +146,23 @@ func MapToOrderItemRowDTO(item ordersqlc.GetOrderItemsByOrderIDRow) OrderItemDTO
 		imageURL = *item.ProductImageUrl
 	}
 
+	var variantUUID *string
+	if item.OrderItemVariantUuid != nil {
+		u := item.OrderItemVariantUuid.String()
+		variantUUID = &u
+	}
+
 	return OrderItemDTO{
-		UUID:        item.OrderItemUuid.String(),
-		ProductUUID: item.ProductUuid.String(),
-		ProductName: item.OrderItemProductName,
-		ProductSlug: item.ProductSlug,
-		ImageURL:    imageURL,
-		Price:       utils.NumericToFloat(item.OrderItemPrice),
-		Quantity:    item.OrderItemQuantity,
-		Subtotal:    utils.NumericToFloat(item.OrderItemSubtotal),
+		UUID:         item.OrderItemUuid.String(),
+		ProductUUID:  item.ProductUuid.String(),
+		ProductName:  item.OrderItemProductName,
+		ProductSlug:  item.ProductSlug,
+		ImageURL:     imageURL,
+		Price:        utils.NumericToFloat(item.OrderItemPrice),
+		Quantity:     item.OrderItemQuantity,
+		Subtotal:     utils.NumericToFloat(item.OrderItemSubtotal),
+		VariantUUID:  variantUUID,
+		VariantTitle: item.OrderItemVariantTitle,
 	}
 }
 

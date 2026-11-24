@@ -521,6 +521,7 @@ func (m *MockWebhookEventRepository) MarkProcessed(ctx context.Context, tx pgx.T
 
 type MockCatalogPort struct {
 	GetProductsForCheckoutFunc func(ctx context.Context, productUUIDs []uuid.UUID) (map[string]orderservice.CheckoutProductSnapshot, error)
+	GetVariantsForCheckoutFunc func(ctx context.Context, productUUID uuid.UUID) ([]orderservice.CheckoutVariantSnapshot, error)
 }
 
 func (m *MockCatalogPort) GetProductsForCheckout(ctx context.Context, productUUIDs []uuid.UUID) (map[string]orderservice.CheckoutProductSnapshot, error) {
@@ -528,6 +529,13 @@ func (m *MockCatalogPort) GetProductsForCheckout(ctx context.Context, productUUI
 		return m.GetProductsForCheckoutFunc(ctx, productUUIDs)
 	}
 	return make(map[string]orderservice.CheckoutProductSnapshot), nil
+}
+
+func (m *MockCatalogPort) GetVariantsForCheckout(ctx context.Context, productUUID uuid.UUID) ([]orderservice.CheckoutVariantSnapshot, error) {
+	if m.GetVariantsForCheckoutFunc != nil {
+		return m.GetVariantsForCheckoutFunc(ctx, productUUID)
+	}
+	return nil, nil
 }
 
 type MockOrderStockPort struct {
