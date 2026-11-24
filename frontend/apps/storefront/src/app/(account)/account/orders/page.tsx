@@ -60,6 +60,8 @@ interface OrderItem {
   product_id?: number;
   product_uuid?: string;
   product_name: string;
+  variant_uuid?: string;
+  variant_title?: string;
   image_url?: string;
   price: number;
   quantity: number;
@@ -117,6 +119,8 @@ function MyOrdersPageContent() {
         uuid: it.uuid,
         product_uuid: it.product_uuid,
         product_name: it.product_name,
+        variant_uuid: it.variant_uuid,
+        variant_title: it.variant_title,
         image_url: it.image_url ? getImageUrl(it.image_url) : undefined,
         price: it.price,
         quantity: it.quantity,
@@ -1366,6 +1370,11 @@ function MyOrdersPageContent() {
                       <h4 className="font-bold text-sm text-[#0F172A] truncate font-heading">
                         {item.product_name}
                       </h4>
+                      {item.variant_title && (
+                        <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#F0F9FB] text-[#007D9C] border border-[#E0F7FC]">
+                          Variant: {item.variant_title}
+                        </span>
+                      )}
                       <div className="flex items-center gap-3 text-xs text-[#64748B] mt-1">
                         <span>
                           Qty:{" "}
@@ -1777,6 +1786,11 @@ function MyOrdersPageContent() {
                             ? order.items[0].product_name
                             : "Standard Hardware Shipment"}
                         </h4>
+                        {order.items?.[0]?.variant_title && (
+                          <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#F0F9FB] text-[#007D9C] border border-[#E0F7FC]">
+                            Variant: {order.items[0].variant_title}
+                          </span>
+                        )}
                         <p className="text-xs text-[#64748B] mt-0.5">
                           {order.items && order.items.length > 1
                             ? `+ ${order.items.length - 1} other item(s) in package`

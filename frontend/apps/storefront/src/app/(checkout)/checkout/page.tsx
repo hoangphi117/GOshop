@@ -105,6 +105,13 @@ function CheckoutContent() {
     subtotalAmount?: number;
     discountAmount?: number;
     totalAmount?: number;
+    items?: Array<{
+      name: string;
+      variantTitle?: string;
+      quantity: number;
+      price: number;
+      image?: string;
+    }>;
   } | null>(null);
   const [retryingPayment, setRetryingPayment] = useState(false);
   // Cart items are cleared right after a successful order, so the purchase
@@ -890,6 +897,13 @@ function CheckoutContent() {
           subtotalAmount: finalSubtotal,
           discountAmount: finalDiscount,
           totalAmount: finalTotalAmount,
+          items: selectedItems.map((item) => ({
+            name: item.name,
+            variantTitle: item.variantTitle,
+            quantity: item.quantity,
+            price: item.price,
+            image: item.image,
+          })),
         });
         // An unpaid online order is not a purchase yet: it only counts once
         // the payment intent was actually issued.
@@ -919,6 +933,13 @@ function CheckoutContent() {
         subtotalAmount: finalSubtotal,
         discountAmount: finalDiscount,
         totalAmount: finalTotalAmount,
+        items: selectedItems.map((item) => ({
+          name: item.name,
+          variantTitle: item.variantTitle,
+          quantity: item.quantity,
+          price: item.price,
+          image: item.image,
+        })),
       });
       trackPurchase(createdOrderUuid, placedLinesRef.current, {
         paymentMethod,
@@ -1120,6 +1141,48 @@ function CheckoutContent() {
                 GHN Express ({formatCurrency(orderPlaced.shippingFee)})
               </span>
             </div>
+
+            {orderPlaced.items && orderPlaced.items.length > 0 && (
+              <div className="pt-2 mt-2 border-t border-[#E2E8F0] space-y-2">
+                <span className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider block">
+                  Ordered Items ({orderPlaced.items.length})
+                </span>
+                <div className="divide-y divide-[#E2E8F0] max-h-48 overflow-y-auto pr-1">
+                  {orderPlaced.items.map((it, idx) => (
+                    <div
+                      key={idx}
+                      className="py-2 flex items-center justify-between gap-3"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {it.image && (
+                          <img
+                            src={getImageUrl(it.image)}
+                            alt={it.name}
+                            className="w-10 h-10 rounded-md object-contain bg-white border border-[#E2E8F0] p-0.5 shrink-0"
+                          />
+                        )}
+                        <div className="min-w-0">
+                          <p className="font-bold text-[#0F172A] truncate text-xs">
+                            {it.name}
+                          </p>
+                          {it.variantTitle && (
+                            <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#F0F9FB] text-[#007D9C] border border-[#E0F7FC]">
+                              Variant: {it.variantTitle}
+                            </span>
+                          )}
+                          <p className="text-[10px] text-[#64748B] mt-0.5">
+                            Qty: {it.quantity} × {formatCurrency(it.price)}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="font-bold text-[#0F172A] shrink-0 text-xs">
+                        {formatCurrency(it.price * it.quantity)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="pt-2 mt-2 border-t border-[#E2E8F0] space-y-1.5">
               {typeof orderPlaced.subtotalAmount === "number" && (
@@ -1667,14 +1730,18 @@ function CheckoutContent() {
                         <h4 className="text-xs font-bold text-[#0F172A] truncate">
                           {item.name}
                         </h4>
-                        {(item.selectedSize || item.selectedColor) && (
+                        {item.variantTitle ? (
+                          <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#F0F9FB] text-[#007D9C] border border-[#E0F7FC]">
+                            Variant: {item.variantTitle}
+                          </span>
+                        ) : (item.selectedSize || item.selectedColor) ? (
                           <p className="text-[10px] text-[#64748B] mt-0.5">
                             {item.selectedSize && `Size: ${item.selectedSize}`}
                             {item.selectedSize && item.selectedColor && " • "}
                             {item.selectedColor &&
                               `Color: ${item.selectedColor}`}
                           </p>
-                        )}
+                        ) : null}
                         <p className="text-[11px] text-[#64748B]">
                           Qty: {item.quantity} × {formatCurrency(item.price)}
                         </p>

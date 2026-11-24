@@ -9,6 +9,7 @@ export interface CartItem {
   itemUuid?: string // Server cart_item UUID
   productUuid: string
   variantUuid?: string
+  variantTitle?: string
   name: string
   image: string
   price: number
@@ -32,6 +33,7 @@ interface ServerCartItemDTO {
   uuid: string
   product_uuid: string
   variant_uuid?: string
+  variant_title?: string
   product_name: string
   product_slug: string
   product_image?: string
@@ -258,6 +260,7 @@ export const useCartStore = create<CartState>((set, get) => ({
               itemUuid: sItem.uuid,
               productUuid: sItem.product_uuid,
               variantUuid: sItem.variant_uuid || existing?.variantUuid,
+              variantTitle: sItem.variant_title || existing?.variantTitle,
               name: sItem.product_name,
               image: sItem.product_image || existing?.image || '',
               price: sItem.price,
