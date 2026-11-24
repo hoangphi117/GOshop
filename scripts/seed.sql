@@ -483,6 +483,17 @@ ALTER TABLE cart_items
     ADD COLUMN IF NOT EXISTS variant_uuid  UUID,
     ADD COLUMN IF NOT EXISTS variant_title VARCHAR(255);
 
+ALTER TABLE cart_items DROP CONSTRAINT IF EXISTS uk_cart_product;
+DROP INDEX IF EXISTS uk_cart_product;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_cart_product_no_variant
+    ON cart_items (cart_id, product_uuid)
+    WHERE variant_uuid IS NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_cart_product_variant
+    ON cart_items (cart_id, product_uuid, variant_uuid)
+    WHERE variant_uuid IS NOT NULL;
+
 TRUNCATE TABLE cart_items, carts RESTART IDENTITY CASCADE;
 
 -- ##############################################################################
@@ -501,6 +512,17 @@ ALTER TABLE inventory_stocks
 ALTER TABLE stock_movements
     ADD COLUMN IF NOT EXISTS variant_uuid UUID,
     ADD COLUMN IF NOT EXISTS variant_id   INT;
+
+ALTER TABLE inventory_stocks DROP CONSTRAINT IF EXISTS inventory_stocks_product_uuid_key;
+DROP INDEX IF EXISTS inventory_stocks_product_uuid_key;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_inventory_product_no_variant
+    ON inventory_stocks (product_uuid)
+    WHERE variant_uuid IS NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_inventory_product_variant
+    ON inventory_stocks (product_uuid, variant_uuid)
+    WHERE variant_uuid IS NOT NULL;
 
 TRUNCATE TABLE stock_movements, inventory_stocks RESTART IDENTITY CASCADE;
 CREATE EXTENSION IF NOT EXISTS dblink;
