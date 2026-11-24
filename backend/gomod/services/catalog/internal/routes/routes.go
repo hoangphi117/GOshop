@@ -28,13 +28,20 @@ func RegisterRoutes(r *gin.Engine, h *handler.CatalogHandler) {
 		adminProd.POST("/:uuid/restore", h.RestoreProduct)
 		adminProd.DELETE("/:uuid/trash", h.TrashProduct)
 		adminProd.POST("/import-csv", h.ImportProductsCSV)
+		// Variant CRUD (admin)
+		adminProd.GET("/:uuid/variants", h.ListVariants)
+		adminProd.POST("/:uuid/variants", h.CreateVariant)
+		adminProd.PUT("/:uuid/variants/:variantUUID", h.UpdateVariant)
+		adminProd.DELETE("/:uuid/variants/:variantUUID", h.DeleteVariant)
 	}
 
 	// Public Categories
 	pubCat := r.Group("/api/v1/categories")
 	{
 		pubCat.GET("", h.GetAllCategories)
+		pubCat.GET("/tree", h.GetCategoryTree)
 		pubCat.GET("/:slug", h.GetCategoryBySlug)
+		pubCat.GET("/:slug/facets", h.GetCategoryFacets)
 	}
 
 	// Public Products
@@ -49,6 +56,8 @@ func RegisterRoutes(r *gin.Engine, h *handler.CatalogHandler) {
 		pubProd.GET("/suggestions", h.SuggestProducts)
 		pubProd.GET("/:slug", h.GetProductBySlug)
 		pubProd.GET("/uuid/:uuid", h.GetProductByUUID)
+		// Variants (public, active-only by default)
+		pubProd.GET("/uuid/:uuid/variants", h.ListVariants)
 	}
 
 	// Public FAQs

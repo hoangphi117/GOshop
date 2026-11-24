@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { z } from "zod";
 import {
@@ -300,8 +301,7 @@ export default function RegisterPage() {
         setUser({
           uuid: profile?.uuid,
           email: profile?.email || email.trim(),
-          fullName:
-            profile?.full_name || profile?.fullName || fullName.trim(),
+          fullName: profile?.full_name || profile?.fullName || fullName.trim(),
           avatarUrl: profile?.avatar_url || "",
         });
       }
@@ -377,7 +377,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="flex flex-col w-full items-center justify-center relative py-4 sm:py-8 px-4">
+    <div className="flex flex-col w-full items-center justify-center relative py-4 sm:py-2 px-4">
       <div className="w-full max-w-4xl bg-white rounded-2xl shadow-xl shadow-indigo-100/40 overflow-hidden flex flex-col relative transition-all duration-300 border border-[#E2E8F0]">
         {/* Top Decorative Line Stripe */}
         <div className="h-1.5 w-full bg-gradient-to-r from-[#00637C] via-[#4FD2FE] to-[#9F3800]" />
@@ -386,17 +386,6 @@ export default function RegisterPage() {
           {/* SECTION 1: MAIN FORM (LEFT - 7 COLS) */}
           <div className="lg:col-span-7 p-6 sm:p-8 flex flex-col bg-white">
             <div className="flex flex-col items-center mb-6 text-center">
-              <div className="mb-2 h-7 flex items-center justify-center">
-                <span
-                  className="text-2xl font-bold text-[#007D9C] tracking-tight"
-                  style={{
-                    fontFamily: 'var(--font-heading, "Rubik", sans-serif)',
-                  }}
-                >
-                  GO<span className="text-[#F26522]">shop</span>
-                </span>
-              </div>
-
               <h1
                 className="text-2xl font-bold text-[#131B2A] mt-2"
                 style={{

@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import {
   AlertCircle,
   ArrowRight,
@@ -100,13 +101,8 @@ export default function LoginPage() {
       const profile = await fetchStorefrontProfile(accessToken);
 
       const nextUser = {
-        uuid:
-          profile?.uuid ||
-          data.data.user?.uuid,
-        email:
-          profile?.email ||
-          data.data.user?.email ||
-          email,
+        uuid: profile?.uuid || data.data.user?.uuid,
+        email: profile?.email || data.data.user?.email || email,
         fullName:
           profile?.full_name ||
           profile?.fullName ||
@@ -144,19 +140,8 @@ export default function LoginPage() {
       <div className="w-full max-w-[440px] bg-white rounded-2xl shadow-xl shadow-indigo-100/40 overflow-hidden flex flex-col relative transition-all duration-300 border border-[#E2E8F0]">
         <div className="h-1.5 w-full bg-gradient-to-r from-[#00637C] via-[#4FD2FE] to-[#9F3800]" />
 
-        <div className="p-6 sm:p-8 flex flex-col">
-          <div className="flex flex-col items-center mb-6 text-center">
-            <div className="mb-2 h-7 flex items-center justify-center">
-              <span
-                className="text-2xl font-bold text-[#007D9C] tracking-tight"
-                style={{
-                  fontFamily: 'var(--font-heading, "Rubik", sans-serif)',
-                }}
-              >
-                GO<span className="text-[#F26522]">shop</span>
-              </span>
-            </div>
-
+        <div className="p-4 sm:p-6 flex flex-col">
+          <div className="flex flex-col items-center mb-4 text-center">
             <h1
               className="text-2xl font-bold text-[#131B2A] mt-3"
               style={{

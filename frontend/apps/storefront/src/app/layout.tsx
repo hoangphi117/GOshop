@@ -7,9 +7,20 @@ import { ThemeProvider } from "@/providers/theme-provider";
 import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
-  title: "GOshop — Official Gaming Merch, Boss Plushies, Tees & Collectibles",
+  title: {
+    default: "GOshop — Modern Online Shopping & Tech Marketplace",
+    template: "%s | GOshop",
+  },
   description:
-    "Discover authentic game boss plushies, graphic printed gamer tees, and collectible toys with express shipping and 100% genuine guarantee.",
+    "Shop the latest tech gadgets, accessories, electronics, and lifestyle products with genuine warranty, express shipping, and seamless checkout on GOshop.",
+  icons: {
+    icon: [
+      { url: "/favicon.png?v=6", type: "image/png" },
+      { url: "/favicon.ico?v=6" },
+    ],
+    shortcut: "/favicon.png?v=6",
+    apple: "/favicon.png?v=6",
+  },
 };
 
 export default function RootLayout({

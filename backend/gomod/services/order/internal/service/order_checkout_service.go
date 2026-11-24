@@ -110,27 +110,36 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 		}
 	}
 
-	// Validate duplicate products in the order and parse UUIDs
+	// Validate duplicate line items in the order and parse product UUIDs
 	productMapInput := make(map[string]int32)
-	productUUIDs := make([]uuid.UUID, len(input.Items))
-	for i, item := range input.Items {
-		if _, exists := productMapInput[item.ProductUUID]; exists {
+	uniqueProductUUIDMap := make(map[uuid.UUID]struct{})
+	for _, item := range input.Items {
+		itemKey := item.ProductUUID
+		if item.VariantUUID != nil && *item.VariantUUID != "" {
+			itemKey = item.ProductUUID + ":" + *item.VariantUUID
+		}
+		if _, exists := productMapInput[itemKey]; exists {
 			return nil, utils.NewError(utils.ErrCodeBadRequest, "Duplicate product in order")
 		}
-		productMapInput[item.ProductUUID] = item.Quantity
+		productMapInput[itemKey] = item.Quantity
 
 		parsed, err := uuid.Parse(item.ProductUUID)
 		if err != nil {
 			return nil, utils.NewError(utils.ErrCodeBadRequest, "Invalid product UUID: "+item.ProductUUID)
 		}
-		productUUIDs[i] = parsed
+		uniqueProductUUIDMap[parsed] = struct{}{}
+	}
+
+	productUUIDs := make([]uuid.UUID, 0, len(uniqueProductUUIDMap))
+	for pu := range uniqueProductUUIDMap {
+		productUUIDs = append(productUUIDs, pu)
 	}
 
 	productSnapshots, err := s.catalogPort.GetProductsForCheckout(ctx, productUUIDs)
 	if err != nil {
 		return nil, err
 	}
-	if len(productSnapshots) != len(input.Items) {
+	if len(productSnapshots) < len(productUUIDs) {
 		return nil, utils.NewError(utils.ErrCodeNotFound, "One or more products not found")
 	}
 
@@ -141,6 +150,47 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 		}
 		if p.Status != ProductStatusActive {
 			return nil, utils.NewError(utils.ErrCodeBadRequest, "Product is unavailable: "+item.ProductUUID)
+		}
+	}
+
+	// Resolve variant details (price, sku, title, image) if variant_uuid is supplied
+	type resolvedVariantInfo struct {
+		variantUUID  uuid.UUID
+		variantTitle string
+		price        float64
+		sku          string
+		imageURL     *string
+	}
+	resolvedVariants := make(map[int]resolvedVariantInfo) // index in input.Items -> variant info
+
+	for i, item := range input.Items {
+		if item.VariantUUID != nil && strings.TrimSpace(*item.VariantUUID) != "" {
+			vUUID, err := uuid.Parse(strings.TrimSpace(*item.VariantUUID))
+			if err != nil {
+				return nil, utils.NewError(utils.ErrCodeBadRequest, "Invalid variant UUID: "+*item.VariantUUID)
+			}
+			pUUID, _ := uuid.Parse(item.ProductUUID)
+			variants, vErr := s.catalogPort.GetVariantsForCheckout(ctx, pUUID)
+			if vErr != nil {
+				logger.Log.Warn().Err(vErr).Str("product_uuid", item.ProductUUID).Msg("Failed to fetch product variants from catalog")
+			}
+			var matchedVariant *CheckoutVariantSnapshot
+			for vi := range variants {
+				if variants[vi].VariantUUID == vUUID {
+					matchedVariant = &variants[vi]
+					break
+				}
+			}
+			if matchedVariant == nil {
+				return nil, utils.NewError(utils.ErrCodeNotFound, "Product variant not found or unavailable")
+			}
+			resolvedVariants[i] = resolvedVariantInfo{
+				variantUUID:  matchedVariant.VariantUUID,
+				variantTitle: matchedVariant.Title,
+				price:        matchedVariant.Price,
+				sku:          matchedVariant.SKU,
+				imageURL:     matchedVariant.ImageURL,
+			}
 		}
 	}
 
@@ -188,10 +238,16 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 		prodIDToSnapshot := make(map[int32]CheckoutProductSnapshot, len(input.Items))
 		for i, item := range input.Items {
 			p := productSnapshots[item.ProductUUID]
+			price := p.Price
+			name := p.ProductName
+			if rv, ok := resolvedVariants[i]; ok {
+				price = rv.price
+				name = p.ProductName + " (" + rv.variantTitle + ")"
+			}
 			priceInputs[i] = ItemPriceInput{
 				ProductID:   p.ProductID,
-				ProductName: p.ProductName,
-				Price:       p.Price,
+				ProductName: name,
+				Price:       price,
 				Quantity:    item.Quantity,
 			}
 			prodIDToSnapshot[p.ProductID] = p
@@ -246,11 +302,24 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 		createdOrderItems = make([]sqlc.GetOrderItemsByOrderIDRow, len(pricingResult.Items))
 
 		for i, item := range pricingResult.Items {
+			origItem := input.Items[i]
 			snap := prodIDToSnapshot[item.ProductID]
 			purchasedProductIDs[i] = item.ProductID
 			if snap.ProductUUID != uuid.Nil {
 				purchasedProductUUIDStrings = append(purchasedProductUUIDStrings, snap.ProductUUID.String())
 			}
+
+			var variantUUID *uuid.UUID
+			var variantTitle *string
+			itemImg := snap.ProductImageURL
+			if rv, ok := resolvedVariants[i]; ok {
+				variantUUID = &rv.variantUUID
+				variantTitle = &rv.variantTitle
+				if rv.imageURL != nil && *rv.imageURL != "" {
+					itemImg = rv.imageURL
+				}
+			}
+
 			createdItemParams := sqlc.CreateOrderItemParams{
 				OrderItemOrderID:         order.OrderID,
 				OrderItemProductID:       item.ProductID,
@@ -260,8 +329,10 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 				OrderItemSubtotal:        utils.FloatToNumeric(item.Subtotal),
 				OrderItemProductUuid:     snap.ProductUUID,
 				OrderItemProductSlug:     snap.ProductSlug,
-				OrderItemProductImageUrl: snap.ProductImageURL,
+				OrderItemProductImageUrl: itemImg,
 				OrderItemOrderUuid:       order.OrderUuid,
+				OrderItemVariantUuid:     variantUUID,
+				OrderItemVariantTitle:    variantTitle,
 			}
 
 			createdItem, err := s.orderItemStore.Create(txCtx, tx, createdItemParams)
@@ -306,12 +377,15 @@ func (s *checkoutService) CreateOrder(ctx context.Context, userUUID uuid.UUID, i
 				OrderItemCreatedAt:       createdAt,
 				OrderItemProductUuid:     snap.ProductUUID,
 				OrderItemProductSlug:     snap.ProductSlug,
-				OrderItemProductImageUrl: snap.ProductImageURL,
+				OrderItemProductImageUrl: itemImg,
 				OrderItemOrderUuid:       order.OrderUuid,
+				OrderItemVariantUuid:     variantUUID,
+				OrderItemVariantTitle:    variantTitle,
 				ProductUuid:              snap.ProductUUID,
 				ProductSlug:              snap.ProductSlug,
-				ProductImageUrl:          snap.ProductImageURL,
+				ProductImageUrl:          itemImg,
 			}
+			_ = origItem
 		}
 
 		// Record the initial order tracking event

@@ -48,6 +48,19 @@ type Querier interface {
 	UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (Category, error)
 	UpdateProduct(ctx context.Context, arg UpdateProductParams) (UpdateProductRow, error)
 	UpdateProductRating(ctx context.Context, arg UpdateProductRatingParams) error
+
+	// =============================================================================
+	// PRODUCT VARIANTS
+	// =============================================================================
+	CreateVariant(ctx context.Context, arg CreateVariantParams) (ProductVariant, error)
+	GetVariantByUUID(ctx context.Context, variantUuid uuid.UUID) (ProductVariant, error)
+	GetVariantByUUIDForUpdate(ctx context.Context, variantUuid uuid.UUID) (ProductVariant, error)
+	ListVariantsByProductID(ctx context.Context, productID int32) ([]ProductVariant, error)
+	ListActiveVariantsByProductID(ctx context.Context, productID int32) ([]ProductVariant, error)
+	UpdateVariant(ctx context.Context, arg UpdateVariantParams) (ProductVariant, error)
+	DeleteVariant(ctx context.Context, variantUuid uuid.UUID) (ProductVariant, error)
+	GetVariantsByUUIDs(ctx context.Context, uuids []uuid.UUID) ([]ProductVariant, error)
+	CountVariantsByProductID(ctx context.Context, productID int32) (int64, error)
 }
 
 var _ Querier = (*Queries)(nil)

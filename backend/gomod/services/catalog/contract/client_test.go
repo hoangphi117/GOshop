@@ -50,6 +50,9 @@ func (m *mockCatalogService) GetAllCategories(ctx context.Context, activeOnly *b
 	}
 	return []dto.CategoryDTO{{CategoryID: 1, UUID: uuid.New().String(), Name: "Electronics", Slug: "electronics"}}, nil
 }
+func (m *mockCatalogService) GetCategoryTree(ctx context.Context) ([]dto.CategoryDTO, error) {
+	return []dto.CategoryDTO{{CategoryID: 1, UUID: uuid.New().String(), Name: "Electronics", Slug: "electronics"}}, nil
+}
 func (m *mockCatalogService) ListFAQs(ctx context.Context, q *string, limit, offset int32) ([]dto.FAQDTO, error) {
 	return nil, nil
 }
@@ -104,8 +107,11 @@ func (m *mockCatalogService) ValidateProducts(ctx context.Context, uuids []strin
 	}
 	return true, nil, nil
 }
-func (m *mockCatalogService) GetAllProducts(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, orderBy, sort string, page, limit int32, deleted bool) ([]dto.ProductDTO, int32, error) {
+func (m *mockCatalogService) GetAllProducts(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, orderBy, sort string, page, limit int32, deleted bool, specs map[string][]string) ([]dto.ProductDTO, int32, error) {
 	return nil, 0, nil
+}
+func (m *mockCatalogService) GetCategoryFacets(ctx context.Context, categorySlugOrUUID string) (*dto.CategoryFacetsResponseDTO, error) {
+	return nil, nil
 }
 func (m *mockCatalogService) SearchProducts(ctx context.Context, q, categoryUUID string, minPrice, maxPrice, minRating float64, sort string, page, limit int32) ([]dto.ProductDTO, int64, error) {
 	return nil, 0, nil
@@ -130,6 +136,18 @@ func (m *mockCatalogService) TrashProduct(ctx context.Context, u uuid.UUID) erro
 }
 func (m *mockCatalogService) ImportProductsCSV(ctx context.Context, file io.Reader) (*dto.ProductCSVImportResponse, error) {
 	return nil, nil
+}
+func (m *mockCatalogService) CreateVariant(ctx context.Context, productUUID uuid.UUID, input dto.CreateVariantInput) (*dto.ProductVariantDTO, error) {
+	return nil, nil
+}
+func (m *mockCatalogService) GetVariantsByProduct(ctx context.Context, productUUID uuid.UUID, activeOnly bool) ([]dto.ProductVariantDTO, error) {
+	return nil, nil
+}
+func (m *mockCatalogService) UpdateVariant(ctx context.Context, productUUID, variantUUID uuid.UUID, input dto.UpdateVariantInput) (*dto.ProductVariantDTO, error) {
+	return nil, nil
+}
+func (m *mockCatalogService) DeleteVariant(ctx context.Context, productUUID, variantUUID uuid.UUID) error {
+	return nil
 }
 func (m *mockCatalogService) StartOutboxWorker(ctx context.Context) {}
 func (m *mockCatalogService) ProcessOutboxBatch(ctx context.Context) (int, error) {

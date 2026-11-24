@@ -49,3 +49,7 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 )
+
+if (typeof window !== 'undefined') {
+  ;(window as unknown as { __authStore?: typeof useAuthStore }).__authStore = useAuthStore
+}

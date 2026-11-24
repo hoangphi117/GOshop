@@ -22,6 +22,11 @@ import {
   Ghost,
   Shirt,
   Gamepad2,
+  Cable,
+  Headphones,
+  Camera,
+  MonitorSmartphone,
+  House,
 } from "lucide-react";
 import { useMounted } from "@/hooks/use-mounted";
 import { NotificationPopover } from "@/components/layout/notification-popover";
@@ -89,7 +94,10 @@ export function Navbar({ recentSearches = [] }: { recentSearches?: string[] }) {
         if (!current) return;
         const avatarUrl = profile.avatar_url || "";
         const fullName = profile.full_name || current.fullName;
-        if (avatarUrl !== (current.avatarUrl || "") || fullName !== current.fullName) {
+        if (
+          avatarUrl !== (current.avatarUrl || "") ||
+          fullName !== current.fullName
+        ) {
           setUser({ ...current, avatarUrl, fullName });
         }
       })
@@ -131,30 +139,44 @@ export function Navbar({ recentSearches = [] }: { recentSearches?: string[] }) {
     router.push("/login");
   };
 
-  const [apiCategories, setApiCategories] = useState<
-    { name: string; href: string; badge?: string }[]
-  >([]);
+  interface NavCategoryItem {
+    name: string;
+    href: string;
+    badge?: string;
+    children?: { name: string; href: string }[];
+  }
+
+  const [apiCategories, setApiCategories] = useState<NavCategoryItem[]>([]);
 
   useEffect(() => {
     fetch(
-      `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/v1/categories`,
+      `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/v1/categories/tree`,
     )
       .then((res) => (res.ok ? res.json() : null))
       .then((json) => {
         if (json?.data && Array.isArray(json.data)) {
-          const cats = json.data.slice(0, 5).map(
+          const cats = json.data.slice(0, 6).map(
             (
               c: {
                 category_name?: string;
                 name?: string;
                 slug?: string;
                 uuid?: string;
+                children?: Array<{
+                  category_name?: string;
+                  name?: string;
+                  slug?: string;
+                  uuid?: string;
+                }>;
               },
               idx: number,
             ) => ({
               name: c.category_name || c.name || `Category ${idx}`,
               href: `/products?category=${c.slug || c.uuid || idx}`,
-              badge: idx === 0 ? "Popular" : undefined,
+              children: c.children?.map((sub) => ({
+                name: sub.category_name || sub.name || "Subcategory",
+                href: `/products?category=${sub.slug || sub.uuid}`,
+              })),
             }),
           );
           setApiCategories(cats);
@@ -169,6 +191,7 @@ export function Navbar({ recentSearches = [] }: { recentSearches?: string[] }) {
     icon: React.ElementType;
     badge?: string;
     isHighlight?: boolean;
+    children?: { name: string; href: string }[];
   }[] = [
     {
       name: "Smartphones",
@@ -203,18 +226,23 @@ export function Navbar({ recentSearches = [] }: { recentSearches?: string[] }) {
     icon: React.ElementType;
     badge?: string;
     isHighlight?: boolean;
+    children?: { name: string; href: string }[];
   }[] =
     apiCategories.length > 0
       ? apiCategories.map((cat, idx) => ({
           ...cat,
           icon:
             idx === 0
-              ? Ghost
+              ? Cable
               : idx === 1
-                ? Shirt
+                ? Headphones
                 : idx === 2
-                  ? Package
-                  : Gamepad2,
+                  ? Camera
+                  : idx === 3
+                    ? Gamepad2
+                    : idx === 4
+                      ? MonitorSmartphone
+                      : House,
           isHighlight: false,
         }))
       : defaultNavCategories;
@@ -225,10 +253,8 @@ export function Navbar({ recentSearches = [] }: { recentSearches?: string[] }) {
     icon: React.ElementType;
     badge?: string;
     isHighlight?: boolean;
-  }[] = [
-    ...dynamicCategories,
-    { name: "Flash Deals", href: "/#deals", icon: Flame, isHighlight: true },
-  ];
+    children?: { name: string; href: string }[];
+  }[] = [...dynamicCategories];
 
   return (
     <header className="sticky top-0 left-0 right-0 z-40 w-full transition-all duration-200">
@@ -284,15 +310,15 @@ export function Navbar({ recentSearches = [] }: { recentSearches?: string[] }) {
           <div className="flex items-center gap-3 shrink-0">
             <Link
               href="/"
-              className="flex items-center gap-2 group bg-white/95 hover:bg-white rounded-xl px-2.5 py-1 shadow-xs"
+              className="flex items-center gap-2 rounded-xl shadow-xs"
             >
               <Image
-                src="/Logo.svg"
+                src="/navbar_logo.png"
                 alt="GOshop — Official E-commerce Store for Tech Collectors and Developers"
-                width={150}
-                height={38}
+                width={200}
+                height={70}
                 priority
-                className="h-7 sm:h-8 w-auto object-contain"
+                className="h-9 sm:h-12 w-auto object-contain"
               />
             </Link>
           </div>
@@ -352,7 +378,9 @@ export function Navbar({ recentSearches = [] }: { recentSearches?: string[] }) {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <>{user?.fullName ? user.fullName[0].toUpperCase() : "U"}</>
+                      <>
+                        {user?.fullName ? user.fullName[0].toUpperCase() : "U"}
+                      </>
                     )}
                   </div>
                   <div className="hidden sm:flex flex-col text-left">
@@ -457,9 +485,9 @@ export function Navbar({ recentSearches = [] }: { recentSearches?: string[] }) {
       </div>
 
       {/* 3. Category Sub-Navigation Bar (Desktop: Soft Ice Cyan) */}
-      <div className="hidden md:block bg-[#F0F9FB] border-b border-[#D0EDF5] py-2 px-4 sm:px-6 shadow-2xs">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <nav className="flex items-center gap-2 lg:gap-3 overflow-x-auto custom-scrollbar">
+      <div className="hidden md:block bg-[#F0F9FB] border-b border-[#D0EDF5] py-2 px-4 sm:px-6 shadow-2xs relative z-30 overflow-visible">
+        <div className="max-w-7xl mx-auto flex items-center justify-between overflow-visible">
+          <nav className="flex items-center gap-2 lg:gap-3 flex-wrap overflow-visible">
             <Link
               href="/products"
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold bg-[#007D9C] text-white hover:bg-[#00637C] shadow-xs transition-all font-heading shrink-0"
@@ -469,28 +497,61 @@ export function Navbar({ recentSearches = [] }: { recentSearches?: string[] }) {
 
             {navCategories.map((cat, idx) => {
               const Icon = cat.icon;
+              const hasSubcategories = Boolean(
+                cat.children && cat.children.length > 0,
+              );
+
               return (
-                <Link
+                <div
                   key={`${cat.href}-${cat.name}-${idx}`}
-                  href={cat.href}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all font-body shrink-0 ${
-                    cat.isHighlight
-                      ? "text-[#F26522] hover:bg-orange-50 font-bold"
-                      : "text-[#005F73] hover:text-[#007D9C] hover:bg-white/80"
-                  }`}
+                  className="relative group shrink-0"
                 >
-                  <Icon
-                    className={`w-3.5 h-3.5 ${
-                      cat.isHighlight ? "text-[#F26522]" : "text-[#007D9C]"
+                  <Link
+                    href={cat.href}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all font-body ${
+                      cat.isHighlight
+                        ? "text-[#F26522] hover:bg-orange-50 font-bold"
+                        : "text-[#005F73] hover:text-[#007D9C] hover:bg-white/80"
                     }`}
-                  />
-                  <span>{cat.name}</span>
-                  {cat.badge && (
-                    <span className="text-[9px] font-bold bg-[#BAEAFF] text-[#004D62] px-2 py-0.5 rounded-full">
-                      {cat.badge}
-                    </span>
+                  >
+                    <Icon
+                      className={`w-3.5 h-3.5 ${
+                        cat.isHighlight ? "text-[#F26522]" : "text-[#007D9C]"
+                      }`}
+                    />
+                    <span>{cat.name}</span>
+                    {hasSubcategories && (
+                      <ChevronDown className="w-3 h-3 text-[#005F73] group-hover:rotate-180 transition-transform duration-200" />
+                    )}
+                    {cat.badge && (
+                      <span className="text-[9px] font-bold bg-[#BAEAFF] text-[#004D62] px-2 py-0.5 rounded-full">
+                        {cat.badge}
+                      </span>
+                    )}
+                  </Link>
+
+                  {/* Mega Dropdown for Subcategories */}
+                  {hasSubcategories && (
+                    <div className="absolute left-0 top-full pt-1.5 hidden group-hover:block z-50 min-w-[200px] animate-in fade-in-0 zoom-in-95 duration-150">
+                      <div className="bg-white rounded-md shadow-xl border border-[#D0EDF5] p-2">
+                        <div className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider font-heading">
+                          {cat.name}
+                        </div>
+                        <div className="py-1 space-y-0.5">
+                          {cat.children?.map((sub) => (
+                            <Link
+                              key={sub.href}
+                              href={sub.href}
+                              className="flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium text-slate-700 hover:text-[#007D9C] hover:bg-[#F0F9FB] transition-colors"
+                            >
+                              <span>{sub.name}</span>
+                            </Link>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   )}
-                </Link>
+                </div>
               );
             })}
           </nav>
@@ -513,19 +574,47 @@ export function Navbar({ recentSearches = [] }: { recentSearches?: string[] }) {
               <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 font-heading">
                 Shop Collections
               </p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2">
                 {navCategories.map((cat, idx) => {
                   const Icon = cat.icon;
                   return (
-                    <Link
+                    <div
                       key={`mobile-${cat.href}-${cat.name}-${idx}`}
-                      href={cat.href}
-                      onClick={() => setMobileMenuOpen(false)}
-                      className="p-3 rounded-xl bg-slate-50 hover:bg-[#E6F7FB] border border-slate-200/80 flex items-center gap-2.5 text-xs font-bold text-slate-800"
+                      className="space-y-1"
                     >
-                      <Icon className="w-4 h-4 text-[#00ADD8]" />
-                      <span className="truncate">{cat.name}</span>
-                    </Link>
+                      <Link
+                        href={cat.href}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="p-2.5 rounded-xl bg-slate-50 hover:bg-[#E6F7FB] border border-slate-200/80 flex items-center justify-between text-xs font-bold text-slate-800"
+                      >
+                        <div className="flex items-center gap-2.5 truncate">
+                          <Icon className="w-4 h-4 text-[#00ADD8] shrink-0" />
+                          <span className="truncate">{cat.name}</span>
+                        </div>
+                        {cat.badge && (
+                          <span className="text-[9px] font-bold bg-[#BAEAFF] text-[#004D62] px-2 py-0.5 rounded-full shrink-0">
+                            {cat.badge}
+                          </span>
+                        )}
+                      </Link>
+                      {cat.children && cat.children.length > 0 && (
+                        <div className="pl-4 pr-1 py-1 space-y-1">
+                          {cat.children.map((sub) => (
+                            <Link
+                              key={`mobile-sub-${sub.href}`}
+                              href={sub.href}
+                              onClick={() => setMobileMenuOpen(false)}
+                              className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-100 text-xs font-medium text-slate-600 hover:text-[#007D9C]"
+                            >
+                              <span>{sub.name}</span>
+                              <span className="text-[10px] text-slate-400">
+                                ↳
+                              </span>
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>

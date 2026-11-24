@@ -131,24 +131,67 @@ ANALYZE user_addresses;
 
 \connect shopping_catalog
 
-TRUNCATE TABLE outbox_events, products, categories RESTART IDENTITY CASCADE;
+TRUNCATE TABLE outbox_events, product_variants, products, categories RESTART IDENTITY CASCADE;
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
--- 1. CATEGORIES
+-- 1. CATEGORIES (8 Roots + 24 Subcategories)
 -- ==============================================================================
-INSERT INTO categories (category_id, category_uuid, category_name, category_slug, category_description, category_status, category_created_at, category_updated_at)
+INSERT INTO categories (category_id, category_uuid, category_name, category_slug, category_description, category_status, parent_id, category_level, category_created_at, category_updated_at)
 OVERRIDING SYSTEM VALUE VALUES
-(1, gen_random_uuid(), 'Smartphones & Tablets', 'smartphones-tablets', 'High-end flagship smartphones, tablets, and mobile devices from top global brands.', 1, now() - interval '90 days', now()),
-(2, gen_random_uuid(), 'Laptops & Computers', 'laptops-computers', 'Ultralight laptops, gaming rigs, workstations, and high-performance PC components.', 1, now() - interval '90 days', now()),
-(3, gen_random_uuid(), 'Audio & Sound', 'audio-sound', 'Wireless earbuds, noise-cancelling headphones, soundbars, and premium speakers.', 1, now() - interval '90 days', now()),
-(4, gen_random_uuid(), 'Smartwatches & Wearables', 'smartwatches-wearables', 'Next-generation fitness trackers, luxury smartwatches, and smart health wearables.', 1, now() - interval '90 days', now()),
-(5, gen_random_uuid(), 'Gaming & Consoles', 'gaming-consoles', 'Next-gen consoles, mechanical gaming keyboards, mice, and immersive accessories.', 1, now() - interval '90 days', now()),
-(6, gen_random_uuid(), 'Cameras & Photography', 'cameras-photography', 'Mirrorless cameras, 4K action cams, studio lighting, and pro lenses.', 1, now() - interval '90 days', now()),
-(7, gen_random_uuid(), 'Smart Home & Appliances', 'smart-home-appliances', 'Robot vacuums, smart air purifiers, intelligent lighting, and home automation.', 1, now() - interval '90 days', now()),
-(8, gen_random_uuid(), 'Accessories & Cables', 'accessories-cables', 'Fast chargers, GaN power adapters, braided cables, power banks, and hubs.', 1, now() - interval '90 days', now());
+-- Root Categories (Level 1)
+(1, gen_random_uuid(), 'Smartphones & Tablets', 'smartphones-tablets', 'High-end flagship smartphones, tablets, and mobile devices from top global brands.', 1, NULL, 1, now() - interval '90 days', now()),
+(2, gen_random_uuid(), 'Laptops & Computers', 'laptops-computers', 'Ultralight laptops, gaming rigs, workstations, and high-performance PC components.', 1, NULL, 1, now() - interval '90 days', now()),
+(3, gen_random_uuid(), 'Audio & Sound', 'audio-sound', 'Wireless earbuds, noise-cancelling headphones, soundbars, and premium speakers.', 1, NULL, 1, now() - interval '90 days', now()),
+(4, gen_random_uuid(), 'Smartwatches & Wearables', 'smartwatches-wearables', 'Next-generation fitness trackers, luxury smartwatches, and smart health wearables.', 1, NULL, 1, now() - interval '90 days', now()),
+(5, gen_random_uuid(), 'Gaming & Consoles', 'gaming-consoles', 'Next-gen consoles, mechanical gaming keyboards, mice, and immersive accessories.', 1, NULL, 1, now() - interval '90 days', now()),
+(6, gen_random_uuid(), 'Cameras & Photography', 'cameras-photography', 'Mirrorless cameras, 4K action cams, studio lighting, and pro lenses.', 1, NULL, 1, now() - interval '90 days', now()),
+(7, gen_random_uuid(), 'Smart Home & Appliances', 'smart-home-appliances', 'Robot vacuums, smart air purifiers, intelligent lighting, and home automation.', 1, NULL, 1, now() - interval '90 days', now()),
+(8, gen_random_uuid(), 'Accessories & Cables', 'accessories-cables', 'Fast chargers, GaN power adapters, braided cables, power banks, and hubs.', 1, NULL, 1, now() - interval '90 days', now()),
+
+-- Subcategories (Level 2)
+-- Under 1: Smartphones & Tablets
+(9, gen_random_uuid(), 'Flagship Smartphones', 'flagship-smartphones', 'Top-tier performance and premium camera smartphones.', 1, 1, 2, now() - interval '85 days', now()),
+(10, gen_random_uuid(), 'Tablets & iPads', 'tablets-ipads', 'High-resolution creative and productivity tablets.', 1, 1, 2, now() - interval '85 days', now()),
+(11, gen_random_uuid(), 'Budget & Midrange Phones', 'budget-midrange-phones', 'Balanced everyday performance and reliable battery.', 1, 1, 2, now() - interval '85 days', now()),
+
+-- Under 2: Laptops & Computers
+(12, gen_random_uuid(), 'Gaming Laptops', 'gaming-laptops', 'High-FPS rigs with dedicated RTX graphics and high-refresh screens.', 1, 2, 2, now() - interval '85 days', now()),
+(13, gen_random_uuid(), 'Ultrabooks & Thin Laptops', 'ultrabooks-thin-laptops', 'Featherweight premium laptops for on-the-go professionals.', 1, 2, 2, now() - interval '85 days', now()),
+(14, gen_random_uuid(), 'Workstations & Mini PCs', 'workstations-mini-pcs', 'Heavy compute, 3D rendering and software development workstations.', 1, 2, 2, now() - interval '85 days', now()),
+
+-- Under 3: Audio & Sound
+(15, gen_random_uuid(), 'Over-Ear Headphones', 'over-ear-headphones', 'Active noise cancelling studio headphones.', 1, 3, 2, now() - interval '85 days', now()),
+(16, gen_random_uuid(), 'True Wireless Earbuds', 'true-wireless-earbuds', 'Compact Bluetooth earbuds with charging case.', 1, 3, 2, now() - interval '85 days', now()),
+(17, gen_random_uuid(), 'Bluetooth & Hi-Fi Speakers', 'bluetooth-hifi-speakers', 'High fidelity room-filling audio speakers.', 1, 3, 2, now() - interval '85 days', now()),
+
+-- Under 4: Smartwatches & Wearables
+(18, gen_random_uuid(), 'Fitness & Sport Watches', 'fitness-sport-watches', 'Rugged GPS and biometric tracking watches.', 1, 4, 2, now() - interval '85 days', now()),
+(19, gen_random_uuid(), 'Luxury Smartwatches', 'luxury-smartwatches', 'Titanium and sapphire cellular smartwatches.', 1, 4, 2, now() - interval '85 days', now()),
+(20, gen_random_uuid(), 'Health & Sleep Bands', 'health-sleep-bands', 'Discrete lightweight activity monitors.', 1, 4, 2, now() - interval '85 days', now()),
+
+-- Under 5: Gaming & Consoles
+(21, gen_random_uuid(), 'Gaming Consoles', 'gaming-consoles-systems', 'Next-generation TV and handheld video game consoles.', 1, 5, 2, now() - interval '85 days', now()),
+(22, gen_random_uuid(), 'Mechanical Keyboards', 'mechanical-keyboards', 'Custom hot-swappable switches and aluminum mechanical boards.', 1, 5, 2, now() - interval '85 days', now()),
+(23, gen_random_uuid(), 'Gaming Mice & Peripherals', 'gaming-mice-peripherals', 'Ultra-lightweight optical sensors and esports mice.', 1, 5, 2, now() - interval '85 days', now()),
+
+-- Under 6: Cameras & Photography
+(24, gen_random_uuid(), 'Mirrorless & DSLR Cameras', 'mirrorless-dslr-cameras', 'Full-frame and APS-C 4K/8K interchangeable lens cameras.', 1, 6, 2, now() - interval '85 days', now()),
+(25, gen_random_uuid(), 'Action & Vlogging Cams', 'action-vlogging-cams', 'Gimbal stabilized 4K action cameras and content creator gear.', 1, 6, 2, now() - interval '85 days', now()),
+(26, gen_random_uuid(), 'Lenses & Studio Lighting', 'lenses-studio-lighting', 'Prime lenses, softboxes and studio recording kits.', 1, 6, 2, now() - interval '85 days', now()),
+
+-- Under 7: Smart Home & Appliances
+(27, gen_random_uuid(), 'Robot Vacuums & Mops', 'robot-vacuums-mops', 'Automated laser-guided vacuuming and mopping robots.', 1, 7, 2, now() - interval '85 days', now()),
+(28, gen_random_uuid(), 'Air Purifiers & Climate', 'air-purifiers-climate', 'HEPA filtered air cleaners and temperature controllers.', 1, 7, 2, now() - interval '85 days', now()),
+(29, gen_random_uuid(), 'Smart Lighting & Home Hubs', 'smart-lighting-home-hubs', 'Full RGB ambient home automation lighting.', 1, 7, 2, now() - interval '85 days', now()),
+
+-- Under 8: Accessories & Cables
+(30, gen_random_uuid(), 'GaN Fast Chargers', 'gan-fast-chargers', 'High wattage multi-port PD chargers for phones and laptops.', 1, 8, 2, now() - interval '85 days', now()),
+(31, gen_random_uuid(), 'High-Capacity Power Banks', 'high-capacity-power-banks', 'Portable batteries with laptop fast-charging output.', 1, 8, 2, now() - interval '85 days', now()),
+(32, gen_random_uuid(), 'Braided Cables & Hubs', 'braided-cables-hubs', 'Thunderbolt and USB-C multiport docks and heavy-duty cables.', 1, 8, 2, now() - interval '85 days', now());
 
 SELECT setval('categories_category_id_seq', (SELECT MAX(category_id) FROM categories), true);
+
 
 -- ==============================================================================
 -- 2. PRODUCTS (5000 generated products across 8 categories)
@@ -159,60 +202,57 @@ SELECT setval('categories_category_id_seq', (SELECT MAX(category_id) FROM catego
 -- (product_name, category) and unique slug/sku without collisions.
 -- ==============================================================================
 
-INSERT INTO products (product_id, product_uuid, product_name, product_slug, product_description, product_price, product_sku, product_category_id, product_image_url, product_status, product_avg_rating, product_review_count, product_created_at, product_updated_at)
+INSERT INTO products (product_id, product_uuid, product_name, product_slug, product_description, product_price, product_sku, product_category_id, product_image_url, product_status, product_avg_rating, product_review_count, product_specifications, product_created_at, product_updated_at)
 OVERRIDING SYSTEM VALUE VALUES
--- Category 1: Smartphones
-(1, gen_random_uuid(), 'iPhone 16 Pro Max 256GB Titanium', 'iphone-16-pro-max-256gb', 'Apple A18 Pro chip, 6.9-inch Super Retina XDR display, Grade 5 titanium design, 48MP Fusion camera system with 5x telephoto.', 34990000.00, 'IPH16PM-256-TI', 1, 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=800', 1, 4.9, 12, now() - interval '60 days', now()),
-(2, gen_random_uuid(), 'Samsung Galaxy S24 Ultra 512GB Titanium Gray', 'samsung-galaxy-s24-ultra-512gb', 'Snapdragon 8 Gen 3 for Galaxy, Galaxy AI built-in, 200MP camera, Quad Tele System, Titanium frame with embedded S Pen.', 31990000.00, 'SGS24U-512-TG', 1, 'https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=800', 1, 4.8, 10, now() - interval '55 days', now()),
-(3, gen_random_uuid(), 'Xiaomi 14 Ultra 512GB Leica Edition', 'xiaomi-14-ultra-512gb-leica', 'Snapdragon 8 Gen 3, All Around Liquid Display, Leica quad-camera setup with 1-inch sensor, 90W HyperCharge wired + 80W wireless.', 27990000.00, 'XM14U-512-BLK', 1, 'https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=800', 1, 4.7, 8, now() - interval '50 days', now()),
-(4, gen_random_uuid(), 'Google Pixel 9 Pro XL 256GB Obsidian', 'google-pixel-9-pro-xl-256gb', 'Google Tensor G4 with Gemini Nano, Super Actua display, triple pro camera system with 30x Super Res Zoom, 7 years of OS updates.', 28490000.00, 'PIX9PXL-256-OB', 1, 'https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?w=800', 1, 4.8, 6, now() - interval '45 days', now()),
-(5, gen_random_uuid(), 'iPad Pro 13-inch M4 Ultra Retina OLED', 'ipad-pro-13-inch-m4-oled', 'Breakthrough Apple M4 chip, Ultra Retina XDR with Tandem OLED technology, 5.1mm ultra-thin enclosure, Apple Pencil Pro support.', 37990000.00, 'IPP13-M4-256-SLV', 1, 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=800', 1, 4.9, 5, now() - interval '40 days', now()),
-(6, gen_random_uuid(), 'Samsung Galaxy Tab S9 Ultra 256GB 5G', 'samsung-galaxy-tab-s9-ultra-5g', '14.6-inch Dynamic AMOLED 2X 120Hz display, IP68 water & dust resistance, Snapdragon 8 Gen 2, included S Pen with ultra-low latency.', 25990000.00, 'SGT-S9U-256-GR', 1, 'https://images.unsplash.com/photo-1561154464-82e9adf32764?w=800', 1, 4.6, 4, now() - interval '35 days', now()),
+-- Category 1: Smartphones & Tablets
+(1, gen_random_uuid(), 'iPhone 16 Pro Max 256GB Titanium', 'iphone-16-pro-max-256gb', 'Apple A18 Pro chip, 6.9-inch Super Retina XDR display, Grade 5 titanium design, 48MP Fusion camera system with 5x telephoto.', 34990000.00, 'IPH16PM-256-TI', 9, 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=800', 1, 4.9, 12, '{"CPU": "Apple A18 Pro", "RAM": "8GB", "Storage": "256GB", "Screen": "6.9-inch Super Retina XDR OLED 120Hz", "Camera": "48MP Fusion 5x Telephoto", "Battery": "4685mAh"}'::jsonb, now() - interval '60 days', now()),
+(2, gen_random_uuid(), 'Samsung Galaxy S24 Ultra 512GB Titanium Gray', 'samsung-galaxy-s24-ultra-512gb', 'Snapdragon 8 Gen 3 for Galaxy, Galaxy AI built-in, 200MP camera, Quad Tele System, Titanium frame with embedded S Pen.', 31990000.00, 'SGS24U-512-TG', 9, 'https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=800', 1, 4.8, 10, '{"CPU": "Snapdragon 8 Gen 3 for Galaxy", "RAM": "12GB", "Storage": "512GB", "Screen": "6.8-inch Dynamic AMOLED 2X 120Hz", "Camera": "200MP Quad Tele", "Battery": "5000mAh"}'::jsonb, now() - interval '55 days', now()),
+(3, gen_random_uuid(), 'Xiaomi 14 Ultra 512GB Leica Edition', 'xiaomi-14-ultra-512gb-leica', 'Snapdragon 8 Gen 3, All Around Liquid Display, Leica quad-camera setup with 1-inch sensor, 90W HyperCharge wired + 80W wireless.', 27990000.00, 'XM14U-512-BLK', 9, 'https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=800', 1, 4.7, 8, '{"CPU": "Snapdragon 8 Gen 3", "RAM": "16GB", "Storage": "512GB", "Screen": "6.73-inch AMOLED 120Hz", "Camera": "Leica Quad 1-inch 50MP", "Battery": "5000mAh"}'::jsonb, now() - interval '50 days', now()),
+(4, gen_random_uuid(), 'Google Pixel 9 Pro XL 256GB Obsidian', 'google-pixel-9-pro-xl-256gb', 'Google Tensor G4 with Gemini Nano, Super Actua display, triple pro camera system with 30x Super Res Zoom, 7 years of OS updates.', 28490000.00, 'PIX9PXL-256-OB', 9, 'https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?w=800', 1, 4.8, 6, '{"CPU": "Google Tensor G4", "RAM": "16GB", "Storage": "256GB", "Screen": "6.8-inch Super Actua OLED", "Camera": "50MP Triple Pro", "Battery": "5060mAh"}'::jsonb, now() - interval '45 days', now()),
+(5, gen_random_uuid(), 'iPad Pro 13-inch M4 Ultra Retina OLED', 'ipad-pro-13-inch-m4-oled', 'Breakthrough Apple M4 chip, Ultra Retina XDR with Tandem OLED technology, 5.1mm ultra-thin enclosure, Apple Pencil Pro support.', 37990000.00, 'IPP13-M4-256-SLV', 10, 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=800', 1, 4.9, 5, '{"CPU": "Apple M4", "RAM": "8GB", "Storage": "256GB", "Screen": "13-inch Ultra Retina Tandem OLED", "Camera": "12MP Wide LiDAR", "Battery": "38.99Wh"}'::jsonb, now() - interval '40 days', now()),
+(6, gen_random_uuid(), 'Samsung Galaxy Tab S9 Ultra 256GB 5G', 'samsung-galaxy-tab-s9-ultra-5g', '14.6-inch Dynamic AMOLED 2X 120Hz display, IP68 water & dust resistance, Snapdragon 8 Gen 2, included S Pen with ultra-low latency.', 25990000.00, 'SGT-S9U-256-GR', 10, 'https://images.unsplash.com/photo-1561154464-82e9adf32764?w=800', 1, 4.6, 4, '{"CPU": "Snapdragon 8 Gen 2", "RAM": "12GB", "Storage": "256GB", "Screen": "14.6-inch Dynamic AMOLED 2X 120Hz", "Battery": "11200mAh"}'::jsonb, now() - interval '35 days', now()),
 
 -- Category 2: Laptops & Computers
-(7, gen_random_uuid(), 'MacBook Pro 16-inch M3 Max 36GB / 1TB Space Black', 'macbook-pro-16-m3-max-36gb', '16-core CPU, 40-core GPU, Liquid Retina XDR display with ProMotion 120Hz, up to 22 hours battery life, hardware ray tracing.', 89990000.00, 'MBP16-M3MAX-1TB', 2, 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800', 1, 5.0, 7, now() - interval '50 days', now()),
-(8, gen_random_uuid(), 'Dell XPS 16 OLED 9640 Core Ultra 9 / RTX 4070', 'dell-xps-16-oled-9640-core-ultra-9', 'Intel Core Ultra 9 185H, 32GB LPDDR5x, 1TB SSD, 16.3-inch 4K+ OLED Touch display, CNC machined aluminum chassis.', 68500000.00, 'DELL-XPS16-9640', 2, 'https://images.unsplash.com/photo-1593642632823-8f785ba67e45?w=800', 1, 4.7, 5, now() - interval '45 days', now()),
-(9, gen_random_uuid(), 'ASUS ROG Zephyrus G16 OLED Ryzen AI 9 / RTX 4080', 'asus-rog-zephyrus-g16-oled-2024', 'AMD Ryzen AI 9 HX 370, 32GB LPDDR5X, 2TB PCIe 4.0 NVMe, 2.5K 240Hz ROG Nebula OLED, Slash Lighting CNC unibody.', 72990000.00, 'ROG-G16-GA605', 2, 'https://images.unsplash.com/photo-1603302576837-37561b2e2302?w=800', 1, 4.8, 9, now() - interval '40 days', now()),
-(10, gen_random_uuid(), 'MacBook Air 15-inch M3 16GB / 512GB Midnight', 'macbook-air-15-m3-16gb-512gb', 'Incredibly thin, fanless silent operation, Liquid Retina display, MagSafe 3 charging, dual USB-C Thunderbolt 4 ports.', 36990000.00, 'MBA15-M3-16-512', 2, 'https://images.unsplash.com/photo-1611186871348-b1ce696e52c9?w=800', 1, 4.9, 11, now() - interval '38 days', now()),
-(11, gen_random_uuid(), 'Lenovo ThinkPad X1 Carbon Gen 12 Core Ultra 7', 'lenovo-thinkpad-x1-carbon-gen12', 'Intel Core Ultra 7 155H, 32GB RAM, 1TB SSD, 2.8K OLED Display, legendary ergonomic TrackPoint keyboard, MIL-STD 810H certified.', 54900000.00, 'TP-X1C-G12-U7', 2, 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=800', 1, 4.7, 4, now() - interval '32 days', now()),
+(7, gen_random_uuid(), 'MacBook Pro 16-inch M3 Max 36GB / 1TB Space Black', 'macbook-pro-16-m3-max-36gb', '16-core CPU, 40-core GPU, Liquid Retina XDR display with ProMotion 120Hz, up to 22 hours battery life, hardware ray tracing.', 89990000.00, 'MBP16-M3MAX-1TB', 14, 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800', 1, 5.0, 7, '{"CPU": "Apple M3 Max 16-Core", "RAM": "36GB Unified", "Storage": "1TB SSD", "GPU": "40-Core GPU", "Screen": "16.2-inch Liquid Retina XDR", "Weight": "2.16kg"}'::jsonb, now() - interval '50 days', now()),
+(8, gen_random_uuid(), 'Dell XPS 16 OLED 9640 Core Ultra 9 / RTX 4070', 'dell-xps-16-oled-9640-core-ultra-9', 'Intel Core Ultra 9 185H, 32GB LPDDR5x, 1TB SSD, 16.3-inch 4K+ OLED Touch display, CNC machined aluminum chassis.', 68500000.00, 'DELL-XPS16-9640', 13, 'https://images.unsplash.com/photo-1593642632823-8f785ba67e45?w=800', 1, 4.7, 5, '{"CPU": "Intel Core Ultra 9 185H", "RAM": "32GB LPDDR5x", "Storage": "1TB PCIe NVMe", "GPU": "NVIDIA RTX 4070 8GB", "Screen": "16.3-inch 4K+ OLED Touch", "Weight": "2.2kg"}'::jsonb, now() - interval '45 days', now()),
+(9, gen_random_uuid(), 'ASUS ROG Zephyrus G16 OLED Ryzen AI 9 / RTX 4080', 'asus-rog-zephyrus-g16-oled-2024', 'AMD Ryzen AI 9 HX 370, 32GB LPDDR5X, 2TB PCIe 4.0 NVMe, 2.5K 240Hz ROG Nebula OLED, Slash Lighting CNC unibody.', 72990000.00, 'ROG-G16-GA605', 12, 'https://images.unsplash.com/photo-1603302576837-37561b2e2302?w=800', 1, 4.8, 9, '{"CPU": "AMD Ryzen AI 9 HX 370", "RAM": "32GB LPDDR5X", "Storage": "2TB PCIe 4.0", "GPU": "NVIDIA RTX 4080 12GB", "Screen": "16-inch 2.5K 240Hz ROG Nebula OLED", "Weight": "1.85kg"}'::jsonb, now() - interval '40 days', now()),
+(10, gen_random_uuid(), 'MacBook Air 15-inch M3 16GB / 512GB Midnight', 'macbook-air-15-m3-16gb-512gb', 'Incredibly thin, fanless silent operation, Liquid Retina display, MagSafe 3 charging, dual USB-C Thunderbolt 4 ports.', 36990000.00, 'MBA15-M3-16-512', 13, 'https://images.unsplash.com/photo-1611186871348-b1ce696e52c9?w=800', 1, 4.9, 11, '{"CPU": "Apple M3 8-Core", "RAM": "16GB Unified", "Storage": "512GB SSD", "Screen": "15.3-inch Liquid Retina", "Weight": "1.51kg", "Battery": "Up to 18 Hours"}'::jsonb, now() - interval '38 days', now()),
+(11, gen_random_uuid(), 'Lenovo ThinkPad X1 Carbon Gen 12 Core Ultra 7', 'lenovo-thinkpad-x1-carbon-gen12', 'Intel Core Ultra 7 155H, 32GB RAM, 1TB SSD, 2.8K OLED Display, legendary ergonomic TrackPoint keyboard, MIL-STD 810H certified.', 54900000.00, 'TP-X1C-G12-U7', 13, 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=800', 1, 4.7, 4, '{"CPU": "Intel Core Ultra 7 155H", "RAM": "32GB LPDDR5x", "Storage": "1TB NVMe", "Screen": "14-inch 2.8K OLED 120Hz", "Weight": "1.09kg"}'::jsonb, now() - interval '32 days', now()),
 
 -- Category 3: Audio & Sound
-(12, gen_random_uuid(), 'Sony WH-1000XM5 Wireless Noise Cancelling Headphones', 'sony-wh-1000xm5-wireless-black', 'Industry-leading noise cancellation with 8 mics and Auto NC Optimizer, LDAC High-Res audio, 30 hours battery life with quick charging.', 7990000.00, 'SONY-WH1000XM5-B', 3, 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800', 1, 4.8, 15, now() - interval '60 days', now()),
-(13, gen_random_uuid(), 'Apple AirPods Pro 2 USB-C with MagSafe Case', 'apple-airpods-pro-2-usb-c', 'Apple H2 chip, Pro-level Active Noise Cancellation, Adaptive Audio, Transparency mode, Personalized Spatial Audio with dynamic head tracking.', 5890000.00, 'APP2-USBC-WHT', 3, 'https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?w=800', 1, 4.9, 18, now() - interval '55 days', now()),
-(14, gen_random_uuid(), 'Bose QuietComfort Ultra Headphones Spatial Audio', 'bose-quietcomfort-ultra-headphones', 'CustomTune technology, world-class noise cancelling, Bose Immersive Audio, luxurious ultra-soft protein leather ear cushions.', 9490000.00, 'BOSE-QCU-BLK', 3, 'https://images.unsplash.com/photo-1546435770-a3e426bf472b?w=800', 1, 4.7, 8, now() - interval '42 days', now()),
-(15, gen_random_uuid(), 'Marshall Stanmore III Bluetooth Home Speaker', 'marshall-stanmore-iii-bluetooth-black', 'Iconic vintage Marshall design, room-filling stereo soundstage, Dynamic Loudness, Bluetooth 5.2, 3.5mm AUX & RCA inputs.', 8990000.00, 'MARSH-STAN3-BLK', 3, 'https://images.unsplash.com/photo-1545454675-3531b543be5d?w=800', 1, 4.9, 10, now() - interval '40 days', now()),
-(16, gen_random_uuid(), 'Sennheiser Momentum True Wireless 4 Earbuds', 'sennheiser-momentum-tw-4-copper', 'TrueResponse transducer system, Lossless audio with aptX Adaptive, Auracast support, Adaptive ANC with smart anti-wind mode.', 7490000.00, 'SENN-MTW4-COP', 3, 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=800', 1, 4.6, 6, now() - interval '30 days', now()),
+(12, gen_random_uuid(), 'Sony WH-1000XM5 Wireless Noise Cancelling Headphones', 'sony-wh-1000xm5-wireless-black', 'Industry-leading noise cancellation with 8 mics and Auto NC Optimizer, LDAC High-Res audio, 30 hours battery life with quick charging.', 7990000.00, 'SONY-WH1000XM5-B', 15, 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800', 1, 4.8, 15, '{"Battery": "30 Hours ANC On", "Connectivity": "Bluetooth 5.2 / LDAC", "ANC": "Integrated Processor V1 + QN1", "Weight": "250g"}'::jsonb, now() - interval '60 days', now()),
+(13, gen_random_uuid(), 'Apple AirPods Pro 2 USB-C with MagSafe Case', 'apple-airpods-pro-2-usb-c', 'Apple H2 chip, Pro-level Active Noise Cancellation, Adaptive Audio, Transparency mode, Personalized Spatial Audio with dynamic head tracking.', 5890000.00, 'APP2-USBC-WHT', 16, 'https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?w=800', 1, 4.9, 18, '{"Battery": "Up to 30 Hours with Case", "Chip": "Apple H2", "ANC": "2x More Active Noise Cancellation", "Connectivity": "Bluetooth 5.3", "Water Resistance": "IP54"}'::jsonb, now() - interval '55 days', now()),
+(14, gen_random_uuid(), 'Bose QuietComfort Ultra Headphones Spatial Audio', 'bose-quietcomfort-ultra-headphones', 'CustomTune technology, world-class noise cancelling, Bose Immersive Audio, luxurious ultra-soft protein leather ear cushions.', 9490000.00, 'BOSE-QCU-BLK', 15, 'https://images.unsplash.com/photo-1546435770-a3e426bf472b?w=800', 1, 4.7, 8, '{"Battery": "24 Hours", "Connectivity": "Bluetooth 5.3 / Multipoint", "Audio Mode": "Bose Immersive Spatial Audio", "Weight": "252g"}'::jsonb, now() - interval '42 days', now()),
+(15, gen_random_uuid(), 'Marshall Stanmore III Bluetooth Home Speaker', 'marshall-stanmore-iii-bluetooth-black', 'Iconic vintage Marshall design, room-filling stereo soundstage, Dynamic Loudness, Bluetooth 5.2, 3.5mm AUX & RCA inputs.', 8990000.00, 'MARSH-STAN3-BLK', 17, 'https://images.unsplash.com/photo-1545454675-3531b543be5d?w=800', 1, 4.9, 10, '{"Power Output": "80W RMS", "Connectivity": "Bluetooth 5.2, 3.5mm AUX, RCA", "Frequency Range": "45–20,000Hz", "Weight": "4.25kg"}'::jsonb, now() - interval '40 days', now()),
+(16, gen_random_uuid(), 'Sennheiser Momentum True Wireless 4 Earbuds', 'sennheiser-momentum-tw-4-copper', 'TrueResponse transducer system, Lossless audio with aptX Adaptive, Auracast support, Adaptive ANC with smart anti-wind mode.', 7490000.00, 'SENN-MTW4-COP', 16, 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=800', 1, 4.6, 6, '{"Battery": "30 Hours total", "Connectivity": "Bluetooth 5.4, Auracast, aptX Lossless", "ANC": "Adaptive Noise Cancellation", "Water Resistance": "IP54"}'::jsonb, now() - interval '30 days', now()),
 
 -- Category 4: Smartwatches & Wearables
-(17, gen_random_uuid(), 'Apple Watch Ultra 2 GPS + Cellular 49mm Titanium', 'apple-watch-ultra-2-49mm-titanium', 'S9 SiP chip, 3000 nits brightness, dual-frequency precision GPS, 36 hours normal battery (up to 72 hrs Low Power), 100m water resistant.', 21490000.00, 'AWU2-49-TI-OR', 4, 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800', 1, 4.9, 13, now() - interval '50 days', now()),
-(18, gen_random_uuid(), 'Garmin Fenix 8 Solar Sapphire AMOLED 47mm', 'garmin-fenix-8-solar-sapphire-47mm', 'Solar charging lens, built-in mic & speaker for calls, top-tier topographic maps, multisport endurance metrics, LED flashlight.', 26990000.00, 'GARMIN-FNX8-47', 4, 'https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?w=800', 1, 5.0, 9, now() - interval '45 days', now()),
-(19, gen_random_uuid(), 'Samsung Galaxy Watch Ultra 47mm Titanium Silver', 'samsung-galaxy-watch-ultra-47mm', 'Exynos W1000 3nm processor, Sapphire crystal, BioActive Sensor, dual-frequency GPS, Emergency Siren, 100-hour battery life.', 16490000.00, 'SGW-U-47-SLV', 4, 'https://images.unsplash.com/photo-1579586337278-3befd40fd17a?w=800', 1, 4.6, 7, now() - interval '38 days', now()),
+(17, gen_random_uuid(), 'Apple Watch Ultra 2 GPS + Cellular 49mm Titanium', 'apple-watch-ultra-2-49mm-titanium', 'S9 SiP chip, 3000 nits brightness, dual-frequency precision GPS, 36 hours normal battery (up to 72 hrs Low Power), 100m water resistant.', 21490000.00, 'AWU2-49-TI-OR', 19, 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800', 1, 4.9, 13, '{"Case": "49mm Grade 5 Titanium", "Display": "3000 nits Sapphire AMOLED", "Battery": "36-72 Hours", "Water Resistance": "100m Dive EN13319", "GPS": "Precision Dual-Frequency L1+L5"}'::jsonb, now() - interval '50 days', now()),
+(18, gen_random_uuid(), 'Garmin Fenix 8 Solar Sapphire AMOLED 47mm', 'garmin-fenix-8-solar-sapphire-47mm', 'Solar charging lens, built-in mic & speaker for calls, top-tier topographic maps, multisport endurance metrics, LED flashlight.', 26990000.00, 'GARMIN-FNX8-47', 18, 'https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?w=800', 1, 5.0, 9, '{"Case": "47mm Sapphire Solar", "Display": "AMOLED with Solar Ring", "Battery": "Up to 28 Days", "Flashlight": "Built-in Multi-LED", "Water Resistance": "100m"}'::jsonb, now() - interval '45 days', now()),
+(19, gen_random_uuid(), 'Samsung Galaxy Watch Ultra 47mm Titanium Silver', 'samsung-galaxy-watch-ultra-47mm', 'Exynos W1000 3nm processor, Sapphire crystal, BioActive Sensor, dual-frequency GPS, Emergency Siren, 100-hour battery life.', 16490000.00, 'SGW-U-47-SLV', 19, 'https://images.unsplash.com/photo-1579586337278-3befd40fd17a?w=800', 1, 4.6, 7, '{"Case": "47mm Titanium Grade 4", "Display": "3000 nits Sapphire", "Battery": "Up to 100 Hours", "Water Resistance": "10 ATM / IP68", "GPS": "Dual-Frequency L1+L5"}'::jsonb, now() - interval '38 days', now()),
 
 -- Category 5: Gaming & Consoles
-(20, gen_random_uuid(), 'PlayStation 5 Pro Console 2TB Digital Edition', 'playstation-5-pro-console-2tb', 'PlayStation Spectral Super Resolution (PSSR), advanced ray tracing, 60FPS high-fidelity gaming, custom 2TB ultra-fast SSD.', 19990000.00, 'PS5-PRO-2TB', 5, 'https://images.unsplash.com/photo-1606813907291-d86efa9b94db?w=800', 1, 4.9, 16, now() - interval '35 days', now()),
-(21, gen_random_uuid(), 'Nintendo Switch OLED Model Mario Red Edition', 'nintendo-switch-oled-mario-red', '7-inch vibrant OLED screen, wide adjustable stand, wired LAN dock, 64GB internal storage, enhanced audio.', 8490000.00, 'NSW-OLED-MRED', 5, 'https://images.unsplash.com/photo-1578303512597-81e6cc155b3e?w=800', 1, 4.8, 12, now() - interval '48 days', now()),
-(22, gen_random_uuid(), 'Logitech G PRO X SUPERLIGHT 2 Wireless Gaming Mouse', 'logitech-g-pro-x-superlight-2-magenta', 'LIGHTFORCE hybrid optical-mechanical switches, HERO 2 sensor with 32,000 DPI and 4,000Hz polling rate, ultra-lightweight 60 grams.', 3690000.00, 'LOGI-GPX2-MAG', 5, 'https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?w=800', 1, 4.8, 14, now() - interval '52 days', now()),
-(23, gen_random_uuid(), 'Keychron Q1 Pro Wireless Custom Mechanical Keyboard', 'keychron-q1-pro-wireless-qmk', 'Full CNC aluminum body, double-gasket design, hot-swappable Keychron K Pro Banana switches, QMK/VIA programmable, Mac/Win support.', 4590000.00, 'KC-Q1PRO-BAN', 5, 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=800', 1, 4.9, 10, now() - interval '44 days', now()),
+(20, gen_random_uuid(), 'PlayStation 5 Pro Console 2TB Digital Edition', 'playstation-5-pro-console-2tb', 'PlayStation Spectral Super Resolution (PSSR), advanced ray tracing, 60FPS high-fidelity gaming, custom 2TB ultra-fast SSD.', 19990000.00, 'PS5-PRO-2TB', 21, 'https://images.unsplash.com/photo-1606813907291-d86efa9b94db?w=800', 1, 4.9, 16, '{"CPU": "Custom AMD Zen 2 8-Core", "GPU": "Custom RDNA Architecture 16.7 TFLOPs", "Storage": "2TB Custom NVMe SSD", "Resolution": "4K 60-120FPS with PSSR"}'::jsonb, now() - interval '35 days', now()),
+(21, gen_random_uuid(), 'Nintendo Switch OLED Model Mario Red Edition', 'nintendo-switch-oled-mario-red', '7-inch vibrant OLED screen, wide adjustable stand, wired LAN dock, 64GB internal storage, enhanced audio.', 8490000.00, 'NSW-OLED-MRED', 21, 'https://images.unsplash.com/photo-1578303512597-81e6cc155b3e?w=800', 1, 4.8, 12, '{"Display": "7-inch OLED 720p", "Storage": "64GB Internal + MicroSD", "Battery": "4310mAh (4.5–9 hours)", "Weight": "420g"}'::jsonb, now() - interval '48 days', now()),
+(22, gen_random_uuid(), 'Logitech G PRO X SUPERLIGHT 2 Wireless Gaming Mouse', 'logitech-g-pro-x-superlight-2-magenta', 'LIGHTFORCE hybrid optical-mechanical switches, HERO 2 sensor with 32,000 DPI and 4,000Hz polling rate, ultra-lightweight 60 grams.', 3690000.00, 'LOGI-GPX2-MAG', 23, 'https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?w=800', 1, 4.8, 14, '{"Sensor": "HERO 2 32,000 DPI", "Polling Rate": "4000Hz Wireless", "Switches": "LIGHTFORCE Hybrid Optical", "Weight": "60g", "Battery": "95 Hours"}'::jsonb, now() - interval '52 days', now()),
+(23, gen_random_uuid(), 'Keychron Q1 Pro Wireless Custom Mechanical Keyboard', 'keychron-q1-pro-wireless-qmk', 'Full CNC aluminum body, double-gasket design, hot-swappable Keychron K Pro Banana switches, QMK/VIA programmable, Mac/Win support.', 4590000.00, 'KC-Q1PRO-BAN', 22, 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=800', 1, 4.9, 10, '{"Case": "Full CNC Anodized 6063 Aluminum", "Switches": "Hot-swappable Keychron K Pro Banana", "Keycaps": "Double-shot PBT OSA", "Connectivity": "Bluetooth 5.1 / Type-C 1000Hz"}'::jsonb, now() - interval '44 days', now()),
 
--- Category 6: Cameras
-(24, gen_random_uuid(), 'Sony Alpha A7 IV Mirrorless Camera Body', 'sony-alpha-a7-iv-body', '33MP full-frame Exmor R CMOS sensor, 4K 60p 10-bit video, real-time Eye AF for humans/animals/birds, 7K oversampled recording.', 53990000.00, 'SONY-ILCE-7M4', 6, 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=800', 1, 4.9, 5, now() - interval '46 days', now()),
-(25, gen_random_uuid(), 'Fujifilm X100VI Digital Camera Silver Edition', 'fujifilm-x100vi-silver', '40.2MP X-Trans CMOS 5 HR sensor, 6.0 stops in-body image stabilization (IBIS), 20 Film Simulation modes including REALA ACE.', 44990000.00, 'FUJI-X100VI-SLV', 6, 'https://images.unsplash.com/photo-1502920917128-1aa500764cbd?w=800', 1, 5.0, 8, now() - interval '30 days', now()),
-(26, gen_random_uuid(), 'DJI Pocket 3 Creator Combo 4K 120fps Vlog Camera', 'dji-pocket-3-creator-combo', '1-inch CMOS sensor, 2-inch rotatable OLED touchscreen, 3-axis mechanical gimbal, D-Log M 10-bit color, included DJI Mic 2 transmitter.', 15890000.00, 'DJI-OP3-COMBO', 6, 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=800', 1, 4.9, 12, now() - interval '36 days', now()),
+-- Category 6: Cameras & Photography
+(24, gen_random_uuid(), 'Sony Alpha A7 IV Mirrorless Camera Body', 'sony-alpha-a7-iv-body', '33MP full-frame Exmor R CMOS sensor, 4K 60p 10-bit video, real-time Eye AF for humans/animals/birds, 7K oversampled recording.', 53990000.00, 'SONY-ILCE-7M4', 24, 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=800', 1, 4.9, 5, '{"Sensor": "33MP Full-Frame Exmor R CMOS", "Video": "4K 60p 10-bit 4:2:2", "Stabilization": "5-Axis In-Body 5.5-Stop IBIS", "Weight": "658g"}'::jsonb, now() - interval '46 days', now()),
+(25, gen_random_uuid(), 'Fujifilm X100VI Digital Camera Silver Edition', 'fujifilm-x100vi-silver', '40.2MP X-Trans CMOS 5 HR sensor, 6.0 stops in-body image stabilization (IBIS), 20 Film Simulation modes including REALA ACE.', 44990000.00, 'FUJI-X100VI-SLV', 24, 'https://images.unsplash.com/photo-1502920917128-1aa500764cbd?w=800', 1, 5.0, 8, '{"Sensor": "40.2MP X-Trans CMOS 5 HR", "Lens": "Fixed 23mm F2.0 (35mm equivalent)", "Stabilization": "6.0-Stop In-Body IBIS", "Video": "6.2K 30p 10-bit"}'::jsonb, now() - interval '30 days', now()),
+(26, gen_random_uuid(), 'DJI Pocket 3 Creator Combo 4K 120fps Vlog Camera', 'dji-pocket-3-creator-combo', '1-inch CMOS sensor, 2-inch rotatable OLED touchscreen, 3-axis mechanical gimbal, D-Log M 10-bit color, included DJI Mic 2 transmitter.', 15890000.00, 'DJI-OP3-COMBO', 25, 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=800', 1, 4.9, 12, '{"Sensor": "1-inch CMOS Sensor", "Screen": "2-inch Rotatable OLED Touchscreen", "Gimbal": "3-Axis Mechanical Stabilization", "Video": "4K 120fps D-Log M 10-bit"}'::jsonb, now() - interval '36 days', now()),
 
 -- Category 7: Smart Home & Appliances
-(27, gen_random_uuid(), 'Roborock S8 Pro Ultra Robot Vacuum and Mop', 'roborock-s8-pro-ultra-robot-vacuum', 'RockDock Ultra all-in-one station with auto-washing, auto-drying, auto-emptying and auto-refilling. 6000Pa HyperForce suction.', 26990000.00, 'ROBO-S8PU-BLK', 7, 'https://images.unsplash.com/photo-1558317374-067fb5f30001?w=800', 1, 4.8, 7, now() - interval '40 days', now()),
-(28, gen_random_uuid(), 'Dyson Purifier Hot+Cool Formaldehyde HP09 Air Purifier', 'dyson-purifier-hot-cool-hp09', 'Destroys formaldehyde permanently, HEPA H13 fully sealed filtration, cools in summer and heats in winter, Air Multiplier tech.', 19990000.00, 'DYSON-HP09-WHT', 7, 'https://images.unsplash.com/photo-1585771724684-38269d6639fd?w=800', 1, 4.7, 6, now() - interval '34 days', now()),
-(29, gen_random_uuid(), 'Philips Hue Smart Bridge & White and Color Starter Kit', 'philips-hue-starter-kit-e27', '16 million colors and 50,000 shades of warm-to-cool white light. Includes 3 smart bulbs, Hue Bridge, and smart dimmer switch.', 4890000.00, 'PHILIPS-HUE-KIT', 7, 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=800', 1, 4.8, 9, now() - interval '42 days', now()),
+(27, gen_random_uuid(), 'Roborock S8 Pro Ultra Robot Vacuum and Mop', 'roborock-s8-pro-ultra-robot-vacuum', 'RockDock Ultra all-in-one station with auto-washing, auto-drying, auto-emptying and auto-refilling. 6000Pa HyperForce suction.', 26990000.00, 'ROBO-S8PU-BLK', 27, 'https://images.unsplash.com/photo-1558317374-067fb5f30001?w=800', 1, 4.8, 7, '{"Suction": "6000Pa HyperForce", "Dock": "RockDock Ultra Auto-Wash & Empty", "Mopping": "VibraRise 2.0 Dual Sonic Mop", "Navigation": "PreciSense LiDAR + Reactive 3D"}'::jsonb, now() - interval '40 days', now()),
+(28, gen_random_uuid(), 'Dyson Purifier Hot+Cool Formaldehyde HP09 Air Purifier', 'dyson-purifier-hot-cool-hp09', 'Destroys formaldehyde permanently, HEPA H13 fully sealed filtration, cools in summer and heats in winter, Air Multiplier tech.', 19990000.00, 'DYSON-HP09-WHT', 28, 'https://images.unsplash.com/photo-1585771724684-38269d6639fd?w=800', 1, 4.7, 6, '{"Filtration": "HEPA H13 + Catalytic Formaldehyde Destroyer", "Coverage": "Up to 50 sqm", "Features": "Heater + Cooling Fan + Purifier 3-in-1", "Airflow": "390 L/s"}'::jsonb, now() - interval '34 days', now()),
+(29, gen_random_uuid(), 'Philips Hue Smart Bridge & White and Color Starter Kit', 'philips-hue-starter-kit-e27', '16 million colors and 50,000 shades of warm-to-cool white light. Includes 3 smart bulbs, Hue Bridge, and smart dimmer switch.', 4890000.00, 'PHILIPS-HUE-KIT', 29, 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=800', 1, 4.8, 9, '{"Colors": "16 Million RGB Colors + Warm/Cool White", "Lumens": "1100 Lumens per bulb", "Protocol": "Zigbee + Matter Compatible", "Hub": "Hue Bridge included"}'::jsonb, now() - interval '42 days', now()),
 
 -- Category 8: Accessories & Cables
-(30, gen_random_uuid(), 'Anker Prime 27,650mAh Power Bank (250W 3-Port)', 'anker-prime-250w-power-bank-27650mah', 'Massive 250W multi-device fast charging output, smart digital display with live wattage, Anker app Bluetooth pairing.', 3490000.00, 'ANKER-PRIME-250W', 8, 'https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?w=800', 1, 4.9, 20, now() - interval '55 days', now()),
-(31, gen_random_uuid(), 'Belkin BoostCharge Pro 3-in-1 MagSafe Wireless Charger', 'belkin-boostcharge-pro-3-in-1-magsafe', 'Official 15W MagSafe fast charging for iPhone, fast charge module for Apple Watch Ultra, dedicated Qi pad for AirPods.', 3890000.00, 'BELKIN-WIZ017-BLK', 8, 'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?w=800', 1, 4.7, 11, now() - interval '48 days', now()),
-(32, gen_random_uuid(), 'UGREEN Nexode 300W GaN 5-Port Desktop Charger', 'ugreen-nexode-300w-gan-5port', 'World first 300W 5-port GaN fast charger with PD 3.1 140W single port power, thermal guard safety protection system.', 2790000.00, 'UGREEN-CD333-300W', 8, 'https://images.unsplash.com/photo-1544717305-2782549b5136?w=800', 1, 4.8, 14, now() - interval '44 days', now());
+(30, gen_random_uuid(), 'Anker Prime 27,650mAh Power Bank (250W 3-Port)', 'anker-prime-250w-power-bank-27650mah', 'Massive 250W multi-device fast charging output, smart digital display with live wattage, Anker app Bluetooth pairing.', 3490000.00, 'ANKER-PRIME-250W', 31, 'https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?w=800', 1, 4.9, 20, '{"Capacity": "27,650mAh (99.54Wh airline safe)", "Max Output": "250W Multi-Port (140W single port)", "Ports": "2x USB-C + 1x USB-A", "Screen": "Smart Digital Display"}'::jsonb, now() - interval '55 days', now()),
+(31, gen_random_uuid(), 'Belkin BoostCharge Pro 3-in-1 MagSafe Wireless Charger', 'belkin-boostcharge-pro-3-in-1-magsafe', 'Official 15W MagSafe fast charging for iPhone, fast charge module for Apple Watch Ultra, dedicated Qi pad for AirPods.', 3890000.00, 'BELKIN-WIZ017-BLK', 30, 'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?w=800', 1, 4.7, 11, '{"Fast Charge": "15W Official MagSafe Wireless", "Compatibility": "iPhone 12-16 + Apple Watch Ultra + AirPods", "Design": "Architectural Chrome Tree Stand"}'::jsonb, now() - interval '48 days', now()),
+(32, gen_random_uuid(), 'UGREEN Nexode 300W GaN 5-Port Desktop Charger', 'ugreen-nexode-300w-gan-5port', 'World first 300W 5-port GaN fast charger with PD 3.1 140W single port power, thermal guard safety protection system.', 2790000.00, 'UGREEN-CD333-300W', 30, 'https://images.unsplash.com/photo-1544717305-2782549b5136?w=800', 1, 4.8, 14, '{"Max Output": "300W GaN Desktop Charger", "Ports": "4x USB-C + 1x USB-A (PD 3.1 140W max single)", "Technology": "GaNFast + Thermal Guard Protection"}'::jsonb, now() - interval '44 days', now());
 
--- Generated catalogue: ids 33..5000 (4,968 rows).
--- Each category gets its own brand/line vocabulary so search results look
--- plausible instead of 5,000 copies of the same label.
-INSERT INTO products (product_id, product_uuid, product_name, product_slug, product_description, product_price, product_sku, product_category_id, product_image_url, product_status, product_avg_rating, product_review_count, product_created_at, product_updated_at)
+INSERT INTO products (product_id, product_uuid, product_name, product_slug, product_description, product_price, product_sku, product_category_id, product_image_url, product_status, product_avg_rating, product_review_count, product_specifications, product_created_at, product_updated_at)
 OVERRIDING SYSTEM VALUE
 WITH vocab AS (
     SELECT * FROM (VALUES
@@ -242,11 +282,7 @@ WITH vocab AS (
                ARRAY['65W Charger','100W Charger','USB-C 2m','Power Bank 20000mAh','Hub 7-in-1','SSD 1TB'])
     ) AS v(cat_id, brands, lines, variants)
 ),
--- Curated catalogue photography, indexed per category so generated products
--- borrow a real shot from their own category. Replaces the picsum.photos
--- placeholder feed, which goes down often enough to blank whole grids.
 catalog_images AS (
-    -- img_count carried on every row so the join can wrap per category.
     SELECT i.img_cat_id, i.img_rank, i.img_url, c.img_count
     FROM (VALUES
         (1, 0, 'https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=800'),
@@ -300,25 +336,69 @@ SELECT
     v.brands[1 + (n % array_length(v.brands, 1))] || ' ' ||
         v.lines[1 + ((n / 5) % array_length(v.lines, 1))] ||
         ': everyday device for daily use, warranty 24 months, fulfilled by GOshop.',
-    -- Generated price band, 2.0-3.6 million VND. Keep the modulo multiplied
-    -- before the base is added: scaling the sum instead lands every item at
-    -- 2 billion, which exceeds GHN's 50M COD cap and silently breaks shipping.
     (2000000 + ((n * 7919) % 320) * 5000),
     upper(left(regexp_replace(v.brands[1 + (n % array_length(v.brands, 1))], '[^a-zA-Z0-9]+', '', 'g'), 3)) ||
         (32 + n)::text || '-' || lpad(n::text, 4, '0'),
-    v.cat_id,
-    -- Curated catalogue photography, rotated per category. These replace the
-    -- picsum.photos placeholder feed (down often enough to leave whole grids
-    -- blank): every generated product borrows a real shot from its own
-    -- category, so images always load and always match the label.
+    -- Assign evenly across subcategories 9..32 (24 subcategories)
+    9 + (n % 24),
     img.img_url,
     1,
     round((3.5 + ((n * 37) % 15)::numeric / 10)::numeric, 1),
     (n * 13) % 240,
+    -- Dynamic specifications based on parent category
+    CASE v.cat_id
+        WHEN 1 THEN jsonb_build_object(
+            'CPU', (ARRAY['Apple A18 Pro', 'Snapdragon 8 Gen 3', 'Google Tensor G4', 'Dimensity 9300'])[1 + (n % 4)],
+            'RAM', (ARRAY['8GB LPDDR5X', '12GB LPDDR5X', '16GB LPDDR5X'])[1 + (n % 3)],
+            'Storage', (ARRAY['128GB UFS 4.0', '256GB UFS 4.0', '512GB UFS 4.0'])[1 + (n % 3)],
+            'Display', (ARRAY['6.1-inch OLED 120Hz', '6.7-inch AMOLED 120Hz', '11-inch Liquid Retina'])[1 + (n % 3)],
+            'Battery', (ARRAY['4500mAh', '5000mAh', '5400mAh'])[1 + (n % 3)]
+        )
+        WHEN 2 THEN jsonb_build_object(
+            'CPU', (ARRAY['Intel Core Ultra 7 155H', 'Intel Core Ultra 9 185H', 'AMD Ryzen AI 9 HX 370', 'Apple M3 Pro'])[1 + (n % 4)],
+            'RAM', (ARRAY['16GB DDR5 5600MHz', '32GB LPDDR5X 7500MHz', '64GB DDR5'])[1 + (n % 3)],
+            'Storage', (ARRAY['512GB NVMe PCIe 4.0', '1TB NVMe PCIe 4.0', '2TB NVMe PCIe 4.0'])[1 + (n % 3)],
+            'GPU', (ARRAY['NVIDIA RTX 4060 8GB', 'NVIDIA RTX 4070 8GB', 'NVIDIA RTX 4080 12GB', 'Intel Arc Graphics'])[1 + (n % 4)],
+            'Weight', (ARRAY['1.29kg', '1.65kg', '2.10kg'])[1 + (n % 3)]
+        )
+        WHEN 3 THEN jsonb_build_object(
+            'Battery Life', (ARRAY['24 Hours', '30 Hours', '40 Hours'])[1 + (n % 3)],
+            'Connectivity', 'Bluetooth 5.3 + LE Audio',
+            'ANC', 'Adaptive Active Noise Cancellation',
+            'Water Resistance', (ARRAY['IPX4', 'IP55', 'IP67'])[1 + (n % 3)]
+        )
+        WHEN 4 THEN jsonb_build_object(
+            'Battery Life', (ARRAY['36 Hours', '72 Hours', '14 Days'])[1 + (n % 3)],
+            'Connectivity', 'GPS Dual-Frequency + Bluetooth',
+            'Water Resistance', '50M Water Resistant (5 ATM)',
+            'Display', 'Sapphire Crystal AMOLED'
+        )
+        WHEN 5 THEN jsonb_build_object(
+            'Connectivity', (ARRAY['Ultra-low latency 2.4GHz', 'Wired USB-C', 'Tri-Mode Wireless'])[1 + (n % 3)],
+            'Sensor / Switches', (ARRAY['Optical HERO 2 32K DPI', 'Hot-swappable Mechanical', 'Speed Silver Switches'])[1 + (n % 3)],
+            'RGB Lighting', '16.8 Million Colors Customizable'
+        )
+        WHEN 6 THEN jsonb_build_object(
+            'Sensor Resolution', (ARRAY['24.2MP Full-Frame', '33MP Exmor R CMOS', '40.2MP X-Trans 5 HR'])[1 + (n % 3)],
+            'Video Capability', (ARRAY['4K 60p 10-bit', '4K 120p High-Speed', '8K 30p RAW'])[1 + (n % 3)],
+            'Stabilization', '5-Axis In-Body Stabilization (IBIS)'
+        )
+        WHEN 7 THEN jsonb_build_object(
+            'Power / Suction', (ARRAY['5000Pa', '6000Pa', '8000Pa HyperForce'])[1 + (n % 3)],
+            'Connectivity', 'Wi-Fi 2.4GHz + Matter / Apple HomeKit',
+            'Filtration', 'True HEPA H13 Sealed System'
+        )
+        ELSE jsonb_build_object(
+            'Power Output', (ARRAY['65W PD 3.0', '100W GaN Fast Charge', '140W PD 3.1', '240W Max'])[1 + (n % 4)],
+            'Port Configuration', (ARRAY['2x USB-C + 1x USB-A', '3x USB-C', '4-in-1 Multiport'])[1 + (n % 3)],
+            'Warranty', '24 Months Replacement'
+        )
+    END,
     now() - ((n % 400) || ' days')::interval,
     now()
 FROM generate_series(1, 4968) AS n
-JOIN vocab v ON v.cat_id = 1 + (n % 8)
+-- Map subcategory 9..32 back to root parent 1..8: root_cat_id = 1 + ((n % 24) / 3)
+JOIN vocab v ON v.cat_id = 1 + ((n % 24) / 3)
 CROSS JOIN LATERAL (
     SELECT
         (ARRAY['S24','SE','SE2','SE3','Plus','Prime','Max','Air','Neo','Eco','Lite','Turbo'])[1 + (n % 12)] ||
@@ -330,16 +410,37 @@ JOIN catalog_images img
 
 SELECT setval('products_product_id_seq', (SELECT MAX(product_id) FROM products), true);
 
--- Legacy monolith stock column mirrors the inventory quantities seeded below
--- (inventory is the source of truth; this only keeps old search docs accurate).
+-- ==============================================================================
+-- 3. PRODUCT VARIANTS (10,000 variants: 2 variants per product across all 5000 products)
+-- ==============================================================================
+INSERT INTO product_variants (variant_id, product_id, variant_uuid, variant_sku, variant_title, variant_price, variant_compare_at_price, variant_image_url, variant_attributes, variant_position, variant_status, variant_created_at, variant_updated_at)
+OVERRIDING SYSTEM VALUE
+SELECT
+    (p.product_id - 1) * 2 + opt.pos AS variant_id,
+    p.product_id,
+    gen_random_uuid(),
+    p.product_sku || '-' || opt.suffix,
+    p.product_name || ' (' || opt.title || ')',
+    p.product_price + opt.price_delta,
+    p.product_price + opt.price_delta + 500000,
+    p.product_image_url,
+    opt.attrs,
+    opt.pos,
+    1,
+    p.product_created_at,
+    p.product_updated_at
+FROM products p
+CROSS JOIN LATERAL (
+    VALUES
+    (1, 'STD', 'Standard Edition / Dark', 0::numeric, jsonb_build_object('Color', 'Space Dark', 'Edition', 'Standard')),
+    (2, 'PRO', 'Pro Edition / Silver (+Bundle)', 350000::numeric, jsonb_build_object('Color', 'Titanium Silver', 'Edition', 'Pro Kit'))
+) AS opt(pos, suffix, title, price_delta, attrs);
 
-SELECT setval('products_product_id_seq', (SELECT MAX(product_id) FROM products), true);
+SELECT setval('product_variants_variant_id_seq', (SELECT MAX(variant_id) FROM product_variants), true);
 
--- Queue a search reindex for every seeded product. The catalog outbox worker
--- (running in the catalog container) consumes these, rebuilds the Meilisearch
--- documents from the product rows and marks them PROCESSED. Without this the
--- index keeps UUIDs from a previous seed and product search returns rows the
--- inventory service can no longer resolve.
+ANALYZE product_variants;
+
+-- Queue a search reindex for every seeded product.
 INSERT INTO outbox_events (event_type, aggregate_type, aggregate_id, payload, status)
 SELECT 'PRODUCT_UPSERT', 'product', p.product_uuid::text, '{}'::jsonb, 'PENDING'
 FROM products p
@@ -392,29 +493,32 @@ TRUNCATE TABLE cart_items, carts RESTART IDENTITY CASCADE;
 TRUNCATE TABLE stock_movements, inventory_stocks RESTART IDENTITY CASCADE;
 CREATE EXTENSION IF NOT EXISTS dblink;
 
--- The conninfo is the real DSN, substituted by the Go seeder ({{db_catalog}});
--- dblink opens its own libpq connection and inherits nothing from this session,
--- so a bare 'dbname=shopping_catalog' is rejected on any server that demands a
--- password (Supabase: "password or GSSAPI delegated credentials required").
+-- 1. Base Product Stock (no variant: variant_uuid is NULL)
 INSERT INTO inventory_stocks (product_id, product_uuid, quantity)
 SELECT product_id, product_uuid, 20 + (product_id * 13) % 100
 FROM dblink('{{db_catalog}}', 'SET search_path TO {{db_search_path}}; SELECT product_id, product_uuid FROM products WHERE product_deleted_at IS NULL')
 AS t(product_id int, product_uuid uuid);
 
+-- 2. Variant Stock (variant_uuid is NOT NULL)
+INSERT INTO inventory_stocks (product_id, product_uuid, variant_id, variant_uuid, quantity)
+SELECT product_id, product_uuid, variant_id, variant_uuid, 15 + ((variant_id * 17) % 80)
+FROM dblink('{{db_catalog}}', 'SET search_path TO {{db_search_path}}; SELECT pv.product_id, p.product_uuid, pv.variant_id, pv.variant_uuid FROM product_variants pv JOIN products p ON p.product_id = pv.product_id WHERE p.product_deleted_at IS NULL')
+AS t(product_id int, product_uuid uuid, variant_id int, variant_uuid uuid);
+
 INSERT INTO stock_movements (product_id, product_uuid, change_type, quantity_change, stock_before, stock_after, reference_type, reference_id, note, created_at)
-SELECT product_id, product_uuid, 'INITIAL_STOCK', quantity, 0, quantity, 'INITIAL_STOCK', 'seed-' || product_uuid::text, 'Seeded initial stock', now() - (product_id || ' hours')::interval
+SELECT product_id, product_uuid, 'INITIAL_STOCK', quantity, 0, quantity, 'INITIAL_STOCK', 'seed-' || product_uuid::text || COALESCE('-' || variant_id::text, ''), 'Seeded initial stock', now() - (product_id || ' hours')::interval
 FROM inventory_stocks;
 
 -- A few extra movement types so the dashboard log and filters have variety.
 INSERT INTO stock_movements (product_id, product_uuid, change_type, quantity_change, stock_before, stock_after, reference_type, note, created_at)
 SELECT product_id, product_uuid, 'RESTOCK', 10, quantity, quantity + 10, 'manual', 'Seeded restock example', now() - interval '30 minutes'
-FROM inventory_stocks WHERE product_id IN (1, 2, 12);
-UPDATE inventory_stocks SET quantity = quantity + 10, updated_at = now() WHERE product_id IN (1, 2, 12);
+FROM inventory_stocks WHERE product_id IN (1, 2, 12) AND variant_uuid IS NULL;
+UPDATE inventory_stocks SET quantity = quantity + 10, updated_at = now() WHERE product_id IN (1, 2, 12) AND variant_uuid IS NULL;
 
 INSERT INTO stock_movements (product_id, product_uuid, change_type, quantity_change, stock_before, stock_after, reference_type, note, created_at)
 SELECT product_id, product_uuid, 'DAMAGED_DISCARD', -3, quantity, quantity - 3, 'manual', 'Seeded damaged goods example', now() - interval '15 minutes'
-FROM inventory_stocks WHERE product_id IN (5, 20);
-UPDATE inventory_stocks SET quantity = quantity - 3, updated_at = now() WHERE product_id IN (5, 20);
+FROM inventory_stocks WHERE product_id IN (5, 20) AND variant_uuid IS NULL;
+UPDATE inventory_stocks SET quantity = quantity - 3, updated_at = now() WHERE product_id IN (5, 20) AND variant_uuid IS NULL;
 
 ANALYZE inventory_stocks;
 ANALYZE stock_movements;

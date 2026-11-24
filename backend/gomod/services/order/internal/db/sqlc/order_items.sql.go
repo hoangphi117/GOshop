@@ -19,9 +19,10 @@ INSERT INTO order_items (
     order_item_product_name, order_item_price,
     order_item_quantity, order_item_subtotal,
     order_item_product_uuid, order_item_product_slug,
-    order_item_product_image_url, order_item_order_uuid
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-RETURNING order_item_id, order_item_uuid, order_item_order_id, order_item_order_uuid, order_item_product_id, order_item_product_uuid, order_item_product_name, order_item_product_slug, order_item_product_image_url, order_item_price, order_item_quantity, order_item_subtotal, order_item_created_at
+    order_item_product_image_url, order_item_order_uuid,
+    order_item_variant_uuid, order_item_variant_title
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+RETURNING order_item_id, order_item_uuid, order_item_order_id, order_item_order_uuid, order_item_product_id, order_item_product_uuid, order_item_product_name, order_item_product_slug, order_item_product_image_url, order_item_price, order_item_quantity, order_item_subtotal, order_item_created_at, order_item_variant_uuid, order_item_variant_title
 `
 
 type CreateOrderItemParams struct {
@@ -35,6 +36,8 @@ type CreateOrderItemParams struct {
 	OrderItemProductSlug     string         `json:"order_item_product_slug"`
 	OrderItemProductImageUrl *string        `json:"order_item_product_image_url"`
 	OrderItemOrderUuid       uuid.UUID      `json:"order_item_order_uuid"`
+	OrderItemVariantUuid     *uuid.UUID     `json:"order_item_variant_uuid"`
+	OrderItemVariantTitle    *string        `json:"order_item_variant_title"`
 }
 
 func (q *Queries) CreateOrderItem(ctx context.Context, arg CreateOrderItemParams) (OrderItem, error) {
@@ -49,6 +52,8 @@ func (q *Queries) CreateOrderItem(ctx context.Context, arg CreateOrderItemParams
 		arg.OrderItemProductSlug,
 		arg.OrderItemProductImageUrl,
 		arg.OrderItemOrderUuid,
+		arg.OrderItemVariantUuid,
+		arg.OrderItemVariantTitle,
 	)
 	var i OrderItem
 	err := row.Scan(
@@ -65,6 +70,8 @@ func (q *Queries) CreateOrderItem(ctx context.Context, arg CreateOrderItemParams
 		&i.OrderItemQuantity,
 		&i.OrderItemSubtotal,
 		&i.OrderItemCreatedAt,
+		&i.OrderItemVariantUuid,
+		&i.OrderItemVariantTitle,
 	)
 	return i, err
 }
@@ -84,6 +91,8 @@ SELECT
     oi.order_item_product_slug,
     oi.order_item_product_image_url,
     oi.order_item_order_uuid,
+    oi.order_item_variant_uuid,
+    oi.order_item_variant_title,
     oi.order_item_product_uuid AS product_uuid,
     oi.order_item_product_slug AS product_slug,
     oi.order_item_product_image_url AS product_image_url
@@ -106,6 +115,8 @@ type GetOrderItemsByOrderIDRow struct {
 	OrderItemProductSlug     string         `json:"order_item_product_slug"`
 	OrderItemProductImageUrl *string        `json:"order_item_product_image_url"`
 	OrderItemOrderUuid       uuid.UUID      `json:"order_item_order_uuid"`
+	OrderItemVariantUuid     *uuid.UUID     `json:"order_item_variant_uuid"`
+	OrderItemVariantTitle    *string        `json:"order_item_variant_title"`
 	ProductUuid              uuid.UUID      `json:"product_uuid"`
 	ProductSlug              string         `json:"product_slug"`
 	ProductImageUrl          *string        `json:"product_image_url"`
@@ -134,6 +145,8 @@ func (q *Queries) GetOrderItemsByOrderID(ctx context.Context, orderItemOrderID i
 			&i.OrderItemProductSlug,
 			&i.OrderItemProductImageUrl,
 			&i.OrderItemOrderUuid,
+			&i.OrderItemVariantUuid,
+			&i.OrderItemVariantTitle,
 			&i.ProductUuid,
 			&i.ProductSlug,
 			&i.ProductImageUrl,

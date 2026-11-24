@@ -3,9 +3,10 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import {
   getBanners,
-  getCategories,
+  getMainCategories,
   getProducts,
   getRecommendations,
+  getBestSellers,
   type Product,
 } from "@/lib/api-server";
 import { HeroBanner } from "@/components/home/hero-banner";
@@ -25,13 +26,14 @@ export default async function HomePage() {
   const anonId = (await cookies()).get("goshop_anon_id")?.value;
 
   // Fetch real data concurrently from Go backend
-  const [banners, subBanners, categories, productsResponse, initialShelf] =
+  const [banners, subBanners, categories, productsResponse, initialShelf, bestSellersShelf] =
     await Promise.all([
       getBanners("home_main"),
       getBanners("home_sub"),
-      getCategories(),
+      getMainCategories(),
       getProducts({ limit: 24 }),
       getRecommendations(12, anonId),
+      getBestSellers(12),
     ]);
   // Popup is a separate slot; a missing promo must not delay the shelf above.
   const popupBanners = await getBanners("home_popup");
@@ -58,10 +60,21 @@ export default async function HomePage() {
       {/* 3. Curated Department Grid (4 Columns) */}
       <CategoryShowcase categories={categories} />
 
-      {/* 4. Personalized shelf — server-rendered fallback keeps first paint full */}
+      {/* 4. Personalized / Trending shelf */}
       <RecommendationSection initialShelf={initialShelf} limit={12} />
 
-      {/* 5. Featured Drops & Best Sellers Catalog Grid */}
+      {/* 5. Best Sellers shelf */}
+      <RecommendationSection
+        initialShelf={bestSellersShelf}
+        limit={12}
+        title="Best Sellers"
+        eyebrow="Shop the crowd favourites"
+        subtitle="Top-rated and most bought this week"
+        seeAllHref="/products?sort=sales_desc"
+        isStatic={true}
+      />
+
+      {/* 6. Featured Drops & Best Sellers Catalog Grid */}
       <section id="featured" className="max-w-7xl mx-auto px-4 sm:px-6 mb-16">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-8">
           <div>
@@ -88,7 +101,7 @@ export default async function HomePage() {
                 href={`/products?category=${cat.slug}`}
                 className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 px-4 py-1.5 rounded-md text-xs font-semibold shrink-0 transition-colors font-heading"
               >
-                {cat.category_name}
+                {cat.category_name || cat.name}
               </Link>
             ))}
           </div>

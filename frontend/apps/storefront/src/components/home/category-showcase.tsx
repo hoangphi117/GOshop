@@ -67,12 +67,14 @@ export function CategoryShowcase({ categories = [] }: CategoryShowcaseProps) {
         {categories.map((cat) => {
           const catImage = cat.image_url || CATEGORY_IMAGE_MAP[cat.slug] || null;
 
+          const displayName = cat.category_name || cat.name || cat.slug;
+
           return (
             <Link
               key={cat.uuid || cat.slug}
               href={`/products?category=${cat.slug}`}
               className="group bg-white rounded-md border border-slate-200/90 hover:border-[#007D9C] hover:shadow-md transition-all overflow-hidden shadow-xs flex flex-col"
-              title={cat.description || cat.category_name}
+              title={cat.description || displayName}
             >
               <div className="relative w-full aspect-square bg-gradient-to-br from-[#E6F7FB] to-slate-50 overflow-hidden border-b border-slate-100 flex items-center justify-center">
                 {catImage ? (
@@ -92,7 +94,7 @@ export function CategoryShowcase({ categories = [] }: CategoryShowcaseProps) {
               </div>
 
               <h3 className="px-2 py-2 text-[11px] sm:text-xs font-bold text-slate-800 text-center leading-tight line-clamp-2 min-h-[2.5rem] font-heading group-hover:text-[#007D9C]">
-                {cat.category_name}
+                {displayName}
               </h3>
             </Link>
           );

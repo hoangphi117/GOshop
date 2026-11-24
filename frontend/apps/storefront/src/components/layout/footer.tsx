@@ -110,14 +110,14 @@ export function Footer() {
           <div className="lg:col-span-4 space-y-4">
             <Link
               href="/"
-              className="inline-block bg-white/95 rounded-xl px-2.5 py-1 shadow-xs"
+              className="inline-block bg-white/95 rounded-xl px-3 py-1.5 shadow-xs"
             >
               <Image
-                src="/Logo.svg"
+                src="/main_logo.png"
                 alt="GOshop Logo"
-                width={150}
-                height={38}
-                className="h-8 w-auto object-contain"
+                width={180}
+                height={50}
+                className="h-9 sm:h-10 w-auto object-contain"
               />
             </Link>
             <p className="text-xs text-[#B0CDD9] leading-relaxed max-w-sm font-body">
