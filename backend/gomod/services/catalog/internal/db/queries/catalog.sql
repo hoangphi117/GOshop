@@ -266,3 +266,67 @@ UPDATE products SET
     product_review_count = $3,
     product_updated_at = now()
 WHERE product_id = $1;
+
+-- =============================================================================
+-- PRODUCT VARIANTS
+-- =============================================================================
+
+-- name: CreateVariant :one
+INSERT INTO product_variants (
+    product_id,
+    variant_sku,
+    variant_title,
+    variant_price,
+    variant_compare_at_price,
+    variant_image_url,
+    variant_attributes,
+    variant_position,
+    variant_status
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+RETURNING *;
+
+-- name: GetVariantByUUID :one
+SELECT * FROM product_variants
+WHERE variant_uuid = $1;
+
+-- name: GetVariantByUUIDForUpdate :one
+SELECT * FROM product_variants
+WHERE variant_uuid = $1
+FOR UPDATE;
+
+-- name: ListVariantsByProductID :many
+SELECT * FROM product_variants
+WHERE product_id = $1
+ORDER BY variant_position ASC, variant_id ASC;
+
+-- name: ListActiveVariantsByProductID :many
+SELECT * FROM product_variants
+WHERE product_id = $1
+AND variant_status = 1
+ORDER BY variant_position ASC, variant_id ASC;
+
+-- name: UpdateVariant :one
+UPDATE product_variants SET
+    variant_sku                = COALESCE(sqlc.narg('variant_sku')::varchar,         variant_sku),
+    variant_title              = COALESCE(sqlc.narg('variant_title')::varchar,       variant_title),
+    variant_price              = COALESCE(sqlc.narg('variant_price')::numeric,       variant_price),
+    variant_compare_at_price   = COALESCE(sqlc.narg('variant_compare_at_price')::numeric, variant_compare_at_price),
+    variant_image_url          = COALESCE(sqlc.narg('variant_image_url')::text,      variant_image_url),
+    variant_attributes         = COALESCE(sqlc.narg('variant_attributes')::jsonb,    variant_attributes),
+    variant_position           = COALESCE(sqlc.narg('variant_position')::int,        variant_position),
+    variant_status             = COALESCE(sqlc.narg('variant_status')::int,          variant_status)
+WHERE variant_uuid = sqlc.arg(variant_uuid)
+RETURNING *;
+
+-- name: DeleteVariant :one
+DELETE FROM product_variants
+WHERE variant_uuid = sqlc.arg(variant_uuid)::uuid
+RETURNING *;
+
+-- name: GetVariantsByUUIDs :many
+SELECT * FROM product_variants
+WHERE variant_uuid = ANY(sqlc.arg(uuids)::uuid[]);
+
+-- name: CountVariantsByProductID :one
+SELECT count(*) FROM product_variants
+WHERE product_id = $1;

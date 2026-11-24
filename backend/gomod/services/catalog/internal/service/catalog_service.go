@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -41,6 +42,7 @@ type CatalogService interface {
 	GetCategoryBySlug(ctx context.Context, slug string) (*dto.CategoryDTO, error)
 	GetCategoryByID(ctx context.Context, id int32) (*dto.CategoryDTO, error)
 	GetAllCategories(ctx context.Context, activeOnly *bool) ([]dto.CategoryDTO, error)
+	GetCategoryTree(ctx context.Context) ([]dto.CategoryDTO, error)
 
 	// FAQs
 	ListFAQs(ctx context.Context, q *string, limit, offset int32) ([]dto.FAQDTO, error)
@@ -64,7 +66,9 @@ type CatalogService interface {
 		orderBy, sort string,
 		page, limit int32,
 		deleted bool,
+		specs map[string][]string,
 	) ([]dto.ProductDTO, int32, error)
+	GetCategoryFacets(ctx context.Context, categorySlugOrUUID string) (*dto.CategoryFacetsResponseDTO, error)
 	SearchProducts(
 		ctx context.Context,
 		q, categoryUUID string,
@@ -82,6 +86,12 @@ type CatalogService interface {
 	SoftDeleteProduct(ctx context.Context, u uuid.UUID) (*dto.ProductDTO, error)
 	RestoreProduct(ctx context.Context, u uuid.UUID) (*dto.ProductDTO, error)
 	TrashProduct(ctx context.Context, u uuid.UUID) error
+
+	// Variants
+	CreateVariant(ctx context.Context, productUUID uuid.UUID, input dto.CreateVariantInput) (*dto.ProductVariantDTO, error)
+	GetVariantsByProduct(ctx context.Context, productUUID uuid.UUID, activeOnly bool) ([]dto.ProductVariantDTO, error)
+	UpdateVariant(ctx context.Context, productUUID, variantUUID uuid.UUID, input dto.UpdateVariantInput) (*dto.ProductVariantDTO, error)
+	DeleteVariant(ctx context.Context, productUUID, variantUUID uuid.UUID) error
 	ImportProductsCSV(ctx context.Context, file io.Reader) (*dto.ProductCSVImportResponse, error)
 
 	// Outbox & Sync
@@ -222,6 +232,8 @@ func (s *catalogService) CreateCategory(ctx context.Context, input dto.CreateCat
 		_ = s.cache.Clear("categories:*")
 	}
 
+	s.assignCategoryParent(ctx, cat.CategoryUuid, input.ParentUUID, input.ParentID)
+
 	res := dto.MapCategoryToDTO(cat)
 	return &res, nil
 }
@@ -293,6 +305,10 @@ func (s *catalogService) UpdateCategory(ctx context.Context, input dto.UpdateCat
 
 	if s.cache != nil {
 		_ = s.cache.Clear("categories:*")
+	}
+
+	if input.ParentUUID != nil || input.ParentID != nil {
+		s.assignCategoryParent(ctx, cat.CategoryUuid, input.ParentUUID, input.ParentID)
 	}
 
 	res := dto.MapCategoryToDTO(cat)
@@ -500,7 +516,12 @@ func (s *catalogService) CreateProduct(ctx context.Context, input dto.CreateProd
 		_ = s.cache.Clear("products:*")
 	}
 
+	if len(input.Specifications) > 0 {
+		_ = s.repo.UpdateProductSpecifications(ctx, created.ProductUuid, input.Specifications)
+	}
+
 	res := dto.MapCreateProductRowToDTO(created)
+	res.Specifications = input.Specifications
 	// Stock was written above; skip the extra inventory round-trip.
 	res.Stock = max(input.Stock, 0)
 	s.rewriteImage(&res)
@@ -563,6 +584,9 @@ func (s *catalogService) GetProductByUUID(ctx context.Context, u uuid.UUID) (*dt
 
 	res := dto.MapProductRowToDTO(prod)
 	s.rewriteImage(&res)
+	if specs, err := s.repo.GetProductSpecifications(ctx, prod.ProductUuid); err == nil {
+		res.Specifications = specs
+	}
 	if err := s.enrichStockForDTO(ctx, &res); err != nil {
 		return nil, err
 	}
@@ -598,6 +622,9 @@ func (s *catalogService) GetProductBySlug(ctx context.Context, slug string) (*dt
 		UpdatedAt:    prod.ProductUpdatedAt.Format(time.RFC3339),
 	}
 	s.rewriteImage(&res)
+	if specs, err := s.repo.GetProductSpecifications(ctx, prod.ProductUuid); err == nil {
+		res.Specifications = specs
+	}
 	if err := s.enrichStockForDTO(ctx, &res); err != nil {
 		return nil, err
 	}
@@ -633,6 +660,9 @@ func (s *catalogService) GetProductByID(ctx context.Context, id int32) (*dto.Pro
 		UpdatedAt:    prod.ProductUpdatedAt.Format(time.RFC3339),
 	}
 	s.rewriteImage(&res)
+	if specs, err := s.repo.GetProductSpecifications(ctx, prod.ProductUuid); err == nil {
+		res.Specifications = specs
+	}
 	if err := s.enrichStockForDTO(ctx, &res); err != nil {
 		return nil, err
 	}
@@ -758,6 +788,7 @@ func (s *catalogService) GetAllProducts(
 	orderBy, sort string,
 	page, limit int32,
 	deleted bool,
+	specs map[string][]string,
 ) ([]dto.ProductDTO, int32, error) {
 	if sort == "" {
 		sort = "desc"
@@ -773,8 +804,20 @@ func (s *catalogService) GetAllProducts(
 	}
 	offset := (page - 1) * limit
 
-	cacheKey := fmt.Sprintf("catalog:products:%s:%s:%.2f:%.2f:%.2f:%d:%s:%s:%d:%d:%t",
-		searchStr, categoryUUID, minPrice, maxPrice, minRating, status, orderBy, sort, page, limit, deleted)
+	specParts := make([]string, 0, len(specs))
+	for k, vList := range specs {
+		if len(vList) > 0 {
+			sortedVals := make([]string, len(vList))
+			copy(sortedVals, vList)
+			slices.Sort(sortedVals)
+			specParts = append(specParts, k+"="+strings.Join(sortedVals, ","))
+		}
+	}
+	slices.Sort(specParts)
+	specKeyStr := strings.Join(specParts, "&")
+
+	cacheKey := fmt.Sprintf("catalog:products:%s:%s:%.2f:%.2f:%.2f:%d:%s:%s:%d:%d:%t:%s",
+		searchStr, categoryUUID, minPrice, maxPrice, minRating, status, orderBy, sort, page, limit, deleted, specKeyStr)
 
 	var cacheData struct {
 		Products []dto.ProductDTO `json:"products"`
@@ -798,47 +841,12 @@ func (s *catalogService) GetAllProducts(
 	}
 
 	res, err, _ := s.sf.Do(cacheKey, func() (any, error) {
-		rows, err := s.repo.GetAllProducts(ctx, searchStr, categoryUUID, minPrice, maxPrice, minRating, status, orderBy, sort, limit, offset, deleted)
+		rows, err := s.repo.GetAllProducts(ctx, searchStr, categoryUUID, minPrice, maxPrice, minRating, status, orderBy, sort, limit, offset, deleted, specs)
 		if err != nil {
 			return nil, utils.WrapError(utils.ErrCodeInternal, "failed to get all products", err)
 		}
 
-		var catUUID pgtype.UUID
-		if categoryUUID != "" {
-			if u, err := uuid.Parse(categoryUUID); err == nil {
-				catUUID = pgtype.UUID{Bytes: u, Valid: true}
-			}
-		}
-
-		var searchParam *string
-		if searchStr != "" {
-			searchParam = &searchStr
-		}
-
-		var minPriceNum, maxPriceNum, minRatingNum pgtype.Numeric
-		if minPrice > 0 {
-			minPriceNum = utils.FloatToNumeric(minPrice)
-		}
-		if maxPrice > 0 {
-			maxPriceNum = utils.FloatToNumeric(maxPrice)
-		}
-		if minRating > 0 {
-			minRatingNum = utils.FloatToNumeric(minRating)
-		}
-		var statusParam *int32
-		if status > 0 {
-			statusParam = &status
-		}
-
-		total, err := s.repo.CountProducts(ctx, catalogsqlc.CountProductsParams{
-			Deleted:      &deleted,
-			Search:       searchParam,
-			CategoryUuid: catUUID,
-			MinPrice:     minPriceNum,
-			MaxPrice:     maxPriceNum,
-			MinRating:    minRatingNum,
-			Status:       statusParam,
-		})
+		total, err := s.repo.CountAllProducts(ctx, searchStr, categoryUUID, minPrice, maxPrice, minRating, status, deleted, specs)
 		if err != nil {
 			return nil, utils.WrapError(utils.ErrCodeInternal, "failed to count products", err)
 		}
@@ -851,6 +859,21 @@ func (s *catalogService) GetAllProducts(
 		dtos, err = s.enrichStockForDTOs(ctx, dtos)
 		if err != nil {
 			return nil, err
+		}
+
+		// Enrich specifications in batch
+		if len(dtos) > 0 {
+			productIDs := make([]int32, len(dtos))
+			for i, d := range dtos {
+				productIDs[i] = d.ID
+			}
+			if specsMap, sErr := s.repo.GetProductsSpecificationsBatch(ctx, productIDs); sErr == nil {
+				for i := range dtos {
+					if sp, ok := specsMap[dtos[i].ID]; ok {
+						dtos[i].Specifications = sp
+					}
+				}
+			}
 		}
 
 		if s.cache != nil {
@@ -889,7 +912,7 @@ func (s *catalogService) SearchProducts(
 	page, limit int32,
 ) ([]dto.ProductDTO, int64, error) {
 	if s.search == nil {
-		list, total, err := s.GetAllProducts(ctx, q, categoryUUID, minPrice, maxPrice, minRating, 1, "product_created_at", "desc", page, limit, false)
+		list, total, err := s.GetAllProducts(ctx, q, categoryUUID, minPrice, maxPrice, minRating, 1, "product_created_at", "desc", page, limit, false, nil)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -938,7 +961,7 @@ func (s *catalogService) SearchProducts(
 	docs, totalHits, err := s.search.SearchDocuments(ctx, q, filterStr, sorts, int64(limit), offset)
 	if err != nil {
 		logger.Log.Warn().Err(err).Msg("Meilisearch query failed, fallback to postgres")
-		list, total, err := s.GetAllProducts(ctx, q, categoryUUID, minPrice, maxPrice, minRating, 1, "product_created_at", "desc", page, limit, false)
+		list, total, err := s.GetAllProducts(ctx, q, categoryUUID, minPrice, maxPrice, minRating, 1, "product_created_at", "desc", page, limit, false, nil)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -997,7 +1020,7 @@ func (s *catalogService) SuggestProductsFiltered(ctx context.Context, q, filter 
 		filterClause += " AND (" + filter + ")"
 	}
 	if s.search == nil {
-		list, _, err := s.GetAllProducts(ctx, q, "", 0, 0, 0, 1, "product_name", "asc", 1, limit, false)
+		list, _, err := s.GetAllProducts(ctx, q, "", 0, 0, 0, 1, "product_name", "asc", 1, limit, false, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -1019,7 +1042,7 @@ func (s *catalogService) SuggestProductsFiltered(ctx context.Context, q, filter 
 	if err != nil || len(docs) == 0 {
 		// Meili may miss (broken filter settings, lagging index): fall back to
 		// the DB path so suggestions never go blank while search works.
-		list, _, dbErr := s.GetAllProducts(ctx, q, "", 0, 0, 0, 1, "product_name", "asc", 1, limit, false)
+		list, _, dbErr := s.GetAllProducts(ctx, q, "", 0, 0, 0, 1, "product_name", "asc", 1, limit, false, nil)
 		if dbErr != nil {
 			if err != nil {
 				return []dto.ProductSuggestionDTO{}, nil
@@ -1155,7 +1178,16 @@ func (s *catalogService) UpdateProduct(ctx context.Context, input dto.UpdateProd
 		_ = s.cache.Clear("products:*")
 	}
 
+	if input.Specifications != nil {
+		_ = s.repo.UpdateProductSpecifications(ctx, updated.ProductUuid, input.Specifications)
+	}
+
 	res := dto.MapUpdateProductRowToDTO(updated)
+	if input.Specifications != nil {
+		res.Specifications = input.Specifications
+	} else if specs, err := s.repo.GetProductSpecifications(ctx, updated.ProductUuid); err == nil {
+		res.Specifications = specs
+	}
 	s.rewriteImage(&res)
 	if input.Stock != nil {
 		res.Stock = max(*input.Stock, 0)

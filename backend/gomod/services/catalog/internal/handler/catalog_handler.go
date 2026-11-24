@@ -90,6 +90,17 @@ func (h *CatalogHandler) GetAllCategories(c *gin.Context) {
 	utils.ResponseSuccess(c, http.StatusOK, "Categories retrieved successfully", cats)
 }
 
+// GetCategoryTree returns the hierarchical category tree
+func (h *CatalogHandler) GetCategoryTree(c *gin.Context) {
+	tree, err := h.svc.GetCategoryTree(c.Request.Context())
+	if err != nil {
+		utils.ResponseError(c, err)
+		return
+	}
+
+	utils.ResponseSuccess(c, http.StatusOK, "Category tree retrieved successfully", tree)
+}
+
 func (h *CatalogHandler) GetCategoryBySlug(c *gin.Context) {
 	param := c.Param("slug")
 	if u, err := uuid.Parse(param); err == nil {
@@ -109,6 +120,16 @@ func (h *CatalogHandler) GetCategoryBySlug(c *gin.Context) {
 	}
 
 	utils.ResponseSuccess(c, http.StatusOK, "Category retrieved successfully", cat)
+}
+
+func (h *CatalogHandler) GetCategoryFacets(c *gin.Context) {
+	slugOrUUID := c.Param("slug")
+	facets, err := h.svc.GetCategoryFacets(c.Request.Context(), slugOrUUID)
+	if err != nil {
+		utils.ResponseError(c, err)
+		return
+	}
+	utils.ResponseSuccess(c, http.StatusOK, "Category facets retrieved successfully", facets)
 }
 
 // GetCategoryByUUID godoc
@@ -338,6 +359,38 @@ func (h *CatalogHandler) GetAllProducts(c *gin.Context) {
 
 	searchStr := c.Query("search")
 	categoryUUID := c.Query("category_uuid")
+	if categoryUUID == "" {
+		if catParam := c.Query("category"); catParam != "" {
+			if _, err := uuid.Parse(catParam); err == nil {
+				categoryUUID = catParam
+			} else if cat, err := h.svc.GetCategoryBySlug(c.Request.Context(), catParam); err == nil {
+				categoryUUID = cat.UUID
+			}
+		}
+	}
+
+	specs := make(map[string][]string)
+	for k, vList := range c.Request.URL.Query() {
+		if len(vList) == 0 {
+			continue
+		}
+		var specKey string
+		if strings.HasPrefix(k, "spec_") {
+			specKey = strings.TrimPrefix(k, "spec_")
+		} else if strings.HasPrefix(k, "specs[") && strings.HasSuffix(k, "]") {
+			specKey = k[6 : len(k)-1]
+		}
+		if specKey != "" {
+			for _, item := range vList {
+				for _, subItem := range strings.Split(item, ",") {
+					if trimmed := strings.TrimSpace(subItem); trimmed != "" {
+						specs[specKey] = append(specs[specKey], trimmed)
+					}
+				}
+			}
+		}
+	}
+
 	minPrice, _ := strconv.ParseFloat(c.Query("min_price"), 64)
 	maxPrice, _ := strconv.ParseFloat(c.Query("max_price"), 64)
 	minRating, _ := strconv.ParseFloat(c.Query("min_rating"), 64)
@@ -363,6 +416,7 @@ func (h *CatalogHandler) GetAllProducts(c *gin.Context) {
 		orderBy, sort,
 		int32(page), int32(limit),
 		deleted,
+		specs,
 	)
 	if err != nil {
 		utils.ResponseError(c, err)

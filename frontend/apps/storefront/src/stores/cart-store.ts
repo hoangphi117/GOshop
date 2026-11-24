@@ -31,6 +31,7 @@ export interface AppliedCoupon {
 interface ServerCartItemDTO {
   uuid: string
   product_uuid: string
+  variant_uuid?: string
   product_name: string
   product_slug: string
   product_image?: string
@@ -243,16 +244,20 @@ export const useCartStore = create<CartState>((set, get) => ({
         if (serverCart && Array.isArray(serverCart.items)) {
           const currentItems = get().items
           const mappedItems: CartItem[] = serverCart.items.map((sItem) => {
+            const compoundId = sItem.variant_uuid
+              ? `${sItem.product_uuid}-${sItem.variant_uuid}`
+              : sItem.product_uuid
             const existing = currentItems.find(
               (ci) =>
                 ci.itemUuid === sItem.uuid ||
+                ci.id === compoundId ||
                 ci.productUuid === sItem.product_uuid
             )
             return {
-              id: existing?.id || sItem.product_uuid,
+              id: compoundId,
               itemUuid: sItem.uuid,
               productUuid: sItem.product_uuid,
-              variantUuid: existing?.variantUuid,
+              variantUuid: sItem.variant_uuid || existing?.variantUuid,
               name: sItem.product_name,
               image: sItem.product_image || existing?.image || '',
               price: sItem.price,
@@ -339,6 +344,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       method: 'POST',
       body: JSON.stringify({
         product_uuid: newItem.productUuid,
+        variant_uuid: newItem.variantUuid || undefined,
         quantity: newItem.quantity,
       }),
     })

@@ -12,6 +12,20 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+type CategoryFacetRow struct {
+	Key   string
+	Value string
+	Count int64
+}
+
+type SubcategoryCountRow struct {
+	CategoryID   int32
+	CategoryUUID uuid.UUID
+	CategoryName string
+	CategorySlug string
+	ProductCount int64
+}
+
 type CatalogRepository interface {
 	// Categories
 	CreateCategory(ctx context.Context, params catalogsqlc.CreateCategoryParams) (catalogsqlc.Category, error)
@@ -20,6 +34,13 @@ type CatalogRepository interface {
 	GetCategoryByUUID(ctx context.Context, u uuid.UUID) (catalogsqlc.Category, error)
 	GetCategoryByID(ctx context.Context, id int32) (catalogsqlc.Category, error)
 	ListCategories(ctx context.Context, activeOnly *bool) ([]catalogsqlc.Category, error)
+	GetCategoriesWithParent(ctx context.Context) ([]catalogsqlc.Category, error)
+	UpdateCategoryParent(ctx context.Context, u uuid.UUID, parentID *int32, level int32) error
+
+	// Specifications
+	UpdateProductSpecifications(ctx context.Context, u uuid.UUID, specs map[string]string) error
+	GetProductSpecifications(ctx context.Context, u uuid.UUID) (map[string]string, error)
+	GetProductsSpecificationsBatch(ctx context.Context, productIDs []int32) (map[int32]map[string]string, error)
 
 	// FAQs
 	ListFAQs(ctx context.Context, q *string, limit, offset int32) ([]FAQ, error)
@@ -44,11 +65,31 @@ type CatalogRepository interface {
 		orderBy, sort string,
 		limit, offset int32,
 		deleted bool,
+		specs map[string][]string,
 	) ([]catalogsqlc.GetProductByUUIDRow, error)
+	CountAllProducts(
+		ctx context.Context,
+		search, categoryUUID string,
+		minPrice, maxPrice, minRating float64,
+		status int32,
+		deleted bool,
+		specs map[string][]string,
+	) (int64, error)
+	GetCategoryFacets(ctx context.Context, categoryUUID uuid.UUID) ([]CategoryFacetRow, []SubcategoryCountRow, error)
 	UpdateProduct(ctx context.Context, params catalogsqlc.UpdateProductParams) (catalogsqlc.UpdateProductRow, error)
 	SoftDeleteProduct(ctx context.Context, u uuid.UUID) (catalogsqlc.Product, error)
 	RestoreProduct(ctx context.Context, u uuid.UUID) (catalogsqlc.Product, error)
 	TrashProduct(ctx context.Context, u uuid.UUID) (catalogsqlc.Product, error)
+
+	// Variants
+	CreateVariant(ctx context.Context, params catalogsqlc.CreateVariantParams) (catalogsqlc.ProductVariant, error)
+	GetVariantByUUID(ctx context.Context, u uuid.UUID) (catalogsqlc.ProductVariant, error)
+	GetVariantByUUIDForUpdate(ctx context.Context, u uuid.UUID) (catalogsqlc.ProductVariant, error)
+	ListVariantsByProductID(ctx context.Context, productID int32) ([]catalogsqlc.ProductVariant, error)
+	ListActiveVariantsByProductID(ctx context.Context, productID int32) ([]catalogsqlc.ProductVariant, error)
+	UpdateVariant(ctx context.Context, params catalogsqlc.UpdateVariantParams) (catalogsqlc.ProductVariant, error)
+	DeleteVariant(ctx context.Context, u uuid.UUID) (catalogsqlc.ProductVariant, error)
+	GetVariantsByUUIDs(ctx context.Context, uuids []uuid.UUID) ([]catalogsqlc.ProductVariant, error)
 
 	// Outbox
 	InsertOutboxEvent(ctx context.Context, aggregateType, aggregateID, eventType string, payload any) (catalogsqlc.OutboxEvent, error)
@@ -211,6 +252,7 @@ func (r *SqlCatalogRepository) GetAllProducts(
 	orderBy, sort string,
 	limit, offset int32,
 	deleted bool,
+	specs map[string][]string,
 ) ([]catalogsqlc.GetProductByUUIDRow, error) {
 	query := `
 		SELECT
@@ -252,9 +294,26 @@ func (r *SqlCatalogRepository) GetAllProducts(
 	}
 
 	if strings.TrimSpace(categoryUUID) != "" {
-		query += fmt.Sprintf(" AND c.category_uuid = $%d::uuid", paramIdx)
+		query += fmt.Sprintf(" AND (c.category_uuid = $%d::uuid OR c.parent_id = (SELECT category_id FROM categories WHERE category_uuid = $%d::uuid))", paramIdx, paramIdx)
 		args = append(args, strings.TrimSpace(categoryUUID))
 		paramIdx++
+	}
+
+	for k, vList := range specs {
+		if len(vList) == 0 {
+			continue
+		}
+		orParts := make([]string, 0, len(vList))
+		for _, v := range vList {
+			if strings.TrimSpace(v) != "" {
+				orParts = append(orParts, fmt.Sprintf("p.product_specifications->>$%d ILIKE '%%' || $%d || '%%'", paramIdx, paramIdx+1))
+				args = append(args, k, strings.TrimSpace(v))
+				paramIdx += 2
+			}
+		}
+		if len(orParts) > 0 {
+			query += " AND (" + strings.Join(orParts, " OR ") + ")"
+		}
 	}
 
 	if minPrice > 0 {
@@ -336,6 +395,150 @@ func (r *SqlCatalogRepository) GetAllProducts(
 	return products, rows.Err()
 }
 
+func (r *SqlCatalogRepository) CountAllProducts(
+	ctx context.Context,
+	search, categoryUUID string,
+	minPrice, maxPrice, minRating float64,
+	status int32,
+	deleted bool,
+	specs map[string][]string,
+) (int64, error) {
+	query := `
+		SELECT count(*)
+		FROM products p
+		JOIN categories c ON c.category_id = p.product_category_id
+		WHERE 1=1
+	`
+
+	args := []any{}
+	paramIdx := 1
+
+	if deleted {
+		query += " AND p.product_deleted_at IS NOT NULL"
+	} else {
+		query += " AND p.product_deleted_at IS NULL"
+	}
+
+	if strings.TrimSpace(search) != "" {
+		query += fmt.Sprintf(" AND (p.product_name ILIKE '%%' || $%d || '%%' OR p.product_slug ILIKE '%%' || $%d || '%%')", paramIdx, paramIdx)
+		args = append(args, strings.TrimSpace(search))
+		paramIdx++
+	}
+
+	if strings.TrimSpace(categoryUUID) != "" {
+		query += fmt.Sprintf(" AND (c.category_uuid = $%d::uuid OR c.parent_id = (SELECT category_id FROM categories WHERE category_uuid = $%d::uuid))", paramIdx, paramIdx)
+		args = append(args, strings.TrimSpace(categoryUUID))
+		paramIdx++
+	}
+
+	for k, vList := range specs {
+		if len(vList) == 0 {
+			continue
+		}
+		orParts := make([]string, 0, len(vList))
+		for _, v := range vList {
+			if strings.TrimSpace(v) != "" {
+				orParts = append(orParts, fmt.Sprintf("p.product_specifications->>$%d ILIKE '%%' || $%d || '%%'", paramIdx, paramIdx+1))
+				args = append(args, k, strings.TrimSpace(v))
+				paramIdx += 2
+			}
+		}
+		if len(orParts) > 0 {
+			query += " AND (" + strings.Join(orParts, " OR ") + ")"
+		}
+	}
+
+	if minPrice > 0 {
+		query += fmt.Sprintf(" AND p.product_price >= $%d", paramIdx)
+		args = append(args, minPrice)
+		paramIdx++
+	}
+
+	if maxPrice > 0 {
+		query += fmt.Sprintf(" AND p.product_price <= $%d", paramIdx)
+		args = append(args, maxPrice)
+		paramIdx++
+	}
+
+	if minRating > 0 {
+		query += fmt.Sprintf(" AND p.product_avg_rating >= $%d", paramIdx)
+		args = append(args, minRating)
+		paramIdx++
+	}
+
+	if status > 0 {
+		query += fmt.Sprintf(" AND p.product_status = $%d", paramIdx)
+		args = append(args, status)
+		paramIdx++
+	}
+
+	var count int64
+	err := r.pool.QueryRow(ctx, query, args...).Scan(&count)
+	return count, err
+}
+
+func (r *SqlCatalogRepository) GetCategoryFacets(ctx context.Context, categoryUUID uuid.UUID) ([]CategoryFacetRow, []SubcategoryCountRow, error) {
+	facetQuery := `
+		SELECT 
+			spec.key,
+			spec.value,
+			count(*) AS product_count
+		FROM products p
+		JOIN categories c ON c.category_id = p.product_category_id
+		CROSS JOIN LATERAL jsonb_each_text(p.product_specifications) AS spec(key, value)
+		WHERE (c.category_uuid = $1 OR c.parent_id = (SELECT category_id FROM categories WHERE category_uuid = $1))
+		  AND p.product_deleted_at IS NULL
+		  AND p.product_status = 1
+		GROUP BY spec.key, spec.value
+		ORDER BY spec.key ASC, count(*) DESC
+	`
+	rows, err := r.pool.Query(ctx, facetQuery, categoryUUID)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	var facets []CategoryFacetRow
+	for rows.Next() {
+		var f CategoryFacetRow
+		if err := rows.Scan(&f.Key, &f.Value, &f.Count); err != nil {
+			return nil, nil, err
+		}
+		facets = append(facets, f)
+	}
+
+	subQuery := `
+		SELECT 
+			sub.category_id,
+			sub.category_uuid,
+			sub.category_name,
+			sub.category_slug,
+			count(p.product_id) AS product_count
+		FROM categories sub
+		LEFT JOIN products p ON p.product_category_id = sub.category_id AND p.product_deleted_at IS NULL AND p.product_status = 1
+		WHERE sub.parent_id = (SELECT category_id FROM categories WHERE category_uuid = $1)
+		   OR (sub.category_uuid = $1 AND sub.parent_id IS NOT NULL)
+		GROUP BY sub.category_id, sub.category_uuid, sub.category_name, sub.category_slug
+		ORDER BY sub.category_name ASC
+	`
+	subRows, err := r.pool.Query(ctx, subQuery, categoryUUID)
+	if err != nil {
+		return facets, nil, nil
+	}
+	defer subRows.Close()
+
+	var subs []SubcategoryCountRow
+	for subRows.Next() {
+		var s SubcategoryCountRow
+		if err := subRows.Scan(&s.CategoryID, &s.CategoryUUID, &s.CategoryName, &s.CategorySlug, &s.ProductCount); err != nil {
+			return facets, nil, nil
+		}
+		subs = append(subs, s)
+	}
+
+	return facets, subs, nil
+}
+
 func (r *SqlCatalogRepository) UpdateProduct(ctx context.Context, params catalogsqlc.UpdateProductParams) (catalogsqlc.UpdateProductRow, error) {
 	return r.queries.UpdateProduct(ctx, params)
 }
@@ -371,4 +574,24 @@ func (r *SqlCatalogRepository) GetPendingOutboxEvents(ctx context.Context, limit
 
 func (r *SqlCatalogRepository) MarkOutboxEventProcessed(ctx context.Context, eventID int64) error {
 	return r.queries.MarkOutboxEventProcessed(ctx, eventID)
+}
+
+func (r *SqlCatalogRepository) GetCategoriesWithParent(ctx context.Context) ([]catalogsqlc.Category, error) {
+	return r.queries.GetCategoriesWithParent(ctx)
+}
+
+func (r *SqlCatalogRepository) UpdateCategoryParent(ctx context.Context, u uuid.UUID, parentID *int32, level int32) error {
+	return r.queries.UpdateCategoryParent(ctx, u, parentID, level)
+}
+
+func (r *SqlCatalogRepository) UpdateProductSpecifications(ctx context.Context, u uuid.UUID, specs map[string]string) error {
+	return r.queries.UpdateProductSpecifications(ctx, u, specs)
+}
+
+func (r *SqlCatalogRepository) GetProductSpecifications(ctx context.Context, u uuid.UUID) (map[string]string, error) {
+	return r.queries.GetProductSpecifications(ctx, u)
+}
+
+func (r *SqlCatalogRepository) GetProductsSpecificationsBatch(ctx context.Context, productIDs []int32) (map[int32]map[string]string, error) {
+	return r.queries.GetProductsSpecificationsBatch(ctx, productIDs)
 }

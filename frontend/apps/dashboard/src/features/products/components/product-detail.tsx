@@ -14,6 +14,7 @@ import {
   XCircle,
   AlertCircle,
   Loader2,
+  Layers,
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { toast } from 'sonner'
@@ -22,6 +23,7 @@ import { Main } from '@/components/layout/main'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Form,
   FormControl,
@@ -44,6 +46,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useCategories } from '@/features/categories/hooks/use-categories'
 import { useProduct, useProductMutations } from '../hooks/use-products'
 import { ImageUpload } from './image-upload'
+import { VariantManager } from './variant-manager'
+import { SpecificationsEditor } from './specifications-editor'
 import type { ProductFormData } from '../types'
 
 interface ProductDetailProps {
@@ -58,6 +62,7 @@ const productFormSchema = z.object({
   sku: z.string().max(50).optional(),
   image_url: z.string().optional(),
   description: z.string().max(2000).optional(),
+  specifications: z.record(z.string(), z.string()).optional(),
   status: z.union([z.literal(1), z.literal(2)]),
 })
 
@@ -87,7 +92,7 @@ export function ProductDetail({ uuid }: ProductDetailProps) {
   const { data: categoriesData } = useCategories({ limit: 100 })
 
   const categories = useMemo(() => {
-    return (categoriesData?.data as Array<{ uuid?: string; category_name?: string }>) || []
+    return (categoriesData?.data as Array<{ uuid?: string; category_name?: string; category_level?: number }>) || []
   }, [categoriesData?.data])
 
   const form = useForm<ProductFormValues>({
@@ -100,6 +105,7 @@ export function ProductDetail({ uuid }: ProductDetailProps) {
       sku: '',
       image_url: '',
       description: '',
+      specifications: {},
       status: 1,
     },
   })
@@ -117,6 +123,7 @@ export function ProductDetail({ uuid }: ProductDetailProps) {
         sku: product.sku || '',
         image_url: product.image_url || '',
         description: product.description || '',
+        specifications: product.specifications || {},
         status: statusValue,
       })
     }
@@ -166,6 +173,7 @@ export function ProductDetail({ uuid }: ProductDetailProps) {
         sku: product.sku || '',
         image_url: product.image_url || '',
         description: product.description || '',
+        specifications: product.specifications || {},
         status: statusValue,
       })
       toast.info('Form reverted to saved state')
@@ -183,6 +191,7 @@ export function ProductDetail({ uuid }: ProductDetailProps) {
         sku: values.sku?.trim() || undefined,
         image_url: values.image_url?.trim() || undefined,
         description: values.description?.trim() || undefined,
+        specifications: values.specifications,
         status: values.status,
       }
 
@@ -256,7 +265,19 @@ export function ProductDetail({ uuid }: ProductDetailProps) {
       <DashboardHeader fixed />
 
       <Main className='flex flex-1 flex-col gap-4 sm:gap-6'>
-        <Form {...form}>
+        <Tabs defaultValue='general' className='space-y-6'>
+          <div className='flex items-center justify-between border-b pb-3'>
+            <TabsList>
+              <TabsTrigger value='general'>General Details</TabsTrigger>
+              <TabsTrigger value='variants' className='gap-1.5'>
+                <Layers className='h-3.5 w-3.5' />
+                Variants (SKUs)
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
+          <TabsContent value='general' className='m-0 focus-visible:ring-0'>
+            <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
             {/* Page Header */}
             <div className='flex flex-wrap items-center justify-between gap-3'>
@@ -420,7 +441,9 @@ export function ProductDetail({ uuid }: ProductDetailProps) {
                             <SelectContent>
                               {categories.map((c) => (
                                 <SelectItem key={c.uuid} value={c.uuid || ''}>
-                                  {c.category_name || 'Unnamed Category'}
+                                  {c.category_level && c.category_level > 1
+                                    ? `↳ ${c.category_name}`
+                                    : c.category_name || 'Unnamed Category'}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -605,11 +628,44 @@ export function ProductDetail({ uuid }: ProductDetailProps) {
                     />
                   </CardContent>
                 </Card>
+
+                {/* Technical Specifications Card */}
+                <Card className='shadow-xs'>
+                  <CardHeader className='pb-3'>
+                    <CardTitle className='text-base font-semibold'>Technical Specifications</CardTitle>
+                    <CardDescription className='text-xs'>
+                      Dynamic hardware and component specifications (RAM, CPU, Storage, Display, Battery, etc.)
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className='pt-0'>
+                    <FormField
+                      control={form.control}
+                      name='specifications'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <SpecificationsEditor
+                              value={field.value}
+                              onChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </CardContent>
+                </Card>
               </div>
             </div>
           </form>
         </Form>
-      </Main>
+      </TabsContent>
+
+      <TabsContent value='variants' className='m-0 focus-visible:ring-0'>
+        <VariantManager productUuid={uuid} />
+      </TabsContent>
+    </Tabs>
+  </Main>
     </>
   )
 }

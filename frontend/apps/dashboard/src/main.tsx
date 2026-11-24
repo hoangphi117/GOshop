@@ -1,5 +1,6 @@
 import { StrictMode } from 'react'
 import ReactDOM from 'react-dom/client'
+import { Provider } from 'react-redux'
 import { AxiosError } from 'axios'
 import {
   QueryCache,
@@ -8,6 +9,7 @@ import {
 } from '@tanstack/react-query'
 import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { toast } from 'sonner'
+import { store } from '@/stores/redux-store'
 import { useAuthStore } from '@/stores/auth-store'
 import { handleServerError } from '@/lib/handle-server-error'
 import { DirectionProvider } from './context/direction-provider'
@@ -115,15 +117,17 @@ if (!rootElement.innerHTML) {
   const root = ReactDOM.createRoot(rootElement)
   root.render(
     <StrictMode>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider>
-          <FontProvider>
-            <DirectionProvider>
-              <RouterProvider router={router} />
-            </DirectionProvider>
-          </FontProvider>
-        </ThemeProvider>
-      </QueryClientProvider>
+      <Provider store={store}>
+        <QueryClientProvider client={queryClient}>
+          <ThemeProvider>
+            <FontProvider>
+              <DirectionProvider>
+                <RouterProvider router={router} />
+              </DirectionProvider>
+            </FontProvider>
+          </ThemeProvider>
+        </QueryClientProvider>
+      </Provider>
     </StrictMode>
   )
 }
