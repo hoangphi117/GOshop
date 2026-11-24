@@ -13,17 +13,17 @@ import (
 
 // ProductVariantDTO is the outbound representation of a SKU variant.
 type ProductVariantDTO struct {
-	UUID            string            `json:"uuid"`
-	SKU             string            `json:"sku"`
-	Title           string            `json:"title"`
-	Price           float64           `json:"price"`
-	CompareAtPrice  *float64          `json:"compare_at_price,omitempty"`
-	ImageURL        *string           `json:"image_url,omitempty"`
-	Attributes      map[string]string `json:"attributes"`
-	Position        int32             `json:"position"`
-	Status          string            `json:"status"`
-	CreatedAt       string            `json:"created_at"`
-	UpdatedAt       string            `json:"updated_at"`
+	UUID           string            `json:"uuid"`
+	SKU            string            `json:"sku"`
+	Title          string            `json:"title"`
+	Price          float64           `json:"price"`
+	CompareAtPrice *float64          `json:"compare_at_price,omitempty"`
+	ImageURL       *string           `json:"image_url,omitempty"`
+	Attributes     map[string]string `json:"attributes"`
+	Position       int32             `json:"position"`
+	Status         string            `json:"status"`
+	CreatedAt      string            `json:"created_at"`
+	UpdatedAt      string            `json:"updated_at"`
 }
 
 func (v ProductVariantDTO) MarshalJSON() ([]byte, error) {
@@ -103,20 +103,18 @@ func MapVariantsToDTOs(variants []catalogsqlc.ProductVariant) []ProductVariantDT
 	return result
 }
 
-
-
 type CategoryDTO struct {
-	CategoryID    int32          `json:"category_id"`
-	UUID          string         `json:"uuid"`
-	Name          string         `json:"category_name"`
-	Slug          string         `json:"slug"`
-	Description   *string        `json:"description,omitempty"`
-	Status        string         `json:"status"`
-	CreatedAt     string         `json:"created_at"`
-	UpdatedAt     string         `json:"updated_at,omitempty"`
-	ParentID      *int32         `json:"parent_id,omitempty"`
-	CategoryLevel int32          `json:"category_level"`
-	Children      []CategoryDTO  `json:"children,omitempty"`
+	CategoryID    int32         `json:"category_id"`
+	UUID          string        `json:"uuid"`
+	Name          string        `json:"category_name"`
+	Slug          string        `json:"slug"`
+	Description   *string       `json:"description,omitempty"`
+	Status        string        `json:"status"`
+	CreatedAt     string        `json:"created_at"`
+	UpdatedAt     string        `json:"updated_at,omitempty"`
+	ParentID      *int32        `json:"parent_id,omitempty"`
+	CategoryLevel int32         `json:"category_level"`
+	Children      []CategoryDTO `json:"children,omitempty"`
 }
 
 func (c CategoryDTO) MarshalJSON() ([]byte, error) {

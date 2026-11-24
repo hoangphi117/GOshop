@@ -179,10 +179,48 @@ test.describe("Checkout Flow with Product Variant", () => {
   test("should load checkout page with variant item and place order showing total amount", async ({
     page,
   }) => {
-    // Load home page and inject session & variant cart item
-    await page.goto("/");
+    // Pre-populate localStorage so stores hydrate with user session & cart item
+    await page.addInitScript(() => {
+      const user = {
+        id: 1,
+        email: "admin@goshop.com",
+        fullName: "System Admin",
+        role: ["admin"],
+        roles: ["admin"],
+      };
+      const cartItem = {
+        id: "11111111-2222-3333-4444-555555555555-66666666-7777-8888-9999-000000000000",
+        productUuid: "11111111-2222-3333-4444-555555555555",
+        variantUuid: "66666666-7777-8888-9999-000000000000",
+        name: "iPhone 16 Pro Max 256GB Titanium",
+        price: 35340000,
+        quantity: 1,
+        image: "",
+        sku: "IPH16PM-256-PRO",
+        stockQuantity: 10,
+        selected: true,
+      };
+      try {
+        localStorage.setItem(
+          "goshop_storefront_auth",
+          JSON.stringify({ state: { user }, version: 0 }),
+        );
+        localStorage.setItem(
+          "goshop_cart_1",
+          JSON.stringify({ items: [cartItem], appliedCoupon: null }),
+        );
+        localStorage.setItem(
+          "goshop_cart_null",
+          JSON.stringify({ items: [cartItem], appliedCoupon: null }),
+        );
+      } catch {}
+    });
+
+    // Navigate directly to checkout page
+    await page.goto("/checkout");
     await page.waitForLoadState("domcontentloaded");
 
+    // Ensure access token is set in memory on the checkout page
     await page.evaluate(() => {
       const auth = (
         window as unknown as {
@@ -209,27 +247,37 @@ test.describe("Checkout Flow with Product Variant", () => {
         window as unknown as {
           __cartStore?: {
             getState: () => {
+              items: unknown[];
               addItem: (item: unknown) => void;
             };
           };
         }
       ).__cartStore;
       if (cart) {
-        cart.getState().addItem({
-          productUuid: "11111111-2222-3333-4444-555555555555",
-          variantUuid: "66666666-7777-8888-9999-000000000000",
-          name: "iPhone 16 Pro Max 256GB Titanium",
-          price: 35340000,
-          quantity: 1,
-          image: "",
-          sku: "IPH16PM-256-PRO",
-          stockQuantity: 10,
-        });
+        if (!cart.getState().items || cart.getState().items.length === 0) {
+          cart.getState().addItem({
+            productUuid: "11111111-2222-3333-4444-555555555555",
+            variantUuid: "66666666-7777-8888-9999-000000000000",
+            name: "iPhone 16 Pro Max 256GB Titanium",
+            price: 35340000,
+            quantity: 1,
+            image: "",
+            sku: "IPH16PM-256-PRO",
+            stockQuantity: 10,
+          });
+        }
+        cart.getState().closeDrawer();
       }
     });
 
-    // Navigate directly to checkout page
-    await page.goto("/checkout");
+    // Close cart drawer if visible so it doesn't intercept clicks
+    const closeCartBtn = page.getByRole("button", {
+      name: /close cart drawer/i,
+    });
+    if (await closeCartBtn.isVisible()) {
+      await closeCartBtn.click();
+    }
+
     await expect(page).toHaveURL(/.*checkout/);
 
     // Verify items and delivery step are loaded

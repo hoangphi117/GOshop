@@ -31,11 +31,11 @@ func TestOrderCatalogAdapter_GetVariantsForCheckout(t *testing.T) {
 				"message": "variants fetched",
 				"data": []map[string]any{
 					{
-						"uuid":        variantUUID.String(),
-						"sku":         "IP16-BLK-256",
-						"title":       "Titanium Black 256GB",
-						"price":       32990000.0,
-						"status":      "active",
+						"uuid":   variantUUID.String(),
+						"sku":    "IP16-BLK-256",
+						"title":  "Titanium Black 256GB",
+						"price":  32990000.0,
+						"status": "active",
 						"attributes": map[string]string{
 							"color":   "Black",
 							"storage": "256GB",

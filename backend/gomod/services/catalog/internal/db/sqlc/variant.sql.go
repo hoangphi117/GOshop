@@ -32,15 +32,15 @@ RETURNING variant_id, variant_uuid, product_id, variant_sku, variant_title, vari
 `
 
 type CreateVariantParams struct {
-	ProductID              int32          `json:"product_id"`
-	VariantSku             string         `json:"variant_sku"`
-	VariantTitle           string         `json:"variant_title"`
-	VariantPrice           pgtype.Numeric `json:"variant_price"`
-	VariantCompareAtPrice  pgtype.Numeric `json:"variant_compare_at_price"`
-	VariantImageUrl        *string        `json:"variant_image_url"`
-	VariantAttributes      []byte         `json:"variant_attributes"`
-	VariantPosition        int32          `json:"variant_position"`
-	VariantStatus          int32          `json:"variant_status"`
+	ProductID             int32          `json:"product_id"`
+	VariantSku            string         `json:"variant_sku"`
+	VariantTitle          string         `json:"variant_title"`
+	VariantPrice          pgtype.Numeric `json:"variant_price"`
+	VariantCompareAtPrice pgtype.Numeric `json:"variant_compare_at_price"`
+	VariantImageUrl       *string        `json:"variant_image_url"`
+	VariantAttributes     []byte         `json:"variant_attributes"`
+	VariantPosition       int32          `json:"variant_position"`
+	VariantStatus         int32          `json:"variant_status"`
 }
 
 func (q *Queries) CreateVariant(ctx context.Context, arg CreateVariantParams) (ProductVariant, error) {

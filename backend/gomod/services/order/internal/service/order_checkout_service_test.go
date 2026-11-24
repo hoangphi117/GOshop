@@ -745,16 +745,16 @@ func TestOrderCheckoutService_CreateOrder(t *testing.T) {
 		mockOrderRepo := &MockOrderRepository{
 			CreateFunc: func(ctx context.Context, params sqlc.CreateOrderParams) (sqlc.Order, error) {
 				return sqlc.Order{
-					OrderID:              99,
-					OrderUuid:            createdOrderUUID,
-					OrderNumber:          params.OrderNumber,
-					OrderUserID:          customer.UserID,
-					OrderStatus:          orderservice.OrderStatusPending,
-					OrderPaymentStatus:   orderservice.OrderPaymentStatusUnpaid,
-					OrderPaymentMethod:   params.OrderPaymentMethod,
-					OrderSubtotalAmount:  params.OrderSubtotalAmount,
-					OrderTotalAmount:     params.OrderTotalAmount,
-					OrderCreatedAt:       time.Now(),
+					OrderID:             99,
+					OrderUuid:           createdOrderUUID,
+					OrderNumber:         params.OrderNumber,
+					OrderUserID:         customer.UserID,
+					OrderStatus:         orderservice.OrderStatusPending,
+					OrderPaymentStatus:  orderservice.OrderPaymentStatusUnpaid,
+					OrderPaymentMethod:  params.OrderPaymentMethod,
+					OrderSubtotalAmount: params.OrderSubtotalAmount,
+					OrderTotalAmount:    params.OrderTotalAmount,
+					OrderCreatedAt:      time.Now(),
 				}, nil
 			},
 		}

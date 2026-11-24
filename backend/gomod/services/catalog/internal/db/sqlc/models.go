@@ -58,15 +58,15 @@ type OutboxEvent struct {
 }
 
 type Product struct {
-	ProductID             int32              `json:"product_id"`
-	ProductUuid           uuid.UUID          `json:"product_uuid"`
-	ProductName           string             `json:"product_name"`
-	ProductSlug           string             `json:"product_slug"`
-	ProductDescription    *string            `json:"product_description"`
-	ProductPrice          pgtype.Numeric     `json:"product_price"`
-	ProductSku            *string            `json:"product_sku"`
-	ProductCategoryID     int32              `json:"product_category_id"`
-	ProductImageUrl       *string            `json:"product_image_url"`
+	ProductID          int32          `json:"product_id"`
+	ProductUuid        uuid.UUID      `json:"product_uuid"`
+	ProductName        string         `json:"product_name"`
+	ProductSlug        string         `json:"product_slug"`
+	ProductDescription *string        `json:"product_description"`
+	ProductPrice       pgtype.Numeric `json:"product_price"`
+	ProductSku         *string        `json:"product_sku"`
+	ProductCategoryID  int32          `json:"product_category_id"`
+	ProductImageUrl    *string        `json:"product_image_url"`
 	// 1: Active, 2: Inactive, 3: Out of Stock
 	ProductStatus         int32              `json:"product_status"`
 	ProductDeletedAt      pgtype.Timestamptz `json:"product_deleted_at"`
