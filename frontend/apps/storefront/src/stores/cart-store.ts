@@ -576,3 +576,7 @@ if (typeof window !== 'undefined') {
     // ignore
   }
 }
+
+if (typeof window !== 'undefined') {
+  ;(window as unknown as { __cartStore?: typeof useCartStore }).__cartStore = useCartStore
+}
