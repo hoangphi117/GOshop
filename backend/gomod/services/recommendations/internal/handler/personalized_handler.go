@@ -80,6 +80,26 @@ func (h *PersonalizedHandler) ForVisitor(ctx *gin.Context) {
 			}
 		}
 	}
+
+	// Backfill if shelf has fewer items than limit (prevents sparse 1-3 item shelves)
+	if len(shelf.Items) < limit {
+		if bs, berr := h.bestSellers.BestSellers(ctx.Request.Context(), limit); berr == nil && len(bs.Items) > 0 {
+			seenUUIDs := make(map[string]struct{}, len(shelf.Items))
+			for _, it := range shelf.Items {
+				seenUUIDs[it.UUID] = struct{}{}
+			}
+			for _, it := range bs.Items {
+				if _, exists := seenUUIDs[it.UUID]; !exists {
+					shelf.Items = append(shelf.Items, it)
+					seenUUIDs[it.UUID] = struct{}{}
+					if len(shelf.Items) >= limit {
+						break
+					}
+				}
+			}
+		}
+	}
+
 	utils.ResponseSuccess(ctx, http.StatusOK, "Recommendations retrieved successfully", shelf)
 }
 
