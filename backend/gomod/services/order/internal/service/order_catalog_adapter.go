@@ -21,11 +21,7 @@ type orderCatalogAdapter struct {
 
 // NewOrderCatalogAdapter creates an adapter exposing CatalogClient as CatalogPort (UUID-only, no local DB fallback).
 func NewOrderCatalogAdapter(catalogClient catalogcontract.CatalogClient) CatalogPort {
-	catalogURL := utils.GetEnv("CATALOG_SERVICE_URL", "http://catalog:8086")
-	if catalogURL == "http://localhost:8086" || catalogURL == "http://127.0.0.1:8086" {
-		// Inside docker networks, use cluster service name
-		catalogURL = "http://catalog:8086"
-	}
+	catalogURL := utils.GetEnv("CATALOG_SERVICE_URL", "http://127.0.0.1:8086")
 	return &orderCatalogAdapter{
 		catalogClient: catalogClient,
 		httpClient:    &http.Client{Timeout: 5 * time.Second},
