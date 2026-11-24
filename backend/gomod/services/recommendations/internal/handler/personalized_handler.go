@@ -32,7 +32,7 @@ func NewPersonalizedHandler(
 // @Tags         Recommendations
 // @Produce      json
 // @Param        limit query int false "Number of products (default 12, max 50)"
-// @Param        tier query string false "crowd to ignore this device's history"
+// @Param        tier query string false "crowd, trending, or personal"
 // @Success      200 {object} utils.APIResponse{data=recssvc.Shelf}
 // @Failure      400 {object} utils.ErrorResponse
 // @Router       /api/v1/recommendations/personalized [get]
@@ -46,49 +46,80 @@ func (h *PersonalizedHandler) ForVisitor(ctx *gin.Context) {
 		return
 	}
 
-	// tier=crowd: a device that signed out keeps its cookie (it is the browser's
-	// search history and must survive a logout), but must no longer be served a
-	// shelf built from that history. An empty key is the service's "no history"
-	// answer, which the fallback below turns into a crowd shelf.
-	key := ""
-	if tier != tierCrowd {
-		key = visitorKey(ctx)
-	}
+	var shelf recssvc.Shelf
+	var err error
 
-	shelf, reported, err := h.personalized.ForVisitor(ctx.Request.Context(), key, limit)
-	if err != nil {
-		// A missing vector table must not 500 the homepage shelf.
-		utils.ResponseError(ctx, err)
-		return
-	}
-	if !reported {
-		// Tier below the personal shelves: today's demand before the all-time
-		// list. Trending reports false when the day is too quiet to mean
-		// anything, and then best sellers answer.
+	if tier == tierTrending {
+		// tier=trending explicitly requests today's demand, bypassing visitor history.
 		trending, ok, terr := h.bestSellers.Trending(ctx.Request.Context(), limit)
 		if terr != nil {
 			utils.ResponseError(ctx, terr)
 			return
 		}
-		if ok {
+		if ok && len(trending.Items) > 0 {
 			shelf = trending
 		} else {
-			shelf, err = h.bestSellers.BestSellers(ctx.Request.Context(), limit)
+			// Fall back to New Arrivals so it never duplicates Best Sellers
+			shelf, err = h.bestSellers.NewArrivals(ctx.Request.Context(), limit)
 			if err != nil {
 				utils.ResponseError(ctx, err)
 				return
+			}
+		}
+	} else {
+		// tier=crowd: a device that signed out keeps its cookie (it is the browser's
+		// search history and must survive a logout), but must no longer be served a
+		// shelf built from that history. An empty key is the service's "no history"
+		// answer, which the fallback below turns into a crowd shelf.
+		key := ""
+		if tier != tierCrowd {
+			key = visitorKey(ctx)
+		}
+
+		reported := false
+		shelf, reported, err = h.personalized.ForVisitor(ctx.Request.Context(), key, limit)
+		if err != nil {
+			// A missing vector table must not 500 the homepage shelf.
+			utils.ResponseError(ctx, err)
+			return
+		}
+		if !reported {
+			// Tier below the personal shelves: today's demand before the all-time
+			// list. Trending reports false when the day is too quiet to mean
+			// anything, and then new arrivals answer.
+			trending, ok, terr := h.bestSellers.Trending(ctx.Request.Context(), limit)
+			if terr != nil {
+				utils.ResponseError(ctx, terr)
+				return
+			}
+			if ok && len(trending.Items) > 0 {
+				shelf = trending
+			} else {
+				// Fall back to New Arrivals if quiet day, avoiding Best Sellers duplicate.
+				shelf, err = h.bestSellers.NewArrivals(ctx.Request.Context(), limit)
+				if err != nil || len(shelf.Items) == 0 {
+					shelf, err = h.bestSellers.BestSellers(ctx.Request.Context(), limit)
+					if err != nil {
+						utils.ResponseError(ctx, err)
+						return
+					}
+				}
 			}
 		}
 	}
 
 	// Backfill if shelf has fewer items than limit (prevents sparse 1-3 item shelves)
 	if len(shelf.Items) < limit {
-		if bs, berr := h.bestSellers.BestSellers(ctx.Request.Context(), limit); berr == nil && len(bs.Items) > 0 {
+		backfillFn := h.bestSellers.BestSellers
+		if shelf.Source == recssvc.SourceOrders || shelf.Source == recssvc.SourceFallback {
+			backfillFn = h.bestSellers.NewArrivals
+		}
+		if filler, ferr := backfillFn(ctx.Request.Context(), limit); ferr == nil && len(filler.Items) > 0 {
 			seenUUIDs := make(map[string]struct{}, len(shelf.Items))
 			for _, it := range shelf.Items {
 				seenUUIDs[it.UUID] = struct{}{}
 			}
-			for _, it := range bs.Items {
+			for _, it := range filler.Items {
 				if _, exists := seenUUIDs[it.UUID]; !exists {
 					shelf.Items = append(shelf.Items, it)
 					seenUUIDs[it.UUID] = struct{}{}
@@ -252,17 +283,20 @@ func visitorKey(ctx *gin.Context) string {
 	return ""
 }
 
-const tierCrowd = "crowd"
+const (
+	tierCrowd        = "crowd"
+	tierTrending     = "trending"
+	tierPersonal     = "personal"
+	tierPersonalized = "personalized"
+)
 
-// parseTier reads the shelf tier override. Anything but `crowd` is a typo that
-// would otherwise silently serve a personal shelf to a device asking not to
-// have one, so it is rejected rather than ignored.
+// parseTier reads the shelf tier override. Accepts empty, crowd, trending, or personal.
 func parseTier(ctx *gin.Context) (string, bool) {
 	switch raw := ctx.Query("tier"); raw {
-	case "", tierCrowd:
+	case "", tierCrowd, tierTrending, tierPersonal, tierPersonalized:
 		return raw, true
 	default:
-		utils.ResponseValidator(ctx, map[string]string{"tier": "Tier must be empty or crowd"})
+		utils.ResponseValidator(ctx, map[string]string{"tier": "Tier must be empty, crowd, trending, or personal"})
 		return "", false
 	}
 }

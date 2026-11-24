@@ -257,7 +257,11 @@ export function CartDrawer() {
                         </div>
 
                         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                          {(item.selectedSize || item.selectedColor) && (
+                          {item.variantTitle ? (
+                            <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#F0F9FB] text-[#007D9C] border border-[#E0F7FC]">
+                              Variant: {item.variantTitle}
+                            </span>
+                          ) : (item.selectedSize || item.selectedColor) ? (
                             <p className="text-xs text-slate-500 font-body">
                               {item.selectedSize &&
                                 `Size: ${item.selectedSize}`}
@@ -265,7 +269,7 @@ export function CartDrawer() {
                               {item.selectedColor &&
                                 `Color: ${item.selectedColor}`}
                             </p>
-                          )}
+                          ) : null}
                           {isOutOfStock ? (
                             <Badge variant="destructive">Out of stock</Badge>
                           ) : isLowStock ? (

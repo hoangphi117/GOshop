@@ -420,14 +420,18 @@ export default function CartPage() {
                           ) : null}
                         </div>
 
-                        {(item.selectedSize || item.selectedColor) && (
+                        {item.variantTitle ? (
+                          <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#F0F9FB] text-[#007D9C] border border-[#E0F7FC]">
+                            Variant: {item.variantTitle}
+                          </span>
+                        ) : (item.selectedSize || item.selectedColor) ? (
                           <p className="text-xs text-slate-500 mt-0.5">
                             {item.selectedSize && `Size: ${item.selectedSize}`}
                             {item.selectedSize && item.selectedColor && " • "}
                             {item.selectedColor &&
                               `Color: ${item.selectedColor}`}
                           </p>
-                        )}
+                        ) : null}
                         <p className="text-xs text-[#0D47A1] font-bold mt-1">
                           {formatCurrency(item.price)}
                         </p>

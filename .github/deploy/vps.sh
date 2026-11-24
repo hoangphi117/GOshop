@@ -42,6 +42,9 @@ set_image() { # $1=key $2=value
 set_image GOSHOP_BACKEND_IMAGE "$REGISTRY/backend:$IMAGE_TAG"
 set_image GOSHOP_EMBEDDER_IMAGE "$REGISTRY/embedder:$IMAGE_TAG"
 
+# Pre-flight: ensure Docker network exists
+docker network inspect goshop >/dev/null 2>&1 || docker network create goshop
+
 # Pull first: if the registry is unreachable or the tag is missing, this aborts
 # with the old containers still serving traffic.
 docker compose "${COMPOSE_ARGS[@]}" pull backend embedder
@@ -52,12 +55,17 @@ for _ in $(seq 1 60); do
   state=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' goshop-backend 2>/dev/null || echo missing)
   case "$state" in
   healthy)
-    echo "deployed $IMAGE_TAG: goshop-backend is healthy"
+    echo "deployed $IMAGE_TAG: goshop-backend reported healthy"
+    # Secondary live probe verification
+    if docker exec goshop-backend wget -qO- http://127.0.0.1:8080/healthz >/dev/null 2>&1; then
+      echo "Live HTTP /healthz probe passed successfully"
+    fi
     docker image prune -f --filter "until=168h" >/dev/null 2>&1 || true
     exit 0
     ;;
   unhealthy)
-    echo "goshop-backend is unhealthy (docker logs goshop-backend --tail 100)" >&2
+    echo "::error::goshop-backend is unhealthy! Showing last 100 log lines:" >&2
+    docker logs goshop-backend --tail 100 >&2 || true
     break
     ;;
   *)
@@ -65,6 +73,9 @@ for _ in $(seq 1 60); do
     ;;
   esac
 done
+
+echo "::error::Deployment failed or timed out. Last 100 container log lines:" >&2
+docker logs goshop-backend --tail 100 >&2 || true
 
 if [ -n "$PREVIOUS" ] && [ "$PREVIOUS" != "$REGISTRY/backend:$IMAGE_TAG" ]; then
   echo "rolling back to $PREVIOUS" >&2

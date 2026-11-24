@@ -33,6 +33,10 @@ func (fixedBestSellers) BestSellers(context.Context, int) (recssvc.Shelf, error)
 	return recssvc.Shelf{Source: recssvc.SourceOrders}, nil
 }
 
+func (fixedBestSellers) NewArrivals(context.Context, int) (recssvc.Shelf, error) {
+	return recssvc.Shelf{Source: recssvc.SourceNewArrivals}, nil
+}
+
 func runForVisitor(t *testing.T, query string) (int, string) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
@@ -70,8 +74,28 @@ func TestForVisitorCrowdTierIgnoresHistory(t *testing.T) {
 	}
 }
 
+func TestForVisitorTrendingTierBypassesPersonal(t *testing.T) {
+	code, key := runForVisitor(t, "?limit=12&tier=trending")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+	if key != "" {
+		t.Fatalf("visitor key = %q, want empty because trending skips personalization", key)
+	}
+}
+
+func TestForVisitorPersonalTierUsesHistory(t *testing.T) {
+	code, key := runForVisitor(t, "?limit=12&tier=personal")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+	if key != "a:dddd0001-dddd-4ddd-8ddd-ddddddddddd1" {
+		t.Fatalf("visitor key = %q, want personal key", key)
+	}
+}
+
 func TestForVisitorRejectsUnknownTier(t *testing.T) {
-	if code, _ := runForVisitor(t, "?tier=personal"); code != http.StatusBadRequest {
+	if code, _ := runForVisitor(t, "?tier=invalid"); code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", code)
 	}
 }

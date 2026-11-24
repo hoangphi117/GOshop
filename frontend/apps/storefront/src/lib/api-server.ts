@@ -383,13 +383,16 @@ export interface RecommendationShelf {
  */
 export async function getRecommendations(
   limit = 12,
-  anonId?: string
+  anonId?: string,
+  tier?: string
 ): Promise<RecommendationShelf | null> {
   // The anon cookie is this app's guest identity and lives on the storefront
   // origin, so it has to be forwarded explicitly or every visitor looks new to
   // the recommendations service.
+  const params = new URLSearchParams({ limit: String(limit) })
+  if (tier) params.set('tier', tier)
   const res = await fetchServer<ApiResponse<RecommendationShelf>>(
-    `/recommendations/personalized?limit=${limit}`,
+    `/recommendations/personalized?${params.toString()}`,
     {
       revalidate: 0,
       headers: anonId ? { Cookie: `goshop_anon_id=${anonId}` } : undefined,
