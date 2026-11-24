@@ -108,16 +108,13 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8 lg:gap-10 pb-12 border-b border-[#00384D]">
           {/* Column 1: Brand Info & Social (Col 1-5) */}
           <div className="lg:col-span-4 space-y-4">
-            <Link
-              href="/"
-              className="inline-block bg-white/95 rounded-xl px-3 py-1.5 shadow-xs"
-            >
+            <Link href="/" className="inline-block shadow-xs">
               <Image
                 src="/navbar_logo.png"
                 alt="GOshop Logo"
                 width={180}
                 height={50}
-                className="h-9 sm:h-10 w-auto object-contain"
+                className="h-9 sm:h-14 w-auto object-contain"
               />
             </Link>
             <p className="text-xs text-[#B0CDD9] leading-relaxed max-w-sm font-body">
