@@ -91,6 +91,11 @@ func (f *fakeLister) ListTopRated(context.Context, int) ([]catalogcontract.Produ
 	return f.products, f.err
 }
 
+func (f *fakeLister) ListNewArrivals(context.Context, int) ([]catalogcontract.ProductItemInfo, error) {
+	f.calls++
+	return f.products, f.err
+}
+
 func rows(n int) []recsrepository.BestSellerRow {
 	out := make([]recsrepository.BestSellerRow, n)
 	for i := 0; i < n; i++ {

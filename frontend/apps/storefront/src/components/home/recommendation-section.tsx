@@ -49,9 +49,14 @@ const options = {
  * Without the cookie the service answers the same way, which is why the flag is
  * about intent rather than about data.
  */
-async function fetchShelf(limit: number, crowd: boolean): Promise<Shelf | null> {
-  const query = `limit=${limit}${crowd ? '&tier=crowd' : ''}`
-  const res = await authFetch(`/api/v1/recommendations/personalized?${query}`)
+async function fetchShelf(limit: number, crowd: boolean, tier?: string): Promise<Shelf | null> {
+  const params = new URLSearchParams({ limit: String(limit) })
+  if (tier) {
+    params.set('tier', tier)
+  } else if (crowd) {
+    params.set('tier', 'crowd')
+  }
+  const res = await authFetch(`/api/v1/recommendations/personalized?${params.toString()}`)
   if (!res.ok) return null
   const json = await res.json()
   const data = json?.data
@@ -115,6 +120,8 @@ interface RecommendationSectionProps {
   seeAllHref?: string
   /** If true, disables client refetch for personalized vector centroid */
   isStatic?: boolean
+  /** Optional tier override ('trending', 'personal', 'crowd') */
+  tier?: string
 }
 
 export function RecommendationSection({
@@ -125,6 +132,7 @@ export function RecommendationSection({
   subtitle,
   seeAllHref = '/recommendations',
   isStatic = false,
+  tier,
 }: RecommendationSectionProps) {
   // The anonymous cookie is HttpOnly and minted by proxy, so the SSR pass
   // already personalizes; this refetch only catches a profile that changed
@@ -159,8 +167,8 @@ export function RecommendationSection({
     // The tier is part of the key: a blocked device and a guest reader ask the
     // server different questions now (`tier=crowd` vs. the device's own
     // history), so their answers must not share a cache entry.
-    queryKey: ['recommendations', isStatic ? 'static' : 'personalized', limit, allowedFlag ? 'personal' : 'crowd'],
-    queryFn: () => (isStatic ? Promise.resolve(initialShelf) : fetchShelf(limit, !allowedFlag)),
+    queryKey: ['recommendations', isStatic ? 'static' : 'personalized', limit, tier || (allowedFlag ? 'personal' : 'crowd')],
+    queryFn: () => (isStatic ? Promise.resolve(initialShelf) : fetchShelf(limit, !allowedFlag, tier)),
     // A blocked device must not seed from the server shelf: `initialData` makes
     // the query `success` and, with `staleTime`, *fresh*, so the crowd fetch
     // never ran and the request never appeared in the network panel. Only an

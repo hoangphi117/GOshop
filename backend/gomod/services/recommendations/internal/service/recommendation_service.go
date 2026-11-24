@@ -25,6 +25,10 @@ const (
 	// SourceTrending is today's demand: the tier between the personal shelves
 	// and the all-time list, for a visitor nothing is known about.
 	SourceTrending = "trending"
+	// SourceNewArrivals is the catalog's newest active products, used when a
+	// visitor has no history and today has no trending sales, preventing a
+	// duplicate Best Sellers row.
+	SourceNewArrivals = "new_arrivals"
 )
 
 // Shelf is the response of GET /api/v1/recommendations.
@@ -39,6 +43,7 @@ type Shelf = recsdto.Shelf
 // RPC.
 type CatalogLister interface {
 	ListTopRated(ctx context.Context, limit int) ([]catalogcontract.ProductItemInfo, error)
+	ListNewArrivals(ctx context.Context, limit int) ([]catalogcontract.ProductItemInfo, error)
 }
 
 // RecommendationService builds product shelves.
@@ -51,6 +56,8 @@ type RecommendationService interface {
 	// caller answers with BestSellers — a trending row of two items is worse
 	// than an all-time row of twelve.
 	Trending(ctx context.Context, limit int) (Shelf, bool, error)
+	// NewArrivals returns the freshest additions to the catalog.
+	NewArrivals(ctx context.Context, limit int) (Shelf, error)
 }
 
 type recommendationService struct {
@@ -218,7 +225,29 @@ func toItem(p catalogcontract.ProductItemInfo) recsdto.RecommendationItem {
 	}
 }
 
-// HTTPCatalogLister reads GET /api/v1/products?order_by=product_avg_rating.
+func (s *recommendationService) NewArrivals(ctx context.Context, limit int) (Shelf, error) {
+	if limit <= 0 || limit > 50 {
+		limit = 12
+	}
+	if s.fallback == nil {
+		return s.fallbackShelf(ctx, limit, nil)
+	}
+	products, err := s.fallback.ListNewArrivals(ctx, limit)
+	if err != nil {
+		logger.Log.Warn().Err(err).Msg("Catalog new arrivals read failed, falling back to top rated")
+		return s.fallbackShelf(ctx, limit, err)
+	}
+	if len(products) > limit {
+		products = products[:limit]
+	}
+	items := make([]recsdto.RecommendationItem, 0, len(products))
+	for _, p := range products {
+		items = append(items, toItem(p))
+	}
+	return Shelf{Source: SourceNewArrivals, Items: items}, nil
+}
+
+// HTTPCatalogLister reads GET /api/v1/products.
 type HTTPCatalogLister struct {
 	baseURL string
 	http    *http.Client
@@ -292,6 +321,67 @@ func (c *HTTPCatalogLister) ListTopRated(ctx context.Context, limit int) ([]cata
 	var env productListEnvelope
 	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
 		return nil, fmt.Errorf("catalog list: decode: %w", err)
+	}
+
+	out := make([]catalogcontract.ProductItemInfo, 0, len(env.Data))
+	for _, p := range env.Data {
+		info := catalogcontract.ProductItemInfo{
+			ProductUUID:         p.UUID,
+			ProductName:         p.Name,
+			ProductSlug:         p.Slug,
+			ProductPrice:        p.Price,
+			ProductStock:        p.Stock,
+			ProductCategoryUUID: p.CategoryUUID,
+			ProductCategoryName: p.CategoryName,
+			ProductAvgRating:    p.AvgRating,
+			ProductReviewCount:  p.ReviewCount,
+		}
+		if p.Description != nil {
+			info.ProductDescription = *p.Description
+		}
+		if p.SKU != nil {
+			info.ProductSKU = *p.SKU
+		}
+		if p.ImageURL != nil {
+			info.ProductImageURL = *p.ImageURL
+		}
+		out = append(out, info)
+	}
+	return out, nil
+}
+
+func (c *HTTPCatalogLister) ListNewArrivals(ctx context.Context, limit int) ([]catalogcontract.ProductItemInfo, error) {
+	if limit <= 0 || limit > 50 {
+		limit = 12
+	}
+
+	q := url.Values{}
+	q.Set("order_by", "created_at")
+	q.Set("sort", "desc")
+	q.Set("status", "1") // active products only
+	q.Set("page", "1")
+	q.Set("limit", strconv.Itoa(limit))
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		c.baseURL+"/api/v1/products?"+q.Encode(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("catalog list new arrivals: build request: %w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("catalog list new arrivals: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("catalog list new arrivals: status %d", resp.StatusCode)
+	}
+
+	var env productListEnvelope
+	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
+		return nil, fmt.Errorf("catalog list new arrivals: decode: %w", err)
 	}
 
 	out := make([]catalogcontract.ProductItemInfo, 0, len(env.Data))

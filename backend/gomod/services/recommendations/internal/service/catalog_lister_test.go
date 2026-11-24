@@ -53,3 +53,40 @@ func TestHTTPCatalogListerDecodesPaginatedEnvelope(t *testing.T) {
 	assert.Contains(t, gotQuery, "sort=desc")
 	assert.Contains(t, gotQuery, "limit=3")
 }
+
+func TestHTTPCatalogListerNewArrivals(t *testing.T) {
+	var gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status":  "success",
+			"message": "Products retrieved successfully",
+			"data": []map[string]any{
+				{
+					"uuid":          "22222222-2222-2222-2222-222222222222",
+					"name":          "Smart Watch",
+					"slug":          "smart-watch",
+					"price":         299.0,
+					"stock":         15,
+					"category_name": "Wearables",
+					"rating":        4.9,
+					"reviews_count": 5,
+				},
+			},
+			"pagination": map[string]any{"page": 1, "limit": 4, "total": 1},
+		})
+	}))
+	defer srv.Close()
+
+	lister, err := NewHTTPCatalogLister(srv.URL, 0)
+	require.NoError(t, err)
+
+	items, err := lister.ListNewArrivals(context.Background(), 4)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	assert.Equal(t, "Smart Watch", items[0].ProductName)
+
+	assert.Contains(t, gotQuery, "order_by=created_at")
+	assert.Contains(t, gotQuery, "sort=desc")
+	assert.Contains(t, gotQuery, "limit=4")
+}
