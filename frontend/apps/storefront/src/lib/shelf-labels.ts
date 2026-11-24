@@ -64,10 +64,19 @@ const TRENDING: ShelfLabels = {
   personalized: false,
 }
 
+const NEW_ARRIVALS: ShelfLabels = {
+  eyebrow: 'Fresh from our catalog',
+  heading: 'New Arrivals',
+  subtitle: 'Explore the latest additions to our store',
+  short: 'New arrivals',
+  personalized: false,
+}
+
 const BY_SOURCE: Record<string, ShelfLabels> = {
   personalized: PERSONALIZED,
   personalized_session: SESSION,
   trending: TRENDING,
+  new_arrivals: NEW_ARRIVALS,
   orders: BEST_SELLERS,
   fallback_rating: BEST_SELLERS,
 }

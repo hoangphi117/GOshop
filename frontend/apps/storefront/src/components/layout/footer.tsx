@@ -113,7 +113,7 @@ export function Footer() {
               className="inline-block bg-white/95 rounded-xl px-3 py-1.5 shadow-xs"
             >
               <Image
-                src="/main_logo.png"
+                src="/navbar_logo.png"
                 alt="GOshop Logo"
                 width={180}
                 height={50}

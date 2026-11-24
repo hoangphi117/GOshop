@@ -18,6 +18,10 @@ on:
       - 'frontend/**'
       - '.github/workflows/frontend-ci.yml'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: Typecheck, Build & Test
@@ -52,8 +56,8 @@ jobs:
       - name: Build dashboard
         run: pnpm --filter dashboard build
 
-      - name: Install dashboard test browser
-        run: pnpm --filter dashboard exec playwright install --with-deps chromium
+      - name: Install Playwright test browser
+        run: pnpm --filter storefront exec playwright install --with-deps chromium
 
       - name: Test dashboard
         # Non-blocking: 6 of 22 files already fail on main (missing
@@ -70,8 +74,20 @@ jobs:
 
       # Storefront: Next build is the type + route + bundle gate. Needs no
       # secrets (NEXT_PUBLIC_API_KEY is intentionally empty in .env.production).
+      - name: Cache Next.js build
+        uses: actions/cache@v4
+        with:
+          path: |
+            frontend/apps/storefront/.next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('frontend/pnpm-lock.yaml') }}-${{ hashFiles('frontend/apps/storefront/src/**') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('frontend/pnpm-lock.yaml') }}-
+
       - name: Build storefront
         run: pnpm --filter storefront build
+
+      - name: Test storefront E2E
+        run: pnpm --filter storefront test:e2e
 
       # Runtime secrets must never be embedded in a shipped bundle. Any
       # X-API-KEY literal assignment in the output fails the build.
