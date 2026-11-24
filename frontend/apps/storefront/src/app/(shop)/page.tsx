@@ -32,7 +32,7 @@ export default async function HomePage() {
       getBanners("home_sub"),
       getMainCategories(),
       getProducts({ limit: 24 }),
-      getRecommendations(12, anonId),
+      getRecommendations(12, anonId, "trending"),
       getBestSellers(12),
     ]);
   // Popup is a separate slot; a missing promo must not delay the shelf above.
@@ -61,7 +61,7 @@ export default async function HomePage() {
       <CategoryShowcase categories={categories} />
 
       {/* 4. Personalized / Trending shelf */}
-      <RecommendationSection initialShelf={initialShelf} limit={12} />
+      <RecommendationSection initialShelf={initialShelf} limit={12} tier="trending" />
 
       {/* 5. Best Sellers shelf */}
       <RecommendationSection
