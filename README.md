@@ -9,10 +9,13 @@ one edge proxy · one event bus · one PostgreSQL cluster per domain
 
 ![Go](https://img.shields.io/badge/Go-1.26-00ADD8?style=flat-square&logo=go&logoColor=white)
 ![Next.js](https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=nextdotjs&logoColor=white)
-![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-4169E1?style=flat-square&logo=postgresql&logoColor=white)
 ![Kafka](https://img.shields.io/badge/Kafka-231F20?style=flat-square&logo=apachekafka&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white)
+
+<br /><br />
+
+**Live Demo:** [Storefront (`goshop.dpdns.org`)](https://goshop.dpdns.org) · [Admin Dashboard (`admin.goshop.dpdns.org`)](https://admin.goshop.dpdns.org) · [API (`api.goshop.dpdns.org`)](https://api.goshop.dpdns.org/healthz)
 
 </div>
 
@@ -72,32 +75,21 @@ graceful shutdown, and an integration suite that runs against a real broker rath
 ### Backend
 
 ![Go](https://img.shields.io/badge/Go_1.26-00ADD8?style=for-the-badge&logo=go&logoColor=white)
-![Gin](https://img.shields.io/badge/Gin-008ECF?style=for-the-badge&logo=gin&logoColor=white)
 ![gRPC](https://img.shields.io/badge/gRPC-244C5A?style=for-the-badge&logo=grpc&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL_18-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
 ![pgvector](https://img.shields.io/badge/pgvector-336791?style=for-the-badge&logo=postgresql&logoColor=white)
 ![Redis](https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white)
 ![Kafka](https://img.shields.io/badge/Apache_Kafka-231F20?style=for-the-badge&logo=apachekafka&logoColor=white)
-![Cloudflare R2](https://img.shields.io/badge/Cloudflare_R2-F38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![SQLC](https://img.shields.io/badge/sqlc-1B7A6E?style=for-the-badge&logo=go&logoColor=white)
-![golang-migrate](https://img.shields.io/badge/golang--migrate-4CAF50?style=for-the-badge&logo=go&logoColor=white)
 ![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-425CC7?style=for-the-badge&logo=opentelemetry&logoColor=white)
-![JWT](https://img.shields.io/badge/JWT-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 
 ### Frontend
 
 ![Next.js](https://img.shields.io/badge/Next.js_16-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)
-![React](https://img.shields.io/badge/React_19-61DAFB?style=for-the-badge&logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)
 ![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS_4-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)
 ![TanStack](https://img.shields.io/badge/TanStack_Router_%2B_Query-FF4154?style=for-the-badge&logo=reactquery&logoColor=white)
-![Zustand](https://img.shields.io/badge/Zustand-2D3748?style=for-the-badge&logo=react&logoColor=white)
-![React Hook Form](https://img.shields.io/badge/React_Hook_Form-EC5990?style=for-the-badge&logo=reacthookform&logoColor=white)
-![Zod](https://img.shields.io/badge/Zod-3E67B1?style=for-the-badge&logo=zod&logoColor=white)
-![Turborepo](https://img.shields.io/badge/Turborepo-EF4444?style=for-the-badge&logo=turborepo&logoColor=white)
-![pnpm](https://img.shields.io/badge/pnpm-F69220?style=for-the-badge&logo=pnpm&logoColor=white)
 
 ### Infra, Search & Observability
 
@@ -105,9 +97,7 @@ graceful shutdown, and an integration suite that runs against a real broker rath
 ![Meilisearch](https://img.shields.io/badge/Meilisearch-FF5CAA?style=for-the-badge&logo=meilisearch&logoColor=white)
 ![Grafana](https://img.shields.io/badge/Grafana_LGTM-F46800?style=for-the-badge&logo=grafana&logoColor=white)
 ![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=for-the-badge&logo=prometheus&logoColor=white)
-![k6](https://img.shields.io/badge/k6-7D64FF?style=for-the-badge&logo=k6&logoColor=white)
 ![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white)
-![Python](https://img.shields.io/badge/Python_%2B_sentence--transformers-3776AB?style=for-the-badge&logo=python&logoColor=white)
 
 ---
 
@@ -317,7 +307,7 @@ that is exactly how the 2026-11-17 Kafka outage happened. Always:
 
 ```powershell
 make switch-stack STACK=dev     # or STACK=prod: tears the other stack down, rebuilds, checks drift
-make check-drift                # add --dev for the dev stack
+make check-drift                # or make check-drift-dev for the dev stack
 make smoke-dev                  # or make smoke-prod
 ```
 
@@ -506,12 +496,10 @@ make seed-docker   # through the postgres container
 Every seeded account uses the same password. They are development credentials — the seed is
 never run against production data.
 
-| Email                | Password       | Role                   | Sees                                                    |
-| -------------------- | -------------- | ---------------------- | ------------------------------------------------------- |
-| `admin@goshop.com`   | `Admin123!`    | Admin (`user_level` 1) | everything: analytics, catalog, orders, users, settings |
-| `manager@goshop.com` | `Password123!` | Staff (`user_level` 2) | catalog, orders, inventory, reports                     |
-| `mod@goshop.com`     | `Password123!` | Staff (`user_level` 2) | reviews, banners, content                               |
-| `admin@gmail.com`    | `Password123!` | Admin (`user_level` 1) | second admin, used by the storefront demo               |
+| Email              | Password       | Role                      |
+| ------------------ | -------------- | ------------------------- | --- |
+| `admin@goshop.com` | `Admin123!`    | Admin (`user_level` 1)    |
+| `user1@goshop.com` | `Password123!` | Customer (`user_level` 3) |     |
 
 Customers are `user1@goshop.com` … `user7@goshop.com` and `customer12@testmail.com` …
 `customer51@testmail.com` — 47 storefront accounts, all `Password123!` (`user_level` 3).
@@ -583,6 +571,22 @@ between the script and the committed spec, not a route the script does not know 
 broker — the one test that matters for the event pipeline. The rest is in
 [`.github/workflows/`](.github/workflows/): gofmt, `go vet`, race tests per module,
 `golangci-lint`, both frontend builds, and an assertion that no API key reaches a bundle.
+
+### Performance & Load Benchmarks (k6)
+
+Tested on the local production-shaped Docker topology (`Nginx` least-conn → `api1`/`api2` → domain services + Redis + PostgreSQL 18 + Meilisearch/pgvector, 5,000 seeded products):
+
+| Workload / Scope | Throughput / Rate | Median / P95 Latency | Error Rate / Notes |
+| :--- | :--- | :--- | :--- |
+| **Read Path — Steady Load** (`loadtest`: categories, list, filter, detail) | 20 req/s | **3.76 ms / 13.31 ms** | **0.00%** errors (`1` VU sufficient) |
+| **Read Path — Stress** (`stresstest` via Nginx `api1`+`api2` + 4-layer Redis/L1 cache) | **661.4 req/s** *(peaked at 1,500 req/s)* | **7.45 ms** *(200 OK med)* | **0** server crashes (`502=0`); `503` load shedding dropped **98.8%** (`21,673` → `251`) |
+| **Read Path — Spike** (`spiketest`: 100 → 1,000 req/s in 5s) | **436.6 req/s** | **15.84 ms** *(200 OK med)*; `/categories` P95 **112.6 ms** | **0** server crashes (`502=0`); `503` reduced **99.6%** (`14,113` → `50`) |
+| **Write Path — Checkout Burst** (`order_burst_test`: `POST /api/v1/orders` COD) | 10 orders/s (`51` orders) | **19.15 ms / 258.87 ms** | **0.00%** errors (`100%` Saga + Outbox pass) |
+| **Hybrid Search** (`GET /api/v1/products/search`: Meilisearch + `pgvector` RRF) | 20 req/s (`301` queries) | **31.14 ms / 37.90 ms** | **0.00%** errors (`max 90.23 ms`) |
+
+**Key Engineering Outcomes:**
+- **4-Layer Caching & Stampede Protection:** Added L1/L2 Redis Cache-Aside + `singleflight` for product listings, product details, categories, and short-TTL (`15s`) inventory stock hydration, cutting `503` load-shedding responses by **>98%** under 1,000–1,500 req/s spikes and dropping P95 browsing latency by **11–21x**.
+- **Zero-Downtime Load Shedding:** Under extreme Docker socket saturation (`1,500 req/s`), the Go services maintained `0` `502`/`504` crashes via backpressure (`503`).
 
 ---
 

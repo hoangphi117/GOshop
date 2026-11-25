@@ -275,11 +275,37 @@ func (s *catalogService) GetCategoryByID(ctx context.Context, id int32) (*dto.Ca
 }
 
 func (s *catalogService) GetAllCategories(ctx context.Context, activeOnly *bool) ([]dto.CategoryDTO, error) {
-	cats, err := s.repo.ListCategories(ctx, activeOnly)
-	if err != nil {
-		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to list categories", err)
+	cacheKey := "categories:all"
+	if activeOnly != nil {
+		if *activeOnly {
+			cacheKey = "categories:active"
+		} else {
+			cacheKey = "categories:inactive"
+		}
 	}
-	return dto.MapCategoriesToDTOs(cats), nil
+
+	if s.cache != nil {
+		var cached []dto.CategoryDTO
+		if err := s.cache.Get(cacheKey, &cached); err == nil && cached != nil {
+			return cached, nil
+		}
+	}
+
+	resAny, err, _ := s.sf.Do(cacheKey, func() (any, error) {
+		cats, err := s.repo.ListCategories(ctx, activeOnly)
+		if err != nil {
+			return nil, utils.WrapError(utils.ErrCodeInternal, "failed to list categories", err)
+		}
+		dtos := dto.MapCategoriesToDTOs(cats)
+		if s.cache != nil {
+			_ = s.cache.Set(cacheKey, dtos, 5*time.Minute)
+		}
+		return dtos, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resAny.([]dto.CategoryDTO), nil
 }
 
 func (s *catalogService) UpdateCategory(ctx context.Context, input dto.UpdateCategoryInput) (*dto.CategoryDTO, error) {
@@ -369,21 +395,48 @@ func (s *catalogService) TrashCategory(ctx context.Context, u uuid.UUID) error {
 // PRODUCTS
 // =============================================================================
 
+const stockCacheTTL = 15 * time.Second
+
+func (s *catalogService) invalidateProductCaches() {
+	if s.cache != nil {
+		_ = s.cache.Clear("catalog:products:*")
+		_ = s.cache.Clear("catalog:product:*")
+	}
+}
+
 func (s *catalogService) enrichStockForDTO(ctx context.Context, d *dto.ProductDTO) error {
 	if d == nil || d.UUID == "" {
 		return nil
 	}
+	cacheKey := "catalog:stock:" + d.UUID
+	if s.cache != nil {
+		var cachedQty int32
+		if err := s.cache.Get(cacheKey, &cachedQty); err == nil {
+			d.Stock = cachedQty
+			return nil
+		}
+	}
 	if s.inventoryClient == nil {
 		return utils.NewError(utils.ErrCodeServiceUnavailable, "inventory service is unavailable")
 	}
-	stocks, err := s.inventoryClient.GetStock(ctx, []string{d.UUID}, nil)
+	resAny, err, _ := s.sf.Do("stock:"+d.UUID, func() (any, error) {
+		stocks, err := s.inventoryClient.GetStock(ctx, []string{d.UUID}, nil)
+		if err != nil {
+			return nil, utils.WrapError(utils.ErrCodeServiceUnavailable, "failed to fetch stock from inventory service", err)
+		}
+		if len(stocks) == 0 {
+			return nil, utils.NewError(utils.ErrCodeServiceUnavailable, "inventory stock record is unavailable")
+		}
+		qty := stocks[0].Quantity
+		if s.cache != nil {
+			_ = s.cache.Set(cacheKey, qty, stockCacheTTL)
+		}
+		return qty, nil
+	})
 	if err != nil {
-		return utils.WrapError(utils.ErrCodeServiceUnavailable, "failed to fetch stock from inventory service", err)
+		return err
 	}
-	if len(stocks) == 0 {
-		return utils.NewError(utils.ErrCodeServiceUnavailable, "inventory stock record is unavailable")
-	}
-	d.Stock = stocks[0].Quantity
+	d.Stock = resAny.(int32)
 	return nil
 }
 
@@ -391,26 +444,68 @@ func (s *catalogService) enrichStockForDTOs(ctx context.Context, dtos []dto.Prod
 	if len(dtos) == 0 {
 		return dtos, nil
 	}
-	if s.inventoryClient == nil {
-		return nil, utils.NewError(utils.ErrCodeServiceUnavailable, "inventory service is unavailable")
-	}
+
 	uuids := make([]string, 0, len(dtos))
+	seen := make(map[string]struct{}, len(dtos))
 	for _, d := range dtos {
 		if d.UUID != "" {
-			uuids = append(uuids, d.UUID)
+			if _, ok := seen[d.UUID]; !ok {
+				seen[d.UUID] = struct{}{}
+				uuids = append(uuids, d.UUID)
+			}
 		}
 	}
 	if len(uuids) == 0 {
 		return dtos, nil
 	}
-	stocks, err := s.inventoryClient.GetStock(ctx, uuids, nil)
-	if err != nil {
-		return nil, utils.WrapError(utils.ErrCodeServiceUnavailable, "failed to fetch stocks from inventory service", err)
+
+	stockMap := make(map[string]int32, len(uuids))
+	missingUUIDs := make([]string, 0, len(uuids))
+
+	if s.cache != nil {
+		for _, u := range uuids {
+			var qty int32
+			if err := s.cache.Get("catalog:stock:"+u, &qty); err == nil {
+				stockMap[u] = qty
+			} else {
+				missingUUIDs = append(missingUUIDs, u)
+			}
+		}
+	} else {
+		missingUUIDs = uuids
 	}
-	stockMap := make(map[string]int32, len(stocks))
-	for _, st := range stocks {
-		stockMap[st.ProductUUID] = st.Quantity
+
+	if len(missingUUIDs) > 0 {
+		if s.inventoryClient == nil {
+			return nil, utils.NewError(utils.ErrCodeServiceUnavailable, "inventory service is unavailable")
+		}
+		sfKey := "stock:" + strings.Join(missingUUIDs, ",")
+		resAny, err, _ := s.sf.Do(sfKey, func() (any, error) {
+			stocks, err := s.inventoryClient.GetStock(ctx, missingUUIDs, nil)
+			if err != nil {
+				return nil, err
+			}
+			fetched := make(map[string]int32, len(missingUUIDs))
+			for _, st := range stocks {
+				fetched[st.ProductUUID] = st.Quantity
+			}
+			if s.cache != nil {
+				for _, u := range missingUUIDs {
+					_ = s.cache.Set("catalog:stock:"+u, fetched[u], stockCacheTTL)
+				}
+			}
+			return fetched, nil
+		})
+		if err != nil {
+			return nil, utils.WrapError(utils.ErrCodeServiceUnavailable, "failed to fetch stocks from inventory service", err)
+		}
+		if fetched, ok := resAny.(map[string]int32); ok {
+			for u, qty := range fetched {
+				stockMap[u] = qty
+			}
+		}
 	}
+
 	for i := range dtos {
 		// A product with no inventory row is out of stock, not a broken service.
 		// Failing the whole batch here made every search that reached a seeded
@@ -512,9 +607,7 @@ func (s *catalogService) CreateProduct(ctx context.Context, input dto.CreateProd
 		return &res, utils.NewError(utils.ErrCodeServiceUnavailable, "product created; stock initialization pending and will be retried automatically")
 	}
 
-	if s.cache != nil {
-		_ = s.cache.Clear("products:*")
-	}
+	s.invalidateProductCaches()
 
 	if len(input.Specifications) > 0 {
 		_ = s.repo.UpdateProductSpecifications(ctx, created.ProductUuid, input.Specifications)
@@ -574,19 +667,41 @@ func (s *catalogService) compensateProductCreation(ctx context.Context, productU
 }
 
 func (s *catalogService) GetProductByUUID(ctx context.Context, u uuid.UUID) (*dto.ProductDTO, error) {
-	prod, err := s.repo.GetProductByUUID(ctx, u)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
-			return nil, utils.NewError(utils.ErrCodeNotFound, "product not found")
+	cacheKey := "catalog:product:" + u.String()
+	var cached dto.ProductDTO
+	if s.cache != nil {
+		if err := s.cache.Get(cacheKey, &cached); err == nil && cached.UUID != "" {
+			if err := s.enrichStockForDTO(ctx, &cached); err != nil {
+				return nil, err
+			}
+			return &cached, nil
 		}
-		return nil, utils.WrapError(utils.ErrCodeInternal, "failed to get product", err)
 	}
 
-	res := dto.MapProductRowToDTO(prod)
-	s.rewriteImage(&res)
-	if specs, err := s.repo.GetProductSpecifications(ctx, prod.ProductUuid); err == nil {
-		res.Specifications = specs
+	resAny, err, _ := s.sf.Do(cacheKey, func() (any, error) {
+		prod, err := s.repo.GetProductByUUID(ctx, u)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows) {
+				return nil, utils.NewError(utils.ErrCodeNotFound, "product not found")
+			}
+			return nil, utils.WrapError(utils.ErrCodeInternal, "failed to get product", err)
+		}
+
+		res := dto.MapProductRowToDTO(prod)
+		s.rewriteImage(&res)
+		if specs, err := s.repo.GetProductSpecifications(ctx, prod.ProductUuid); err == nil {
+			res.Specifications = specs
+		}
+		if s.cache != nil {
+			_ = s.cache.Set(cacheKey, res, 5*time.Minute)
+		}
+		return res, nil
+	})
+	if err != nil {
+		return nil, err
 	}
+
+	res := resAny.(dto.ProductDTO)
 	if err := s.enrichStockForDTO(ctx, &res); err != nil {
 		return nil, err
 	}
@@ -1174,9 +1289,7 @@ func (s *catalogService) UpdateProduct(ctx context.Context, input dto.UpdateProd
 		}
 	}
 
-	if s.cache != nil {
-		_ = s.cache.Clear("products:*")
-	}
+	s.invalidateProductCaches()
 
 	if input.Specifications != nil {
 		_ = s.repo.UpdateProductSpecifications(ctx, updated.ProductUuid, input.Specifications)
@@ -1209,9 +1322,7 @@ func (s *catalogService) SoftDeleteProduct(ctx context.Context, u uuid.UUID) (*d
 	_, _ = s.repo.InsertOutboxEvent(ctx, "product", u.String(), "PRODUCT_DELETE", map[string]string{"id": u.String()})
 	go s.deleteProductFromSearch(context.Background(), u)
 
-	if s.cache != nil {
-		_ = s.cache.Clear("products:*")
-	}
+	s.invalidateProductCaches()
 
 	res := dto.ProductDTO{
 		ID:        prod.ProductID,
@@ -1244,9 +1355,7 @@ func (s *catalogService) RestoreProduct(ctx context.Context, u uuid.UUID) (*dto.
 	}
 	go s.syncProductToSearch(context.Background(), u)
 
-	if s.cache != nil {
-		_ = s.cache.Clear("products:*")
-	}
+	s.invalidateProductCaches()
 
 	res := dto.ProductDTO{
 		ID:        prod.ProductID,
@@ -1274,9 +1383,7 @@ func (s *catalogService) TrashProduct(ctx context.Context, u uuid.UUID) error {
 	_, _ = s.repo.InsertOutboxEvent(ctx, "product", u.String(), "PRODUCT_DELETE", map[string]string{"id": u.String()})
 	go s.deleteProductFromSearch(context.Background(), u)
 
-	if s.cache != nil {
-		_ = s.cache.Clear("products:*")
-	}
+	s.invalidateProductCaches()
 
 	return nil
 }
@@ -1437,9 +1544,7 @@ func (s *catalogService) ImportProductsCSV(ctx context.Context, file io.Reader) 
 		successCount++
 	}
 
-	if s.cache != nil {
-		_ = s.cache.Clear("products:*")
-	}
+	s.invalidateProductCaches()
 
 	return &dto.ProductCSVImportResponse{
 		SuccessCount: successCount,
