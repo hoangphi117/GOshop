@@ -380,13 +380,13 @@ bash:
 
 # Performance & Load Testing with Grafana k6 (Docker)
 loadtest:
-	docker run --rm -i --network=shopping_goshop-network -v "./scripts/loadtest:/loadtest" -e BASE_URL=http://goshop-nginx -e API_KEY=${API_KEY} grafana/k6 run /loadtest/load_test.js
+	docker run --rm -i --network=shopping_goshop-network -v "./scripts/loadtest:/loadtest" -e BASE_URL=http://goshop-nginx -e API_KEY=${API_KEY} -e TOTAL_PRODUCTS=5000 grafana/k6 run /loadtest/load_test.js
 
 stresstest:
-	docker run --rm -i --network=shopping_goshop-network -v "./scripts/loadtest:/loadtest" -e BASE_URL=http://goshop-nginx -e API_KEY=${API_KEY} grafana/k6 run /loadtest/stress_test.js
+	docker run --rm -i --network=shopping_goshop-network -v "./scripts/loadtest:/loadtest" -e BASE_URL=http://api1:8080 -e API_KEY=${API_KEY} -e TOTAL_PRODUCTS=5000 grafana/k6 run /loadtest/stress_test.js
 
 spiketest:
-	docker run --rm -i --network=shopping_goshop-network -v "./scripts/loadtest:/loadtest" -e BASE_URL=http://goshop-nginx -e API_KEY=${API_KEY} grafana/k6 run /loadtest/spike_test.js
+	docker run --rm -i --network=shopping_goshop-network -v "./scripts/loadtest:/loadtest" -e BASE_URL=http://api1:8080 -e API_KEY=${API_KEY} -e TOTAL_PRODUCTS=5000 grafana/k6 run /loadtest/spike_test.js
 
 # Kafka integration suite against a real broker in Testcontainers.
 # Needs Docker running; first run pulls apache/kafka:3.9.0 (~400MB).

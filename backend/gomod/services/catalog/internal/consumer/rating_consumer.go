@@ -49,7 +49,8 @@ func (c *RatingConsumer) HandleEvent(_ messaging.Header, body []byte) error {
 
 	// Product listings cache product_avg_rating — invalidate after the update.
 	if c.cache != nil {
-		_ = c.cache.Clear("products:*")
+		_ = c.cache.Clear("catalog:products:*")
+		_ = c.cache.Clear("catalog:product:*")
 	}
 
 	return nil
