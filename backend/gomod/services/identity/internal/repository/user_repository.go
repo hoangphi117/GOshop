@@ -179,7 +179,6 @@ func (ur *SqlUserRepository) CountUsers(ctx context.Context, search string, leve
 	if status != nil {
 		query += fmt.Sprintf(" AND user_status = $%d", argIdx)
 		args = append(args, *status)
-		argIdx++
 	}
 
 	pool := ur.pool
