@@ -49,3 +49,25 @@ type AnalyticsOrdersProjection struct {
 	OrderCreatedAt        time.Time          `json:"order_created_at"`
 	OrderUpdatedAt        time.Time          `json:"order_updated_at"`
 }
+
+type SearchHistoryDismissal struct {
+	SubjectKind string    `json:"subject_kind"`
+	SubjectID   string    `json:"subject_id"`
+	Query       string    `json:"query"`
+	DismissedAt time.Time `json:"dismissed_at"`
+}
+
+type UserEvent struct {
+	EventID     uuid.UUID   `json:"event_id"`
+	EventType   string      `json:"event_type"`
+	AnonID      pgtype.UUID `json:"anon_id"`
+	UserID      *int32      `json:"user_id"`
+	SessionID   pgtype.UUID `json:"session_id"`
+	Query       *string     `json:"query"`
+	ProductUuid pgtype.UUID `json:"product_uuid"`
+	Position    *int16      `json:"position"`
+	ResultCount *int32      `json:"result_count"`
+	Props       []byte      `json:"props"`
+	OccurredAt  time.Time   `json:"occurred_at"`
+	IngestedAt  time.Time   `json:"ingested_at"`
+}
