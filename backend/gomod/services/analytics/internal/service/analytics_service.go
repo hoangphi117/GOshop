@@ -2,13 +2,24 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	analyticsdto "goshop/services/analytics/internal/dto"
 	"goshop/services/analytics/internal/repository"
 	catalogcontract "goshop/services/catalog/contract"
+	"goshop/shared/pkg/cache"
 	"goshop/shared/pkg/utils"
+)
+
+const (
+	analyticsCacheTTL    = 3 * time.Minute
+	recentOrdersCacheTTL = 1 * time.Minute
+	lowStockCacheTTL     = 2 * time.Minute
 )
 
 type AnalyticsService interface {
@@ -26,6 +37,7 @@ type analyticsService struct {
 	customers CustomerCounter
 	catalog   ProductCatalog
 	inventory InventoryStockReader
+	cache     cache.RedisCacheService
 }
 
 func NewAnalyticsService(
@@ -33,13 +45,38 @@ func NewAnalyticsService(
 	customers CustomerCounter,
 	catalog ProductCatalog,
 	inventory InventoryStockReader,
+	cacheService cache.RedisCacheService,
 ) AnalyticsService {
 	return &analyticsService{
 		repo:      repo,
 		customers: customers,
 		catalog:   catalog,
 		inventory: inventory,
+		cache:     cacheService,
 	}
+}
+
+func analyticsCacheKey(prefix string, params any) string {
+	raw, _ := json.Marshal(params)
+	sum := sha256.Sum256(raw)
+	return fmt.Sprintf("analytics:%s:%s", prefix, hex.EncodeToString(sum[:8]))
+}
+
+func cachedFetch[T any](s *analyticsService, prefix string, params any, ttl time.Duration, loader func() (T, error)) (T, error) {
+	if s.cache != nil {
+		key := analyticsCacheKey(prefix, params)
+		var cached T
+		if err := s.cache.Get(key, &cached); err == nil {
+			return cached, nil
+		}
+		res, err := loader()
+		if err != nil {
+			return res, err
+		}
+		_ = s.cache.Set(key, res, ttl)
+		return res, nil
+	}
+	return loader()
 }
 
 // ---------------------------------------------------------------------------
@@ -47,6 +84,12 @@ func NewAnalyticsService(
 // ---------------------------------------------------------------------------
 
 func (s *analyticsService) GetOverview(ctx context.Context, query analyticsdto.OverviewStatsQuery) (analyticsdto.OverviewStatsDTO, error) {
+	return cachedFetch(s, "overview", query, analyticsCacheTTL, func() (analyticsdto.OverviewStatsDTO, error) {
+		return s.loadOverview(ctx, query)
+	})
+}
+
+func (s *analyticsService) loadOverview(ctx context.Context, query analyticsdto.OverviewStatsQuery) (analyticsdto.OverviewStatsDTO, error) {
 	if query.FromDate != "" || query.ToDate != "" {
 		fromDate, toDate, err := resolveDateRange(query.Days, query.FromDate, query.ToDate)
 		if err != nil {
@@ -119,6 +162,12 @@ func (s *analyticsService) customerCounts(ctx context.Context, from, to, prevFro
 // ---------------------------------------------------------------------------
 
 func (s *analyticsService) GetRevenueChart(ctx context.Context, query analyticsdto.RevenueChartQuery) ([]analyticsdto.RevenueChartPointDTO, error) {
+	return cachedFetch(s, "revenue_chart", query, analyticsCacheTTL, func() ([]analyticsdto.RevenueChartPointDTO, error) {
+		return s.loadRevenueChart(ctx, query)
+	})
+}
+
+func (s *analyticsService) loadRevenueChart(ctx context.Context, query analyticsdto.RevenueChartQuery) ([]analyticsdto.RevenueChartPointDTO, error) {
 	if query.Period == "monthly" {
 		months := query.Months
 		if months <= 0 {
@@ -186,6 +235,12 @@ func (s *analyticsService) GetRecentOrders(ctx context.Context, limit int32) ([]
 	if limit <= 0 {
 		limit = 5
 	}
+	return cachedFetch(s, "recent_orders", limit, recentOrdersCacheTTL, func() ([]analyticsdto.RecentOrderDTO, error) {
+		return s.loadRecentOrders(ctx, limit)
+	})
+}
+
+func (s *analyticsService) loadRecentOrders(ctx context.Context, limit int32) ([]analyticsdto.RecentOrderDTO, error) {
 	rows, err := s.repo.GetRecentOrders(ctx, limit)
 	if err != nil {
 		return nil, err
@@ -216,6 +271,13 @@ func (s *analyticsService) GetTopProducts(ctx context.Context, query analyticsdt
 	if limit <= 0 {
 		limit = 5
 	}
+	query.Limit = limit
+	return cachedFetch(s, "top_products", query, analyticsCacheTTL, func() ([]analyticsdto.TopProductDTO, error) {
+		return s.loadTopProducts(ctx, query, limit)
+	})
+}
+
+func (s *analyticsService) loadTopProducts(ctx context.Context, query analyticsdto.TopProductsQuery, limit int32) ([]analyticsdto.TopProductDTO, error) {
 
 	var rows []struct {
 		ProductID        int32
@@ -323,6 +385,12 @@ func (s *analyticsService) catalogProducts(ctx context.Context, ids []int32) (ma
 // ---------------------------------------------------------------------------
 
 func (s *analyticsService) GetOrderStatusDistribution(ctx context.Context, params analyticsdto.OrderStatusDistributionQuery) (analyticsdto.OrderStatusDistributionResponse, error) {
+	return cachedFetch(s, "order_status_dist", params, analyticsCacheTTL, func() (analyticsdto.OrderStatusDistributionResponse, error) {
+		return s.loadOrderStatusDistribution(ctx, params)
+	})
+}
+
+func (s *analyticsService) loadOrderStatusDistribution(ctx context.Context, params analyticsdto.OrderStatusDistributionQuery) (analyticsdto.OrderStatusDistributionResponse, error) {
 	fromDate, toDate, err := resolveDateRange(params.Days, params.FromDate, params.ToDate)
 	if err != nil {
 		return analyticsdto.OrderStatusDistributionResponse{}, utils.WrapError(utils.ErrCodeBadRequest, "Invalid date range", err)
@@ -371,6 +439,15 @@ func (s *analyticsService) GetLowStockProducts(ctx context.Context, params analy
 	if limit <= 0 {
 		limit = 10
 	}
+	params.Threshold = threshold
+	params.Limit = limit
+
+	return cachedFetch(s, "low_stock", params, lowStockCacheTTL, func() (analyticsdto.LowStockProductResponse, error) {
+		return s.loadLowStockProducts(ctx, threshold, limit)
+	})
+}
+
+func (s *analyticsService) loadLowStockProducts(ctx context.Context, threshold, limit int32) (analyticsdto.LowStockProductResponse, error) {
 
 	if s.inventory == nil {
 		return analyticsdto.LowStockProductResponse{}, utils.NewError(utils.ErrCodeInternal, "Inventory service unavailable")
@@ -426,6 +503,12 @@ func (s *analyticsService) GetLowStockProducts(ctx context.Context, params analy
 }
 
 func (s *analyticsService) GetPaymentMethodBreakdown(ctx context.Context, params analyticsdto.PaymentMethodBreakdownQuery) (analyticsdto.PaymentMethodBreakdownResponse, error) {
+	return cachedFetch(s, "payment_methods", params, analyticsCacheTTL, func() (analyticsdto.PaymentMethodBreakdownResponse, error) {
+		return s.loadPaymentMethodBreakdown(ctx, params)
+	})
+}
+
+func (s *analyticsService) loadPaymentMethodBreakdown(ctx context.Context, params analyticsdto.PaymentMethodBreakdownQuery) (analyticsdto.PaymentMethodBreakdownResponse, error) {
 	fromDate, toDate, err := resolveDateRange(params.Days, params.FromDate, params.ToDate)
 	if err != nil {
 		return analyticsdto.PaymentMethodBreakdownResponse{}, utils.WrapError(utils.ErrCodeBadRequest, "Invalid date range", err)
