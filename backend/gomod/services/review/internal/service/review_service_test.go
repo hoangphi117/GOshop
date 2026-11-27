@@ -153,16 +153,16 @@ func TestReviewService_CreateReview(t *testing.T) {
 			},
 			CreateFunc: func(ctx context.Context, params reviewsqlc.CreateReviewParams) (reviewsqlc.ProductReview, error) {
 				return reviewsqlc.ProductReview{
-					ReviewID:         101,
-					ReviewUuid:       newReviewUUID,
-					ReviewUserID:     params.ReviewUserID,
-					ReviewProductID:  params.ReviewProductID,
-					ReviewRating:     params.ReviewRating,
-					ReviewTitle:      params.ReviewTitle,
-					ReviewComment:    params.ReviewComment,
-					ReviewStatus:     reviewsvc.ReviewStatusVisible,
-					ReviewCreatedAt:  time.Now(),
-					ReviewUpdatedAt:  time.Now(),
+					ReviewID:        101,
+					ReviewUuid:      newReviewUUID,
+					ReviewUserID:    params.ReviewUserID,
+					ReviewProductID: params.ReviewProductID,
+					ReviewRating:    params.ReviewRating,
+					ReviewTitle:     params.ReviewTitle,
+					ReviewComment:   params.ReviewComment,
+					ReviewStatus:    reviewsvc.ReviewStatusVisible,
+					ReviewCreatedAt: time.Now(),
+					ReviewUpdatedAt: time.Now(),
 				}, nil
 			},
 			GetRatingAggregateFunc: func(ctx context.Context, productID int32) (reviewsqlc.GetProductRatingAggregateRow, error) {

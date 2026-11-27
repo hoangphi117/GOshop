@@ -22,27 +22,27 @@ import (
 
 type mockCatalogService struct {
 	catalogservice.CatalogService
-	createCatFn    func(ctx context.Context, input catalogdto.CreateCategoryInput) (*catalogdto.CategoryDTO, error)
-	getCatUUIDFn   func(ctx context.Context, u uuid.UUID) (*catalogdto.CategoryDTO, error)
-	getCatSlugFn   func(ctx context.Context, slug string) (*catalogdto.CategoryDTO, error)
-	getAllCatsFn   func(ctx context.Context, activeOnly *bool) ([]catalogdto.CategoryDTO, error)
-	getCatTreeFn   func(ctx context.Context) ([]catalogdto.CategoryDTO, error)
-	updateCatFn    func(ctx context.Context, input catalogdto.UpdateCategoryInput) (*catalogdto.CategoryDTO, error)
-	softDelCatFn   func(ctx context.Context, u uuid.UUID) (*catalogdto.CategoryDTO, error)
-	restoreCatFn   func(ctx context.Context, u uuid.UUID) (*catalogdto.CategoryDTO, error)
-	trashCatFn     func(ctx context.Context, u uuid.UUID) error
-	getFacetsFn    func(ctx context.Context, slugOrUUID string) (*catalogdto.CategoryFacetsResponseDTO, error)
-	listFAQsFn     func(ctx context.Context, q *string, limit, offset int32) ([]catalogdto.FAQDTO, error)
-	createProdFn   func(ctx context.Context, input catalogdto.CreateProductInput) (*catalogdto.ProductDTO, error)
-	getProdUUIDFn  func(ctx context.Context, u uuid.UUID) (*catalogdto.ProductDTO, error)
-	getProdSlugFn  func(ctx context.Context, slug string) (*catalogdto.ProductDTO, error)
-	getAllProdsFn  func(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, orderBy, sort string, page, limit int32, deleted bool, specs map[string][]string) ([]catalogdto.ProductDTO, int32, error)
-	updateProdFn   func(ctx context.Context, input catalogdto.UpdateProductInput) (*catalogdto.ProductDTO, error)
-	softDelProdFn  func(ctx context.Context, u uuid.UUID) (*catalogdto.ProductDTO, error)
-	listVarsFn     func(ctx context.Context, productUUID uuid.UUID, activeOnly bool) ([]catalogdto.ProductVariantDTO, error)
-	createVarFn    func(ctx context.Context, productUUID uuid.UUID, input catalogdto.CreateVariantInput) (*catalogdto.ProductVariantDTO, error)
-	updateVarFn    func(ctx context.Context, productUUID, variantUUID uuid.UUID, input catalogdto.UpdateVariantInput) (*catalogdto.ProductVariantDTO, error)
-	deleteVarFn    func(ctx context.Context, productUUID, variantUUID uuid.UUID) error
+	createCatFn   func(ctx context.Context, input catalogdto.CreateCategoryInput) (*catalogdto.CategoryDTO, error)
+	getCatUUIDFn  func(ctx context.Context, u uuid.UUID) (*catalogdto.CategoryDTO, error)
+	getCatSlugFn  func(ctx context.Context, slug string) (*catalogdto.CategoryDTO, error)
+	getAllCatsFn  func(ctx context.Context, activeOnly *bool) ([]catalogdto.CategoryDTO, error)
+	getCatTreeFn  func(ctx context.Context) ([]catalogdto.CategoryDTO, error)
+	updateCatFn   func(ctx context.Context, input catalogdto.UpdateCategoryInput) (*catalogdto.CategoryDTO, error)
+	softDelCatFn  func(ctx context.Context, u uuid.UUID) (*catalogdto.CategoryDTO, error)
+	restoreCatFn  func(ctx context.Context, u uuid.UUID) (*catalogdto.CategoryDTO, error)
+	trashCatFn    func(ctx context.Context, u uuid.UUID) error
+	getFacetsFn   func(ctx context.Context, slugOrUUID string) (*catalogdto.CategoryFacetsResponseDTO, error)
+	listFAQsFn    func(ctx context.Context, q *string, limit, offset int32) ([]catalogdto.FAQDTO, error)
+	createProdFn  func(ctx context.Context, input catalogdto.CreateProductInput) (*catalogdto.ProductDTO, error)
+	getProdUUIDFn func(ctx context.Context, u uuid.UUID) (*catalogdto.ProductDTO, error)
+	getProdSlugFn func(ctx context.Context, slug string) (*catalogdto.ProductDTO, error)
+	getAllProdsFn func(ctx context.Context, search, categoryUUID string, minPrice, maxPrice, minRating float64, status int32, orderBy, sort string, page, limit int32, deleted bool, specs map[string][]string) ([]catalogdto.ProductDTO, int32, error)
+	updateProdFn  func(ctx context.Context, input catalogdto.UpdateProductInput) (*catalogdto.ProductDTO, error)
+	softDelProdFn func(ctx context.Context, u uuid.UUID) (*catalogdto.ProductDTO, error)
+	listVarsFn    func(ctx context.Context, productUUID uuid.UUID, activeOnly bool) ([]catalogdto.ProductVariantDTO, error)
+	createVarFn   func(ctx context.Context, productUUID uuid.UUID, input catalogdto.CreateVariantInput) (*catalogdto.ProductVariantDTO, error)
+	updateVarFn   func(ctx context.Context, productUUID, variantUUID uuid.UUID, input catalogdto.UpdateVariantInput) (*catalogdto.ProductVariantDTO, error)
+	deleteVarFn   func(ctx context.Context, productUUID, variantUUID uuid.UUID) error
 }
 
 func (m *mockCatalogService) CreateCategory(ctx context.Context, input catalogdto.CreateCategoryInput) (*catalogdto.CategoryDTO, error) {
