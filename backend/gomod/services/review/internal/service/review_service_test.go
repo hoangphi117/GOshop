@@ -6,6 +6,7 @@ import (
 	"time"
 
 	catalogcontract "goshop/services/catalog/contract"
+	identitycontract "goshop/services/identity/contract"
 	ordercontract "goshop/services/order/contract"
 	reviewsqlc "goshop/services/review/internal/db/sqlc"
 	reviewdto "goshop/services/review/internal/dto"
@@ -140,6 +141,54 @@ func TestReviewService_CreateReview(t *testing.T) {
 		require.Error(t, err)
 		assertAppErrorCode(t, err, utils.ErrCodeBadRequest)
 		assert.Contains(t, err.Error(), "expired")
+	})
+
+	t.Run("Case 6: Happy Path -> Creates review successfully", func(t *testing.T) {
+		newReviewUUID := uuid.New()
+		title := "Awesome Product"
+		comment := "Really loved the build quality and finish"
+		mockRepo := &servicetest.MockReviewRepository{
+			CheckExistsFunc: func(ctx context.Context, userID, productID int32, orderUUID uuid.UUID) (bool, error) {
+				return false, nil
+			},
+			CreateFunc: func(ctx context.Context, params reviewsqlc.CreateReviewParams) (reviewsqlc.ProductReview, error) {
+				return reviewsqlc.ProductReview{
+					ReviewID:        101,
+					ReviewUuid:      newReviewUUID,
+					ReviewUserID:    params.ReviewUserID,
+					ReviewProductID: params.ReviewProductID,
+					ReviewRating:    params.ReviewRating,
+					ReviewTitle:     params.ReviewTitle,
+					ReviewComment:   params.ReviewComment,
+					ReviewStatus:    reviewsvc.ReviewStatusVisible,
+					ReviewCreatedAt: time.Now(),
+					ReviewUpdatedAt: time.Now(),
+				}, nil
+			},
+			GetRatingAggregateFunc: func(ctx context.Context, productID int32) (reviewsqlc.GetProductRatingAggregateRow, error) {
+				return reviewsqlc.GetProductRatingAggregateRow{AvgRating: 5.0, ReviewCount: 1}, nil
+			},
+		}
+
+		verifier := verifierMock(true, true)
+		mockUserReader := &servicetest.MockUserReader{
+			GetUserByIDFunc: func(ctx context.Context, id int32) (*identitycontract.InternalUserDTO, error) {
+				return &identitycontract.InternalUserDTO{UserFullname: "John Doe", UserEmail: "john@example.com"}, nil
+			},
+		}
+		svc := newService(mockRepo, catalog, verifier, mockUserReader)
+
+		res, err := svc.CreateReview(ctx, int32(1), reviewdto.CreateReviewInput{
+			ProductUUID: productUUID.String(),
+			OrderUUID:   orderUUID.String(),
+			Rating:      5,
+			Title:       &title,
+			Comment:     &comment,
+		}, []string{"https://img.example.com/1.png"}, nil)
+
+		require.NoError(t, err)
+		assert.Equal(t, newReviewUUID.String(), res.UUID)
+		assert.Equal(t, int32(5), res.Rating)
 	})
 }
 

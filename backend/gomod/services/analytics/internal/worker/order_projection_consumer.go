@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/rs/zerolog"
 
 	"goshop/contracts/events"
@@ -15,17 +15,22 @@ import (
 	"goshop/shared/pkg/messaging"
 )
 
+// DBExecutor defines the subset of pgxpool.Pool needed to execute projection queries.
+type DBExecutor interface {
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+}
+
 // OrderProjectionConsumer consumes order lifecycle events from the message broker and
 // maintains the reporting read model (analytics_orders_projection,
 // analytics_order_items_projection) inside the analytics database.
 type OrderProjectionConsumer struct {
-	dbPool      *pgxpool.Pool
+	dbPool      DBExecutor
 	orderReader service.OrderReader
 	logger      *zerolog.Logger
 }
 
 // NewOrderProjectionConsumer constructs a new OrderProjectionConsumer.
-func NewOrderProjectionConsumer(dbPool *pgxpool.Pool, orderReader service.OrderReader, logger *zerolog.Logger) *OrderProjectionConsumer {
+func NewOrderProjectionConsumer(dbPool DBExecutor, orderReader service.OrderReader, logger *zerolog.Logger) *OrderProjectionConsumer {
 	return &OrderProjectionConsumer{
 		dbPool:      dbPool,
 		orderReader: orderReader,
