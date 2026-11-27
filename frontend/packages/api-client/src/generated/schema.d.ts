@@ -3687,6 +3687,12 @@ export interface paths {
                     order_by?: "user_id" | "user_created_at";
                     /** @description Sort direction (asc/desc) */
                     sort?: "asc" | "desc";
+                    /** @description User level or role name filter (e.g. admin, manager, customer) */
+                    role?: string;
+                    /** @description User level filter (1=Admin, 2=Moderator, 3=Member) */
+                    level?: string;
+                    /** @description User status filter (1=Active, 2=Inactive, 3=Banned/Suspended) */
+                    status?: string;
                 };
                 header?: never;
                 path?: never;
@@ -3805,6 +3811,12 @@ export interface paths {
                     order_by?: "user_id" | "user_created_at";
                     /** @description Sort direction (asc/desc) */
                     sort?: "asc" | "desc";
+                    /** @description User level or role name filter (e.g. admin, manager, customer) */
+                    role?: string;
+                    /** @description User level filter (1=Admin, 2=Moderator, 3=Member) */
+                    level?: string;
+                    /** @description User status filter (1=Active, 2=Inactive, 3=Banned/Suspended) */
+                    status?: string;
                 };
                 header?: never;
                 path?: never;
@@ -10321,6 +10333,16 @@ export interface components {
             /** @enum {integer} */
             status?: 1 | 2 | 3;
             stock?: number;
+            variants?: Array<{
+                sku: string;
+                title: string;
+                price: number;
+                compare_at_price?: number;
+                image_url?: string;
+                attributes?: { [key: string]: string };
+                position?: number;
+                status?: 1 | 2;
+            }>;
         };
         "dto.CreateReviewInput": {
             comment?: string;

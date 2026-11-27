@@ -15,6 +15,12 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  CatalogBulkBar,
+  notifyBatchResult,
+  useRowSelection,
+} from '@/components/catalog-bulk-bar'
 import { useCategories, useCategoryMutations } from './hooks/use-categories'
 import { CategoryDialog } from './components/category-dialog'
 import type { Category } from './types'
@@ -26,6 +32,7 @@ export function Categories() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false)
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null)
 
   const { data: categoriesData, isLoading } = useCategories({
@@ -34,10 +41,15 @@ export function Categories() {
     search: activeSearch,
   })
 
-  const { deleteCategory } = useCategoryMutations()
+  const { deleteCategory, bulkUpdateCategoryStatus, bulkDeleteCategories } =
+    useCategoryMutations()
 
   const categories = (categoriesData?.data as Category[]) || []
   const pagination = categoriesData?.pagination
+
+  const selection = useRowSelection(categories)
+  const isBulkPending =
+    bulkUpdateCategoryStatus.isPending || bulkDeleteCategories.isPending
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -71,6 +83,25 @@ export function Categories() {
       const msg = err instanceof Error ? err.message : 'Failed to delete category'
       toast.error(msg)
     }
+  }
+
+  const handleBulkStatus = async (status: 1 | 2) => {
+    const res = await bulkUpdateCategoryStatus.mutateAsync({
+      categories: selection.selectedItems,
+      status,
+    })
+    notifyBatchResult(status === 1 ? 'Activated' : 'Deactivated', res)
+    selection.clear()
+  }
+
+  const handleConfirmBulkDelete = async () => {
+    const uuids = selection.selectedItems
+      .map((c) => c.uuid)
+      .filter((id): id is string => Boolean(id))
+    const res = await bulkDeleteCategories.mutateAsync(uuids)
+    notifyBatchResult('Deleted', res)
+    setBulkDeleteConfirmOpen(false)
+    selection.clear()
   }
 
   return (
@@ -119,11 +150,37 @@ export function Categories() {
           )}
         </form>
 
+        {/* Bulk Action Bar */}
+        <CatalogBulkBar
+          selectedCount={selection.selectedCount}
+          entityLabel='category(ies)'
+          isPending={isBulkPending}
+          onActivate={() => handleBulkStatus(1)}
+          onDeactivate={() => handleBulkStatus(2)}
+          onDelete={() => setBulkDeleteConfirmOpen(true)}
+          onClear={selection.clear}
+        />
+
         {/* Categories Table */}
         <div className='rounded-md border bg-card'>
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className='w-10'>
+                  <Checkbox
+                    checked={
+                      selection.allSelected
+                        ? true
+                        : selection.someSelected
+                          ? 'indeterminate'
+                          : false
+                    }
+                    onCheckedChange={(checked) =>
+                      selection.toggleAll(checked === true)
+                    }
+                    aria-label='Select all categories'
+                  />
+                </TableHead>
                 <TableHead>Category Name</TableHead>
                 <TableHead>Slug</TableHead>
                 <TableHead>Description</TableHead>
@@ -135,19 +192,28 @@ export function Categories() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className='h-32 text-center text-muted-foreground'>
+                  <TableCell colSpan={7} className='h-32 text-center text-muted-foreground'>
                     Loading categories...
                   </TableCell>
                 </TableRow>
               ) : categories.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className='h-32 text-center text-muted-foreground'>
+                  <TableCell colSpan={7} className='h-32 text-center text-muted-foreground'>
                     No categories found.
                   </TableCell>
                 </TableRow>
               ) : (
                 categories.map((cat) => (
                   <TableRow key={cat.uuid}>
+                    <TableCell>
+                      <Checkbox
+                        checked={Boolean(cat.uuid && selection.selectedIds.has(cat.uuid))}
+                        onCheckedChange={(checked) => {
+                          if (cat.uuid) selection.toggleOne(cat.uuid, checked === true)
+                        }}
+                        aria-label={`Select ${cat.category_name}`}
+                      />
+                    </TableCell>
                     <TableCell className='font-medium'>
                       <div className='flex items-center gap-2'>
                         {cat.category_level && cat.category_level > 1 ? (
@@ -248,6 +314,16 @@ export function Categories() {
         destructive
         isLoading={deleteCategory.isPending}
         handleConfirm={handleConfirmDelete}
+      />
+      <ConfirmDialog
+        open={bulkDeleteConfirmOpen}
+        onOpenChange={setBulkDeleteConfirmOpen}
+        title='Delete Selected Categories'
+        desc={`Are you sure you want to delete ${selection.selectedCount} selected category(ies)? This action will move them to trash.`}
+        confirmText='Delete All'
+        destructive
+        isLoading={bulkDeleteCategories.isPending}
+        handleConfirm={handleConfirmBulkDelete}
       />
     </>
   )

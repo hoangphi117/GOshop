@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { CategoryFormData } from '../types'
+import { runBatch } from '@/components/catalog-bulk-bar'
+import type { Category, CategoryFormData } from '../types'
 
 export interface CategoryQueryParams {
   page?: number
@@ -131,11 +132,59 @@ export function useCategoryMutations() {
     onSuccess: invalidate,
   })
 
+  const bulkUpdateCategoryStatus = useMutation({
+    mutationFn: async ({
+      categories,
+      status,
+    }: {
+      categories: Category[]
+      status: 1 | 2
+    }) => {
+      return runBatch(categories, async (cat) => {
+        if (!cat.uuid) throw new Error('Missing category UUID')
+        const { error } = await api.PUT('/admin/categories/{uuid}', {
+          params: { path: { uuid: cat.uuid } },
+          body: {
+            category_name: cat.category_name ?? '',
+            description: cat.description,
+            status,
+            parent_id: cat.parent_id,
+            parent_uuid: cat.parent_uuid,
+          },
+        })
+        if (error) {
+          throw new Error(
+            (error as { error?: string })?.error || 'Failed to update category'
+          )
+        }
+      })
+    },
+    onSettled: invalidate,
+  })
+
+  const bulkDeleteCategories = useMutation({
+    mutationFn: async (uuids: string[]) => {
+      return runBatch(uuids, async (uuid) => {
+        const { error } = await api.DELETE('/admin/categories/{uuid}/soft-delete', {
+          params: { path: { uuid } },
+        })
+        if (error) {
+          throw new Error(
+            (error as { error?: string })?.error || 'Failed to delete category'
+          )
+        }
+      })
+    },
+    onSettled: invalidate,
+  })
+
   return {
     createCategory,
     updateCategory,
     deleteCategory,
     restoreCategory,
     trashCategory,
+    bulkUpdateCategoryStatus,
+    bulkDeleteCategories,
   }
 }

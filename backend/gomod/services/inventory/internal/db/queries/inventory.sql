@@ -22,7 +22,7 @@ INSERT INTO inventory_stocks (
     product_uuid,
     quantity
 ) VALUES ($1, $2, $3)
-ON CONFLICT (product_uuid) DO UPDATE
+ON CONFLICT (product_uuid) WHERE variant_uuid IS NULL DO UPDATE
 SET product_id = COALESCE(EXCLUDED.product_id, inventory_stocks.product_id),
     updated_at = now()
 RETURNING *;

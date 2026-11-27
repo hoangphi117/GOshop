@@ -201,17 +201,18 @@ func (p ProductDTO) MarshalJSON() ([]byte, error) {
 }
 
 type CreateProductInput struct {
-	CategoryUUID   string            `json:"category_uuid"`
-	AltCatUUID     string            `json:"categoryUuid"`
-	Name           string            `json:"name" binding:"required,min=2,max=200"`
-	Description    *string           `json:"description"`
-	Price          float64           `json:"price" binding:"required,gt=0"`
-	Stock          int32             `json:"stock" binding:"gte=0"`
-	SKU            *string           `json:"sku"`
-	ImageURL       *string           `json:"image_url"`
-	AltImageURL    *string           `json:"imageUrl"`
-	Status         int32             `json:"status" binding:"omitempty,oneof=1 2 3"`
-	Specifications map[string]string `json:"specifications"`
+	CategoryUUID   string               `json:"category_uuid"`
+	AltCatUUID     string               `json:"categoryUuid"`
+	Name           string               `json:"name" binding:"required,min=2,max=200"`
+	Description    *string              `json:"description"`
+	Price          float64              `json:"price" binding:"required,gt=0"`
+	Stock          int32                `json:"stock" binding:"gte=0"`
+	SKU            *string              `json:"sku"`
+	ImageURL       *string              `json:"image_url"`
+	AltImageURL    *string              `json:"imageUrl"`
+	Status         int32                `json:"status" binding:"omitempty,oneof=1 2 3"`
+	Specifications map[string]string    `json:"specifications"`
+	Variants       []CreateVariantInput `json:"variants"`
 }
 
 type UpdateProductInput struct {

@@ -123,7 +123,7 @@ func (us *userService) publishUserSyncEvent(ctx context.Context, eventType strin
 	}
 }
 
-func (us *userService) GetAllUsers(ctx context.Context, search, orderBy, sort string, page, limit int32, deleted bool) ([]dto.UserDTO, int32, error) {
+func (us *userService) GetAllUsers(ctx context.Context, search, orderBy, sort string, page, limit int32, level, status *int32, deleted bool) ([]dto.UserDTO, int32, error) {
 	if sort == "" {
 		sort = "desc"
 	}
@@ -143,7 +143,7 @@ func (us *userService) GetAllUsers(ctx context.Context, search, orderBy, sort st
 
 	offset := (page - 1) * limit
 
-	cacheKey := us.generateCacheKey(search, orderBy, sort, page, limit, deleted)
+	cacheKey := us.generateCacheKey(search, orderBy, sort, page, limit, level, status, deleted)
 	var cacheData struct {
 		Users []dto.UserDTO `json:"users"`
 		Total int32         `json:"total"`
@@ -155,12 +155,12 @@ func (us *userService) GetAllUsers(ctx context.Context, search, orderBy, sort st
 		}
 	}
 
-	listUsers, err := us.repo.GetAllV2(ctx, search, orderBy, sort, limit, offset, deleted)
+	listUsers, err := us.repo.GetAllV2(ctx, search, orderBy, sort, limit, offset, level, status, deleted)
 	if err != nil {
 		return []dto.UserDTO{}, 0, utils.WrapError(utils.ErrCodeInternal, "failed to fetch user list", err)
 	}
 
-	total, err := us.repo.CountUsers(ctx, search, deleted)
+	total, err := us.repo.CountUsers(ctx, search, level, status, deleted)
 	if err != nil {
 		return []dto.UserDTO{}, 0, utils.WrapError(utils.ErrCodeInternal, "failed to count users", err)
 	}
@@ -509,7 +509,7 @@ func (us *userService) TrashUser(ctx context.Context, userUUID uuid.UUID) error 
 	return nil
 }
 
-func (us *userService) generateCacheKey(search, orderBy, sort string, page, limit int32, deleted bool) string {
+func (us *userService) generateCacheKey(search, orderBy, sort string, page, limit int32, level, status *int32, deleted bool) string {
 	search = strings.TrimSpace(search)
 	if search == "" {
 		search = "none"
@@ -524,7 +524,18 @@ func (us *userService) generateCacheKey(search, orderBy, sort string, page, limi
 	if sort == "" {
 		sort = "desc"
 	}
-	return fmt.Sprintf("users:%s:%s:%s:%d:%d:%t", search, orderBy, sort, page, limit, deleted)
+
+	lvl := 0
+	if level != nil {
+		lvl = int(*level)
+	}
+
+	st := 0
+	if status != nil {
+		st = int(*status)
+	}
+
+	return fmt.Sprintf("users:%s:%s:%s:%d:%d:%d:%d:%t", search, orderBy, sort, page, limit, lvl, st, deleted)
 }
 
 func mapStatusText(status int) string {

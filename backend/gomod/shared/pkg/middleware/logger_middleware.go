@@ -37,6 +37,12 @@ func LoggerMiddleware(httpLogger *zerolog.Logger) gin.HandlerFunc {
 		}
 
 		if strings.HasPrefix(contentType, "multipart/form-data") {
+			bodyBytes, err := io.ReadAll(ctx.Request.Body)
+			if err != nil {
+				httpLogger.Error().Err(err).Msg("Failed to read multipart request body")
+			}
+			ctx.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+
 			if err := ctx.Request.ParseMultipartForm(32 << 20); err == nil && ctx.Request.MultipartForm != nil {
 				for key, vals := range ctx.Request.MultipartForm.Value {
 					if len(vals) == 1 {
@@ -61,6 +67,12 @@ func LoggerMiddleware(httpLogger *zerolog.Logger) gin.HandlerFunc {
 					requestBody["form_files"] = formFiles
 				}
 			}
+
+			// Restore request body for downstream handlers and reverse proxy
+			ctx.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+			ctx.Request.GetBody = func() (io.ReadCloser, error) {
+				return io.NopCloser(bytes.NewReader(bodyBytes)), nil
+			}
 		} else {
 			bodyBytes, err := io.ReadAll(ctx.Request.Body) // 1. Lay du lieu trong body ra doc het => body empty
 			if err != nil {
@@ -68,6 +80,9 @@ func LoggerMiddleware(httpLogger *zerolog.Logger) gin.HandlerFunc {
 			}
 
 			ctx.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes)) // 2. Nap lai du lieu cho body
+			ctx.Request.GetBody = func() (io.ReadCloser, error) {
+				return io.NopCloser(bytes.NewReader(bodyBytes)), nil
+			}
 
 			if strings.HasPrefix(contentType, "application/json") {
 				_ = json.Unmarshal(bodyBytes, &requestBody)

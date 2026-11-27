@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { directUpload, type UploadFolder } from '@goshop/api-client'
 import { api, fetchWithAuth } from '@/lib/api'
+import { runBatch } from '@/components/catalog-bulk-bar'
 import { useAuthStore } from '@/stores/auth-store'
 import type {
   Product,
@@ -135,6 +136,7 @@ export function useProductMutations() {
           description: payload.description,
           specifications: payload.specifications,
           status: payload.status,
+          variants: payload.variants,
         },
       })
       if (error) {
@@ -159,6 +161,7 @@ export function useProductMutations() {
           description: payload.description,
           specifications: payload.specifications,
           status: payload.status,
+          variants: payload.variants,
         },
       })
       if (error) {
@@ -195,11 +198,58 @@ export function useProductMutations() {
     onSuccess: invalidate,
   })
 
+  const bulkUpdateProductStatus = useMutation({
+    mutationFn: async ({
+      products,
+      status,
+    }: {
+      products: Product[]
+      status: 1 | 2
+    }) => {
+      return runBatch(products, async (p) => {
+        if (!p.uuid) throw new Error('Missing product UUID')
+        const { error } = await api.PUT('/api/v1/admin/products/{uuid}', {
+          params: { path: { uuid: p.uuid } },
+          body: {
+            name: p.name ?? '',
+            category_uuid: p.category_uuid ?? '',
+            price: p.price ?? 0,
+            stock: p.stock ?? 0,
+            sku: p.sku ?? '',
+            image_url: p.image_url,
+            description: p.description,
+            status,
+          },
+        })
+        if (error) {
+          throw new Error(formatApiError(error, 'Failed to update product'))
+        }
+      })
+    },
+    onSettled: invalidate,
+  })
+
+  const bulkDeleteProducts = useMutation({
+    mutationFn: async (uuids: string[]) => {
+      return runBatch(uuids, async (uuid) => {
+        const { error } = await api.DELETE('/api/v1/admin/products/{uuid}', {
+          params: { path: { uuid } },
+        })
+        if (error) {
+          throw new Error(formatApiError(error, 'Failed to delete product'))
+        }
+      })
+    },
+    onSettled: invalidate,
+  })
+
   return {
     createProduct,
     updateProduct,
     deleteProduct,
     restoreProduct,
+    bulkUpdateProductStatus,
+    bulkDeleteProducts,
   }
 }
 
