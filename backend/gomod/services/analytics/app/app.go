@@ -162,6 +162,7 @@ func New(cfg *config.Config) (*App, error) {
 		customerCounter,
 		catalogClient,
 		inventoryClient,
+		cacheRedisService,
 	)
 
 	eventRepo := analyticsrepo.NewSqlEventRepository(db.DBPool)
