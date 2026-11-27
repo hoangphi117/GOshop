@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	analyticsdto "goshop/services/analytics/internal/dto"
 	"goshop/services/analytics/internal/db/sqlc"
+	analyticsdto "goshop/services/analytics/internal/dto"
 	"goshop/services/analytics/internal/repository"
 	catalogcontract "goshop/services/catalog/contract"
 	inventorycontract "goshop/services/inventory/contract"

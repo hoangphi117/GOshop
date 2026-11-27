@@ -22,10 +22,10 @@ import (
 
 type mockPaymentService struct {
 	paymentservice.PaymentService
-	createIntentFn func(ctx context.Context, in paymentdto.CreatePaymentIntentInput) (paymentdto.PaymentIntentDTO, error)
-	getTxnsFn      func(ctx context.Context, u uuid.UUID) ([]paymentdto.PaymentTransactionDTO, error)
+	createIntentFn  func(ctx context.Context, in paymentdto.CreatePaymentIntentInput) (paymentdto.PaymentIntentDTO, error)
+	getTxnsFn       func(ctx context.Context, u uuid.UUID) ([]paymentdto.PaymentTransactionDTO, error)
 	handleWebhookFn func(ctx context.Context, provider string, body []byte, headers map[string]string) (paymentservice.WebhookOutcome, error)
-	refundFn       func(ctx context.Context, in paymentdto.RefundPaymentInput) (paymentdto.PaymentTransactionDTO, error)
+	refundFn        func(ctx context.Context, in paymentdto.RefundPaymentInput) (paymentdto.PaymentTransactionDTO, error)
 }
 
 func (m *mockPaymentService) CreatePaymentIntent(ctx context.Context, in paymentdto.CreatePaymentIntentInput) (paymentdto.PaymentIntentDTO, error) {

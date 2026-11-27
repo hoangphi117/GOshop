@@ -23,16 +23,16 @@ func sampleProductReview(reviewID int32, reviewUUID uuid.UUID, userID, productID
 	title := "Awesome"
 	comment := "Great quality product!"
 	return reviewsqlc.ProductReview{
-		ReviewID:         reviewID,
-		ReviewUuid:       reviewUUID,
-		ReviewUserID:     userID,
-		ReviewProductID:  productID,
-		ReviewRating:     5,
-		ReviewTitle:      &title,
-		ReviewComment:    &comment,
-		ReviewStatus:     reviewsvc.ReviewStatusVisible,
-		ReviewCreatedAt:  now,
-		ReviewUpdatedAt:  now,
+		ReviewID:        reviewID,
+		ReviewUuid:      reviewUUID,
+		ReviewUserID:    userID,
+		ReviewProductID: productID,
+		ReviewRating:    5,
+		ReviewTitle:     &title,
+		ReviewComment:   &comment,
+		ReviewStatus:    reviewsvc.ReviewStatusVisible,
+		ReviewCreatedAt: now,
+		ReviewUpdatedAt: now,
 	}
 }
 

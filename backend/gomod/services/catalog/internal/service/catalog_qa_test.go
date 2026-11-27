@@ -364,8 +364,8 @@ func TestImportProductsCSV_ValidAndInvalidRows(t *testing.T) {
 			"Gaming Mouse,49.99,1,GM-01,10,,,",
 			",49.99,1,,,Black,GM-01-BLK,Color:Black",
 			",20.00,1,BAD-1,5,,,",          // missing name -> row error
-			"Bad Price,-5,1,BAD-2,5,,,",     // negative price -> row error
-			"Bad Cat,10.00,abc,BAD-3,5,,,",  // non-numeric category_id -> row error
+			"Bad Price,-5,1,BAD-2,5,,,",    // negative price -> row error
+			"Bad Cat,10.00,abc,BAD-3,5,,,", // non-numeric category_id -> row error
 		}, "\n")
 
 		res, err := svc.ImportProductsCSV(context.Background(), strings.NewReader(csvData))
