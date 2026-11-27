@@ -320,7 +320,8 @@ FROM generate_series(
 ) AS gs(day)
 LEFT JOIN analytics_orders_projection o
     ON o.order_payment_status IN (2, 3)
-   AND date_trunc('day', COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at)) = gs.day
+   AND COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at) >= gs.day
+   AND COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at) < gs.day + INTERVAL '1 day'
 GROUP BY gs.day
 ORDER BY gs.day ASC
 `
@@ -363,7 +364,8 @@ FROM generate_series(
 ) AS gs(day)
 LEFT JOIN analytics_orders_projection o
     ON o.order_payment_status IN (2, 3)
-   AND date_trunc('day', COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at)) = gs.day
+   AND COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at) >= gs.day
+   AND COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at) < gs.day + INTERVAL '1 day'
 GROUP BY gs.day
 ORDER BY gs.day ASC
 `
@@ -411,7 +413,8 @@ FROM generate_series(
 ) AS gs(month)
 LEFT JOIN analytics_orders_projection o
     ON o.order_payment_status IN (2, 3)
-   AND date_trunc('month', COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at)) = gs.month
+   AND COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at) >= gs.month
+   AND COALESCE(o.order_delivered_at, o.order_updated_at, o.order_created_at) < gs.month + INTERVAL '1 month'
 GROUP BY gs.month
 ORDER BY gs.month ASC
 `

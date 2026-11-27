@@ -8,7 +8,7 @@ import (
 )
 
 type UserService interface {
-	GetAllUsers(ctx context.Context, search, orderBy, sort string, page, limit int32, deleted bool) ([]dto.UserDTO, int32, error)
+	GetAllUsers(ctx context.Context, search, orderBy, sort string, page, limit int32, level, status *int32, deleted bool) ([]dto.UserDTO, int32, error)
 	CreateUsers(ctx context.Context, input dto.CreateUserInput) (*dto.UserDTO, error)
 	GetUserByUUID(ctx context.Context, uuid uuid.UUID) (*dto.UserDTO, error)
 	UpdateUser(ctx context.Context, uuid uuid.UUID, input dto.UpdateUserInput) (*dto.UserDTO, error)

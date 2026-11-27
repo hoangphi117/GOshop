@@ -613,6 +613,25 @@ func (s *catalogService) CreateProduct(ctx context.Context, input dto.CreateProd
 		_ = s.repo.UpdateProductSpecifications(ctx, created.ProductUuid, input.Specifications)
 	}
 
+	for idx, v := range input.Variants {
+		if strings.TrimSpace(v.SKU) == "" {
+			continue
+		}
+		if v.Position == 0 {
+			v.Position = int32(idx)
+		}
+		if v.Status == 0 {
+			v.Status = 1
+		}
+		if v.Price <= 0 {
+			v.Price = input.Price
+		}
+		if v.Title == "" {
+			v.Title = fmt.Sprintf("Variant %d", idx+1)
+		}
+		_, _ = s.CreateVariant(ctx, created.ProductUuid, v)
+	}
+
 	res := dto.MapCreateProductRowToDTO(created)
 	res.Specifications = input.Specifications
 	// Stock was written above; skip the extra inventory round-trip.
@@ -1388,6 +1407,42 @@ func (s *catalogService) TrashProduct(ctx context.Context, u uuid.UUID) error {
 	return nil
 }
 
+func parseCSVAttributes(raw string) map[string]string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	var m map[string]string
+	if strings.HasPrefix(raw, "{") && strings.HasSuffix(raw, "}") {
+		if err := json.Unmarshal([]byte(raw), &m); err == nil && len(m) > 0 {
+			return m
+		}
+	}
+	m = make(map[string]string)
+	pairs := strings.FieldsFunc(raw, func(r rune) bool {
+		return r == ';' || r == '|'
+	})
+	if len(pairs) == 1 && !strings.ContainsAny(raw, ";|") && strings.Contains(raw, ",") {
+		pairs = strings.Split(raw, ",")
+	}
+	for _, p := range pairs {
+		parts := strings.FieldsFunc(p, func(r rune) bool {
+			return r == ':' || r == '='
+		})
+		if len(parts) == 2 {
+			k := strings.TrimSpace(parts[0])
+			v := strings.TrimSpace(parts[1])
+			if k != "" && v != "" {
+				m[k] = v
+			}
+		}
+	}
+	if len(m) == 0 {
+		return nil
+	}
+	return m
+}
+
 func (s *catalogService) ImportProductsCSV(ctx context.Context, file io.Reader) (*dto.ProductCSVImportResponse, error) {
 	rawBytes, err := io.ReadAll(file)
 	if err != nil {
@@ -1420,14 +1475,31 @@ func (s *catalogService) ImportProductsCSV(ctx context.Context, file io.Reader) 
 		return nil, utils.NewError(utils.ErrCodeBadRequest, "Empty or invalid CSV file")
 	}
 
+	headerMap := make(map[string]int)
+	for i, h := range headers {
+		headerMap[strings.ToLower(strings.TrimSpace(h))] = i
+	}
+
+	getCol := func(record []string, colName string) string {
+		if idx, ok := headerMap[colName]; ok && idx < len(record) {
+			return strings.TrimSpace(record[idx])
+		}
+		return ""
+	}
+
 	expected := []string{"name", "price", "description", "imageUrl", "category_id", "stock", "sku"}
-	if len(headers) < len(expected) {
+	if len(headers) < len(expected) && len(headerMap) < 3 {
 		return nil, utils.NewError(utils.ErrCodeBadRequest, "Missing columns in CSV header")
 	}
 
 	successCount := 0
 	var csvErrors []dto.CSVRowError
 	lineNum := 1
+
+	var currentProductUUID *uuid.UUID
+	var currentProductName string
+	var currentProductPrice float64
+	var currentProductImg string
 
 	for {
 		record, err := reader.Read()
@@ -1444,7 +1516,7 @@ func (s *catalogService) ImportProductsCSV(ctx context.Context, file io.Reader) 
 			continue
 		}
 
-		if len(record) < len(expected) {
+		if len(record) < len(expected) && len(record) < 3 {
 			csvErrors = append(csvErrors, dto.CSVRowError{
 				Row:    lineNum,
 				Field:  "columns",
@@ -1453,13 +1525,78 @@ func (s *catalogService) ImportProductsCSV(ctx context.Context, file io.Reader) 
 			continue
 		}
 
-		name := strings.TrimSpace(record[0])
-		priceStr := strings.TrimSpace(record[1])
-		desc := strings.TrimSpace(record[2])
-		img := strings.TrimSpace(record[3])
-		catIDStr := strings.TrimSpace(record[4])
-		stockStr := strings.TrimSpace(record[5])
-		skuStr := strings.TrimSpace(record[6])
+		var name, priceStr, desc, img, catIDStr, stockStr, skuStr string
+		if _, ok := headerMap["name"]; ok {
+			name = getCol(record, "name")
+			priceStr = getCol(record, "price")
+			desc = getCol(record, "description")
+			img = getCol(record, "imageurl")
+			if img == "" {
+				img = getCol(record, "image_url")
+			}
+			catIDStr = getCol(record, "category_id")
+			stockStr = getCol(record, "stock")
+			skuStr = getCol(record, "sku")
+		} else if len(record) >= 7 {
+			name = strings.TrimSpace(record[0])
+			priceStr = strings.TrimSpace(record[1])
+			desc = strings.TrimSpace(record[2])
+			img = strings.TrimSpace(record[3])
+			catIDStr = strings.TrimSpace(record[4])
+			stockStr = strings.TrimSpace(record[5])
+			skuStr = strings.TrimSpace(record[6])
+		}
+
+		vTitle := getCol(record, "variant_title")
+		if vTitle == "" {
+			vTitle = getCol(record, "variant_name")
+		}
+		vSKU := getCol(record, "variant_sku")
+		vPriceStr := getCol(record, "variant_price")
+		vAttrsStr := getCol(record, "variant_attributes")
+		vImg := getCol(record, "variant_image")
+		if vImg == "" {
+			vImg = getCol(record, "variant_image_url")
+		}
+
+		// Child variant row under previous product (name is empty or matches current product)
+		isChildVariantRow := (name == "" || (currentProductName != "" && strings.EqualFold(name, currentProductName))) &&
+			(vSKU != "" || vTitle != "") && currentProductUUID != nil
+
+		if isChildVariantRow {
+			vPrice := currentProductPrice
+			if vPriceStr != "" {
+				if parsedPrice, err := strconv.ParseFloat(vPriceStr, 64); err == nil && parsedPrice > 0 {
+					vPrice = parsedPrice
+				}
+			}
+			if vTitle == "" {
+				vTitle = vSKU
+			}
+			if vSKU == "" {
+				vSKU = fmt.Sprintf("%s-%s", currentProductName, vTitle)
+			}
+			var vImgPtr *string
+			if vImg != "" {
+				vImgPtr = &vImg
+			} else if currentProductImg != "" {
+				vImgPtr = &currentProductImg
+			}
+			attrs := parseCSVAttributes(vAttrsStr)
+
+			_, vErr := s.CreateVariant(ctx, *currentProductUUID, dto.CreateVariantInput{
+				SKU:        strings.ToUpper(vSKU),
+				Title:      vTitle,
+				Price:      vPrice,
+				ImageURL:   vImgPtr,
+				Attributes: attrs,
+				Status:     1,
+			})
+			if vErr != nil {
+				csvErrors = append(csvErrors, dto.CSVRowError{Row: lineNum, Field: "variant", Reason: vErr.Error()})
+			}
+			continue
+		}
 
 		if name == "" {
 			csvErrors = append(csvErrors, dto.CSVRowError{Row: lineNum, Field: "name", Reason: "Name cannot be empty"})
@@ -1516,6 +1653,11 @@ func (s *catalogService) ImportProductsCSV(ctx context.Context, file io.Reader) 
 			continue
 		}
 
+		currentProductUUID = &created.ProductUuid
+		currentProductName = name
+		currentProductPrice = price
+		currentProductImg = img
+
 		if prodRow, err := s.repo.GetProductByUUID(ctx, created.ProductUuid); err == nil {
 			doc := mapProductRowToSearchDoc(s.cleanRow(prodRow))
 			if _, err := s.repo.InsertOutboxEvent(ctx, "product", created.ProductUuid.String(), "PRODUCT_UPSERT", doc); err != nil {
@@ -1541,6 +1683,39 @@ func (s *catalogService) ImportProductsCSV(ctx context.Context, file io.Reader) 
 			csvErrors = append(csvErrors, dto.CSVRowError{Row: lineNum, Field: "stock", Reason: "stock initialization queued for retry: " + err.Error()})
 			continue
 		}
+
+		// If this parent product row also defines an inline first variant
+		if vSKU != "" || vTitle != "" {
+			vPrice := price
+			if vPriceStr != "" {
+				if parsedPrice, err := strconv.ParseFloat(vPriceStr, 64); err == nil && parsedPrice > 0 {
+					vPrice = parsedPrice
+				}
+			}
+			if vTitle == "" {
+				vTitle = vSKU
+			}
+			if vSKU == "" {
+				vSKU = fmt.Sprintf("%s-%s", name, vTitle)
+			}
+			var vImgPtr *string
+			if vImg != "" {
+				vImgPtr = &vImg
+			} else if img != "" {
+				vImgPtr = &img
+			}
+			attrs := parseCSVAttributes(vAttrsStr)
+
+			_, _ = s.CreateVariant(ctx, created.ProductUuid, dto.CreateVariantInput{
+				SKU:        strings.ToUpper(vSKU),
+				Title:      vTitle,
+				Price:      vPrice,
+				ImageURL:   vImgPtr,
+				Attributes: attrs,
+				Status:     1,
+			})
+		}
+
 		successCount++
 	}
 

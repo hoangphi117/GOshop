@@ -18,6 +18,8 @@ export function Users() {
     page: search.page,
     limit: search.pageSize,
     search: search.username || undefined,
+    role: search.role?.[0] || undefined,
+    status: search.status?.[0] || undefined,
   })
 
   const rawUsers = (apiData?.data as Array<{
@@ -49,11 +51,13 @@ export function Users() {
         : ('inactive' as const)
     const levelLower = u.level?.toLowerCase()
     const role =
-      levelLower === 'admin'
-        ? ('admin' as const)
-        : levelLower === 'superadmin'
+      levelLower === 'superadmin'
         ? ('superadmin' as const)
-        : ('cashier' as const)
+        : levelLower === 'admin' || u.level === '1'
+        ? ('admin' as const)
+        : levelLower === 'manager' || levelLower === 'staff' || levelLower === 'mod' || u.level === '2'
+        ? ('manager' as const)
+        : ('customer' as const)
 
     return {
       id: u.uuid || '',

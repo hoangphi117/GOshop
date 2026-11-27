@@ -2,6 +2,7 @@ package dto
 
 import (
 	"os"
+	"strings"
 
 	"goshop/services/identity/internal/db/sqlc"
 	"goshop/shared/pkg/utils"
@@ -74,6 +75,45 @@ type GetUserParam struct {
 	Limit   int32  `form:"limit" binding:"omitempty,gte=1,lte=500"`
 	OrderBy string `form:"order_by" binding:"omitempty,oneof=user_id user_created_at"`
 	Sort    string `form:"sort" binding:"omitempty,oneof=asc desc"`
+	Level   string `form:"level" binding:"omitempty"`
+	Status  string `form:"status" binding:"omitempty"`
+	Role    string `form:"role" binding:"omitempty"`
+}
+
+func (p *GetUserParam) ParsedLevel() *int32 {
+	s := strings.ToLower(strings.TrimSpace(p.Role))
+	if s == "" {
+		s = strings.ToLower(strings.TrimSpace(p.Level))
+	}
+	switch s {
+	case "1", "superadmin", "admin":
+		v := int32(1)
+		return &v
+	case "2", "manager", "staff", "mod", "moderator":
+		v := int32(2)
+		return &v
+	case "3", "customer", "user", "member":
+		v := int32(3)
+		return &v
+	default:
+		return nil
+	}
+}
+
+func (p *GetUserParam) ParsedStatus() *int32 {
+	switch strings.ToLower(strings.TrimSpace(p.Status)) {
+	case "1", "active", "show":
+		v := int32(1)
+		return &v
+	case "2", "inactive", "hide":
+		v := int32(2)
+		return &v
+	case "3", "suspended", "banned":
+		v := int32(3)
+		return &v
+	default:
+		return nil
+	}
 }
 
 func (input *CreateUserInput) MapCreateInputToModel() sqlc.CreateUserParams {

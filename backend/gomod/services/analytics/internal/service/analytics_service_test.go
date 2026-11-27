@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"strconv"
 	"testing"
 	"time"
@@ -9,6 +11,7 @@ import (
 	analyticsdto "goshop/services/analytics/internal/dto"
 	catalogcontract "goshop/services/catalog/contract"
 	inventorycontract "goshop/services/inventory/contract"
+	"goshop/shared/pkg/cache"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -95,5 +98,61 @@ func TestGetLowStockProducts_EnrichesFromCatalog(t *testing.T) {
 	}
 	if res.Items[0].AlertLevel != "critical" || res.Items[0].Name != "Mug" {
 		t.Fatalf("unexpected item %+v", res.Items[0])
+	}
+}
+
+type stubCache struct {
+	cache.RedisCacheService
+	store map[string][]byte
+	gets  int
+	sets  int
+}
+
+func (c *stubCache) Get(key string, dest any) error {
+	c.gets++
+	b, ok := c.store[key]
+	if !ok {
+		return errors.New("cache miss")
+	}
+	return json.Unmarshal(b, dest)
+}
+
+func (c *stubCache) Set(key string, value any, _ time.Duration) error {
+	c.sets++
+	b, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	c.store[key] = b
+	return nil
+}
+
+func TestGetOverview_UsesQueryHashCache(t *testing.T) {
+	mc := &stubCache{store: make(map[string][]byte)}
+	svc := &analyticsService{
+		repo:  overviewRepo{revenue: 200, prevRevenue: 100, orders: 10, prevOrders: 5},
+		cache: mc,
+	}
+
+	q := analyticsdto.OverviewStatsQuery{Days: 30}
+	res1, err := svc.GetOverview(context.Background(), q)
+	if err != nil {
+		t.Fatalf("first GetOverview: %v", err)
+	}
+	if mc.gets != 1 || mc.sets != 1 {
+		t.Fatalf("expected 1 get and 1 set on miss, got gets=%d sets=%d", mc.gets, mc.sets)
+	}
+
+	// Second call with same query hits cache (even if repo were swapped out)
+	svc.repo = nil
+	res2, err := svc.GetOverview(context.Background(), q)
+	if err != nil {
+		t.Fatalf("second GetOverview: %v", err)
+	}
+	if mc.gets != 2 || mc.sets != 1 {
+		t.Fatalf("expected 2 gets and 1 set on hit, got gets=%d sets=%d", mc.gets, mc.sets)
+	}
+	if res2.TotalRevenue != res1.TotalRevenue || res2.TotalOrders != res1.TotalOrders {
+		t.Fatalf("cached result mismatch: %+v vs %+v", res2, res1)
 	}
 }
