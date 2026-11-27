@@ -11,7 +11,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"goshop/contracts/events"
 	"goshop/services/inventory/internal/db/sqlc"
@@ -31,13 +30,18 @@ type InventoryService interface {
 	ListStockMovements(ctx context.Context, params dto.GetStockMovementsParam) ([]dto.StockMovementDTO, int64, error)
 }
 
+// TxBeginner abstracts pgxpool.Pool.Begin so unit tests can run without a live DB.
+type TxBeginner interface {
+	Begin(ctx context.Context) (pgx.Tx, error)
+}
+
 type inventoryService struct {
 	repo   repository.InventoryRepository
-	dbPool *pgxpool.Pool
+	dbPool TxBeginner
 	broker messaging.Broker
 }
 
-func NewInventoryService(repo repository.InventoryRepository, dbPool *pgxpool.Pool, rmq ...messaging.Broker) InventoryService {
+func NewInventoryService(repo repository.InventoryRepository, dbPool TxBeginner, rmq ...messaging.Broker) InventoryService {
 	var r messaging.Broker
 	if len(rmq) > 0 {
 		r = rmq[0]
