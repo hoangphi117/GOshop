@@ -24,6 +24,12 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  CatalogBulkBar,
+  notifyBatchResult,
+  useRowSelection,
+} from '@/components/catalog-bulk-bar'
 import { useCategories } from '@/features/categories/hooks/use-categories'
 import { useProducts, useProductMutations, useProductSuggestions } from './hooks/use-products'
 import { ProductDialog } from './components/product-dialog'
@@ -42,6 +48,7 @@ export function Products() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [importDialogOpen, setImportDialogOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false)
   const [productToDelete, setProductToDelete] = useState<Product | null>(null)
 
   // Debounce search term to trigger Meilisearch search on the main table
@@ -79,10 +86,14 @@ export function Products() {
     category_uuid: selectedCategoryUuid === 'all' ? undefined : selectedCategoryUuid,
   })
 
-  const { deleteProduct } = useProductMutations()
+  const { deleteProduct, bulkUpdateProductStatus, bulkDeleteProducts } = useProductMutations()
 
   const products = (productsData?.data as Product[]) || []
   const pagination = productsData?.pagination
+
+  const selection = useRowSelection(products)
+  const isBulkPending =
+    bulkUpdateProductStatus.isPending || bulkDeleteProducts.isPending
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -118,6 +129,25 @@ export function Products() {
       const msg = err instanceof Error ? err.message : 'Failed to delete product'
       toast.error(msg)
     }
+  }
+
+  const handleBulkStatus = async (status: 1 | 2) => {
+    const res = await bulkUpdateProductStatus.mutateAsync({
+      products: selection.selectedItems,
+      status,
+    })
+    notifyBatchResult(status === 1 ? 'Activated' : 'Deactivated', res)
+    selection.clear()
+  }
+
+  const handleConfirmBulkDelete = async () => {
+    const uuids = selection.selectedItems
+      .map((p) => p.uuid)
+      .filter((id): id is string => Boolean(id))
+    const res = await bulkDeleteProducts.mutateAsync(uuids)
+    notifyBatchResult('Deleted', res)
+    setBulkDeleteConfirmOpen(false)
+    selection.clear()
   }
 
   const formatPrice = (price?: number) => {
@@ -317,11 +347,37 @@ export function Products() {
           )}
         </div>
 
+        {/* Bulk Action Bar */}
+        <CatalogBulkBar
+          selectedCount={selection.selectedCount}
+          entityLabel='product(s)'
+          isPending={isBulkPending}
+          onActivate={() => handleBulkStatus(1)}
+          onDeactivate={() => handleBulkStatus(2)}
+          onDelete={() => setBulkDeleteConfirmOpen(true)}
+          onClear={selection.clear}
+        />
+
         {/* Products Table */}
         <div className='rounded-md border bg-card'>
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className='w-10'>
+                  <Checkbox
+                    checked={
+                      selection.allSelected
+                        ? true
+                        : selection.someSelected
+                          ? 'indeterminate'
+                          : false
+                    }
+                    onCheckedChange={(checked) =>
+                      selection.toggleAll(checked === true)
+                    }
+                    aria-label='Select all products'
+                  />
+                </TableHead>
                 <TableHead className='w-[80px]'>Image</TableHead>
                 <TableHead>Product Name</TableHead>
                 <TableHead>Category</TableHead>
@@ -335,19 +391,28 @@ export function Products() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className='h-32 text-center text-muted-foreground'>
+                  <TableCell colSpan={9} className='h-32 text-center text-muted-foreground'>
                     Loading products...
                   </TableCell>
                 </TableRow>
               ) : products.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className='h-32 text-center text-muted-foreground'>
+                  <TableCell colSpan={9} className='h-32 text-center text-muted-foreground'>
                     No products found.
                   </TableCell>
                 </TableRow>
               ) : (
                 products.map((p) => (
                   <TableRow key={p.uuid}>
+                    <TableCell>
+                      <Checkbox
+                        checked={Boolean(p.uuid && selection.selectedIds.has(p.uuid))}
+                        onCheckedChange={(checked) => {
+                          if (p.uuid) selection.toggleOne(p.uuid, checked === true)
+                        }}
+                        aria-label={`Select ${p.name}`}
+                      />
+                    </TableCell>
                     <TableCell>
                       <Link
                         to='/products/$uuid'
@@ -505,6 +570,17 @@ export function Products() {
         destructive
         isLoading={deleteProduct.isPending}
         handleConfirm={handleConfirmDelete}
+      />
+
+      <ConfirmDialog
+        open={bulkDeleteConfirmOpen}
+        onOpenChange={setBulkDeleteConfirmOpen}
+        title='Delete Selected Products'
+        desc={`Are you sure you want to delete ${selection.selectedCount} selected product(s)?`}
+        confirmText='Delete All'
+        destructive
+        isLoading={bulkDeleteProducts.isPending}
+        handleConfirm={handleConfirmBulkDelete}
       />
 
       <CSVImportDialog

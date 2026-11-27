@@ -67,7 +67,7 @@ func (ur *SqlUserRepository) GetAll(ctx context.Context, search, orderBy, sort s
 	return users, nil
 }
 
-func (ur *SqlUserRepository) GetAllV2(ctx context.Context, search, orderBy, sort string, limit, offset int32, deleted bool) ([]sqlc.User, error) {
+func (ur *SqlUserRepository) GetAllV2(ctx context.Context, search, orderBy, sort string, limit, offset int32, level, status *int32, deleted bool) ([]sqlc.User, error) {
 	query := `SELECT user_id, user_uuid, user_fullname, user_email, user_password, user_age, user_status, user_level, user_deleted_at, user_created_at, user_updated_at, user_avatar
 			FROM users
 			WHERE (
@@ -77,10 +77,25 @@ func (ur *SqlUserRepository) GetAllV2(ctx context.Context, search, orderBy, sort
 				OR unaccent(user_fullname) ILIKE '%' || unaccent($1) || '%'
 			)`
 
+	args := []any{search}
+	argIdx := 2
+
 	if deleted {
 		query += " AND user_deleted_at IS NOT NULL"
 	} else {
 		query += " AND user_deleted_at IS NULL"
+	}
+
+	if level != nil {
+		query += fmt.Sprintf(" AND user_level = $%d", argIdx)
+		args = append(args, *level)
+		argIdx++
+	}
+
+	if status != nil {
+		query += fmt.Sprintf(" AND user_status = $%d", argIdx)
+		args = append(args, *status)
+		argIdx++
 	}
 
 	order := "ASC"
@@ -95,14 +110,15 @@ func (ur *SqlUserRepository) GetAllV2(ctx context.Context, search, orderBy, sort
 		query += " ORDER BY user_id ASC"
 	}
 
-	query += " LIMIT $2 OFFSET $3"
+	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argIdx, argIdx+1)
+	args = append(args, limit, offset)
 
 	pool := ur.pool
 	if pool == nil {
 		return nil, fmt.Errorf("database pool is not initialized")
 	}
 
-	rows, err := pool.Query(ctx, query, search, limit, offset)
+	rows, err := pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -136,11 +152,42 @@ func (ur *SqlUserRepository) GetAllV2(ctx context.Context, search, orderBy, sort
 	return users, nil
 }
 
-func (ur *SqlUserRepository) CountUsers(ctx context.Context, search string, deleted bool) (int64, error) {
-	total, err := ur.db.CountUsers(ctx, sqlc.CountUsersParams{
-		Search:  &search,
-		Deleted: &deleted,
-	})
+func (ur *SqlUserRepository) CountUsers(ctx context.Context, search string, level, status *int32, deleted bool) (int64, error) {
+	query := `SELECT count(*) FROM users
+			WHERE (
+				$1::TEXT IS NULL
+				OR $1::TEXT = ''
+				OR unaccent(user_email) ILIKE '%' || unaccent($1) || '%'
+				OR unaccent(user_fullname) ILIKE '%' || unaccent($1) || '%'
+			)`
+
+	args := []any{search}
+	argIdx := 2
+
+	if deleted {
+		query += " AND user_deleted_at IS NOT NULL"
+	} else {
+		query += " AND user_deleted_at IS NULL"
+	}
+
+	if level != nil {
+		query += fmt.Sprintf(" AND user_level = $%d", argIdx)
+		args = append(args, *level)
+		argIdx++
+	}
+
+	if status != nil {
+		query += fmt.Sprintf(" AND user_status = $%d", argIdx)
+		args = append(args, *status)
+	}
+
+	pool := ur.pool
+	if pool == nil {
+		return 0, fmt.Errorf("database pool is not initialized")
+	}
+
+	var total int64
+	err := pool.QueryRow(ctx, query, args...).Scan(&total)
 	if err != nil {
 		return 0, err
 	}

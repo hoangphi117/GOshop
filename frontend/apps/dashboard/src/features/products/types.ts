@@ -77,6 +77,7 @@ export interface ProductFormData {
   description?: string
   specifications?: Record<string, string>
   status: 1 | 2
+  variants?: CreateVariantInput[]
 }
 
 export interface CSVRowError {

@@ -7,6 +7,8 @@ export interface AdminUserQueryParams {
   search?: string
   sort?: 'asc' | 'desc'
   order_by?: 'user_id' | 'user_created_at'
+  role?: string
+  status?: string
 }
 
 export function useAdminUsers(params: AdminUserQueryParams = {}) {
@@ -21,6 +23,8 @@ export function useAdminUsers(params: AdminUserQueryParams = {}) {
             search: params.search || undefined,
             sort: params.sort,
             order_by: params.order_by,
+            role: params.role,
+            status: params.status,
           },
         },
       })

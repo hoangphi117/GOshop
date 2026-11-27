@@ -46,7 +46,7 @@ func (uh *UserHandler) GetAllUsers(ctx *gin.Context) {
 		return
 	}
 
-	listUserDTO, total, err := uh.service.GetAllUsers(ctx.Request.Context(), params.Search, params.OrderBy, params.Sort, params.Page, params.Limit, false)
+	listUserDTO, total, err := uh.service.GetAllUsers(ctx.Request.Context(), params.Search, params.OrderBy, params.Sort, params.Page, params.Limit, params.ParsedLevel(), params.ParsedStatus(), false)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return
@@ -417,7 +417,7 @@ func (uh *UserHandler) GetSoftDeletedUsers(ctx *gin.Context) {
 		return
 	}
 
-	listUserDTO, total, err := uh.service.GetAllUsers(ctx.Request.Context(), params.Search, params.OrderBy, params.Sort, params.Page, params.Limit, true)
+	listUserDTO, total, err := uh.service.GetAllUsers(ctx.Request.Context(), params.Search, params.OrderBy, params.Sort, params.Page, params.Limit, params.ParsedLevel(), params.ParsedStatus(), true)
 	if err != nil {
 		utils.ResponseError(ctx, err)
 		return

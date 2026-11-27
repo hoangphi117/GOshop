@@ -66,10 +66,14 @@ export function CSVImportDialog({ open, onOpenChange }: CSVImportDialogProps) {
   const handleDownloadTemplate = () => {
     const firstCatId = categories[0]?.category_id ?? 1
     const secondCatId = categories[1]?.category_id ?? firstCatId
-    const header = 'name,price,description,imageUrl,category_id,stock,sku\n'
-    const sampleRow1 = `"Sample T-Shirt, 100% Cotton",19.99,"Soft, breathable casual tee",https://images.unsplash.com/photo-1521572267360-ee0c2909d518,${firstCatId},50,TSHIRT-001\n`
-    const sampleRow2 = `"Wireless Gaming Mouse",49.50,"Ergonomic wireless mouse with RGB",https://images.unsplash.com/photo-1527864550417-7fd91fc51a46,${secondCatId},25,MOUSE-002\n`
-    const csvContent = header + sampleRow1 + sampleRow2
+    const header = 'name,price,description,imageUrl,category_id,stock,sku,variant_title,variant_sku,variant_price,variant_attributes\n'
+    // Sample 1: Product with 2 variants (Shopify-style multi-row parent/child)
+    const p1Row1 = `"Cotton Crewneck Tee",24.99,"Premium organic cotton t-shirt",https://images.unsplash.com/photo-1521572267360-ee0c2909d518,${firstCatId},100,TEE-BASE,"Black / M",TEE-BLK-M,24.99,"Color:Black;Size:M"\n`
+    const p1Row2 = `,,,,,,,"Black / L",TEE-BLK-L,24.99,"Color:Black;Size:L"\n`
+    const p1Row3 = `,,,,,,,"White / M",TEE-WHT-M,24.99,"Color:White;Size:M"\n`
+    // Sample 2: Single product without variants
+    const p2Row = `"Wireless Gaming Mouse",49.50,"Ergonomic wireless mouse with RGB",https://images.unsplash.com/photo-1527864550417-7fd91fc51a46,${secondCatId},25,MOUSE-002,,,,\n`
+    const csvContent = header + p1Row1 + p1Row2 + p1Row3 + p2Row
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -129,11 +133,19 @@ export function CSVImportDialog({ open, onOpenChange }: CSVImportDialogProps) {
         <div className='space-y-4 py-2'>
           {/* Action Row: Download Template & Category Reference */}
           <div className='flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 p-3'>
-            <div className='space-y-0.5 text-xs text-muted-foreground'>
-              <p className='font-semibold text-foreground'>Required Headers:</p>
-              <code className='rounded bg-muted px-1 py-0.5 text-[11px] font-mono'>
-                name,price,description,imageUrl,category_id,stock,sku
+            <div className='space-y-1 text-xs text-muted-foreground'>
+              <p className='font-semibold text-foreground flex items-center gap-1.5'>
+                Headers & Variant Support:
+                <Badge variant='outline' className='text-[10px] px-1 py-0 text-primary border-primary/30'>
+                  Variants Enabled
+                </Badge>
+              </p>
+              <code className='block rounded bg-muted px-1.5 py-1 text-[11px] font-mono break-all'>
+                name,price,description,imageUrl,category_id,stock,sku,variant_title,variant_sku,variant_price,variant_attributes
               </code>
+              <p className='text-[11px] text-muted-foreground'>
+                Supports multi-variant products (Shopify-style multi-row) & single products.
+              </p>
             </div>
             <div className='flex items-center gap-2'>
               <Button
